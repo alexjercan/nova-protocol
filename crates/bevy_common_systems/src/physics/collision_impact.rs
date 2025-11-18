@@ -58,9 +58,14 @@ fn insert_collision_events(add: On<Add, CollisionImpactMarker>, mut commands: Co
 fn on_collision_event(
     collision: On<CollisionStart>,
     mut commands: Commands,
+    q_body: Query<&LinearVelocity, (With<RigidBody>, With<CollisionImpactMarker>)>,
     q_velocity: Query<&LinearVelocity, With<RigidBody>>,
 ) {
-    trace!("on_collision_event: collision {:?}", collision);
+    trace!(
+        "on_collision_event: collision between {:?} and {:?}",
+        collision.body1,
+        collision.body2
+    );
 
     let Some(body) = collision.body1 else {
         return;
@@ -69,7 +74,7 @@ fn on_collision_event(
         return;
     };
 
-    let Ok(velocity1) = q_velocity.get(body) else {
+    let Ok(velocity1) = q_body.get(body) else {
         return;
     };
     let Ok(velocity2) = q_velocity.get(other) else {
@@ -77,6 +82,9 @@ fn on_collision_event(
     };
 
     let relative_velocity = **velocity1 - **velocity2;
+    if relative_velocity.length_squared() < 0.1 {
+        return;
+    }
 
     commands.trigger(CollisionImpactEvent {
         entity: body,

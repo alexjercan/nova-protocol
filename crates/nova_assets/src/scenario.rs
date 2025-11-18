@@ -182,6 +182,7 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
     });
 
     let events = vec![
+        // OnStart: Create the scenario objects
         ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
@@ -190,6 +191,19 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
                 .map(EventActionConfig::SpawnScenarioObject)
                 .collect::<_>(),
         },
+        // OnStart: Create the safe zone
+        ScenarioEventConfig {
+            name: EventConfig::OnStart,
+            filters: vec![],
+            actions: vec![EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
+                id: "asteroid_zone".to_string(),
+                name: "Asteroid Zone".to_string(),
+                position: Vec3::new(0.0, 0.0, -100.0),
+                rotation: Quat::IDENTITY,
+                radius: 10.0,
+            })],
+        },
+        // OnStart: Create the destroy asteroids objective
         ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
@@ -198,31 +212,34 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
                 "Objective: Destroy 5 asteroids!",
             ))],
         },
+        // OnStart: Initialize variables
+        // asteroids_destroyed = 0
+        // objective_destroy_asteroids = false
         ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],
-            actions: vec![EventActionConfig::VariableSet(VariableSetActionConfig {
-                key: "asteroids_destroyed".to_string(),
-                expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
-                    VariableFactorNode::new_literal(VariableLiteral::Number(0.0)),
-                )),
-            })],
+            actions: vec![
+                EventActionConfig::VariableSet(VariableSetActionConfig {
+                    key: "asteroids_destroyed".to_string(),
+                    expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(VariableLiteral::Number(0.0)),
+                    )),
+                }),
+                EventActionConfig::VariableSet(VariableSetActionConfig {
+                    key: "objective_destroy_asteroids".to_string(),
+                    expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(VariableLiteral::Boolean(false)),
+                    )),
+                }),
+            ],
         },
-        ScenarioEventConfig {
-            name: EventConfig::OnStart,
-            filters: vec![],
-            actions: vec![EventActionConfig::VariableSet(VariableSetActionConfig {
-                key: "objective_destroy_asteroids".to_string(),
-                expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
-                    VariableFactorNode::new_literal(VariableLiteral::Boolean(false)),
-                )),
-            })],
-        },
+        // OnDestroyed: If player spaceship destroyed, show message and go to next scenario
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
                 id: Some("player_spaceship".to_string()),
                 type_name: None,
+                ..default()
             })],
             actions: vec![
                 EventActionConfig::DebugMessage(DebugMessageActionConfig {
@@ -234,11 +251,13 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
                 }),
             ],
         },
+        // OnDestroyed: If an asteroid is destroyed, increment asteroids_destroyed
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
                 id: None,
                 type_name: Some("asteroid".to_string()),
+                ..default()
             })],
             actions: vec![EventActionConfig::VariableSet(VariableSetActionConfig {
                 key: "asteroids_destroyed".to_string(),
@@ -252,12 +271,15 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
                 ),
             })],
         },
+        // OnDestroyed: If an asteroid is destroyed and asteroids_destroyed > 4 and objective not
+        // complete, complete objective and create new objective to reach safe zone
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![
                 EventFilterConfig::Entity(EntityFilterConfig {
                     id: None,
                     type_name: Some("asteroid".to_string()),
+                    ..default()
                 }),
                 EventFilterConfig::Expression(ExpressionFilterConfig(
                     VariableConditionNode::new_greater_than(
@@ -293,21 +315,42 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
                 EventActionConfig::ObjectiveComplete(ObjectiveCompleteActionConfig {
                     id: "destroy_asteroids".to_string(),
                 }),
+                EventActionConfig::Objective(ObjectiveActionConfig::new(
+                    "reach_zone",
+                    "Objective: Reach the safe zone!",
+                )),
+            ],
+        },
+        // OnEnter: If player spaceship enters safe zone and the destroy asteroids objective is
+        // complete, complete the scenario
+        ScenarioEventConfig {
+            name: EventConfig::OnEnter,
+            filters: vec![
+                EventFilterConfig::Entity(EntityFilterConfig {
+                    id: Some("asteroid_zone".to_string()),
+                    other_id: Some("player_spaceship".to_string()),
+                    ..default()
+                }),
+                EventFilterConfig::Expression(ExpressionFilterConfig(
+                    VariableConditionNode::new_equals(
+                        VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                            VariableFactorNode::new_name("objective_destroy_asteroids".to_string()),
+                        )),
+                        VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                            VariableFactorNode::new_literal(VariableLiteral::Boolean(true)),
+                        )),
+                    ),
+                )),
+            ],
+            actions: vec![
+                EventActionConfig::ObjectiveComplete(ObjectiveCompleteActionConfig {
+                    id: "reach_zone".to_string(),
+                }),
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: "asteroid_next".to_string(),
                     linger: true,
                 }),
             ],
-        },
-        ScenarioEventConfig {
-            name: EventConfig::OnDestroyed,
-            filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
-                id: None,
-                type_name: Some("asteroid".to_string()),
-            })],
-            actions: vec![EventActionConfig::DebugMessage(DebugMessageActionConfig {
-                message: "An asteroid was destroyed!".to_string(),
-            })],
         },
     ];
 

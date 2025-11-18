@@ -10,7 +10,7 @@ pub mod prelude {
     pub use super::{
         BaseScenarioObjectConfig, DebugMessageActionConfig, EventActionConfig,
         NextScenarioActionConfig, ObjectiveCompleteActionConfig, ScenarioObjectConfig,
-        ScenarioObjectKind, VariableSetActionConfig,
+        ScenarioObjectKind, VariableSetActionConfig, ScenarioAreaConfig,
     };
 }
 
@@ -21,6 +21,7 @@ pub enum EventActionConfig {
     Objective(ObjectiveActionConfig),
     ObjectiveComplete(ObjectiveCompleteActionConfig),
     SpawnScenarioObject(ScenarioObjectConfig),
+    CreateScenarioArea(ScenarioAreaConfig),
     NextScenario(NextScenarioActionConfig),
 }
 
@@ -40,6 +41,9 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
                 config.action(world, info);
             }
             EventActionConfig::SpawnScenarioObject(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::CreateScenarioArea(config) => {
                 config.action(world, info);
             }
             EventActionConfig::NextScenario(config) => {
@@ -135,6 +139,7 @@ pub fn base_scenario_object(config: &BaseScenarioObjectConfig) -> impl Bundle {
         RigidBody::Dynamic,
         Visibility::Visible,
         Health::new(config.health),
+        CollisionImpactMarker,
         ExplodableEntity,
     )
 }
@@ -160,6 +165,35 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
                     entity_commands.insert(spaceship_scenario_object(config.clone()));
                 }
             }
+        });
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ScenarioAreaConfig {
+    pub id: String,
+    pub name: String,
+    pub position: Vec3,
+    pub rotation: Quat,
+    pub radius: f32,
+}
+
+impl EventAction<NovaEventWorld> for ScenarioAreaConfig {
+    fn action(&self, world: &mut NovaEventWorld, _info: &GameEventInfo) {
+        let config = self.clone();
+
+        world.push_command(move |commands| {
+            commands.spawn((
+                ScenarioScopedMarker,
+                ScenarioAreaMarker,
+                Name::new(config.name.clone()),
+                EntityId::new(config.id.clone()),
+                Transform::from_translation(config.position).with_rotation(config.rotation),
+                RigidBody::Static,
+                Collider::sphere(config.radius),
+                Sensor,
+                Visibility::Visible,
+            ));
         });
     }
 }

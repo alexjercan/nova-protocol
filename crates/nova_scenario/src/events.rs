@@ -13,6 +13,8 @@ pub enum EventConfig {
     OnStart,
     OnDestroyed,
     OnUpdate,
+    OnEnter,
+    OnExit,
 }
 
 impl From<EventConfig> for EventHandler<NovaEventWorld> {
@@ -21,6 +23,8 @@ impl From<EventConfig> for EventHandler<NovaEventWorld> {
             EventConfig::OnStart => EventHandler::new::<OnStartEvent>(),
             EventConfig::OnDestroyed => EventHandler::new::<OnDestroyedEvent>(),
             EventConfig::OnUpdate => EventHandler::new::<OnUpdateEvent>(),
+            EventConfig::OnEnter => EventHandler::new::<OnEnterEvent>(),
+            EventConfig::OnExit => EventHandler::new::<OnExitEvent>(),
         }
     }
 }

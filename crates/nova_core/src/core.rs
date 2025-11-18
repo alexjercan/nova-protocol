@@ -265,6 +265,7 @@ fn test_scenario(
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
                 id: Some("player_spaceship".to_string()),
                 type_name: None,
+                ..default()
             })],
             actions: vec![EventActionConfig::DebugMessage(DebugMessageActionConfig {
                 message: "The player's spaceship was destroyed!".to_string(),
@@ -275,6 +276,7 @@ fn test_scenario(
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
                 id: Some("other_spaceship".to_string()),
                 type_name: None,
+                ..default()
             })],
             actions: vec![
                 EventActionConfig::DebugMessage(DebugMessageActionConfig {
