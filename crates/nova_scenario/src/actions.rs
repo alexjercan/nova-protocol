@@ -9,8 +9,8 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         BaseScenarioObjectConfig, DebugMessageActionConfig, EventActionConfig,
-        NextScenarioActionConfig, ObjectiveCompleteActionConfig, ScenarioObjectConfig,
-        ScenarioObjectKind, VariableSetActionConfig, ScenarioAreaConfig,
+        NextScenarioActionConfig, ObjectiveCompleteActionConfig, ScenarioAreaConfig,
+        ScenarioObjectConfig, ScenarioObjectKind, VariableSetActionConfig,
     };
 }
 
