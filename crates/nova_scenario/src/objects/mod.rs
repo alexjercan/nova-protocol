@@ -1,8 +1,11 @@
+pub mod area;
 pub mod asteroid;
 pub mod spaceship;
 
 pub mod prelude {
-    pub use super::{asteroid::prelude::*, spaceship::prelude::*, ScenarioObjectsPlugin};
+    pub use super::{
+        area::prelude::*, asteroid::prelude::*, spaceship::prelude::*, ScenarioObjectsPlugin,
+    };
 }
 
 use bevy::prelude::*;
@@ -19,5 +22,6 @@ impl Plugin for ScenarioObjectsPlugin {
             render: self.render,
         });
         app.add_plugins(spaceship::SpaceshipPlugin);
+        app.add_plugins(area::ScenarioAreaPlugin);
     }
 }

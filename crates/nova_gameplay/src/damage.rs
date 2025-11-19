@@ -31,11 +31,12 @@ impl Plugin for DamagePlugin {
     }
 }
 
+/// Add CollisionImpactMarker to entities with ColliderOf that have Health.
 fn on_collider_of_spawn(
     add: On<Add, ColliderOf>,
     mut commands: Commands,
     q_collider: Query<&ColliderOf>,
-    q_health: Query<(), (With<Health>, With<RigidBody>)>,
+    q_health: Query<(), (With<Health>, With<RigidBody>, With<CollisionImpactMarker>)>,
 ) {
     let entity = add.entity;
     trace!("on_collider_of_spawn: entity {:?}", entity);
@@ -67,7 +68,14 @@ fn on_collision_hit_to_damage(
     let amount = hit.relative_velocity.length() * DAMAGE_MODIFIER;
     let mass = q_mass.get(hit.other).map(|m| m.value()).unwrap_or(1.0);
     let amount = amount * mass;
+    if amount <= f32::EPSILON {
+        return;
+    }
 
+    debug!(
+        "on_collision_hit_to_damage: entity {:?} hit by {:?} for damage {:.2}",
+        hit.entity, hit.other, amount
+    );
     commands.trigger(HealthApplyDamage {
         target: hit.entity,
         source: Some(hit.other),

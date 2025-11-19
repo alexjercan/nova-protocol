@@ -405,7 +405,10 @@ mod test {
 
         let (result, is_positive) = triangle_slice(tri, plane_normal, plane_point);
 
-        assert!(matches!(result, TriangleSliceResult::Split(_, _, _)), "Expected triangle to be split");
+        assert!(
+            matches!(result, TriangleSliceResult::Split(_, _, _)),
+            "Expected triangle to be split"
+        );
         assert!(is_positive, "Expected lonely vertex to be on positive side");
     }
 }

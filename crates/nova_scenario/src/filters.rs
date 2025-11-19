@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy_common_systems::modding::prelude::*;
+use nova_events::prelude::*;
 
 use crate::prelude::*;
 
@@ -26,10 +27,12 @@ impl EventFilter<NovaEventWorld> for EventFilterConfig {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct EntityFilterConfig {
     pub id: Option<String>,
     pub type_name: Option<String>,
+    pub other_id: Option<String>,
+    pub other_type_name: Option<String>,
 }
 
 impl EventFilter<NovaEventWorld> for EntityFilterConfig {
@@ -38,22 +41,58 @@ impl EventFilter<NovaEventWorld> for EntityFilterConfig {
             return false;
         };
 
-        let Some(id_value) = data.get("id").and_then(|v| v.as_str()) else {
-            return false;
-        };
-
-        let Some(type_name_value) = data.get("type_name").and_then(|v| v.as_str()) else {
-            return false;
-        };
-
         let mut result = true;
         match &self.id {
-            Some(id) => result &= id_value == id,
+            Some(id) => {
+                let Some(id_value) = data.get(ENTITY_ID_COMPONENT_NAME).and_then(|v| v.as_str())
+                else {
+                    return false;
+                };
+
+                result &= id_value == id
+            }
             None => result &= true,
         }
 
         match &self.type_name {
-            Some(type_name) => result &= type_name_value == type_name,
+            Some(type_name) => {
+                let Some(type_name_value) = data
+                    .get(ENTITY_TYPE_NAME_COMPONENT_NAME)
+                    .and_then(|v| v.as_str())
+                else {
+                    return false;
+                };
+
+                result &= type_name_value == type_name
+            }
+            None => result &= true,
+        }
+
+        match &self.other_id {
+            Some(other_id) => {
+                let Some(other_id_value) = data
+                    .get(ENTITY_OTHER_ID_COMPONENT_NAME)
+                    .and_then(|v| v.as_str())
+                else {
+                    return false;
+                };
+
+                result &= other_id_value == other_id
+            }
+            None => result &= true,
+        }
+
+        match &self.other_type_name {
+            Some(other_type_name) => {
+                let Some(other_type_name_value) = data
+                    .get(ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME)
+                    .and_then(|v| v.as_str())
+                else {
+                    return false;
+                };
+
+                result &= other_type_name_value == other_type_name
+            }
             None => result &= true,
         }
 
