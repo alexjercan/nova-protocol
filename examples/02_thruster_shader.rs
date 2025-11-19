@@ -27,11 +27,7 @@ fn custom_plugin(app: &mut App) {
 
     app.add_systems(
         OnEnter(GameStates::Playing),
-        (
-            setup_cone_shader,
-            setup_camera,
-            setup_ui_slider,
-        ),
+        (setup_cone_shader, setup_camera, setup_ui_slider),
     );
 
     app.add_systems(Update, thruster_shader_update_system);
