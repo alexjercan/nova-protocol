@@ -3,7 +3,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "11_scenario")]
+#[command(name = "03_scenario")]
 #[command(version = "1.0.0")]
 #[command(about = "A simple example showing how to create a basic scenario in nova_protocol", long_about = None)]
 struct Cli;

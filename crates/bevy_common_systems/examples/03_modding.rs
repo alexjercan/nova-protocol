@@ -1,16 +1,25 @@
+use avian3d::prelude::*;
 use bevy::prelude::*;
+use bevy_common_systems::prelude::*;
 use clap::Parser;
-use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "10_modding")]
+#[command(name = "03_modding")]
 #[command(version = "1.0.0")]
-#[command(about = "A simple example showing how to create a basic scene in nova_protocol with custom events", long_about = None)]
+#[command(about = "A simple example showing how to create basic custom events", long_about = None)]
 struct Cli;
 
 fn main() {
     let _ = Cli::parse();
-    let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
+    let mut app = App::new();
+
+    app.add_plugins(DefaultPlugins);
+    app.add_plugins(PhysicsPlugins::default());
+
+    #[cfg(feature = "debug")]
+    app.add_plugins(InspectorDebugPlugin);
+
+    app.add_plugins(custom_plugin);
 
     app.run();
 }

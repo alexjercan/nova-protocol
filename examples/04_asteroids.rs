@@ -8,7 +8,7 @@ use nova_core::nova_scenario::objects::asteroid::PlanetHeight;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "12_scene")]
+#[command(name = "04_asteroids")]
 #[command(version = "1.0.0")]
 #[command(about = "A simple example showing how to create a basic asteroid in nova_protocol", long_about = None)]
 struct Cli;

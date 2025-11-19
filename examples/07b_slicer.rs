@@ -1,3 +1,5 @@
+// TODO: move this to `bevy_common_systems` as a small game
+
 use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
