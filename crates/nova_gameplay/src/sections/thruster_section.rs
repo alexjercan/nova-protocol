@@ -98,7 +98,7 @@ impl Plugin for ThrusterSectionPlugin {
 fn thruster_impulse_system(
     q_thruster: Query<
         (
-            &Position,
+            &GlobalTransform,
             &Rotation,
             &ChildOf,
             &ThrusterSectionMagnitude,
@@ -108,7 +108,7 @@ fn thruster_impulse_system(
     >,
     mut q_root: Query<Forces, With<SpaceshipRootMarker>>,
 ) {
-    for (position, rotation, &ChildOf(root), magnitude, input) in &q_thruster {
+    for (transform, rotation, &ChildOf(root), magnitude, input) in &q_thruster {
         let Ok(mut force) = q_root.get_mut(root) else {
             error!(
                 "thruster_impulse_system: entity {:?} not found in q_root",
@@ -118,8 +118,8 @@ fn thruster_impulse_system(
         };
 
         let thrust_direction = rotation.mul_vec3(Vec3::NEG_Z).normalize();
-        let thrust_force = thrust_direction * **magnitude * **input;
-        let world_point = **position;
+        let thrust_force = thrust_direction * **magnitude * input.clamp(0.0, 1.0);
+        let world_point = transform.translation();
 
         force.apply_linear_impulse_at_point(thrust_force, world_point);
     }
