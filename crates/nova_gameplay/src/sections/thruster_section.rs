@@ -8,7 +8,7 @@ use bevy::{
     shader::ShaderRef,
 };
 
-use crate::prelude::{SectionRenderOf, SpaceshipRootMarker};
+use crate::prelude::SectionRenderOf;
 
 pub mod prelude {
     pub use super::{
@@ -106,7 +106,7 @@ fn thruster_impulse_system(
         ),
         With<ThrusterSectionMarker>,
     >,
-    mut q_root: Query<Forces, With<SpaceshipRootMarker>>,
+    mut q_root: Query<Forces>,
 ) {
     for (transform, rotation, &ChildOf(root), magnitude, input) in &q_thruster {
         let Ok(mut force) = q_root.get_mut(root) else {
