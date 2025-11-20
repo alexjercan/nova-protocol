@@ -1,3 +1,4 @@
+use avian3d::prelude::*;
 use bevy::{
     picking::{hover::Hovered, pointer::PointerInteraction},
     platform::collections::HashMap,
@@ -484,6 +485,7 @@ fn create_new_spaceship(
             SpaceshipController::None,
             Transform::default(),
             Visibility::Visible,
+            RigidBody::Dynamic,
         ))
         .id();
 
@@ -543,6 +545,7 @@ fn create_new_spaceship_with_controller(
             SpaceshipController::None,
             Transform::default(),
             Visibility::Visible,
+            RigidBody::Dynamic,
         ))
         .id();
 

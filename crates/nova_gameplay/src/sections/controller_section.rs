@@ -2,14 +2,14 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use bevy_common_systems::prelude::*;
 
-use crate::prelude::{SectionRenderOf, SpaceshipRootMarker};
+use crate::prelude::SectionRenderOf;
 
 pub mod prelude {
     pub use super::{
         controller_section, ControllerSectionConfig, ControllerSectionMarker,
         ControllerSectionPlugin, ControllerSectionRotationInput,
-        ControllerSectionStableTorquePdController,
     };
 }
 
@@ -46,12 +46,12 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
 
     (
         ControllerSectionMarker,
-        ControllerSectionRotationInput::default(),
-        ControllerSectionStableTorquePdController {
+        PDController {
             frequency: config.frequency,
             damping_ratio: config.damping_ratio,
             max_torque: config.max_torque,
         },
+        ControllerSectionRotationInput::default(),
         ControllerSectionRenderMesh(config.render_mesh),
     )
 }
@@ -64,17 +64,6 @@ pub struct ControllerSectionMarker;
 #[derive(Component, Debug, Clone, Default, Deref, DerefMut, Reflect)]
 pub struct ControllerSectionRotationInput(pub Quat);
 
-/// A stable PD controller that applies torque to maintain a desired rotation.
-#[derive(Component, Debug, Clone, Reflect)]
-pub struct ControllerSectionStableTorquePdController {
-    /// Frequency in Hz.
-    pub frequency: f32,
-    /// Damping ratio.
-    pub damping_ratio: f32,
-    /// Maximum torque that can be applied.
-    pub max_torque: f32,
-}
-
 /// A plugin that will enable the ControllerSection.
 #[derive(Default)]
 pub struct ControllerSectionPlugin {
@@ -85,9 +74,21 @@ impl Plugin for ControllerSectionPlugin {
     fn build(&self, app: &mut App) {
         debug!("ControllerSectionPlugin: build");
 
+        app.add_observer(insert_controller_section_target);
+
+        app.add_systems(
+            Update,
+            update_controller_section_rotation_input.in_set(super::SpaceshipSectionSystems),
+        );
+
         app.add_systems(
             FixedUpdate,
-            update_controller_root_torque.in_set(super::SpaceshipSectionSystems),
+            sync_controller_section_forces.in_set(super::SpaceshipSectionSystems),
+        );
+
+        app.configure_sets(
+            FixedUpdate,
+            PDControllerSystems::Sync.before(super::SpaceshipSectionSystems),
         );
 
         if self.render {
@@ -96,41 +97,41 @@ impl Plugin for ControllerSectionPlugin {
     }
 }
 
-fn update_controller_root_torque(
-    mut q_root: Query<(&ComputedAngularInertia, &Rotation, Forces), With<SpaceshipRootMarker>>,
-    q_controller: Query<
-        (
-            &ControllerSectionStableTorquePdController,
-            &ControllerSectionRotationInput,
-            &ChildOf,
-        ),
-        With<ControllerSectionMarker>,
-    >,
+fn update_controller_section_rotation_input(
+    mut q_controller: Query<(&mut PDControllerInput, &ControllerSectionRotationInput)>,
 ) {
-    for (controller, controller_input, &ChildOf(root)) in &q_controller {
-        let Ok((angular_inertia, rotation, mut forces)) = q_root.get_mut(root) else {
-            error!(
-                "update_controller_root_torque: root entity {:?} not found in q_root",
-                root
-            );
-            continue;
-        };
-
-        let (principal, local_frame) = angular_inertia.principal_angular_inertia_with_local_frame();
-
-        let torque = compute_pd_torque(
-            controller.frequency,
-            controller.damping_ratio,
-            controller.max_torque,
-            **rotation,
-            **controller_input,
-            forces.angular_velocity(),
-            principal,
-            local_frame,
-        );
-
-        forces.apply_torque(torque);
+    for (mut input, desired_rotation) in &mut q_controller {
+        **input = **desired_rotation;
     }
+}
+
+fn sync_controller_section_forces(
+    mut q_root: Query<Forces>,
+    q_controller: Query<(&PDControllerOutput, &PDControllerTarget)>,
+) {
+    for (output, target) in &q_controller {
+        if let Ok(mut forces) = q_root.get_mut(**target) {
+            forces.apply_torque(**output);
+        }
+    }
+}
+
+fn insert_controller_section_target(
+    add: On<Add, ControllerSectionMarker>,
+    mut commands: Commands,
+    q_controller: Query<&ChildOf, With<ControllerSectionMarker>>,
+) {
+    let entity = add.entity;
+    trace!("insert_controller_section_target: entity {:?}", entity);
+    let Ok(ChildOf(root)) = q_controller.get(entity) else {
+        error!(
+            "insert_controller_section_target: entity {:?} not found in q_controller",
+            entity
+        );
+        return;
+    };
+
+    commands.entity(entity).insert(PDControllerTarget(*root));
 }
 
 fn insert_controller_section_render(
@@ -179,113 +180,9 @@ fn insert_controller_section_render(
     }
 }
 
-fn compute_pd_torque(
-    frequency: f32,
-    damping_ratio: f32,
-    max_torque: f32,
-    from_rotation: Quat,
-    to_rotation: Quat,
-    angular_velocity: Vec3,
-    inertia_principal: Vec3,
-    inertia_local_frame: Quat,
-) -> Vec3 {
-    // PD gains
-    let kp = (6.0 * frequency).powi(2) * 0.25;
-    let kd = 4.5 * frequency * damping_ratio;
-
-    let mut delta = to_rotation * from_rotation.conjugate();
-    if delta.w < 0.0 {
-        delta = Quat::from_xyzw(-delta.x, -delta.y, -delta.z, -delta.w);
-    }
-
-    let (mut axis, mut angle) = delta.to_axis_angle();
-    axis = axis.normalize_or_zero();
-    if angle > std::f32::consts::PI {
-        angle -= 2.0 * std::f32::consts::PI;
-    }
-
-    // Normalize axis (avoid NaNs if angle is zero)
-    axis = axis.normalize_or_zero();
-
-    // PD control (raw torque)
-    let raw = axis * (kp * angle) - angular_velocity * kd;
-
-    let rot_inertia_to_world = inertia_local_frame * from_rotation;
-    let torque_local = rot_inertia_to_world.inverse() * raw;
-    let torque_scaled = torque_local * inertia_principal;
-    let final_torque = rot_inertia_to_world * torque_scaled;
-
-    // Optionally clamp final torque magnitude
-    if final_torque.length_squared() > max_torque * max_torque {
-        final_torque.normalize() * max_torque
-    } else {
-        final_torque
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_compute_pd_torque_zero_error() {
-        let torque = compute_pd_torque(
-            1.0,
-            1.0,
-            10.0,
-            Quat::IDENTITY,
-            Quat::IDENTITY,
-            Vec3::ZERO,
-            Vec3::ONE,
-            Quat::IDENTITY,
-        );
-        assert!(torque.abs_diff_eq(Vec3::ZERO, 1e-6));
-    }
-
-    #[test]
-    fn test_compute_pd_torque_small_angle() {
-        let torque = compute_pd_torque(
-            1.0,
-            1.0,
-            10.0,
-            Quat::IDENTITY,
-            Quat::from_axis_angle(Vec3::Y, 0.1),
-            Vec3::ZERO,
-            Vec3::ONE,
-            Quat::IDENTITY,
-        );
-        assert!(torque.length() > 0.0);
-    }
-
-    #[test]
-    fn test_compute_pd_torque_large_angle() {
-        let torque = compute_pd_torque(
-            1.0,
-            1.0,
-            10.0,
-            Quat::IDENTITY,
-            Quat::from_axis_angle(Vec3::Y, std::f32::consts::PI),
-            Vec3::ZERO,
-            Vec3::ONE,
-            Quat::IDENTITY,
-        );
-        assert!(torque.length() > 0.0);
-    }
-
-    #[test]
-    fn test_compute_pd_torque_with_angular_velocity() {
-        let torque = compute_pd_torque(
-            1.0,
-            1.0,
-            10.0,
-            Quat::IDENTITY,
-            Quat::from_axis_angle(Vec3::Y, 0.5),
-            Vec3::new(0.0, 2.0, 0.0),
-            Vec3::ONE,
-            Quat::IDENTITY,
-        );
-        assert!(torque.length() > 0.0);
-    }
 
     #[test]
     fn spawns_controller_with_default_config() {
