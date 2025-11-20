@@ -11,6 +11,7 @@ pub mod prelude {
         BaseScenarioObjectConfig, DebugMessageActionConfig, EventActionConfig,
         NextScenarioActionConfig, ObjectiveCompleteActionConfig, ScenarioAreaConfig,
         ScenarioObjectConfig, ScenarioObjectKind, VariableSetActionConfig,
+        base_scenario_object,
     };
 }
 
