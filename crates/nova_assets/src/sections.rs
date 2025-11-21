@@ -84,7 +84,7 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 spawn_offset: Vec3::Y * 2.0,
                 fire_rate: 1.0,
                 spawner_speed: 1.0,
-                projectile_lifetime: 10.0,
+                projectile_lifetime: 100.0,
             }),
         },
     ]));

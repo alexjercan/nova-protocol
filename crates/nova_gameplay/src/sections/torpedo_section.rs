@@ -6,9 +6,10 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        torpedo_section, TorpedoControllerMarker, TorpedoProjectileMarker, TorpedoSectionConfig,
-        TorpedoSectionInput, TorpedoSectionMarker, TorpedoSectionPlugin,
-        TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker, TorpedoTargetPosition,
+        torpedo_section, TorpedoControllerMarker, TorpedoProjectileMarker, TorpedoProjectileOwner,
+        TorpedoSectionConfig, TorpedoSectionInput, TorpedoSectionMarker, TorpedoSectionPlugin,
+        TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker, TorpedoTargetEntity,
+        TorpedoTargetPosition,
     };
 }
 
@@ -34,7 +35,7 @@ impl Default for TorpedoSectionConfig {
             spawn_offset: Vec3::Y * 2.0,
             fire_rate: 1.0,
             spawner_speed: 1.0,
-            projectile_lifetime: 30.0,
+            projectile_lifetime: 100.0,
         }
     }
 }
@@ -81,7 +82,10 @@ struct TorpedoSectionPartOf(Entity);
 struct TorpedoSectionSpawnerEntity(Entity);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TorpedoProjectileOwner(Entity);
+pub struct TorpedoProjectileOwner(pub Entity);
+
+#[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
+pub struct TorpedoTargetEntity(pub Entity);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct TorpedoProjectileRenderMesh(Option<Handle<Scene>>);
@@ -112,7 +116,12 @@ impl Plugin for TorpedoSectionPlugin {
             (
                 update_spawner_fire_state,
                 shoot_spawn_projectile,
-                (torpedo_sync_system, torpedo_thrust_system).chain(),
+                (
+                    update_target_position,
+                    torpedo_sync_system,
+                    torpedo_thrust_system,
+                )
+                    .chain(),
             )
                 .in_set(super::SpaceshipSectionSystems),
         );
@@ -246,8 +255,7 @@ fn shoot_spawn_projectile(
             TorpedoSectionPartOf(section),
             TorpedoSectionSpawnerEntity(**spawner),
             TorpedoProjectileRenderMesh(config.projectile_render_mesh.clone()),
-            // TODO: Actually set proper target
-            TorpedoTargetPosition(Vec3::new(0.0, 0.0, -100.0)),
+            TorpedoTargetPosition(Vec3::new(0.0, 0.0, 0.0)),
             TempEntity(config.projectile_lifetime),
             Visibility::Visible,
             children![
@@ -304,6 +312,26 @@ fn shoot_spawn_projectile(
 
         // Reset the fire state timer
         fire_state.reset();
+    }
+}
+
+fn update_target_position(
+    mut q_torpedo: Query<
+        (&mut TorpedoTargetPosition, &TorpedoTargetEntity),
+        With<TorpedoProjectileMarker>,
+    >,
+    q_target: Query<&Transform>,
+) {
+    for (mut torpedo_target_position, target_entity) in &mut q_torpedo {
+        let Ok(target_transform) = q_target.get(**target_entity) else {
+            debug!(
+                "update_target_position: target entity {:?} not found in q_target",
+                **target_entity
+            );
+            continue;
+        };
+
+        **torpedo_target_position = target_transform.translation;
     }
 }
 

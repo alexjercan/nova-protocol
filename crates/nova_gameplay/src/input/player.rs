@@ -1,3 +1,4 @@
+use avian3d::{math::Scalar, prelude::*};
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 use bevy_enhanced_input::prelude::*;
@@ -7,7 +8,7 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         PlayerSpaceshipMarker, SpaceshipPlayerInputPlugin, SpaceshipThrusterInputBinding,
-        SpaceshipTurretInputBinding, SpaceshipTorpedoInputBinding,
+        SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
     };
 }
 
@@ -37,6 +38,7 @@ impl Plugin for SpaceshipPlayerInputPlugin {
             (
                 update_controller_target_rotation_torque,
                 update_turret_target_input,
+                update_torpedo_target_input,
             )
                 .in_set(super::SpaceshipInputSystems),
         );
@@ -105,6 +107,61 @@ fn update_turret_target_input(
         let distance = 100.0;
 
         **turret = Some(position + forward * distance);
+    }
+}
+
+fn update_torpedo_target_input(
+    query: SpatialQuery,
+    mut commands: Commands,
+    point_rotation: Single<
+        &PointRotationOutput,
+        (
+            With<SpaceshipCameraInputMarker>,
+            With<SpaceshipCameraTurretInputMarker>,
+        ),
+    >,
+    q_torpedo: Query<
+        (Entity, &TorpedoProjectileOwner, &Children),
+        (With<TorpedoProjectileMarker>, Without<TorpedoTargetEntity>),
+    >,
+    spaceship: Single<
+        (Entity, &Transform, &Children),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
+) {
+    let point_rotation = point_rotation.into_inner();
+    let (spaceship, transform, children) = spaceship.into_inner();
+
+    let origin = transform.translation;
+    let forward = Dir3::new_unchecked((**point_rotation * Vec3::NEG_Z).normalize());
+    let mut children = children.iter().collect::<Vec<Entity>>();
+    q_torpedo.iter().for_each(|(_, _, torpedo_children)| {
+        for child in torpedo_children.iter() {
+            children.push(child);
+        }
+    });
+
+    let filter = SpatialQueryFilter::from_excluded_entities(children);
+
+    let Some(ray_hit_data) = query.cast_ray(origin, forward, Scalar::MAX, true, &filter) else {
+        return;
+    };
+    let target_entity = ray_hit_data.entity;
+    println!("Torpedo target entity: {:?}", target_entity);
+
+    for (torpedo, owner, _) in &q_torpedo {
+        println!(
+            "Torpedo owner: {:?}, Target entity: {:?}",
+            owner, target_entity
+        );
+
+        if **owner != spaceship {
+            continue;
+        }
+
+        commands
+            .entity(torpedo)
+            .insert(TorpedoTargetEntity(target_entity));
     }
 }
 

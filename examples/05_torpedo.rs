@@ -1,3 +1,4 @@
+use avian3d::prelude::*;
 use bevy::{platform::collections::HashMap, prelude::*};
 use clap::Parser;
 use nova_protocol::prelude::*;
@@ -18,7 +19,6 @@ fn main() {
 
 fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameStates::Playing), setup_scenario);
-    app.add_systems(Update, update_target_position);
 }
 
 #[derive(Component, Debug, Clone, Reflect)]
@@ -49,24 +49,14 @@ fn setup_scenario(
             rotation: Quat::IDENTITY,
             health: 100.0,
         }),
+        Collider::cuboid(10.0, 10.0, 10.0),
         children![(
             Name::new("Target Marker"),
             Transform::from_translation(Vec3::ZERO),
-            Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+            Mesh3d(meshes.add(Cuboid::new(10.0, 10.0, 10.0))),
             MeshMaterial3d(materials.add(Color::srgb(1.0, 0.0, 0.0))),
         )],
     ));
-}
-
-fn update_target_position(
-    target: Single<&Transform, With<ExampleTargetMarker>>,
-    mut q_torpedo: Query<&mut TorpedoTargetPosition>,
-) {
-    let target_transform = target.into_inner();
-
-    for mut torpedo_target_position in &mut q_torpedo {
-        **torpedo_target_position = target_transform.translation;
-    }
 }
 
 pub fn example(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
