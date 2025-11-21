@@ -128,6 +128,20 @@ fn insert_spaceship_sections(
                         SpaceshipController::AI(_) => {}
                     }
                 }
+                SectionKind::Torpedo(torpedo_config) => {
+                    section_entity.insert(torpedo_section(torpedo_config.clone()));
+
+                    match controller_config {
+                        SpaceshipController::None => {}
+                        SpaceshipController::Player(config) => {
+                            if let Some(bindings) = config.input_mapping.get(&section.id) {
+                                section_entity
+                                    .insert(SpaceshipTorpedoInputBinding(bindings.clone()));
+                            }
+                        }
+                        SpaceshipController::AI(_) => {}
+                    }
+                }
             }
         }
     });

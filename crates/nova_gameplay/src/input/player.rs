@@ -7,7 +7,7 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         PlayerSpaceshipMarker, SpaceshipPlayerInputPlugin, SpaceshipThrusterInputBinding,
-        SpaceshipTurretInputBinding,
+        SpaceshipTurretInputBinding, SpaceshipTorpedoInputBinding,
     };
 }
 
@@ -24,8 +24,13 @@ impl Plugin for SpaceshipPlayerInputPlugin {
 
         app.add_input_context::<TurretInputMarker>();
         app.add_observer(on_turret_input_binding);
-        app.add_observer(on_projectile_input);
-        app.add_observer(on_projectile_input_completed);
+        app.add_observer(on_turret_input);
+        app.add_observer(on_turret_input_completed);
+
+        app.add_input_context::<TorpedoInputMarker>();
+        app.add_observer(on_torpedo_input_binding);
+        app.add_observer(on_torpedo_input);
+        app.add_observer(on_torpedo_input_completed);
 
         app.add_systems(
             Update,
@@ -152,7 +157,7 @@ fn on_thruster_input(
     let entity = fire.event().context;
     trace!("on_thruster_input: entity {:?}", entity);
 
-    let Ok(mut q_input) = q_input.get_mut(entity) else {
+    let Ok(mut input) = q_input.get_mut(entity) else {
         error!(
             "on_thruster_input: entity {:?} not found in q_input",
             entity
@@ -160,7 +165,7 @@ fn on_thruster_input(
         return;
     };
 
-    **q_input = 1.0;
+    **input = 1.0;
 }
 
 fn on_thruster_input_completed(
@@ -170,11 +175,11 @@ fn on_thruster_input_completed(
     let entity = fire.event().context;
     trace!("on_thruster_input_completed: entity {:?}", entity);
 
-    let Ok(mut q_input) = q_input.get_mut(entity) else {
+    let Ok(mut input) = q_input.get_mut(entity) else {
         return;
     };
 
-    **q_input = 0.0;
+    **input = 0.0;
 }
 
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
@@ -215,30 +220,96 @@ fn on_turret_input_binding(
     ));
 }
 
-fn on_projectile_input(
+fn on_turret_input(
     fire: On<Start<TurretInput>>,
-    mut q_turret: Query<&mut TurretSectionInput, With<TurretInputMarker>>,
+    mut q_input: Query<&mut TurretSectionInput, With<TurretInputMarker>>,
 ) {
     let entity = fire.event().context;
-    trace!("on_projectile_input: entity {:?}", entity);
+    trace!("on_turret_input: entity {:?}", entity);
 
-    let Ok(mut q_turret) = q_turret.get_mut(entity) else {
+    let Ok(mut input) = q_input.get_mut(entity) else {
         return;
     };
 
-    **q_turret = true;
+    **input = true;
 }
 
-fn on_projectile_input_completed(
+fn on_turret_input_completed(
     fire: On<Complete<TurretInput>>,
-    mut q_turret: Query<&mut TurretSectionInput, With<TurretInputMarker>>,
+    mut q_input: Query<&mut TurretSectionInput, With<TurretInputMarker>>,
 ) {
     let entity = fire.event().context;
-    trace!("on_projectile_input_completed: entity {:?}", entity);
+    trace!("on_turret_input_completed: entity {:?}", entity);
 
-    let Ok(mut q_turret) = q_turret.get_mut(entity) else {
+    let Ok(mut input) = q_input.get_mut(entity) else {
         return;
     };
 
-    **q_turret = false;
+    **input = false;
+}
+
+#[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
+pub struct SpaceshipTorpedoInputBinding(pub Vec<Binding>);
+
+#[derive(Component, Debug, Clone)]
+struct TorpedoInputMarker;
+
+#[derive(InputAction)]
+#[action_output(bool)]
+struct TorpedoInput;
+
+fn on_torpedo_input_binding(
+    add: On<Add, SpaceshipTorpedoInputBinding>,
+    mut commands: Commands,
+    q_binding: Query<&SpaceshipTorpedoInputBinding>,
+) {
+    let entity = add.entity;
+    trace!("on_torpedo_input_binding: entity {:?}", entity);
+
+    let Ok(binding) = q_binding.get(entity) else {
+        return;
+    };
+
+    commands.entity(entity).insert((
+        TorpedoInputMarker,
+        actions!(
+            TorpedoInputMarker[(
+                Name::new("Input: Torpedo"),
+                Action::<TorpedoInput>::new(),
+                ActionSettings {
+                    consume_input: false,
+                    ..default()
+                },
+                Bindings::spawn(binding.0.clone()),
+            )]
+        ),
+    ));
+}
+
+fn on_torpedo_input(
+    fire: On<Start<TorpedoInput>>,
+    mut q_input: Query<&mut TorpedoSectionInput, With<TorpedoInputMarker>>,
+) {
+    let entity = fire.event().context;
+    trace!("on_torpedo_input: entity {:?}", entity);
+
+    let Ok(mut input) = q_input.get_mut(entity) else {
+        return;
+    };
+
+    **input = true;
+}
+
+fn on_torpedo_input_completed(
+    fire: On<Complete<TorpedoInput>>,
+    mut q_input: Query<&mut TorpedoSectionInput, With<TorpedoInputMarker>>,
+) {
+    let entity = fire.event().context;
+    trace!("on_torpedo_input_completed: entity {:?}", entity);
+
+    let Ok(mut input) = q_input.get_mut(entity) else {
+        return;
+    };
+
+    **input = false;
 }

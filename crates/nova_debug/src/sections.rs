@@ -14,6 +14,7 @@ impl Plugin for SectionsDebugPlugin {
                 draw_turret_bullet_spawner,
                 draw_turret_bullet_projectile,
                 draw_thruster,
+                draw_torpedo_spawner,
                 log_position,
             )
                 .after(TransformSystems::Propagate)
@@ -85,6 +86,25 @@ fn draw_thruster(
         let dir = transform.back() * (**input) * 2.0;
 
         let color = tailwind::TEAL_500;
+
+        gizmos.sphere(Isometry3d::from_translation(origin), 0.2, color);
+        gizmos.line(origin, origin + dir, color);
+    }
+}
+
+fn draw_torpedo_spawner(
+    mut gizmos: Gizmos,
+    q_torpedo: Query<(&GlobalTransform, &TorpedoSectionSpawnerFireState), With<TorpedoSectionSpawnerMarker>>
+) {
+    for (transform, input) in &q_torpedo {
+        let origin = transform.translation();
+        let dir = transform.forward() * 2.0;
+
+        let color = if input.is_finished() {
+            tailwind::GREEN_500
+        } else {
+            tailwind::YELLOW_500
+        };
 
         gizmos.sphere(Isometry3d::from_translation(origin), 0.2, color);
         gizmos.line(origin, origin + dir, color);

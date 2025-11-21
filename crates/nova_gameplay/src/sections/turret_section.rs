@@ -584,7 +584,7 @@ fn shoot_spawn_projectile(
                 "on_shoot_spawn_projectile: entity {:?} not found in q_spaceship",
                 spaceship
             );
-            return;
+            continue;
         };
 
         let Ok(mut fire_state) = q_muzzle.get_mut(**muzzle) else {
@@ -592,11 +592,11 @@ fn shoot_spawn_projectile(
                 "on_shoot_spawn_projectile: entity {:?} not found in q_muzzle",
                 **muzzle
             );
-            return;
+            continue;
         };
 
         if !fire_state.is_finished() {
-            return;
+            continue;
         }
 
         let Ok(muzzle_transform) = transform_helper.compute_global_transform(**muzzle) else {
@@ -604,7 +604,7 @@ fn shoot_spawn_projectile(
                 "on_shoot_spawn_projectile: entity {:?} global transform not found",
                 **muzzle
             );
-            return;
+            continue;
         };
 
         let muzzle_direction = muzzle_transform.forward();
@@ -621,11 +621,11 @@ fn shoot_spawn_projectile(
         let projectile_transform = Transform {
             translation: projectile_position + muzzle_exit_velocity * 0.01,
             rotation: projectile_rotation,
-            ..Default::default()
+            ..default()
         };
 
         commands.spawn((
-            Name::new("Projectile"),
+            Name::new("Turret Projectile"),
             TurretBulletProjectileMarker,
             TurretBulletProjectileOwner(*spaceship),
             projectile_transform,
