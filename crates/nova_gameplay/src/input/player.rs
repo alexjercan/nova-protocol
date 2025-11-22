@@ -172,7 +172,7 @@ fn update_spaceship_target_input(
 fn update_torpedo_target_input(
     mut commands: Commands,
     q_torpedo: Query<
-        (Entity, &TorpedoProjectileOwner, &Children),
+        (Entity, &TorpedoProjectileOwner),
         (With<TorpedoProjectileMarker>, Without<TorpedoTargetEntity>),
     >,
     spaceship: Single<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
@@ -181,10 +181,14 @@ fn update_torpedo_target_input(
     let spaceship = spaceship.into_inner();
     let target_entity = **res_target;
     let Some(target_entity) = target_entity else {
+        // TODO: Maybe think of something better then just despawning the torpedo?
+        for (torpedo, _) in &q_torpedo {
+            commands.entity(torpedo).despawn();
+        }
         return;
     };
 
-    for (torpedo, owner, _) in &q_torpedo {
+    for (torpedo, owner) in &q_torpedo {
         debug!(
             "Torpedo owner: {:?}, Target entity: {:?}",
             owner, target_entity
