@@ -104,9 +104,18 @@ fn inspector_ui(world: &mut World) {
 }
 
 /// When a camera is added, assign it the PrimaryEguiContext so it can display UI.
-fn on_add_camera(add: On<Add, Camera>, mut commands: Commands) {
+fn on_add_camera(
+    add: On<Add, Camera>,
+    mut commands: Commands,
+    q_context: Query<&PrimaryEguiContext>,
+) {
     let entity = add.entity;
     debug!("on_add_camera: entity {:?}", entity);
+
+    if !q_context.is_empty() {
+        debug!("on_add_camera: PrimaryEguiContext already exists, skipping");
+        return;
+    }
 
     commands.entity(entity).insert(PrimaryEguiContext);
 }

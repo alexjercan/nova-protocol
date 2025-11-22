@@ -7,16 +7,22 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        PlayerSpaceshipMarker, SpaceshipPlayerInputPlugin, SpaceshipThrusterInputBinding,
-        SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
+        PlayerSpaceshipMarker, SpaceshipPlayerInputPlugin, SpaceshipPlayerTorpedoTargetEntity,
+        SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
     };
 }
+
+// TODO: NEED TO REFACTOR THIS, right now we just scuff it out to make it work
+#[derive(Resource, Debug, Clone, Deref, DerefMut, Default)]
+pub struct SpaceshipPlayerTorpedoTargetEntity(pub Option<Entity>);
 
 pub struct SpaceshipPlayerInputPlugin;
 
 impl Plugin for SpaceshipPlayerInputPlugin {
     fn build(&self, app: &mut App) {
         debug!("SpaceshipPlayerInputPlugin: build");
+
+        app.insert_resource(SpaceshipPlayerTorpedoTargetEntity::default());
 
         app.add_input_context::<ThrusterInputMarker>();
         app.add_observer(on_thruster_input_binding);
@@ -38,7 +44,7 @@ impl Plugin for SpaceshipPlayerInputPlugin {
             (
                 update_controller_target_rotation_torque,
                 update_turret_target_input,
-                update_torpedo_target_input,
+                (update_spaceship_target_input, update_torpedo_target_input).chain(),
             )
                 .in_set(super::SpaceshipInputSystems),
         );
@@ -110,9 +116,13 @@ fn update_turret_target_input(
     }
 }
 
-fn update_torpedo_target_input(
+// TODO: Implement a more sophisticated target selection mechanism.
+// Maybe we can project the 3D objects onto the 2D screen and select the closest one to the
+// center of the screen.
+// TODO: Add a HUD for the torpedo target selection.
+
+fn update_spaceship_target_input(
     query: SpatialQuery,
-    mut commands: Commands,
     point_rotation: Single<
         &PointRotationOutput,
         (
@@ -125,18 +135,14 @@ fn update_torpedo_target_input(
         (With<TorpedoProjectileMarker>, Without<TorpedoTargetEntity>),
     >,
     spaceship: Single<
-        (Entity, &Transform, &Children),
+        (&Transform, &Children),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
     q_hits: Query<&ColliderOf>,
+    mut res_target: ResMut<SpaceshipPlayerTorpedoTargetEntity>,
 ) {
-    // TODO: Implement a more sophisticated target selection mechanism.
-    // Maybe we can project the 3D objects onto the 2D screen and select the closest one to the
-    // center of the screen.
-    // TODO: Add a HUD for the torpedo target selection.
-
     let point_rotation = point_rotation.into_inner();
-    let (spaceship, transform, children) = spaceship.into_inner();
+    let (transform, children) = spaceship.into_inner();
 
     let origin = transform.translation;
     let forward = Dir3::new_unchecked((**point_rotation * Vec3::NEG_Z).normalize());
@@ -150,15 +156,39 @@ fn update_torpedo_target_input(
     let filter = SpatialQueryFilter::from_excluded_entities(children);
 
     let Some(ray_hit_data) = query.cast_ray(origin, forward, Scalar::MAX, true, &filter) else {
+        **res_target = None;
         return;
     };
     let target_entity = ray_hit_data.entity;
     let Ok(collider_of) = q_hits.get(target_entity) else {
+        **res_target = None;
         return;
     };
     let target_entity = collider_of.body;
 
-    for (torpedo, owner, _) in &q_torpedo {
+    **res_target = Some(target_entity);
+}
+
+fn update_torpedo_target_input(
+    mut commands: Commands,
+    q_torpedo: Query<
+        (Entity, &TorpedoProjectileOwner),
+        (With<TorpedoProjectileMarker>, Without<TorpedoTargetEntity>),
+    >,
+    spaceship: Single<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    res_target: Res<SpaceshipPlayerTorpedoTargetEntity>,
+) {
+    let spaceship = spaceship.into_inner();
+    let target_entity = **res_target;
+    let Some(target_entity) = target_entity else {
+        // TODO: Maybe think of something better then just despawning the torpedo?
+        for (torpedo, _) in &q_torpedo {
+            commands.entity(torpedo).despawn();
+        }
+        return;
+    };
+
+    for (torpedo, owner) in &q_torpedo {
         debug!(
             "Torpedo owner: {:?}, Target entity: {:?}",
             owner, target_entity
