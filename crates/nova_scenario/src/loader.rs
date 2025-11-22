@@ -84,6 +84,7 @@ impl Plugin for ScenarioLoaderPlugin {
 
         app.add_observer(on_add_entity_with::<MeshFragmentMarker>);
         app.add_observer(on_add_entity_with::<TurretBulletProjectileMarker>);
+        app.add_observer(on_add_entity_with::<TorpedoProjectileMarker>);
 
         app.add_input_context::<ScenarioInputMarker>();
         app.add_observer(on_next_input);

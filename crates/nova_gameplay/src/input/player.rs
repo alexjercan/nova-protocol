@@ -1,4 +1,4 @@
-use avian3d::{math::Scalar, prelude::*};
+use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 use bevy_enhanced_input::prelude::*;
