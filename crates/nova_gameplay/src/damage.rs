@@ -1,7 +1,7 @@
 //! A Bevy plugin that handles damage.
 
 pub mod prelude {
-    pub use super::{DamagePlugin, MeshFragmentMarker, blast_damage, BlastDamageConfig};
+    pub use super::{blast_damage, BlastDamageConfig, DamagePlugin, MeshFragmentMarker};
 }
 
 use avian3d::prelude::*;
@@ -267,4 +267,3 @@ fn calculate_blast_damage(distance: f32, config: &BlastDamageConfig) -> f32 {
         config.max_damage * falloff
     }
 }
-

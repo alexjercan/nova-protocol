@@ -313,9 +313,7 @@ fn shoot_spawn_projectile(
                     )
                 ],
             ))
-            .insert((
-                TempEntity(config.projectile_lifetime),
-            ));
+            .insert((TempEntity(config.projectile_lifetime),));
 
         // Reset the fire state timer
         fire_state.reset();

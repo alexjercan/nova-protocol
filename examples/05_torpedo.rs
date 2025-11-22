@@ -118,10 +118,7 @@ pub fn example(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
                 id: "torpedo".to_string(),
                 position: Vec3::new(0.0, 0.0, -2.0),
                 rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-                config: sections
-                    .get_section("torpedo_section")
-                    .unwrap()
-                    .clone(),
+                config: sections.get_section("torpedo_section").unwrap().clone(),
             },
         ],
     };

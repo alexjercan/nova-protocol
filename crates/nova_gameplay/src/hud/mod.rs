@@ -10,7 +10,7 @@ pub mod velocity;
 pub mod prelude {
     pub use super::{
         health::prelude::*, objectives::prelude::*, torpedo_target::prelude::*,
-        velocity::prelude::*, NovaHudPlugin, NovaHudSystems, NovaHudAssets,
+        velocity::prelude::*, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
     };
 }
 

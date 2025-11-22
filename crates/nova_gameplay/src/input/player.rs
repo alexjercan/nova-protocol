@@ -157,7 +157,9 @@ fn update_spaceship_target_input(
     let config = ShapeCastConfig::default();
     let filter = SpatialQueryFilter::from_excluded_entities(children);
 
-    let Some(ray_hit_data) = query.cast_shape(&shape, origin, shape_rotation, forward, &config, &filter) else {
+    let Some(ray_hit_data) =
+        query.cast_shape(&shape, origin, shape_rotation, forward, &config, &filter)
+    else {
         **res_target = None;
         return;
     };

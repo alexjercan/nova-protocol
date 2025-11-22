@@ -94,7 +94,10 @@ fn draw_thruster(
 
 fn draw_torpedo_spawner(
     mut gizmos: Gizmos,
-    q_torpedo: Query<(&GlobalTransform, &TorpedoSectionSpawnerFireState), With<TorpedoSectionSpawnerMarker>>
+    q_torpedo: Query<
+        (&GlobalTransform, &TorpedoSectionSpawnerFireState),
+        With<TorpedoSectionSpawnerMarker>,
+    >,
 ) {
     for (transform, input) in &q_torpedo {
         let origin = transform.translation();
