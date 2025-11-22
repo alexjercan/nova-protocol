@@ -2,6 +2,7 @@
 
 use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
+use nova_gameplay::prelude::*;
 
 use crate::{scenario::register_scenario, sections::register_sections};
 
@@ -41,6 +42,7 @@ impl Plugin for GameAssetsPlugin {
             (
                 register_sections,
                 register_scenario,
+                update_nova_hud_assets,
                 |mut state: ResMut<NextState<GameAssetsStates>>| {
                     state.set(GameAssetsStates::Loaded);
                 },
@@ -66,4 +68,14 @@ pub struct GameAssets {
     pub turret_barrel_01: Handle<Scene>,
     #[asset(path = "icons/fps.png")]
     pub fps_icon: Handle<Image>,
+    #[asset(path = "icons/target.png")]
+    pub target_sprite: Handle<Image>,
+}
+
+// TODO: Probably need to refactor this somehow
+fn update_nova_hud_assets(
+    mut nova_hud_assets: ResMut<NovaHudAssets>,
+    game_assets: Res<GameAssets>,
+) {
+    nova_hud_assets.target_sprite = game_assets.target_sprite.clone();
 }

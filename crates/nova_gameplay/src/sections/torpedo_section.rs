@@ -342,6 +342,7 @@ fn update_target_position(
 const BLAST_RADIUS: f32 = 30.0;
 const BLAST_DAMAGE: f32 = 100.0;
 
+// TODO: Add some nice visuals for the explosion itself
 fn torpedo_detonate_system(
     mut commands: Commands,
     q_torpedo: Query<(Entity, &Transform, &TorpedoTargetPosition), With<TorpedoProjectileMarker>>,
