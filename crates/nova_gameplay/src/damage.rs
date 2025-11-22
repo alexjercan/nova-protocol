@@ -1,7 +1,7 @@
 //! A Bevy plugin that handles damage.
 
 pub mod prelude {
-    pub use super::{DamagePlugin, MeshFragmentMarker};
+    pub use super::{DamagePlugin, MeshFragmentMarker, blast_damage, BlastDamageConfig};
 }
 
 use avian3d::prelude::*;
@@ -25,6 +25,8 @@ impl Plugin for DamagePlugin {
 
         app.add_observer(on_collider_of_spawn);
         app.add_observer(on_collision_hit_to_damage);
+        app.add_observer(on_blast_collision_start_event);
+
         app.add_observer(on_destroyed_entity);
         app.add_observer(on_explode_entity);
         app.add_observer(handle_entity_explosion);
@@ -80,6 +82,55 @@ fn on_collision_hit_to_damage(
         target: hit.entity,
         source: Some(hit.other),
         amount,
+    });
+}
+
+fn on_blast_collision_start_event(
+    collision: On<CollisionStart>,
+    q_blast: Query<(&Transform, &BlastDamageConfig), With<BlastDamageMarker>>,
+    q_health: Query<&Transform, With<Health>>,
+    mut commands: Commands,
+) {
+    // FIXME: For some reason, this event is not fired consistently. I don't know what the problem
+    // might be, but this needs further investigation. The event fires only for ("object", "blast")
+    // but not for ("blast", "object"). Which is weird, because the `area.rs` module works also
+    // with sensors, and it fires both ways.
+    trace!(
+        "on_blast_collision_start_event: collision between {:?} and {:?}",
+        collision.body1,
+        collision.body2
+    );
+
+    let Some(body) = collision.body1 else {
+        return;
+    };
+    let Some(other) = collision.body2 else {
+        return;
+    };
+
+    let Ok((blast_transform, blast_config)) = q_blast.get(other) else {
+        return;
+    };
+    let Ok(other_transform) = q_health.get(body) else {
+        return;
+    };
+
+    let distance = blast_transform
+        .translation
+        .distance(other_transform.translation);
+
+    let damage = calculate_blast_damage(distance, blast_config);
+    if damage <= f32::EPSILON {
+        return;
+    };
+    debug!(
+        "on_blast_collision_start_event: applying blast damage {:.2} to entity {:?}",
+        damage, body
+    );
+    commands.trigger(HealthApplyDamage {
+        target: body,
+        source: None,
+        amount: damage,
     });
 }
 
@@ -177,3 +228,43 @@ fn handle_entity_explosion(
 
     commands.entity(entity).despawn();
 }
+
+// TODO: Refactor this module into smaller modules for better organization.
+// E.g., collision.rs, destruction.rs, explosion.rs, etc.
+
+// NOTE: We will do linear falloff for now, but we might consider other falloff models later.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct BlastDamageConfig {
+    pub radius: f32,
+    pub max_damage: f32,
+}
+
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct BlastDamageMarker;
+
+pub fn blast_damage(config: BlastDamageConfig) -> impl Bundle {
+    debug!(
+        "blast_damage: radius {:.2}, max_damage {:.2}",
+        config.radius, config.max_damage
+    );
+
+    (
+        Name::new("BlastDamageArea"),
+        BlastDamageMarker,
+        config.clone(),
+        RigidBody::Static,
+        Collider::sphere(config.radius),
+        Sensor,
+        Visibility::Visible,
+    )
+}
+
+fn calculate_blast_damage(distance: f32, config: &BlastDamageConfig) -> f32 {
+    if distance >= config.radius {
+        0.0
+    } else {
+        let falloff = 1.0 - (distance / config.radius);
+        config.max_damage * falloff
+    }
+}
+

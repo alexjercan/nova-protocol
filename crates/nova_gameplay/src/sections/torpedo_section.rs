@@ -118,6 +118,7 @@ impl Plugin for TorpedoSectionPlugin {
                 shoot_spawn_projectile,
                 (
                     update_target_position,
+                    torpedo_detonate_system,
                     torpedo_sync_system,
                     torpedo_thrust_system,
                 )
@@ -334,6 +335,30 @@ fn update_target_position(
         };
 
         **torpedo_target_position = target_transform.translation;
+    }
+}
+
+// TODO: Unhardcode blast parameters
+const BLAST_RADIUS: f32 = 30.0;
+const BLAST_DAMAGE: f32 = 100.0;
+
+fn torpedo_detonate_system(
+    mut commands: Commands,
+    q_torpedo: Query<(Entity, &Transform, &TorpedoTargetPosition), With<TorpedoProjectileMarker>>,
+) {
+    for (torpedo, torpedo_transform, torpedo_target_position) in &q_torpedo {
+        let distance = torpedo_transform
+            .translation
+            .distance(**torpedo_target_position);
+
+        if distance < BLAST_RADIUS * 0.5 {
+            commands.entity(torpedo).despawn();
+            commands.spawn((
+                blast_damage(BlastDamageConfig { radius: BLAST_RADIUS, max_damage: BLAST_DAMAGE }),
+                Transform::from_translation(torpedo_transform.translation),
+                TempEntity(0.1),
+            ));
+        }
     }
 }
 

@@ -66,6 +66,8 @@ pub struct HealthApplyDamage {
     /// The entity receiving damage.
     pub target: Entity,
 
+    /// TODO: Maybe make this `source` more configurable?
+    /// - what if we can also specify stuff like damage type, critical hit, etc.?
     /// Optional source entity causing the damage.
     pub source: Option<Entity>,
 
