@@ -85,6 +85,7 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 fire_rate: 1.0,
                 spawner_speed: 1.0,
                 projectile_lifetime: 100.0,
+                blast_effect: None,
             }),
         },
     ]));

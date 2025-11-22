@@ -1,6 +1,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
+use bevy_hanabi::prelude::*;
 
 use crate::prelude::*;
 
@@ -25,6 +26,8 @@ pub struct TorpedoSectionConfig {
     pub spawner_speed: f32,
     /// The lifetime of the projectile in seconds.
     pub projectile_lifetime: f32,
+    /// The explosion effect to play when the torpedo detonates.
+    pub blast_effect: Option<Handle<EffectAsset>>,
 }
 
 impl Default for TorpedoSectionConfig {
@@ -36,6 +39,7 @@ impl Default for TorpedoSectionConfig {
             fire_rate: 1.0,
             spawner_speed: 1.0,
             projectile_lifetime: 100.0,
+            blast_effect: None,
         }
     }
 }
@@ -68,6 +72,9 @@ pub struct TorpedoControllerMarker;
 
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct TorpedoThrusterMarker;
+
+#[derive(Component, Clone, Debug, Reflect)]
+pub struct TorpedoBlastEffectMarker;
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct TorpedoSectionConfigHelper(TorpedoSectionConfig);
@@ -109,6 +116,10 @@ impl Plugin for TorpedoSectionPlugin {
 
             app.add_observer(insert_torpedo_render);
             app.add_observer(insert_torpedo_controller_render);
+
+            // FIXME: For now we disable particle effects on wasm because it's not working
+            #[cfg(not(target_family = "wasm"))]
+            app.add_observer(insert_particle_effect);
         }
 
         app.add_systems(
@@ -349,9 +360,17 @@ const BLAST_DAMAGE: f32 = 100.0;
 // TODO: Add some nice visuals for the explosion itself
 fn torpedo_detonate_system(
     mut commands: Commands,
-    q_torpedo: Query<(Entity, &Transform, &TorpedoTargetPosition), With<TorpedoProjectileMarker>>,
+    q_torpedo: Query<
+        (
+            Entity,
+            &Transform,
+            &TorpedoTargetPosition,
+            &TorpedoSectionPartOf,
+        ),
+        With<TorpedoProjectileMarker>,
+    >,
 ) {
-    for (torpedo, torpedo_transform, torpedo_target_position) in &q_torpedo {
+    for (torpedo, torpedo_transform, torpedo_target_position, part_of) in &q_torpedo {
         let distance = torpedo_transform
             .translation
             .distance(**torpedo_target_position);
@@ -364,6 +383,7 @@ fn torpedo_detonate_system(
                     max_damage: BLAST_DAMAGE,
                 }),
                 Transform::from_translation(torpedo_transform.translation),
+                part_of.clone(),
                 TempEntity(0.1),
             ));
         }
@@ -527,6 +547,120 @@ fn insert_torpedo_controller_render(
         Mesh3d(meshes.add(Cylinder::new(0.2, 1.0))),
         MeshMaterial3d(materials.add(Color::srgb(0.8, 0.8, 0.8))),
     ));
+}
+
+fn insert_particle_effect(
+    add: On<Add, BlastDamageMarker>,
+    mut commands: Commands,
+    mut effects: ResMut<Assets<EffectAsset>>,
+    q_blast: Query<(&Transform, &TorpedoSectionPartOf), With<BlastDamageMarker>>,
+    q_config: Query<&TorpedoSectionConfigHelper, With<TorpedoSectionMarker>>,
+) {
+    let entity = add.entity;
+    trace!("insert_particle_effect: entity {:?}", entity);
+
+    let Ok((blast_transform, TorpedoSectionPartOf(torpedo_section))) = q_blast.get(entity) else {
+        error!(
+            "insert_particle_effect: entity {:?} not found in q_blast",
+            entity
+        );
+        return;
+    };
+
+    let Ok(config) = q_config.get(*torpedo_section) else {
+        error!(
+            "insert_turret_barrel_muzzle_effect: entity {:?} not found in q_effect",
+            entity
+        );
+        return;
+    };
+
+    let effect = match &config.blast_effect {
+        Some(effect) => effect.clone(),
+        None => {
+            let spawner = SpawnerSettings::once(400.0.into())
+                // In this case we want to emit on start to create an instantaneous explosion
+                .with_emit_on_start(true);
+
+            let writer = ExprWriter::new();
+
+            let age = writer.lit(0.).expr();
+            let init_age = SetAttributeModifier::new(Attribute::AGE, age);
+
+            // Lifetime: explosion should be fast but noticeable
+            let lifetime = writer.lit(0.25).uniform(writer.lit(1.5)).expr();
+            let init_lifetime = SetAttributeModifier::new(Attribute::LIFETIME, lifetime);
+
+            // Color over lifetime
+            let mut color_gradient = bevy_hanabi::Gradient::new();
+            // t=0: bright yellow/white
+            color_gradient.add_key(0.0, Vec4::new(1.0, 0.95, 0.7, 1.0));
+            // mid: hot orange
+            color_gradient.add_key(0.3, Vec4::new(1.0, 0.6, 0.1, 0.7));
+            // end: dark, almost transparent smoke
+            color_gradient.add_key(1.0, Vec4::new(0.1, 0.1, 0.1, 0.0));
+
+            let color_over_lifetime = ColorOverLifetimeModifier {
+                gradient: color_gradient,
+                blend: ColorBlendMode::default(),
+                mask: ColorBlendMask::default(),
+            };
+
+            let init_color =
+                SetAttributeModifier::new(Attribute::COLOR, writer.lit(0xFFFFFFFFu32).expr());
+
+            // Size over lifetime: fast expansion then shrink/fade
+            let mut size_gradient = bevy_hanabi::Gradient::new();
+            size_gradient.add_key(0.0, Vec3::splat(0.02)); // just spawned
+            size_gradient.add_key(0.1, Vec3::splat(0.2)); // big boom
+            size_gradient.add_key(0.5, Vec3::splat(0.25)); // lingering cloud
+            size_gradient.add_key(1.0, Vec3::splat(0.0)); // disappear
+
+            let size_over_lifetime = SizeOverLifetimeModifier {
+                gradient: size_gradient,
+                screen_space_size: false,
+            };
+
+            // Position: explosion center
+            let init_pos =
+                SetAttributeModifier::new(Attribute::POSITION, writer.lit(Vec3::ZERO).expr());
+
+            // Velocity: spherical random burst
+            let rand_x = writer.rand(ScalarType::Float) * writer.lit(2.0) - writer.lit(1.0);
+            let rand_y = writer.rand(ScalarType::Float) * writer.lit(2.0) - writer.lit(1.0);
+            let rand_z = writer.rand(ScalarType::Float) * writer.lit(2.0) - writer.lit(1.0);
+
+            let dir = writer.lit(Vec3::X) * rand_x
+                + writer.lit(Vec3::Y) * rand_y
+                + writer.lit(Vec3::Z) * rand_z;
+
+            let speed = writer.lit(20.0).uniform(writer.lit(30.0));
+            let velocity = dir * speed;
+            let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
+
+            effects.add(
+                EffectAsset::new(32768, spawner, writer.finish())
+                    .with_name("spawn_on_blast_explosion")
+                    .init(init_pos)
+                    .init(init_vel)
+                    .init(init_age)
+                    .init(init_lifetime)
+                    .init(init_color)
+                    .render(size_over_lifetime)
+                    .render(color_over_lifetime),
+            )
+        }
+    };
+
+    println!("insert_particle_effect: spawning blast effect");
+    commands.spawn(((
+        Name::new("Blast Effect"),
+        TorpedoBlastEffectMarker,
+        Transform::from_translation(blast_transform.translation),
+        ParticleEffect::new(effect),
+        EffectProperties::default(),
+        TempEntity(2.0),
+    ),));
 }
 
 // TODO: Factor out the torpedo logic into a separate module.

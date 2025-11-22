@@ -1,7 +1,9 @@
 //! A Bevy plugin that handles damage.
 
 pub mod prelude {
-    pub use super::{blast_damage, BlastDamageConfig, DamagePlugin, MeshFragmentMarker};
+    pub use super::{
+        blast_damage, BlastDamageConfig, BlastDamageMarker, DamagePlugin, MeshFragmentMarker,
+    };
 }
 
 use avian3d::prelude::*;
