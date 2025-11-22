@@ -246,70 +246,76 @@ fn shoot_spawn_projectile(
             ..default()
         };
 
-        commands.spawn((
-            Name::new("Torpedo Projectile"),
-            TorpedoProjectileMarker,
-            TorpedoProjectileOwner(*spaceship),
-            projectile_transform,
-            RigidBody::Dynamic,
-            LinearVelocity(linear_velocity),
-            TorpedoSectionPartOf(section),
-            TorpedoSectionSpawnerEntity(**spawner),
-            TorpedoProjectileRenderMesh(config.projectile_render_mesh.clone()),
-            TorpedoTargetPosition(Vec3::new(0.0, 0.0, 0.0)),
-            TempEntity(config.projectile_lifetime),
-            Visibility::Visible,
-            children![
-                (
-                    TorpedoControllerMarker,
-                    base_section(BaseSectionConfig {
-                        id: "torpedo_controller".to_string(),
-                        name: "Torpedo Controller".to_string(),
-                        description: "The controller for the torpedo warhead".to_string(),
-                        mass: 1.0,
-                    }),
-                    Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)).with_rotation(
-                        Quat::from_euler(EulerRot::XYZ, std::f32::consts::FRAC_PI_2, 0.0, 0.0)
+        commands
+            .spawn((
+                Name::new("Torpedo Projectile"),
+                TorpedoProjectileMarker,
+                TorpedoProjectileOwner(*spaceship),
+                projectile_transform,
+                RigidBody::Dynamic,
+                LinearVelocity(linear_velocity),
+                TorpedoSectionPartOf(section),
+                TorpedoSectionSpawnerEntity(**spawner),
+                TorpedoProjectileRenderMesh(config.projectile_render_mesh.clone()),
+                TorpedoTargetPosition(Vec3::new(0.0, 0.0, 0.0)),
+                // TODO: Adjust health as needed
+                Health::new(1.0),
+                CollisionImpactMarker,
+                ExplodableEntity,
+                Visibility::Visible,
+                children![
+                    (
+                        TorpedoControllerMarker,
+                        base_section(BaseSectionConfig {
+                            id: "torpedo_controller".to_string(),
+                            name: "Torpedo Controller".to_string(),
+                            description: "The controller for the torpedo warhead".to_string(),
+                            mass: 1.0,
+                        }),
+                        Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)).with_rotation(
+                            Quat::from_euler(EulerRot::XYZ, std::f32::consts::FRAC_PI_2, 0.0, 0.0)
+                        ),
+                        ControllerSectionRenderMarker,
+                        controller_section(ControllerSectionConfig {
+                            frequency: 4.0,
+                            damping_ratio: 4.0,
+                            max_torque: 10.0,
+                            render_mesh: None,
+                        }),
                     ),
-                    ControllerSectionRenderMarker,
-                    controller_section(ControllerSectionConfig {
-                        frequency: 4.0,
-                        damping_ratio: 4.0,
-                        max_torque: 10.0,
-                        render_mesh: None,
-                    }),
-                ),
-                (
-                    TorpedoThrusterMarker,
-                    base_section(BaseSectionConfig {
-                        id: "torpedo_thruster".to_string(),
-                        name: "Torpedo Thruster".to_string(),
-                        description: "The thruster for the torpedo".to_string(),
-                        mass: 1.0,
-                    }),
-                    Transform::from_translation(Vec3::new(0.0, 0.0, 0.5)),
-                    ThrusterSectionRenderMarker,
-                    thruster_section(ThrusterSectionConfig {
-                        magnitude: 1.0,
-                        render_mesh: None,
-                    }),
-                    SpaceshipThrusterInputBinding(vec![KeyCode::KeyQ.into()]),
-                    children![(
-                        Name::new("Thruster Exhaust"),
-                        Transform::from_rotation(Quat::from_rotation_x(
-                            std::f32::consts::FRAC_PI_2
-                        ))
-                        .with_translation(Vec3::new(0.0, 0.0, 0.05)),
-                        ThrusterExhaustConfig {
-                            exhaust_height: 0.1,
-                            exhaust_max: 1.0,
-                            exhaust_radius: 0.15,
-                            emissive_color: LinearRgba::new(10.0, 5.0, 0.0, 1.0),
-                        },
-                    )],
-                )
-            ],
-        ));
+                    (
+                        TorpedoThrusterMarker,
+                        base_section(BaseSectionConfig {
+                            id: "torpedo_thruster".to_string(),
+                            name: "Torpedo Thruster".to_string(),
+                            description: "The thruster for the torpedo".to_string(),
+                            mass: 1.0,
+                        }),
+                        Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                        ThrusterSectionRenderMarker,
+                        thruster_section(ThrusterSectionConfig {
+                            magnitude: 1.0,
+                            render_mesh: None,
+                        }),
+                        children![(
+                            Name::new("Thruster Exhaust"),
+                            Transform::from_rotation(Quat::from_rotation_x(
+                                std::f32::consts::FRAC_PI_2
+                            ))
+                            .with_translation(Vec3::new(0.0, 0.0, -0.45)),
+                            ThrusterExhaustConfig {
+                                exhaust_height: 0.1,
+                                exhaust_max: 1.0,
+                                exhaust_radius: 0.15,
+                                emissive_color: LinearRgba::new(10.0, 5.0, 0.0, 1.0),
+                            },
+                        )],
+                    )
+                ],
+            ))
+            .insert((
+                TempEntity(config.projectile_lifetime),
+            ));
 
         // Reset the fire state timer
         fire_state.reset();
@@ -355,7 +361,10 @@ fn torpedo_detonate_system(
         if distance < BLAST_RADIUS * 0.5 {
             commands.entity(torpedo).despawn();
             commands.spawn((
-                blast_damage(BlastDamageConfig { radius: BLAST_RADIUS, max_damage: BLAST_DAMAGE }),
+                blast_damage(BlastDamageConfig {
+                    radius: BLAST_RADIUS,
+                    max_damage: BLAST_DAMAGE,
+                }),
                 Transform::from_translation(torpedo_transform.translation),
                 TempEntity(0.1),
             ));
