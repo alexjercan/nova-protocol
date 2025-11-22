@@ -12,8 +12,9 @@ use crate::prelude::SectionRenderOf;
 
 pub mod prelude {
     pub use super::{
-        thruster_section, ThrusterSectionConfig, ThrusterSectionInput, ThrusterSectionMagnitude,
-        ThrusterSectionMarker, ThrusterSectionPlugin,
+        thruster_section, ThrusterExhaustConfig, ThrusterSectionConfig, ThrusterSectionInput,
+        ThrusterSectionMagnitude, ThrusterSectionMarker, ThrusterSectionPlugin,
+        ThrusterSectionRenderMarker,
     };
 }
 
@@ -49,6 +50,26 @@ pub fn thruster_section(config: ThrusterSectionConfig) -> impl Bundle {
     )
 }
 
+/// Configuration for the thruster exhaust shader.
+#[derive(Component, Clone, Debug, Reflect)]
+pub struct ThrusterExhaustConfig {
+    pub exhaust_height: f32,
+    pub exhaust_max: f32,
+    pub exhaust_radius: f32,
+    pub emissive_color: LinearRgba,
+}
+
+impl Default for ThrusterExhaustConfig {
+    fn default() -> Self {
+        Self {
+            exhaust_height: 0.1,
+            exhaust_max: 1.0,
+            exhaust_radius: 0.4,
+            emissive_color: LinearRgba::rgb(0.0, 10.0, 10.0),
+        }
+    }
+}
+
 /// Marker component for thruster sections.
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct ThrusterSectionMarker;
@@ -82,6 +103,7 @@ impl Plugin for ThrusterSectionPlugin {
 
         if self.render {
             app.add_observer(insert_thruster_section_render);
+            app.add_observer(insert_thruster_shader);
         }
 
         app.add_systems(
@@ -160,20 +182,23 @@ fn thruster_shader_update_system(
     }
 }
 
+#[derive(Component, Clone, Debug, Reflect)]
+pub struct ThrusterSectionRenderMarker;
+
 fn insert_thruster_section_render(
     add: On<Add, ThrusterSectionMarker>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut standard_materials: ResMut<Assets<StandardMaterial>>,
-    mut exhaust_materials: ResMut<
-        Assets<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>,
+    q_thruster: Query<
+        (&ThrusterSectionRenderMesh, Has<ThrusterSectionRenderMarker>),
+        With<ThrusterSectionMarker>,
     >,
-    q_thruster: Query<&ThrusterSectionRenderMesh, With<ThrusterSectionMarker>>,
 ) {
     let entity = add.entity;
     trace!("insert_thruster_section_render: entity {:?}", entity);
 
-    let Ok(render_mesh) = q_thruster.get(entity) else {
+    let Ok((render_mesh, has_render)) = q_thruster.get(entity) else {
         error!(
             "insert_thruster_section_render: entity {:?} not found in q_thruster",
             entity
@@ -181,6 +206,15 @@ fn insert_thruster_section_render(
         return;
     };
 
+    if has_render {
+        trace!(
+            "insert_thruster_section_render: entity {:?} already has render, skipping",
+            entity
+        );
+        return;
+    }
+
+    commands.entity(entity).insert(ThrusterSectionRenderMarker);
     match &**render_mesh {
         Some(scene) => {
             commands.entity(entity).insert((children![(
@@ -208,28 +242,54 @@ fn insert_thruster_section_render(
                 ),
                 (
                     Name::new("Thruster Exhaust"),
-                    ThrusterSectionExhaustShaderMarker,
-                    Mesh3d(meshes.add(Cone::new(0.4, 0.1))),
-                    MeshMaterial3d(
-                        exhaust_materials.add(ExtendedMaterial {
-                            base: StandardMaterial {
-                                base_color: Color::srgba(1.0, 1.0, 1.0, 1.0),
-                                perceptual_roughness: 1.0,
-                                metallic: 0.0,
-                                emissive: LinearRgba::rgb(0.0, 10.0, 10.0),
-                                ..default()
-                            },
-                            extension: ThrusterExhaustMaterial::default()
-                                .with_exhaust_height(1.0)
-                                .with_exhaust_radius(0.4),
-                        })
-                    ),
+                    ThrusterExhaustConfig::default(),
                     Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
                         .with_translation(Vec3::new(0.0, 0.0, 0.3)),
                 ),
             ],));
         }
     }
+}
+
+fn insert_thruster_shader(
+    add: On<Add, ThrusterExhaustConfig>,
+    mut commands: Commands,
+    q_config: Query<&ThrusterExhaustConfig>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut exhaust_materials: ResMut<
+        Assets<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>,
+    >,
+) {
+    let entity = add.entity;
+    trace!("insert_thruster_shader: entity {:?}", entity);
+
+    let Ok(config) = q_config.get(entity) else {
+        error!(
+            "insert_thruster_shader: entity {:?} not found in q_config",
+            entity
+        );
+        return;
+    };
+
+    let mesh = Cone::new(config.exhaust_radius, config.exhaust_height);
+    let material = ExtendedMaterial {
+        base: StandardMaterial {
+            base_color: Color::srgba(1.0, 1.0, 1.0, 1.0),
+            perceptual_roughness: 1.0,
+            metallic: 0.0,
+            emissive: config.emissive_color,
+            ..default()
+        },
+        extension: ThrusterExhaustMaterial::default()
+            .with_exhaust_height(config.exhaust_max)
+            .with_exhaust_radius(config.exhaust_radius),
+    };
+
+    commands.entity(entity).insert((
+        ThrusterSectionExhaustShaderMarker,
+        Mesh3d(meshes.add(mesh)),
+        MeshMaterial3d(exhaust_materials.add(material)),
+    ));
 }
 
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone, Default)]

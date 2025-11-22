@@ -783,6 +783,51 @@ fn on_click_spaceship_section(
                     );
                     player_config.inputs.insert(turret_entity, binds);
                 }
+                SectionKind::Torpedo(torpedo) => {
+                    let rotation = Quat::from_rotation_arc(Vec3::Y, normal.normalize());
+
+                    let key_bind = keyboard.map(|k| {
+                        k.get_pressed()
+                            .next()
+                            .map_or(MouseButton::Left.into(), |k| Binding::from(*k))
+                    });
+                    let pad_bind = gamepad.map(|b| {
+                        b.get_pressed()
+                            .next()
+                            .map_or(GamepadButton::RightTrigger2.into(), |b| Binding::from(*b))
+                    });
+                    let binds = vec![key_bind, pad_bind]
+                        .into_iter()
+                        .flatten()
+                        .collect::<Vec<Binding>>();
+
+                    let mut torpedo_entity = Entity::PLACEHOLDER;
+                    commands.entity(spaceship).with_children(|parent| {
+                        torpedo_entity = parent
+                            .spawn((
+                                base_section(section.base.clone()),
+                                torpedo_section(torpedo.clone()),
+                                SpaceshipTorpedoInputBinding(binds.clone()),
+                                Transform {
+                                    translation: position,
+                                    rotation,
+                                    ..default()
+                                },
+                            ))
+                            .id();
+                    });
+
+                    player_config.sections.insert(
+                        torpedo_entity,
+                        SpaceshipSectionConfig {
+                            id: torpedo_entity.to_string(),
+                            position,
+                            rotation,
+                            config: section.clone(),
+                        },
+                    );
+                    player_config.inputs.insert(torpedo_entity, binds);
+                }
             }
         }
         SectionChoice::Delete => {

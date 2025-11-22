@@ -73,7 +73,6 @@ fn setup_scenario(
     ));
 
     commands.spawn((
-        ScenarioScopedMarker,
         DirectionalLight {
             illuminance: 10000.0,
             ..default()

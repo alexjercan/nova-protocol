@@ -33,6 +33,7 @@ pub enum SectionKind {
     Thruster(ThrusterSectionConfig),
     Controller(ControllerSectionConfig),
     Turret(TurretSectionConfig),
+    Torpedo(TorpedoSectionConfig),
 }
 
 #[derive(Clone, Debug, Reflect)]

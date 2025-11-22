@@ -9,7 +9,7 @@ use crate::prelude::SectionRenderOf;
 pub mod prelude {
     pub use super::{
         controller_section, ControllerSectionConfig, ControllerSectionMarker,
-        ControllerSectionPlugin, ControllerSectionRotationInput,
+        ControllerSectionPlugin, ControllerSectionRenderMarker, ControllerSectionRotationInput,
     };
 }
 
@@ -134,17 +134,26 @@ fn insert_controller_section_target(
     commands.entity(entity).insert(PDControllerTarget(*root));
 }
 
+#[derive(Component, Clone, Debug, Reflect)]
+pub struct ControllerSectionRenderMarker;
+
 fn insert_controller_section_render(
     add: On<Add, ControllerSectionMarker>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    q_controller: Query<&ControllerSectionRenderMesh, With<ControllerSectionMarker>>,
+    q_controller: Query<
+        (
+            &ControllerSectionRenderMesh,
+            Has<ControllerSectionRenderMarker>,
+        ),
+        With<ControllerSectionMarker>,
+    >,
 ) {
     let entity = add.entity;
     trace!("insert_controller_section_render: entity {:?}", entity);
 
-    let Ok(render_mesh) = q_controller.get(entity) else {
+    let Ok((render_mesh, has_render)) = q_controller.get(entity) else {
         error!(
             "insert_controller_section_render: entity {:?} not found in q_controller",
             entity
@@ -152,6 +161,17 @@ fn insert_controller_section_render(
         return;
     };
 
+    if has_render {
+        trace!(
+            "insert_controller_section_render: entity {:?} already has render, skipping",
+            entity
+        );
+        return;
+    }
+
+    commands
+        .entity(entity)
+        .insert(ControllerSectionRenderMarker);
     match &**render_mesh {
         Some(scene) => {
             commands.entity(entity).insert((children![(
