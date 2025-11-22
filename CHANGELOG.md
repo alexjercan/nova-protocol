@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - @alexjercan implement OnEnter and OnExit events
+- @alexjercan implement torpedo bay section and blast damage
 
 ## [0.2.1] - 2025-11-15
 
