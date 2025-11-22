@@ -144,7 +144,9 @@ fn update_spaceship_target_input(
     let point_rotation = point_rotation.into_inner();
     let (transform, children) = spaceship.into_inner();
 
+    let shape = Collider::sphere(1.0);
     let origin = transform.translation;
+    let shape_rotation = Quat::IDENTITY;
     let forward = Dir3::new_unchecked((**point_rotation * Vec3::NEG_Z).normalize());
     let mut children = children.iter().collect::<Vec<Entity>>();
     q_torpedo.iter().for_each(|(_, _, torpedo_children)| {
@@ -152,10 +154,10 @@ fn update_spaceship_target_input(
             children.push(child);
         }
     });
-
+    let config = ShapeCastConfig::default();
     let filter = SpatialQueryFilter::from_excluded_entities(children);
 
-    let Some(ray_hit_data) = query.cast_ray(origin, forward, Scalar::MAX, true, &filter) else {
+    let Some(ray_hit_data) = query.cast_shape(&shape, origin, shape_rotation, forward, &config, &filter) else {
         **res_target = None;
         return;
     };
