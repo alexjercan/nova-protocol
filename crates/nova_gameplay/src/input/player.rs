@@ -128,6 +128,7 @@ fn update_torpedo_target_input(
         (Entity, &Transform, &Children),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
+    q_hits: Query<&ColliderOf>,
 ) {
     // TODO: Implement a more sophisticated target selection mechanism.
     // Maybe we can project the 3D objects onto the 2D screen and select the closest one to the
@@ -152,9 +153,13 @@ fn update_torpedo_target_input(
         return;
     };
     let target_entity = ray_hit_data.entity;
+    let Ok(collider_of) = q_hits.get(target_entity) else {
+        return;
+    };
+    let target_entity = collider_of.body;
 
     for (torpedo, owner, _) in &q_torpedo {
-        println!(
+        debug!(
             "Torpedo owner: {:?}, Target entity: {:?}",
             owner, target_entity
         );
