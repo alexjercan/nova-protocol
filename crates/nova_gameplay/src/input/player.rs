@@ -129,6 +129,11 @@ fn update_torpedo_target_input(
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
 ) {
+    // TODO: Implement a more sophisticated target selection mechanism.
+    // Maybe we can project the 3D objects onto the 2D screen and select the closest one to the
+    // center of the screen.
+    // TODO: Add a HUD for the torpedo target selection.
+
     let point_rotation = point_rotation.into_inner();
     let (spaceship, transform, children) = spaceship.into_inner();
 
@@ -147,7 +152,6 @@ fn update_torpedo_target_input(
         return;
     };
     let target_entity = ray_hit_data.entity;
-    println!("Torpedo target entity: {:?}", target_entity);
 
     for (torpedo, owner, _) in &q_torpedo {
         println!(

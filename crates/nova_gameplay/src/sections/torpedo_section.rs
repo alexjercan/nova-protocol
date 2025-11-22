@@ -316,18 +316,20 @@ fn shoot_spawn_projectile(
 }
 
 fn update_target_position(
+    mut commands: Commands,
     mut q_torpedo: Query<
-        (&mut TorpedoTargetPosition, &TorpedoTargetEntity),
+        (Entity, &mut TorpedoTargetPosition, &TorpedoTargetEntity),
         With<TorpedoProjectileMarker>,
     >,
     q_target: Query<&Transform>,
 ) {
-    for (mut torpedo_target_position, target_entity) in &mut q_torpedo {
+    for (torpedo, mut torpedo_target_position, target_entity) in &mut q_torpedo {
         let Ok(target_transform) = q_target.get(**target_entity) else {
             debug!(
                 "update_target_position: target entity {:?} not found in q_target",
                 **target_entity
             );
+            commands.entity(torpedo).despawn();
             continue;
         };
 
@@ -412,7 +414,7 @@ fn insert_torpedo_section_render(
     };
     let render_mesh = &config.render_mesh;
 
-    match &*render_mesh {
+    match render_mesh {
         Some(scene) => {
             commands.entity(entity).insert((children![(
                 Name::new("Torpedo Section Body"),
@@ -493,3 +495,6 @@ fn insert_torpedo_controller_render(
         MeshMaterial3d(materials.add(Color::srgb(0.8, 0.8, 0.8))),
     ));
 }
+
+// TODO: Factor out the torpedo logic into a separate module.
+// TODO: Implement a separate plugin for the targeting system.
