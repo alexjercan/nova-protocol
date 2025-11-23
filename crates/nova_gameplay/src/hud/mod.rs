@@ -66,6 +66,7 @@ fn setup_hud_velocity(
 
     commands.spawn((velocity_hud(VelocityHudConfig {
         radius: 5.0,
+        sharpness: 20.0,
         target: spaceship,
     }),));
 }

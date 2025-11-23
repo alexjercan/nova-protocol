@@ -20,9 +20,13 @@ pub struct VelocityHudMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct VelocityHudIndicatorMarker;
 
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct VelocityHudSphereMarker;
+
 #[derive(Clone, Debug)]
 pub struct VelocityHudConfig {
     pub radius: f32,
+    pub sharpness: f32,
     pub target: Entity,
 }
 
@@ -30,6 +34,7 @@ impl Default for VelocityHudConfig {
     fn default() -> Self {
         Self {
             radius: 5.0,
+            sharpness: 10.0,
             target: Entity::PLACEHOLDER,
         }
     }
@@ -42,6 +47,7 @@ pub fn velocity_hud(config: VelocityHudConfig) -> impl Bundle {
         Name::new("VelocityHUD"),
         VelocityHudMarker,
         VelocityHudTargetEntity(config.target),
+        VelocityHudSharpness(config.sharpness),
         DirectionalSphereOrbit {
             radius: config.radius,
             ..default()
@@ -54,6 +60,9 @@ pub fn velocity_hud(config: VelocityHudConfig) -> impl Bundle {
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct VelocityHudTargetEntity(Entity);
 
+#[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
+pub struct VelocityHudSharpness(pub f32);
+
 #[derive(Default)]
 pub struct VelocityHudPlugin;
 
@@ -64,8 +73,12 @@ impl Plugin for VelocityHudPlugin {
         app.add_plugins(MaterialPlugin::<
             ExtendedMaterial<StandardMaterial, DirectionMagnitudeMaterial>,
         >::default());
+        app.add_plugins(MaterialPlugin::<
+            ExtendedMaterial<StandardMaterial, DirectionSphereMaterial>,
+        >::default());
 
         app.add_observer(insert_velocity_hud_indicator_system);
+        app.add_observer(insert_velocity_hud_sphere_system);
 
         app.add_systems(
             Update,
@@ -180,7 +193,7 @@ fn insert_velocity_hud_indicator_system(
     let entity = add.entity;
     trace!("insert_velocity_hud_indicator_system: entity {:?}", entity);
 
-    commands.entity(entity).insert(children![(
+    commands.entity(entity).with_child((
         Name::new("VelocityHUD Indicator"),
         VelocityHudIndicatorMarker,
         Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
@@ -198,7 +211,7 @@ fn insert_velocity_hud_indicator_system(
                     .with_radius(0.2),
             }),
         ),
-    ),]);
+    ));
 }
 
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone, Default)]
@@ -233,5 +246,84 @@ impl MaterialExtension for DirectionMagnitudeMaterial {
 
     fn fragment_shader() -> ShaderRef {
         "shaders/directional_magnitude.wgsl".into()
+    }
+}
+
+fn insert_velocity_hud_sphere_system(
+    add: On<Add, VelocityHudMarker>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut direction_materials: ResMut<
+        Assets<ExtendedMaterial<StandardMaterial, DirectionSphereMaterial>>,
+    >,
+    q_hud: Query<(&DirectionalSphereOrbit, &VelocityHudSharpness), With<VelocityHudMarker>>,
+) {
+    let entity = add.entity;
+    trace!("insert_velocity_hud_sphere_system: entity {:?}", entity);
+
+    let Ok((orbit, sharpness)) = q_hud.get(entity) else {
+        error!(
+            "insert_velocity_hud_sphere_system: entity {:?} not found in q_hud",
+            entity
+        );
+        return;
+    };
+
+    let radius = orbit.radius;
+    let mesh = TriangleMeshBuilder::new_octahedron(6).build();
+
+    commands.entity(entity).with_child((
+        Name::new("VelocityHUD Sphere"),
+        VelocityHudSphereMarker,
+        Transform::from_translation(Vec3::new(0.0, 0.0, radius)).with_scale(Vec3::splat(radius)),
+        Mesh3d(meshes.add(mesh)),
+        MeshMaterial3d(
+            direction_materials.add(ExtendedMaterial {
+                base: StandardMaterial {
+                    base_color: Color::srgba(0.0, 0.5, 1.0, 0.2),
+                    perceptual_roughness: 1.0,
+                    metallic: 0.0,
+                    alpha_mode: AlphaMode::Blend,
+                    double_sided: true,
+                    cull_mode: None,
+                    ..default()
+                },
+                extension: DirectionSphereMaterial::default()
+                    .with_radius(radius)
+                    .with_sharpness(**sharpness),
+            }),
+        ),
+    ));
+}
+
+#[derive(Asset, TypePath, AsBindGroup, Debug, Clone, Default)]
+pub struct DirectionSphereMaterial {
+    #[uniform(100)]
+    pub radius: f32,
+    #[uniform(100)]
+    pub sharpness: f32,
+    #[cfg(target_arch = "wasm32")]
+    #[uniform(100)]
+    _webgl2_padding_16b1: u32,
+    #[cfg(target_arch = "wasm32")]
+    #[uniform(100)]
+    _webgl2_padding_16b2: u32,
+}
+
+impl DirectionSphereMaterial {
+    pub fn with_radius(mut self, radius: f32) -> Self {
+        self.radius = radius;
+        self
+    }
+
+    pub fn with_sharpness(mut self, sharpness: f32) -> Self {
+        self.sharpness = sharpness;
+        self
+    }
+}
+
+impl MaterialExtension for DirectionSphereMaterial {
+    fn fragment_shader() -> ShaderRef {
+        "shaders/directional_sphere.wgsl".into()
     }
 }
