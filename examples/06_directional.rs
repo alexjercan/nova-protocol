@@ -36,9 +36,7 @@ fn main() {
     app.run();
 }
 
-fn setup_camera(
-    mut commands: Commands,
-) {
+fn setup_camera(mut commands: Commands) {
     commands.spawn((
         Name::new("Main Camera"),
         Camera3d::default(),
@@ -61,22 +59,23 @@ fn setup_camera(
     ));
 }
 
-
 fn setup_hud(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let entity = commands.spawn((
-        Name::new("Target"),
-        Mesh3d(meshes.add(Mesh::from(Cuboid::new(1.0, 1.0, 1.0)))),
-        MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgb(0.2, 0.8, 0.2),
-            ..default()
-        })),
-        LinearVelocity(Vec3::new(0.0, 0.0, -10.0)),
-        Transform::from_xyz(0.0, 0.0, 0.0),
-    )).id();
+    let entity = commands
+        .spawn((
+            Name::new("Target"),
+            Mesh3d(meshes.add(Mesh::from(Cuboid::new(1.0, 1.0, 1.0)))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(0.2, 0.8, 0.2),
+                ..default()
+            })),
+            LinearVelocity(Vec3::new(0.0, 0.0, -10.0)),
+            Transform::from_xyz(0.0, 0.0, 0.0),
+        ))
+        .id();
 
     commands.spawn((velocity_hud(VelocityHudConfig {
         radius: 5.0,
@@ -84,4 +83,3 @@ fn setup_hud(
         target: entity,
     }),));
 }
-
