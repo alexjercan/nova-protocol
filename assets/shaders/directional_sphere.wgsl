@@ -54,8 +54,6 @@ fn fragment(
     let out = deferred_output(in, pbr_input);
 #else
     var out: FragmentOutput;
-    // apply lighting
-    // out.color = apply_pbr_lighting(pbr_input);
     // Directly output the color (ignoring lighting)
     out.color = pbr_input.material.base_color;
 
