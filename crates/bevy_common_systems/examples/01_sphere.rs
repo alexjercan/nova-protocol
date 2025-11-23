@@ -18,6 +18,8 @@ fn main() {
 
     #[cfg(feature = "debug")]
     app.add_plugins(InspectorDebugPlugin);
+    #[cfg(feature = "debug")]
+    app.add_plugins(WireframeDebugPlugin);
 
     app.add_plugins(bevy_enhanced_input::EnhancedInputPlugin);
     app.add_plugins(WASDCameraPlugin);

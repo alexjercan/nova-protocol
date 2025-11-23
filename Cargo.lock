@@ -4006,6 +4006,7 @@ version = "0.2.1"
 dependencies = [
  "avian3d",
  "bevy",
+ "bevy_enhanced_input",
  "bevy_rand",
  "clap",
  "embed-resource",
