@@ -23,6 +23,12 @@ impl Plugin for ExplodablePlugin {
 }
 
 fn on_explode_entity(
+    // TODO: We need to have a different handling logic for destroyed marker. The DestroyedMarker
+    // is added when health reaches zero, but we want more flexibility. Basically I want to set the
+    // destroyed entities as "disabled" and once I know they are leafs in the spaceship graph, I
+    // actually mark them as destroyed and explode them. But obviously this won't be done only for
+    // spaceships, but anything that has health and can be exploded. I will also have to add a
+    // handler for non exploding entities.
     add: On<Add, DestroyedMarker>,
     mut commands: Commands,
     q_explode: Query<(), (With<ExplodableEntity>, With<DestroyedMarker>)>,
