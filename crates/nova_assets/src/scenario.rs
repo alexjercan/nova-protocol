@@ -39,9 +39,12 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
                 name: format!("Asteroid {}", i),
                 position: pos,
                 rotation: Quat::IDENTITY,
-                health: 100.0,
             },
-            kind: ScenarioObjectKind::Asteroid(AsteroidConfig { radius, texture }),
+            kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                radius,
+                texture,
+                health: 100.0,
+            }),
         });
     }
 
@@ -115,7 +118,6 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
             name: "Player Spaceship".to_string(),
             position: Vec3::ZERO,
             rotation: Quat::IDENTITY,
-            health: 500.0,
         },
         kind: ScenarioObjectKind::Spaceship(spaceship),
     });
@@ -176,7 +178,6 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
             name: "Other Spaceship".to_string(),
             position: Vec3::new(10.0, 0.0, 0.0),
             rotation: Quat::IDENTITY,
-            health: 100.0,
         },
         kind: ScenarioObjectKind::Spaceship(spaceship),
     });

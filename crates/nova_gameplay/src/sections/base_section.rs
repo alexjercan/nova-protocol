@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use bevy_common_systems::prelude::*;
 
 use super::prelude::*;
 
@@ -24,6 +25,7 @@ pub struct BaseSectionConfig {
     pub name: String,
     pub description: String,
     pub mass: f32,
+    pub health: f32,
 }
 
 #[derive(Clone, Debug, Reflect)]
@@ -59,6 +61,8 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
         SectionMarker,
         Collider::cuboid(1.0, 1.0, 1.0),
         ColliderDensity(config.mass),
+        Health::new(config.health),
+        ExplodableEntity,
         Visibility::Inherited,
     )
 }

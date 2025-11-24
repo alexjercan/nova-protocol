@@ -65,6 +65,9 @@ pub struct TorpedoSectionMarker;
 pub struct TorpedoSectionSpawnerMarker;
 
 #[derive(Component, Clone, Debug, Reflect)]
+pub struct TorpedoSectionBodyMarker;
+
+#[derive(Component, Clone, Debug, Reflect)]
 pub struct TorpedoProjectileMarker;
 
 #[derive(Component, Clone, Debug, Reflect)]
@@ -171,10 +174,20 @@ fn insert_torpedo_section(
         ))
         .id();
 
+    let body = commands
+        .spawn((
+            Name::new("Torpedo Section Body"),
+            TorpedoSectionBodyMarker,
+            TorpedoSectionPartOf(entity),
+            Transform::default(),
+            Visibility::Inherited,
+        ))
+        .id();
+
     commands
         .entity(entity)
         .insert(TorpedoSectionSpawnerEntity(spawner))
-        .add_child(spawner);
+        .add_children(&[body, spawner]);
 }
 
 fn update_spawner_fire_state(
@@ -257,74 +270,71 @@ fn shoot_spawn_projectile(
             ..default()
         };
 
-        commands
-            .spawn((
-                Name::new("Torpedo Projectile"),
-                TorpedoProjectileMarker,
-                TorpedoProjectileOwner(*spaceship),
-                projectile_transform,
-                RigidBody::Dynamic,
-                LinearVelocity(linear_velocity),
-                TorpedoSectionPartOf(section),
-                TorpedoSectionSpawnerEntity(**spawner),
-                TorpedoProjectileRenderMesh(config.projectile_render_mesh.clone()),
-                TorpedoTargetPosition(Vec3::new(0.0, 0.0, 0.0)),
-                // TODO: Adjust health as needed
-                Health::new(1.0),
-                CollisionImpactMarker,
-                ExplodableEntity,
-                Visibility::Visible,
-                children![
-                    (
-                        TorpedoControllerMarker,
-                        base_section(BaseSectionConfig {
-                            id: "torpedo_controller".to_string(),
-                            name: "Torpedo Controller".to_string(),
-                            description: "The controller for the torpedo warhead".to_string(),
-                            mass: 1.0,
-                        }),
-                        Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)).with_rotation(
-                            Quat::from_euler(EulerRot::XYZ, std::f32::consts::FRAC_PI_2, 0.0, 0.0)
-                        ),
-                        ControllerSectionRenderMarker,
-                        controller_section(ControllerSectionConfig {
-                            frequency: 4.0,
-                            damping_ratio: 4.0,
-                            max_torque: 10.0,
-                            render_mesh: None,
-                        }),
+        commands.spawn((
+            Name::new("Torpedo Projectile"),
+            TorpedoProjectileMarker,
+            TorpedoProjectileOwner(*spaceship),
+            projectile_transform,
+            RigidBody::Dynamic,
+            LinearVelocity(linear_velocity),
+            TorpedoSectionPartOf(section),
+            TorpedoSectionSpawnerEntity(**spawner),
+            TorpedoProjectileRenderMesh(config.projectile_render_mesh.clone()),
+            TorpedoTargetPosition(Vec3::new(0.0, 0.0, 0.0)),
+            TempEntity(config.projectile_lifetime),
+            Visibility::Visible,
+            children![
+                (
+                    TorpedoControllerMarker,
+                    base_section(BaseSectionConfig {
+                        id: "torpedo_controller".to_string(),
+                        name: "Torpedo Controller".to_string(),
+                        description: "The controller for the torpedo warhead".to_string(),
+                        mass: 1.0,
+                        health: 1.0,
+                    }),
+                    Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)).with_rotation(
+                        Quat::from_euler(EulerRot::XYZ, std::f32::consts::FRAC_PI_2, 0.0, 0.0)
                     ),
-                    (
-                        TorpedoThrusterMarker,
-                        base_section(BaseSectionConfig {
-                            id: "torpedo_thruster".to_string(),
-                            name: "Torpedo Thruster".to_string(),
-                            description: "The thruster for the torpedo".to_string(),
-                            mass: 1.0,
-                        }),
-                        Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
-                        ThrusterSectionRenderMarker,
-                        thruster_section(ThrusterSectionConfig {
-                            magnitude: 1.0,
-                            render_mesh: None,
-                        }),
-                        children![(
-                            Name::new("Thruster Exhaust"),
-                            Transform::from_rotation(Quat::from_rotation_x(
-                                std::f32::consts::FRAC_PI_2
-                            ))
-                            .with_translation(Vec3::new(0.0, 0.0, -0.45)),
-                            ThrusterExhaustConfig {
-                                exhaust_height: 0.1,
-                                exhaust_max: 1.0,
-                                exhaust_radius: 0.15,
-                                emissive_color: LinearRgba::new(10.0, 5.0, 0.0, 1.0),
-                            },
-                        )],
-                    )
-                ],
-            ))
-            .insert((TempEntity(config.projectile_lifetime),));
+                    ControllerSectionRenderMarker,
+                    controller_section(ControllerSectionConfig {
+                        frequency: 4.0,
+                        damping_ratio: 4.0,
+                        max_torque: 10.0,
+                        render_mesh: None,
+                    }),
+                ),
+                (
+                    TorpedoThrusterMarker,
+                    base_section(BaseSectionConfig {
+                        id: "torpedo_thruster".to_string(),
+                        name: "Torpedo Thruster".to_string(),
+                        description: "The thruster for the torpedo".to_string(),
+                        mass: 1.0,
+                        health: 1.0,
+                    }),
+                    Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                    ThrusterSectionRenderMarker,
+                    thruster_section(ThrusterSectionConfig {
+                        magnitude: 1.0,
+                        render_mesh: None,
+                    }),
+                    children![(
+                        Name::new("Thruster Exhaust"),
+                        Transform::from_rotation(Quat::from_rotation_x(
+                            std::f32::consts::FRAC_PI_2
+                        ))
+                        .with_translation(Vec3::new(0.0, 0.0, -0.45)),
+                        ThrusterExhaustConfig {
+                            exhaust_height: 0.1,
+                            exhaust_max: 1.0,
+                            exhaust_radius: 0.15,
+                            emissive_color: LinearRgba::new(10.0, 5.0, 0.0, 1.0),
+                        },
+                    )],
+                )
+            ],
+        ));
 
         // Reset the fire state timer
         fire_state.reset();
@@ -449,16 +459,25 @@ fn torpedo_thrust_system(
 }
 
 fn insert_torpedo_section_render(
-    add: On<Add, TorpedoSectionMarker>,
+    add: On<Add, TorpedoSectionBodyMarker>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     q_section: Query<&TorpedoSectionConfigHelper, With<TorpedoSectionMarker>>,
+    q_body: Query<&TorpedoSectionPartOf, With<TorpedoSectionBodyMarker>>,
 ) {
     let entity = add.entity;
     trace!("insert_torpedo_section_render: entity {:?}", entity);
 
-    let Ok(config) = q_section.get(entity) else {
+    let Ok(part_of) = q_body.get(entity) else {
+        error!(
+            "insert_torpedo_section_render: entity {:?} not found in q_body",
+            entity
+        );
+        return;
+    };
+
+    let Ok(config) = q_section.get(**part_of) else {
         error!(
             "insert_torpedo_section_render: entity {:?} not found in q_section",
             entity
@@ -652,7 +671,6 @@ fn insert_particle_effect(
         }
     };
 
-    println!("insert_particle_effect: spawning blast effect");
     commands.spawn(((
         Name::new("Blast Effect"),
         TorpedoBlastEffectMarker,

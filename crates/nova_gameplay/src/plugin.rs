@@ -54,7 +54,6 @@ impl Plugin for NovaGameplayPlugin {
         app.add_plugins(bevy_common_systems::prelude::ExplodeMeshPlugin);
         // Core Mechanics
         app.add_plugins(bevy_common_systems::prelude::PDControllerPlugin);
-        app.add_plugins(bevy_common_systems::prelude::CollisionImpactPlugin);
         app.add_plugins(bevy_common_systems::prelude::HealthPlugin);
 
         // UI Plugins
@@ -67,7 +66,7 @@ impl Plugin for NovaGameplayPlugin {
         });
         app.add_plugins(crate::hud::NovaHudPlugin);
         app.add_plugins(crate::camera_controller::SpaceshipCameraControllerPlugin);
-        app.add_plugins(crate::damage::DamagePlugin);
+        app.add_plugins(crate::integrity::IntegrityPlugin);
 
         // Diagnostics
         if !app.is_plugin_added::<bevy::diagnostic::FrameTimeDiagnosticsPlugin>() {
