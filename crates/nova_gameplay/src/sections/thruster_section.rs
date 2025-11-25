@@ -8,7 +8,7 @@ use bevy::{
     shader::ShaderRef,
 };
 
-use crate::prelude::SectionRenderOf;
+use crate::prelude::{SectionInactiveMarker, SectionRenderOf};
 
 pub mod prelude {
     pub use super::{
@@ -126,7 +126,7 @@ fn thruster_impulse_system(
             &ThrusterSectionMagnitude,
             &ThrusterSectionInput,
         ),
-        With<ThrusterSectionMarker>,
+        (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>),
     >,
     mut q_root: Query<Forces>,
 ) {
@@ -151,7 +151,10 @@ fn thruster_impulse_system(
 struct ThrusterSectionExhaustShaderMarker;
 
 fn thruster_shader_update_system(
-    q_thruster: Query<&ThrusterSectionInput, With<ThrusterSectionMarker>>,
+    q_thruster: Query<
+        &ThrusterSectionInput,
+        (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>),
+    >,
     q_render: Query<
         (
             &MeshMaterial3d<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>,

@@ -191,7 +191,7 @@ fn insert_torpedo_section(
 }
 
 fn update_spawner_fire_state(
-    mut q_spawner: Query<&mut TorpedoSectionSpawnerFireState, With<TorpedoSectionSpawnerMarker>>,
+    mut q_spawner: Query<&mut TorpedoSectionSpawnerFireState, (With<TorpedoSectionSpawnerMarker>, Without<SectionInactiveMarker>)>,
     time: Res<Time>,
 ) {
     for mut fire_state in &mut q_spawner {
@@ -213,7 +213,7 @@ fn shoot_spawn_projectile(
             &TorpedoSectionConfigHelper,
             &TorpedoSectionInput,
         ),
-        With<TorpedoSectionMarker>,
+        (With<TorpedoSectionMarker>, Without<SectionInactiveMarker>),
     >,
     mut q_spawner: Query<&mut TorpedoSectionSpawnerFireState, With<TorpedoSectionSpawnerMarker>>,
     // We are using TransformHelper here because we need to compute the global transform; And it

@@ -9,12 +9,15 @@ use super::prelude::*;
 pub mod prelude {
     pub use super::{
         base_section, BaseSectionConfig, GameSections, SectionConfig, SectionKind, SectionMarker,
-        SectionRenderOf,
+        SectionRenderOf, SectionInactiveMarker,
     };
 }
 
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct SectionMarker;
+
+#[derive(Component, Clone, Debug, Reflect)]
+pub struct SectionInactiveMarker;
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect, PartialEq, Eq)]
 pub struct SectionRenderOf(pub Entity);
