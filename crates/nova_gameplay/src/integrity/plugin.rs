@@ -13,6 +13,9 @@ const RESTITUTION_COEFFICIENT: f32 = 0.5;
 const IMPULSE_DAMAGE_MODIFIER: f32 = 0.1;
 const ENERGY_DAMAGE_MODIFIER: f32 = 0.05;
 
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct IntegritySystems;
+
 pub struct IntegrityPlugin;
 
 impl Plugin for IntegrityPlugin {
@@ -39,6 +42,8 @@ impl Plugin for IntegrityPlugin {
         // TODO: This should maybe be moved to somewhere else, but it is the generic case where we
         // only have on rigidbody and one collider (e.g. for asteroids)
         app.add_observer(on_rigidbody_graph_create);
+
+        app.add_systems(Update, on_changed_graph.in_set(IntegritySystems));
     }
 }
 
@@ -199,7 +204,14 @@ fn on_section_disable(
     mut commands: Commands,
     // NOTE: If it is already a leaf, no need to disable the section since it will be destroyed
     // anyway
-    q_section: Query<Entity, (With<SectionMarker>, Without<IntegrityLeafMarker>)>,
+    q_section: Query<
+        Entity,
+        (
+            With<SectionMarker>,
+            With<IntegrityDisabledMarker>,
+            Without<IntegrityLeafMarker>,
+        ),
+    >,
 ) {
     let entity = add.entity;
     if !q_section.contains(entity) {
@@ -290,7 +302,6 @@ fn on_destroyed(
 
 fn on_section_graph_create(
     add: On<Add, SectionMarker>,
-    mut commands: Commands,
     mut q_graph: Query<&mut IntegrityGraph>,
     q_sections: Query<(Entity, &Transform, &ChildOf), With<SectionMarker>>,
 ) {
@@ -329,14 +340,6 @@ fn on_section_graph_create(
             neighbor_children.push(section);
         }
     }
-
-    for (entity, neighbors) in graph.iter() {
-        if neighbors.iter().len() <= 1 {
-            commands.entity(*entity).insert(IntegrityLeafMarker);
-        } else {
-            commands.entity(*entity).remove::<IntegrityLeafMarker>();
-        }
-    }
 }
 
 fn on_rigidbody_graph_create(
@@ -359,6 +362,20 @@ fn on_rigidbody_graph_create(
     let mut graph: HashMap<Entity, Vec<Entity>> = HashMap::new();
     graph.insert(collider, Vec::new());
 
-    commands.entity(collider).insert(IntegrityLeafMarker);
     commands.entity(*rigidbody).insert(IntegrityGraph(graph));
+}
+
+fn on_changed_graph(
+    mut commands: Commands,
+    q_graph: Query<&IntegrityGraph, Changed<IntegrityGraph>>,
+) {
+    for graph in &q_graph {
+        for (entity, neighbors) in graph.iter() {
+            if neighbors.iter().len() <= 1 {
+                commands.entity(*entity).try_insert(IntegrityLeafMarker);
+            } else {
+                commands.entity(*entity).try_remove::<IntegrityLeafMarker>();
+            }
+        }
+    }
 }
