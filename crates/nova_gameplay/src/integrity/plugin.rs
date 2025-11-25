@@ -1,9 +1,9 @@
 use avian3d::prelude::*;
-use bevy::prelude::*;
+use bevy::{platform::collections::HashMap, prelude::*};
 use bevy_common_systems::prelude::*;
 
 use super::{blast::*, components::*};
-use crate::prelude::SectionInactiveMarker;
+use crate::prelude::{SectionInactiveMarker, SectionMarker};
 
 pub mod prelude {
     pub use super::IntegrityPlugin;
@@ -26,9 +26,19 @@ impl Plugin for IntegrityPlugin {
         app.add_observer(on_impact_collision_event);
         app.add_observer(on_blast_collision_event);
         app.add_observer(on_health_depleted_disable);
-        app.add_observer(on_section_disable);
         app.add_observer(handle_destroy);
         app.add_observer(handle_chain_destroy);
+        app.add_observer(on_destroyed);
+
+        // TODO: This should be probably moved to some glue.rs file to not make integrity too
+        // dependent on sections
+        app.add_observer(on_section_disable);
+        // TODO: This should be probably moved to some glue.rs file to not make integrity too
+        // dependent on sections
+        app.add_observer(on_section_graph_create);
+        // TODO: This should maybe be moved to somewhere else, but it is the generic case where we
+        // only have on rigidbody and one collider (e.g. for asteroids)
+        app.add_observer(on_rigidbody_graph_create);
     }
 }
 
@@ -184,10 +194,18 @@ fn on_health_depleted_disable(add: On<Add, HealthZeroMarker>, mut commands: Comm
     commands.entity(entity).insert(IntegrityDisabledMarker);
 }
 
-// TODO: This should be probably moved to some glue.rs file to not make integrity too dependent on
-// sections
-fn on_section_disable(add: On<Add, IntegrityDisabledMarker>, mut commands: Commands) {
+fn on_section_disable(
+    add: On<Add, IntegrityDisabledMarker>,
+    mut commands: Commands,
+    // NOTE: If it is already a leaf, no need to disable the section since it will be destroyed
+    // anyway
+    q_section: Query<Entity, (With<SectionMarker>, Without<IntegrityLeafMarker>)>,
+) {
     let entity = add.entity;
+    if !q_section.contains(entity) {
+        return;
+    }
+
     trace!(
         "on_section_disable: entity {:?} integrity disabled, disabling section",
         entity
@@ -229,4 +247,118 @@ fn handle_chain_destroy(
         entity
     );
     commands.entity(entity).insert(IntegrityDestroyMarker);
+}
+
+fn on_destroyed(
+    add: On<Add, IntegrityDestroyMarker>,
+    mut commands: Commands,
+    q_destroyed: Query<&ChildOf, (With<IntegrityDestroyMarker>, Without<IntegrityGraph>)>,
+    mut q_graph: Query<&mut IntegrityGraph>,
+) {
+    let entity = add.entity;
+    trace!("on_destroyed: entity {:?}", entity);
+
+    let Ok(ChildOf(parent)) = q_destroyed.get(entity) else {
+        return;
+    };
+
+    let Ok(mut graph) = q_graph.get_mut(*parent) else {
+        error!(
+            "on_destroyed: entity {:?} parent {:?} not found in q_graph",
+            entity, parent
+        );
+        return;
+    };
+
+    // remove_entity_from_graph
+    graph.remove(&entity);
+    for (_parent, children) in graph.iter_mut() {
+        children.retain(|&child| child != entity);
+    }
+
+    // update_graph_leafs
+    let leafs: Vec<Entity> = graph
+        .iter()
+        .filter(|(_parent, children)| children.iter().len() == 1)
+        .map(|(parent, _children)| *parent)
+        .collect();
+
+    for leaf in leafs {
+        commands.entity(leaf).insert(IntegrityLeafMarker);
+    }
+}
+
+fn on_section_graph_create(
+    add: On<Add, SectionMarker>,
+    mut commands: Commands,
+    mut q_graph: Query<&mut IntegrityGraph>,
+    q_sections: Query<(Entity, &Transform, &ChildOf), With<SectionMarker>>,
+) {
+    let entity = add.entity;
+    trace!("on_section_graph_create: entity {:?}", entity);
+
+    let Ok((section, section_transform, ChildOf(parent))) = q_sections.get(entity) else {
+        error!(
+            "on_section_graph_create: entity {:?} not found in q_sections",
+            entity
+        );
+        return;
+    };
+
+    let Ok(mut graph) = q_graph.get_mut(*parent) else {
+        return;
+    };
+
+    let section_position = section_transform.translation;
+    let mut neighbors: Vec<Entity> = Vec::new();
+    for &child in graph.keys() {
+        let Ok((_, child_transform, _)) = q_sections.get(child) else {
+            continue;
+        };
+
+        let child_position = child_transform.translation;
+        let distance = section_position.distance(child_position);
+        if (distance - 1.0).abs() < f32::EPSILON {
+            neighbors.push(child);
+        }
+    }
+
+    graph.insert(section, neighbors.clone());
+    for neighbor in &neighbors {
+        if let Some(neighbor_children) = graph.get_mut(neighbor) {
+            neighbor_children.push(section);
+        }
+    }
+
+    for (entity, neighbors) in graph.iter() {
+        if neighbors.iter().len() <= 1 {
+            commands.entity(*entity).insert(IntegrityLeafMarker);
+        } else {
+            commands.entity(*entity).remove::<IntegrityLeafMarker>();
+        }
+    }
+}
+
+fn on_rigidbody_graph_create(
+    add: On<Add, ColliderOf>,
+    mut commands: Commands,
+    q_graph: Query<(), With<IntegrityGraph>>,
+    q_collider: Query<(Entity, &ChildOf), With<ColliderOf>>,
+) {
+    let entity = add.entity;
+    trace!("on_rigidbody_graph_create: entity {:?}", entity);
+
+    let Ok((collider, ChildOf(rigidbody))) = q_collider.get(entity) else {
+        return;
+    };
+
+    if q_graph.contains(*rigidbody) {
+        return;
+    }
+
+    let mut graph: HashMap<Entity, Vec<Entity>> = HashMap::new();
+    graph.insert(collider, Vec::new());
+
+    commands.entity(collider).insert(IntegrityLeafMarker);
+    commands.entity(*rigidbody).insert(IntegrityGraph(graph));
 }
