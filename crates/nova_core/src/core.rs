@@ -211,19 +211,19 @@ fn test_scenario(
             },
         ],
     };
-    // objects.push(ScenarioObjectConfig {
-    //     base: BaseScenarioObjectConfig {
-    //         id: "other_spaceship".to_string(),
-    //         name: "Other Spaceship".to_string(),
-    //         position: Vec3::new(
-    //             rng.random_range(-100.0..100.0),
-    //             rng.random_range(-10.0..10.0),
-    //             rng.random_range(-200.0..-100.0),
-    //         ),
-    //         rotation: Quat::IDENTITY,
-    //     },
-    //     kind: ScenarioObjectKind::Spaceship(spaceship),
-    // });
+    objects.push(ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: "other_spaceship".to_string(),
+            name: "Other Spaceship".to_string(),
+            position: Vec3::new(
+                rng.random_range(-100.0..100.0),
+                rng.random_range(-10.0..10.0),
+                rng.random_range(-200.0..-100.0),
+            ),
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Spaceship(spaceship),
+    });
 
     let player_spaceship = SpaceshipConfig {
         controller: SpaceshipController::Player(PlayerControllerConfig {

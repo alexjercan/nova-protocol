@@ -29,9 +29,9 @@ fn on_explode_entity(
     // actually mark them as destroyed and explode them. But obviously this won't be done only for
     // spaceships, but anything that has health and can be exploded. I will also have to add a
     // handler for non exploding entities.
-    add: On<Add, DestroyedMarker>,
+    add: On<Add, HealthZeroMarker>,
     mut commands: Commands,
-    q_explode: Query<(), (With<ExplodableEntity>, With<DestroyedMarker>)>,
+    q_explode: Query<(), (With<ExplodableEntity>, With<HealthZeroMarker>)>,
 ) {
     let entity = add.entity;
     trace!("on_explode_entity: entity {:?}", entity);

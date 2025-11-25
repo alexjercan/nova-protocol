@@ -5,7 +5,7 @@
 //! Features:
 //! - `Health` component to track current and maximum health.
 //! - `HealthApplyDamage` event to apply damage to entities.
-//! - `DestroyedMarker` component added when an entity's health reaches zero.
+//! - `HealthZeroMarker` component added when an entity's health reaches zero.
 //!
 //! Usage:
 //! ```rust
@@ -25,7 +25,7 @@ use bevy::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        DestroyedMarker, Health, HealthApplyDamage, HealthPlugin, HealthPluginSystems,
+        HealthZeroMarker, Health, HealthApplyDamage, HealthPlugin, HealthPluginSystems,
     };
 }
 
@@ -55,12 +55,12 @@ impl Health {
 /// health reaches zero. You can use this marker to trigger destruction logic
 /// like removing the entity, playing effects, or spawning loot.
 #[derive(Component, Clone, Debug, Reflect)]
-pub struct DestroyedMarker;
+pub struct HealthZeroMarker;
 
 /// Event to apply damage to a target entity.
 ///
 /// `amount` is subtracted from the target's current health. If health reaches
-/// zero or below, the `DestroyedMarker` is added.
+/// zero or below, the `HealthZeroMarker` is added.
 #[derive(Event, Clone, Debug)]
 pub struct HealthApplyDamage {
     /// The entity receiving damage.
@@ -98,11 +98,11 @@ impl Plugin for HealthPlugin {
 /// System to handle `HealthApplyDamage` events.
 ///
 /// Reduces the target's current health by the damage amount. If health
-/// reaches zero, adds `DestroyedMarker`.
+/// reaches zero, adds `HealthZeroMarker`.
 fn on_damage(
     damage: On<HealthApplyDamage>,
     mut commands: Commands,
-    mut q_health: Query<(Entity, &mut Health, Has<DestroyedMarker>)>,
+    mut q_health: Query<(Entity, &mut Health, Has<HealthZeroMarker>)>,
 ) {
     let target = damage.target;
     trace!("on_damage: target {:?}, damage {:?}", target, damage.amount);
@@ -125,6 +125,6 @@ fn on_damage(
     health.current -= damage.amount;
     if health.current <= 0.0 {
         health.current = 0.0;
-        commands.entity(entity).insert(DestroyedMarker);
+        commands.entity(entity).insert(HealthZeroMarker);
     }
 }
