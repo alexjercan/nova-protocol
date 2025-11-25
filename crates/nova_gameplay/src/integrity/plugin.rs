@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 
 use super::{blast::*, components::*};
+use crate::prelude::SectionInactiveMarker;
 
 pub mod prelude {
     pub use super::IntegrityPlugin;
@@ -24,6 +25,10 @@ impl Plugin for IntegrityPlugin {
         app.add_observer(on_collider_of_spawn);
         app.add_observer(on_impact_collision_event);
         app.add_observer(on_blast_collision_event);
+        app.add_observer(on_health_depleted_disable);
+        app.add_observer(on_section_disable);
+        app.add_observer(handle_destroy);
+        app.add_observer(handle_chain_destroy);
     }
 }
 
@@ -167,4 +172,61 @@ fn calculate_blast_damage(distance: f32, config: &BlastDamageConfig) -> f32 {
         let falloff = 1.0 - (distance / config.radius);
         config.max_damage * falloff
     }
+}
+
+fn on_health_depleted_disable(add: On<Add, HealthZeroMarker>, mut commands: Commands) {
+    let entity = add.entity;
+    trace!(
+        "on_health_depleted_disable: entity {:?} health depleted, disabling",
+        entity
+    );
+
+    commands.entity(entity).insert(IntegrityDisabledMarker);
+}
+
+// TODO: This should be probably moved to some glue.rs file to not make integrity too dependent on
+// sections
+fn on_section_disable(add: On<Add, IntegrityDisabledMarker>, mut commands: Commands) {
+    let entity = add.entity;
+    trace!(
+        "on_section_disable: entity {:?} integrity disabled, disabling section",
+        entity
+    );
+
+    commands.entity(entity).insert(SectionInactiveMarker);
+}
+
+fn handle_destroy(
+    add: On<Add, IntegrityDisabledMarker>,
+    mut commands: Commands,
+    q_disabled: Query<(), (With<IntegrityDisabledMarker>, With<IntegrityLeafMarker>)>,
+) {
+    let entity = add.entity;
+    trace!("handle_destroy: entity {:?}", entity);
+
+    let Ok(_) = q_disabled.get(entity) else {
+        return;
+    };
+
+    debug!("handle_destroy: entity {:?} will explode", entity);
+    commands.entity(entity).insert(IntegrityDestroyMarker);
+}
+
+fn handle_chain_destroy(
+    add: On<Add, IntegrityLeafMarker>,
+    mut commands: Commands,
+    q_destroyed: Query<(), (With<IntegrityDisabledMarker>, With<IntegrityLeafMarker>)>,
+) {
+    let entity = add.entity;
+    trace!("handle_chain_destroy: entity {:?}", entity);
+
+    let Ok(_) = q_destroyed.get(entity) else {
+        return;
+    };
+
+    debug!(
+        "handle_chain_destroy: entity {:?} parent destroyed, destroying",
+        entity
+    );
+    commands.entity(entity).insert(IntegrityDestroyMarker);
 }

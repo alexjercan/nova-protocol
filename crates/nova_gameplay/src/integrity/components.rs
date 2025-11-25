@@ -1,7 +1,9 @@
 use bevy::{platform::collections::HashMap, prelude::*};
 
 pub mod prelude {
-    pub use super::{IntegrityDisabledMarker, IntegrityGraph, IntegrityLeafMarker};
+    pub use super::{
+        IntegrityDisabledMarker, IntegrityDestroyMarker, IntegrityGraph, IntegrityLeafMarker,
+    };
 }
 
 /// A graph representing how the collider+health entities are connected to each other.
@@ -20,3 +22,5 @@ pub struct IntegrityLeafMarker;
 #[derive(Component, Debug, Default, Reflect)]
 pub struct IntegrityDisabledMarker;
 
+#[derive(Component, Debug, Default, Reflect)]
+pub struct IntegrityDestroyMarker;

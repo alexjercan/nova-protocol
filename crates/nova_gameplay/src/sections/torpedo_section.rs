@@ -191,7 +191,13 @@ fn insert_torpedo_section(
 }
 
 fn update_spawner_fire_state(
-    mut q_spawner: Query<&mut TorpedoSectionSpawnerFireState, (With<TorpedoSectionSpawnerMarker>, Without<SectionInactiveMarker>)>,
+    mut q_spawner: Query<
+        &mut TorpedoSectionSpawnerFireState,
+        (
+            With<TorpedoSectionSpawnerMarker>,
+            Without<SectionInactiveMarker>,
+        ),
+    >,
     time: Res<Time>,
 ) {
     for mut fire_state in &mut q_spawner {

@@ -152,8 +152,8 @@ struct ThrusterSectionExhaustShaderMarker;
 
 fn thruster_shader_update_system(
     q_thruster: Query<
-        &ThrusterSectionInput,
-        (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>),
+        (&ThrusterSectionInput, Has<SectionInactiveMarker>),
+        With<ThrusterSectionMarker>,
     >,
     q_render: Query<
         (
@@ -165,7 +165,7 @@ fn thruster_shader_update_system(
     mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>>,
 ) {
     for (material, &ChildOf(parent)) in &q_render {
-        let Ok(input) = q_thruster.get(parent) else {
+        let Ok((input, inactive)) = q_thruster.get(parent) else {
             error!(
                 "thruster_shader_update_system: entity {:?} not found in q_thruster",
                 parent
@@ -181,7 +181,11 @@ fn thruster_shader_update_system(
             continue;
         };
 
-        material.extension.thruster_input = **input;
+        if inactive {
+            material.extension.thruster_input = 0.0;
+        } else {
+            material.extension.thruster_input = **input;
+        }
     }
 }
 

@@ -410,8 +410,8 @@ fn update_barrel_fire_state(
 
 fn update_turret_target_yaw_system(
     q_turret: Query<
-        &TurretSectionTargetInput,
-        (With<TurretSectionMarker>, Without<SectionInactiveMarker>),
+        (&TurretSectionTargetInput, Has<SectionInactiveMarker>),
+        With<TurretSectionMarker>,
     >,
     mut q_rotator_yaw_base: Query<
         (
@@ -435,13 +435,17 @@ fn update_turret_target_yaw_system(
             continue;
         };
 
-        let Ok(target_input) = q_turret.get(*turret) else {
+        let Ok((target_input, inactive)) = q_turret.get(*turret) else {
             error!(
                 "update_turret_target_yaw_system: entity {:?} not found in q_turret",
                 *turret
             );
             continue;
         };
+
+        if inactive {
+            continue;
+        }
 
         let Some(target_input) = **target_input else {
             continue;
@@ -474,8 +478,8 @@ fn update_turret_target_yaw_system(
 
 fn update_turret_target_pitch_system(
     q_turret: Query<
-        &TurretSectionTargetInput,
-        (With<TurretSectionMarker>, Without<SectionInactiveMarker>),
+        (&TurretSectionTargetInput, Has<SectionInactiveMarker>),
+        With<TurretSectionMarker>,
     >,
     mut q_rotator_pitch_base: Query<
         (
@@ -499,13 +503,17 @@ fn update_turret_target_pitch_system(
             continue;
         };
 
-        let Ok(target_input) = q_turret.get(*turret) else {
+        let Ok((target_input, inactive)) = q_turret.get(*turret) else {
             error!(
                 "update_turret_target_pitch_system: entity {:?} not found in q_turret",
                 *turret
             );
             continue;
         };
+
+        if inactive {
+            continue;
+        }
 
         let Some(target_input) = **target_input else {
             continue;
