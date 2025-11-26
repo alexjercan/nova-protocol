@@ -47,7 +47,6 @@ fn setup_scenario(
                 rng.random_range(-100.0..100.0),
             ),
             rotation: Quat::IDENTITY,
-            health: 100.0,
         }),
         Collider::cuboid(10.0, 10.0, 10.0),
         children![(
@@ -128,7 +127,6 @@ pub fn example(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
             name: "Player Spaceship".to_string(),
             position: Vec3::ZERO,
             rotation: Quat::IDENTITY,
-            health: 500.0,
         },
         kind: ScenarioObjectKind::Spaceship(spaceship),
     });
