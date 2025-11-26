@@ -44,7 +44,11 @@ pub fn test_scenario(game_assets: &GameAssets) -> ScenarioConfig {
                 position: pos,
                 rotation: Quat::IDENTITY,
             },
-            kind: ScenarioObjectKind::Asteroid(AsteroidConfig { radius, texture, health: 500.0 }),
+            kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                radius,
+                texture,
+                health: 500.0,
+            }),
         });
     }
 
