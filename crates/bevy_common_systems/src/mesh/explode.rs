@@ -11,7 +11,7 @@ use rand::Rng;
 use super::builder::TriangleMeshBuilder;
 
 pub mod prelude {
-    pub use super::{ExplodableEntity, ExplodeFragments, ExplodeMesh, ExplodeMeshPlugin};
+    pub use super::{ExplodeFragments, ExplodeMesh, ExplodeMeshPlugin};
 }
 
 /// Maximum iterations for recursive mesh slicing.
@@ -30,10 +30,6 @@ pub struct ExplodeFragment {
     /// The explosion direction (normalized).
     pub direction: Dir3,
 }
-
-/// Marker component to indicate that an entity can be exploded.
-#[derive(Component, Clone, Debug, Default, Reflect)]
-pub struct ExplodableEntity;
 
 /// Component storing the generated fragments from an exploded entity.
 ///

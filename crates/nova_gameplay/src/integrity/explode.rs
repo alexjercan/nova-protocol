@@ -2,13 +2,18 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 use bevy_rand::prelude::*;
+use nova_events::prelude::*;
 use rand::Rng;
 
 use super::components::*;
 
 pub mod prelude {
-    pub use super::MeshFragmentMarker;
+    pub use super::{ExplodableEntity, MeshFragmentMarker};
 }
+
+/// Marker component to indicate that an entity can be exploded.
+#[derive(Component, Clone, Debug, Default, Reflect)]
+pub struct ExplodableEntity;
 
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct MeshFragmentMarker;
@@ -19,9 +24,53 @@ impl Plugin for ExplodablePlugin {
     fn build(&self, app: &mut App) {
         debug!("ExplodablePlugin: build");
 
+        app.add_observer(on_add_explodable_entity);
+        app.add_observer(on_destroyed_entity);
         app.add_observer(on_explode_entity);
         app.add_observer(handle_entity_explosion);
     }
+}
+
+fn on_add_explodable_entity(
+    add: On<Add, ExplodableEntity>,
+    mut commands: Commands,
+    q_explode: Query<&ChildOf, With<ExplodableEntity>>,
+) {
+    let entity = add.entity;
+    trace!("on_add_explodable_entity: entity {:?}", entity);
+
+    let Ok(ChildOf(parent)) = q_explode.get(entity) else {
+        return;
+    };
+
+    debug!(
+        "on_add_explodable_entity: entity {:?} is child of {:?}, adding ExplodableEntity to parent",
+        entity, *parent
+    );
+
+    commands.entity(*parent).insert(ExplodableEntity);
+}
+
+fn on_destroyed_entity(
+    add: On<Add, IntegrityDestroyMarker>,
+    mut commands: Commands,
+    q_info: Query<(&EntityId, &EntityTypeName), With<IntegrityDestroyMarker>>,
+) {
+    let entity = add.entity;
+    trace!("on_destroyed_entity: entity {:?}", entity);
+
+    let Ok((id, type_name)) = q_info.get(entity) else {
+        return;
+    };
+
+    debug!(
+        "on_destroyed_entity: entity {:?} destroyed (id: {:?}, type: {:?})",
+        entity, id, type_name
+    );
+    commands.fire::<OnDestroyedEvent>(OnDestroyedEventInfo {
+        id: id.to_string(),
+        type_name: type_name.to_string(),
+    });
 }
 
 fn on_explode_entity(

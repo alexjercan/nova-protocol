@@ -61,10 +61,11 @@ pub struct HealthZeroMarker;
 ///
 /// `amount` is subtracted from the target's current health. If health reaches
 /// zero or below, the `HealthZeroMarker` is added.
-#[derive(Event, Clone, Debug)]
+#[derive(EntityEvent, Clone, Debug)]
+#[entity_event(propagate, auto_propagate)]
 pub struct HealthApplyDamage {
     /// The entity receiving damage.
-    pub target: Entity,
+    pub entity: Entity,
 
     /// TODO: Maybe make this `source` more configurable? - what if we can also specify stuff like
     /// damage type, critical hit, etc.?
@@ -99,12 +100,15 @@ impl Plugin for HealthPlugin {
 ///
 /// Reduces the target's current health by the damage amount. If health
 /// reaches zero, adds `HealthZeroMarker`.
+///
+/// We always bubble up the damage event, even if the entity is already destroyed,
+/// to allow parent entities to react accordingly.
 fn on_damage(
     damage: On<HealthApplyDamage>,
     mut commands: Commands,
     mut q_health: Query<(Entity, &mut Health, Has<HealthZeroMarker>)>,
 ) {
-    let target = damage.target;
+    let target = damage.entity;
     trace!("on_damage: target {:?}, damage {:?}", target, damage.amount);
 
     let Ok((entity, mut health, destroyed)) = q_health.get_mut(target) else {

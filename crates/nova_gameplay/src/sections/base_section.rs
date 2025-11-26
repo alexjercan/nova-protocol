@@ -5,11 +5,12 @@ use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 
 use super::prelude::*;
+use crate::prelude::ExplodableEntity;
 
 pub mod prelude {
     pub use super::{
-        base_section, BaseSectionConfig, GameSections, SectionConfig, SectionKind, SectionMarker,
-        SectionRenderOf, SectionInactiveMarker,
+        base_section, BaseSectionConfig, GameSections, SectionConfig, SectionInactiveMarker,
+        SectionKind, SectionMarker, SectionRenderOf,
     };
 }
 

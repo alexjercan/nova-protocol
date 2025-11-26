@@ -42,7 +42,7 @@ fn on_click_damage_health(
 
     if q_health.get(entity).is_ok() {
         commands.trigger(HealthApplyDamage {
-            target: click.entity,
+            entity: click.entity,
             source: None,
             amount: 100.0,
         });

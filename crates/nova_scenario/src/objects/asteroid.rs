@@ -4,6 +4,7 @@ use bevy_common_systems::prelude::*;
 use bevy_rand::prelude::*;
 use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
 use nova_events::prelude::*;
+use nova_gameplay::prelude::*;
 use rand::RngCore;
 
 pub mod prelude {

@@ -25,12 +25,17 @@ impl Plugin for IntegrityPlugin {
         // Handle explosion on destruction
         app.add_plugins(super::explode::ExplodablePlugin);
 
-        app.add_observer(on_collider_of_spawn);
-        app.add_observer(on_impact_collision_event);
-        app.add_observer(on_blast_collision_event);
-        app.add_observer(on_health_depleted_disable);
+        // TODO: I kind of don't want to have the IntegrityGraph component, but rather use the
+        // children as nodes, and have something like ConnectedTo component that lives on the child
+        // node and is a Vec<Entity> or something like that. Maybe...
+
+        app.add_observer(on_collider_of_spawn_insert_collision_events);
+        app.add_observer(on_impact_collision_deal_damage);
+        app.add_observer(on_blast_collision_deal_damage);
+        app.add_observer(on_health_depleted_insert_disabled);
         app.add_observer(handle_destroy);
         app.add_observer(handle_chain_destroy);
+        app.add_observer(handle_parent_destroy);
         app.add_observer(on_destroyed);
 
         // TODO: This should be probably moved to some glue.rs file to not make integrity too
@@ -43,11 +48,13 @@ impl Plugin for IntegrityPlugin {
         // only have on rigidbody and one collider (e.g. for asteroids)
         app.add_observer(on_rigidbody_graph_create);
 
+        app.add_observer(on_health_child);
+
         app.add_systems(Update, on_changed_graph.in_set(IntegritySystems));
     }
 }
 
-fn on_collider_of_spawn(
+fn on_collider_of_spawn_insert_collision_events(
     add: On<Add, ColliderOf>,
     mut commands: Commands,
     q_collider: Query<Entity, (With<ColliderOf>, With<Health>)>,
@@ -70,7 +77,7 @@ fn on_collider_of_spawn(
     commands.entity(entity).insert(CollisionEventsEnabled);
 }
 
-fn on_impact_collision_event(
+fn on_impact_collision_deal_damage(
     collision: On<CollisionStart>,
     mut commands: Commands,
     q_body: Query<(&LinearVelocity, &ComputedMass), With<RigidBody>>,
@@ -121,13 +128,13 @@ fn on_impact_collision_event(
         collider1, body, collider2, other, damage
     );
     commands.trigger(HealthApplyDamage {
-        target: collider1,
+        entity: collider1,
         source: Some(collider2),
         amount: damage,
     });
 }
 
-fn on_blast_collision_event(
+fn on_blast_collision_deal_damage(
     collision: On<CollisionStart>,
     mut commands: Commands,
     // NOTE: Maybe we want the distance between the colliders
@@ -174,7 +181,7 @@ fn on_blast_collision_event(
         damage, collider1, body, collider2, blast
     );
     commands.trigger(HealthApplyDamage {
-        target: collider1,
+        entity: collider1,
         source: Some(collider2),
         amount: damage,
     });
@@ -189,7 +196,7 @@ fn calculate_blast_damage(distance: f32, config: &BlastDamageConfig) -> f32 {
     }
 }
 
-fn on_health_depleted_disable(add: On<Add, HealthZeroMarker>, mut commands: Commands) {
+fn on_health_depleted_insert_disabled(add: On<Add, HealthZeroMarker>, mut commands: Commands) {
     let entity = add.entity;
     trace!(
         "on_health_depleted_disable: entity {:?} health depleted, disabling",
@@ -258,6 +265,21 @@ fn handle_chain_destroy(
         "handle_chain_destroy: entity {:?} parent destroyed, destroying",
         entity
     );
+    commands.entity(entity).insert(IntegrityDestroyMarker);
+}
+
+fn handle_parent_destroy(
+    add: On<Add, IntegrityDisabledMarker>,
+    mut commands: Commands,
+    q_destroyed: Query<(), (With<IntegrityDisabledMarker>, With<IntegrityGraph>)>,
+) {
+    let entity = add.entity;
+    trace!("handle_parent_destroy: entity {:?}", entity);
+
+    let Ok(_) = q_destroyed.get(entity) else {
+        return;
+    };
+
     commands.entity(entity).insert(IntegrityDestroyMarker);
 }
 
@@ -363,6 +385,34 @@ fn on_rigidbody_graph_create(
     graph.insert(collider, Vec::new());
 
     commands.entity(*rigidbody).insert(IntegrityGraph(graph));
+}
+
+fn on_health_child(
+    add: On<Add, Health>,
+    mut commands: Commands,
+    q_child_of: Query<(&ChildOf, &Health), With<Health>>,
+    q_parent: Query<Option<&Health>>,
+) {
+    let entity = add.entity;
+    trace!("on_health_child: entity {:?}", entity);
+
+    let Ok((ChildOf(parent), child_health)) = q_child_of.get(entity) else {
+        return;
+    };
+
+    let Ok(parent_health) = q_parent.get(*parent) else {
+        return;
+    };
+
+    let new_health = match parent_health {
+        Some(health) => Health {
+            current: health.current + child_health.current,
+            max: health.max + child_health.max,
+        },
+        None => child_health.clone(),
+    };
+
+    commands.entity(*parent).insert(new_health);
 }
 
 fn on_changed_graph(
