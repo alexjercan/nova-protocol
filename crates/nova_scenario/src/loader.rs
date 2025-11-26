@@ -240,7 +240,7 @@ fn on_player_spaceship_spawned(
 }
 
 fn on_player_spaceship_destroyed(
-    add: On<Add, DestroyedMarker>,
+    add: On<Add, HealthZeroMarker>,
     mut commands: Commands,
     camera: Single<Entity, With<SpaceshipCameraController>>,
     spaceship: Single<Entity, With<PlayerSpaceshipMarker>>,

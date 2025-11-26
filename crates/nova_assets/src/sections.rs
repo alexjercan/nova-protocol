@@ -11,6 +11,7 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 name: "Reinforced Hull Section".to_string(),
                 description: "A reinforced hull section for spaceships.".to_string(),
                 mass: 1.0,
+                health: 200.0,
             },
             kind: SectionKind::Hull(HullSectionConfig {
                 render_mesh: Some(game_assets.hull_01.clone()),
@@ -22,6 +23,7 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 name: "Basic Thruster Section".to_string(),
                 description: "A basic thruster section for spaceships.".to_string(),
                 mass: 1.0,
+                health: 100.0,
             },
             kind: SectionKind::Thruster(ThrusterSectionConfig {
                 magnitude: 1.0,
@@ -34,6 +36,7 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 name: "Basic Controller Section".to_string(),
                 description: "A basic controller section for spaceships.".to_string(),
                 mass: 1.0,
+                health: 100.0,
             },
             kind: SectionKind::Controller(ControllerSectionConfig {
                 frequency: 4.0,
@@ -48,6 +51,7 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 name: "Better Turret Section".to_string(),
                 description: "A better turret section for spaceships.".to_string(),
                 mass: 1.0,
+                health: 100.0,
             },
             kind: SectionKind::Turret(TurretSectionConfig {
                 yaw_speed: std::f32::consts::PI,   // 180 degrees per second
@@ -77,6 +81,7 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 name: "Torpedo Bay Section".to_string(),
                 description: "A torpedo bay section for spaceships.".to_string(),
                 mass: 1.0,
+                health: 100.0,
             },
             kind: SectionKind::Torpedo(TorpedoSectionConfig {
                 render_mesh: None,

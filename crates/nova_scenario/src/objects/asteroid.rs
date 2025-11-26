@@ -4,6 +4,7 @@ use bevy_common_systems::prelude::*;
 use bevy_rand::prelude::*;
 use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
 use nova_events::prelude::*;
+use nova_gameplay::prelude::*;
 use rand::RngCore;
 
 pub mod prelude {
@@ -19,6 +20,7 @@ pub const ASTEROID_TYPE_NAME: &str = "asteroid";
 pub struct AsteroidConfig {
     pub radius: f32,
     pub texture: Handle<Image>,
+    pub health: f32,
 }
 
 pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
@@ -29,6 +31,7 @@ pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
         EntityTypeName::new(ASTEROID_TYPE_NAME),
         AsteroidTexture(config.texture),
         AsteroidRadius(config.radius),
+        AsteroidHealth(config.health),
     )
 }
 
@@ -43,6 +46,9 @@ pub struct AsteroidRenderMesh(pub Mesh);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidRadius(pub f32);
+
+#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
+pub struct AsteroidHealth(pub f32);
 
 pub struct AsteroidPlugin {
     pub render: bool,
@@ -62,13 +68,13 @@ impl Plugin for AsteroidPlugin {
 fn insert_asteroid_collider(
     add: On<Add, AsteroidMarker>,
     mut commands: Commands,
-    q_asteroid: Query<&AsteroidRadius, With<AsteroidMarker>>,
+    q_asteroid: Query<(&AsteroidRadius, &AsteroidHealth), With<AsteroidMarker>>,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
 ) {
     let entity = add.entity;
     trace!("insert_asteroid_render: entity {:?}", entity);
 
-    let Ok(radius) = q_asteroid.get(entity) else {
+    let Ok((radius, health)) = q_asteroid.get(entity) else {
         error!(
             "insert_asteroid_render: entity {:?} not found in q_asteroid",
             entity
@@ -87,6 +93,8 @@ fn insert_asteroid_collider(
         AsteroidRenderMesh(mesh.clone()),
         collider,
         ColliderDensity(1.0),
+        Health::new(**health),
+        ExplodableEntity,
         Visibility::Inherited,
     )],));
 }

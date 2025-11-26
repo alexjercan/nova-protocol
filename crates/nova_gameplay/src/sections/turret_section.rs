@@ -391,16 +391,28 @@ fn insert_turret_section(
 }
 
 fn update_barrel_fire_state(
-    mut q_barrel: Query<&mut TurretSectionBarrelFireState, With<TurretSectionBarrelMuzzleMarker>>,
+    q_turret: Query<Entity, (With<TurretSectionMarker>, Without<SectionInactiveMarker>)>,
+    mut q_barrel: Query<
+        (&mut TurretSectionBarrelFireState, &TurretSectionPartOf),
+        With<TurretSectionBarrelMuzzleMarker>,
+    >,
     time: Res<Time>,
 ) {
-    for mut fire_state in &mut q_barrel {
-        fire_state.tick(time.delta());
+    let dt = time.delta();
+    for (mut fire_state, part_of) in &mut q_barrel {
+        if !q_turret.contains(**part_of) {
+            continue;
+        }
+
+        fire_state.tick(dt);
     }
 }
 
 fn update_turret_target_yaw_system(
-    q_turret: Query<&TurretSectionTargetInput, With<TurretSectionMarker>>,
+    q_turret: Query<
+        (&TurretSectionTargetInput, Has<SectionInactiveMarker>),
+        With<TurretSectionMarker>,
+    >,
     mut q_rotator_yaw_base: Query<
         (
             &mut SmoothLookRotationTarget,
@@ -423,13 +435,17 @@ fn update_turret_target_yaw_system(
             continue;
         };
 
-        let Ok(target_input) = q_turret.get(*turret) else {
+        let Ok((target_input, inactive)) = q_turret.get(*turret) else {
             error!(
                 "update_turret_target_yaw_system: entity {:?} not found in q_turret",
                 *turret
             );
             continue;
         };
+
+        if inactive {
+            continue;
+        }
 
         let Some(target_input) = **target_input else {
             continue;
@@ -461,7 +477,10 @@ fn update_turret_target_yaw_system(
 }
 
 fn update_turret_target_pitch_system(
-    q_turret: Query<&TurretSectionTargetInput, With<TurretSectionMarker>>,
+    q_turret: Query<
+        (&TurretSectionTargetInput, Has<SectionInactiveMarker>),
+        With<TurretSectionMarker>,
+    >,
     mut q_rotator_pitch_base: Query<
         (
             &mut SmoothLookRotationTarget,
@@ -484,13 +503,17 @@ fn update_turret_target_pitch_system(
             continue;
         };
 
-        let Ok(target_input) = q_turret.get(*turret) else {
+        let Ok((target_input, inactive)) = q_turret.get(*turret) else {
             error!(
                 "update_turret_target_pitch_system: entity {:?} not found in q_turret",
                 *turret
             );
             continue;
         };
+
+        if inactive {
+            continue;
+        }
 
         let Some(target_input) = **target_input else {
             continue;
@@ -567,7 +590,7 @@ fn shoot_spawn_projectile(
             &TurretSectionConfigHelper,
             &TurretSectionInput,
         ),
-        With<TurretSectionMarker>,
+        (With<TurretSectionMarker>, Without<SectionInactiveMarker>),
     >,
     mut q_muzzle: Query<&mut TurretSectionBarrelFireState, With<TurretSectionBarrelMuzzleMarker>>,
     // We are using TransformHelper here because we need to compute the global transform; And it

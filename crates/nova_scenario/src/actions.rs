@@ -127,7 +127,6 @@ pub struct BaseScenarioObjectConfig {
     pub name: String,
     pub position: Vec3,
     pub rotation: Quat,
-    pub health: f32,
 }
 
 pub fn base_scenario_object(config: &BaseScenarioObjectConfig) -> impl Bundle {
@@ -138,9 +137,6 @@ pub fn base_scenario_object(config: &BaseScenarioObjectConfig) -> impl Bundle {
         Transform::from_translation(config.position).with_rotation(config.rotation),
         RigidBody::Dynamic,
         Visibility::Visible,
-        Health::new(config.health),
-        CollisionImpactMarker,
-        ExplodableEntity,
     )
 }
 

@@ -3,9 +3,9 @@
 //! Nova Protocol specific systems and components.
 
 pub mod camera_controller;
-pub mod damage;
 pub mod hud;
 pub mod input;
+pub mod integrity;
 pub mod plugin;
 pub mod sections;
 
@@ -17,9 +17,9 @@ pub mod prelude {
 
     pub use super::{
         camera_controller::prelude::*,
-        damage::prelude::*,
         hud::prelude::*,
         input::prelude::*,
+        integrity::prelude::*,
         plugin::{NovaGameplayPlugin, SpaceshipSystems},
         sections::prelude::*,
     };

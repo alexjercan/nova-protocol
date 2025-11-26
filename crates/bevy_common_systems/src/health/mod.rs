@@ -5,7 +5,7 @@
 //! Features:
 //! - `Health` component to track current and maximum health.
 //! - `HealthApplyDamage` event to apply damage to entities.
-//! - `DestroyedMarker` component added when an entity's health reaches zero.
+//! - `HealthZeroMarker` component added when an entity's health reaches zero.
 //!
 //! Usage:
 //! ```rust
@@ -25,7 +25,7 @@ use bevy::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        DestroyedMarker, Health, HealthApplyDamage, HealthPlugin, HealthPluginSystems,
+        Health, HealthApplyDamage, HealthPlugin, HealthPluginSystems, HealthZeroMarker,
     };
 }
 
@@ -55,16 +55,17 @@ impl Health {
 /// health reaches zero. You can use this marker to trigger destruction logic
 /// like removing the entity, playing effects, or spawning loot.
 #[derive(Component, Clone, Debug, Reflect)]
-pub struct DestroyedMarker;
+pub struct HealthZeroMarker;
 
 /// Event to apply damage to a target entity.
 ///
 /// `amount` is subtracted from the target's current health. If health reaches
-/// zero or below, the `DestroyedMarker` is added.
-#[derive(Event, Clone, Debug)]
+/// zero or below, the `HealthZeroMarker` is added.
+#[derive(EntityEvent, Clone, Debug)]
+#[entity_event(propagate, auto_propagate)]
 pub struct HealthApplyDamage {
     /// The entity receiving damage.
-    pub target: Entity,
+    pub entity: Entity,
 
     /// TODO: Maybe make this `source` more configurable? - what if we can also specify stuff like
     /// damage type, critical hit, etc.?
@@ -98,13 +99,16 @@ impl Plugin for HealthPlugin {
 /// System to handle `HealthApplyDamage` events.
 ///
 /// Reduces the target's current health by the damage amount. If health
-/// reaches zero, adds `DestroyedMarker`.
+/// reaches zero, adds `HealthZeroMarker`.
+///
+/// We always bubble up the damage event, even if the entity is already destroyed,
+/// to allow parent entities to react accordingly.
 fn on_damage(
     damage: On<HealthApplyDamage>,
     mut commands: Commands,
-    mut q_health: Query<(Entity, &mut Health, Has<DestroyedMarker>)>,
+    mut q_health: Query<(Entity, &mut Health, Has<HealthZeroMarker>)>,
 ) {
-    let target = damage.target;
+    let target = damage.entity;
     trace!("on_damage: target {:?}, damage {:?}", target, damage.amount);
 
     let Ok((entity, mut health, destroyed)) = q_health.get_mut(target) else {
@@ -125,6 +129,6 @@ fn on_damage(
     health.current -= damage.amount;
     if health.current <= 0.0 {
         health.current = 0.0;
-        commands.entity(entity).insert(DestroyedMarker);
+        commands.entity(entity).insert(HealthZeroMarker);
     }
 }

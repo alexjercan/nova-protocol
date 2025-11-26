@@ -42,7 +42,7 @@ fn on_click_damage_health(
 
     if q_health.get(entity).is_ok() {
         commands.trigger(HealthApplyDamage {
-            target: click.entity,
+            entity: click.entity,
             source: None,
             amount: 100.0,
         });
@@ -80,9 +80,12 @@ pub fn test_scenario(game_assets: &GameAssets) -> ScenarioConfig {
                 name: format!("Asteroid {}", i),
                 position: pos,
                 rotation: Quat::IDENTITY,
-                health: 100.0,
             },
-            kind: ScenarioObjectKind::Asteroid(AsteroidConfig { radius, texture }),
+            kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                radius,
+                texture,
+                health: 500.0,
+            }),
         });
     }
 

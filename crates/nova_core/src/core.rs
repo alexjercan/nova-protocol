@@ -152,9 +152,12 @@ fn test_scenario(
                 name: format!("Asteroid {}", i),
                 position: pos,
                 rotation: Quat::IDENTITY,
-                health: 100.0,
             },
-            kind: ScenarioObjectKind::Asteroid(AsteroidConfig { radius, texture }),
+            kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                radius,
+                texture,
+                health: 100.0,
+            }),
         });
     }
 
@@ -218,7 +221,6 @@ fn test_scenario(
                 rng.random_range(-200.0..-100.0),
             ),
             rotation: Quat::IDENTITY,
-            health: 100.0,
         },
         kind: ScenarioObjectKind::Spaceship(spaceship),
     });
@@ -239,7 +241,6 @@ fn test_scenario(
             name: "Player's Spaceship".to_string(),
             position: Vec3::new(0.0, 0.0, 50.0),
             rotation: Quat::IDENTITY,
-            health: 100.0,
         },
         kind: ScenarioObjectKind::Spaceship(player_spaceship),
     });

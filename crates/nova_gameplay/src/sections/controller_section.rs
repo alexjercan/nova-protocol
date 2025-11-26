@@ -4,7 +4,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 
-use crate::prelude::SectionRenderOf;
+use crate::prelude::{SectionInactiveMarker, SectionRenderOf};
 
 pub mod prelude {
     pub use super::{
@@ -98,7 +98,13 @@ impl Plugin for ControllerSectionPlugin {
 }
 
 fn update_controller_section_rotation_input(
-    mut q_controller: Query<(&mut PDControllerInput, &ControllerSectionRotationInput)>,
+    mut q_controller: Query<
+        (&mut PDControllerInput, &ControllerSectionRotationInput),
+        (
+            With<ControllerSectionMarker>,
+            Without<SectionInactiveMarker>,
+        ),
+    >,
 ) {
     for (mut input, desired_rotation) in &mut q_controller {
         **input = **desired_rotation;
