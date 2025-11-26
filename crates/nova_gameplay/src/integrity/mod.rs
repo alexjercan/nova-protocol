@@ -1,13 +1,12 @@
-pub mod components;
-pub mod plugin;
 pub mod blast;
+pub mod components;
 pub mod explode;
+pub mod plugin;
 
 pub use plugin::IntegrityPlugin;
 
 pub mod prelude {
-    pub use super::components::prelude::*;
-    pub use super::plugin::prelude::*;
-    pub use super::blast::prelude::*;
-    pub use super::explode::prelude::*;
+    pub use super::{
+        blast::prelude::*, components::prelude::*, explode::prelude::*, plugin::prelude::*,
+    };
 }

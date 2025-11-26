@@ -25,7 +25,7 @@ use bevy::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        HealthZeroMarker, Health, HealthApplyDamage, HealthPlugin, HealthPluginSystems,
+        Health, HealthApplyDamage, HealthPlugin, HealthPluginSystems, HealthZeroMarker,
     };
 }
 

@@ -2,7 +2,7 @@ use bevy::{platform::collections::HashMap, prelude::*};
 
 pub mod prelude {
     pub use super::{
-        IntegrityDisabledMarker, IntegrityDestroyMarker, IntegrityGraph, IntegrityLeafMarker,
+        IntegrityDestroyMarker, IntegrityDisabledMarker, IntegrityGraph, IntegrityLeafMarker,
     };
 }
 

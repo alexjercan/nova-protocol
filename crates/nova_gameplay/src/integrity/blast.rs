@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use avian3d::prelude::*;
+use bevy::prelude::*;
 
 pub mod prelude {
     pub use super::{blast_damage, BlastDamageConfig, BlastDamageMarker};

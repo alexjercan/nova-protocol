@@ -5,9 +5,9 @@
 pub mod camera_controller;
 pub mod hud;
 pub mod input;
+pub mod integrity;
 pub mod plugin;
 pub mod sections;
-pub mod integrity;
 
 pub use bevy_common_systems;
 
@@ -19,8 +19,8 @@ pub mod prelude {
         camera_controller::prelude::*,
         hud::prelude::*,
         input::prelude::*,
+        integrity::prelude::*,
         plugin::{NovaGameplayPlugin, SpaceshipSystems},
         sections::prelude::*,
-        integrity::prelude::*,
     };
 }
