@@ -7,6 +7,7 @@ use bevy::{
     render::render_resource::AsBindGroup,
     shader::ShaderRef,
 };
+use bevy_common_systems::prelude::*;
 
 use crate::prelude::{SectionInactiveMarker, SectionRenderOf};
 
@@ -54,18 +55,26 @@ pub fn thruster_section(config: ThrusterSectionConfig) -> impl Bundle {
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct ThrusterExhaustConfig {
     pub exhaust_height: f32,
-    pub exhaust_max: f32,
     pub exhaust_radius: f32,
+    pub exhaust_max: f32,
+    pub exhaust_inner_height: f32,
+    pub exhaust_inner_radius: f32,
+    pub exhaust_inner_max: f32,
     pub emissive_color: LinearRgba,
+    pub emissive_inner_color: LinearRgba,
 }
 
 impl Default for ThrusterExhaustConfig {
     fn default() -> Self {
         Self {
             exhaust_height: 0.1,
-            exhaust_max: 1.0,
             exhaust_radius: 0.4,
+            exhaust_max: 1.0,
+            exhaust_inner_height: 0.05,
+            exhaust_inner_radius: 0.1,
+            exhaust_inner_max: 0.5,
             emissive_color: LinearRgba::rgb(0.0, 10.0, 10.0),
+            emissive_inner_color: LinearRgba::rgb(0.0, 0.0, 10.0),
         }
     }
 }
@@ -162,10 +171,11 @@ fn thruster_shader_update_system(
         ),
         With<ThrusterSectionExhaustShaderMarker>,
     >,
+    q_child: Query<&ChildOf>,
     mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>>,
 ) {
     for (material, &ChildOf(parent)) in &q_render {
-        let Ok((input, inactive)) = q_thruster.get(parent) else {
+        let Some((input, inactive)) = find_thruster_section(parent, &q_thruster, &q_child) else {
             error!(
                 "thruster_shader_update_system: entity {:?} not found in q_thruster",
                 parent
@@ -184,8 +194,30 @@ fn thruster_shader_update_system(
         if inactive {
             material.extension.thruster_input = 0.0;
         } else {
-            material.extension.thruster_input = **input;
+            material.extension.thruster_input = *input;
         }
+    }
+}
+
+fn find_thruster_section(
+    parent: Entity,
+    q_thruster: &Query<
+        (&ThrusterSectionInput, Has<SectionInactiveMarker>),
+        With<ThrusterSectionMarker>,
+    >,
+    q_child: &Query<&ChildOf>,
+) -> Option<(ThrusterSectionInput, bool)> {
+    let mut parent = parent;
+    loop {
+        if let Ok((input, inactive)) = q_thruster.get(parent) {
+            return Some((input.clone(), inactive));
+        }
+
+        let Ok(ChildOf(grandparent)) = q_child.get(parent) else {
+            return None;
+        };
+
+        parent = *grandparent;
     }
 }
 
@@ -278,7 +310,13 @@ fn insert_thruster_shader(
         return;
     };
 
-    let mesh = Cone::new(config.exhaust_radius, config.exhaust_height);
+    let mesh = TriangleMeshBuilder::new_cone(32, 4)
+        .with_scale(Vec3::new(
+            config.exhaust_radius,
+            config.exhaust_height,
+            config.exhaust_radius,
+        ))
+        .build();
     let material = ExtendedMaterial {
         base: StandardMaterial {
             base_color: Color::srgba(1.0, 1.0, 1.0, 1.0),
@@ -292,10 +330,36 @@ fn insert_thruster_shader(
             .with_exhaust_radius(config.exhaust_radius),
     };
 
+    let inner_mesh = TriangleMeshBuilder::new_cone(32, 4)
+        .with_scale(Vec3::new(
+            config.exhaust_inner_radius,
+            config.exhaust_inner_height,
+            config.exhaust_inner_radius,
+        ))
+        .build();
+    let inner_material = ExtendedMaterial {
+        base: StandardMaterial {
+            base_color: Color::srgba(1.0, 1.0, 1.0, 1.0),
+            perceptual_roughness: 1.0,
+            metallic: 0.0,
+            emissive: config.emissive_inner_color,
+            ..default()
+        },
+        extension: ThrusterExhaustMaterial::default()
+            .with_exhaust_height(config.exhaust_inner_max)
+            .with_exhaust_radius(config.exhaust_inner_radius),
+    };
+
     commands.entity(entity).insert((
         ThrusterSectionExhaustShaderMarker,
         Mesh3d(meshes.add(mesh)),
         MeshMaterial3d(exhaust_materials.add(material)),
+        children![(
+            ThrusterSectionExhaustShaderMarker,
+            Transform::from_xyz(0.0, 1e-4, 0.0),
+            Mesh3d(meshes.add(inner_mesh)),
+            MeshMaterial3d(exhaust_materials.add(inner_material)),
+        )],
     ));
 }
 

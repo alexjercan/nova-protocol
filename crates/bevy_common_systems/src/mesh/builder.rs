@@ -43,6 +43,13 @@ impl TriangleMeshBuilder {
         }
     }
 
+    pub fn new<M>(mesh: M) -> Self
+    where
+        M: Into<Mesh>,
+    {
+        Self::from(mesh.into())
+    }
+
     /// Create a subdivided octahedron mesh with a given resolution.
     ///
     /// Each triangular face is recursively subdivided `resolution` times.
@@ -68,10 +75,69 @@ impl TriangleMeshBuilder {
         ];
 
         for (a, b, c) in faces {
-            builder.subdivide_face(a, b, c, resolution);
+            builder.subdivide_face_sphere(a, b, c, resolution);
         }
 
         builder
+    }
+
+    /// Create a cone with a given number of radial and height subdivisions.
+    ///
+    /// - `radial_subdivisions`: number of slices around the circumference (>= 3)
+    /// - `height_subdivisions`: number of slices along the height (>= 1)
+    ///
+    /// Cone tip is at (0, +1, 0), base center at (0, 0, 0), base radius = 1.0.
+    pub fn new_cone(radial_subdivisions: u32, height_subdivisions: u32) -> Self {
+        let radial = radial_subdivisions.max(3);
+        let vertical = height_subdivisions.max(1);
+
+        let mut builder = TriangleMeshBuilder::new_empty();
+
+        let tip = Vec3::new(0.0, 1.0, 0.0);
+        let base_center = Vec3::new(0.0, 0.0, 0.0);
+        let base_radius = 1.0;
+
+        for i in 0..radial {
+            let theta0 = (i as f32 / radial as f32) * std::f32::consts::TAU;
+            let theta1 = ((i + 1) as f32 / radial as f32) * std::f32::consts::TAU;
+
+            let dir0 = Vec3::new(theta0.cos(), 0.0, theta0.sin());
+            let dir1 = Vec3::new(theta1.cos(), 0.0, theta1.sin());
+
+            for v in 0..vertical {
+                let t0 = v as f32 / vertical as f32;
+                let t1 = (v + 1) as f32 / vertical as f32;
+
+                let p00 = Vec3::lerp(tip, base_center + dir0 * base_radius, t0);
+                let p01 = Vec3::lerp(tip, base_center + dir1 * base_radius, t0);
+                let p10 = Vec3::lerp(tip, base_center + dir0 * base_radius, t1);
+                let p11 = Vec3::lerp(tip, base_center + dir1 * base_radius, t1);
+
+                builder.add_triangle(Triangle3d::new(p00, p10, p11));
+                builder.add_triangle(Triangle3d::new(p00, p11, p01));
+            }
+        }
+
+        for i in 0..radial {
+            let theta0 = (i as f32 / radial as f32) * std::f32::consts::TAU;
+            let theta1 = ((i + 1) as f32 / radial as f32) * std::f32::consts::TAU;
+
+            let p0 = base_center + Vec3::new(theta0.cos(), 0.0, theta0.sin()) * base_radius;
+            let p1 = base_center + Vec3::new(theta1.cos(), 0.0, theta1.sin()) * base_radius;
+
+            builder.add_triangle(Triangle3d::new(base_center, p1, p0));
+        }
+
+        builder
+    }
+
+    pub fn with_scale(mut self, scale: Vec3) -> Self {
+        for tri in &mut self.triangles {
+            for v in &mut tri.vertices {
+                *v *= scale;
+            }
+        }
+        self
     }
 
     /// Add a triangle to the mesh.
@@ -245,7 +311,7 @@ impl TriangleMeshBuilder {
     }
 
     /// Recursively subdivide a triangle face to increase mesh resolution.
-    fn subdivide_face(&mut self, a: Vec3, b: Vec3, c: Vec3, depth: u32) {
+    fn subdivide_face_sphere(&mut self, a: Vec3, b: Vec3, c: Vec3, depth: u32) {
         if depth == 0 {
             self.add_triangle(Triangle3d::new(a, b, c));
         } else {
@@ -254,11 +320,39 @@ impl TriangleMeshBuilder {
             let ca = slerp(c, a, 0.5);
 
             // Recursively subdivide into four smaller triangles
-            self.subdivide_face(a, ab, ca, depth - 1);
-            self.subdivide_face(b, bc, ab, depth - 1);
-            self.subdivide_face(c, ca, bc, depth - 1);
-            self.subdivide_face(ab, bc, ca, depth - 1);
+            self.subdivide_face_sphere(a, ab, ca, depth - 1);
+            self.subdivide_face_sphere(b, bc, ab, depth - 1);
+            self.subdivide_face_sphere(c, ca, bc, depth - 1);
+            self.subdivide_face_sphere(ab, bc, ca, depth - 1);
         }
+    }
+
+    fn subdivide_face_plane(&mut self, a: Vec3, b: Vec3, c: Vec3, depth: u32) {
+        if depth == 0 {
+            self.add_triangle(Triangle3d::new(a, b, c));
+        } else {
+            let ab = (a + b) * 0.5;
+            let bc = (b + c) * 0.5;
+            let ca = (c + a) * 0.5;
+
+            // Recursively subdivide into four smaller triangles
+            self.subdivide_face_plane(a, ab, ca, depth - 1);
+            self.subdivide_face_plane(b, bc, ab, depth - 1);
+            self.subdivide_face_plane(c, ca, bc, depth - 1);
+            self.subdivide_face_plane(ab, bc, ca, depth - 1);
+        }
+    }
+
+    /// Subdivide the entire mesh to increase resolution.
+    pub fn subdivide(&mut self, depth: u32) -> &mut Self {
+        let triangles = self.triangles.clone();
+        self.triangles.clear();
+
+        for tri in triangles {
+            self.subdivide_face_plane(tri.vertices[0], tri.vertices[1], tri.vertices[2], depth);
+        }
+
+        self
     }
 }
 
