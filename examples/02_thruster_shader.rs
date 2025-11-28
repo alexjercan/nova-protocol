@@ -41,16 +41,16 @@ fn custom_plugin(app: &mut App) {
 
 fn thruster_shader_update_system(
     value: Res<DemoWidgetStates>,
-    material: Single<&MeshMaterial3d<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>>,
+    q_material: Query<&MeshMaterial3d<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>>,
     mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>>,
 ) {
-    let material = material.into_inner();
+    for material in &q_material {
+        let Some(material) = materials.get_mut(&**material) else {
+            panic!("thruster_shader_update_system: material not found in assets");
+        };
 
-    let Some(material) = materials.get_mut(&**material) else {
-        panic!("thruster_shader_update_system: material not found in assets");
-    };
-
-    material.extension.thruster_input = value.slider_value / 100.0;
+        material.extension.thruster_input = value.slider_value / 100.0;
+    }
 }
 
 fn setup_cone_shader(
@@ -98,10 +98,18 @@ fn setup_cone_shader(
         })),
     ));
 
+    let mesh = TriangleMeshBuilder::new_cone(32, 4)
+        .with_scale(Vec3::new(0.4, 0.1, 0.4))
+        .build();
+
+    let inner_mesh = TriangleMeshBuilder::new_cone(32, 4)
+        .with_scale(Vec3::new(0.1, 0.05, 0.1))
+        .build();
+
     commands.spawn((
         Name::new("Thruster Exhaust - with shader"),
         Transform::from_xyz(10.0, 0.0, 0.0),
-        Mesh3d(meshes.add(Cone::new(0.4, 0.1))),
+        Mesh3d(meshes.add(mesh)),
         MeshMaterial3d(
             exhaust_materials.add(ExtendedMaterial {
                 base: StandardMaterial {
@@ -116,6 +124,25 @@ fn setup_cone_shader(
                     .with_exhaust_radius(0.4),
             }),
         ),
+        children![(
+            Name::new("Thruster Core"),
+            Transform::from_xyz(0.0, 1e-2, 0.0),
+            Mesh3d(meshes.add(inner_mesh)),
+            MeshMaterial3d(
+                exhaust_materials.add(ExtendedMaterial {
+                    base: StandardMaterial {
+                        base_color: Color::srgba(1.0, 1.0, 1.0, 1.0),
+                        perceptual_roughness: 1.0,
+                        metallic: 0.0,
+                        emissive: LinearRgba::rgb(10.0, 0.0, 0.0),
+                        ..default()
+                    },
+                    extension: ThrusterExhaustMaterial::default()
+                        .with_exhaust_height(0.5)
+                        .with_exhaust_radius(0.1),
+                }),
+            ),
+        )],
     ));
 }
 

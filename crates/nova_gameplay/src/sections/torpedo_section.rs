@@ -333,9 +333,13 @@ fn shoot_spawn_projectile(
                         .with_translation(Vec3::new(0.0, 0.0, -0.45)),
                         ThrusterExhaustConfig {
                             exhaust_height: 0.1,
-                            exhaust_max: 1.0,
                             exhaust_radius: 0.15,
+                            exhaust_max: 1.0,
+                            exhaust_inner_height: 0.05,
+                            exhaust_inner_radius: 0.05,
+                            exhaust_inner_max: 0.5,
                             emissive_color: LinearRgba::new(10.0, 5.0, 0.0, 1.0),
+                            emissive_inner_color: LinearRgba::new(10.0, 0.0, 0.0, 1.0),
                         },
                     )],
                 )
