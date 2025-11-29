@@ -84,9 +84,10 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 health: 100.0,
             },
             kind: SectionKind::Torpedo(TorpedoSectionConfig {
-                render_mesh: None,
+                render_mesh: Some(game_assets.torpedo_bay_01.clone()),
                 projectile_render_mesh: None,
-                spawn_offset: Vec3::Y * 2.0,
+                spawn_offset: Vec3::NEG_Z * 2.0,
+                spawn_rotation: Quat::IDENTITY,
                 fire_rate: 1.0,
                 spawner_speed: 1.0,
                 projectile_lifetime: 100.0,

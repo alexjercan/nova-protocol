@@ -20,6 +20,8 @@ pub struct TorpedoSectionConfig {
     pub projectile_render_mesh: Option<Handle<Scene>>,
     /// The offset of the spawn point of the projectile relative to the torpedo section.
     pub spawn_offset: Vec3,
+    /// The rotation of the spawn point of the projectile relative to the torpedo section.
+    pub spawn_rotation: Quat,
     /// The fire rate of the turret in rounds per second.
     pub fire_rate: f32,
     /// The muzzle speed of the turret in units per second.
@@ -36,6 +38,7 @@ impl Default for TorpedoSectionConfig {
             render_mesh: None,
             projectile_render_mesh: None,
             spawn_offset: Vec3::Y * 2.0,
+            spawn_rotation: Quat::IDENTITY,
             fire_rate: 1.0,
             spawner_speed: 1.0,
             projectile_lifetime: 100.0,
@@ -169,7 +172,7 @@ fn insert_torpedo_section(
             TorpedoSectionSpawnerMarker,
             TorpedoSectionPartOf(entity),
             TorpedoSectionSpawnerFireState(timer),
-            Transform::from_translation(config.spawn_offset),
+            Transform::from_translation(config.spawn_offset).with_rotation(config.spawn_rotation),
             Visibility::Inherited,
         ))
         .id();
