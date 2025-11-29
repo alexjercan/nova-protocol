@@ -17,7 +17,7 @@
 }
 #endif
 
-struct ThrusterExhaustMaterialData {
+struct DirectionalMagnitudeMaterialData {
     magnitude_input: f32,
     radius: f32,
     max_height: f32,
@@ -27,7 +27,7 @@ struct ThrusterExhaustMaterialData {
 #endif
 }
 
-@group(#{MATERIAL_BIND_GROUP}) @binding(100) var<uniform> material: ThrusterExhaustMaterialData;
+@group(#{MATERIAL_BIND_GROUP}) @binding(100) var<uniform> material: DirectionalMagnitudeMaterialData;
 
 struct Vertex {
     @builtin(instance_index) instance_index: u32,
