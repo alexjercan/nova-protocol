@@ -9,8 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+-
+
+## [0.3.0] - 2025-11-29
+
+### Added
+
 - @alexjercan implement OnEnter and OnExit events
 - @alexjercan implement torpedo bay section and blast damage
+- @alexjercan implement new health system - add health for each spaceship section
+- @alexjercan added new event trigger for entering a zone
+
+### Changed
+
+- @alexjercan improve directional shader to make the forward direction more visible
+- @alexjercan improve the thruster shaders to allow more complex shapes and animations
 
 ## [0.2.1] - 2025-11-15
 
@@ -34,7 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - @alexjercan basic spaceship sections added
 - @alexjercan editor and simulation scenes added
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.2.1...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/alexjercan/nova-protocol/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/alexjercan/nova-protocol/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/alexjercan/nova-protocol/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/alexjercan/nova-protocol/releases/tag/v0.1.0

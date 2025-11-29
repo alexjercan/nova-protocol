@@ -3,7 +3,7 @@
         Name="NovaProtocol"
         Manufacturer="Alex Jercan"
         UpgradeCode="6a74e222-d211-42c1-b8d8-38677017873d"
-        Version="0.2.1"
+        Version="0.3.0"
 
         Scope="perUserOrMachine">
         <MajorUpgrade DowngradeErrorMessage="!(loc.DowngradeError)" />
