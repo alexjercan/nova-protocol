@@ -40,6 +40,7 @@ fn setup_camera(mut commands: Commands) {
     commands.spawn((
         Name::new("Main Camera"),
         Camera3d::default(),
+        PostProcessingCamera,
         WASDCameraController,
         Transform::from_xyz(0.0, 10.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));

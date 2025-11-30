@@ -252,6 +252,7 @@ fn setup_camera(mut commands: Commands, game_assets: Res<GameAssets>) {
     commands.spawn((
         Name::new("Main Camera"),
         Camera3d::default(),
+        PostProcessingCamera,
         WASDCameraController,
         Transform::from_xyz(10.0, 1.0, 3.0).looking_at(Vec3::new(10.0, 0.0, 0.0), Vec3::Y),
         SkyboxConfig {
