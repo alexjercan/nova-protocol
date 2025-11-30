@@ -336,6 +336,7 @@ fn setup_editor_scene(
         DespawnOnExit(ExampleStates::Editor),
         Name::new("WASD Camera"),
         Camera3d::default(),
+        PostProcessingCamera,
         WASDCameraController,
         Transform::from_xyz(0.0, 5.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
         SkyboxConfig {

@@ -16,7 +16,7 @@
 //!     .add_plugin(PostProcessingDefaultPlugin);
 //!
 //! // Any spawned Camera3d will automatically receive bloom and tonemapping:
-//! commands.spawn(Camera3d::default());
+//! commands.spawn((Camera3d::default(), PostProcessingCamera));
 //! ```
 //!
 //! If you want different defaults or more control over post processing,
@@ -25,8 +25,12 @@
 use bevy::{core_pipeline::tonemapping::Tonemapping, post_process::bloom::Bloom, prelude::*};
 
 pub mod prelude {
-    pub use super::PostProcessingDefaultPlugin;
+    pub use super::{PostProcessingCamera, PostProcessingDefaultPlugin};
 }
+
+/// Post Processing Camera settings.
+#[derive(Component, Clone, Debug, Reflect)]
+pub struct PostProcessingCamera;
 
 /// A plugin that applies default post processing settings.
 ///
@@ -42,9 +46,21 @@ impl Plugin for PostProcessingDefaultPlugin {
     }
 }
 
-fn setup_post_processing_camera(insert: On<Insert, Camera3d>, mut commands: Commands) {
+fn setup_post_processing_camera(
+    insert: On<Insert, PostProcessingCamera>,
+    mut commands: Commands,
+    q_camera: Query<&PostProcessingCamera, With<Camera3d>>,
+) {
     let entity = insert.entity;
     trace!("setup_post_processing_camera: entity {:?}", entity);
+
+    let Ok(_) = q_camera.get(entity) else {
+        error!(
+            "setup_post_processing_camera: entity {:?} not found in q_camera",
+            entity
+        );
+        return;
+    };
 
     commands
         .entity(entity)

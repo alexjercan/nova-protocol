@@ -128,6 +128,7 @@ fn on_load_scenario(
         ScenarioCameraMarker,
         Name::new("Scenario Camera"),
         Camera3d::default(),
+        PostProcessingCamera,
         WASDCameraController,
         Transform::from_xyz(0.0, 10.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
         SkyboxConfig {
