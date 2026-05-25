@@ -1,6 +1,6 @@
 # Create tasks for future sprints - Tasks for Nova Protocol
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: docs,planning
 
