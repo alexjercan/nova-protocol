@@ -46,9 +46,10 @@ impl Plugin for IntegrityPlugin {
         // node for a lone collider like an asteroid) once colliders are physics-linked.
         app.add_observer(on_collider_build_integrity_graph);
 
-        app.add_observer(on_health_child);
-
-        app.add_systems(Update, on_changed_graph.in_set(IntegritySystems));
+        app.add_systems(
+            Update,
+            (on_changed_graph, aggregate_ship_health).in_set(IntegritySystems),
+        );
     }
 }
 
@@ -377,32 +378,45 @@ fn on_collider_build_integrity_graph(
     commands.entity(*rigidbody).insert(IntegrityGraph(graph));
 }
 
-fn on_health_child(
-    add: On<Add, Health>,
+/// Keep each ship's aggregate health equal to the sum of its section children, so the
+/// health HUD tracks real damage and the ship dies once every section is gone.
+///
+/// Sections are direct children of the ship root (which carries the `IntegrityGraph`). The
+/// previous `On<Add, Health>` observer only summed the sections once at spawn and never
+/// updated as they took damage, so the root's health stayed full and the ship never
+/// reached zero. This recomputes it every frame instead. When the sum hits zero (all
+/// sections destroyed or at zero health), `HealthPlugin` marks the root with
+/// `HealthZeroMarker`, which flows through disable -> destroy (`handle_parent_destroy`);
+/// the root has no mesh, so `despawn_destroyed_without_mesh` despawns it and the ship dies
+/// (its `PlayerSpaceshipMarker` is removed, reverting the camera and clearing the HUDs).
+fn aggregate_ship_health(
     mut commands: Commands,
-    q_child_of: Query<(&ChildOf, &Health), With<Health>>,
-    q_parent: Query<Option<&Health>>,
+    q_root: Query<
+        (Entity, Option<&Health>, Option<&Children>),
+        (With<IntegrityGraph>, Without<SectionMarker>),
+    >,
+    q_section_health: Query<&Health, (With<SectionMarker>, Without<IntegrityGraph>)>,
 ) {
-    let entity = add.entity;
-    trace!("on_health_child: entity {:?}", entity);
+    for (root, root_health, children) in &q_root {
+        let mut current = 0.0;
+        let mut max = 0.0;
+        if let Some(children) = children {
+            for child in children.iter() {
+                if let Ok(health) = q_section_health.get(child) {
+                    current += health.current;
+                    max += health.max;
+                }
+            }
+        }
 
-    let Ok((ChildOf(parent), child_health)) = q_child_of.get(entity) else {
-        return;
-    };
-
-    let Ok(parent_health) = q_parent.get(*parent) else {
-        return;
-    };
-
-    let new_health = match parent_health {
-        Some(health) => Health {
-            current: health.current + child_health.current,
-            max: health.max + child_health.max,
-        },
-        None => child_health.clone(),
-    };
-
-    commands.entity(*parent).insert(new_health);
+        let changed = match root_health {
+            Some(health) => health.current != current || health.max != max,
+            None => true,
+        };
+        if changed {
+            commands.entity(root).insert(Health { current, max });
+        }
+    }
 }
 
 fn on_changed_graph(
