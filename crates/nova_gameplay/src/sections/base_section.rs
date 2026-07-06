@@ -8,8 +8,8 @@ use crate::prelude::destructible_body;
 
 pub mod prelude {
     pub use super::{
-        base_section, BaseSectionConfig, GameSections, SectionConfig, SectionInactiveMarker,
-        SectionKind, SectionMarker, SectionRenderOf,
+        base_section, preview_section, BaseSectionConfig, GameSections, SectionConfig,
+        SectionInactiveMarker, SectionKind, SectionMarker, SectionRenderOf,
     };
 }
 
@@ -64,5 +64,26 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
         SectionMarker,
         Collider::cuboid(1.0, 1.0, 1.0),
         destructible_body(config.health, config.mass),
+    )
+}
+
+/// A lightweight, pickable stand-in for a section, used by the editor to preview a ship
+/// configuration without spawning a live combat ship.
+///
+/// It renders (via the kind-specific `*_section` bundle inserted alongside it) and can be
+/// clicked to place adjacent sections, but unlike [`base_section`] it carries no `Health`,
+/// `ColliderDensity` or `ExplodableEntity`, so it never enters the integrity/damage
+/// pipeline. As long as neither it nor its root has a `RigidBody`, avian keeps its collider
+/// in the standalone spatial-query tree (still pickable) and never links it with
+/// `ColliderOf`, so no integrity graph is built for the preview ship and none of the
+/// gameplay/health systems act on it.
+pub fn preview_section(config: BaseSectionConfig) -> impl Bundle {
+    debug!("preview_section: config {:?}", config);
+
+    (
+        Name::new(config.name.clone()),
+        SectionMarker,
+        Collider::cuboid(1.0, 1.0, 1.0),
+        Visibility::Inherited,
     )
 }

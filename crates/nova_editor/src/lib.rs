@@ -1,4 +1,3 @@
-use avian3d::prelude::*;
 use bevy::{
     picking::{hover::Hovered, pointer::PointerInteraction},
     platform::collections::HashMap,
@@ -488,7 +487,7 @@ enum SectionChoice {
 fn create_new_spaceship(
     _activate: On<Activate>,
     mut commands: Commands,
-    q_spaceship: Query<Entity, With<SpaceshipRootMarker>>,
+    q_spaceship: Query<Entity, With<SpaceshipPreviewMarker>>,
     sections: Res<GameSections>,
 ) {
     for entity in &q_spaceship {
@@ -498,13 +497,10 @@ fn create_new_spaceship(
     let entity = commands
         .spawn((
             DespawnOnExit(ExampleStates::Editor),
-            SpaceshipRootMarker,
-            Name::new("Spaceship Prefab"),
-            SpaceshipSectionsConfig::default(),
-            SpaceshipController::None,
+            SpaceshipPreviewMarker,
+            Name::new("Spaceship Preview"),
             Transform::default(),
             Visibility::Visible,
-            RigidBody::Dynamic,
         ))
         .id();
 
@@ -521,7 +517,7 @@ fn create_new_spaceship(
     commands.entity(entity).with_children(|parent| {
         hull_entity = parent
             .spawn((
-                base_section(base.clone()),
+                preview_section(base.clone()),
                 Transform::from_translation(position).with_rotation(rotation),
                 hull_section(hull.clone()),
             ))
@@ -548,7 +544,7 @@ fn create_new_spaceship(
 fn create_new_spaceship_with_controller(
     _activate: On<Activate>,
     mut commands: Commands,
-    q_spaceship: Query<Entity, With<SpaceshipRootMarker>>,
+    q_spaceship: Query<Entity, With<SpaceshipPreviewMarker>>,
     sections: Res<GameSections>,
 ) {
     for entity in &q_spaceship {
@@ -558,13 +554,10 @@ fn create_new_spaceship_with_controller(
     let entity = commands
         .spawn((
             DespawnOnExit(ExampleStates::Editor),
-            SpaceshipRootMarker,
-            Name::new("Spaceship Prefab with Controller"),
-            SpaceshipSectionsConfig::default(),
-            SpaceshipController::None,
+            SpaceshipPreviewMarker,
+            Name::new("Spaceship Preview with Controller"),
             Transform::default(),
             Visibility::Visible,
-            RigidBody::Dynamic,
         ))
         .id();
 
@@ -581,7 +574,7 @@ fn create_new_spaceship_with_controller(
     commands.entity(entity).with_children(|parent| {
         controller_entity = parent
             .spawn((
-                base_section(base.clone()),
+                preview_section(base.clone()),
                 Transform::from_translation(position).with_rotation(rotation),
                 controller_section(controller.clone()),
             ))
@@ -612,13 +605,21 @@ fn continue_to_simulation(
     game_state.set(ExampleStates::Scenario);
 }
 
+/// The root of the editor's preview ship. Deliberately distinct from the gameplay
+/// `SpaceshipRootMarker`: the preview is a static, pickable visual used only to build a
+/// `PlayerSpaceshipConfig`, so it must not trigger `insert_spaceship_sections` or any of the
+/// integrity/health systems that key on `SpaceshipRootMarker`. The real ship is built from
+/// the config when entering the scenario.
+#[derive(Component)]
+struct SpaceshipPreviewMarker;
+
 #[derive(Component)]
 struct SectionPreviewMarker;
 
 fn on_click_spaceship_section(
     click: On<Pointer<Press>>,
     mut commands: Commands,
-    spaceship: Single<Entity, With<SpaceshipRootMarker>>,
+    spaceship: Single<Entity, With<SpaceshipPreviewMarker>>,
     q_pointer: Query<&PointerInteraction>,
     q_section: Query<&Transform, With<SectionMarker>>,
     selection: Res<SectionChoice>,
@@ -664,7 +665,7 @@ fn on_click_spaceship_section(
                     commands.entity(spaceship).with_children(|parent| {
                         hull_entity = parent
                             .spawn((
-                                base_section(section.base.clone()),
+                                preview_section(section.base.clone()),
                                 hull_section(hull.clone()),
                                 Transform {
                                     translation: position,
@@ -706,7 +707,7 @@ fn on_click_spaceship_section(
                     commands.entity(spaceship).with_children(|parent| {
                         thruster_entity = parent
                             .spawn((
-                                base_section(section.base.clone()),
+                                preview_section(section.base.clone()),
                                 thruster_section(thruster.clone()),
                                 SpaceshipThrusterInputBinding(binds.clone()),
                                 Transform {
@@ -736,7 +737,7 @@ fn on_click_spaceship_section(
                     commands.entity(spaceship).with_children(|parent| {
                         controller_entity = parent
                             .spawn((
-                                base_section(section.base.clone()),
+                                preview_section(section.base.clone()),
                                 controller_section(controller.clone()),
                                 Transform {
                                     translation: position,
@@ -779,7 +780,7 @@ fn on_click_spaceship_section(
                     commands.entity(spaceship).with_children(|parent| {
                         turret_entity = parent
                             .spawn((
-                                base_section(section.base.clone()),
+                                preview_section(section.base.clone()),
                                 turret_section(turret.clone()),
                                 SpaceshipTurretInputBinding(binds.clone()),
                                 Transform {
@@ -824,7 +825,7 @@ fn on_click_spaceship_section(
                     commands.entity(spaceship).with_children(|parent| {
                         torpedo_entity = parent
                             .spawn((
-                                base_section(section.base.clone()),
+                                preview_section(section.base.clone()),
                                 torpedo_section(torpedo.clone()),
                                 SpaceshipTorpedoInputBinding(binds.clone()),
                                 Transform {
