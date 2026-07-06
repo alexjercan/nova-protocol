@@ -1,9 +1,8 @@
 use avian3d::prelude::*;
-use bevy::{platform::collections::HashMap, prelude::*};
+use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 
 use super::{blast::*, components::*};
-use crate::prelude::{SectionInactiveMarker, SectionMarker};
 
 pub mod prelude {
     pub use super::IntegrityPlugin;
@@ -25,9 +24,9 @@ impl Plugin for IntegrityPlugin {
         // Handle explosion on destruction
         app.add_plugins(super::explode::ExplodablePlugin);
 
-        // TODO(20260706-162911): I kind of don't want to have the IntegrityGraph component, but rather use the
-        // children as nodes, and have something like ConnectedTo component that lives on the child
-        // node and is a Vec<Entity> or something like that. Maybe...
+        // Section-specific systems (graph construction, section disable, aggregate health)
+        // live in glue.rs so this core stays independent of the ship sections.
+        app.add_plugins(super::glue::IntegrityGluePlugin);
 
         app.add_observer(on_collider_of_spawn_insert_collision_events);
         app.add_observer(on_impact_collision_deal_damage);
@@ -38,18 +37,7 @@ impl Plugin for IntegrityPlugin {
         app.add_observer(handle_parent_destroy);
         app.add_observer(on_destroyed);
 
-        // TODO(20260706-162911): This should be probably moved to some glue.rs file to not make integrity too
-        // dependent on sections
-        app.add_observer(on_section_disable);
-        // TODO(20260706-162911): This should be probably moved to some glue.rs file to not make integrity too
-        // dependent on sections. Builds the whole graph (sections + adjacency, or a single
-        // node for a lone collider like an asteroid) once colliders are physics-linked.
-        app.add_observer(on_collider_build_integrity_graph);
-
-        app.add_systems(
-            Update,
-            (on_changed_graph, aggregate_ship_health).in_set(IntegritySystems),
-        );
+        app.add_systems(Update, derive_integrity_leaves.in_set(IntegritySystems));
     }
 }
 
@@ -205,33 +193,6 @@ fn on_health_depleted_insert_disabled(add: On<Add, HealthZeroMarker>, mut comman
     commands.entity(entity).insert(IntegrityDisabledMarker);
 }
 
-fn on_section_disable(
-    add: On<Add, IntegrityDisabledMarker>,
-    mut commands: Commands,
-    // NOTE: If it is already a leaf, no need to disable the section since it will be destroyed
-    // anyway
-    q_section: Query<
-        Entity,
-        (
-            With<SectionMarker>,
-            With<IntegrityDisabledMarker>,
-            Without<IntegrityLeafMarker>,
-        ),
-    >,
-) {
-    let entity = add.entity;
-    if !q_section.contains(entity) {
-        return;
-    }
-
-    trace!(
-        "on_section_disable: entity {:?} integrity disabled, disabling section",
-        entity
-    );
-
-    commands.entity(entity).insert(SectionInactiveMarker);
-}
-
 fn handle_destroy(
     add: On<Add, IntegrityDisabledMarker>,
     mut commands: Commands,
@@ -270,7 +231,7 @@ fn handle_chain_destroy(
 fn handle_parent_destroy(
     add: On<Add, IntegrityDisabledMarker>,
     mut commands: Commands,
-    q_destroyed: Query<(), (With<IntegrityDisabledMarker>, With<IntegrityGraph>)>,
+    q_destroyed: Query<(), (With<IntegrityDisabledMarker>, With<IntegrityRoot>)>,
 ) {
     let entity = add.entity;
     trace!("handle_parent_destroy: entity {:?}", entity);
@@ -282,154 +243,45 @@ fn handle_parent_destroy(
     commands.entity(entity).insert(IntegrityDestroyMarker);
 }
 
+/// When a node is destroyed, prune it from its neighbors' [`ConnectedTo`] lists. Mutating a
+/// neighbor's list marks it `Changed`, so `derive_integrity_leaves` re-evaluates whether the
+/// neighbor has become a leaf (which, if it is also disabled, drives the chain reaction via
+/// `handle_chain_destroy`).
+///
+/// The destroyed node carries `IntegrityDestroyMarker`; its neighbors do not (a neighbor that
+/// happens to be destroyed the same frame is skipped, which is harmless - it is going away
+/// anyway). The disjoint `With`/`Without` filters keep the two `ConnectedTo` accesses sound.
 fn on_destroyed(
     add: On<Add, IntegrityDestroyMarker>,
-    mut commands: Commands,
-    q_destroyed: Query<&ChildOf, (With<IntegrityDestroyMarker>, Without<IntegrityGraph>)>,
-    mut q_graph: Query<&mut IntegrityGraph>,
+    q_destroyed: Query<&ConnectedTo, With<IntegrityDestroyMarker>>,
+    mut q_neighbors: Query<&mut ConnectedTo, Without<IntegrityDestroyMarker>>,
 ) {
     let entity = add.entity;
     trace!("on_destroyed: entity {:?}", entity);
 
-    let Ok(ChildOf(parent)) = q_destroyed.get(entity) else {
+    let Ok(connected) = q_destroyed.get(entity) else {
         return;
     };
 
-    let Ok(mut graph) = q_graph.get_mut(*parent) else {
-        error!(
-            "on_destroyed: entity {:?} parent {:?} not found in q_graph",
-            entity, parent
-        );
-        return;
-    };
-
-    // remove_entity_from_graph
-    graph.remove(&entity);
-    for (_parent, children) in graph.iter_mut() {
-        children.retain(|&child| child != entity);
-    }
-
-    // update_graph_leafs
-    let leafs: Vec<Entity> = graph
-        .iter()
-        .filter(|(_parent, children)| children.iter().len() == 1)
-        .map(|(parent, _children)| *parent)
-        .collect();
-
-    for leaf in leafs {
-        commands.entity(leaf).insert(IntegrityLeafMarker);
-    }
-}
-
-/// Build (or rebuild) the integrity graph for a rigidbody whenever one of its colliders is
-/// physics-linked (avian adds `ColliderOf`).
-///
-/// This is keyed on `ColliderOf` rather than `SectionMarker` on purpose: avian adds
-/// `ColliderOf` *after* the section entities are spawned, so by the time this fires every
-/// section of the rigidbody already exists and can be seen. (The previous split between an
-/// `On<Add, SectionMarker>` builder and an `On<Add, ColliderOf>` graph-creator had an
-/// ordering bug: sections were added before the graph existed, so only the one collider
-/// that happened to create the graph ended up in it and all other sections were silently
-/// dropped - they never became leaves and so were never destroyed.)
-///
-/// Rebuilding on each collider is idempotent: the last call, once every collider is linked,
-/// yields the complete graph. Inserting the component marks it `Changed`, so
-/// `on_changed_graph` re-derives the leaf markers.
-fn on_collider_build_integrity_graph(
-    add: On<Add, ColliderOf>,
-    mut commands: Commands,
-    q_collider: Query<&ChildOf, With<ColliderOf>>,
-    q_sections: Query<(Entity, &Transform, &ChildOf), With<SectionMarker>>,
-) {
-    let entity = add.entity;
-    trace!("on_collider_build_integrity_graph: entity {:?}", entity);
-
-    let Ok(ChildOf(rigidbody)) = q_collider.get(entity) else {
-        return;
-    };
-
-    // All section colliders belonging to this rigidbody, with their local positions.
-    let sections: Vec<(Entity, Vec3)> = q_sections
-        .iter()
-        .filter(|(_, _, ChildOf(parent))| *parent == *rigidbody)
-        .map(|(section, transform, _)| (section, transform.translation))
-        .collect();
-
-    let mut graph: HashMap<Entity, Vec<Entity>> = HashMap::new();
-
-    if sections.is_empty() {
-        // Non-section body (e.g. an asteroid): a single collider node with no neighbors, so
-        // it is a leaf and is destroyed as soon as it is disabled.
-        graph.insert(entity, Vec::new());
-    } else {
-        // Ship: connect sections that are one unit apart (adjacent in the section grid).
-        for (section, position) in &sections {
-            let neighbors: Vec<Entity> = sections
-                .iter()
-                .filter(|(other, other_position)| {
-                    *other != *section && (position.distance(*other_position) - 1.0).abs() < 0.1
-                })
-                .map(|(other, _)| *other)
-                .collect();
-            graph.insert(*section, neighbors);
-        }
-    }
-
-    commands.entity(*rigidbody).insert(IntegrityGraph(graph));
-}
-
-/// Keep each ship's aggregate health equal to the sum of its section children, so the
-/// health HUD tracks real damage and the ship dies once every section is gone.
-///
-/// Sections are direct children of the ship root (which carries the `IntegrityGraph`). The
-/// previous `On<Add, Health>` observer only summed the sections once at spawn and never
-/// updated as they took damage, so the root's health stayed full and the ship never
-/// reached zero. This recomputes it every frame instead. When the sum hits zero (all
-/// sections destroyed or at zero health), `HealthPlugin` marks the root with
-/// `HealthZeroMarker`, which flows through disable -> destroy (`handle_parent_destroy`);
-/// the root has no mesh, so `despawn_destroyed_without_mesh` despawns it and the ship dies
-/// (its `PlayerSpaceshipMarker` is removed, reverting the camera and clearing the HUDs).
-fn aggregate_ship_health(
-    mut commands: Commands,
-    q_root: Query<
-        (Entity, Option<&Health>, Option<&Children>),
-        (With<IntegrityGraph>, Without<SectionMarker>),
-    >,
-    q_section_health: Query<&Health, (With<SectionMarker>, Without<IntegrityGraph>)>,
-) {
-    for (root, root_health, children) in &q_root {
-        let mut current = 0.0;
-        let mut max = 0.0;
-        if let Some(children) = children {
-            for child in children.iter() {
-                if let Ok(health) = q_section_health.get(child) {
-                    current += health.current;
-                    max += health.max;
-                }
-            }
-        }
-
-        let changed = match root_health {
-            Some(health) => health.current != current || health.max != max,
-            None => true,
-        };
-        if changed {
-            commands.entity(root).insert(Health { current, max });
+    let neighbors = connected.0.clone();
+    for neighbor in neighbors {
+        if let Ok(mut neighbor_connections) = q_neighbors.get_mut(neighbor) {
+            neighbor_connections.retain(|&node| node != entity);
         }
     }
 }
 
-fn on_changed_graph(
+/// Re-derive leaf markers whenever a node's [`ConnectedTo`] changes (on initial build, or
+/// when a neighbor is pruned by `on_destroyed`). A node with one or zero neighbors is a leaf.
+fn derive_integrity_leaves(
     mut commands: Commands,
-    q_graph: Query<&IntegrityGraph, Changed<IntegrityGraph>>,
+    q_nodes: Query<(Entity, &ConnectedTo), Changed<ConnectedTo>>,
 ) {
-    for graph in &q_graph {
-        for (entity, neighbors) in graph.iter() {
-            if neighbors.iter().len() <= 1 {
-                commands.entity(*entity).try_insert(IntegrityLeafMarker);
-            } else {
-                commands.entity(*entity).try_remove::<IntegrityLeafMarker>();
-            }
+    for (entity, connected) in &q_nodes {
+        if connected.len() <= 1 {
+            commands.entity(entity).try_insert(IntegrityLeafMarker);
+        } else {
+            commands.entity(entity).try_remove::<IntegrityLeafMarker>();
         }
     }
 }

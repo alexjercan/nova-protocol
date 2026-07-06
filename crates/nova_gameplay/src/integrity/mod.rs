@@ -1,6 +1,7 @@
 pub mod blast;
 pub mod components;
 pub mod explode;
+pub mod glue;
 pub mod plugin;
 
 pub use plugin::IntegrityPlugin;
