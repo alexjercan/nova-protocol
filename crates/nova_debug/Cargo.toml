@@ -5,13 +5,13 @@ edition = { workspace = true }
 description = "Debugging utilities for the Nova Protocol game"
 
 [dependencies]
-avian3d = { version = "0.4", features = ["diagnostic_ui"] }
-bevy = { version = "0.17.2", features = ["track_location"] }
-itertools = { version = "0.14.0" }
-bevy-inspector-egui = { version = "0.34" }
-bevy_mod_debugdump = { version = "0.14" }
+avian3d = { version = "0.7", features = ["diagnostic_ui"] }
+bevy = { version = "0.19.0", features = ["track_location"] }
+itertools = { version = "0.15.0" }
+bevy-inspector-egui = { version = "0.37" }
+bevy_mod_debugdump = { version = "0.16" }
 nova_gameplay = { path = "../nova_gameplay", features = ["debug"] }
-bevy_common_systems = { path = "../bevy_common_systems", features = ["debug"] }
+bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", rev = "47548cd2230abf510528309779f5b13c74485ae0", features = ["debug"] }
 
 [lints]
 workspace = true
