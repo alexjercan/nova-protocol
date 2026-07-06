@@ -1060,8 +1060,22 @@ fn button_on_setting<
 >(
     event: On<Add, Pressed>,
     mut commands: Commands,
-    selected: Option<Single<Entity, (With<T>, With<SelectedOption>)>>,
-    q_t: Query<(Entity, &T), (Without<SelectedOption>, With<EditorButton>)>,
+    // T is used both as a Resource (the current setting) and as a Component tagging each
+    // button's value. On Bevy 0.19 resources are component-backed, so ResMut<T> and a
+    // Query<&T> touch the same component storage and the access checker reports a
+    // conflict (B0002). Exclude the resource-backing entity (which carries IsResource)
+    // from the component queries so they are provably disjoint from ResMut<T>.
+    selected: Option<
+        Single<Entity, (With<T>, With<SelectedOption>, Without<bevy::ecs::resource::IsResource>)>,
+    >,
+    q_t: Query<
+        (Entity, &T),
+        (
+            Without<SelectedOption>,
+            With<EditorButton>,
+            Without<bevy::ecs::resource::IsResource>,
+        ),
+    >,
     mut setting: ResMut<T>,
 ) {
     let Ok((entity, t)) = q_t.get(event.event_target()) else {
