@@ -76,7 +76,19 @@ fn on_destroyed_entity(
 fn on_explode_entity(
     add: On<Add, IntegrityDestroyMarker>,
     mut commands: Commands,
-    q_explode: Query<(), (With<ExplodableEntity>, With<IntegrityDestroyMarker>)>,
+    // Require a Mesh3d: the mesh slicer can only fragment an entity that actually has a
+    // mesh. ExplodableEntity is propagated to parent roots (see on_add_explodable_entity),
+    // and those roots (ship/section roots that render via a WorldAssetRoot scene) have no
+    // Mesh3d of their own. Handing the slicer a meshless entity is an edge case that can
+    // crash it, so we simply do not trigger a slice on entities with nothing to slice.
+    q_explode: Query<
+        (),
+        (
+            With<ExplodableEntity>,
+            With<IntegrityDestroyMarker>,
+            With<Mesh3d>,
+        ),
+    >,
 ) {
     let entity = add.entity;
     trace!("on_explode_entity: entity {:?}", entity);
