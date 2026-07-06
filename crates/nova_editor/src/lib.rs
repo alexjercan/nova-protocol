@@ -448,14 +448,14 @@ fn setup_editor_scene(
                                 parent.spawn((
                                     Name::new(section.base.name.clone()),
                                     button(&section.base.name),
-                                    SectionChoice::Section(section.base.id.clone()),
+                                    ButtonValue(SectionChoice::Section(section.base.id.clone())),
                                 ));
                             }
 
                             parent.spawn((
                                 Name::new("Delete Section Button"),
                                 button("Delete Section"),
-                                SectionChoice::Delete,
+                                ButtonValue(SectionChoice::Delete),
                             ));
                         });
                     parent.spawn((
@@ -1001,6 +1001,13 @@ struct SelectedOption;
 #[derive(Component)]
 struct EditorButton;
 
+/// The value a settings button represents. Kept distinct from the `T` resource so a
+/// button can carry a choice without being interpreted as - and clobbering - the resource
+/// itself: on Bevy 0.19 a `#[derive(Resource)]` type is component-backed, so putting it on
+/// a button entity is treated as a resource insert.
+#[derive(Component, Debug, Clone)]
+struct ButtonValue<T>(T);
+
 fn button_on_interaction<E: EntityEvent, C: Component>(
     event: On<E, C>,
     mut q_button: Query<
@@ -1060,36 +1067,25 @@ fn button_on_setting<
 >(
     event: On<Add, Pressed>,
     mut commands: Commands,
-    // T is used both as a Resource (the current setting) and as a Component tagging each
-    // button's value. On Bevy 0.19 resources are component-backed, so ResMut<T> and a
-    // Query<&T> touch the same component storage and the access checker reports a
-    // conflict (B0002). Exclude the resource-backing entity (which carries IsResource)
-    // from the component queries so they are provably disjoint from ResMut<T>.
-    selected: Option<
-        Single<Entity, (With<T>, With<SelectedOption>, Without<bevy::ecs::resource::IsResource>)>,
-    >,
-    q_t: Query<
-        (Entity, &T),
-        (
-            Without<SelectedOption>,
-            With<EditorButton>,
-            Without<bevy::ecs::resource::IsResource>,
-        ),
-    >,
+    // Each button carries its value as a `ButtonValue<T>` component (distinct from the T
+    // resource, so a button never clobbers the resource), and clicking copies that value
+    // into the `ResMut<T>` resource.
+    selected: Option<Single<Entity, (With<ButtonValue<T>>, With<SelectedOption>)>>,
+    q_t: Query<(Entity, &ButtonValue<T>), (Without<SelectedOption>, With<EditorButton>)>,
     mut setting: ResMut<T>,
 ) {
-    let Ok((entity, t)) = q_t.get(event.event_target()) else {
+    let Ok((entity, value)) = q_t.get(event.event_target()) else {
         return;
     };
 
-    if *setting != *t {
+    if *setting != value.0 {
         if let Some(previous) = selected {
             commands
                 .entity(previous.into_inner())
                 .remove::<SelectedOption>();
         }
         commands.entity(entity).insert(SelectedOption);
-        *setting = t.clone();
+        *setting = value.0.clone();
     }
 }
 
