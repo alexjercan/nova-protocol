@@ -92,6 +92,21 @@ impl Plugin for ScenarioLoaderPlugin {
     }
 }
 
+/// Tear down the currently-loaded scenario: clear the event world and despawn every
+/// scenario-scoped entity (despawn is recursive, so their children go too). Shared by
+/// both the unload path and the load path (which tears the old scenario down before
+/// spawning the next), so teardown is identical no matter how a scenario ends.
+fn teardown_scenario_entities(
+    commands: &mut Commands,
+    q_scoped: &Query<Entity, With<ScenarioScopedMarker>>,
+    world: &mut NovaEventWorld,
+) {
+    world.clear();
+    for entity in q_scoped.iter() {
+        commands.entity(entity).despawn();
+    }
+}
+
 fn unload_scenario(
     _: On<UnloadScenario>,
     mut commands: Commands,
@@ -99,11 +114,8 @@ fn unload_scenario(
     mut current_scenario: ResMut<CurrentScenario>,
     mut world: ResMut<NovaEventWorld>,
 ) {
-    world.clear();
+    teardown_scenario_entities(&mut commands, &q_scoped, &mut world);
     **current_scenario = None;
-    for entity in q_scoped.iter() {
-        commands.entity(entity).despawn();
-    }
 }
 
 fn on_load_scenario(
@@ -113,10 +125,7 @@ fn on_load_scenario(
     q_scoped: Query<Entity, With<ScenarioScopedMarker>>,
     mut world: ResMut<NovaEventWorld>,
 ) {
-    world.clear();
-    for entity in q_scoped.iter() {
-        commands.entity(entity).despawn();
-    }
+    teardown_scenario_entities(&mut commands, &q_scoped, &mut world);
 
     let scenario = (**load).clone();
     **current_scenario = Some(scenario.clone());
