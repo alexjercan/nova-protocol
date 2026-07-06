@@ -7,6 +7,8 @@ use bevy::{
 use nova_assets::prelude::*;
 #[cfg(feature = "debug")]
 use nova_debug::DebugPlugin;
+pub use nova_editor;
+use nova_editor::prelude::*;
 pub use nova_events;
 pub use nova_gameplay;
 use nova_gameplay::prelude::*;
@@ -14,26 +16,17 @@ pub use nova_info;
 pub use nova_scenario;
 use nova_scenario::prelude::*;
 
-mod core;
-
 pub mod prelude {
     pub use nova_assets::prelude::*;
     #[cfg(feature = "debug")]
     pub use nova_debug::prelude::*;
+    pub use nova_editor::prelude::*;
     pub use nova_events::prelude::*;
     pub use nova_gameplay::prelude::*;
     pub use nova_info::prelude::*;
     pub use nova_scenario::prelude::*;
 
-    pub use super::{AppBuilder, GameStates};
-}
-
-/// Game states for the application.
-#[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
-pub enum GameStates {
-    #[default]
-    Loading,
-    Playing,
+    pub use super::AppBuilder;
 }
 
 pub struct AppBuilder {
@@ -93,9 +86,9 @@ impl AppBuilder {
             render: self.render,
         });
 
-        // Add default game plugins if none were provided
+        // Add the editor (the default "game") if no custom game plugins were provided
         if self.use_default_plugins {
-            self.app.add_plugins(core::core_plugin);
+            self.app.add_plugins(NovaEditorPlugin);
         }
 
         #[cfg(feature = "debug")]

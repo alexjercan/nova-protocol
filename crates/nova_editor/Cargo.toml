@@ -1,0 +1,20 @@
+[package]
+name = "nova_editor"
+version = { workspace = true }
+edition = { workspace = true }
+description = "Spaceship editor scene for the Nova Protocol game"
+
+[dependencies]
+avian3d = { version = "0.7" }
+bevy = { version = "0.19.0" }
+bevy_enhanced_input = { version = "0.26.0" }
+rand = { version = "0.10.2" }
+nova_assets = { path = "../nova_assets" }
+nova_gameplay = { path = "../nova_gameplay" }
+nova_scenario = { path = "../nova_scenario" }
+
+[lints]
+workspace = true
+
+[features]
+debug = ["bevy/track_location", "nova_gameplay/debug"]

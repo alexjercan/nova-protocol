@@ -4393,18 +4393,15 @@ dependencies = [
 name = "nova_core"
 version = "0.3.0"
 dependencies = [
- "avian3d",
  "bevy",
  "bevy_enhanced_input",
- "bevy_hanabi",
- "itertools 0.15.0",
  "nova_assets",
  "nova_debug",
+ "nova_editor",
  "nova_events",
  "nova_gameplay",
  "nova_info",
  "nova_scenario",
- "rand 0.10.2",
 ]
 
 [[package]]
@@ -4418,6 +4415,19 @@ dependencies = [
  "bevy_mod_debugdump",
  "itertools 0.15.0",
  "nova_gameplay",
+]
+
+[[package]]
+name = "nova_editor"
+version = "0.3.0"
+dependencies = [
+ "avian3d",
+ "bevy",
+ "bevy_enhanced_input",
+ "nova_assets",
+ "nova_gameplay",
+ "nova_scenario",
+ "rand 0.10.2",
 ]
 
 [[package]]

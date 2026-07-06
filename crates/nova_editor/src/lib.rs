@@ -9,10 +9,27 @@ use bevy::{
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 use bevy_enhanced_input::prelude::Binding;
+use nova_assets::prelude::*;
+use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use rand::prelude::*;
 
-use crate::prelude::*;
+pub mod prelude {
+    pub use super::NovaEditorPlugin;
+}
+
+/// The spaceship editor: a scene where you build a ship out of sections and then hand
+/// it off to a scenario simulation.
+///
+/// `nova_core` adds this as its default "game" plugin when no custom game plugins are
+/// supplied (see `AppBuilder`). Examples that provide their own scenario opt out of it.
+pub struct NovaEditorPlugin;
+
+impl Plugin for NovaEditorPlugin {
+    fn build(&self, app: &mut App) {
+        editor_plugin(app);
+    }
+}
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
 enum ExampleStates {
@@ -22,7 +39,7 @@ enum ExampleStates {
     Scenario,
 }
 
-pub(crate) fn core_plugin(app: &mut App) {
+fn editor_plugin(app: &mut App) {
     app.init_state::<ExampleStates>();
     app.insert_resource(SectionChoice::None);
     app.insert_resource(PlayerSpaceshipConfig::default());
@@ -1038,7 +1055,9 @@ fn button_on_interaction<E: EntityEvent, C: Component>(
     }
 }
 
-fn button_on_setting<T: Resource + Component<Mutability = bevy::ecs::component::Mutable> + PartialEq + Clone>(
+fn button_on_setting<
+    T: Resource + Component<Mutability = bevy::ecs::component::Mutable> + PartialEq + Clone,
+>(
     event: On<Add, Pressed>,
     mut commands: Commands,
     selected: Option<Single<Entity, (With<T>, With<SelectedOption>)>>,
