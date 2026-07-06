@@ -1,4 +1,4 @@
-use bevy::{camera::visibility::RenderLayers, prelude::*};
+use bevy::prelude::*;
 
 use crate::prelude::*;
 
@@ -11,9 +11,6 @@ pub mod prelude {
 
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TorpedoTargetHudMarker;
-
-#[derive(Component, Debug, Clone, Reflect)]
-struct TorpedoTargetCameraHudMarker;
 
 #[derive(Component, Debug, Clone, Reflect)]
 struct TorpedoTargetUIMarker;
@@ -33,30 +30,32 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
         Name::new("TorpedoTargetHUD"),
         TorpedoTargetHudMarker,
         TorpedoTargetHudEntity(None),
-        TorpedoTargetCameraHudMarker,
-        Camera2d,
-        Camera {
-            order: 1,
-            // Don't draw anything in the background, to see the previous camera.
-            clear_color: ClearColorConfig::Custom(Color::srgba(0.0, 0.0, 0.0, 0.0)),
+        // Full-screen, click-through UI layer. The reticle is an absolutely-positioned
+        // child moved to the target's screen position each frame. This uses the UI pass
+        // (like the health/objectives HUDs) instead of a second Camera2d: a second
+        // window-targeting camera on Bevy 0.19 blacks out the 3D scene camera, so the
+        // crosshair must be plain UI.
+        Node {
+            position_type: PositionType::Absolute,
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
             ..default()
         },
-        // This camera will only render entities which are on the same render layer.
-        RenderLayers::layer(1),
-        Visibility::Visible,
+        Pickable::IGNORE,
         children![(
             Name::new("TorpedoTargetUI"),
             TorpedoTargetUIMarker,
-            Sprite {
-                image: config.target_sprite.clone(),
+            Node {
+                position_type: PositionType::Absolute,
+                width: Val::Px(32.0),
+                height: Val::Px(32.0),
                 // TODO(20260525-133022): Size to fit the object being targeted.
-                custom_size: Some(Vec2::new(32.0, 32.0)),
                 ..default()
             },
-            Transform::from_xyz(0.0, 0.0, 0.0),
-            RenderLayers::layer(1),
+            ImageNode::new(config.target_sprite.clone()),
+            Pickable::IGNORE,
             Visibility::Hidden,
-        ),],
+        )],
     )
 }
 
@@ -107,18 +106,15 @@ fn update_ui_target_system(
 }
 
 fn update_position_indicator_hud(
-    q_target: Query<
-        (&Camera, &GlobalTransform, &TorpedoTargetHudEntity),
-        With<TorpedoTargetHudMarker>,
-    >,
-    mut q_ui: Query<(&mut Transform, &ChildOf), With<TorpedoTargetUIMarker>>,
+    q_target: Query<&TorpedoTargetHudEntity, With<TorpedoTargetHudMarker>>,
+    mut q_ui: Query<(&mut Node, &ChildOf), With<TorpedoTargetUIMarker>>,
     q_transform: Query<&GlobalTransform>,
     main_camera: Single<(&GlobalTransform, &Camera), With<SpaceshipCameraController>>,
 ) {
     let (main_transform, main_camera) = main_camera.into_inner();
 
-    for (mut ui_transform, ChildOf(parent)) in &mut q_ui {
-        let Ok((camera, camera_transform, target)) = q_target.get(*parent) else {
+    for (mut node, ChildOf(parent)) in &mut q_ui {
+        let Ok(target) = q_target.get(*parent) else {
             continue;
         };
 
@@ -136,10 +132,8 @@ fn update_position_indicator_hud(
             continue;
         };
 
-        let Ok(hud_pos) = camera.viewport_to_world_2d(camera_transform, coords) else {
-            continue;
-        };
-
-        ui_transform.translation = hud_pos.extend(0.0);
+        // Center the 32x32 reticle on the target's screen position.
+        node.left = Val::Px(coords.x - 16.0);
+        node.top = Val::Px(coords.y - 16.0);
     }
 }
