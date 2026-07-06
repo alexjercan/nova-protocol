@@ -71,8 +71,10 @@ impl AppBuilder {
     }
 
     pub fn build(mut self) -> App {
-        // Experimental Plugins
-        self.app.add_plugins(bevy::ui_widgets::UiWidgetsPlugins);
+        // NOTE: UiWidgetsPlugins is part of Bevy's DefaultPlugins as of 0.19 (it was an
+        // experimental, manually-added plugin group in 0.17). AppBuilder::new() already
+        // adds DefaultPlugins, so adding it again here panics with "plugin was already
+        // added". Do not re-add it.
 
         self.app.init_state::<GameStates>();
 
