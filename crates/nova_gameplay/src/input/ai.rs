@@ -33,6 +33,44 @@ impl Plugin for SpaceshipAIInputPlugin {
 #[require(SpaceshipRootMarker)]
 pub struct AISpaceshipMarker;
 
+// AI "brain" tuning constants. The AI chases the player at a speed that scales with
+// distance (so it slows as it closes in) and brakes when it overshoots.
+/// Target chase speed per unit of distance to the player.
+const AI_CHASE_SPEED_GAIN: f32 = 0.2;
+/// Lower/upper clamp on the distance-scaled chase speed.
+const AI_MIN_CHASE_SPEED: f32 = 2.0;
+const AI_MAX_CHASE_SPEED: f32 = 20.0;
+/// The ship brakes once its speed exceeds the target chase speed by this margin.
+const AI_BRAKE_SPEED_MARGIN: f32 = 1.0;
+/// Only thrust when the ship's forward vector aligns with the desired direction at least
+/// this much (dot product, 1.0 == perfectly aligned).
+const AI_THRUST_ALIGNMENT: f32 = 0.95;
+/// Only fire when the muzzle aligns with the player at least this much.
+const AI_FIRE_ALIGNMENT: f32 = 0.95;
+
+/// The direction an AI ship should face: toward the player while it is slower than its
+/// distance-scaled target speed, or opposite its velocity when overshooting (braking).
+/// Falls back to facing the player if the computed direction degenerates to zero.
+fn ai_desired_direction(to_player: Vec3, velocity: Vec3) -> Vec3 {
+    let target_speed =
+        (to_player.length() * AI_CHASE_SPEED_GAIN).clamp(AI_MIN_CHASE_SPEED, AI_MAX_CHASE_SPEED);
+    let too_fast = velocity.length() > target_speed + AI_BRAKE_SPEED_MARGIN;
+
+    let desired = if too_fast {
+        // Brake: point opposite the current velocity.
+        -velocity.normalize_or_zero()
+    } else {
+        // Chase: point toward the player.
+        to_player.normalize()
+    };
+
+    if desired.length_squared() == 0.0 {
+        to_player.normalize_or_zero()
+    } else {
+        desired
+    }
+}
+
 fn update_controller_target_rotation_torque(
     mut q_controller: Query<
         (&mut ControllerSectionRotationInput, &ChildOf),
@@ -48,30 +86,7 @@ fn update_controller_target_rotation_torque(
 
     for (entity, transform, velocity) in &q_spaceship {
         let to_player = player_transform.translation - transform.translation;
-        let distance = to_player.length();
-        let speed = velocity.length();
-
-        // Determine whether to chase or brake
-        let target_speed = (distance * 0.2).clamp(2.0, 20.0);
-        let too_fast = speed > target_speed + 1.0;
-
-        // Desired direction:
-        // - toward player if slow
-        // - opposite of velocity if too fast
-        let desired_direction = if too_fast {
-            // Brake
-            -velocity.normalize_or_zero()
-        } else {
-            // Chase
-            to_player.normalize()
-        };
-
-        // If velocity is zero (e.g., stationary), fall back to facing player
-        let desired_direction = if desired_direction.length_squared() == 0.0 {
-            to_player.normalize_or_zero()
-        } else {
-            desired_direction
-        };
+        let desired_direction = ai_desired_direction(to_player, **velocity);
 
         let forward = transform.forward().into();
         let target_rotation = Quat::from_rotation_arc(forward, desired_direction);
@@ -100,27 +115,16 @@ fn on_thruster_input(
 
     for (entity, transform, velocity) in &q_spaceship {
         let to_player = player_transform.translation - transform.translation;
-        let distance = to_player.length();
-        let speed = velocity.length();
+        let desired_direction = ai_desired_direction(to_player, **velocity);
 
-        let target_speed = (distance * 0.2).clamp(2.0, 20.0);
-        let too_fast = speed > target_speed + 1.0;
-
-        let desired_direction = if too_fast {
-            -velocity.normalize_or_zero()
-        } else {
-            to_player.normalize()
-        };
-
-        // Determine how well we’re aligned before applying thrust
+        // Thrust only when the ship is pointing roughly toward the desired direction.
         let forward = transform.forward();
         let alignment = forward.dot(desired_direction);
-
-        // Apply thrust only if pointing in roughly the correct direction
-        // and not already moving too fast
-        let should_thrust = alignment > 0.95;
-
-        let thrust_level = if should_thrust { 1.0 } else { 0.0 };
+        let thrust_level = if alignment > AI_THRUST_ALIGNMENT {
+            1.0
+        } else {
+            0.0
+        };
 
         for (mut thruster_input, _, _) in q_thruster
             .iter_mut()
@@ -181,7 +185,7 @@ fn on_projectile_input(
             let forward = muzzle_transform.forward();
 
             let alignment = forward.dot(direction_to_player);
-            **input = alignment > 0.95;
+            **input = alignment > AI_FIRE_ALIGNMENT;
         }
     }
 }
