@@ -49,7 +49,7 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
             TorpedoTargetUIMarker,
             Sprite {
                 image: config.target_sprite.clone(),
-                // TODO: Size to fit the object being targeted.
+                // TODO(20260525-133022): Size to fit the object being targeted.
                 custom_size: Some(Vec2::new(32.0, 32.0)),
                 ..default()
             },

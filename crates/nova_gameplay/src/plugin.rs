@@ -40,7 +40,7 @@ impl Plugin for NovaGameplayPlugin {
         // Random number generator
         app.add_plugins(EntropyPlugin::<WyRand>::default());
 
-        // FIXME: For now we disable particle effects on wasm because it's not working
+        // FIXME(20260706-162908): For now we disable particle effects on wasm because it's not working
         #[cfg(not(target_family = "wasm"))]
         app.add_plugins(bevy_hanabi::HanabiPlugin);
 

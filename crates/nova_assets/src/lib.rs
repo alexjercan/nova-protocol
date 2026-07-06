@@ -74,7 +74,7 @@ pub struct GameAssets {
     pub target_sprite: Handle<Image>,
 }
 
-// TODO: Probably need to refactor this somehow
+// TODO(20260525-133028): Probably need to refactor this somehow
 fn update_nova_hud_assets(
     mut nova_hud_assets: ResMut<NovaHudAssets>,
     game_assets: Res<GameAssets>,

@@ -198,11 +198,11 @@ impl Plugin for TurretSectionPlugin {
             app.add_observer(insert_turret_barrel_render);
             app.add_observer(insert_projectile_render);
 
-            // FIXME: For now we disable particle effects on wasm because it's not working
+            // FIXME(20260706-162908): For now we disable particle effects on wasm because it's not working
             #[cfg(not(target_family = "wasm"))]
             app.add_observer(insert_turret_barrel_muzzle_effect);
 
-            // FIXME: For now we disable particle effects on wasm because it's not working
+            // FIXME(20260706-162908): For now we disable particle effects on wasm because it's not working
             #[cfg(not(target_family = "wasm"))]
             app.add_observer(on_projectile_marker_effect);
         }
@@ -635,7 +635,7 @@ fn shoot_spawn_projectile(
         let projectile_rotation = muzzle_transform.rotation();
         let radius_vector = projectile_position - **center;
         let _inertia_vel = ang_vel.cross(radius_vector) + **lin_vel;
-        // FIXME: Currently we are only using the linear velocity as inertia
+        // FIXME(20260706-162909): Currently we are only using the linear velocity as inertia
         let inertia_vel = **lin_vel;
 
         let muzzle_exit_velocity = muzzle_direction * config.muzzle_speed;

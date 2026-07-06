@@ -25,7 +25,7 @@ impl Plugin for IntegrityPlugin {
         // Handle explosion on destruction
         app.add_plugins(super::explode::ExplodablePlugin);
 
-        // TODO: I kind of don't want to have the IntegrityGraph component, but rather use the
+        // TODO(20260706-162911): I kind of don't want to have the IntegrityGraph component, but rather use the
         // children as nodes, and have something like ConnectedTo component that lives on the child
         // node and is a Vec<Entity> or something like that. Maybe...
 
@@ -38,13 +38,13 @@ impl Plugin for IntegrityPlugin {
         app.add_observer(handle_parent_destroy);
         app.add_observer(on_destroyed);
 
-        // TODO: This should be probably moved to some glue.rs file to not make integrity too
+        // TODO(20260706-162911): This should be probably moved to some glue.rs file to not make integrity too
         // dependent on sections
         app.add_observer(on_section_disable);
-        // TODO: This should be probably moved to some glue.rs file to not make integrity too
+        // TODO(20260706-162911): This should be probably moved to some glue.rs file to not make integrity too
         // dependent on sections
         app.add_observer(on_section_graph_create);
-        // TODO: This should maybe be moved to somewhere else, but it is the generic case where we
+        // TODO(20260706-151804): This should maybe be moved to somewhere else, but it is the generic case where we
         // only have on rigidbody and one collider (e.g. for asteroids)
         app.add_observer(on_rigidbody_graph_create);
 
@@ -141,7 +141,7 @@ fn on_blast_collision_deal_damage(
     q_body: Query<&Transform, With<RigidBody>>,
     q_blast: Query<(&Transform, &BlastDamageConfig), (With<RigidBody>, With<BlastDamageMarker>)>,
 ) {
-    // FIXME: For some reason, this event is not fired consistently. I don't know what the problem
+    // FIXME(20260706-162912): For some reason, this event is not fired consistently. I don't know what the problem
     // might be, but this needs further investigation. The event fires only for ("object", "blast")
     // but not for ("blast", "object"). Which is weird, because the `area.rs` module works also
     // with sensors, and it fires both ways.
