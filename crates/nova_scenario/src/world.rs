@@ -83,11 +83,29 @@ impl NovaEventWorld {
     }
 
     pub fn push_objective(&mut self, objective: ObjectiveActionConfig) {
+        if self.objectives.iter().any(|obj| obj.id == objective.id) {
+            warn!(
+                "push_objective: objective id '{}' is already active; the scenario is \
+                 adding a duplicate",
+                objective.id
+            );
+        }
+        debug!("push_objective: added objective '{}'", objective.id);
         self.objectives.push(objective);
     }
 
     pub fn remove_objective(&mut self, id: &str) {
+        let before = self.objectives.len();
         self.objectives.retain(|obj| obj.id != id);
+        if self.objectives.len() == before {
+            warn!(
+                "remove_objective: no active objective with id '{}' to complete; check the \
+                 scenario for a typo or a missing Objective action that should create it",
+                id
+            );
+        } else {
+            debug!("remove_objective: completed objective '{}'", id);
+        }
     }
 
     pub fn insert_variable(&mut self, key: String, value: VariableLiteral) {

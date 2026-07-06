@@ -94,6 +94,10 @@ pub struct NextScenarioActionConfig {
 
 impl EventAction<NovaEventWorld> for NextScenarioActionConfig {
     fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        debug!(
+            "NextScenario: queuing scenario '{}' (linger: {})",
+            self.scenario_id, self.linger
+        );
         world.next_scenario = Some(self.clone());
     }
 }
@@ -149,6 +153,7 @@ pub enum ScenarioObjectKind {
 impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
     fn action(&self, world: &mut NovaEventWorld, _info: &GameEventInfo) {
         let config = self.clone();
+        debug!("SpawnScenarioObject: spawning '{}'", config.base.id);
 
         world.push_command(move |commands| {
             let mut entity_commands = commands.spawn(base_scenario_object(&config.base));
@@ -177,6 +182,10 @@ pub struct ScenarioAreaConfig {
 impl EventAction<NovaEventWorld> for ScenarioAreaConfig {
     fn action(&self, world: &mut NovaEventWorld, _info: &GameEventInfo) {
         let config = self.clone();
+        debug!(
+            "CreateScenarioArea: creating area '{}' (radius: {})",
+            config.id, config.radius
+        );
 
         world.push_command(move |commands| {
             commands.spawn((
