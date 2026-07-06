@@ -6,6 +6,7 @@ use nova_events::prelude::*;
 use rand::RngExt;
 
 use super::components::*;
+use crate::prelude::SectionMarker;
 
 pub mod prelude {
     pub use super::{ExplodableEntity, MeshFragmentMarker};
@@ -28,7 +29,76 @@ impl Plugin for ExplodablePlugin {
         app.add_observer(on_destroyed_entity);
         app.add_observer(on_explode_entity);
         app.add_observer(handle_entity_explosion);
+        app.add_observer(spawn_section_debris);
         app.add_observer(despawn_destroyed_without_mesh);
+    }
+}
+
+/// Scatter a short-lived burst of physics debris when a section is destroyed, so the
+/// section visually breaks apart instead of vanishing silently.
+///
+/// Sections render via a gltf `WorldAssetRoot` scene and carry no `Mesh3d` of their own,
+/// so they cannot go through the mesh-slicer fragment path (`handle_entity_explosion`,
+/// used by asteroids). Instead we spawn a handful of small cubes at the section's world
+/// position, launched outward, that fall under the scene's zero gravity and auto-despawn
+/// via `TempEntity`. Only `SectionMarker` entities are handled here (the meshless ship
+/// root is excluded - its sections have already burst by the time it dies).
+fn spawn_section_debris(
+    add: On<Add, IntegrityDestroyMarker>,
+    mut commands: Commands,
+    q_section: Query<
+        &GlobalTransform,
+        (
+            With<IntegrityDestroyMarker>,
+            With<SectionMarker>,
+            Without<Mesh3d>,
+        ),
+    >,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut rng: Single<&mut WyRand, With<GlobalRng>>,
+) {
+    let entity = add.entity;
+    let Ok(transform) = q_section.get(entity) else {
+        return;
+    };
+    let origin = transform.translation();
+
+    trace!("spawn_section_debris: bursting section {:?}", entity);
+
+    let mesh = meshes.add(Cuboid::new(0.25, 0.25, 0.25));
+    let material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.35, 0.35, 0.38),
+        perceptual_roughness: 0.9,
+        metallic: 0.4,
+        ..default()
+    });
+
+    for _ in 0..8 {
+        let direction = Vec3::new(
+            rng.random_range(-1.0..1.0),
+            rng.random_range(-1.0..1.0),
+            rng.random_range(-1.0..1.0),
+        )
+        .normalize_or_zero();
+        let velocity = direction * rng.random_range(3.0..7.0);
+
+        commands.spawn((
+            MeshFragmentMarker,
+            Name::new("Section Debris"),
+            Mesh3d(mesh.clone()),
+            MeshMaterial3d(material.clone()),
+            Transform::from_translation(origin + direction * 0.3),
+            RigidBody::Dynamic,
+            Collider::cuboid(0.25, 0.25, 0.25),
+            LinearVelocity(velocity),
+            AngularVelocity(Vec3::new(
+                rng.random_range(-6.0..6.0),
+                rng.random_range(-6.0..6.0),
+                rng.random_range(-6.0..6.0),
+            )),
+            TempEntity(2.0),
+        ));
     }
 }
 
