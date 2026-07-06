@@ -9,8 +9,9 @@ real code lives under `crates/`.
 | Crate           | Responsibility |
 |-----------------|----------------|
 | `nova-protocol` (root) | `src/main.rs` = clap CLI + entrypoint. `src/lib.rs` re-exports `nova_core`. Examples live in `examples/`. |
-| `nova_core`     | `AppBuilder` (assembles every plugin) and `GameStates`. The spaceship **editor scene** is `src/core.rs`. |
-| `nova_gameplay` | Nova-specific gameplay. Submodules: `sections/`, `integrity/`, `input/` (player + ai), `hud/`, `camera_controller`, `plugin` (`NovaGameplayPlugin`). |
+| `nova_core`     | Thin wiring: `AppBuilder` assembles every plugin (window/log/asset setup, status UI). No gameplay logic. Adds `NovaEditorPlugin` when no custom game plugins are supplied. |
+| `nova_editor`   | The spaceship **editor scene** (`NovaEditorPlugin`): section-picker UI, ship building/placement, transition to the scenario simulation. Sits above `nova_gameplay` + `nova_scenario`. |
+| `nova_gameplay` | Nova-specific gameplay. Submodules: `sections/`, `integrity/`, `input/` (player + ai), `hud/`, `camera_controller`, `plugin` (`NovaGameplayPlugin`). Also owns `GameStates` (top-level Loading/Playing lifecycle). |
 | `nova_scenario` | Scenario/modding engine: `events`, `filters`, `actions`, `variables`, `world`, `loader`, and scenario `objects/`. See [scenario-system.md](scenario-system.md). |
 | `nova_events`   | Game event kinds and entity identity components (shared vocabulary between gameplay and scenario). |
 | `nova_assets`   | `bevy_asset_loader` setup. Loads glb/textures/shaders, then registers the built-in sections and scenarios. |
@@ -47,7 +48,9 @@ Three tiers, from most game-agnostic to most game-specific:
    integrity/health-of-sections, weapons, hud, input, camera controller. It also
    holds generic-*leaning* helpers that are **not yet ready** to be promoted to
    `bevy_common_systems` - promotion is deliberate, not automatic.
-3. **`nova_core`** - thin wiring only (see the task-137 note); no gameplay logic.
+3. **`nova_core`** - thin wiring only; no gameplay logic. The editor scene it used to
+   hold now lives in its own `nova_editor` crate (`GameStates` moved down to
+   `nova_gameplay`), so `nova_core` is purely the `AppBuilder` assembler.
 
 Audit finding (task 20260525-132936): the `nova_gameplay` boundary is clean. Every
 spaceship/section/weapon/input/camera module is correctly placed, and nothing
@@ -90,7 +93,7 @@ sections, hud, camera controller, integrity).
 
 Two independent state machines:
 
-- `GameStates { Loading, Playing }` - top-level app state (`nova_core`).
+- `GameStates { Loading, Playing }` - top-level app state (`nova_gameplay`).
 - `GameAssetsStates { Loading, Processing, Loaded }` - asset pipeline (`nova_assets`).
   Assets load in `Loading`, get post-processed in `Processing`, and gameplay/scenarios
   begin at `Loaded`. **Scenario setup hooks `OnEnter(GameAssetsStates::Loaded)`** -
