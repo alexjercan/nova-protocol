@@ -85,6 +85,30 @@ scope (`explode.rs`, `objects/asteroid.rs`).
   before mutating fields through it (`let Some(mut material) = ...`). Hit in the
   thruster/velocity shader update systems and example 02.
 
+## Runtime-only regressions (compiled + clippy/fmt clean, only surfaced by running)
+
+These did not produce compiler errors; they only appeared when the game was launched.
+They are the reason "builds green" is not the same as "works" for an engine migration.
+
+- **Double-added plugin group.** `UiWidgetsPlugins` is part of `DefaultPlugins` on 0.19
+  (it was experimental/manual in 0.17). `AppBuilder` added it a second time, panicking at
+  startup ("plugin was already added"). Fix: do not re-add it (`nova_core/src/lib.rs`).
+- **Resource used as a per-entity component (B0002 + resource clobbering).** Because
+  `#[derive(Resource)]` is now component-backed, a type used *both* as a resource and as
+  a per-entity component breaks two ways: a system taking `ResMut<T>` plus a `Query<&T>`
+  panics with B0002, and spawning entities carrying `T` warns "Tried inserting the
+  resource ... while one already exists" and clobbers the resource. The editor's
+  `SectionChoice` (a selection resource *and* a per-button tag) hit both. Fix: split it -
+  keep the resource, and give buttons a distinct `ButtonValue<T>` component
+  (`nova_editor/src/lib.rs`). Prefer this over the `Without<IsResource>` band-aid.
+- **A second window-targeting camera blacks out the 3D camera.** On 0.19, adding a second
+  camera that renders to the same window as a 3D camera using HDR + post-processing
+  (bloom/tonemapping) makes the 3D camera render nothing (fully black - no skybox, no
+  meshes), while the HUD/UI still draws. The torpedo crosshair used a separate `Camera2d`
+  and blacked out every scenario. Fix: render such overlays as **UI**, not a second
+  camera (`hud/torpedo_target.rs`). For a HUD reticle, an absolutely-positioned
+  `ImageNode` moved via `Camera::world_to_viewport` is the right pattern.
+
 ## Verification
 
 ```sh
