@@ -241,15 +241,11 @@ fn on_player_spaceship_spawned(
 }
 
 fn on_player_spaceship_destroyed(
-    add: On<Add, HealthZeroMarker>,
+    _remove: On<Remove, PlayerSpaceshipMarker>,
     mut commands: Commands,
     camera: Single<Entity, With<SpaceshipCameraController>>,
-    spaceship: Single<Entity, With<PlayerSpaceshipMarker>>,
 ) {
-    trace!("on_player_spaceship_destroyed: {:?}", add.entity);
-    if add.entity != spaceship.into_inner() {
-        return;
-    }
+    trace!("on_player_spaceship_destroyed: switching camera back to WASD");
 
     let camera = camera.into_inner();
 
