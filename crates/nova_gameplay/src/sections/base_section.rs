@@ -2,10 +2,9 @@ use std::fmt::Debug;
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
 
 use super::prelude::*;
-use crate::prelude::ExplodableEntity;
+use crate::prelude::destructible_body;
 
 pub mod prelude {
     pub use super::{
@@ -64,9 +63,6 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
         Name::new(config.name.clone()),
         SectionMarker,
         Collider::cuboid(1.0, 1.0, 1.0),
-        ColliderDensity(config.mass),
-        Health::new(config.health),
-        ExplodableEntity,
-        Visibility::Inherited,
+        destructible_body(config.health, config.mass),
     )
 }

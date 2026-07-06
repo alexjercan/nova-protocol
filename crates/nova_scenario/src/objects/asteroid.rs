@@ -92,10 +92,7 @@ fn insert_asteroid_collider(
         Transform::from_scale(Vec3::splat(**radius)),
         AsteroidRenderMesh(mesh.clone()),
         collider,
-        ColliderDensity(1.0),
-        Health::new(**health),
-        ExplodableEntity,
-        Visibility::Inherited,
+        destructible_body(**health, 1.0),
     )],));
 }
 

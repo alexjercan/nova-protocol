@@ -5,6 +5,7 @@
 use bevy::prelude::*;
 
 pub mod camera_controller;
+pub mod game_object;
 pub mod hud;
 pub mod input;
 pub mod integrity;
@@ -19,6 +20,7 @@ pub mod prelude {
 
     pub use super::{
         camera_controller::prelude::*,
+        game_object::prelude::*,
         hud::prelude::*,
         input::prelude::*,
         integrity::prelude::*,
