@@ -27,6 +27,13 @@ bevy_enhanced_input = { version = "0.26.0" }
 # Enable a small amount of optimization in debug mode
 [profile.dev]
 opt-level = 1
+# Keep `cargo test`/`--all-targets` peak RAM down: cargo links one Bevy+avian binary per
+# target (lib unittest + every example + doctests), and embedded DWARF makes each ~1.5 GB,
+# so parallel rust-lld jobs can peak near 40 GB and swap-thrash a 32 GB box. Leaving DWARF
+# in the .o files and keeping only line tables drops the peak to roughly half of RAM while
+# preserving panic backtraces. See ../bevy-common-systems/docs/2026-07-03-test-memory.md.
+split-debuginfo = "unpacked"
+debug = "line-tables-only"
 
 # Enable high optimizations for dependencies (incl. Bevy), but not for our code:
 [profile.dev.package."*"]
