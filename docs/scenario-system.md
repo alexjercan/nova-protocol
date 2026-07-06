@@ -42,6 +42,34 @@ app.add_systems(
 );
 ```
 
+### Entity cleanup contract (no leftovers between scenarios)
+
+Both `UnloadScenario` and `on_load_scenario` despawn every `ScenarioScopedMarker`
+entity and `clear()` the `NovaEventWorld` before the next scenario starts. `despawn()`
+is recursive in Bevy, so despawning a scoped root takes its whole child hierarchy with
+it. For a scene transition to leave nothing behind, **every** entity spawned while a
+scenario is active must fall into one of these buckets:
+
+1. **Explicitly scoped** - spawned with `ScenarioScopedMarker` (the scenario camera,
+   directional light, input context, and every object from `SpawnScenarioObject` /
+   `CreateScenarioArea`, since `base_scenario_object` includes the marker).
+2. **Auto-scoped transients** - entities that spawn dynamically during play get the
+   marker retroactively via `on_add_entity_with::<T>` observers in `loader.rs`, which
+   tag any new entity carrying `T` while a scenario is loaded. Currently registered:
+   `MeshFragmentMarker`, `TurretBulletProjectileMarker`, `TorpedoProjectileMarker`.
+3. **Child of a scoped entity** - e.g. turret part meshes and muzzle effects are
+   children of a ship section, so recursive despawn removes them.
+4. **Self-despawning** - short-lived effects (torpedo blast) carry `TempEntity(secs)`
+   and expire on their own; they may briefly outlive a transition but never leak.
+5. **Tied to the player ship** - the HUDs spawn on `Add<PlayerSpaceshipMarker>` and
+   despawn on `Remove<PlayerSpaceshipMarker>` (which fires when the scoped player ship
+   is despawned during the switch).
+
+Rule for new code: any new entity spawned during a scenario must be scoped (bucket 1),
+carry a marker registered with `on_add_entity_with` (bucket 2), be a child of a scoped
+entity (bucket 3), be a `TempEntity` (bucket 4), or be tied to a `Remove` observer
+(bucket 5). If it fits none of these, it will leak across a scene switch.
+
 ## Events (`EventConfig`)
 
 Maps 1:1 onto the event kinds in `nova_events`:
