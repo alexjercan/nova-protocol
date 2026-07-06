@@ -35,6 +35,38 @@ Historically this crate was vendored under `crates/bevy_common_systems/`. That c
 is being removed on the `feature/cleanup-v0.3.0` branch. If a helper feels "generic",
 it almost certainly lives in the external crate, not in this repo.
 
+### Crate boundary policy
+
+Three tiers, from most game-agnostic to most game-specific:
+
+1. **`bevy_common_systems` (external)** - fully game-agnostic Bevy primitives that
+   any game could reuse: cameras, skybox, post-processing, mesh builders + explode,
+   transform orbits, PD controller, generic `Health`, status bar, the event queue.
+   Code only earns a place here once it is genuinely reusable and stable.
+2. **`nova_gameplay`** - the umbrella for gameplay plugins: spaceship sections,
+   integrity/health-of-sections, weapons, hud, input, camera controller. It also
+   holds generic-*leaning* helpers that are **not yet ready** to be promoted to
+   `bevy_common_systems` - promotion is deliberate, not automatic.
+3. **`nova_core`** - thin wiring only (see the task-137 note); no gameplay logic.
+
+Audit finding (task 20260525-132936): the `nova_gameplay` boundary is clean. Every
+spaceship/section/weapon/input/camera module is correctly placed, and nothing
+gameplay-specific is stranded in another crate. A few modules are game-agnostic
+enough to *eventually* promote to `bevy_common_systems`, but promotion is now a
+cross-repo change (that crate is a separate repository), so they legitimately stay in
+`nova_gameplay` under tier 2 until promoted. Tracked promotion candidates:
+
+- `hud/health.rs` - a text HUD over the generic `Health` component (no Nova coupling).
+- `hud/objectives.rs` - a generic id+message objectives text list.
+- `hud/velocity.rs` - the `DirectionMagnitudeMaterial` / `DirectionSphereMaterial`
+  shader materials (would also move `shaders/directional_*.wgsl`).
+- `integrity/blast.rs` + `calculate_blast_damage` / `on_impact_collision_deal_damage`
+  in `integrity/mod.rs` - radial-falloff blast volume and impulse/energy collision
+  damage that only touch Avian physics and the generic `Health`.
+
+These are captured as a follow-up task rather than actioned here, since they belong to
+the external crate's backlog and require a coordinated cross-repo change.
+
 ## App assembly
 
 `AppBuilder` (in `crates/nova_core/src/lib.rs`) is the single place the app is wired:
