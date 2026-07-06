@@ -24,7 +24,7 @@ pub fn health_hud(config: HealthHudConfig) -> impl Bundle {
         HealthHudTargetEntity(config.target),
         Text::new("Health: 100%"),
         TextShadow::default(),
-        TextLayout::new_with_justify(Justify::Center),
+        TextLayout::justify(Justify::Center),
         Node {
             position_type: PositionType::Absolute,
             bottom: px(5),

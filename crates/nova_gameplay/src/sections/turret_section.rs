@@ -32,19 +32,19 @@ pub struct TurretSectionConfig {
     /// The maximum pitch angle of the turret section in radians. If None, there is no limit.
     pub max_pitch: Option<f32>,
     /// The render mesh of the base, defaults to a cylinder base
-    pub render_mesh_base: Option<Handle<Scene>>,
+    pub render_mesh_base: Option<Handle<WorldAsset>>,
     /// The offset of the base from the section origin
     pub base_offset: Vec3,
     /// The render mesh of the yaw rotator, defaults to a cylinder with ridges
-    pub render_mesh_yaw: Option<Handle<Scene>>,
+    pub render_mesh_yaw: Option<Handle<WorldAsset>>,
     /// The offset of the yaw rotator from the base
     pub yaw_offset: Vec3,
     /// The render mesh of the pitch rotator, defaults to a cylinder with ridges
-    pub render_mesh_pitch: Option<Handle<Scene>>,
+    pub render_mesh_pitch: Option<Handle<WorldAsset>>,
     /// The offset of the pitch rotator from the yaw rotator
     pub pitch_offset: Vec3,
     /// The render mesh of the barrel, defaults to a simple barrel shape
-    pub render_mesh_barrel: Option<Handle<Scene>>,
+    pub render_mesh_barrel: Option<Handle<WorldAsset>>,
     /// The offset of the barrel from the pitch rotator
     pub barrel_offset: Vec3,
     /// The offset of the muzzle from the barrel
@@ -58,7 +58,7 @@ pub struct TurretSectionConfig {
     /// The projectile mass
     pub projectile_mass: f32,
     /// The projectile mesh,
-    pub projectile_render_mesh: Option<Handle<Scene>>,
+    pub projectile_render_mesh: Option<Handle<WorldAsset>>,
     /// The muzzle particle effect when shooting.
     pub muzzle_effect: Option<Handle<EffectAsset>>,
 }
@@ -127,19 +127,19 @@ pub struct TurretSectionTargetInput(pub Option<Vec3>);
 struct TurretSectionPartOf(pub Entity);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct BulletProjectileRenderMesh(Option<Handle<Scene>>);
+struct BulletProjectileRenderMesh(Option<Handle<WorldAsset>>);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TurretSectionBaseRenderMesh(Option<Handle<Scene>>);
+struct TurretSectionBaseRenderMesh(Option<Handle<WorldAsset>>);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TurretSectionYawRenderMesh(Option<Handle<Scene>>);
+struct TurretSectionYawRenderMesh(Option<Handle<WorldAsset>>);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TurretSectionPitchRenderMesh(Option<Handle<Scene>>);
+struct TurretSectionPitchRenderMesh(Option<Handle<WorldAsset>>);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TurretSectionBarrelRenderMesh(Option<Handle<Scene>>);
+struct TurretSectionBarrelRenderMesh(Option<Handle<WorldAsset>>);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct TurretSectionConfigHelper(TurretSectionConfig);
@@ -774,7 +774,7 @@ fn insert_projectile_render(
         Some(scene_handle) => {
             commands.entity(entity).insert((children![(
                 Name::new("Bullet Projectile Render"),
-                SceneRoot(scene_handle.clone()),
+                WorldAssetRoot(scene_handle.clone()),
             ),],));
         }
         None => {
@@ -813,7 +813,7 @@ fn insert_turret_section_render(
             commands.entity(entity).insert((children![(
                 Name::new("Render Turret Base"),
                 SectionRenderOf(**turret),
-                SceneRoot(scene.clone()),
+                WorldAssetRoot(scene.clone()),
             ),],));
         }
         None => {
@@ -854,7 +854,7 @@ fn insert_turret_yaw_rotator_render(
             commands.entity(entity).insert((children![(
                 Name::new("Render Turret Yaw"),
                 SectionRenderOf(**turret),
-                SceneRoot(scene.clone()),
+                WorldAssetRoot(scene.clone()),
             ),],));
         }
         None => {
@@ -934,7 +934,7 @@ fn insert_turret_pitch_rotator_render(
             commands.entity(entity).insert((children![(
                 Name::new("Render Turret Pitch"),
                 SectionRenderOf(**turret),
-                SceneRoot(scene.clone()),
+                WorldAssetRoot(scene.clone()),
             ),],));
         }
         None => {
@@ -1015,7 +1015,7 @@ fn insert_turret_barrel_render(
             commands.entity(entity).insert((children![(
                 Name::new("Render Turret Barrel"),
                 SectionRenderOf(**turret),
-                SceneRoot(scene.clone()),
+                WorldAssetRoot(scene.clone()),
             ),],));
         }
         None => {

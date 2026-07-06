@@ -89,7 +89,7 @@ fn update_text_hud(
                     ObjectiveHudId(objective.id.clone()),
                     Text::new(objective.message.clone()),
                     TextShadow::default(),
-                    TextLayout::new_with_justify(Justify::Center),
+                    TextLayout::justify(Justify::Center),
                 ))
                 .id()
         })

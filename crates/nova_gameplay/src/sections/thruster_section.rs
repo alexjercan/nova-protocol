@@ -27,7 +27,7 @@ pub struct ThrusterSectionConfig {
     /// The magnitude of the force produced by this thruster section.
     pub magnitude: f32,
     /// The render mesh of the section, defaults to prototype mesh if None.
-    pub render_mesh: Option<Handle<Scene>>,
+    pub render_mesh: Option<Handle<WorldAsset>>,
 }
 
 impl Default for ThrusterSectionConfig {
@@ -84,7 +84,7 @@ impl Default for ThrusterExhaustConfig {
 pub struct ThrusterSectionMarker;
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct ThrusterSectionRenderMesh(Option<Handle<Scene>>);
+struct ThrusterSectionRenderMesh(Option<Handle<WorldAsset>>);
 
 /// The thrust magnitude produced by this thruster section. This is a simple scalar value that can be
 /// used to determine the thrust force applied to the ship.
@@ -183,7 +183,7 @@ fn thruster_shader_update_system(
             continue;
         };
 
-        let Some(material) = materials.get_mut(&**material) else {
+        let Some(mut material) = materials.get_mut(&**material) else {
             error!(
                 "thruster_shader_update_system: material for entity {:?} not found",
                 parent
@@ -259,7 +259,7 @@ fn insert_thruster_section_render(
             commands.entity(entity).insert((children![(
                 Name::new("Thruster Section Body"),
                 SectionRenderOf(entity),
-                SceneRoot(scene.clone()),
+                WorldAssetRoot(scene.clone()),
             ),],));
         }
         None => {

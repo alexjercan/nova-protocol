@@ -16,8 +16,8 @@ pub mod prelude {
 
 #[derive(Clone, Debug, Reflect)]
 pub struct TorpedoSectionConfig {
-    pub render_mesh: Option<Handle<Scene>>,
-    pub projectile_render_mesh: Option<Handle<Scene>>,
+    pub render_mesh: Option<Handle<WorldAsset>>,
+    pub projectile_render_mesh: Option<Handle<WorldAsset>>,
     /// The offset of the spawn point of the projectile relative to the torpedo section.
     pub spawn_offset: Vec3,
     /// The rotation of the spawn point of the projectile relative to the torpedo section.
@@ -101,7 +101,7 @@ pub struct TorpedoProjectileOwner(pub Entity);
 pub struct TorpedoTargetEntity(pub Entity);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TorpedoProjectileRenderMesh(Option<Handle<Scene>>);
+struct TorpedoProjectileRenderMesh(Option<Handle<WorldAsset>>);
 
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct TorpedoTargetPosition(pub Vec3);
@@ -504,7 +504,7 @@ fn insert_torpedo_section_render(
             commands.entity(entity).insert((children![(
                 Name::new("Torpedo Section Body"),
                 SectionRenderOf(entity),
-                SceneRoot(scene.clone()),
+                WorldAssetRoot(scene.clone()),
             ),],));
         }
         None => {
@@ -538,7 +538,7 @@ fn insert_torpedo_render(
         commands.entity(entity).insert((children![(
             Name::new("Torpedo Projectile Body"),
             SectionRenderOf(entity),
-            SceneRoot(scene.clone()),
+            WorldAssetRoot(scene.clone()),
         ),],));
     }
 }

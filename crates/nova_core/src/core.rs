@@ -382,7 +382,7 @@ fn setup_editor_scene(
                         Name::new("Title"),
                         Text::new("Spaceship Editor"),
                         TextFont {
-                            font_size: 24.0,
+                            font_size: FontSize::Px(24.0),
                             ..default()
                         },
                         TextColor(TEXT_COLOR),
@@ -460,7 +460,7 @@ fn setup_editor_scene(
         });
 }
 
-#[derive(Resource, Default, Debug, Component, PartialEq, Eq, Clone, Reflect)]
+#[derive(Resource, Default, Debug, PartialEq, Eq, Clone, Reflect)]
 enum SectionChoice {
     #[default]
     None,
@@ -1038,7 +1038,7 @@ fn button_on_interaction<E: EntityEvent, C: Component>(
     }
 }
 
-fn button_on_setting<T: Resource + Component + PartialEq + Clone>(
+fn button_on_setting<T: Resource + Component<Mutability = bevy::ecs::component::Mutable> + PartialEq + Clone>(
     event: On<Add, Pressed>,
     mut commands: Commands,
     selected: Option<Single<Entity, (With<T>, With<SelectedOption>)>>,
@@ -1086,18 +1086,18 @@ fn button(text: &str) -> impl Bundle {
             margin: UiRect::all(px(20)),
             justify_content: JustifyContent::Center,
             align_items: AlignItems::Center,
+            border_radius: BorderRadius::MAX,
             ..default()
         },
         EditorButton,
         Button,
         Hovered::default(),
         BorderColor::all(Color::BLACK),
-        BorderRadius::MAX,
         BackgroundColor(NORMAL_BUTTON),
         children![(
             Text::new(text),
             TextFont {
-                font_size: 16.0,
+                font_size: FontSize::Px(16.0),
                 ..default()
             },
             TextColor(Color::srgb(0.9, 0.9, 0.9)),

@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 use bevy_rand::prelude::*;
 use nova_events::prelude::*;
-use rand::Rng;
+use rand::RngExt;
 
 use super::components::*;
 

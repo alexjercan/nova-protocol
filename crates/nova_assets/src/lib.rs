@@ -59,15 +59,15 @@ pub struct GameAssets {
     #[asset(path = "textures/asteroid.png")]
     pub asteroid_texture: Handle<Image>,
     #[asset(path = "gltf/hull-01.glb#Scene0")]
-    pub hull_01: Handle<Scene>,
+    pub hull_01: Handle<WorldAsset>,
     #[asset(path = "gltf/turret-yaw-01.glb#Scene0")]
-    pub turret_yaw_01: Handle<Scene>,
+    pub turret_yaw_01: Handle<WorldAsset>,
     #[asset(path = "gltf/turret-pitch-01.glb#Scene0")]
-    pub turret_pitch_01: Handle<Scene>,
+    pub turret_pitch_01: Handle<WorldAsset>,
     #[asset(path = "gltf/turret-barrel-01.glb#Scene0")]
-    pub turret_barrel_01: Handle<Scene>,
+    pub turret_barrel_01: Handle<WorldAsset>,
     #[asset(path = "gltf/torpedo-bay-01.glb#Scene0")]
-    pub torpedo_bay_01: Handle<Scene>,
+    pub torpedo_bay_01: Handle<WorldAsset>,
     #[asset(path = "icons/fps.png")]
     pub fps_icon: Handle<Image>,
     #[asset(path = "icons/target.png")]
