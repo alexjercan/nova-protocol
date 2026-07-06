@@ -24,6 +24,16 @@ cargo test                        # tests
 The dev profile turns on `opt-level = 1` for our code and `opt-level = 3` for all
 dependencies (including Bevy), so the first build is slow but iteration is fast.
 
+The dev profile also sets `split-debuginfo = "unpacked"` and `debug = "line-tables-only"`.
+This is a **memory** knob, not a speed one: `cargo test` / `cargo build --all-targets`
+links one Bevy+avian binary per target (the lib unittest, every example, and doctests).
+With embedded DWARF each binary is ~1.5 GB, and cargo links several in parallel, so peak
+toolchain RAM approached ~40 GB and swap-thrashed a 32 GB machine. Leaving DWARF in the
+`.o` files and keeping only line tables drops the peak to ~20 GB while preserving panic
+backtraces (so test failures still point at source lines). If you need full
+local-variable debugging under a debugger, temporarily set `debug = true`. See
+`../bevy-common-systems/docs/2026-07-03-test-memory.md` for the original diagnosis.
+
 ## Features
 
 Defined in the root `Cargo.toml`:
