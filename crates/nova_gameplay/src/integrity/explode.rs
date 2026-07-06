@@ -28,7 +28,30 @@ impl Plugin for ExplodablePlugin {
         app.add_observer(on_destroyed_entity);
         app.add_observer(on_explode_entity);
         app.add_observer(handle_entity_explosion);
+        app.add_observer(despawn_destroyed_without_mesh);
     }
+}
+
+/// Despawn destroyed entities that have no `Mesh3d` of their own to explode.
+///
+/// Mesh-bearing entities (asteroids) are despawned by `handle_entity_explosion` after the
+/// slicer produces their fragments. But sections render via a `WorldAssetRoot` gltf scene
+/// and have no `Mesh3d`, so they are skipped by `on_explode_entity` (which requires a mesh
+/// to slice) and would otherwise never be despawned - they would linger, still colliding
+/// and functioning at zero health. Despawn them here (recursively, so their gltf children
+/// go too). `try_despawn` is used in case the entity is already gone.
+fn despawn_destroyed_without_mesh(
+    add: On<Add, IntegrityDestroyMarker>,
+    mut commands: Commands,
+    q_meshless: Query<(), (With<IntegrityDestroyMarker>, Without<Mesh3d>)>,
+) {
+    let entity = add.entity;
+    if !q_meshless.contains(entity) {
+        return;
+    }
+
+    trace!("despawn_destroyed_without_mesh: despawning {:?}", entity);
+    commands.entity(entity).try_despawn();
 }
 
 fn on_add_explodable_entity(

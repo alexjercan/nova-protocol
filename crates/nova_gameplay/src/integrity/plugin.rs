@@ -42,11 +42,9 @@ impl Plugin for IntegrityPlugin {
         // dependent on sections
         app.add_observer(on_section_disable);
         // TODO(20260706-162911): This should be probably moved to some glue.rs file to not make integrity too
-        // dependent on sections
-        app.add_observer(on_section_graph_create);
-        // TODO(20260706-151804): This should maybe be moved to somewhere else, but it is the generic case where we
-        // only have on rigidbody and one collider (e.g. for asteroids)
-        app.add_observer(on_rigidbody_graph_create);
+        // dependent on sections. Builds the whole graph (sections + adjacency, or a single
+        // node for a lone collider like an asteroid) once colliders are physics-linked.
+        app.add_observer(on_collider_build_integrity_graph);
 
         app.add_observer(on_health_child);
 
@@ -322,67 +320,59 @@ fn on_destroyed(
     }
 }
 
-fn on_section_graph_create(
-    add: On<Add, SectionMarker>,
-    mut q_graph: Query<&mut IntegrityGraph>,
+/// Build (or rebuild) the integrity graph for a rigidbody whenever one of its colliders is
+/// physics-linked (avian adds `ColliderOf`).
+///
+/// This is keyed on `ColliderOf` rather than `SectionMarker` on purpose: avian adds
+/// `ColliderOf` *after* the section entities are spawned, so by the time this fires every
+/// section of the rigidbody already exists and can be seen. (The previous split between an
+/// `On<Add, SectionMarker>` builder and an `On<Add, ColliderOf>` graph-creator had an
+/// ordering bug: sections were added before the graph existed, so only the one collider
+/// that happened to create the graph ended up in it and all other sections were silently
+/// dropped - they never became leaves and so were never destroyed.)
+///
+/// Rebuilding on each collider is idempotent: the last call, once every collider is linked,
+/// yields the complete graph. Inserting the component marks it `Changed`, so
+/// `on_changed_graph` re-derives the leaf markers.
+fn on_collider_build_integrity_graph(
+    add: On<Add, ColliderOf>,
+    mut commands: Commands,
+    q_collider: Query<&ChildOf, With<ColliderOf>>,
     q_sections: Query<(Entity, &Transform, &ChildOf), With<SectionMarker>>,
 ) {
     let entity = add.entity;
-    trace!("on_section_graph_create: entity {:?}", entity);
+    trace!("on_collider_build_integrity_graph: entity {:?}", entity);
 
-    let Ok((section, section_transform, ChildOf(parent))) = q_sections.get(entity) else {
-        error!(
-            "on_section_graph_create: entity {:?} not found in q_sections",
-            entity
-        );
+    let Ok(ChildOf(rigidbody)) = q_collider.get(entity) else {
         return;
     };
 
-    let Ok(mut graph) = q_graph.get_mut(*parent) else {
-        return;
-    };
-
-    let section_position = section_transform.translation;
-    let mut neighbors: Vec<Entity> = Vec::new();
-    for &child in graph.keys() {
-        let Ok((_, child_transform, _)) = q_sections.get(child) else {
-            continue;
-        };
-
-        let child_position = child_transform.translation;
-        let distance = section_position.distance(child_position);
-        if (distance - 1.0).abs() < f32::EPSILON {
-            neighbors.push(child);
-        }
-    }
-
-    graph.insert(section, neighbors.clone());
-    for neighbor in &neighbors {
-        if let Some(neighbor_children) = graph.get_mut(neighbor) {
-            neighbor_children.push(section);
-        }
-    }
-}
-
-fn on_rigidbody_graph_create(
-    add: On<Add, ColliderOf>,
-    mut commands: Commands,
-    q_graph: Query<(), With<IntegrityGraph>>,
-    q_collider: Query<(Entity, &ChildOf), With<ColliderOf>>,
-) {
-    let entity = add.entity;
-    trace!("on_rigidbody_graph_create: entity {:?}", entity);
-
-    let Ok((collider, ChildOf(rigidbody))) = q_collider.get(entity) else {
-        return;
-    };
-
-    if q_graph.contains(*rigidbody) {
-        return;
-    }
+    // All section colliders belonging to this rigidbody, with their local positions.
+    let sections: Vec<(Entity, Vec3)> = q_sections
+        .iter()
+        .filter(|(_, _, ChildOf(parent))| *parent == *rigidbody)
+        .map(|(section, transform, _)| (section, transform.translation))
+        .collect();
 
     let mut graph: HashMap<Entity, Vec<Entity>> = HashMap::new();
-    graph.insert(collider, Vec::new());
+
+    if sections.is_empty() {
+        // Non-section body (e.g. an asteroid): a single collider node with no neighbors, so
+        // it is a leaf and is destroyed as soon as it is disabled.
+        graph.insert(entity, Vec::new());
+    } else {
+        // Ship: connect sections that are one unit apart (adjacent in the section grid).
+        for (section, position) in &sections {
+            let neighbors: Vec<Entity> = sections
+                .iter()
+                .filter(|(other, other_position)| {
+                    *other != *section && (position.distance(*other_position) - 1.0).abs() < 0.1
+                })
+                .map(|(other, _)| *other)
+                .collect();
+            graph.insert(*section, neighbors);
+        }
+    }
 
     commands.entity(*rigidbody).insert(IntegrityGraph(graph));
 }
