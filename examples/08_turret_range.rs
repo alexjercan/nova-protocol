@@ -207,69 +207,78 @@ fn drive_moving_gate(
 
 /// Point the turret at the sweeping gate (falls back to any gate), so the range
 /// exercises tracking without a mouse. Runs after the crosshair aim so it wins.
+/// Also feeds the gate's velocity so the turret leads the mover.
 fn range_aim(
-    mut q_turret: Query<&mut TurretSectionTargetInput, With<TurretSectionMarker>>,
-    q_moving: Query<&GlobalTransform, With<RangeMovingTarget>>,
+    mut q_turret: Query<
+        (&mut TurretSectionTargetInput, &mut TurretSectionTargetVelocity),
+        With<TurretSectionMarker>,
+    >,
+    q_moving: Query<(&GlobalTransform, &LinearVelocity), With<RangeMovingTarget>>,
     q_gates: Query<&GlobalTransform, With<RangeGateMarker>>,
 ) {
-    let target = q_moving
-        .iter()
-        .next()
-        .or_else(|| q_gates.iter().next())
-        .map(|transform| transform.translation());
+    let (target, velocity) = if let Some((transform, linear_velocity)) = q_moving.iter().next() {
+        (Some(transform.translation()), linear_velocity.0)
+    } else if let Some(transform) = q_gates.iter().next() {
+        (Some(transform.translation()), Vec3::ZERO)
+    } else {
+        (None, Vec3::ZERO)
+    };
 
-    for mut turret_target in &mut q_turret {
+    for (mut turret_target, mut turret_velocity) in &mut q_turret {
         **turret_target = target;
+        **turret_velocity = velocity;
     }
 }
 
 /// Draw the barrel direction (green on target, yellow while lagging) and the line
-/// to the aim point, so the tracking lag is visible.
+/// to the turret's lead aim point, so the tracking lag is visible.
 fn draw_turret_aim(
     mut gizmos: Gizmos,
     q_muzzle: Query<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>,
-    q_turret: Query<&TurretSectionTargetInput, With<TurretSectionMarker>>,
+    q_turret: Query<&TurretSectionAimPoint, With<TurretSectionMarker>>,
 ) {
-    let Some(target) = q_turret.iter().next().and_then(|t| **t) else {
+    let Some(aim) = q_turret.iter().next().and_then(|a| **a) else {
         return;
     };
-    gizmos.sphere(Isometry3d::from_translation(target), 1.5, tailwind::RED_400);
+    gizmos.sphere(Isometry3d::from_translation(aim), 1.5, tailwind::RED_400);
 
     for muzzle in &q_muzzle {
         let pos = muzzle.translation();
         let barrel = muzzle.forward();
-        let to_target = (target - pos).normalize_or_zero();
-        let color = if barrel.dot(to_target) > 0.999 {
+        let to_aim = (aim - pos).normalize_or_zero();
+        let color = if barrel.dot(to_aim) > 0.999 {
             tailwind::GREEN_400
         } else {
             tailwind::YELLOW_400
         };
         gizmos.line(pos, pos + barrel * 60.0, color);
-        gizmos.line(pos, target, tailwind::RED_400);
+        gizmos.line(pos, aim, tailwind::RED_400);
     }
 }
 
-/// Throttled readout of the aiming error (barrel vs. aim point) and the number of
-/// bullets in flight, so tracking quality and firing are legible headless.
+/// Throttled readout of the aiming error (barrel vs. the turret's lead aim point)
+/// and the number of bullets in flight, so tracking quality and firing are legible
+/// headless. With the lead solution this should stay in the single digits even
+/// against the sweeping gate.
 fn report_status(
     time: Res<Time>,
     mut timer: ResMut<StatusTimer>,
     q_muzzle: Query<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>,
-    q_turret: Query<&TurretSectionTargetInput, With<TurretSectionMarker>>,
+    q_turret: Query<&TurretSectionAimPoint, With<TurretSectionMarker>>,
     q_bullets: Query<(), With<TurretBulletProjectileMarker>>,
 ) {
     if !timer.0.tick(time.delta()).just_finished() {
         return;
     }
-    let Some(target) = q_turret.iter().next().and_then(|t| **t) else {
+    let Some(aim) = q_turret.iter().next().and_then(|a| **a) else {
         return;
     };
     let Ok(muzzle) = q_muzzle.single() else {
         return;
     };
     let barrel = muzzle.forward();
-    let to_target = (target - muzzle.translation()).normalize_or_zero();
-    let error_deg = barrel.dot(to_target).clamp(-1.0, 1.0).acos().to_degrees();
+    let to_aim = (aim - muzzle.translation()).normalize_or_zero();
+    let error_deg = barrel.dot(to_aim).clamp(-1.0, 1.0).acos().to_degrees();
     info!(
         "turret: aim error {:.1} deg, {} bullets in flight",
         error_deg,

@@ -15,8 +15,8 @@ pub mod prelude {
     pub use super::{
         turret_section, TurretBulletProjectileMarker, TurretProjectileHooks,
         TurretSectionBarrelMuzzleMarker, TurretSectionConfig, TurretSectionInput,
-        TurretSectionMarker, TurretSectionMuzzleEntity, TurretSectionPlugin,
-        TurretSectionTargetInput,
+        TurretSectionAimPoint, TurretSectionMarker, TurretSectionMuzzleEntity, TurretSectionPlugin,
+        TurretSectionTargetInput, TurretSectionTargetVelocity,
     };
 }
 
@@ -96,6 +96,8 @@ pub fn turret_section(config: TurretSectionConfig) -> impl Bundle {
     (
         TurretSectionMarker,
         TurretSectionTargetInput(None),
+        TurretSectionTargetVelocity::default(),
+        TurretSectionAimPoint::default(),
         TurretSectionConfigHelper(config),
         TurretSectionInput(false),
     )
@@ -121,6 +123,21 @@ pub struct TurretBulletProjectileMarker;
 /// aim at. If None, the turret will not rotate.
 #[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
 pub struct TurretSectionTargetInput(pub Option<Vec3>);
+
+/// The world-space velocity of the turret's target, used to lead a moving target
+/// (aim where it will be when a bullet arrives). Defaults to zero - a stationary
+/// aim point (e.g. the player crosshair) needs no lead. Whoever aims the turret at
+/// a moving object (auto-targeting, AI) sets this to the object's velocity.
+#[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
+pub struct TurretSectionTargetVelocity(pub Vec3);
+
+/// The world-space point the turret is actually aiming its barrel at: the lead
+/// intercept of `TurretSectionTargetInput` given `TurretSectionTargetVelocity` and
+/// the bullet `muzzle_speed` (see `update_turret_aim_point`). `None` when there is
+/// no target. Read by the yaw/pitch systems to steer, and exposed so tooling (aim
+/// gizmos, a HUD lead indicator) can show where the turret leads.
+#[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
+pub struct TurretSectionAimPoint(pub Option<Vec3>);
 
 /// The Turret "parent" entity of the turret component.
 #[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
@@ -221,9 +238,11 @@ impl Plugin for TurretSectionPlugin {
         app.add_systems(
             PostUpdate,
             (
+                update_turret_aim_point,
                 update_turret_target_yaw_system,
                 update_turret_target_pitch_system,
             )
+                .chain()
                 .after(TransformSystems::Propagate)
                 .in_set(super::SpaceshipSectionSystems),
         );
@@ -408,9 +427,86 @@ fn update_barrel_fire_state(
     }
 }
 
+/// The point a turret should aim at to hit a moving target: the intercept point,
+/// where a bullet leaving the muzzle at `projectile_speed` meets the target moving
+/// at `target_vel`. Solves `|(target - shooter) + target_vel*t| = projectile_speed*t`
+/// for the smallest positive time-to-intercept `t` and returns `target + target_vel*t`.
+///
+/// Falls back to the target's current position when there is no valid intercept -
+/// a stationary target (velocity zero) resolves to the target itself, and a target
+/// too fast to catch (or receding faster than the bullet) has no positive solution,
+/// so the turret simply aims where the target is now.
+fn lead_intercept_point(
+    shooter: Vec3,
+    target: Vec3,
+    target_vel: Vec3,
+    projectile_speed: f32,
+) -> Vec3 {
+    let to_target = target - shooter;
+    // a*t^2 + b*t + c = 0
+    let a = target_vel.length_squared() - projectile_speed * projectile_speed;
+    let b = 2.0 * to_target.dot(target_vel);
+    let c = to_target.length_squared();
+
+    let time_to_intercept = if a.abs() < 1e-4 {
+        // Target speed ~ bullet speed: the equation is linear in t.
+        (b.abs() > 1e-6).then(|| -c / b)
+    } else {
+        let discriminant = b * b - 4.0 * a * c;
+        (discriminant >= 0.0).then(|| {
+            let sqrt_d = discriminant.sqrt();
+            [(-b + sqrt_d) / (2.0 * a), (-b - sqrt_d) / (2.0 * a)]
+                .into_iter()
+                .filter(|&t| t > 0.0)
+                .reduce(f32::min)
+        })
+        .flatten()
+    };
+
+    match time_to_intercept {
+        Some(t) if t > 0.0 && t.is_finite() => target + target_vel * t,
+        _ => target,
+    }
+}
+
+/// Resolve each turret's lead intercept point into [`TurretSectionAimPoint`] from
+/// its target position, target velocity, and the bullet `muzzle_speed`. Runs
+/// before the yaw/pitch systems, which steer toward this point.
+fn update_turret_aim_point(
+    mut q_turret: Query<
+        (
+            &TurretSectionTargetInput,
+            &TurretSectionTargetVelocity,
+            &TurretSectionConfigHelper,
+            &TurretSectionMuzzleEntity,
+            &mut TurretSectionAimPoint,
+        ),
+        With<TurretSectionMarker>,
+    >,
+    q_muzzle: Query<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>,
+) {
+    for (target_input, target_velocity, config, TurretSectionMuzzleEntity(muzzle), mut aim_point) in
+        &mut q_turret
+    {
+        let Some(target_pos) = **target_input else {
+            **aim_point = None;
+            continue;
+        };
+        let Ok(muzzle_transform) = q_muzzle.get(*muzzle) else {
+            continue;
+        };
+        **aim_point = Some(lead_intercept_point(
+            muzzle_transform.translation(),
+            target_pos,
+            **target_velocity,
+            config.muzzle_speed,
+        ));
+    }
+}
+
 fn update_turret_target_yaw_system(
     q_turret: Query<
-        (&TurretSectionTargetInput, Has<SectionInactiveMarker>),
+        (&TurretSectionAimPoint, Has<SectionInactiveMarker>),
         With<TurretSectionMarker>,
     >,
     mut q_rotator_yaw_base: Query<
@@ -435,7 +531,7 @@ fn update_turret_target_yaw_system(
             continue;
         };
 
-        let Ok((target_input, inactive)) = q_turret.get(*turret) else {
+        let Ok((aim_point, inactive)) = q_turret.get(*turret) else {
             error!(
                 "update_turret_target_yaw_system: entity {:?} not found in q_turret",
                 *turret
@@ -447,13 +543,12 @@ fn update_turret_target_yaw_system(
             continue;
         }
 
-        let Some(target_input) = **target_input else {
+        let Some(target_pos) = **aim_point else {
             continue;
         };
 
         let world_to_yaw_base = yaw_chain.to_matrix().inverse();
 
-        let target_pos = target_input;
         let barrel_pos = muzzle_transform.translation();
         let barrel_dir = muzzle_transform.forward().into();
         if target_pos == barrel_pos {
@@ -478,7 +573,7 @@ fn update_turret_target_yaw_system(
 
 fn update_turret_target_pitch_system(
     q_turret: Query<
-        (&TurretSectionTargetInput, Has<SectionInactiveMarker>),
+        (&TurretSectionAimPoint, Has<SectionInactiveMarker>),
         With<TurretSectionMarker>,
     >,
     mut q_rotator_pitch_base: Query<
@@ -503,7 +598,7 @@ fn update_turret_target_pitch_system(
             continue;
         };
 
-        let Ok((target_input, inactive)) = q_turret.get(*turret) else {
+        let Ok((aim_point, inactive)) = q_turret.get(*turret) else {
             error!(
                 "update_turret_target_pitch_system: entity {:?} not found in q_turret",
                 *turret
@@ -515,13 +610,12 @@ fn update_turret_target_pitch_system(
             continue;
         }
 
-        let Some(target_input) = **target_input else {
+        let Some(target_pos) = **aim_point else {
             continue;
         };
 
         let world_to_pitch_base = pitch_chain.to_matrix().inverse();
 
-        let target_pos = target_input;
         let barrel_pos = muzzle_transform.translation();
         let barrel_dir = muzzle_transform.forward().into();
         if target_pos == barrel_pos {
@@ -1171,5 +1265,52 @@ fn insert_turret_barrel_muzzle_effect(
                 EffectProperties::default(),
             ),],));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lead_of_a_stationary_target_is_the_target() {
+        // No motion, no lead: aim straight at the target.
+        let target = Vec3::new(0.0, 0.0, -100.0);
+        let aim = lead_intercept_point(Vec3::ZERO, target, Vec3::ZERO, 100.0);
+        assert!((aim - target).length() < 1e-3, "expected the target itself, got {aim:?}");
+    }
+
+    #[test]
+    fn lead_intercepts_a_crossing_target() {
+        // Shooter at origin; target 100 ahead crossing at +X. The intercept point
+        // must be one a bullet at muzzle_speed and the target reach at the SAME
+        // time - that is what "leading" means. It must also sit ahead of the target
+        // in its direction of travel (+X).
+        let shooter = Vec3::ZERO;
+        let target = Vec3::new(0.0, 0.0, -100.0);
+        let target_vel = Vec3::new(30.0, 0.0, 0.0);
+        let speed = 100.0;
+
+        let aim = lead_intercept_point(shooter, target, target_vel, speed);
+
+        assert!(aim.x > 0.1, "intercept should lead a +X crosser, got {aim:?}");
+        // Consistency: at the bullet's flight time, the target is exactly there.
+        let flight_time = (aim - shooter).length() / speed;
+        let target_future = target + target_vel * flight_time;
+        assert!(
+            (target_future - aim).length() < 1e-2,
+            "bullet and target should meet: aim {aim:?}, target at t {target_future:?}"
+        );
+    }
+
+    #[test]
+    fn lead_falls_back_when_the_target_cannot_be_caught() {
+        // Target receding faster than the bullet: no positive intercept, so aim at
+        // where it is now rather than returning a garbage/NaN point.
+        let target = Vec3::new(0.0, 0.0, -50.0);
+        let target_vel = Vec3::new(0.0, 0.0, -200.0); // fleeing at 200, bullet only 100
+        let aim = lead_intercept_point(Vec3::ZERO, target, target_vel, 100.0);
+        assert!(aim.is_finite());
+        assert!((aim - target).length() < 1e-3, "expected fallback to the target, got {aim:?}");
     }
 }
