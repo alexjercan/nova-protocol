@@ -16,9 +16,13 @@
 //!   "clunky" aiming this range exists to expose.
 //! - `turret: aim error N.N deg, M bullets in flight` (throttled) so tracking
 //!   quality is visible headless.
+//! - A tuning panel (top-left) of live sliders for the turret's knobs - yaw/pitch
+//!   speed, pitch limits, fire rate, muzzle speed - so you can retune while
+//!   watching the aim-error readout instead of editing the config and re-running.
 //!
 //! Controls: Space (or right trigger) fires. Aiming is automatic (tracks the
-//! moving gate); in the full game you aim with the mouse.
+//! moving gate); in the full game you aim with the mouse. Drag the sliders to
+//! retune the turret live (they are inert headless under the autopilot).
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -28,7 +32,13 @@
 //! ```
 
 use avian3d::prelude::*;
-use bevy::{color::palettes::tailwind, platform::collections::HashMap, prelude::*};
+use bevy::{
+    color::palettes::tailwind,
+    picking::hover::Hovered,
+    platform::collections::HashMap,
+    prelude::*,
+    ui_widgets::{observe, Slider, SliderRange, SliderThumb, SliderValue, ValueChange},
+};
 use clap::Parser;
 use nova_protocol::prelude::*;
 
@@ -59,7 +69,10 @@ fn main() {
 
 fn custom_plugin(app: &mut App) {
     app.insert_resource(StatusTimer(Timer::from_seconds(0.5, TimerMode::Repeating)));
-    app.add_systems(OnEnter(GameAssetsStates::Loaded), setup_range);
+    app.add_systems(
+        OnEnter(GameAssetsStates::Loaded),
+        (setup_range, setup_tuning_ui),
+    );
     app.add_systems(
         Update,
         (
@@ -70,9 +83,13 @@ fn custom_plugin(app: &mut App) {
             drive_moving_gate,
             draw_turret_aim,
             report_status,
+            update_knob_labels,
         ),
     );
     app.add_observer(tag_gate);
+    app.add_observer(slider_on_interaction::<Insert, Hovered>)
+        .add_observer(slider_on_change_value::<SliderValue>)
+        .add_observer(slider_on_change_value::<SliderRange>);
 }
 
 /// Marks an asteroid the range treats as a target gate.
@@ -295,4 +312,288 @@ fn autopilot_fire(world: &mut World, _elapsed: f32) {
     world
         .resource_mut::<ButtonInput<KeyCode>>()
         .press(KeyCode::Space);
+}
+
+// --- Live tuning sliders -----------------------------------------------------
+//
+// A small panel of sliders bound to the turret's tuning knobs, so they can be
+// adjusted while watching the aim-error readout (task 20260707-150002). Each
+// slider writes the live `TurretSectionConfigHelper`; the turret section keeps
+// its child rotators/fire-timer in sync (`apply_turret_config_to_children`),
+// and `muzzle_speed` is read live by the aim/shoot systems. Under autopilot
+// there is no pointer to drag the sliders, so they stay inert.
+
+const SLIDER_TRACK: Color = Color::srgb(0.05, 0.05, 0.05);
+const SLIDER_THUMB: Color = Color::srgb(0.35, 0.75, 0.35);
+
+/// One tunable turret knob, and the mapping between its config field and the
+/// slider's display units (degrees for angles, so the panel reads naturally).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Knob {
+    YawSpeed,
+    PitchSpeed,
+    MinPitch,
+    MaxPitch,
+    FireRate,
+    MuzzleSpeed,
+}
+
+impl Knob {
+    const ALL: [Knob; 6] = [
+        Knob::YawSpeed,
+        Knob::PitchSpeed,
+        Knob::MinPitch,
+        Knob::MaxPitch,
+        Knob::FireRate,
+        Knob::MuzzleSpeed,
+    ];
+
+    fn label(self) -> &'static str {
+        match self {
+            Knob::YawSpeed => "yaw speed",
+            Knob::PitchSpeed => "pitch speed",
+            Knob::MinPitch => "min pitch",
+            Knob::MaxPitch => "max pitch",
+            Knob::FireRate => "fire rate",
+            Knob::MuzzleSpeed => "muzzle speed",
+        }
+    }
+
+    fn unit(self) -> &'static str {
+        match self {
+            Knob::YawSpeed | Knob::PitchSpeed => "deg/s",
+            Knob::MinPitch | Knob::MaxPitch => "deg",
+            Knob::FireRate => "rps",
+            Knob::MuzzleSpeed => "u/s",
+        }
+    }
+
+    fn range(self) -> (f32, f32) {
+        match self {
+            Knob::YawSpeed | Knob::PitchSpeed => (0.0, 720.0),
+            Knob::MinPitch => (-90.0, 45.0),
+            Knob::MaxPitch => (0.0, 90.0),
+            Knob::FireRate => (1.0, 200.0),
+            Knob::MuzzleSpeed => (20.0, 300.0),
+        }
+    }
+
+    /// Read the knob from a config, in slider (display) units.
+    fn read(self, c: &TurretSectionConfig) -> f32 {
+        match self {
+            Knob::YawSpeed => c.yaw_speed.to_degrees(),
+            Knob::PitchSpeed => c.pitch_speed.to_degrees(),
+            Knob::MinPitch => c.min_pitch.unwrap_or(0.0).to_degrees(),
+            Knob::MaxPitch => c.max_pitch.unwrap_or(0.0).to_degrees(),
+            Knob::FireRate => c.fire_rate,
+            Knob::MuzzleSpeed => c.muzzle_speed,
+        }
+    }
+
+    /// Write the knob into a config from a slider (display) value.
+    fn write(self, c: &mut TurretSectionConfig, v: f32) {
+        match self {
+            Knob::YawSpeed => c.yaw_speed = v.to_radians(),
+            Knob::PitchSpeed => c.pitch_speed = v.to_radians(),
+            Knob::MinPitch => c.min_pitch = Some(v.to_radians()),
+            Knob::MaxPitch => c.max_pitch = Some(v.to_radians()),
+            Knob::FireRate => c.fire_rate = v,
+            Knob::MuzzleSpeed => c.muzzle_speed = v,
+        }
+    }
+}
+
+/// Marks a tuning slider (for the thumb/hover observers).
+#[derive(Component)]
+struct TuningSlider;
+
+/// Marks a tuning slider's thumb.
+#[derive(Component)]
+struct TuningSliderThumb;
+
+/// Marks a knob's value-readout text.
+#[derive(Component, Clone, Copy)]
+struct KnobLabel(Knob);
+
+/// The turret config the range spawns its ship with; the sliders start from these values.
+fn range_turret_config(sections: &GameSections) -> TurretSectionConfig {
+    let section = sections
+        .get_section("better_turret_section")
+        .expect("section 'better_turret_section' not found");
+    match &section.kind {
+        SectionKind::Turret(config) => config.clone(),
+        _ => panic!("section 'better_turret_section' is not a turret"),
+    }
+}
+
+fn setup_tuning_ui(mut commands: Commands, sections: Res<GameSections>) {
+    let config = range_turret_config(&sections);
+
+    let root = commands
+        .spawn((
+            Name::new("Turret Tuning Panel"),
+            Node {
+                position_type: PositionType::Absolute,
+                top: px(8),
+                left: px(8),
+                width: px(320),
+                flex_direction: FlexDirection::Column,
+                row_gap: px(8),
+                padding: UiRect::all(px(8)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
+        ))
+        .id();
+
+    for knob in Knob::ALL {
+        let (min, max) = knob.range();
+        let value = knob.read(&config);
+
+        let row = commands
+            .spawn((
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(2),
+                    ..default()
+                },
+                ChildOf(root),
+            ))
+            .id();
+
+        commands.spawn((
+            KnobLabel(knob),
+            Text::new(String::new()),
+            TextFont {
+                font_size: FontSize::Px(11.0),
+                ..default()
+            },
+            ChildOf(row),
+        ));
+
+        commands.spawn((
+            tuning_slider(min, max, value),
+            ChildOf(row),
+            observe(
+                move |change: On<ValueChange<f32>>,
+                      mut q_turret: Query<
+                    &mut TurretSectionConfigHelper,
+                    With<TurretSectionMarker>,
+                >| {
+                    for mut helper in &mut q_turret {
+                        knob.write(&mut helper, change.value);
+                    }
+                },
+            ),
+        ));
+    }
+}
+
+/// Keep each knob's readout text in sync with the live turret config, so the
+/// panel reflects both slider edits and the config's starting values.
+fn update_knob_labels(
+    q_turret: Query<&TurretSectionConfigHelper, With<TurretSectionMarker>>,
+    mut q_labels: Query<(&KnobLabel, &mut Text)>,
+) {
+    let Some(config) = q_turret.iter().next() else {
+        return;
+    };
+    for (label, mut text) in &mut q_labels {
+        let knob = label.0;
+        text.0 = format!("{}: {:.0} {}", knob.label(), knob.read(config), knob.unit());
+    }
+}
+
+/// A tuning slider bundle (mirrors the slider in `examples/02_thruster_shader.rs`).
+fn tuning_slider(min: f32, max: f32, value: f32) -> impl Bundle {
+    (
+        Node {
+            display: Display::Flex,
+            flex_direction: FlexDirection::Column,
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Stretch,
+            height: px(12),
+            width: percent(100),
+            ..default()
+        },
+        Name::new("Tuning Slider"),
+        Hovered::default(),
+        TuningSlider,
+        Slider::default(),
+        SliderValue(value),
+        SliderRange::new(min, max),
+        Children::spawn((
+            Spawn((
+                Node {
+                    height: px(6),
+                    border_radius: BorderRadius::all(px(3)),
+                    ..default()
+                },
+                BackgroundColor(SLIDER_TRACK),
+            )),
+            Spawn((
+                Node {
+                    display: Display::Flex,
+                    position_type: PositionType::Absolute,
+                    left: px(0),
+                    right: px(12),
+                    top: px(0),
+                    bottom: px(0),
+                    ..default()
+                },
+                children![(
+                    TuningSliderThumb,
+                    SliderThumb,
+                    Node {
+                        display: Display::Flex,
+                        width: px(12),
+                        height: px(12),
+                        position_type: PositionType::Absolute,
+                        left: percent(0),
+                        border_radius: BorderRadius::MAX,
+                        ..default()
+                    },
+                    BackgroundColor(SLIDER_THUMB),
+                )],
+            )),
+        )),
+    )
+}
+
+fn slider_on_interaction<E: EntityEvent, C: Component>(
+    event: On<E, C>,
+    sliders: Query<(Entity, &Hovered), With<TuningSlider>>,
+    children: Query<&Children>,
+    mut thumbs: Query<(&mut BackgroundColor, Has<TuningSliderThumb>), Without<TuningSlider>>,
+) {
+    if let Ok((slider_ent, hovered)) = sliders.get(event.event_target()) {
+        for child in children.iter_descendants(slider_ent) {
+            if let Ok((mut thumb_bg, is_thumb)) = thumbs.get_mut(child) {
+                if is_thumb {
+                    thumb_bg.0 = if hovered.0 {
+                        SLIDER_THUMB.lighter(0.3)
+                    } else {
+                        SLIDER_THUMB
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn slider_on_change_value<C: Component>(
+    insert: On<Insert, C>,
+    sliders: Query<(Entity, &SliderValue, &SliderRange), With<TuningSlider>>,
+    children: Query<&Children>,
+    mut thumbs: Query<(&mut Node, Has<TuningSliderThumb>), Without<TuningSlider>>,
+) {
+    if let Ok((slider_ent, value, range)) = sliders.get(insert.entity) {
+        for child in children.iter_descendants(slider_ent) {
+            if let Ok((mut thumb_node, is_thumb)) = thumbs.get_mut(child) {
+                if is_thumb {
+                    thumb_node.left = percent(range.thumb_position(value.0) * 100.0);
+                }
+            }
+        }
+    }
 }

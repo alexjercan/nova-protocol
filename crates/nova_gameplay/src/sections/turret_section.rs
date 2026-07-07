@@ -1,6 +1,8 @@
 //! A turret section is a component that can be added to an entity to give it a turret-like
 //! behavior.
 
+use std::time::Duration;
+
 use avian3d::prelude::*;
 use bevy::{
     ecs::system::{lifetimeless::Read, SystemParam},
@@ -14,9 +16,9 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         turret_section, TurretBulletProjectileMarker, TurretProjectileHooks,
-        TurretSectionBarrelMuzzleMarker, TurretSectionConfig, TurretSectionInput,
-        TurretSectionAimPoint, TurretSectionMarker, TurretSectionMuzzleEntity, TurretSectionPlugin,
-        TurretSectionTargetInput, TurretSectionTargetVelocity,
+        TurretSectionBarrelMuzzleMarker, TurretSectionConfig, TurretSectionConfigHelper,
+        TurretSectionInput, TurretSectionAimPoint, TurretSectionMarker, TurretSectionMuzzleEntity,
+        TurretSectionPlugin, TurretSectionTargetInput, TurretSectionTargetVelocity,
     };
 }
 
@@ -158,8 +160,14 @@ struct TurretSectionPitchRenderMesh(Option<Handle<WorldAsset>>);
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct TurretSectionBarrelRenderMesh(Option<Handle<WorldAsset>>);
 
+/// The live tuning config carried by a turret section entity. The aim/shoot systems read
+/// `muzzle_speed` from it directly every frame; the rotator speeds, pitch limits and fire rate
+/// are snapshotted onto child entities when the turret is built, so edits to those are pushed to
+/// the children by `apply_turret_config_to_children`. Editing this component (it derefs to
+/// [`TurretSectionConfig`]) is the supported way to retune a turret live - see the turret range
+/// example's sliders.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TurretSectionConfigHelper(TurretSectionConfig);
+pub struct TurretSectionConfigHelper(pub TurretSectionConfig);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct TurretSectionBarrelFireState(pub Timer);
@@ -227,6 +235,7 @@ impl Plugin for TurretSectionPlugin {
         app.add_systems(
             Update,
             (
+                apply_turret_config_to_children,
                 update_barrel_fire_state,
                 sync_turret_rotator_yaw_system,
                 sync_turret_rotator_pitch_system,
@@ -407,6 +416,57 @@ fn insert_turret_section(
         .entity(turret)
         .insert((TurretSectionMuzzleEntity(muzzle),))
         .add_child(rotator_base);
+}
+
+/// Push live edits of a turret's [`TurretSectionConfigHelper`] onto the child entities that
+/// snapshot it when the turret is built, so retuning takes effect immediately (the turret range
+/// example's sliders, or the editor). `muzzle_speed` is read live by the aim/shoot systems and
+/// needs no propagation; only the snapshotted knobs (rotator speeds, pitch limits, fire rate) are
+/// pushed here. Gated on `Changed` so it costs nothing when nothing is being tuned.
+fn apply_turret_config_to_children(
+    q_turret: Query<
+        (Entity, &TurretSectionConfigHelper),
+        (With<TurretSectionMarker>, Changed<TurretSectionConfigHelper>),
+    >,
+    mut q_yaw: Query<
+        (&TurretSectionPartOf, &mut SmoothLookRotation),
+        (
+            With<TurretSectionRotatorYawBaseMarker>,
+            Without<TurretSectionRotatorPitchBaseMarker>,
+        ),
+    >,
+    mut q_pitch: Query<
+        (&TurretSectionPartOf, &mut SmoothLookRotation),
+        (
+            With<TurretSectionRotatorPitchBaseMarker>,
+            Without<TurretSectionRotatorYawBaseMarker>,
+        ),
+    >,
+    mut q_fire: Query<
+        (&TurretSectionPartOf, &mut TurretSectionBarrelFireState),
+        With<TurretSectionBarrelMuzzleMarker>,
+    >,
+) {
+    for (turret, config) in &q_turret {
+        for (part_of, mut yaw) in &mut q_yaw {
+            if **part_of == turret {
+                yaw.speed = config.yaw_speed;
+            }
+        }
+        for (part_of, mut pitch) in &mut q_pitch {
+            if **part_of == turret {
+                pitch.speed = config.pitch_speed;
+                pitch.min = config.min_pitch;
+                pitch.max = config.max_pitch;
+            }
+        }
+        for (part_of, mut fire_state) in &mut q_fire {
+            if **part_of == turret {
+                let interval = 1.0 / config.fire_rate.max(f32::EPSILON);
+                fire_state.0.set_duration(Duration::from_secs_f32(interval));
+            }
+        }
+    }
 }
 
 fn update_barrel_fire_state(
@@ -1323,5 +1383,113 @@ mod tests {
         let aim = lead_intercept_point(Vec3::ZERO, target, target_vel, 100.0);
         assert!(aim.is_finite());
         assert!((aim - target).length() < 1e-3, "expected fallback to the target, got {aim:?}");
+    }
+
+    /// Spawn a bare turret whose base rotators and fire timer are seeded from `config`,
+    /// mimicking what `insert_turret_section` builds, without needing the render/physics
+    /// plugins. Returns `(turret, yaw_base, pitch_base, muzzle)`.
+    fn spawn_turret_rig(app: &mut App, config: &TurretSectionConfig) -> (Entity, Entity, Entity, Entity) {
+        let turret = app
+            .world_mut()
+            .spawn((TurretSectionMarker, TurretSectionConfigHelper(config.clone())))
+            .id();
+        let yaw = app
+            .world_mut()
+            .spawn((
+                TurretSectionRotatorYawBaseMarker,
+                TurretSectionPartOf(turret),
+                SmoothLookRotation {
+                    axis: Vec3::Y,
+                    initial: 0.0,
+                    speed: config.yaw_speed,
+                    ..default()
+                },
+            ))
+            .id();
+        let pitch = app
+            .world_mut()
+            .spawn((
+                TurretSectionRotatorPitchBaseMarker,
+                TurretSectionPartOf(turret),
+                SmoothLookRotation {
+                    axis: Vec3::X,
+                    initial: 0.0,
+                    speed: config.pitch_speed,
+                    min: config.min_pitch,
+                    max: config.max_pitch,
+                },
+            ))
+            .id();
+        let muzzle = app
+            .world_mut()
+            .spawn((
+                TurretSectionBarrelMuzzleMarker,
+                TurretSectionPartOf(turret),
+                TurretSectionBarrelFireState(Timer::from_seconds(
+                    1.0 / config.fire_rate,
+                    TimerMode::Once,
+                )),
+            ))
+            .id();
+        (turret, yaw, pitch, muzzle)
+    }
+
+    #[test]
+    fn editing_the_config_retunes_the_live_turret() {
+        // The tuning sliders write `TurretSectionConfigHelper`; the snapshotted knobs on the
+        // child rotators and the fire timer must follow.
+        let mut app = App::new();
+        app.add_systems(Update, apply_turret_config_to_children);
+
+        let (turret, yaw, pitch, muzzle) = spawn_turret_rig(&mut app, &TurretSectionConfig::default());
+
+        {
+            let mut helper = app
+                .world_mut()
+                .get_mut::<TurretSectionConfigHelper>(turret)
+                .unwrap();
+            helper.yaw_speed = 5.0;
+            helper.pitch_speed = 6.0;
+            helper.min_pitch = Some(-0.25);
+            helper.max_pitch = Some(0.5);
+            helper.fire_rate = 25.0;
+        }
+        app.update();
+
+        assert_eq!(app.world().get::<SmoothLookRotation>(yaw).unwrap().speed, 5.0);
+        let pitch_rot = app.world().get::<SmoothLookRotation>(pitch).unwrap();
+        assert_eq!(pitch_rot.speed, 6.0);
+        assert_eq!(pitch_rot.min, Some(-0.25));
+        assert_eq!(pitch_rot.max, Some(0.5));
+        let duration = app
+            .world()
+            .get::<TurretSectionBarrelFireState>(muzzle)
+            .unwrap()
+            .0
+            .duration();
+        assert!((duration.as_secs_f32() - 1.0 / 25.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn retuning_one_turret_leaves_another_alone() {
+        // The `TurretSectionPartOf` guard must scope edits to the edited turret's own children.
+        let mut app = App::new();
+        app.add_systems(Update, apply_turret_config_to_children);
+
+        let (edited, edited_yaw, _, _) = spawn_turret_rig(&mut app, &TurretSectionConfig::default());
+        let (_other, other_yaw, _, _) = spawn_turret_rig(&mut app, &TurretSectionConfig::default());
+
+        app.world_mut()
+            .get_mut::<TurretSectionConfigHelper>(edited)
+            .unwrap()
+            .yaw_speed = 9.0;
+        app.update();
+
+        assert_eq!(app.world().get::<SmoothLookRotation>(edited_yaw).unwrap().speed, 9.0);
+        assert_eq!(
+            app.world().get::<SmoothLookRotation>(other_yaw).unwrap().speed,
+            TurretSectionConfig::default().yaw_speed,
+            "an untouched turret's rotators must not change"
+        );
     }
 }
