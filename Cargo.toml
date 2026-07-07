@@ -12,6 +12,11 @@ exclude = ["dist", "build", "assets", "credits"]
 [lib]
 path = "src/lib.rs"
 
+# Inherit the workspace clippy allows (type_complexity, too_many_arguments) for
+# the root package too, so the lib, binary and examples match the crates' policy.
+[lints]
+workspace = true
+
 [dependencies]
 clap = { version = "4.5.48", features = ["derive"] }
 nova_core = { path = "crates/nova_core" }
