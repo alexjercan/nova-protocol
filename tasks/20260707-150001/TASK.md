@@ -1,6 +1,6 @@
 # Turret aim lags moving targets: add lead (and/or smoothing) to the slew
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.4.0,turret,bug
 
@@ -19,14 +19,30 @@ Expected: the turret leads a moving target (aims where it will be, given bullet
 
 ## Steps
 
-- [ ] Give the turret aim a lead solution: from the target position + velocity and
-      the bullet `muzzle_speed`, compute the intercept point (same constant-bearing
-      idea as the torpedo PN work) and slew toward that instead of the raw position.
-      Target velocity can come from the target entity's `LinearVelocity`.
-- [ ] Consider a small deadzone / smoothing so a near-aligned barrel does not jitter.
-- [ ] Verify in `08_turret_range`: the aim-error readout against the sweeping gate
-      should stay low (single digits) instead of oscillating to ~20 deg. Add a
-      unit test for the pure lead/intercept function.
+- [x] Lead solution: `lead_intercept_point(shooter, target, target_vel, muzzle_speed)`
+      solves the projectile-intercept quadratic for the smallest positive time-to-hit
+      and returns where the target will be. Target velocity is carried on the turret
+      via a new `TurretSectionTargetVelocity` (set by whoever aims - the range feeds
+      the gate's `LinearVelocity`; the player crosshair leaves it zero, so a fixed aim
+      point is unchanged). A new `update_turret_aim_point` writes the intercept into a
+      public `TurretSectionAimPoint`, and the yaw/pitch systems steer to that.
+- [x] Smoothing already exists (`SmoothLookRotation` caps the slew rate); no deadzone
+      was needed - with the lead the barrel sits sub-degree on target, no jitter.
+- [x] Verified in `08_turret_range`: aim error against the sweeping gate is now
+      **0.1-0.7 deg** (was 7-20 deg and oscillating). 3 unit tests on the pure lead
+      function (stationary -> target; crossing -> bullet and target meet; uncatchable
+      -> safe fallback).
+
+## Resolution
+
+The turret slewed toward the target's *current* position, so it tail-chased movers.
+Added a lead: `lead_intercept_point` (pure, tested) computes the intercept from target
+position + velocity + bullet `muzzle_speed`; `update_turret_aim_point` resolves it into
+`TurretSectionAimPoint`; the yaw/pitch systems now steer to the aim point. Target
+velocity comes from a new `TurretSectionTargetVelocity` (zero for a stationary crosshair
+aim -> no lead, unchanged). The range's `range_aim` feeds the moving gate's velocity and
+its telemetry/gizmos read `TurretSectionAimPoint`. Headless the aim error dropped from
+7-20 deg to sub-degree; 29 nova_gameplay tests, clippy, and both example builds are green.
 
 ## Notes
 
