@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod test_support;
 pub mod blast;
 pub mod components;
 pub mod explode;

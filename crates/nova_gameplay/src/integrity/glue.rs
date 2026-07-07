@@ -239,3 +239,82 @@ mod tests {
         assert!(app.world().get::<SectionInactiveMarker>(section).is_none());
     }
 }
+
+/// Physics-level tests for `build_integrity_relations`, which derives each node's `ConnectedTo`
+/// from the real `ColliderOf` links avian adds once a body's colliders are prepared.
+#[cfg(test)]
+mod physics_tests {
+    use super::*;
+    use crate::integrity::test_support::{integrity_physics_app, settle};
+
+    /// Spawn a ship section entity (as `base_section` does: `SectionMarker` + cuboid collider
+    /// + health/density) at a grid position, parented to `root`.
+    fn spawn_section(app: &mut App, root: Entity, at: Vec3) -> Entity {
+        app.world_mut()
+            .spawn((
+                ChildOf(root),
+                SectionMarker,
+                Transform::from_translation(at),
+                Collider::cuboid(1.0, 1.0, 1.0),
+                ColliderDensity(1.0),
+                Health::new(100.0),
+            ))
+            .id()
+    }
+
+    fn neighbors(app: &App, entity: Entity) -> Vec<Entity> {
+        app.world().get::<ConnectedTo>(entity).unwrap().0.clone()
+    }
+
+    #[test]
+    fn a_ship_builds_adjacency_from_section_positions() {
+        // Three sections in a line at x = 0, 1, 2. Adjacency is "one grid unit apart", so the
+        // middle section neighbors both ends, and each end neighbors only the middle.
+        let mut app = integrity_physics_app();
+        let root = app
+            .world_mut()
+            .spawn((RigidBody::Dynamic, Transform::default(), SpaceshipRootMarker))
+            .id();
+        let left = spawn_section(&mut app, root, Vec3::new(0.0, 0.0, 0.0));
+        let mid = spawn_section(&mut app, root, Vec3::new(1.0, 0.0, 0.0));
+        let right = spawn_section(&mut app, root, Vec3::new(2.0, 0.0, 0.0));
+
+        settle(&mut app);
+
+        // The body is the integrity root.
+        assert!(app.world().get::<IntegrityRoot>(root).is_some());
+
+        // Middle neighbors both ends; ends neighbor only the middle.
+        let mid_neighbors = neighbors(&app, mid);
+        assert_eq!(mid_neighbors.len(), 2);
+        assert!(mid_neighbors.contains(&left) && mid_neighbors.contains(&right));
+        assert_eq!(neighbors(&app, left), vec![mid]);
+        assert_eq!(neighbors(&app, right), vec![mid]);
+    }
+
+    #[test]
+    fn a_lone_body_becomes_an_empty_leaf_root() {
+        // An asteroid-shaped body: a single collider node with no sections. It gets an empty
+        // neighbor list (so it is a leaf, destroyed as soon as it is disabled) and its body is
+        // marked the integrity root.
+        let mut app = integrity_physics_app();
+        let body = app
+            .world_mut()
+            .spawn((RigidBody::Dynamic, Transform::default()))
+            .id();
+        let node = app
+            .world_mut()
+            .spawn((
+                ChildOf(body),
+                Collider::sphere(1.0),
+                ColliderDensity(1.0),
+                Health::new(100.0),
+            ))
+            .id();
+
+        settle(&mut app);
+
+        assert!(app.world().get::<IntegrityRoot>(body).is_some());
+        assert_eq!(neighbors(&app, node), Vec::<Entity>::new());
+    }
+}
