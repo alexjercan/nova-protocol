@@ -16,8 +16,9 @@ entrypoint, `src/lib.rs` just re-exports `nova_core`. Real code lives in `crates
 
 | Crate           | Responsibility |
 |-----------------|----------------|
-| `nova_core`     | `AppBuilder` (assembles all plugins) + `GameStates`. The editor scene lives in `src/core.rs`. Start here to see how the app is wired. |
-| `nova_gameplay` | Nova-specific gameplay: ship `sections/`, `integrity/` (health/blast/explode), `input/` (player + ai), `hud/`, `camera_controller`. |
+| `nova_core`     | `AppBuilder` (assembles all plugins). Thin wiring only. Start here to see how the app is wired. |
+| `nova_editor`   | The spaceship editor scene (`NovaEditorPlugin`, `src/lib.rs`): section-picker UI, ship building, transition into the scenario sim. Added by default when no custom game plugins are supplied. |
+| `nova_gameplay` | Nova-specific gameplay: ship `sections/`, `integrity/` (health/blast/explode), `input/` (player + ai), `hud/`, `camera_controller`. Also owns `GameStates`. |
 | `nova_scenario` | Scenario/modding engine: `actions`, `events`, `filters`, `variables`, `world`, `loader`, and scenario `objects/` (area, asteroid, spaceship). |
 | `nova_events`   | Game event kinds (`OnStart`, `OnUpdate`, `OnDestroyed`, `OnEnter`, `OnExit`) and entity id/type-name components. |
 | `nova_assets`   | `bevy_asset_loader` setup; loads glb/textures/shaders and registers sections + scenarios. |
@@ -64,11 +65,14 @@ over unit tests (see repo conventions below).
 ## How the app is assembled
 
 `AppBuilder::new().with_game_plugins(...).with_rendering(bool).build()` in
-`crates/nova_core/src/lib.rs`. It adds, in order: Bevy default plugins, UI widgets,
-avian3d physics, enhanced input, `GameAssetsPlugin`, `NovaGameplayPlugin`,
-`NovaScenarioPlugin`, the editor `core_plugin`, and (under `debug`) `DebugPlugin`.
-State machine: `GameStates::{Loading, Playing}` and `GameAssetsStates::{Loading,
-Processing, Loaded}`. Scenario setup typically hooks `OnEnter(GameAssetsStates::Loaded)`.
+`crates/nova_core/src/lib.rs`. It adds, in order: Bevy default plugins (UI widgets are
+part of `DefaultPlugins` on 0.19, so they are not re-added), enhanced input,
+`GameAssetsPlugin`, `NovaGameplayPlugin`, `NovaScenarioPlugin`, and (only when no custom
+game plugins were supplied) the editor `NovaEditorPlugin` from `nova_editor`, plus
+(under `debug`) `DebugPlugin`. avian3d `PhysicsPlugins` is pulled in by
+`NovaGameplayPlugin`, not here. State machine: `GameStates::{Loading, Playing}` and
+`GameAssetsStates::{Loading, Processing, Loaded}`. Scenario setup typically hooks
+`OnEnter(GameAssetsStates::Loaded)`.
 
 ## Conventions
 

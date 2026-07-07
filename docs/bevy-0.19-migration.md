@@ -39,7 +39,7 @@ literal:
 (Node { height: px(6), border_radius: BorderRadius::all(px(3)), ..default() }, BackgroundColor(c))
 ```
 
-Fixed in `crates/nova_core/src/core.rs` (`button`) and the slider widgets in
+Fixed in `crates/nova_editor/src/lib.rs` (`button`) and the slider widgets in
 `examples/02_thruster_shader.rs` and `examples/04_asteroids.rs`.
 
 Note: this error blames the *whole tuple*, not the offending element. Bisecting the
@@ -66,7 +66,7 @@ In 0.19 `#[derive(Resource)]` emits a `Component` impl too, so deriving both
 Consequence for generic code: a `fn f<T: Resource + Component>(x: ResMut<T>)` needs
 `T`'s mutability pinned, because `ResMut` requires `Resource<Mutability = Mutable>`.
 Add the bound: `T: Resource + Component<Mutability = bevy::ecs::component::Mutable>`
-(see `button_on_setting` in `core.rs`).
+(see `button_on_setting` in `nova_editor/src/lib.rs`).
 
 ### `rand` 0.10 trait reshuffle
 

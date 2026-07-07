@@ -36,8 +36,8 @@ local `position` + `rotation` relative to the ship root
 hulls + thruster + turret with an input mapping binding `thruster`/`turret` actions to
 keys and gamepad buttons).
 
-The editor scene in `crates/nova_core/src/core.rs` lets you assemble ships
-interactively.
+The editor scene in `crates/nova_editor/src/lib.rs` (`NovaEditorPlugin`) lets you
+assemble ships interactively.
 
 ## Input (`nova_gameplay::input`)
 
@@ -51,12 +51,17 @@ This is the damage and destruction model. Everything is observer-driven (`On<...
 
 Key components (`components.rs`):
 
-- `IntegrityGraph(HashMap<Entity, Vec<Entity>>)` - adjacency graph of how
-  collider+health entities connect. Rebuilt when the structure changes
-  (`on_changed_graph` in `IntegritySystems`).
-- `IntegrityLeafMarker` - a node that is a leaf in the graph.
+- `IntegrityRoot` - marks the body that owns the structure (a ship root, or a lone
+  body like an asteroid). Used to find the body for aggregate health and whole-body
+  destruction.
+- `ConnectedTo(Vec<Entity>)` - the neighbor list stored on each integrity node (a ship
+  section, or an asteroid's collider node). This replaces the old central
+  `IntegrityGraph(HashMap<...>)`: connectivity now lives per-node instead of in one map
+  on the root. Built by `build_integrity_relations` (in `glue.rs`) as colliders link.
+- `IntegrityLeafMarker` - a node with at most one neighbor (a leaf in the connectivity
+  graph).
 - `IntegrityDisabledMarker` - a section whose health hit zero (disabled).
-- `IntegrityDestroyMarker` - a section queued for destruction.
+- `IntegrityDestroyMarker` - a node queued for destruction.
 
 Damage/destruction flow (observers in `plugin.rs`):
 
@@ -65,11 +70,13 @@ Damage/destruction flow (observers in `plugin.rs`):
    (`on_impact_collision_deal_damage`, `on_blast_collision_deal_damage`;
    blast falloff computed by `calculate_blast_damage`).
 3. When health reaches zero a `HealthZeroMarker` is added, which inserts
-   `IntegrityDisabled` (`on_health_depleted_insert_disabled`).
+   `IntegrityDisabledMarker` (`on_health_depleted_insert_disabled`).
 4. Destruction propagates: `handle_destroy`, `handle_chain_destroy` (a disabled leaf
-   destroys, shrinking the graph and creating new leaves), and `handle_parent_destroy`.
-5. `on_destroyed` finalizes: emits the game `OnDestroyed` event, spawns explosion/mesh
-   fragments, etc.
+   destroys, pruning neighbor links and creating new leaves), and `handle_parent_destroy`.
+5. Destruction finalizes across two crates: `on_destroyed` (in `plugin.rs`) prunes the
+   destroyed node from its neighbors' `ConnectedTo` lists; `on_destroyed_entity` (in
+   `integrity/explode.rs`) fires the game `OnDestroyed` event; and the explode systems
+   there spawn debris/mesh fragments and despawn the meshless remains.
 
 The chain-reaction rule of thumb: **a section is destroyed when it is both disabled
 (zero health) and a leaf** (nothing structurally depends on it). Destroying it can

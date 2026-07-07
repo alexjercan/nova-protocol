@@ -81,9 +81,11 @@ AppBuilder::new()                 // Bevy DefaultPlugins + window/log setup
     .build()                      // adds the plugin stack, returns App
 ```
 
-`build()` adds, in order: UI widgets, avian3d `PhysicsPlugins`, enhanced input,
-`GameAssetsPlugin`, `NovaGameplayPlugin`, `NovaScenarioPlugin`, the editor
-`core_plugin`, and (only under `debug`) `DebugPlugin`.
+`build()` adds, in order: enhanced input, `GameAssetsPlugin`, `NovaGameplayPlugin`,
+`NovaScenarioPlugin`, the editor `NovaEditorPlugin` (only when no custom game plugins
+were supplied), and (only under `debug`) `DebugPlugin`. (Bevy `DefaultPlugins`,
+including UI widgets, are added by `AppBuilder::new()`; avian3d `PhysicsPlugins` comes
+in via `NovaGameplayPlugin`, see below.)
 
 `NovaGameplayPlugin` in turn pulls in physics, `bevy_hanabi` particles, `bevy_rand`,
 all the `bevy_common_systems` helper plugins, and the Nova sub-plugins (input,
