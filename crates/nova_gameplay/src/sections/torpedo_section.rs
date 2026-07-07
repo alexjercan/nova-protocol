@@ -7,10 +7,10 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        torpedo_section, TorpedoControllerMarker, TorpedoProjectileMarker, TorpedoProjectileOwner,
-        TorpedoSectionConfig, TorpedoSectionInput, TorpedoSectionMarker, TorpedoSectionPlugin,
-        TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker, TorpedoTargetEntity,
-        TorpedoTargetPosition,
+        torpedo_section, TorpedoArming, TorpedoControllerMarker, TorpedoProjectileMarker,
+        TorpedoProjectileOwner, TorpedoSectionConfig, TorpedoSectionInput, TorpedoSectionMarker,
+        TorpedoSectionPlugin, TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker,
+        TorpedoTargetEntity, TorpedoTargetPosition,
     };
 }
 
@@ -28,6 +28,14 @@ pub struct TorpedoSectionConfig {
     pub spawner_speed: f32,
     /// The lifetime of the projectile in seconds.
     pub projectile_lifetime: f32,
+    /// Arming delay: minimum seconds after firing before the torpedo may
+    /// detonate. Prevents a torpedo fired at a nearby target from blowing up on
+    /// (or right after) spawn. Armed when this OR `arm_distance` is reached.
+    pub arm_time: f32,
+    /// Arming distance: minimum distance from the muzzle the torpedo must travel
+    /// before it may detonate, so it clears the firing ship first. Armed when
+    /// this OR `arm_time` is reached.
+    pub arm_distance: f32,
     /// The explosion effect to play when the torpedo detonates.
     pub blast_effect: Option<Handle<EffectAsset>>,
 }
@@ -42,6 +50,8 @@ impl Default for TorpedoSectionConfig {
             fire_rate: 1.0,
             spawner_speed: 1.0,
             projectile_lifetime: 100.0,
+            arm_time: 0.5,
+            arm_distance: 5.0,
             blast_effect: None,
         }
     }
@@ -106,6 +116,52 @@ struct TorpedoProjectileRenderMesh(Option<Handle<WorldAsset>>);
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct TorpedoTargetPosition(pub Vec3);
 
+/// Arming state of a torpedo projectile. A torpedo cannot detonate until it is
+/// armed; it arms once it has either lived for `min_time` seconds or traveled
+/// `min_distance` from its `origin` (the muzzle). This stops a torpedo fired at
+/// a nearby target from self-detonating on spawn. Once armed it stays armed.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct TorpedoArming {
+    min_time: f32,
+    min_distance: f32,
+    origin: Vec3,
+    elapsed: f32,
+    armed: bool,
+}
+
+impl TorpedoArming {
+    /// Create arming state for a torpedo spawned at `origin`.
+    pub fn new(min_time: f32, min_distance: f32, origin: Vec3) -> Self {
+        Self {
+            min_time,
+            min_distance,
+            origin,
+            elapsed: 0.0,
+            armed: false,
+        }
+    }
+
+    /// Whether the torpedo is armed and allowed to detonate.
+    pub fn is_armed(&self) -> bool {
+        self.armed
+    }
+
+    /// Advance the arming state by `dt` seconds given the torpedo's current
+    /// position, latching `armed` once the time or distance threshold is met.
+    /// Returns the (possibly updated) armed state.
+    fn tick(&mut self, dt: f32, position: Vec3) -> bool {
+        if self.armed {
+            return true;
+        }
+        self.elapsed += dt;
+        let traveled = position.distance(self.origin);
+        if self.elapsed >= self.min_time || traveled >= self.min_distance {
+            self.armed = true;
+        }
+        self.armed
+    }
+}
+
 #[derive(Default)]
 pub struct TorpedoSectionPlugin {
     pub render: bool,
@@ -135,6 +191,7 @@ impl Plugin for TorpedoSectionPlugin {
                 shoot_spawn_projectile,
                 (
                     update_target_position,
+                    update_torpedo_arming,
                     torpedo_detonate_system,
                     torpedo_sync_system,
                     torpedo_thrust_system,
@@ -290,6 +347,11 @@ fn shoot_spawn_projectile(
             TorpedoSectionSpawnerEntity(**spawner),
             TorpedoProjectileRenderMesh(config.projectile_render_mesh.clone()),
             TorpedoTargetPosition(Vec3::new(0.0, 0.0, 0.0)),
+            TorpedoArming::new(
+                config.arm_time,
+                config.arm_distance,
+                projectile_transform.translation,
+            ),
             TempEntity(config.projectile_lifetime),
             Visibility::Visible,
             children![
@@ -376,6 +438,18 @@ fn update_target_position(
     }
 }
 
+/// Tick each torpedo's arming state so it can detonate only after it has cleared
+/// the muzzle (see [`TorpedoArming`]).
+fn update_torpedo_arming(
+    time: Res<Time>,
+    mut q_torpedo: Query<(&Transform, &mut TorpedoArming), With<TorpedoProjectileMarker>>,
+) {
+    let dt = time.delta_secs();
+    for (torpedo_transform, mut arming) in &mut q_torpedo {
+        arming.tick(dt, torpedo_transform.translation);
+    }
+}
+
 // TODO(20260706-162913): Unhardcode blast parameters
 const BLAST_RADIUS: f32 = 30.0;
 const BLAST_DAMAGE: f32 = 100.0;
@@ -388,12 +462,19 @@ fn torpedo_detonate_system(
             Entity,
             &Transform,
             &TorpedoTargetPosition,
+            &TorpedoArming,
             &TorpedoSectionPartOf,
         ),
         With<TorpedoProjectileMarker>,
     >,
 ) {
-    for (torpedo, torpedo_transform, torpedo_target_position, part_of) in &q_torpedo {
+    for (torpedo, torpedo_transform, torpedo_target_position, arming, part_of) in &q_torpedo {
+        // Do not detonate until the torpedo has armed (cleared the muzzle), so a
+        // shot at a nearby target does not blow up on spawn.
+        if !arming.is_armed() {
+            continue;
+        }
+
         let distance = torpedo_transform
             .translation
             .distance(**torpedo_target_position);
@@ -696,3 +777,101 @@ fn insert_particle_effect(
 
 // TODO(20260706-162913): Factor out the torpedo logic into a separate module.
 // TODO(20260706-162913): Implement a separate plugin for the targeting system.
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn torpedo_is_unarmed_on_spawn() {
+        // A freshly spawned torpedo (no time elapsed, no distance travelled) must
+        // not be armed, so it cannot detonate on the muzzle.
+        let arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO);
+        assert!(!arming.is_armed());
+    }
+
+    #[test]
+    fn torpedo_arms_after_min_time_even_without_moving() {
+        // Point-blank shot: the target sits on the muzzle so the torpedo never
+        // travels far, but the time threshold must still arm it eventually.
+        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO);
+        assert!(!arming.tick(0.4, Vec3::ZERO)); // below min_time, still at origin
+        assert!(arming.tick(0.2, Vec3::ZERO)); // 0.6s total >= min_time
+        assert!(arming.is_armed());
+    }
+
+    #[test]
+    fn torpedo_arms_after_min_distance_before_min_time() {
+        // A fast torpedo clears the muzzle before the time threshold; distance
+        // arms it first.
+        let mut arming = TorpedoArming::new(10.0, 5.0, Vec3::ZERO);
+        assert!(!arming.tick(0.1, Vec3::new(4.0, 0.0, 0.0))); // under both
+        assert!(arming.tick(0.1, Vec3::new(6.0, 0.0, 0.0))); // travelled >= 5.0
+        assert!(arming.is_armed());
+    }
+
+    #[test]
+    fn torpedo_stays_armed_once_armed() {
+        // Arming latches: coming back inside the arm distance does not disarm it.
+        let mut arming = TorpedoArming::new(10.0, 5.0, Vec3::ZERO);
+        assert!(arming.tick(0.0, Vec3::new(6.0, 0.0, 0.0))); // armed via distance
+        assert!(arming.tick(0.0, Vec3::ZERO)); // back at origin, still armed
+        assert!(arming.is_armed());
+    }
+
+    #[test]
+    fn unarmed_torpedo_does_not_detonate_on_target() {
+        // Regression: a torpedo sitting right on its target must not detonate
+        // while unarmed - this is the "spawns too close and just dies" bug.
+        let mut app = App::new();
+        app.add_systems(Update, torpedo_detonate_system);
+
+        let part_of = app.world_mut().spawn_empty().id();
+        let torpedo = app
+            .world_mut()
+            .spawn((
+                TorpedoProjectileMarker,
+                Transform::from_translation(Vec3::ZERO),
+                TorpedoTargetPosition(Vec3::ZERO), // on target: distance 0 < BLAST_RADIUS * 0.5
+                TorpedoArming::new(0.5, 5.0, Vec3::ZERO), // not armed
+                TorpedoSectionPartOf(part_of),
+            ))
+            .id();
+
+        app.update();
+
+        assert!(
+            app.world().entities().contains(torpedo),
+            "unarmed torpedo should survive even on top of its target"
+        );
+    }
+
+    #[test]
+    fn armed_torpedo_detonates_on_target() {
+        // Once armed, the same on-target torpedo detonates (despawns).
+        let mut app = App::new();
+        app.add_systems(Update, torpedo_detonate_system);
+
+        let part_of = app.world_mut().spawn_empty().id();
+        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO);
+        arming.tick(1.0, Vec3::ZERO); // arm via time
+
+        let torpedo = app
+            .world_mut()
+            .spawn((
+                TorpedoProjectileMarker,
+                Transform::from_translation(Vec3::ZERO),
+                TorpedoTargetPosition(Vec3::ZERO),
+                arming,
+                TorpedoSectionPartOf(part_of),
+            ))
+            .id();
+
+        app.update();
+
+        assert!(
+            !app.world().entities().contains(torpedo),
+            "armed torpedo on its target should detonate and despawn"
+        );
+    }
+}
