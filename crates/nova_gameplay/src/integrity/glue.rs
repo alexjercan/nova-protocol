@@ -8,7 +8,7 @@ use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 
 use super::components::*;
-use crate::prelude::{SectionInactiveMarker, SectionMarker};
+use crate::prelude::{SectionInactiveMarker, SectionMarker, SpaceshipRootMarker};
 
 pub(super) struct IntegrityGluePlugin;
 
@@ -110,6 +110,12 @@ fn build_integrity_relations(
 /// Keep each ship's aggregate health equal to the sum of its section children, so the health
 /// HUD tracks real damage and the ship dies once every section is gone.
 ///
+/// Scoped to spaceship roots ([`SpaceshipRootMarker`]) on purpose: other [`IntegrityRoot`]s,
+/// such as a lone asteroid, hold their [`Health`] on the collider body itself and have no
+/// [`SectionMarker`] children to sum. Running this on them would just staple a meaningless
+/// `Health { current: 0, max: 0 }` onto the root every frame. "Sum a ship's sections" only
+/// makes sense for ships, so only ships are matched.
+///
 /// Sections are direct children of the ship root (which carries [`IntegrityRoot`]). This
 /// recomputes the root's health every frame as the sum of its living sections. When the sum
 /// hits zero, the fatal damage that removed the last section also bubbles up to the root
@@ -121,7 +127,7 @@ fn aggregate_ship_health(
     mut commands: Commands,
     q_root: Query<
         (Entity, Option<&Health>, Option<&Children>),
-        (With<IntegrityRoot>, Without<SectionMarker>),
+        (With<IntegrityRoot>, With<SpaceshipRootMarker>),
     >,
     q_section_health: Query<&Health, (With<SectionMarker>, Without<IntegrityRoot>)>,
 ) {
