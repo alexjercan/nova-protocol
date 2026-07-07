@@ -63,6 +63,17 @@ Concern raised that PN "doesn't work properly". Added evidence it does:
   crosser (well inside the blast trigger), 3 detonations, no panic. So PN leads and
   intercepts a moving target both in the law and in the full physics/PD stack.
 
+## Follow-up: fire-without-lock now flies straight (was steering at the origin)
+
+A torpedo fired with no lock used to steer toward the world origin, because it
+spawned with a sentinel `TorpedoTargetPosition(ZERO)`. Fixed: the projectile no
+longer spawns with a target position; `update_target_position` inserts it on first
+lock (and updates in place after). `torpedo_pn_guidance` flies straight ahead
+(holds heading) when there is no `TorpedoTargetPosition`, and still freezes on the
+last-known position after a target is *lost* (100004 behavior preserved). Covered by
+`untargeted_torpedo_flies_straight_not_toward_origin`; both example harnesses still
+intercept with no regression.
+
 ## Resolution
 
 Replaced the ad-hoc pursuit (nose pointed straight at the target + a hand-tuned drift

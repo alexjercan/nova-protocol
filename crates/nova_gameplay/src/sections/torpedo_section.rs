@@ -365,8 +365,9 @@ fn shoot_spawn_projectile(
             TorpedoSectionPartOf(section),
             TorpedoSectionSpawnerEntity(**spawner),
             TorpedoProjectileRenderMesh(config.projectile_render_mesh.clone()),
-            TorpedoTargetPosition(Vec3::new(0.0, 0.0, 0.0)),
-            // Nested so the projectile stays within Bevy's 15-element tuple-bundle limit.
+            // No `TorpedoTargetPosition` yet: it is inserted only once a target is
+            // locked (see `update_target_position`). Until then the torpedo has no
+            // target and flies straight ahead rather than steering at the origin.
             (
                 TorpedoGuidance {
                     nav_constant: config.nav_constant,
@@ -445,12 +446,12 @@ fn shoot_spawn_projectile(
 fn update_target_position(
     mut commands: Commands,
     mut q_torpedo: Query<
-        (Entity, &mut TorpedoTargetPosition, &TorpedoTargetEntity),
+        (Entity, Option<&mut TorpedoTargetPosition>, &TorpedoTargetEntity),
         With<TorpedoProjectileMarker>,
     >,
     q_target: Query<&Transform>,
 ) {
-    for (torpedo, mut torpedo_target_position, target_entity) in &mut q_torpedo {
+    for (torpedo, torpedo_target_position, target_entity) in &mut q_torpedo {
         let Ok(target_transform) = q_target.get(**target_entity) else {
             // The target died mid-flight. Don't delete the torpedo - that reads as
             // it blinking out of existence. Instead drop the dead target link and
@@ -466,7 +467,16 @@ fn update_target_position(
             continue;
         };
 
-        **torpedo_target_position = target_transform.translation;
+        // The position component is added on first lock and updated in place after,
+        // so a never-locked torpedo has no `TorpedoTargetPosition` and flies straight.
+        match torpedo_target_position {
+            Some(mut position) => **position = target_transform.translation,
+            None => {
+                commands
+                    .entity(torpedo)
+                    .insert(TorpedoTargetPosition(target_transform.translation));
+            }
+        }
     }
 }
 
@@ -567,7 +577,7 @@ fn torpedo_pn_guidance(
     mut q_torpedo: Query<
         (
             &Transform,
-            &TorpedoTargetPosition,
+            Option<&TorpedoTargetPosition>,
             &LinearVelocity,
             Option<&TorpedoTargetEntity>,
             &TorpedoGuidance,
@@ -580,6 +590,13 @@ fn torpedo_pn_guidance(
     for (transform, target_position, velocity, target_entity, guidance, mut steering) in
         &mut q_torpedo
     {
+        // No target locked (or ever locked): fly straight ahead, holding heading,
+        // rather than steering toward the world origin.
+        let Some(target_position) = target_position else {
+            **steering = transform.forward().into();
+            continue;
+        };
+
         let target_velocity = target_entity
             .and_then(|target| q_target_velocity.get(**target).ok())
             .map(|v| **v)
@@ -1144,6 +1161,34 @@ mod tests {
         assert!(
             pn_turn < pursuit_turn * 0.75,
             "PN peak turn demand ({pn_turn}) should be well under pursuit's ({pursuit_turn})"
+        );
+    }
+
+    #[test]
+    fn untargeted_torpedo_flies_straight_not_toward_origin() {
+        // Regression: a torpedo fired with no lock (no TorpedoTargetPosition) must
+        // hold its heading, not steer at the world origin. Place it off-origin so
+        // "straight ahead" (-Z) is clearly distinct from "toward origin" (-X).
+        let mut app = App::new();
+        app.add_systems(Update, torpedo_pn_guidance);
+
+        let torpedo = app
+            .world_mut()
+            .spawn((
+                TorpedoProjectileMarker,
+                Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)), // forward is -Z
+                LinearVelocity(Vec3::new(0.0, 0.0, -40.0)),
+                TorpedoGuidance { nav_constant: 3.0 },
+                TorpedoSteering(Vec3::NEG_Z),
+            ))
+            .id();
+
+        app.update();
+
+        let steering = **app.world().get::<TorpedoSteering>(torpedo).unwrap();
+        assert!(
+            (steering - Vec3::NEG_Z).length() < 1e-3,
+            "untargeted torpedo should fly straight ahead (-Z), got {steering:?}"
         );
     }
 }
