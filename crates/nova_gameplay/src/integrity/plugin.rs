@@ -121,55 +121,66 @@ fn on_impact_collision_deal_damage(
     });
 }
 
+/// Apply radial blast damage to a body that overlaps a blast sensor.
+///
+/// The blast sensor is the "self" side of the event (`collider1`/`body1`): it carries
+/// `CollisionEventsEnabled` (see `blast_damage`), so avian raises `CollisionStart` with the
+/// blast as `body1` against every collider it overlaps. This is why the blast owns its events
+/// rather than relying on each target - a body only takes blast damage if *some* collider in
+/// the pair has events enabled, and keying that on the blast means it reaches every overlapped
+/// body regardless of the target's own configuration (mirroring `area.rs`).
+///
+/// avian raises the swapped `{body1 = target, body2 = blast}` event too whenever the target
+/// also has events enabled (e.g. a ship section, for impact damage). We ignore that ordering
+/// here - `q_blast.get(body1)` fails when `body1` is the target - so each overlap deals damage
+/// exactly once and never double-dips.
 fn on_blast_collision_deal_damage(
     collision: On<CollisionStart>,
     mut commands: Commands,
+    q_blast: Query<(&Transform, &BlastDamageConfig), With<BlastDamageMarker>>,
     // NOTE: Maybe we want the distance between the colliders
     q_body: Query<&Transform, With<RigidBody>>,
-    q_blast: Query<(&Transform, &BlastDamageConfig), (With<RigidBody>, With<BlastDamageMarker>)>,
 ) {
-    // FIXME(20260706-162912): For some reason, this event is not fired consistently. I don't know what the problem
-    // might be, but this needs further investigation. The event fires only for ("object", "blast")
-    // but not for ("blast", "object"). Which is weird, because the `area.rs` module works also
-    // with sensors, and it fires both ways.
     trace!(
         "on_blast_collision_event: collision between {:?} and {:?}",
         collision.body1,
         collision.body2
     );
 
-    let collider1 = collision.collider1;
-    let collider2 = collision.collider2;
+    let blast_collider = collision.collider1;
+    let target_collider = collision.collider2;
 
-    let Some(body) = collision.body1 else {
+    let Some(blast) = collision.body1 else {
         return;
     };
-    let Some(blast) = collision.body2 else {
+    let Some(target) = collision.body2 else {
         return;
     };
 
-    let Ok(body_transform) = q_body.get(body) else {
-        return;
-    };
+    // Only act when this side of the event is the blast; the swapped ordering is handled by
+    // its own event (or ignored entirely).
     let Ok((blast_transform, blast_config)) = q_blast.get(blast) else {
+        return;
+    };
+    let Ok(target_transform) = q_body.get(target) else {
         return;
     };
 
     let distance = blast_transform
         .translation
-        .distance(body_transform.translation);
+        .distance(target_transform.translation);
     let damage = calculate_blast_damage(distance, blast_config);
     if damage <= f32::EPSILON {
         return;
     };
 
     debug!(
-        "on_blast_collision_start_event: applying blast damage {:.2} to collider {:?} (body {:?}) from collider {:?} (blast {:?})",
-        damage, collider1, body, collider2, blast
+        "on_blast_collision_start_event: applying blast damage {:.2} to collider {:?} (body {:?}) from blast collider {:?} (blast {:?})",
+        damage, target_collider, target, blast_collider, blast
     );
     commands.trigger(HealthApplyDamage {
-        entity: collider1,
-        source: Some(collider2),
+        entity: target_collider,
+        source: Some(blast_collider),
         amount: damage,
     });
 }
@@ -545,17 +556,12 @@ mod physics_tests {
         assert_eq!(health(&app, c1), 1000.0);
     }
 
-    /// Spawn a blast sensor (as `blast_damage` does) at `at`, matching the collider radius to
-    /// the config radius the way the production bundle does.
+    /// Spawn a blast sensor via the production `blast_damage` bundle at `at`.
     fn spawn_blast(app: &mut App, at: Vec3, radius: f32, max_damage: f32) -> Entity {
         app.world_mut()
             .spawn((
-                RigidBody::Static,
+                blast_damage(BlastDamageConfig { radius, max_damage }),
                 Transform::from_translation(at),
-                Collider::sphere(radius),
-                Sensor,
-                BlastDamageMarker,
-                BlastDamageConfig { radius, max_damage },
             ))
             .id()
     }
@@ -573,9 +579,70 @@ mod physics_tests {
 
         settle(&mut app);
 
-        let expected = calculate_blast_damage(4.0, &BlastDamageConfig { radius: 10.0, max_damage: 100.0 });
+        let expected =
+            calculate_blast_damage(4.0, &BlastDamageConfig { radius: 10.0, max_damage: 100.0 });
         assert!((expected - 60.0).abs() < 1e-3, "sanity: {expected}");
         assert!((health(&app, target_collider) - (1000.0 - expected)).abs() < 1e-2);
+    }
+
+    #[test]
+    fn a_blast_reaches_a_target_that_has_no_collision_events() {
+        // Regression for the ordering bug (task 20260706-162912): the blast must not depend on
+        // the target having `CollisionEventsEnabled`. Here the target opts out (it had no
+        // `Health` when its `ColliderOf` was added, so `on_collider_of_spawn_...` skipped it),
+        // yet the blast - which owns its events - still reaches it. Before the fix the only
+        // event raised was the target's, which this target never raises, so no damage landed.
+        let mut app = integrity_physics_app();
+        let body = app
+            .world_mut()
+            .spawn((RigidBody::Dynamic, Transform::default()))
+            .id();
+        // Collider spawned without Health, so no collision events get enabled on it.
+        let target_collider = app
+            .world_mut()
+            .spawn((ChildOf(body), Collider::sphere(1.0), ColliderDensity(1.0)))
+            .id();
+        settle(&mut app);
+        assert!(
+            app.world()
+                .get::<CollisionEventsEnabled>(target_collider)
+                .is_none(),
+            "target must not have opted into collision events for this regression to be meaningful"
+        );
+        // Now give it Health to take damage (this does not enable events - that observer keys on
+        // ColliderOf, not Health).
+        app.world_mut()
+            .entity_mut(target_collider)
+            .insert(Health::new(1000.0));
+
+        spawn_blast(&mut app, Vec3::new(4.0, 0.0, 0.0), 10.0, 100.0);
+        settle(&mut app);
+
+        assert!(
+            (health(&app, target_collider) - 940.0).abs() < 1e-2,
+            "blast should reach a target that has no collision events of its own"
+        );
+    }
+
+    #[test]
+    fn a_blast_deals_damage_only_once_when_the_target_also_has_events() {
+        // When the target has its own events (a normal ship section / asteroid), avian raises
+        // both orderings of the pair. The observer acts only on the blast-as-self ordering, so
+        // the target is damaged exactly once - 60, not 120.
+        let mut app = integrity_physics_app();
+        let (_body, target_collider) = spawn_body(&mut app, Vec3::ZERO);
+        settle(&mut app);
+        assert!(
+            app.world()
+                .get::<CollisionEventsEnabled>(target_collider)
+                .is_some(),
+            "a Health-bearing target should have its own collision events"
+        );
+
+        spawn_blast(&mut app, Vec3::new(4.0, 0.0, 0.0), 10.0, 100.0);
+        settle(&mut app);
+
+        assert!((health(&app, target_collider) - 940.0).abs() < 1e-2);
     }
 
     #[test]
