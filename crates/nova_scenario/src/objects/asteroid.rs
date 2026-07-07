@@ -50,6 +50,11 @@ pub struct AsteroidRadius(pub f32);
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidHealth(pub f32);
 
+/// Marks an asteroid root whose collider/health node has been destroyed, so its
+/// now-empty `RigidBody` husk is despawned next frame (see `despawn_asteroid_husk`).
+#[derive(Component, Clone, Debug, Default, Reflect)]
+struct AsteroidHuskDespawn;
+
 pub struct AsteroidPlugin {
     pub render: bool,
 }
@@ -59,9 +64,45 @@ impl Plugin for AsteroidPlugin {
         debug!("AsteroidPlugin: build");
 
         app.add_observer(insert_asteroid_collider);
+        app.add_observer(on_asteroid_node_destroyed);
+        app.add_systems(Update, despawn_asteroid_husk);
         if self.render {
             app.add_observer(insert_asteroid_render);
         }
+    }
+}
+
+/// When an asteroid's collider/health node is destroyed, mark the asteroid root for
+/// despawn. An asteroid is a `RigidBody::Dynamic` parent whose `Collider` + `Health`
+/// live on a child node; once that node explodes and despawns, the parent is an empty
+/// dynamic body with no collider - avian then logs "has no mass or inertia" and the
+/// invisible husk lingers until the scenario unloads. Marking (rather than despawning
+/// here) defers the despawn to `despawn_asteroid_husk` so the destruction observers -
+/// which spawn the explosion fragments and despawn the node - all run first.
+fn on_asteroid_node_destroyed(
+    add: On<Add, IntegrityDestroyMarker>,
+    mut commands: Commands,
+    q_node: Query<&ChildOf, With<IntegrityDestroyMarker>>,
+    q_asteroid: Query<(), With<AsteroidMarker>>,
+) {
+    let Ok(ChildOf(parent)) = q_node.get(add.entity) else {
+        return;
+    };
+    if q_asteroid.contains(*parent) {
+        trace!("on_asteroid_node_destroyed: marking asteroid husk {:?}", parent);
+        commands.entity(*parent).try_insert(AsteroidHuskDespawn);
+    }
+}
+
+/// Despawn asteroid roots whose node was destroyed last frame, clearing the empty
+/// `RigidBody` husk (and silencing avian's mass/inertia warning).
+fn despawn_asteroid_husk(
+    mut commands: Commands,
+    q_husk: Query<Entity, With<AsteroidHuskDespawn>>,
+) {
+    for husk in &q_husk {
+        trace!("despawn_asteroid_husk: despawning {:?}", husk);
+        commands.entity(husk).try_despawn();
     }
 }
 
@@ -378,5 +419,55 @@ impl NoiseFn<f64, 3> for PlanetHeight {
     fn get(&self, point: [f64; 3]) -> f64 {
         let vec = Vec3::new(point[0] as f32, point[1] as f32, point[2] as f32);
         self.get_point(vec)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn husk_app() -> App {
+        let mut app = App::new();
+        app.add_observer(on_asteroid_node_destroyed);
+        app.add_systems(Update, despawn_asteroid_husk);
+        app
+    }
+
+    #[test]
+    fn destroying_an_asteroid_node_despawns_the_husk() {
+        // The collider/health node is a child of the asteroid root; destroying it must
+        // take the now-empty RigidBody husk with it.
+        let mut app = husk_app();
+        let asteroid = app.world_mut().spawn(AsteroidMarker).id();
+        let node = app.world_mut().spawn(ChildOf(asteroid)).id();
+
+        app.world_mut()
+            .entity_mut(node)
+            .insert(IntegrityDestroyMarker);
+        app.update();
+
+        assert!(
+            !app.world().entities().contains(asteroid),
+            "the asteroid husk should be despawned when its node is destroyed"
+        );
+    }
+
+    #[test]
+    fn destroying_a_non_asteroid_node_leaves_its_parent() {
+        // A destroyed node whose parent is not an asteroid (e.g. a ship section under a
+        // ship root) must not despawn its parent - the ship dies through its own path.
+        let mut app = husk_app();
+        let parent = app.world_mut().spawn_empty().id();
+        let node = app.world_mut().spawn(ChildOf(parent)).id();
+
+        app.world_mut()
+            .entity_mut(node)
+            .insert(IntegrityDestroyMarker);
+        app.update();
+
+        assert!(
+            app.world().entities().contains(parent),
+            "a non-asteroid parent must not be despawned by the husk cleanup"
+        );
     }
 }
