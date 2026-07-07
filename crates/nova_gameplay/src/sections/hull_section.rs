@@ -106,7 +106,7 @@ mod test {
     fn spawns_hull_with_custom_scene() {
         // Arrange
         let mut app = App::new();
-        let custom_scene = Handle::<Scene>::default();
+        let custom_scene = Handle::<WorldAsset>::default();
         let config = HullSectionConfig {
             render_mesh: Some(custom_scene.clone()),
             ..default()

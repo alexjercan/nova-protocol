@@ -230,7 +230,7 @@ mod tests {
     fn spawns_controller_with_custom_scene() {
         // Arrange
         let mut app = App::new();
-        let custom_scene = Handle::<Scene>::default();
+        let custom_scene = Handle::<WorldAsset>::default();
         let config = ControllerSectionConfig {
             render_mesh: Some(custom_scene.clone()),
             ..Default::default()
