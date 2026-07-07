@@ -1,6 +1,6 @@
 # Torpedo still vanishes on target loss: second despawn in player targeting
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.4.0,bug,torpedo
 
