@@ -49,6 +49,20 @@ consistent with 20260707-100004).
       green (4 fired, 4 armed, 3 detonated, no panic). Leading against the moving gate is
       visually confirmable in `06_torpedo_range`.
 
+## Follow-up: closed-loop tests + guidance harness (doubt raised in review)
+
+Concern raised that PN "doesn't work properly". Added evidence it does:
+
+- Closed-loop kinematic tests (turn-rate-limited torpedo flying the law):
+  `pn_intercepts_a_crossing_target`, `pn_intercepts_a_target_crossing_either_way`
+  (sign symmetry), and `pn_demands_less_turning_than_pure_pursuit` (PN's peak turn
+  demand is < 75% of pursuit's - the defining advantage). All pass (6 PN tests total).
+- New example `examples/07_torpedo_guidance.rs`: a real torpedo vs a single fast
+  crossing target (15 u/s), reporting the closest approach and torpedo speed. Headless
+  autopilot run: the torpedo builds to ~60 u/s and closes to **1.2 units** of the
+  crosser (well inside the blast trigger), 3 detonations, no panic. So PN leads and
+  intercepts a moving target both in the law and in the full physics/PD stack.
+
 ## Resolution
 
 Replaced the ad-hoc pursuit (nose pointed straight at the target + a hand-tuned drift

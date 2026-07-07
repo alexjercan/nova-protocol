@@ -1043,4 +1043,107 @@ mod tests {
             "a stationary torpedo should pursue the target directly"
         );
     }
+
+    /// Closed-loop kinematic model of a guided torpedo: constant speed, turning
+    /// its velocity toward `steer(...)` at up to `max_turn_rate` rad/s each step.
+    /// Returns `(closest approach, peak per-step heading error)`. This exercises
+    /// the guidance *law* end to end (steer -> turn -> move -> re-steer) without
+    /// the avian/PD stack: a law that cannot intercept shows up as a large closest
+    /// approach, and the peak heading error is how hard it demands to turn (PN's
+    /// advantage over pursuit is a much lower late-flight turn demand).
+    fn simulate_engagement(
+        mut pos: Vec3,
+        mut vel: Vec3,
+        mut target: Vec3,
+        target_vel: Vec3,
+        max_turn_rate: f32,
+        dt: f32,
+        steps: usize,
+        steer: impl Fn(Vec3, Vec3, Vec3) -> Vec3,
+    ) -> (f32, f32) {
+        let speed = vel.length();
+        let mut closest = pos.distance(target);
+        let mut peak_turn_demand = 0.0f32;
+        for _ in 0..steps {
+            let desired = steer(target - pos, target_vel - vel, vel);
+            let current = vel.normalize();
+            let angle = current.angle_between(desired);
+            peak_turn_demand = peak_turn_demand.max(angle);
+            let axis = current.cross(desired);
+            if axis.length() > 1e-6 && angle > 1e-6 {
+                let step = (max_turn_rate * dt).min(angle);
+                vel = Quat::from_axis_angle(axis.normalize(), step) * vel;
+            }
+            vel = vel.normalize() * speed;
+            pos += vel * dt;
+            target += target_vel * dt;
+            closest = closest.min(pos.distance(target));
+        }
+        (closest, peak_turn_demand)
+    }
+
+    #[test]
+    fn pn_intercepts_a_crossing_target() {
+        // Torpedo at origin, speed 60 heading -Z; target 100 ahead crossing at 20
+        // to +X. A turn-limited torpedo flying PN should close to a near hit.
+        let (miss, _) = simulate_engagement(
+            Vec3::ZERO,
+            Vec3::new(0.0, 0.0, -60.0),
+            Vec3::new(0.0, 0.0, -100.0),
+            Vec3::new(20.0, 0.0, 0.0),
+            4.0,   // max turn rate rad/s
+            0.02,  // dt
+            400,   // 8 s
+            |r, rv, v| pn_steer_direction(r, rv, v, 3.0),
+        );
+        assert!(miss < 3.0, "PN should intercept the crossing target, closest approach was {miss}");
+    }
+
+    #[test]
+    fn pn_intercepts_a_target_crossing_either_way() {
+        // Guards against a sign bug that only works for one crossing direction:
+        // PN must intercept a target crossing +X and one crossing -X.
+        for cross in [20.0f32, -20.0] {
+            let (miss, _) = simulate_engagement(
+                Vec3::ZERO,
+                Vec3::new(0.0, 0.0, -60.0),
+                Vec3::new(0.0, 0.0, -100.0),
+                Vec3::new(cross, 0.0, 0.0),
+                4.0,
+                0.02,
+                400,
+                |r, rv, v| pn_steer_direction(r, rv, v, 3.0),
+            );
+            assert!(miss < 3.0, "PN should intercept a target crossing at {cross}, miss was {miss}");
+        }
+    }
+
+    #[test]
+    fn pn_demands_less_turning_than_pure_pursuit() {
+        // The defining PN advantage: on a collision course the line-of-sight barely
+        // rotates, so PN demands far less turning than pure pursuit, which has to
+        // whip around to keep its nose on a fast crosser near intercept. Turn rate
+        // is generous here so both intercept - the discriminator is the turn demand.
+        let scenario = |steer: fn(Vec3, Vec3, Vec3) -> Vec3| {
+            simulate_engagement(
+                Vec3::ZERO,
+                Vec3::new(0.0, 0.0, -60.0),
+                Vec3::new(0.0, 0.0, -80.0),
+                Vec3::new(40.0, 0.0, 0.0),
+                8.0,
+                0.01,
+                400,
+                steer,
+            )
+        };
+        let (pn_miss, pn_turn) = scenario(|r, rv, v| pn_steer_direction(r, rv, v, 4.0));
+        let (pursuit_miss, pursuit_turn) =
+            scenario(|r, _rv, _v| r.try_normalize().unwrap_or(Vec3::NEG_Z));
+        assert!(pn_miss < 3.0, "PN should still intercept (miss {pn_miss})");
+        assert!(pursuit_miss < 3.0, "pursuit should also intercept here (miss {pursuit_miss})");
+        assert!(
+            pn_turn < pursuit_turn * 0.75,
+            "PN peak turn demand ({pn_turn}) should be well under pursuit's ({pursuit_turn})"
+        );
+    }
 }
