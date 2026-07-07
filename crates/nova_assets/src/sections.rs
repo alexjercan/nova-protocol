@@ -94,6 +94,8 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 arm_time: 0.5,
                 arm_distance: 5.0,
                 nav_constant: 3.0,
+                max_speed: 35.0,
+                linear_damping: 0.8,
                 blast_effect: None,
             }),
         },

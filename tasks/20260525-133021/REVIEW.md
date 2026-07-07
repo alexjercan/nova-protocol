@@ -46,3 +46,35 @@ No BLOCKER/MAJOR. Two NITs, both tuning observations, no change requested.
   the threshold to hand off from pursuit to PN at a more meaningful speed is the
   knob. Not needed now.
   - Response:
+
+## Round 2
+
+- VERDICT: APPROVE
+
+Round 2 triggered by a user report that PN still "flies off randomly, always
+thrusting, never turning toward the target even when stationary" - i.e. Round 1
+approved a law that did not work from the game's real launch state. Findings and
+their fixes, verified against the diff and fresh headless runs:
+
+- [x] R2.1 (BLOCKER, fixed) velocity-anchored PN cannot recover from the real
+  launch (slow, sideways out of the bay): `normalize(V + N*(Omega x V))` chases
+  its own velocity when Omega is small and V points away from the target. Fixed by
+  anchoring on the line of sight: constant-bearing lead + clamped PN LOS-rate
+  damping. Verified: `pn_points_at_a_stationary_target_from_a_sideways_launch`
+  (law) and `pn_turns_a_sideways_launch_onto_a_stationary_target` (closed loop);
+  in-game 06 range now kills stationary gates in ~0.9s per shot.
+- [x] R2.2 (BLOCKER, fixed) unbounded speed left the turning circle larger than
+  the proximity fuze (observed 19-21u standoff at 60+ u/s, 0 detonations on a
+  crossing target). Fixed with `max_speed` thrust gating on the along-nose speed
+  plus `linear_damping` on the body (an along-nose gate alone gets pumped past the
+  cap by turning; a total-speed gate alone leaves the torpedo ballistic - both
+  variants were measured before landing on the pair). Verified: in-game 07 speeds
+  hold 30-33 and the crosser is killed twice in the window;
+  `thrust_tapers_to_zero_at_cruise_speed` covers the taper.
+- [x] R2.3 (MAJOR, fixed) the Round 1 closed-loop tests initialized the torpedo
+  already flying at the target at speed 60, so they proved the law's happy path
+  and missed both defects. Replaced with a thrust-along-nose + cap + drag model
+  starting from the real launch state (1 u/s sideways, nose forward).
+
+Checks re-run: 18 torpedo tests green, clippy clean (crates + examples), no-debug
+build green, 06 + 07 headless runs green with detonations as described above.

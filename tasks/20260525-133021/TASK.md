@@ -74,6 +74,44 @@ last-known position after a target is *lost* (100004 behavior preserved). Covere
 `untargeted_torpedo_flies_straight_not_toward_origin`; both example harnesses still
 intercept with no regression.
 
+## Follow-up 2: the reported "flies off randomly" - two real root causes, fixed
+
+User report: the torpedo always thrusts and flies off in a random direction, never
+turning toward the target even when it is stationary. Both root causes found and
+fixed; the earlier tests missed them because they initialized the torpedo already
+flying at the target at speed.
+
+1. **Velocity-anchored PN cannot recover from the real launch.** The torpedo
+   leaves the bay slowly and *sideways* (spawner up, ~1 u/s, nose perpendicular to
+   the velocity). The old command `normalize(V + N*(Omega x V))` is anchored on
+   the velocity: from that state Omega is tiny (target far), so the command is
+   essentially "keep flying the way you drift", thrust builds speed that way, and
+   the loop chases its own velocity - the climb-away the user saw. Rewrote
+   `pn_steer_direction` anchored on the line of sight: a constant-bearing lead
+   course (match the target's across-LOS velocity, close along the LOS; exactly
+   "point at the target" for a stationary one) plus the classic PN LOS-rate term
+   as damping. Law-level regression: `pn_points_at_a_stationary_target_from_a_sideways_launch`.
+
+2. **Unbounded speed made the turning circle bigger than the fuze.** The torpedo
+   thrusts the whole flight; by arrival on a long shot it was doing 60+ u/s and
+   could only orbit the target at ~20u standoff - outside the 15u blast trigger
+   (the observed plateau matched speed/turn-rate). Added a cruise cap: config
+   `max_speed` (35) gating thrust on the *along-nose* speed (a total-speed cut
+   left it ballistic and unable to steer; measured 21u miss), plus config
+   `linear_damping` (0.8) on the body, because turning against a moving target
+   "pumps" total speed past an along-nose gate alone (measured 60 u/s). With both,
+   in-game speed holds ~30-33.
+
+Verification (headless, Xvfb):
+- 06 range, stationary gates: fire -> detonate in ~0.9s, three in a row.
+- 07 guidance, 15 u/s crosser: speeds 30-33, closest approach descends through the
+  fuze, 2 detonations in the window. Previously: 0 detonations, 19-21u standoff.
+- Closed-loop tests now start from the real launch state (slow, sideways, nose
+  forward) with thrust-along-nose dynamics, the cruise cap, and drag:
+  `pn_turns_a_sideways_launch_onto_a_stationary_target`,
+  `pn_intercepts_a_crossing_target`, `pn_intercepts_a_target_crossing_either_way`,
+  `thrust_tapers_to_zero_at_cruise_speed`. 18 torpedo tests green.
+
 ## Resolution
 
 Replaced the ad-hoc pursuit (nose pointed straight at the target + a hand-tuned drift

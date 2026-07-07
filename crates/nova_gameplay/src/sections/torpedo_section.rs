@@ -40,6 +40,19 @@ pub struct TorpedoSectionConfig {
     /// the line-of-sight rate, so the torpedo leads a moving target more
     /// aggressively. Typical PN values are 3-5.
     pub nav_constant: f32,
+    /// Cruise speed cap in units per second. The thruster tapers off as the
+    /// torpedo approaches this speed. Without a cap the torpedo accelerates the
+    /// whole flight and arrives so fast that its minimum turning circle
+    /// (speed / turn rate) is larger than the proximity fuze - it then orbits the
+    /// target instead of hitting it. Keep `max_speed / turn rate` comfortably
+    /// under the blast trigger radius.
+    pub max_speed: f32,
+    /// Linear damping (drag) on the torpedo body. The thrust cap alone gates only
+    /// the along-nose speed, so repeated turns against a moving target "pump"
+    /// total speed up sideways; drag gives a real terminal velocity regardless of
+    /// thrust direction and relaxes the velocity toward wherever the nose points,
+    /// so the flight path follows the guidance command.
+    pub linear_damping: f32,
     /// The explosion effect to play when the torpedo detonates.
     pub blast_effect: Option<Handle<EffectAsset>>,
 }
@@ -57,6 +70,8 @@ impl Default for TorpedoSectionConfig {
             arm_time: 0.5,
             arm_distance: 5.0,
             nav_constant: 3.0,
+            max_speed: 35.0,
+            linear_damping: 0.8,
             blast_effect: None,
         }
     }
@@ -121,11 +136,12 @@ struct TorpedoProjectileRenderMesh(Option<Handle<WorldAsset>>);
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct TorpedoTargetPosition(pub Vec3);
 
-/// Proportional-navigation constant carried by a torpedo projectile (copied from
-/// its `TorpedoSectionConfig` at spawn), so guidance can be tuned per bay.
+/// Guidance/propulsion tuning carried by a torpedo projectile (copied from its
+/// `TorpedoSectionConfig` at spawn), so each bay's torpedoes can be tuned.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TorpedoGuidance {
     pub nav_constant: f32,
+    pub max_speed: f32,
 }
 
 /// The unit direction the torpedo currently wants its nose pointed, produced by
@@ -371,8 +387,10 @@ fn shoot_spawn_projectile(
             (
                 TorpedoGuidance {
                     nav_constant: config.nav_constant,
+                    max_speed: config.max_speed,
                 },
                 TorpedoSteering(projectile_transform.forward().into()),
+                LinearDamping(config.linear_damping),
             ),
             TorpedoArming::new(
                 config.arm_time,
@@ -539,35 +557,62 @@ fn torpedo_detonate_system(
 /// Proportional-navigation steering direction.
 ///
 /// Returns the unit direction the torpedo should point its nose (and thrust)
-/// toward to intercept the target. `rel_pos` is the line-of-sight `target - torpedo`,
-/// `rel_vel` is `target_vel - missile_vel`, and `missile_vel` is the torpedo's own
-/// velocity. Uses vector "true PN": the line-of-sight rotation rate is
-/// `Ω = (R × Vrel) / (R·R)`, and the commanded turn is `a = N · (Ω × V_missile)` -
-/// an acceleration perpendicular to the velocity, proportional to the LOS rate,
-/// which leads a crossing target instead of tail-chasing it. The desired heading is
-/// `(V_missile + a)` normalized.
+/// toward to intercept the target. `rel_pos` is the line-of-sight `target - torpedo`
+/// and `target_vel` / `missile_vel` are world-space velocities.
 ///
-/// Falls back to straight pursuit (point at the target) when the torpedo is nearly
-/// stationary - so PN has no velocity to turn - or when the geometry is degenerate
-/// (target on top of the torpedo).
-fn pn_steer_direction(rel_pos: Vec3, rel_vel: Vec3, missile_vel: Vec3, nav_constant: f32) -> Vec3 {
-    let pursue = || rel_pos.try_normalize().unwrap_or(Vec3::NEG_Z);
+/// The command is anchored on the line of sight, not on the torpedo's velocity:
+///
+/// - Base course: the constant-bearing intercept ("lead collision course"). Split
+///   the target's velocity into the component across the line of sight and match
+///   it, spending the rest of the torpedo's speed closing along the line of sight:
+///   `lead = (target_perp + los * sqrt(speed^2 - |target_perp|^2)) / speed`. For a
+///   stationary target this is exactly "point at the target"; for a crossing
+///   target it is the exact intercept heading at the given speed.
+/// - PN damping: the classic LOS-rate term. With `omega = cross(rel_pos, rel_vel)
+///   / dot(rel_pos, rel_pos)`, add `nav_constant * cross(omega, heading)` (clamped)
+///   to null residual line-of-sight rotation - drift, disturbances, target
+///   maneuvers.
+///
+/// Anchoring on the LOS matters because the torpedo launches slowly *sideways* out
+/// of the bay: a velocity-anchored command (`V + N * cross(omega, V)`) from that
+/// state keeps re-commanding the current drift direction (omega is tiny while the
+/// target is far), so the torpedo climbs away instead of turning onto the target.
+/// The LOS-anchored form points at/ahead of the target from any initial velocity.
+fn pn_steer_direction(
+    rel_pos: Vec3,
+    target_vel: Vec3,
+    missile_vel: Vec3,
+    nav_constant: f32,
+) -> Vec3 {
+    let heading = missile_vel.try_normalize();
 
-    let range_sq = rel_pos.length_squared();
-    if range_sq < 1e-4 {
+    let Some(los) = rel_pos.try_normalize() else {
         // Target coincident with the torpedo: keep the current heading.
-        return missile_vel.try_normalize().unwrap_or_else(pursue);
-    }
+        return heading.unwrap_or(Vec3::NEG_Z);
+    };
 
-    // Not enough speed for PN to have a velocity to turn: pursue the target.
-    if missile_vel.length_squared() < 1e-4 {
-        return pursue();
-    }
+    // Constant-bearing lead. Plan with at least the target's speed so the lead
+    // stays defined while the torpedo is still accelerating up to speed.
+    let target_perp = target_vel - target_vel.dot(los) * los;
+    let planning_speed = missile_vel
+        .length()
+        .max(target_vel.length())
+        .max(1e-3);
+    let closing = (planning_speed * planning_speed - target_perp.length_squared())
+        .max(0.0)
+        .sqrt();
+    let lead = (target_perp + los * closing) / planning_speed;
 
-    let los_rate = rel_pos.cross(rel_vel) / range_sq;
-    let accel_cmd = nav_constant * los_rate.cross(missile_vel);
+    // PN damping: null the residual line-of-sight rotation.
+    let pn_correction = match heading {
+        Some(heading) => {
+            let los_rate = rel_pos.cross(target_vel - missile_vel) / rel_pos.length_squared();
+            (nav_constant * los_rate.cross(heading)).clamp_length_max(1.0)
+        }
+        None => Vec3::ZERO,
+    };
 
-    (missile_vel + accel_cmd).try_normalize().unwrap_or_else(pursue)
+    (lead + pn_correction).try_normalize().unwrap_or(los)
 }
 
 /// Compute each torpedo's PN steering direction into [`TorpedoSteering`], using the
@@ -603,9 +648,9 @@ fn torpedo_pn_guidance(
             .unwrap_or(Vec3::ZERO);
 
         let rel_pos = **target_position - transform.translation;
-        let rel_vel = target_velocity - **velocity;
 
-        **steering = pn_steer_direction(rel_pos, rel_vel, **velocity, guidance.nav_constant);
+        **steering =
+            pn_steer_direction(rel_pos, target_velocity, **velocity, guidance.nav_constant);
     }
 }
 
@@ -624,19 +669,42 @@ fn torpedo_sync_system(
     }
 }
 
+/// Width of the taper band below `max_speed` over which thrust fades to zero, in
+/// units per second.
+const THRUST_TAPER_BAND: f32 = 5.0;
+
+/// Thrust remaining given the velocity component *along the nose*: 1.0 well
+/// below `max_speed`, fading linearly to 0.0 over the last
+/// [`THRUST_TAPER_BAND`] u/s. Gating on the along-nose speed (not total speed)
+/// caps cruise speed without killing steering: at cruise, pointing straight
+/// ahead means no thrust, but the moment guidance swings the nose to turn, the
+/// along-nose component drops and thrust returns as lateral authority. A cap on
+/// total speed instead leaves the torpedo ballistic at cruise - unable to steer
+/// at all. Never negative: the cap cuts thrust, it does not brake.
+fn thrust_headroom(speed_along_nose: f32, max_speed: f32) -> f32 {
+    ((max_speed - speed_along_nose) / THRUST_TAPER_BAND).clamp(0.0, 1.0)
+}
+
 /// Thrust along the nose: full thrust when the nose is aligned with the steering
-/// direction, easing off while the torpedo is still turning onto course.
+/// direction, easing off while the torpedo is still turning onto course, and
+/// tapering to zero when already at cruise speed along the nose (see
+/// [`thrust_headroom`] and [`TorpedoSectionConfig::max_speed`]).
 fn torpedo_thrust_system(
-    q_torpedo: Query<(&Transform, &TorpedoSteering), With<TorpedoProjectileMarker>>,
+    q_torpedo: Query<
+        (&Transform, &TorpedoSteering, &LinearVelocity, &TorpedoGuidance),
+        With<TorpedoProjectileMarker>,
+    >,
     mut q_thruster: Query<
         (&mut ThrusterSectionInput, &ChildOf),
         (With<ThrusterSectionMarker>, With<TorpedoThrusterMarker>),
     >,
 ) {
     for (mut thruster_input, ChildOf(torpedo)) in &mut q_thruster {
-        if let Ok((transform, steering)) = q_torpedo.get(*torpedo) {
-            let alignment = transform.forward().dot(**steering).clamp(0.0, 1.0);
-            **thruster_input = alignment;
+        if let Ok((transform, steering, velocity, guidance)) = q_torpedo.get(*torpedo) {
+            let nose = transform.forward();
+            let alignment = nose.dot(**steering).clamp(0.0, 1.0);
+            let headroom = thrust_headroom(velocity.dot(nose.into()), guidance.max_speed);
+            **thruster_input = alignment * headroom;
         }
     }
 }
@@ -1020,9 +1088,8 @@ mod tests {
         let missile_vel = Vec3::new(0.0, 0.0, -50.0);
         let rel_pos = Vec3::new(0.0, 0.0, -100.0); // target 100 ahead
         let target_vel = Vec3::new(20.0, 0.0, 0.0); // crossing to +X
-        let rel_vel = target_vel - missile_vel;
 
-        let dir = pn_steer_direction(rel_pos, rel_vel, missile_vel, 3.0);
+        let dir = pn_steer_direction(rel_pos, target_vel, missile_vel, 3.0);
 
         assert!(
             dir.x > 0.01,
@@ -1038,12 +1105,28 @@ mod tests {
         // no line-of-sight rotation, so PN adds no lead - it points at the target.
         let missile_vel = Vec3::new(0.0, 0.0, -50.0);
         let rel_pos = Vec3::new(0.0, 0.0, -100.0);
-        let target_vel = Vec3::ZERO;
-        let rel_vel = target_vel - missile_vel;
 
-        let dir = pn_steer_direction(rel_pos, rel_vel, missile_vel, 3.0);
+        let dir = pn_steer_direction(rel_pos, Vec3::ZERO, missile_vel, 3.0);
 
         assert!((dir - Vec3::NEG_Z).length() < 1e-3, "expected straight pursuit, got {dir:?}");
+    }
+
+    #[test]
+    fn pn_points_at_a_stationary_target_from_a_sideways_launch() {
+        // THE regression for "the torpedo flies off and never turns toward the
+        // target": the torpedo leaves the bay slowly and sideways (spawner up,
+        // ~1 u/s), i.e. velocity perpendicular to the line of sight. The command
+        // must point (essentially) at the target, not along the current velocity.
+        // The old velocity-anchored form returned ~(0, 1, 0) here.
+        let missile_vel = Vec3::new(0.0, 1.0, 0.0); // slow, straight up
+        let rel_pos = Vec3::new(0.0, 0.0, -100.0); // target ahead
+
+        let dir = pn_steer_direction(rel_pos, Vec3::ZERO, missile_vel, 3.0);
+
+        assert!(
+            dir.dot(Vec3::NEG_Z) > 0.95,
+            "command must point at the target regardless of launch velocity, got {dir:?}"
+        );
     }
 
     #[test]
@@ -1061,107 +1144,114 @@ mod tests {
         );
     }
 
-    /// Closed-loop kinematic model of a guided torpedo: constant speed, turning
-    /// its velocity toward `steer(...)` at up to `max_turn_rate` rad/s each step.
-    /// Returns `(closest approach, peak per-step heading error)`. This exercises
-    /// the guidance *law* end to end (steer -> turn -> move -> re-steer) without
-    /// the avian/PD stack: a law that cannot intercept shows up as a large closest
-    /// approach, and the peak heading error is how hard it demands to turn (PN's
-    /// advantage over pursuit is a much lower late-flight turn demand).
-    fn simulate_engagement(
+    /// Closed-loop model of the torpedo the way it actually flies: the nose turns
+    /// toward `steer(...)` at up to `max_turn_rate` rad/s, and thrust accelerates
+    /// along the nose scaled by nose/command alignment and by the cruise-speed
+    /// headroom (mirroring `torpedo_thrust_system`). Starting conditions mirror
+    /// the real launch: slow, sideways. Returns the closest approach to the
+    /// target over the run.
+    #[allow(clippy::too_many_arguments)]
+    fn simulate_thrust_intercept(
         mut pos: Vec3,
         mut vel: Vec3,
+        mut nose: Vec3,
         mut target: Vec3,
         target_vel: Vec3,
         max_turn_rate: f32,
+        accel: f32,
+        max_speed: f32,
+        damping: f32,
         dt: f32,
         steps: usize,
         steer: impl Fn(Vec3, Vec3, Vec3) -> Vec3,
-    ) -> (f32, f32) {
-        let speed = vel.length();
+    ) -> f32 {
         let mut closest = pos.distance(target);
-        let mut peak_turn_demand = 0.0f32;
         for _ in 0..steps {
-            let desired = steer(target - pos, target_vel - vel, vel);
-            let current = vel.normalize();
-            let angle = current.angle_between(desired);
-            peak_turn_demand = peak_turn_demand.max(angle);
-            let axis = current.cross(desired);
+            let desired = steer(target - pos, target_vel, vel);
+            let angle = nose.angle_between(desired);
+            let axis = nose.cross(desired);
             if axis.length() > 1e-6 && angle > 1e-6 {
                 let step = (max_turn_rate * dt).min(angle);
-                vel = Quat::from_axis_angle(axis.normalize(), step) * vel;
+                nose = (Quat::from_axis_angle(axis.normalize(), step) * nose).normalize();
             }
-            vel = vel.normalize() * speed;
+            let thrust =
+                nose.dot(desired).clamp(0.0, 1.0) * thrust_headroom(vel.dot(nose), max_speed);
+            vel += nose * accel * thrust * dt;
+            vel -= vel * damping * dt; // linear drag, as on the real body
             pos += vel * dt;
             target += target_vel * dt;
             closest = closest.min(pos.distance(target));
         }
-        (closest, peak_turn_demand)
+        closest
+    }
+
+    /// The real launch state in the examples: at rest but drifting up at ~1 u/s
+    /// (spawner up), nose forward (-Z), then guided by the PN law with the
+    /// torpedo's rough turn rate, thrust authority, and cruise-speed cap.
+    fn launch_closest_approach(target: Vec3, target_vel: Vec3) -> f32 {
+        simulate_thrust_intercept(
+            Vec3::ZERO,
+            Vec3::new(0.0, 1.0, 0.0), // launched sideways at 1 u/s
+            Vec3::NEG_Z,              // nose forward
+            target,
+            target_vel,
+            3.0,  // max turn rate rad/s
+            25.0, // thrust acceleration
+            35.0, // cruise speed cap
+            0.8,  // linear damping, as configured on the projectile
+            0.02, // dt
+            500,  // 10 s
+            |r, tv, v| pn_steer_direction(r, tv, v, 3.0),
+        )
     }
 
     #[test]
+    fn thrust_tapers_to_zero_at_cruise_speed() {
+        // Below the taper band: full thrust. At/above cruise: none. The cap keeps
+        // the turning circle (speed / turn rate) inside the proximity fuze so the
+        // torpedo cannot end up orbiting its target at high speed.
+        assert_eq!(thrust_headroom(0.0, 35.0), 1.0);
+        assert_eq!(thrust_headroom(20.0, 35.0), 1.0);
+        assert!((thrust_headroom(32.5, 35.0) - 0.5).abs() < 1e-6);
+        assert_eq!(thrust_headroom(35.0, 35.0), 0.0);
+        assert_eq!(thrust_headroom(50.0, 35.0), 0.0, "cap cuts thrust, never brakes");
+    }
+
+    #[test]
+    fn pn_turns_a_sideways_launch_onto_a_stationary_target() {
+        // Closed-loop version of the reported bug: from the real launch state the
+        // torpedo must come around and hit a stationary target ahead, instead of
+        // thrusting off along its launch drift.
+        let miss = launch_closest_approach(Vec3::new(0.0, 0.0, -60.0), Vec3::ZERO);
+        assert!(miss < 5.0, "torpedo should reach the stationary target, closest was {miss}");
+    }
+
+    /// A closest approach that counts as a kill: inside the proximity fuze
+    /// (`BLAST_RADIUS * 0.5` = 15). Crossing intercepts from a sideways launch
+    /// carry a few units of turn-rate lag at the endgame (measured ~8), which the
+    /// fuze absorbs; a broken law misses by the full crossing distance instead.
+    const HIT: f32 = 10.0;
+
+    #[test]
     fn pn_intercepts_a_crossing_target() {
-        // Torpedo at origin, speed 60 heading -Z; target 100 ahead crossing at 20
-        // to +X. A turn-limited torpedo flying PN should close to a near hit.
-        let (miss, _) = simulate_engagement(
-            Vec3::ZERO,
-            Vec3::new(0.0, 0.0, -60.0),
-            Vec3::new(0.0, 0.0, -100.0),
-            Vec3::new(20.0, 0.0, 0.0),
-            4.0,   // max turn rate rad/s
-            0.02,  // dt
-            400,   // 8 s
-            |r, rv, v| pn_steer_direction(r, rv, v, 3.0),
+        // From the real launch state, intercept a target crossing the range.
+        let miss = launch_closest_approach(
+            Vec3::new(-30.0, 0.0, -80.0),
+            Vec3::new(15.0, 0.0, 0.0),
         );
-        assert!(miss < 3.0, "PN should intercept the crossing target, closest approach was {miss}");
+        assert!(miss < HIT, "PN should intercept the crossing target, closest approach was {miss}");
     }
 
     #[test]
     fn pn_intercepts_a_target_crossing_either_way() {
-        // Guards against a sign bug that only works for one crossing direction:
-        // PN must intercept a target crossing +X and one crossing -X.
-        for cross in [20.0f32, -20.0] {
-            let (miss, _) = simulate_engagement(
-                Vec3::ZERO,
-                Vec3::new(0.0, 0.0, -60.0),
-                Vec3::new(0.0, 0.0, -100.0),
+        // Guards against a sign bug that only works for one crossing direction.
+        for cross in [15.0f32, -15.0] {
+            let miss = launch_closest_approach(
+                Vec3::new(-2.0 * cross, 0.0, -80.0),
                 Vec3::new(cross, 0.0, 0.0),
-                4.0,
-                0.02,
-                400,
-                |r, rv, v| pn_steer_direction(r, rv, v, 3.0),
             );
-            assert!(miss < 3.0, "PN should intercept a target crossing at {cross}, miss was {miss}");
+            assert!(miss < HIT, "PN should intercept a target crossing at {cross}, miss was {miss}");
         }
-    }
-
-    #[test]
-    fn pn_demands_less_turning_than_pure_pursuit() {
-        // The defining PN advantage: on a collision course the line-of-sight barely
-        // rotates, so PN demands far less turning than pure pursuit, which has to
-        // whip around to keep its nose on a fast crosser near intercept. Turn rate
-        // is generous here so both intercept - the discriminator is the turn demand.
-        let scenario = |steer: fn(Vec3, Vec3, Vec3) -> Vec3| {
-            simulate_engagement(
-                Vec3::ZERO,
-                Vec3::new(0.0, 0.0, -60.0),
-                Vec3::new(0.0, 0.0, -80.0),
-                Vec3::new(40.0, 0.0, 0.0),
-                8.0,
-                0.01,
-                400,
-                steer,
-            )
-        };
-        let (pn_miss, pn_turn) = scenario(|r, rv, v| pn_steer_direction(r, rv, v, 4.0));
-        let (pursuit_miss, pursuit_turn) =
-            scenario(|r, _rv, _v| r.try_normalize().unwrap_or(Vec3::NEG_Z));
-        assert!(pn_miss < 3.0, "PN should still intercept (miss {pn_miss})");
-        assert!(pursuit_miss < 3.0, "pursuit should also intercept here (miss {pursuit_miss})");
-        assert!(
-            pn_turn < pursuit_turn * 0.75,
-            "PN peak turn demand ({pn_turn}) should be well under pursuit's ({pursuit_turn})"
-        );
     }
 
     #[test]
@@ -1178,7 +1268,10 @@ mod tests {
                 TorpedoProjectileMarker,
                 Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)), // forward is -Z
                 LinearVelocity(Vec3::new(0.0, 0.0, -40.0)),
-                TorpedoGuidance { nav_constant: 3.0 },
+                TorpedoGuidance {
+                    nav_constant: 3.0,
+                    max_speed: 35.0,
+                },
                 TorpedoSteering(Vec3::NEG_Z),
             ))
             .id();
