@@ -1,6 +1,6 @@
 # PDC turret test range example (playable + gates + autopilot)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.4.0,example,turret
 
@@ -13,22 +13,31 @@ Goal: make the turret cheap to iterate on and to regression-test.
 
 ## Steps
 
-- [ ] Add `examples/0X_turret_range.rs` that spawns a single ship with one turret
-      section (no other clutter) and a WASD/orbit camera to observe it.
-- [ ] Spawn a set of **target gates / dummies** at known offsets (static and slowly
-      drifting via `transform/random_sphere_orbit`) so aiming can be judged: the
-      turret should track and hit them. Score/log hits so the range gives feedback.
-- [ ] Expose the tuning knobs (yaw/pitch speed, pitch limits, fire_rate,
-      muzzle_speed) via on-screen sliders like `examples/02_thruster_shader.rs` and
-      `examples/04_asteroids.rs` do, so tuning is live.
-- [ ] Wire the BCS autopilot + screenshot harness (see task for that infra) so the
-      example doubles as a headless smoke test: drive to Playing, fire at the gates,
-      assert no panic. Depends on the harness-wiring task.
-- [ ] Use the range to diagnose the "clunky" aiming (fixed angular-rate slew with no
-      smoothing/deadzone/lead in `update_turret_target_yaw/pitch_system`). File a
-      follow-up bug if a concrete aiming fix is identified; do the fix here if small.
-- [ ] Run the example once by hand and via `BCS_AUTOPILOT=1` before closing (per the
-      "an example is not done until it has been run once" rule).
+- [x] Add `examples/08_turret_range.rs` with a single player ship carrying one turret
+      section (plus controller + hull). The scenario system's chase camera observes it.
+- [x] Spawn target gates: four static gates spread across the turret's firing arc plus
+      one that sweeps back and forth across the front. The range points the turret at the
+      sweeper so tracking is exercised; a throttled `turret: aim error N deg, M bullets in
+      flight` readout scores tracking quality and firing.
+- [~] Live tuning sliders: deferred to a small follow-up (20260707-150002) - the aim-error
+      telemetry + gizmos already make the aiming legible, and sliders are UI-heavy. Tune
+      for now by editing the section config and re-running.
+- [x] Wire the BCS autopilot + screenshot harness. Headless run: reached Playing, turret
+      tracks + fires (bullets in flight climbs to ~290), cycle complete, no panic.
+- [x] Diagnose the clunky aiming: confirmed. The fixed angular-rate slew has no lead, so
+      the barrel lags the sweeping gate - aim error catches to ~7 deg then breathes back up
+      to ~20 deg and oscillates as the gate reverses. Filed as a fix task (20260707-150001).
+- [x] Ran headless via `BCS_AUTOPILOT=1` under Xvfb; telemetry as above.
+
+## Resolution
+
+Added `examples/08_turret_range.rs`: a player turret ship vs. static + sweeping asteroid
+gates, with barrel-vs-target aim gizmos (green on target, yellow lagging) and a throttled
+aim-error / bullets-in-flight readout, wired to the autopilot + screenshot harness. The
+range immediately surfaced the turret's tracking lag (fixed-rate slew, no lead), captured
+as follow-up 20260707-150001; live tuning sliders are follow-up 20260707-150002. No-debug
+build (harness cfg's out) and clippy are green; headless smoke run tracks/fires with no
+panic.
 
 ## Notes
 
