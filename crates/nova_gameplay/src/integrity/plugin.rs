@@ -449,3 +449,146 @@ mod tests {
         }
     }
 }
+
+/// Physics-level tests for the collision-driven damage observers. Unlike the `tests` module
+/// above (which drives the avian-free core by hand), these run a real headless avian world so
+/// the observers read genuine `ComputedMass` / `Transform` / `ColliderOf` state.
+#[cfg(test)]
+mod physics_tests {
+    use super::*;
+    use crate::integrity::test_support::{integrity_physics_app, settle};
+
+    /// Spawn a dynamic rigid body with a unit-sphere collider child that carries `Health`.
+    /// Returns `(body, collider)`. Placement is far from the origin so bodies never actually
+    /// touch - the tests inject the `CollisionStart` themselves for determinism.
+    fn spawn_body(app: &mut App, at: Vec3) -> (Entity, Entity) {
+        let body = app
+            .world_mut()
+            .spawn((RigidBody::Dynamic, Transform::from_translation(at)))
+            .id();
+        let collider = app
+            .world_mut()
+            .spawn((
+                ChildOf(body),
+                Collider::sphere(1.0),
+                ColliderDensity(1.0),
+                Health::new(1000.0),
+            ))
+            .id();
+        (body, collider)
+    }
+
+    fn health(app: &App, entity: Entity) -> f32 {
+        app.world().get::<Health>(entity).unwrap().current
+    }
+
+    #[test]
+    fn an_impact_applies_damage_from_relative_velocity_and_mass() {
+        // A real collision is left to the solver, which zeroes the contact velocity before the
+        // observer can read it (making sim-driven damage timing-dependent). Instead we let
+        // avian compute real masses, then inject the contact event with a known impact
+        // velocity and check the observer's impulse/energy formula against that real mass.
+        let mut app = integrity_physics_app();
+        let (b1, c1) = spawn_body(&mut app, Vec3::new(-100.0, 0.0, 0.0));
+        let (b2, c2) = spawn_body(&mut app, Vec3::new(100.0, 0.0, 0.0));
+        settle(&mut app);
+
+        // Head-on closing velocity of 40 (=20 - -20).
+        app.world_mut().get_mut::<LinearVelocity>(b1).unwrap().0 = Vec3::new(20.0, 0.0, 0.0);
+        app.world_mut().get_mut::<LinearVelocity>(b2).unwrap().0 = Vec3::new(-20.0, 0.0, 0.0);
+
+        let m1 = app.world().get::<ComputedMass>(b1).unwrap().value();
+        let m2 = app.world().get::<ComputedMass>(b2).unwrap().value();
+        assert!(m1.is_finite() && m1 > 0.0, "mass should be finalized: {m1}");
+
+        app.world_mut().trigger(CollisionStart {
+            collider1: c1,
+            collider2: c2,
+            body1: Some(b1),
+            body2: Some(b2),
+        });
+        app.update();
+
+        // Recompute the expected damage from the real mass and the module's own constants, so
+        // this checks the wiring + real physics state rather than a hard-coded magic number.
+        let rel = 40.0_f32;
+        let effective_mass = (m1 * m2) / (m1 + m2);
+        let impulse = effective_mass * (1.0 + RESTITUTION_COEFFICIENT) * rel;
+        let energy = 0.5 * effective_mass * (1.0 - RESTITUTION_COEFFICIENT.powi(2)) * rel * rel;
+        let expected = impulse * IMPULSE_DAMAGE_MODIFIER + energy * ENERGY_DAMAGE_MODIFIER;
+
+        // Damage lands on collider1 (the target), and only there - collider2 is the source.
+        assert!((health(&app, c1) - (1000.0 - expected)).abs() < 1e-2);
+        assert_eq!(health(&app, c2), 1000.0);
+    }
+
+    #[test]
+    fn a_near_stationary_contact_applies_no_impact_damage() {
+        // Two bodies barely moving relative to each other: below the velocity gate, so a
+        // graze deals nothing (otherwise resting stacks of debris would grind each other away).
+        let mut app = integrity_physics_app();
+        let (b1, c1) = spawn_body(&mut app, Vec3::new(-100.0, 0.0, 0.0));
+        let (b2, c2) = spawn_body(&mut app, Vec3::new(100.0, 0.0, 0.0));
+        settle(&mut app);
+
+        app.world_mut().get_mut::<LinearVelocity>(b1).unwrap().0 = Vec3::new(0.01, 0.0, 0.0);
+        app.world_mut().get_mut::<LinearVelocity>(b2).unwrap().0 = Vec3::ZERO;
+
+        app.world_mut().trigger(CollisionStart {
+            collider1: c1,
+            collider2: c2,
+            body1: Some(b1),
+            body2: Some(b2),
+        });
+        app.update();
+
+        assert_eq!(health(&app, c1), 1000.0);
+    }
+
+    /// Spawn a blast sensor (as `blast_damage` does) at `at`, matching the collider radius to
+    /// the config radius the way the production bundle does.
+    fn spawn_blast(app: &mut App, at: Vec3, radius: f32, max_damage: f32) -> Entity {
+        app.world_mut()
+            .spawn((
+                RigidBody::Static,
+                Transform::from_translation(at),
+                Collider::sphere(radius),
+                Sensor,
+                BlastDamageMarker,
+                BlastDamageConfig { radius, max_damage },
+            ))
+            .id()
+    }
+
+    #[test]
+    fn a_blast_sensor_overlap_applies_falloff_damage() {
+        // Unlike the impact case, a sensor overlap fires a real, deterministic `CollisionStart`
+        // (no solver to zero out), so this drives the whole path through the physics engine:
+        // avian detects the overlap, the observer reads both transforms, and the linear falloff
+        // yields damage at the body's distance from the blast centre.
+        let mut app = integrity_physics_app();
+        let (_body, target_collider) = spawn_body(&mut app, Vec3::ZERO);
+        // Blast centred 4.0 away, radius 10.0 -> falloff factor 1 - 4/10 = 0.6 -> 60 damage.
+        spawn_blast(&mut app, Vec3::new(4.0, 0.0, 0.0), 10.0, 100.0);
+
+        settle(&mut app);
+
+        let expected = calculate_blast_damage(4.0, &BlastDamageConfig { radius: 10.0, max_damage: 100.0 });
+        assert!((expected - 60.0).abs() < 1e-3, "sanity: {expected}");
+        assert!((health(&app, target_collider) - (1000.0 - expected)).abs() < 1e-2);
+    }
+
+    #[test]
+    fn a_body_outside_the_blast_takes_no_damage() {
+        // A body beyond the sensor's reach never overlaps it, so no collision fires and no
+        // damage is dealt - the blast only hits what it physically contains.
+        let mut app = integrity_physics_app();
+        let (_body, target_collider) = spawn_body(&mut app, Vec3::ZERO);
+        // Blast radius 5 centred 8 away; the target (unit sphere) sits ~7 out, clear of it.
+        spawn_blast(&mut app, Vec3::new(8.0, 0.0, 0.0), 5.0, 100.0);
+
+        settle(&mut app);
+
+        assert_eq!(health(&app, target_collider), 1000.0);
+    }
+}
