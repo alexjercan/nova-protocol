@@ -39,3 +39,17 @@ controller's targeting system to commit. Sensible.
   resolves permanently after one frame. Not worth ordering machinery in a dev
   example.
   - Response: Agreed, leaving as-is; documented by this finding.
+
+## Round 2
+
+- VERDICT: APPROVE
+
+One-line follow-up from user feedback: the aim cast's torpedo exclusion moved from
+`Without<TorpedoTargetEntity>` to `Without<TorpedoTargetChosen>`, so only the
+brief pre-commitment launch window is excluded (that exclusion is what prevents a
+fresh torpedo on the aim ray from becoming its own target - and post-commitment
+self-assignment is impossible by construction, since committed torpedoes are never
+assigned targets). A committed torpedo - including a dumb-fired one - is now a
+normal lockable body. Checks re-run: 26 tests, clippy, 06 (3/3) and 07 (2 kills)
+smoke runs green. The lock-own-torpedo interaction itself is an aim-driven flow
+best confirmed by hand in-game.

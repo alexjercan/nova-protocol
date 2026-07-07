@@ -59,3 +59,17 @@ Tests: `dumbfire_torpedo_ignores_later_locks` (the bullet scenario),
 `committed_torpedo_does_not_retarget_after_target_loss`, plus marker asserts in
 the two existing player tests - 26 nova_gameplay tests green. Clippy clean.
 Headless smoke: 06 = 3 fired / 3 detonated, 07 = 2 detonations, no panics.
+
+## Follow-up: committed torpedoes are lockable (own dumb-fired torpedo included)
+
+User feedback after the commitment change: a torpedo fired without a target could
+not be locked by the crosshair. Cause: the aim cast excluded the colliders of
+every torpedo `Without<TorpedoTargetEntity>` - originally to stop a fresh torpedo
+on the aim ray from being assigned as its own target - and a dumb-fired torpedo
+stays without a target forever, so it stayed un-lockable forever.
+
+Fix: the exclusion window is now `Without<TorpedoTargetChosen>` (not yet
+committed). Once committed a torpedo can never receive a target again, so
+self-lock is structurally impossible and it becomes a normal lockable body - you
+can lock your own runaway torpedo and, for example, shoot it down with another
+torpedo. Verified: 26 tests, clippy, and the 06/07 smoke runs stay green.

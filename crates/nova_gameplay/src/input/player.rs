@@ -130,9 +130,15 @@ fn update_spaceship_target_input(
             With<SpaceshipCameraTurretInputMarker>,
         ),
     >,
+    // Exclude from the aim cast only torpedoes that have not committed their
+    // launch-time targeting yet: a fresh torpedo spawns right on the aim ray, and
+    // if the cast could hit it, it could be assigned as its own target. Once
+    // committed (`TorpedoTargetChosen`) a torpedo can never receive a target
+    // again, so it becomes a normal lockable body - e.g. you can lock and shoot
+    // down your own dumb-fired torpedo.
     q_torpedo: Query<
         (Entity, &TorpedoProjectileOwner, &Children),
-        (With<TorpedoProjectileMarker>, Without<TorpedoTargetEntity>),
+        (With<TorpedoProjectileMarker>, Without<TorpedoTargetChosen>),
     >,
     spaceship: Single<
         (&Transform, &Children),
