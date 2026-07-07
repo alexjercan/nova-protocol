@@ -1,6 +1,6 @@
 # Implement PN guidance for torpedo
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 88
 - TAGS: v0.4.0, torpedo
 
