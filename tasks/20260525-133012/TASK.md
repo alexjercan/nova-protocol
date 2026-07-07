@@ -2,7 +2,6 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.4.0,chore
-
+- TAGS: v0.5.0,chore
 
 Already done historically, verify it's correctly wired. Legacy #132.

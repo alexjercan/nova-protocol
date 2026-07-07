@@ -2,7 +2,6 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.4.0,example
-
+- TAGS: v0.5.0,example
 
 Thruster + PD controller standalone. [new]

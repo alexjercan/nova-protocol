@@ -2,7 +2,6 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.4.0,health
-
+- TAGS: v0.5.0,health
 
 Thrusters take more, turrets take less, etc. Legacy #122.

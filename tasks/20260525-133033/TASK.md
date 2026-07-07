@@ -2,7 +2,6 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.4.0,docs
-
+- TAGS: v0.5.0,docs
 
 Already tracked legacy #113.

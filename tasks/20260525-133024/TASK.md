@@ -2,7 +2,6 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.4.0,torpedo
-
+- TAGS: v0.5.0,torpedo
 
 Visual feedback when firing. Legacy #135.

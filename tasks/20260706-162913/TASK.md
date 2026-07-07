@@ -1,9 +1,8 @@
 # Extract torpedo into its own module/plugin; unhardcode blast params
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: v0.4.0,torpedo,refactor
-
+- PRIORITY: 82
+- TAGS: v0.4.0, torpedo, refactor
 
 From the TODO sweep (task 20260525-132954). The torpedo logic and its targeting system
 live inline in torpedo_section.rs and should be factored into their own module/plugin;

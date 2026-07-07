@@ -1,9 +1,8 @@
 # Editor preview controller spams PD 'root not found' errors
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: v0.4.0,bug,editor
-
+- PRIORITY: 84
+- TAGS: v0.4.0, bug, editor
 
 Surfaced while testing the editor-preview change (20260525-132950). In the editor,
 `bevy_common_systems::physics::pd_controller::update_controller_root_torque` logs
