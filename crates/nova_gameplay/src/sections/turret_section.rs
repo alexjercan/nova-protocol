@@ -727,10 +727,21 @@ fn shoot_spawn_projectile(
         let muzzle_direction = muzzle_transform.forward();
         let projectile_position = muzzle_transform.translation();
         let projectile_rotation = muzzle_transform.rotation();
-        let radius_vector = projectile_position - **center;
-        let _inertia_vel = ang_vel.cross(radius_vector) + **lin_vel;
-        // FIXME(20260706-162909): Currently we are only using the linear velocity as inertia
-        let inertia_vel = **lin_vel;
+
+        // Inherit the full motion of the muzzle, not just the ship's linear velocity: a muzzle
+        // offset from the center of mass of a rotating ship also swings tangentially. avian's
+        // `ComputedCenterOfMass` is body-local, so lift it to world space with the ship's
+        // global transform before taking the point velocity.
+        let Ok(ship_transform) = transform_helper.compute_global_transform(*spaceship) else {
+            error!(
+                "on_shoot_spawn_projectile: entity {:?} global transform not found",
+                spaceship
+            );
+            continue;
+        };
+        let center_of_mass = ship_transform.transform_point(**center);
+        let inertia_vel =
+            rigid_body_point_velocity(**lin_vel, **ang_vel, center_of_mass, projectile_position);
 
         let muzzle_exit_velocity = muzzle_direction * config.muzzle_speed;
         let linear_velocity = muzzle_exit_velocity + inertia_vel;
