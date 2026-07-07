@@ -12,7 +12,7 @@ pub mod prelude {
 #[derive(Clone, Debug, Default, Reflect)]
 pub struct HullSectionConfig {
     /// The render mesh of the hull section, defaults to a cuboid of size 1x1x1.
-    pub render_mesh: Option<Handle<Scene>>,
+    pub render_mesh: Option<Handle<WorldAsset>>,
 }
 
 /// Helper function to create a hull section entity bundle.
@@ -27,7 +27,7 @@ pub fn hull_section(config: HullSectionConfig) -> impl Bundle {
 pub struct HullSectionMarker;
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct HullSectionRenderMesh(Option<Handle<Scene>>);
+struct HullSectionRenderMesh(Option<Handle<WorldAsset>>);
 
 /// A plugin that enables the HullSection component and its related systems.
 #[derive(Default)]
@@ -68,7 +68,7 @@ fn insert_hull_section_render(
             commands.entity(entity).insert((children![(
                 Name::new("Hull Section Body"),
                 SectionRenderOf(entity),
-                SceneRoot(scene.clone()),
+                WorldAssetRoot(scene.clone()),
             ),],));
         }
         None => {
@@ -106,7 +106,7 @@ mod test {
     fn spawns_hull_with_custom_scene() {
         // Arrange
         let mut app = App::new();
-        let custom_scene = Handle::<Scene>::default();
+        let custom_scene = Handle::<WorldAsset>::default();
         let config = HullSectionConfig {
             render_mesh: Some(custom_scene.clone()),
             ..default()

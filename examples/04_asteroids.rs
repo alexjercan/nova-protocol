@@ -64,6 +64,7 @@ fn setup_scenario(
     commands.spawn((
         Name::new("Camera"),
         Camera3d::default(),
+        PostProcessingCamera,
         WASDCameraController,
         Transform::from_xyz(0.0, 10.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
         SkyboxConfig {
@@ -156,7 +157,7 @@ fn setup_ui_slider(mut commands: Commands) {
                     Spawn((
                         Text::new("Seed"),
                         TextFont {
-                            font_size: 20.0,
+                            font_size: FontSize::Px(20.0),
                             ..default()
                         },
                     )),
@@ -198,7 +199,7 @@ fn setup_ui_slider(mut commands: Commands) {
                     Spawn((
                         Text::new("Zoom Scale"),
                         TextFont {
-                            font_size: 20.0,
+                            font_size: FontSize::Px(20.0),
                             ..default()
                         },
                     )),
@@ -257,10 +258,10 @@ fn slider(min: f32, max: f32, value: f32) -> impl Bundle {
             Spawn((
                 Node {
                     height: px(6),
+                    border_radius: BorderRadius::all(px(3)),
                     ..default()
                 },
                 BackgroundColor(SLIDER_TRACK), // Border color for the checkbox
-                BorderRadius::all(px(3)),
             )),
             // Invisible track to allow absolute placement of thumb entity. This is narrower than
             // the actual slider, which allows us to position the thumb entity using simple
@@ -286,9 +287,9 @@ fn slider(min: f32, max: f32, value: f32) -> impl Bundle {
                         height: px(12),
                         position_type: PositionType::Absolute,
                         left: percent(0), // This will be updated by the slider's value
+                        border_radius: BorderRadius::MAX,
                         ..default()
                     },
-                    BorderRadius::MAX,
                     BackgroundColor(SLIDER_THUMB),
                 )],
             )),

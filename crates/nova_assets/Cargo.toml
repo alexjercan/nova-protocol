@@ -5,9 +5,9 @@ edition = { workspace = true }
 description = "Asset management for the Nova Protocol game"
 
 [dependencies]
-bevy = { version = "0.17.2" }
-bevy_asset_loader = { version = "0.24.0-rc.1" }
-rand = { version = "0.9.2" }
+bevy = { version = "0.19.0" }
+bevy_asset_loader = { version = "0.27.0" }
+rand = { version = "0.10.2" }
 nova_gameplay = { path = "../nova_gameplay" }
 nova_scenario = { path = "../nova_scenario" }
 

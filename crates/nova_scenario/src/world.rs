@@ -32,18 +32,31 @@ impl EventWorld for NovaEventWorld {
             debug!("Variable: {} = {:?}", key, value);
         }
 
-        // If the next scenario is set, switch
-        if let Some(next_scenario) = &world.resource::<Self>().next_scenario {
-            if !next_scenario.linger {
-                let scenarios = world.resource::<GameScenarios>();
-                let scenario = scenarios.get(&next_scenario.scenario_id);
+        // If a next scenario is queued (and not lingering), switch to it. `linger` keeps
+        // the request pending without switching, so a scenario can stay on screen after a
+        // NextScenario action until something clears the flag.
+        let request = world.resource::<Self>().next_scenario.clone();
+        if let Some(request) = request.filter(|r| !r.linger) {
+            // Consume the request up front so the switch fires exactly once, rather than
+            // relying on the subsequent LoadScenario/UnloadScenario to clear the world.
+            world.resource_mut::<Self>().next_scenario = None;
 
-                if let Some(next_scenario) = scenario {
-                    world.trigger(LoadScenario(next_scenario.clone()));
-                } else {
+            match world
+                .resource::<GameScenarios>()
+                .get(&request.scenario_id)
+                .cloned()
+            {
+                Some(config) => {
+                    debug!(
+                        "state_to_world: switching to next scenario '{}'",
+                        request.scenario_id
+                    );
+                    world.trigger(LoadScenario(config));
+                }
+                None => {
                     error!(
-                        "Next scenario id '{}' not found in scenarios!",
-                        next_scenario.scenario_id
+                        "state_to_world: next scenario id '{}' not found in GameScenarios; unloading",
+                        request.scenario_id
                     );
                     world.trigger(UnloadScenario);
                 }
@@ -83,11 +96,29 @@ impl NovaEventWorld {
     }
 
     pub fn push_objective(&mut self, objective: ObjectiveActionConfig) {
+        if self.objectives.iter().any(|obj| obj.id == objective.id) {
+            warn!(
+                "push_objective: objective id '{}' is already active; the scenario is \
+                 adding a duplicate",
+                objective.id
+            );
+        }
+        debug!("push_objective: added objective '{}'", objective.id);
         self.objectives.push(objective);
     }
 
     pub fn remove_objective(&mut self, id: &str) {
+        let before = self.objectives.len();
         self.objectives.retain(|obj| obj.id != id);
+        if self.objectives.len() == before {
+            warn!(
+                "remove_objective: no active objective with id '{}' to complete; check the \
+                 scenario for a typo or a missing Objective action that should create it",
+                id
+            );
+        } else {
+            debug!("remove_objective: completed objective '{}'", id);
+        }
     }
 
     pub fn insert_variable(&mut self, key: String, value: VariableLiteral) {

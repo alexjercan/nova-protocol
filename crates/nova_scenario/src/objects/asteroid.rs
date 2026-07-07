@@ -5,7 +5,7 @@ use bevy_rand::prelude::*;
 use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
-use rand::RngCore;
+use rand::Rng;
 
 pub mod prelude {
     pub use super::{
@@ -92,10 +92,7 @@ fn insert_asteroid_collider(
         Transform::from_scale(Vec3::splat(**radius)),
         AsteroidRenderMesh(mesh.clone()),
         collider,
-        ColliderDensity(1.0),
-        Health::new(**health),
-        ExplodableEntity,
-        Visibility::Inherited,
+        destructible_body(**health, 1.0),
     )],));
 }
 

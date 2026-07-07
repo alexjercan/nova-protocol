@@ -18,6 +18,19 @@ pub struct NovaGameplayPlugin {
 
 impl Plugin for NovaGameplayPlugin {
     fn build(&self, app: &mut App) {
+        // Fail fast on the one external dependency this plugin does NOT add itself.
+        // NovaGameplayPlugin brings its own physics, particles, rng and
+        // bevy_common_systems plugins, but the spaceship input system is built on
+        // bevy_enhanced_input, which the host app must add first (AppBuilder does). If it
+        // is missing, panic here at startup with a clear message rather than failing
+        // obscurely later when input contexts are registered.
+        assert!(
+            app.is_plugin_added::<bevy_enhanced_input::EnhancedInputPlugin>(),
+            "NovaGameplayPlugin requires bevy_enhanced_input::EnhancedInputPlugin to be \
+             added first; the spaceship input system depends on it. Add EnhancedInputPlugin \
+             before NovaGameplayPlugin (AppBuilder does this for you)."
+        );
+
         // We need to enable the physics plugins to have access to RigidBody and other components.
         // We will also disable gravity for this example, since we are in space, duh.
         app.add_plugins(PhysicsPlugins::default().with_collision_hooks::<TurretProjectileHooks>());
@@ -27,7 +40,7 @@ impl Plugin for NovaGameplayPlugin {
         // Random number generator
         app.add_plugins(EntropyPlugin::<WyRand>::default());
 
-        // FIXME: For now we disable particle effects on wasm because it's not working
+        // FIXME(20260706-162908): For now we disable particle effects on wasm because it's not working
         #[cfg(not(target_family = "wasm"))]
         app.add_plugins(bevy_hanabi::HanabiPlugin);
 

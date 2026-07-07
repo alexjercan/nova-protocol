@@ -3,9 +3,10 @@ use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 use bevy_rand::prelude::*;
 use nova_events::prelude::*;
-use rand::Rng;
+use rand::RngExt;
 
 use super::components::*;
+use crate::prelude::SectionMarker;
 
 pub mod prelude {
     pub use super::{ExplodableEntity, MeshFragmentMarker};
@@ -28,7 +29,99 @@ impl Plugin for ExplodablePlugin {
         app.add_observer(on_destroyed_entity);
         app.add_observer(on_explode_entity);
         app.add_observer(handle_entity_explosion);
+        app.add_observer(spawn_section_debris);
+        app.add_observer(despawn_destroyed_without_mesh);
     }
+}
+
+/// Scatter a short-lived burst of physics debris when a section is destroyed, so the
+/// section visually breaks apart instead of vanishing silently.
+///
+/// Sections render via a gltf `WorldAssetRoot` scene and carry no `Mesh3d` of their own,
+/// so they cannot go through the mesh-slicer fragment path (`handle_entity_explosion`,
+/// used by asteroids). Instead we spawn a handful of small cubes at the section's world
+/// position, launched outward, that fall under the scene's zero gravity and auto-despawn
+/// via `TempEntity`. Only `SectionMarker` entities are handled here (the meshless ship
+/// root is excluded - its sections have already burst by the time it dies).
+fn spawn_section_debris(
+    add: On<Add, IntegrityDestroyMarker>,
+    mut commands: Commands,
+    q_section: Query<
+        &GlobalTransform,
+        (
+            With<IntegrityDestroyMarker>,
+            With<SectionMarker>,
+            Without<Mesh3d>,
+        ),
+    >,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut rng: Single<&mut WyRand, With<GlobalRng>>,
+) {
+    let entity = add.entity;
+    let Ok(transform) = q_section.get(entity) else {
+        return;
+    };
+    let origin = transform.translation();
+
+    trace!("spawn_section_debris: bursting section {:?}", entity);
+
+    let mesh = meshes.add(Cuboid::new(0.25, 0.25, 0.25));
+    let material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.35, 0.35, 0.38),
+        perceptual_roughness: 0.9,
+        metallic: 0.4,
+        ..default()
+    });
+
+    for _ in 0..8 {
+        let direction = Vec3::new(
+            rng.random_range(-1.0..1.0),
+            rng.random_range(-1.0..1.0),
+            rng.random_range(-1.0..1.0),
+        )
+        .normalize_or_zero();
+        let velocity = direction * rng.random_range(3.0..7.0);
+
+        commands.spawn((
+            MeshFragmentMarker,
+            Name::new("Section Debris"),
+            Mesh3d(mesh.clone()),
+            MeshMaterial3d(material.clone()),
+            Transform::from_translation(origin + direction * 0.3),
+            RigidBody::Dynamic,
+            Collider::cuboid(0.25, 0.25, 0.25),
+            LinearVelocity(velocity),
+            AngularVelocity(Vec3::new(
+                rng.random_range(-6.0..6.0),
+                rng.random_range(-6.0..6.0),
+                rng.random_range(-6.0..6.0),
+            )),
+            TempEntity(2.0),
+        ));
+    }
+}
+
+/// Despawn destroyed entities that have no `Mesh3d` of their own to explode.
+///
+/// Mesh-bearing entities (asteroids) are despawned by `handle_entity_explosion` after the
+/// slicer produces their fragments. But sections render via a `WorldAssetRoot` gltf scene
+/// and have no `Mesh3d`, so they are skipped by `on_explode_entity` (which requires a mesh
+/// to slice) and would otherwise never be despawned - they would linger, still colliding
+/// and functioning at zero health. Despawn them here (recursively, so their gltf children
+/// go too). `try_despawn` is used in case the entity is already gone.
+fn despawn_destroyed_without_mesh(
+    add: On<Add, IntegrityDestroyMarker>,
+    mut commands: Commands,
+    q_meshless: Query<(), (With<IntegrityDestroyMarker>, Without<Mesh3d>)>,
+) {
+    let entity = add.entity;
+    if !q_meshless.contains(entity) {
+        return;
+    }
+
+    trace!("despawn_destroyed_without_mesh: despawning {:?}", entity);
+    commands.entity(entity).try_despawn();
 }
 
 fn on_add_explodable_entity(
@@ -76,7 +169,19 @@ fn on_destroyed_entity(
 fn on_explode_entity(
     add: On<Add, IntegrityDestroyMarker>,
     mut commands: Commands,
-    q_explode: Query<(), (With<ExplodableEntity>, With<IntegrityDestroyMarker>)>,
+    // Require a Mesh3d: the mesh slicer can only fragment an entity that actually has a
+    // mesh. ExplodableEntity is propagated to parent roots (see on_add_explodable_entity),
+    // and those roots (ship/section roots that render via a WorldAssetRoot scene) have no
+    // Mesh3d of their own. Handing the slicer a meshless entity is an edge case that can
+    // crash it, so we simply do not trigger a slice on entities with nothing to slice.
+    q_explode: Query<
+        (),
+        (
+            With<ExplodableEntity>,
+            With<IntegrityDestroyMarker>,
+            With<Mesh3d>,
+        ),
+    >,
 ) {
     let entity = add.entity;
     trace!("on_explode_entity: entity {:?}", entity);

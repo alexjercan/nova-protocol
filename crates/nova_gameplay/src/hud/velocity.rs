@@ -170,7 +170,7 @@ fn direction_shader_update_system(
         };
         let magnitude = velocity.length() / 100.0;
 
-        let Some(material) = materials.get_mut(&**material) else {
+        let Some(mut material) = materials.get_mut(&**material) else {
             error!(
                 "direction_shader_update_system: material for entity {:?} not found",
                 parent

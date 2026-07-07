@@ -17,16 +17,23 @@ clap = { version = "4.5.48", features = ["derive"] }
 nova_core = { path = "crates/nova_core" }
 
 [dev-dependencies]
-avian3d = { version = "0.4" }
-bevy = { version = "0.17.2", features = ["experimental_bevy_ui_widgets"] }
-bevy_rand = { version = "0.12.1", default-features = false, features = ["rand_chacha", "wyrand"] }
-rand = { version = "0.9.2" }
+avian3d = { version = "0.7" }
+bevy = { version = "0.19.0" }
+bevy_rand = { version = "0.15.0", default-features = false, features = ["chacha20", "wyrand"] }
+rand = { version = "0.10.2" }
 serde = { version = "1.0.228" }
-bevy_enhanced_input = { version = "0.19.0" }
+bevy_enhanced_input = { version = "0.26.0" }
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]
 opt-level = 1
+# Keep `cargo test`/`--all-targets` peak RAM down: cargo links one Bevy+avian binary per
+# target (lib unittest + every example + doctests), and embedded DWARF makes each ~1.5 GB,
+# so parallel rust-lld jobs can peak near 40 GB and swap-thrash a 32 GB box. Leaving DWARF
+# in the .o files and keeping only line tables drops the peak to roughly half of RAM while
+# preserving panic backtraces. See ../bevy-common-systems/docs/2026-07-03-test-memory.md.
+split-debuginfo = "unpacked"
+debug = "line-tables-only"
 
 # Enable high optimizations for dependencies (incl. Bevy), but not for our code:
 [profile.dev.package."*"]
@@ -70,10 +77,10 @@ version = "0.3.0"
 
 [workspace]
 members = [
-  "crates/bevy_common_systems",
   "crates/nova_assets",
   "crates/nova_core",
   "crates/nova_debug",
+  "crates/nova_editor",
   "crates/nova_events",
   "crates/nova_gameplay",
   "crates/nova_info",

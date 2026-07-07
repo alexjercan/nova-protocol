@@ -16,8 +16,8 @@ pub mod prelude {
 
 #[derive(Clone, Debug, Reflect)]
 pub struct TorpedoSectionConfig {
-    pub render_mesh: Option<Handle<Scene>>,
-    pub projectile_render_mesh: Option<Handle<Scene>>,
+    pub render_mesh: Option<Handle<WorldAsset>>,
+    pub projectile_render_mesh: Option<Handle<WorldAsset>>,
     /// The offset of the spawn point of the projectile relative to the torpedo section.
     pub spawn_offset: Vec3,
     /// The rotation of the spawn point of the projectile relative to the torpedo section.
@@ -101,7 +101,7 @@ pub struct TorpedoProjectileOwner(pub Entity);
 pub struct TorpedoTargetEntity(pub Entity);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TorpedoProjectileRenderMesh(Option<Handle<Scene>>);
+struct TorpedoProjectileRenderMesh(Option<Handle<WorldAsset>>);
 
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct TorpedoTargetPosition(pub Vec3);
@@ -123,7 +123,7 @@ impl Plugin for TorpedoSectionPlugin {
             app.add_observer(insert_torpedo_render);
             app.add_observer(insert_torpedo_controller_render);
 
-            // FIXME: For now we disable particle effects on wasm because it's not working
+            // FIXME(20260706-162908): For now we disable particle effects on wasm because it's not working
             #[cfg(not(target_family = "wasm"))]
             app.add_observer(insert_particle_effect);
         }
@@ -267,7 +267,7 @@ fn shoot_spawn_projectile(
         let projectile_rotation = spawner_transform.rotation();
         let radius_vector = projectile_position - **center;
         let _inertia_vel = ang_vel.cross(radius_vector) + **lin_vel;
-        // FIXME: Currently we are only using the linear velocity as inertia
+        // FIXME(20260706-162909): Currently we are only using the linear velocity as inertia
         let inertia_vel = **lin_vel;
 
         let spawner_exit_velocity = spawner_direction * config.spawner_speed;
@@ -376,11 +376,11 @@ fn update_target_position(
     }
 }
 
-// TODO: Unhardcode blast parameters
+// TODO(20260706-162913): Unhardcode blast parameters
 const BLAST_RADIUS: f32 = 30.0;
 const BLAST_DAMAGE: f32 = 100.0;
 
-// TODO: Add some nice visuals for the explosion itself
+// TODO(20260525-133023): Add some nice visuals for the explosion itself
 fn torpedo_detonate_system(
     mut commands: Commands,
     q_torpedo: Query<
@@ -504,7 +504,7 @@ fn insert_torpedo_section_render(
             commands.entity(entity).insert((children![(
                 Name::new("Torpedo Section Body"),
                 SectionRenderOf(entity),
-                SceneRoot(scene.clone()),
+                WorldAssetRoot(scene.clone()),
             ),],));
         }
         None => {
@@ -538,7 +538,7 @@ fn insert_torpedo_render(
         commands.entity(entity).insert((children![(
             Name::new("Torpedo Projectile Body"),
             SectionRenderOf(entity),
-            SceneRoot(scene.clone()),
+            WorldAssetRoot(scene.clone()),
         ),],));
     }
 }
@@ -694,5 +694,5 @@ fn insert_particle_effect(
     ),));
 }
 
-// TODO: Factor out the torpedo logic into a separate module.
-// TODO: Implement a separate plugin for the targeting system.
+// TODO(20260706-162913): Factor out the torpedo logic into a separate module.
+// TODO(20260706-162913): Implement a separate plugin for the targeting system.

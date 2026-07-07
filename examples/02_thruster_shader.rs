@@ -45,7 +45,7 @@ fn thruster_shader_update_system(
     mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>>>,
 ) {
     for material in &q_material {
-        let Some(material) = materials.get_mut(&**material) else {
+        let Some(mut material) = materials.get_mut(&**material) else {
             panic!("thruster_shader_update_system: material not found in assets");
         };
 
@@ -209,10 +209,10 @@ fn slider(min: f32, max: f32, value: f32) -> impl Bundle {
             Spawn((
                 Node {
                     height: px(6),
+                    border_radius: BorderRadius::all(px(3)),
                     ..default()
                 },
                 BackgroundColor(SLIDER_TRACK), // Border color for the checkbox
-                BorderRadius::all(px(3)),
             )),
             // Invisible track to allow absolute placement of thumb entity. This is narrower than
             // the actual slider, which allows us to position the thumb entity using simple
@@ -238,9 +238,9 @@ fn slider(min: f32, max: f32, value: f32) -> impl Bundle {
                         height: px(12),
                         position_type: PositionType::Absolute,
                         left: percent(0), // This will be updated by the slider's value
+                        border_radius: BorderRadius::MAX,
                         ..default()
                     },
-                    BorderRadius::MAX,
                     BackgroundColor(SLIDER_THUMB),
                 )],
             )),
@@ -252,6 +252,7 @@ fn setup_camera(mut commands: Commands, game_assets: Res<GameAssets>) {
     commands.spawn((
         Name::new("Main Camera"),
         Camera3d::default(),
+        PostProcessingCamera,
         WASDCameraController,
         Transform::from_xyz(10.0, 1.0, 3.0).looking_at(Vec3::new(10.0, 0.0, 0.0), Vec3::Y),
         SkyboxConfig {

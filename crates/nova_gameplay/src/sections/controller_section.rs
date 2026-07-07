@@ -23,7 +23,7 @@ pub struct ControllerSectionConfig {
     /// The maximum torque that can be applied by the PD controller.
     pub max_torque: f32,
     /// The render mesh of the hull section, defaults to a cuboid of size 1x1x1.
-    pub render_mesh: Option<Handle<Scene>>,
+    pub render_mesh: Option<Handle<WorldAsset>>,
 }
 
 impl Default for ControllerSectionConfig {
@@ -38,7 +38,7 @@ impl Default for ControllerSectionConfig {
 }
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct ControllerSectionRenderMesh(Option<Handle<Scene>>);
+struct ControllerSectionRenderMesh(Option<Handle<WorldAsset>>);
 
 /// Helper function to create a controller section entity bundle.
 pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
@@ -183,7 +183,7 @@ fn insert_controller_section_render(
             commands.entity(entity).insert((children![(
                 Name::new("Controller Section Body"),
                 SectionRenderOf(entity),
-                SceneRoot(scene.clone()),
+                WorldAssetRoot(scene.clone()),
             ),],));
         }
         None => {
@@ -230,7 +230,7 @@ mod tests {
     fn spawns_controller_with_custom_scene() {
         // Arrange
         let mut app = App::new();
-        let custom_scene = Handle::<Scene>::default();
+        let custom_scene = Handle::<WorldAsset>::default();
         let config = ControllerSectionConfig {
             render_mesh: Some(custom_scene.clone()),
             ..Default::default()

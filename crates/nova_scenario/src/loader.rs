@@ -92,6 +92,21 @@ impl Plugin for ScenarioLoaderPlugin {
     }
 }
 
+/// Tear down the currently-loaded scenario: clear the event world and despawn every
+/// scenario-scoped entity (despawn is recursive, so their children go too). Shared by
+/// both the unload path and the load path (which tears the old scenario down before
+/// spawning the next), so teardown is identical no matter how a scenario ends.
+fn teardown_scenario_entities(
+    commands: &mut Commands,
+    q_scoped: &Query<Entity, With<ScenarioScopedMarker>>,
+    world: &mut NovaEventWorld,
+) {
+    world.clear();
+    for entity in q_scoped.iter() {
+        commands.entity(entity).despawn();
+    }
+}
+
 fn unload_scenario(
     _: On<UnloadScenario>,
     mut commands: Commands,
@@ -99,11 +114,8 @@ fn unload_scenario(
     mut current_scenario: ResMut<CurrentScenario>,
     mut world: ResMut<NovaEventWorld>,
 ) {
-    world.clear();
+    teardown_scenario_entities(&mut commands, &q_scoped, &mut world);
     **current_scenario = None;
-    for entity in q_scoped.iter() {
-        commands.entity(entity).despawn();
-    }
 }
 
 fn on_load_scenario(
@@ -113,10 +125,7 @@ fn on_load_scenario(
     q_scoped: Query<Entity, With<ScenarioScopedMarker>>,
     mut world: ResMut<NovaEventWorld>,
 ) {
-    world.clear();
-    for entity in q_scoped.iter() {
-        commands.entity(entity).despawn();
-    }
+    teardown_scenario_entities(&mut commands, &q_scoped, &mut world);
 
     let scenario = (**load).clone();
     **current_scenario = Some(scenario.clone());
@@ -128,6 +137,7 @@ fn on_load_scenario(
         ScenarioCameraMarker,
         Name::new("Scenario Camera"),
         Camera3d::default(),
+        PostProcessingCamera,
         WASDCameraController,
         Transform::from_xyz(0.0, 10.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
         SkyboxConfig {
@@ -240,15 +250,11 @@ fn on_player_spaceship_spawned(
 }
 
 fn on_player_spaceship_destroyed(
-    add: On<Add, HealthZeroMarker>,
+    _remove: On<Remove, PlayerSpaceshipMarker>,
     mut commands: Commands,
     camera: Single<Entity, With<SpaceshipCameraController>>,
-    spaceship: Single<Entity, With<PlayerSpaceshipMarker>>,
 ) {
-    trace!("on_player_spaceship_destroyed: {:?}", add.entity);
-    if add.entity != spaceship.into_inner() {
-        return;
-    }
+    trace!("on_player_spaceship_destroyed: switching camera back to WASD");
 
     let camera = camera.into_inner();
 
