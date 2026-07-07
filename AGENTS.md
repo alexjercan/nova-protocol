@@ -103,4 +103,5 @@ backlog before starting and close tasks when done. Related skills: `/plan`, `/wo
 ## Versioning
 
 Workspace version in root `Cargo.toml` (`workspace.package.version`), currently
-`0.3.0`. Update `CHANGELOG.md` (Keep a Changelog format) for notable changes.
+`0.3.1`. Update `CHANGELOG.md` (Keep a Changelog format) for notable changes. See
+`docs/development.md` for the full release process.

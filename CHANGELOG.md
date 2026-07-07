@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 -
 
+## [0.3.1] - 2026-07-07
+
+### Added
+
+- @alexjercan add a post-processing camera component
+
+### Changed
+
+- @alexjercan upgrade to Bevy 0.19 (avian3d 0.7, bevy_rand 0.15, bevy_enhanced_input 0.26, rand 0.10) and migrate the source to the new API
+- @alexjercan externalize `bevy_common_systems` as a git dependency and remove the vendored copy
+
+### Docs
+
+- @alexjercan add `AGENTS.md` and a `docs/` folder (architecture, scenario system, sections, development, Bevy 0.19 migration notes)
+
 ## [0.3.0] - 2025-11-29
 
 ### Added

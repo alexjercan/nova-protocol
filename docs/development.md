@@ -83,13 +83,38 @@ profile (it does not support custom cargo profiles). The GitHub Pages deploy is 
 ## Versioning and release
 
 - Workspace version lives in root `Cargo.toml` under `workspace.package.version`
-  (currently `0.3.0`); crates inherit it via `version = { workspace = true }`.
+  (currently `0.3.1`); crates inherit it via `version = { workspace = true }`.
 - `nova_info::APP_VERSION` is set at build time from the `APP_VERSION` env var
   (wired through `build.rs`).
-- Update `CHANGELOG.md` (Keep a Changelog format, entries attributed like
-  `@alexjercan ...`) for notable changes.
 - Native packaging assets (Windows icon/installer, macOS `.app`/iconset) are under
   `build/`; the release workflow is `.github/workflows/release.yaml`.
+
+### Cutting a release
+
+Releases are driven entirely by git tags. Pushing a tag matching `v[0-9]+.[0-9]+.[0-9]+*`
+triggers the `release-flow` workflow (`.github/workflows/release.yaml`), which builds and
+publishes the platform artifacts. Steps, done on `master`:
+
+1. Bump `workspace.package.version` in root `Cargo.toml` (e.g. `0.3.0` -> `0.3.1`).
+2. Refresh `Cargo.lock` so the workspace crates pick up the new version
+   (`cargo metadata --format-version 1 >/dev/null`, or any build).
+3. Update `CHANGELOG.md` (Keep a Changelog format, entries attributed like
+   `@alexjercan ...`): promote `[Unreleased]` to `[<version>] - <YYYY-MM-DD>` and leave a
+   fresh empty `[Unreleased]` on top.
+4. Commit the bump (`chore(release): vX.Y.Z`).
+5. Tag it: `git tag vX.Y.Z` (the tag name is what CI reads for the release name).
+6. Push both: `git push origin master && git push origin vX.Y.Z`.
+
+CI then runs four jobs off the tagged commit and uploads the assets to a GitHub release
+named after the tag:
+
+- `build-macOS` - universal (`aarch64` + `x86_64`) `.dmg`.
+- `build-linux` - `.tar.gz` (binary + `assets/` + `credits/`).
+- `build-windows` - `.zip` (`.exe` + `assets/` + `credits/`).
+- `build-web` - wasm build via `trunk`, wasm-opt'd, zipped.
+
+The workflow can also be run manually via `workflow_dispatch` with a `version` input
+(form `v1.2.3`) if you need to re-run packaging without pushing a new tag.
 
 ## Task tracking
 
