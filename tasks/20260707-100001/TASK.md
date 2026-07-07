@@ -1,6 +1,6 @@
 # Torpedo bay test range example (playable + gates + autopilot)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.4.0,example,torpedo
 
