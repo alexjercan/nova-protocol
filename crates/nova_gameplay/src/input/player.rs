@@ -130,9 +130,15 @@ fn update_spaceship_target_input(
             With<SpaceshipCameraTurretInputMarker>,
         ),
     >,
+    // Exclude from the aim cast only torpedoes that have not committed their
+    // launch-time targeting yet: a fresh torpedo spawns right on the aim ray, and
+    // if the cast could hit it, it could be assigned as its own target. Once
+    // committed (`TorpedoTargetChosen`) a torpedo can never receive a target
+    // again, so it becomes a normal lockable body - e.g. you can lock and shoot
+    // down your own dumb-fired torpedo.
     q_torpedo: Query<
         (Entity, &TorpedoProjectileOwner, &Children),
-        (With<TorpedoProjectileMarker>, Without<TorpedoTargetEntity>),
+        (With<TorpedoProjectileMarker>, Without<TorpedoTargetChosen>),
     >,
     spaceship: Single<
         (&Transform, &Children),
@@ -173,37 +179,45 @@ fn update_spaceship_target_input(
     **res_target = Some(target_entity);
 }
 
+/// Commit each freshly launched torpedo to its launch-time target.
+///
+/// A torpedo's targeting decision is made exactly once, right after launch:
+/// whatever the crosshair has locked at that moment becomes the torpedo's target
+/// for life (`TorpedoTargetChosen` marks the decision as made). No lock means a
+/// dumb-fire shot that never acquires anything mid-flight - so, e.g., bullets
+/// fired past a loitering torpedo are not picked up as targets, and a torpedo
+/// whose target died (link dropped by `update_target_position`, position frozen)
+/// is not re-assigned to whatever the player locks next.
 fn update_torpedo_target_input(
     mut commands: Commands,
     q_torpedo: Query<
         (Entity, &TorpedoProjectileOwner),
-        (With<TorpedoProjectileMarker>, Without<TorpedoTargetEntity>),
+        (
+            With<TorpedoProjectileMarker>,
+            Without<TorpedoTargetEntity>,
+            Without<TorpedoTargetChosen>,
+        ),
     >,
     spaceship: Single<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
     res_target: Res<SpaceshipPlayerTorpedoTargetEntity>,
 ) {
     let spaceship = spaceship.into_inner();
-    let Some(target_entity) = **res_target else {
-        // No current lock. Leave un-targeted torpedoes flying toward their frozen
-        // `TorpedoTargetPosition` (freeze-and-continue, matching 20260707-100004)
-        // instead of despawning them - a torpedo whose target just died (its link
-        // dropped by `update_target_position`) must not blink out here.
-        return;
-    };
 
     for (torpedo, owner) in &q_torpedo {
-        debug!(
-            "Torpedo owner: {:?}, Target entity: {:?}",
-            owner, target_entity
-        );
-
         if **owner != spaceship {
             continue;
         }
 
-        commands
-            .entity(torpedo)
-            .insert(TorpedoTargetEntity(target_entity));
+        debug!(
+            "update_torpedo_target_input: committing torpedo {:?} to target {:?}",
+            torpedo, **res_target
+        );
+
+        let mut torpedo_commands = commands.entity(torpedo);
+        torpedo_commands.insert(TorpedoTargetChosen);
+        if let Some(target_entity) = **res_target {
+            torpedo_commands.insert(TorpedoTargetEntity(target_entity));
+        }
     }
 }
 
@@ -444,11 +458,16 @@ mod tests {
             app.world().get::<TorpedoTargetEntity>(torpedo).is_none(),
             "no target should be assigned when there is no lock"
         );
+        assert!(
+            app.world().get::<TorpedoTargetChosen>(torpedo).is_some(),
+            "the torpedo should be committed to dumb-fire"
+        );
     }
 
     #[test]
     fn lock_assigns_target_to_owned_torpedo() {
-        // With a lock, an owned un-targeted torpedo gets the target assigned.
+        // With a lock, an owned un-targeted torpedo gets the target assigned and
+        // is committed to it.
         let mut app = App::new();
         let target = app.world_mut().spawn_empty().id();
         app.insert_resource(SpaceshipPlayerTorpedoTargetEntity(Some(target)));
@@ -469,6 +488,75 @@ mod tests {
             app.world().get::<TorpedoTargetEntity>(torpedo).map(|t| **t),
             Some(target),
             "an owned torpedo should be assigned the locked target"
+        );
+        assert!(
+            app.world().get::<TorpedoTargetChosen>(torpedo).is_some(),
+            "the assignment should also commit the torpedo"
+        );
+    }
+
+    #[test]
+    fn dumbfire_torpedo_ignores_later_locks() {
+        // THE bullet regression: a torpedo fired with no lock is committed to
+        // dumb-fire; a lock appearing later (e.g. the aim cast hitting a bullet
+        // fired down the crosshair ray) must not be assigned to it.
+        let mut app = App::new();
+        app.insert_resource(SpaceshipPlayerTorpedoTargetEntity(None));
+        app.add_systems(Update, update_torpedo_target_input);
+
+        let ship = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+        let torpedo = app
+            .world_mut()
+            .spawn((TorpedoProjectileMarker, TorpedoProjectileOwner(ship)))
+            .id();
+
+        // Frame 1: no lock -> committed dumb-fire.
+        app.update();
+        assert!(app.world().get::<TorpedoTargetChosen>(torpedo).is_some());
+
+        // A "bullet" gets locked by the aim cast afterwards.
+        let bullet = app.world_mut().spawn_empty().id();
+        app.insert_resource(SpaceshipPlayerTorpedoTargetEntity(Some(bullet)));
+
+        // Frame 2: the committed torpedo must NOT pick it up.
+        app.update();
+        assert!(
+            app.world().get::<TorpedoTargetEntity>(torpedo).is_none(),
+            "a dumb-fired torpedo must never acquire a target mid-flight"
+        );
+    }
+
+    #[test]
+    fn committed_torpedo_does_not_retarget_after_target_loss() {
+        // A torpedo whose target died (link removed by update_target_position,
+        // position frozen) keeps its commitment: a fresh lock must not re-target it.
+        let mut app = App::new();
+        let new_target = app.world_mut().spawn_empty().id();
+        app.insert_resource(SpaceshipPlayerTorpedoTargetEntity(Some(new_target)));
+        app.add_systems(Update, update_torpedo_target_input);
+
+        let ship = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+        // Committed, un-targeted: the post-target-death state.
+        let torpedo = app
+            .world_mut()
+            .spawn((
+                TorpedoProjectileMarker,
+                TorpedoProjectileOwner(ship),
+                TorpedoTargetChosen,
+            ))
+            .id();
+
+        app.update();
+
+        assert!(
+            app.world().get::<TorpedoTargetEntity>(torpedo).is_none(),
+            "a torpedo keeps its first target for life - no re-targeting after loss"
         );
     }
 }
