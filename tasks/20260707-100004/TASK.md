@@ -1,6 +1,6 @@
 # Torpedo despawns silently when its target dies mid-flight
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.4.0,bug,torpedo
 
@@ -24,14 +24,29 @@ torpedo mid-air.
 
 ## Steps
 
-- [ ] Decide the intended behavior and implement it: freeze on the last known target
-      position and keep flying (detonate on arrival), fly straight until the
-      `TempEntity` lifetime expires, or detonate in place. Freeze-and-continue is the
-      most intuitive; confirm against the torpedo test range.
-- [ ] Stop the per-frame warning spam for a legitimately-dead target.
-- [ ] Add coverage in the torpedo test range (task 20260707-100001): kill a moving
-      target after firing and confirm the torpedo behaves as designed rather than
-      disappearing.
+- [x] Decide the intended behavior and implement it: **freeze-and-continue**. When the
+      target entity is gone, `update_target_position` now drops the dead
+      `TorpedoTargetEntity` link (instead of despawning the torpedo) and leaves
+      `TorpedoTargetPosition` frozen at its last value, so the torpedo keeps flying
+      toward the last known position and detonates on arrival (or expires via its
+      `TempEntity` lifetime). If the ship has a live target selected, the torpedo also
+      becomes eligible to re-acquire it (a bonus, not a regression).
+- [x] Stop the per-frame warning spam: removing the link means the torpedo no longer
+      matches the `With<TorpedoTargetEntity>` query, so the failing lookup (and its log)
+      does not repeat. The remaining message is a single `debug!` on the loss frame.
+- [x] Coverage: deterministic unit/integration test
+      `torpedo_survives_target_loss_and_freezes_position` (target alive -> tracks; target
+      despawned -> torpedo survives, position frozen, dead link removed). The range
+      (`06_torpedo_range`) autopilot smoke run still fires/arms/detonates with no vanish,
+      no panic, and no despawn-spam; the range is available for manual freeze checks.
+
+## Resolution
+
+Root cause: `update_target_position` called `commands.entity(torpedo).despawn()` when the
+target lookup failed, so a torpedo blinked out the instant its target died. Changed it to
+`remove::<TorpedoTargetEntity>()` and keep `TorpedoTargetPosition` frozen - freeze-and-
+continue. Covered by a new test (7 torpedo tests pass); `cargo clippy` clean; range smoke
+run green (3 fired/armed/detonated, no panic, old `not found in q_target` spam gone).
 
 ## Notes
 
