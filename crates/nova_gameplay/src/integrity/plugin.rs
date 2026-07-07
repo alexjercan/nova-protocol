@@ -285,3 +285,167 @@ fn derive_integrity_leaves(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A minimal app wired with the avian-free core of the integrity pipeline plus
+    /// the bcs health machinery, so tests can drive it from real damage.
+    fn integrity_core_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(HealthPlugin);
+        app.add_observer(on_health_depleted_insert_disabled);
+        app.add_observer(handle_destroy);
+        app.add_observer(handle_chain_destroy);
+        app.add_observer(handle_parent_destroy);
+        app.add_observer(on_destroyed);
+        app.add_systems(Update, derive_integrity_leaves);
+        app
+    }
+
+    #[test]
+    fn blast_damage_falls_off_linearly_to_the_radius() {
+        let config = BlastDamageConfig {
+            radius: 10.0,
+            max_damage: 100.0,
+        };
+        assert_eq!(calculate_blast_damage(0.0, &config), 100.0);
+        assert!((calculate_blast_damage(5.0, &config) - 50.0).abs() < 1e-3);
+        assert_eq!(calculate_blast_damage(10.0, &config), 0.0);
+        assert_eq!(calculate_blast_damage(20.0, &config), 0.0);
+    }
+
+    #[test]
+    fn leaves_are_derived_from_the_connection_count() {
+        let mut app = App::new();
+        app.add_systems(Update, derive_integrity_leaves);
+
+        let a = app.world_mut().spawn_empty().id();
+        let b = app.world_mut().spawn_empty().id();
+        let leaf = app.world_mut().spawn(ConnectedTo(vec![a])).id(); // 1 neighbor
+        let hub = app.world_mut().spawn(ConnectedTo(vec![a, b])).id(); // 2 neighbors
+
+        app.update();
+
+        assert!(app.world().get::<IntegrityLeafMarker>(leaf).is_some());
+        assert!(app.world().get::<IntegrityLeafMarker>(hub).is_none());
+
+        // Dropping the hub to one neighbor makes it a leaf.
+        app.world_mut().get_mut::<ConnectedTo>(hub).unwrap().0 = vec![a];
+        app.update();
+        assert!(app.world().get::<IntegrityLeafMarker>(hub).is_some());
+    }
+
+    #[test]
+    fn a_disabled_leaf_is_marked_for_destruction() {
+        let mut app = integrity_core_app();
+        let node = app.world_mut().spawn(IntegrityLeafMarker).id();
+
+        app.world_mut()
+            .entity_mut(node)
+            .insert(IntegrityDisabledMarker);
+        app.update();
+
+        assert!(app.world().get::<IntegrityDestroyMarker>(node).is_some());
+    }
+
+    #[test]
+    fn a_disabled_non_leaf_is_not_destroyed() {
+        // A disabled interior node is deactivated, not destroyed - only leaves are.
+        let mut app = integrity_core_app();
+        let node = app.world_mut().spawn_empty().id();
+
+        app.world_mut()
+            .entity_mut(node)
+            .insert(IntegrityDisabledMarker);
+        app.update();
+
+        assert!(app.world().get::<IntegrityDestroyMarker>(node).is_none());
+    }
+
+    #[test]
+    fn becoming_a_leaf_while_disabled_triggers_destruction() {
+        let mut app = integrity_core_app();
+        let node = app.world_mut().spawn(IntegrityDisabledMarker).id();
+
+        app.world_mut().entity_mut(node).insert(IntegrityLeafMarker);
+        app.update();
+
+        assert!(app.world().get::<IntegrityDestroyMarker>(node).is_some());
+    }
+
+    #[test]
+    fn a_disabled_root_is_destroyed_whole() {
+        // The whole body dies when its root is disabled (ship at zero health).
+        let mut app = integrity_core_app();
+        let root = app.world_mut().spawn(IntegrityRoot).id();
+
+        app.world_mut()
+            .entity_mut(root)
+            .insert(IntegrityDisabledMarker);
+        app.update();
+
+        assert!(app.world().get::<IntegrityDestroyMarker>(root).is_some());
+    }
+
+    #[test]
+    fn damage_drives_a_leaf_from_full_health_to_destruction() {
+        // The headline sequence: damage -> health zero -> disabled -> destroyed.
+        let mut app = integrity_core_app();
+        let node = app
+            .world_mut()
+            .spawn((Health::new(50.0), ConnectedTo(vec![])))
+            .id();
+
+        // Derive the leaf marker (no neighbors -> leaf).
+        app.update();
+        assert!(app.world().get::<IntegrityLeafMarker>(node).is_some());
+        assert!(app.world().get::<IntegrityDisabledMarker>(node).is_none());
+
+        // Fatal damage.
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: node,
+            source: None,
+            amount: 60.0,
+        });
+        app.update();
+
+        assert!(app.world().get::<HealthZeroMarker>(node).is_some());
+        assert!(app.world().get::<IntegrityDisabledMarker>(node).is_some());
+        assert!(app.world().get::<IntegrityDestroyMarker>(node).is_some());
+    }
+
+    #[test]
+    fn destruction_chains_through_a_connected_structure() {
+        // A line A-B-C, all disabled. A and C are leaves (1 neighbor) and are
+        // destroyed; pruning them from B leaves B a leaf, so it is destroyed too -
+        // the whole structure comes apart.
+        let mut app = integrity_core_app();
+
+        let a = app.world_mut().spawn(IntegrityDisabledMarker).id();
+        let b = app.world_mut().spawn(IntegrityDisabledMarker).id();
+        let c = app.world_mut().spawn(IntegrityDisabledMarker).id();
+        app.world_mut()
+            .entity_mut(a)
+            .insert(ConnectedTo(vec![b]));
+        app.world_mut()
+            .entity_mut(b)
+            .insert(ConnectedTo(vec![a, c]));
+        app.world_mut()
+            .entity_mut(c)
+            .insert(ConnectedTo(vec![b]));
+
+        // Let the leaf derivation and chain reaction settle.
+        for _ in 0..5 {
+            app.update();
+        }
+
+        for node in [a, b, c] {
+            assert!(
+                app.world().get::<IntegrityDestroyMarker>(node).is_some(),
+                "node {node:?} should have been destroyed in the chain"
+            );
+        }
+    }
+}

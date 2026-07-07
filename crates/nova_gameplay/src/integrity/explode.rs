@@ -250,3 +250,24 @@ fn handle_entity_explosion(
 
     commands.entity(entity).despawn();
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_meshless_destroyed_entity_is_despawned() {
+        // Sections (and the ship root) have no Mesh3d of their own to slice, so the
+        // destruction path despawns them here rather than leaving them lingering.
+        let mut app = App::new();
+        app.add_observer(despawn_destroyed_without_mesh);
+
+        let entity = app.world_mut().spawn_empty().id();
+        app.world_mut()
+            .entity_mut(entity)
+            .insert(IntegrityDestroyMarker);
+        app.update();
+
+        assert!(!app.world().entities().contains(entity));
+    }
+}
