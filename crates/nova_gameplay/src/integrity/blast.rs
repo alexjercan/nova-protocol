@@ -28,6 +28,11 @@ pub fn blast_damage(config: BlastDamageConfig) -> impl Bundle {
         RigidBody::Static,
         Collider::sphere(config.radius),
         Sensor,
+        // The blast owns its collision events so it raises `CollisionStart` against every
+        // collider it overlaps, instead of depending on each target having events enabled
+        // (see `on_blast_collision_deal_damage`). Without this the blast only reaches bodies
+        // that independently opted into collision events.
+        CollisionEventsEnabled,
         Visibility::Visible,
     )
 }
