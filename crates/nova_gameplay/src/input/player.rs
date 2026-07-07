@@ -183,12 +183,11 @@ fn update_torpedo_target_input(
     res_target: Res<SpaceshipPlayerTorpedoTargetEntity>,
 ) {
     let spaceship = spaceship.into_inner();
-    let target_entity = **res_target;
-    let Some(target_entity) = target_entity else {
-        // TODO(20260706-162913): Maybe think of something better then just despawning the torpedo?
-        for (torpedo, _) in &q_torpedo {
-            commands.entity(torpedo).despawn();
-        }
+    let Some(target_entity) = **res_target else {
+        // No current lock. Leave un-targeted torpedoes flying toward their frozen
+        // `TorpedoTargetPosition` (freeze-and-continue, matching 20260707-100004)
+        // instead of despawning them - a torpedo whose target just died (its link
+        // dropped by `update_target_position`) must not blink out here.
         return;
     };
 
@@ -412,4 +411,64 @@ fn on_torpedo_input_completed(
     };
 
     **input = false;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn no_lock_does_not_despawn_untargeted_torpedo() {
+        // Regression: with no current lock, an un-targeted torpedo (e.g. one whose
+        // target just died and had its link dropped) must keep flying, not vanish.
+        let mut app = App::new();
+        app.insert_resource(SpaceshipPlayerTorpedoTargetEntity(None));
+        app.add_systems(Update, update_torpedo_target_input);
+
+        let ship = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+        let torpedo = app
+            .world_mut()
+            .spawn((TorpedoProjectileMarker, TorpedoProjectileOwner(ship)))
+            .id();
+
+        app.update();
+
+        assert!(
+            app.world().entities().contains(torpedo),
+            "un-targeted torpedo must survive when there is no lock"
+        );
+        assert!(
+            app.world().get::<TorpedoTargetEntity>(torpedo).is_none(),
+            "no target should be assigned when there is no lock"
+        );
+    }
+
+    #[test]
+    fn lock_assigns_target_to_owned_torpedo() {
+        // With a lock, an owned un-targeted torpedo gets the target assigned.
+        let mut app = App::new();
+        let target = app.world_mut().spawn_empty().id();
+        app.insert_resource(SpaceshipPlayerTorpedoTargetEntity(Some(target)));
+        app.add_systems(Update, update_torpedo_target_input);
+
+        let ship = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+        let torpedo = app
+            .world_mut()
+            .spawn((TorpedoProjectileMarker, TorpedoProjectileOwner(ship)))
+            .id();
+
+        app.update();
+
+        assert_eq!(
+            app.world().get::<TorpedoTargetEntity>(torpedo).map(|t| **t),
+            Some(target),
+            "an owned torpedo should be assigned the locked target"
+        );
+    }
 }
