@@ -1,6 +1,6 @@
 # Torpedo self-detonates on spawn when target is near; add arming delay
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 95
 - TAGS: v0.4.0,bug,torpedo
 
