@@ -10,3 +10,6 @@ dist/
 
 dump.dot
 dump.svg
+
+# Default output of the nova_debug screenshot harness (BCS_SHOT)
+screenshot.png

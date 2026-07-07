@@ -12,6 +12,15 @@ fn main() {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
+    // Headless smoke-test harness: inert in a normal run, drives Loading ->
+    // Playing and exits without panic under `BCS_AUTOPILOT`, or captures a PNG
+    // under `BCS_SHOT`. Behind `debug` because the harness lives there.
+    #[cfg(feature = "debug")]
+    {
+        app.add_plugins(nova_autopilot());
+        app.add_plugins(nova_screenshot());
+    }
+
     app.run();
 }
 

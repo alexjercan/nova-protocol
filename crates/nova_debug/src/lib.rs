@@ -1,11 +1,15 @@
 //! A Bevy plugin that adds various debugging tools.
 
 use bevy::prelude::*;
+use bevy_common_systems::debug::harness::AUTOPILOT_ENV;
 use bevy_common_systems::prelude::*;
+use nova_gameplay::GameStates;
 
+pub mod harness;
 pub mod sections;
 
 pub mod prelude {
+    pub use super::harness::{nova_autopilot, nova_screenshot, AutopilotPlugin, ScreenshotPlugin};
     pub use super::{debugdump, DebugPlugin};
 }
 
@@ -31,6 +35,17 @@ impl Plugin for DebugPlugin {
         app.add_plugins(sections::SectionsDebugPlugin);
 
         app.add_systems(Update, toggle_debug_mode);
+
+        // Under the headless autopilot (`nova_debug::harness`), confirm the
+        // asset loader actually reached gameplay before the clean exit, so a run
+        // that silently stalls in `Loading` fails the smoke test instead of
+        // passing on `autopilot: cycle complete, no panic` alone.
+        if std::env::var(AUTOPILOT_ENV).is_ok() {
+            app.add_systems(
+                OnEnter(GameStates::Playing),
+                || info!("nova harness: reached Playing"),
+            );
+        }
 
         app.configure_sets(
             Update,
