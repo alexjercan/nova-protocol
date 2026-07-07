@@ -5,9 +5,20 @@ use bevy_hanabi::prelude::*;
 
 use crate::prelude::*;
 
+/// In-flight torpedo behavior: target tracking, arming, detonation, and PN
+/// guidance (steer / thrust). The bay/launcher stays in this module; the systems
+/// here act on the spawned projectiles.
+mod projectile;
+/// Render/particle systems for the bay and the projectile (gated by the plugin's
+/// `render` flag).
+mod render;
+
+use projectile::*;
+use render::*;
+
 pub mod prelude {
     pub use super::{
-        torpedo_section, TorpedoArming, TorpedoControllerMarker, TorpedoGuidance,
+        torpedo_section, TorpedoArming, TorpedoBlast, TorpedoControllerMarker, TorpedoGuidance,
         TorpedoProjectileMarker, TorpedoProjectileOwner, TorpedoSectionConfig, TorpedoSectionInput,
         TorpedoSectionMarker, TorpedoSectionPlugin, TorpedoSectionSpawnerFireState,
         TorpedoSectionSpawnerMarker, TorpedoSteering, TorpedoTargetChosen, TorpedoTargetEntity,
@@ -54,6 +65,13 @@ pub struct TorpedoSectionConfig {
     /// thrust direction and relaxes the velocity toward wherever the nose points,
     /// so the flight path follows the guidance command.
     pub linear_damping: f32,
+    /// Blast radius on detonation, in units. The proximity fuze fires when the
+    /// torpedo is within half this radius of the target, and blast damage falls off
+    /// linearly to zero at this radius.
+    pub blast_radius: f32,
+    /// Peak blast damage at the detonation centre, falling off to zero at
+    /// `blast_radius`.
+    pub blast_damage: f32,
     /// The explosion effect to play when the torpedo detonates.
     pub blast_effect: Option<Handle<EffectAsset>>,
 }
@@ -73,6 +91,8 @@ impl Default for TorpedoSectionConfig {
             nav_constant: 3.0,
             max_speed: 35.0,
             linear_damping: 0.8,
+            blast_radius: 30.0,
+            blast_damage: 100.0,
             blast_effect: None,
         }
     }
@@ -160,6 +180,15 @@ pub struct TorpedoGuidance {
 /// systems. Kept as one source of truth so both read the same command.
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct TorpedoSteering(pub Vec3);
+
+/// Blast parameters carried by a torpedo projectile (copied from its
+/// `TorpedoSectionConfig` at spawn): the proximity-fuze / damage `radius` and the
+/// peak `damage` at the detonation centre.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct TorpedoBlast {
+    pub radius: f32,
+    pub damage: f32,
+}
 
 /// Arming state of a torpedo projectile. A torpedo cannot detonate until it is
 /// armed; it arms once it has either lived for `min_time` seconds or traveled
@@ -402,6 +431,10 @@ fn shoot_spawn_projectile(
                 },
                 TorpedoSteering(projectile_transform.forward().into()),
                 LinearDamping(config.linear_damping),
+                TorpedoBlast {
+                    radius: config.blast_radius,
+                    damage: config.blast_damage,
+                },
             ),
             TorpedoArming::new(
                 config.arm_time,
@@ -472,479 +505,6 @@ fn shoot_spawn_projectile(
     }
 }
 
-fn update_target_position(
-    mut commands: Commands,
-    mut q_torpedo: Query<
-        (Entity, Option<&mut TorpedoTargetPosition>, &TorpedoTargetEntity),
-        With<TorpedoProjectileMarker>,
-    >,
-    q_target: Query<&Transform>,
-) {
-    for (torpedo, torpedo_target_position, target_entity) in &mut q_torpedo {
-        let Ok(target_transform) = q_target.get(**target_entity) else {
-            // The target died mid-flight. Don't delete the torpedo - that reads as
-            // it blinking out of existence. Instead drop the dead target link and
-            // let it keep flying toward the last known position (frozen in
-            // `TorpedoTargetPosition`) until it arrives and detonates or its
-            // lifetime expires. Removing the link also stops this lookup - and its
-            // warning - from repeating every frame.
-            debug!(
-                "update_target_position: target {:?} gone; freezing torpedo {:?} on last known position",
-                **target_entity, torpedo
-            );
-            commands.entity(torpedo).remove::<TorpedoTargetEntity>();
-            continue;
-        };
-
-        // The position component is added on first lock and updated in place after,
-        // so a never-locked torpedo has no `TorpedoTargetPosition` and flies straight.
-        match torpedo_target_position {
-            Some(mut position) => **position = target_transform.translation,
-            None => {
-                commands
-                    .entity(torpedo)
-                    .insert(TorpedoTargetPosition(target_transform.translation));
-            }
-        }
-    }
-}
-
-/// Tick each torpedo's arming state so it can detonate only after it has cleared
-/// the muzzle (see [`TorpedoArming`]).
-fn update_torpedo_arming(
-    time: Res<Time>,
-    mut q_torpedo: Query<(&Transform, &mut TorpedoArming), With<TorpedoProjectileMarker>>,
-) {
-    let dt = time.delta_secs();
-    for (torpedo_transform, mut arming) in &mut q_torpedo {
-        arming.tick(dt, torpedo_transform.translation);
-    }
-}
-
-// TODO(20260706-162913): Unhardcode blast parameters
-const BLAST_RADIUS: f32 = 30.0;
-const BLAST_DAMAGE: f32 = 100.0;
-
-// TODO(20260525-133023): Add some nice visuals for the explosion itself
-fn torpedo_detonate_system(
-    mut commands: Commands,
-    q_torpedo: Query<
-        (
-            Entity,
-            &Transform,
-            &TorpedoTargetPosition,
-            &TorpedoArming,
-            &TorpedoSectionPartOf,
-        ),
-        With<TorpedoProjectileMarker>,
-    >,
-) {
-    for (torpedo, torpedo_transform, torpedo_target_position, arming, part_of) in &q_torpedo {
-        // Do not detonate until the torpedo has armed (cleared the muzzle), so a
-        // shot at a nearby target does not blow up on spawn.
-        if !arming.is_armed() {
-            continue;
-        }
-
-        let distance = torpedo_transform
-            .translation
-            .distance(**torpedo_target_position);
-
-        if distance < BLAST_RADIUS * 0.5 {
-            commands.entity(torpedo).despawn();
-            commands.spawn((
-                blast_damage(BlastDamageConfig {
-                    radius: BLAST_RADIUS,
-                    max_damage: BLAST_DAMAGE,
-                }),
-                Transform::from_translation(torpedo_transform.translation),
-                part_of.clone(),
-                TempEntity(0.1),
-            ));
-        }
-    }
-}
-
-/// Proportional-navigation steering direction.
-///
-/// Returns the unit direction the torpedo should point its nose (and thrust)
-/// toward to intercept the target. `rel_pos` is the line-of-sight `target - torpedo`
-/// and `target_vel` / `missile_vel` are world-space velocities.
-///
-/// The command is anchored on the line of sight, not on the torpedo's velocity:
-///
-/// - Base course: the constant-bearing intercept ("lead collision course"). Split
-///   the target's velocity into the component across the line of sight and match
-///   it, spending the rest of the torpedo's speed closing along the line of sight:
-///   `lead = (target_perp + los * sqrt(speed^2 - |target_perp|^2)) / speed`. For a
-///   stationary target this is exactly "point at the target"; for a crossing
-///   target it is the exact intercept heading at the given speed.
-/// - PN damping: the classic LOS-rate term. With `omega = cross(rel_pos, rel_vel)
-///   / dot(rel_pos, rel_pos)`, add `nav_constant * cross(omega, heading)` (clamped)
-///   to null residual line-of-sight rotation - drift, disturbances, target
-///   maneuvers.
-///
-/// Anchoring on the LOS matters because the torpedo launches slowly *sideways* out
-/// of the bay: a velocity-anchored command (`V + N * cross(omega, V)`) from that
-/// state keeps re-commanding the current drift direction (omega is tiny while the
-/// target is far), so the torpedo climbs away instead of turning onto the target.
-/// The LOS-anchored form points at/ahead of the target from any initial velocity.
-fn pn_steer_direction(
-    rel_pos: Vec3,
-    target_vel: Vec3,
-    missile_vel: Vec3,
-    nav_constant: f32,
-) -> Vec3 {
-    let heading = missile_vel.try_normalize();
-
-    let Some(los) = rel_pos.try_normalize() else {
-        // Target coincident with the torpedo: keep the current heading.
-        return heading.unwrap_or(Vec3::NEG_Z);
-    };
-
-    // Constant-bearing lead. Plan with at least the target's speed so the lead
-    // stays defined while the torpedo is still accelerating up to speed.
-    let target_perp = target_vel - target_vel.dot(los) * los;
-    let planning_speed = missile_vel
-        .length()
-        .max(target_vel.length())
-        .max(1e-3);
-    let closing = (planning_speed * planning_speed - target_perp.length_squared())
-        .max(0.0)
-        .sqrt();
-    let lead = (target_perp + los * closing) / planning_speed;
-
-    // PN damping: null the residual line-of-sight rotation.
-    let pn_correction = match heading {
-        Some(heading) => {
-            let los_rate = rel_pos.cross(target_vel - missile_vel) / rel_pos.length_squared();
-            (nav_constant * los_rate.cross(heading)).clamp_length_max(1.0)
-        }
-        None => Vec3::ZERO,
-    };
-
-    (lead + pn_correction).try_normalize().unwrap_or(los)
-}
-
-/// Compute each torpedo's PN steering direction into [`TorpedoSteering`], using the
-/// target entity's velocity (zero once the target is lost, so PN degrades to
-/// pursuit of the frozen target position).
-fn torpedo_pn_guidance(
-    mut q_torpedo: Query<
-        (
-            &Transform,
-            Option<&TorpedoTargetPosition>,
-            &LinearVelocity,
-            Option<&TorpedoTargetEntity>,
-            &TorpedoGuidance,
-            &mut TorpedoSteering,
-        ),
-        With<TorpedoProjectileMarker>,
-    >,
-    q_target_velocity: Query<&LinearVelocity>,
-) {
-    for (transform, target_position, velocity, target_entity, guidance, mut steering) in
-        &mut q_torpedo
-    {
-        // No target locked (or ever locked): fly straight ahead, holding heading,
-        // rather than steering toward the world origin.
-        let Some(target_position) = target_position else {
-            **steering = transform.forward().into();
-            continue;
-        };
-
-        let target_velocity = target_entity
-            .and_then(|target| q_target_velocity.get(**target).ok())
-            .map(|v| **v)
-            .unwrap_or(Vec3::ZERO);
-
-        let rel_pos = **target_position - transform.translation;
-
-        **steering =
-            pn_steer_direction(rel_pos, target_velocity, **velocity, guidance.nav_constant);
-    }
-}
-
-/// Orient the torpedo's PD controller toward the PN steering direction.
-fn torpedo_sync_system(
-    q_torpedo: Query<&TorpedoSteering, With<TorpedoProjectileMarker>>,
-    mut q_controller: Query<
-        (&mut ControllerSectionRotationInput, &ChildOf),
-        (With<ControllerSectionMarker>, With<TorpedoControllerMarker>),
-    >,
-) {
-    for (mut controller_input, ChildOf(torpedo)) in &mut q_controller {
-        if let Ok(steering) = q_torpedo.get(*torpedo) {
-            **controller_input = Quat::from_rotation_arc(Vec3::NEG_Z, **steering);
-        }
-    }
-}
-
-/// Width of the taper band below `max_speed` over which thrust fades to zero, in
-/// units per second.
-const THRUST_TAPER_BAND: f32 = 5.0;
-
-/// Thrust remaining given the velocity component *along the nose*: 1.0 well
-/// below `max_speed`, fading linearly to 0.0 over the last
-/// [`THRUST_TAPER_BAND`] u/s. Gating on the along-nose speed (not total speed)
-/// caps cruise speed without killing steering: at cruise, pointing straight
-/// ahead means no thrust, but the moment guidance swings the nose to turn, the
-/// along-nose component drops and thrust returns as lateral authority. A cap on
-/// total speed instead leaves the torpedo ballistic at cruise - unable to steer
-/// at all. Never negative: the cap cuts thrust, it does not brake.
-fn thrust_headroom(speed_along_nose: f32, max_speed: f32) -> f32 {
-    ((max_speed - speed_along_nose) / THRUST_TAPER_BAND).clamp(0.0, 1.0)
-}
-
-/// Thrust along the nose: full thrust when the nose is aligned with the steering
-/// direction, easing off while the torpedo is still turning onto course, and
-/// tapering to zero when already at cruise speed along the nose (see
-/// [`thrust_headroom`] and [`TorpedoSectionConfig::max_speed`]).
-fn torpedo_thrust_system(
-    q_torpedo: Query<
-        (&Transform, &TorpedoSteering, &LinearVelocity, &TorpedoGuidance),
-        With<TorpedoProjectileMarker>,
-    >,
-    mut q_thruster: Query<
-        (&mut ThrusterSectionInput, &ChildOf),
-        (With<ThrusterSectionMarker>, With<TorpedoThrusterMarker>),
-    >,
-) {
-    for (mut thruster_input, ChildOf(torpedo)) in &mut q_thruster {
-        if let Ok((transform, steering, velocity, guidance)) = q_torpedo.get(*torpedo) {
-            let nose = transform.forward();
-            let alignment = nose.dot(**steering).clamp(0.0, 1.0);
-            let headroom = thrust_headroom(velocity.dot(nose.into()), guidance.max_speed);
-            **thruster_input = alignment * headroom;
-        }
-    }
-}
-
-fn insert_torpedo_section_render(
-    add: On<Add, TorpedoSectionBodyMarker>,
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    q_section: Query<&TorpedoSectionConfigHelper, With<TorpedoSectionMarker>>,
-    q_body: Query<&TorpedoSectionPartOf, With<TorpedoSectionBodyMarker>>,
-) {
-    let entity = add.entity;
-    trace!("insert_torpedo_section_render: entity {:?}", entity);
-
-    let Ok(part_of) = q_body.get(entity) else {
-        error!(
-            "insert_torpedo_section_render: entity {:?} not found in q_body",
-            entity
-        );
-        return;
-    };
-
-    let Ok(config) = q_section.get(**part_of) else {
-        error!(
-            "insert_torpedo_section_render: entity {:?} not found in q_section",
-            entity
-        );
-        return;
-    };
-    let render_mesh = &config.render_mesh;
-
-    match render_mesh {
-        Some(scene) => {
-            commands.entity(entity).insert((children![(
-                Name::new("Torpedo Section Body"),
-                SectionRenderOf(entity),
-                WorldAssetRoot(scene.clone()),
-            ),],));
-        }
-        None => {
-            commands.entity(entity).insert((children![(
-                Name::new("Torpedo Section Body"),
-                SectionRenderOf(entity),
-                Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-                MeshMaterial3d(materials.add(Color::srgb(0.8, 0.8, 0.8))),
-            ),],));
-        }
-    }
-}
-
-fn insert_torpedo_render(
-    add: On<Add, TorpedoProjectileMarker>,
-    mut commands: Commands,
-    q_projectile: Query<&TorpedoProjectileRenderMesh, With<TorpedoProjectileMarker>>,
-) {
-    let entity = add.entity;
-    trace!("insert_torpedo_render: entity {:?}", entity);
-
-    let Ok(render_mesh) = q_projectile.get(entity) else {
-        error!(
-            "insert_torpedo_render: entity {:?} not found in q_projectile",
-            entity
-        );
-        return;
-    };
-
-    if let Some(scene) = &**render_mesh {
-        commands.entity(entity).insert((children![(
-            Name::new("Torpedo Projectile Body"),
-            SectionRenderOf(entity),
-            WorldAssetRoot(scene.clone()),
-        ),],));
-    }
-}
-
-fn insert_torpedo_controller_render(
-    add: On<Add, TorpedoControllerMarker>,
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    q_controller: Query<&ChildOf, With<TorpedoControllerMarker>>,
-    q_torpedo: Query<&TorpedoProjectileRenderMesh, With<TorpedoProjectileMarker>>,
-) {
-    let entity = add.entity;
-    trace!("insert_torpedo_controller_render: entity {:?}", entity);
-
-    let Ok(ChildOf(torpedo)) = q_controller.get(entity) else {
-        error!(
-            "insert_torpedo_controller_render: entity {:?} not found in q_controller",
-            entity
-        );
-        return;
-    };
-
-    let Ok(render_mesh) = q_torpedo.get(*torpedo) else {
-        error!(
-            "insert_torpedo_controller_render: entity {:?} not found in q_torpedo",
-            *torpedo
-        );
-        return;
-    };
-
-    if render_mesh.is_some() {
-        // If the torpedo has a render mesh, we skip rendering the controller
-        return;
-    }
-
-    commands.entity(entity).insert((
-        Mesh3d(meshes.add(Cylinder::new(0.2, 1.0))),
-        MeshMaterial3d(materials.add(Color::srgb(0.8, 0.8, 0.8))),
-    ));
-}
-
-fn insert_particle_effect(
-    add: On<Add, BlastDamageMarker>,
-    mut commands: Commands,
-    mut effects: ResMut<Assets<EffectAsset>>,
-    q_blast: Query<(&Transform, &TorpedoSectionPartOf), With<BlastDamageMarker>>,
-    q_config: Query<&TorpedoSectionConfigHelper, With<TorpedoSectionMarker>>,
-) {
-    let entity = add.entity;
-    trace!("insert_particle_effect: entity {:?}", entity);
-
-    let Ok((blast_transform, TorpedoSectionPartOf(torpedo_section))) = q_blast.get(entity) else {
-        error!(
-            "insert_particle_effect: entity {:?} not found in q_blast",
-            entity
-        );
-        return;
-    };
-
-    let Ok(config) = q_config.get(*torpedo_section) else {
-        error!(
-            "insert_turret_barrel_muzzle_effect: entity {:?} not found in q_effect",
-            entity
-        );
-        return;
-    };
-
-    let effect = match &config.blast_effect {
-        Some(effect) => effect.clone(),
-        None => {
-            let spawner = SpawnerSettings::once(400.0.into())
-                // In this case we want to emit on start to create an instantaneous explosion
-                .with_emit_on_start(true);
-
-            let writer = ExprWriter::new();
-
-            let age = writer.lit(0.).expr();
-            let init_age = SetAttributeModifier::new(Attribute::AGE, age);
-
-            // Lifetime: explosion should be fast but noticeable
-            let lifetime = writer.lit(0.25).uniform(writer.lit(1.5)).expr();
-            let init_lifetime = SetAttributeModifier::new(Attribute::LIFETIME, lifetime);
-
-            // Color over lifetime
-            let mut color_gradient = bevy_hanabi::Gradient::new();
-            // t=0: bright yellow/white
-            color_gradient.add_key(0.0, Vec4::new(1.0, 0.95, 0.7, 1.0));
-            // mid: hot orange
-            color_gradient.add_key(0.3, Vec4::new(1.0, 0.6, 0.1, 0.7));
-            // end: dark, almost transparent smoke
-            color_gradient.add_key(1.0, Vec4::new(0.1, 0.1, 0.1, 0.0));
-
-            let color_over_lifetime = ColorOverLifetimeModifier {
-                gradient: color_gradient,
-                blend: ColorBlendMode::default(),
-                mask: ColorBlendMask::default(),
-            };
-
-            let init_color =
-                SetAttributeModifier::new(Attribute::COLOR, writer.lit(0xFFFFFFFFu32).expr());
-
-            // Size over lifetime: fast expansion then shrink/fade
-            let mut size_gradient = bevy_hanabi::Gradient::new();
-            size_gradient.add_key(0.0, Vec3::splat(0.02)); // just spawned
-            size_gradient.add_key(0.1, Vec3::splat(0.2)); // big boom
-            size_gradient.add_key(0.5, Vec3::splat(0.25)); // lingering cloud
-            size_gradient.add_key(1.0, Vec3::splat(0.0)); // disappear
-
-            let size_over_lifetime = SizeOverLifetimeModifier {
-                gradient: size_gradient,
-                screen_space_size: false,
-            };
-
-            // Position: explosion center
-            let init_pos =
-                SetAttributeModifier::new(Attribute::POSITION, writer.lit(Vec3::ZERO).expr());
-
-            // Velocity: spherical random burst
-            let rand_x = writer.rand(ScalarType::Float) * writer.lit(2.0) - writer.lit(1.0);
-            let rand_y = writer.rand(ScalarType::Float) * writer.lit(2.0) - writer.lit(1.0);
-            let rand_z = writer.rand(ScalarType::Float) * writer.lit(2.0) - writer.lit(1.0);
-
-            let dir = writer.lit(Vec3::X) * rand_x
-                + writer.lit(Vec3::Y) * rand_y
-                + writer.lit(Vec3::Z) * rand_z;
-
-            let speed = writer.lit(20.0).uniform(writer.lit(30.0));
-            let velocity = dir * speed;
-            let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
-
-            effects.add(
-                EffectAsset::new(32768, spawner, writer.finish())
-                    .with_name("spawn_on_blast_explosion")
-                    .init(init_pos)
-                    .init(init_vel)
-                    .init(init_age)
-                    .init(init_lifetime)
-                    .init(init_color)
-                    .render(size_over_lifetime)
-                    .render(color_over_lifetime),
-            )
-        }
-    };
-
-    commands.spawn(((
-        Name::new("Blast Effect"),
-        TorpedoBlastEffectMarker,
-        Transform::from_translation(blast_transform.translation),
-        ParticleEffect::new(effect),
-        EffectProperties::default(),
-        TempEntity(2.0),
-    ),));
-}
-
-// TODO(20260706-162913): Factor out the torpedo logic into a separate module.
-// TODO(20260706-162913): Implement a separate plugin for the targeting system.
 
 #[cfg(test)]
 mod tests {
@@ -1000,8 +560,9 @@ mod tests {
             .spawn((
                 TorpedoProjectileMarker,
                 Transform::from_translation(Vec3::ZERO),
-                TorpedoTargetPosition(Vec3::ZERO), // on target: distance 0 < BLAST_RADIUS * 0.5
+                TorpedoTargetPosition(Vec3::ZERO), // on target: distance 0 < blast radius * 0.5
                 TorpedoArming::new(0.5, 5.0, Vec3::ZERO), // not armed
+                TorpedoBlast { radius: 30.0, damage: 100.0 },
                 TorpedoSectionPartOf(part_of),
             ))
             .id();
@@ -1031,6 +592,7 @@ mod tests {
                 Transform::from_translation(Vec3::ZERO),
                 TorpedoTargetPosition(Vec3::ZERO),
                 arming,
+                TorpedoBlast { radius: 30.0, damage: 100.0 },
                 TorpedoSectionPartOf(part_of),
             ))
             .id();
