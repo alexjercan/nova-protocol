@@ -155,3 +155,87 @@ fn aggregate_ship_health(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ship_health_is_the_sum_of_its_sections() {
+        let mut app = App::new();
+        app.add_systems(Update, aggregate_ship_health);
+
+        let s1 = app
+            .world_mut()
+            .spawn((SectionMarker, Health { current: 50.0, max: 100.0 }))
+            .id();
+        let s2 = app
+            .world_mut()
+            .spawn((SectionMarker, Health { current: 30.0, max: 100.0 }))
+            .id();
+        let root = app
+            .world_mut()
+            .spawn((IntegrityRoot, SpaceshipRootMarker))
+            .id();
+        app.world_mut().entity_mut(root).add_children(&[s1, s2]);
+
+        app.update();
+
+        let health = app.world().get::<Health>(root).unwrap();
+        assert_eq!(health.current, 80.0);
+        assert_eq!(health.max, 200.0);
+    }
+
+    #[test]
+    fn ship_health_reaches_zero_when_its_sections_are_gone() {
+        let mut app = App::new();
+        app.add_systems(Update, aggregate_ship_health);
+
+        let section = app
+            .world_mut()
+            .spawn((SectionMarker, Health { current: 40.0, max: 40.0 }))
+            .id();
+        let root = app
+            .world_mut()
+            .spawn((IntegrityRoot, SpaceshipRootMarker))
+            .id();
+        app.world_mut().entity_mut(root).add_children(&[section]);
+
+        app.update();
+        assert_eq!(app.world().get::<Health>(root).unwrap().current, 40.0);
+
+        // The section is destroyed and despawned; the ship's health drops to zero.
+        app.world_mut().entity_mut(section).despawn();
+        app.update();
+        assert_eq!(app.world().get::<Health>(root).unwrap().current, 0.0);
+    }
+
+    #[test]
+    fn a_disabled_non_leaf_section_is_deactivated() {
+        let mut app = App::new();
+        app.add_observer(on_section_disable);
+
+        let section = app.world_mut().spawn(SectionMarker).id();
+        app.world_mut()
+            .entity_mut(section)
+            .insert(IntegrityDisabledMarker);
+        app.update();
+
+        assert!(app.world().get::<SectionInactiveMarker>(section).is_some());
+    }
+
+    #[test]
+    fn a_disabled_leaf_section_is_not_deactivated() {
+        // A disabled leaf section is destroyed by the core, not merely deactivated.
+        let mut app = App::new();
+        app.add_observer(on_section_disable);
+
+        let section = app.world_mut().spawn((SectionMarker, IntegrityLeafMarker)).id();
+        app.world_mut()
+            .entity_mut(section)
+            .insert(IntegrityDisabledMarker);
+        app.update();
+
+        assert!(app.world().get::<SectionInactiveMarker>(section).is_none());
+    }
+}
