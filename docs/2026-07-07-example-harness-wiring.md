@@ -42,6 +42,8 @@ If the scene needs input (fire, thrust), chain an input closure onto the
 autopilot and gate it to the gameplay state:
 
 ```rust
+use nova_gameplay::GameStates;
+
 app.add_plugins(nova_autopilot().input(|world, _elapsed| {
     if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
         return;

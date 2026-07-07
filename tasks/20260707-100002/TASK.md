@@ -1,8 +1,8 @@
 # Wire BCS autopilot + screenshot harness into nova examples
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 85
-- TAGS: v0.4.0,test,harness
+- TAGS: v0.4.0, test, harness
 
 Infrastructure task that unblocks the "examples as tests" goal. bevy-common-systems
 ships env-gated developer plugins (`AutopilotPlugin<S>` behind `BCS_AUTOPILOT`,

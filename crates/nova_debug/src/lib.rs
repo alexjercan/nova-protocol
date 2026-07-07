@@ -9,7 +9,11 @@ pub mod harness;
 pub mod sections;
 
 pub mod prelude {
-    pub use super::harness::{nova_autopilot, nova_screenshot, AutopilotPlugin, ScreenshotPlugin};
+    // Only the presets are the intended entry point. The raw `AutopilotPlugin` /
+    // `ScreenshotPlugin` types stay reachable via `nova_debug::harness::` for the
+    // rare bespoke-timeline case, so glob-importing this prelude does not clash
+    // with Bevy's own `bevy::render::view::screenshot::ScreenshotPlugin`.
+    pub use super::harness::{nova_autopilot, nova_screenshot};
     pub use super::{debugdump, DebugPlugin};
 }
 
