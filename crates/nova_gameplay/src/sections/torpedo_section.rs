@@ -426,11 +426,17 @@ fn update_target_position(
 ) {
     for (torpedo, mut torpedo_target_position, target_entity) in &mut q_torpedo {
         let Ok(target_transform) = q_target.get(**target_entity) else {
+            // The target died mid-flight. Don't delete the torpedo - that reads as
+            // it blinking out of existence. Instead drop the dead target link and
+            // let it keep flying toward the last known position (frozen in
+            // `TorpedoTargetPosition`) until it arrives and detonates or its
+            // lifetime expires. Removing the link also stops this lookup - and its
+            // warning - from repeating every frame.
             debug!(
-                "update_target_position: target entity {:?} not found in q_target",
-                **target_entity
+                "update_target_position: target {:?} gone; freezing torpedo {:?} on last known position",
+                **target_entity, torpedo
             );
-            commands.entity(torpedo).despawn();
+            commands.entity(torpedo).remove::<TorpedoTargetEntity>();
             continue;
         };
 
@@ -872,6 +878,54 @@ mod tests {
         assert!(
             !app.world().entities().contains(torpedo),
             "armed torpedo on its target should detonate and despawn"
+        );
+    }
+
+    #[test]
+    fn torpedo_survives_target_loss_and_freezes_position() {
+        // Regression: when the target dies mid-flight the torpedo must not vanish.
+        // It should keep its last known target position and drop the dead link.
+        let mut app = App::new();
+        app.add_systems(Update, update_target_position);
+
+        let target = app
+            .world_mut()
+            .spawn(Transform::from_translation(Vec3::new(1.0, 2.0, 3.0)))
+            .id();
+        let torpedo = app
+            .world_mut()
+            .spawn((
+                TorpedoProjectileMarker,
+                TorpedoTargetPosition(Vec3::ZERO),
+                TorpedoTargetEntity(target),
+            ))
+            .id();
+
+        // Frame 1: target alive -> the torpedo tracks it.
+        app.update();
+        assert_eq!(
+            **app.world().get::<TorpedoTargetPosition>(torpedo).unwrap(),
+            Vec3::new(1.0, 2.0, 3.0)
+        );
+
+        // Target dies mid-flight.
+        app.world_mut().entity_mut(target).despawn();
+
+        // Frame 2: torpedo must survive, freeze on the last known position, and
+        // drop the dead target link (so it stops looking it up every frame).
+        app.update();
+        assert!(
+            app.world().entities().contains(torpedo),
+            "torpedo must not vanish when its target dies"
+        );
+        assert_eq!(
+            **app.world().get::<TorpedoTargetPosition>(torpedo).unwrap(),
+            Vec3::new(1.0, 2.0, 3.0),
+            "torpedo should freeze on the last known target position"
+        );
+        assert!(
+            app.world().get::<TorpedoTargetEntity>(torpedo).is_none(),
+            "the dead target link should be removed"
         );
     }
 }
