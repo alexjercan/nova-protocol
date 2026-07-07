@@ -10,7 +10,8 @@ pub mod prelude {
         torpedo_section, TorpedoArming, TorpedoControllerMarker, TorpedoGuidance,
         TorpedoProjectileMarker, TorpedoProjectileOwner, TorpedoSectionConfig, TorpedoSectionInput,
         TorpedoSectionMarker, TorpedoSectionPlugin, TorpedoSectionSpawnerFireState,
-        TorpedoSectionSpawnerMarker, TorpedoSteering, TorpedoTargetEntity, TorpedoTargetPosition,
+        TorpedoSectionSpawnerMarker, TorpedoSteering, TorpedoTargetChosen, TorpedoTargetEntity,
+        TorpedoTargetPosition,
     };
 }
 
@@ -129,6 +130,16 @@ pub struct TorpedoProjectileOwner(pub Entity);
 
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct TorpedoTargetEntity(pub Entity);
+
+/// The torpedo's launch-time targeting decision has been made. Inserted by the
+/// input targeting system (player crosshair today, spaceship AI later) the first
+/// time it processes a torpedo - together with a [`TorpedoTargetEntity`] when a
+/// lock exists, or alone for a dumb-fire shot. Once present, no targeting system
+/// assigns this torpedo a (new) target: a torpedo keeps its first target for
+/// life (freezing on the last known position if it dies), and a dumb-fired one
+/// never acquires anything mid-flight - e.g. bullets fired past it.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct TorpedoTargetChosen;
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct TorpedoProjectileRenderMesh(Option<Handle<WorldAsset>>);

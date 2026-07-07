@@ -177,17 +177,27 @@ fn drive_target(mut q_target: Query<&mut LinearVelocity, With<GuidanceTarget>>) 
     }
 }
 
-/// Lock every fresh torpedo onto the crossing target.
+/// Lock every fresh torpedo onto the crossing target, once (commit-at-launch,
+/// mirroring the game's `TorpedoTargetChosen` contract).
 fn range_autotarget(
     mut commands: Commands,
-    q_torpedo: Query<Entity, (With<TorpedoProjectileMarker>, Without<TorpedoTargetEntity>)>,
+    q_torpedo: Query<
+        Entity,
+        (
+            With<TorpedoProjectileMarker>,
+            Without<TorpedoTargetEntity>,
+            Without<TorpedoTargetChosen>,
+        ),
+    >,
     q_target: Query<Entity, With<GuidanceTarget>>,
 ) {
     let Ok(target) = q_target.single() else {
         return;
     };
     for torpedo in &q_torpedo {
-        commands.entity(torpedo).insert(TorpedoTargetEntity(target));
+        commands
+            .entity(torpedo)
+            .insert((TorpedoTargetEntity(target), TorpedoTargetChosen));
     }
 }
 

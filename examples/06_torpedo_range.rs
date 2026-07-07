@@ -219,11 +219,18 @@ fn drive_moving_gate(time: Res<Time>, mut q_gate: Query<&mut LinearVelocity, Wit
 
 /// Range convenience: assign each fresh torpedo the nearest gate so homing is
 /// always exercised. In the full game the player's aim picks the target instead.
+/// Mirrors the game's commit-at-launch contract: the assignment happens once
+/// (`TorpedoTargetChosen`), and a torpedo whose gate dies keeps flying to the
+/// frozen position instead of re-targeting another gate.
 fn range_autotarget(
     mut commands: Commands,
     q_torpedo: Query<
         (Entity, &GlobalTransform),
-        (With<TorpedoProjectileMarker>, Without<TorpedoTargetEntity>),
+        (
+            With<TorpedoProjectileMarker>,
+            Without<TorpedoTargetEntity>,
+            Without<TorpedoTargetChosen>,
+        ),
     >,
     q_gates: Query<(Entity, &GlobalTransform), With<RangeGateMarker>>,
 ) {
@@ -239,7 +246,9 @@ fn range_autotarget(
             .map(|(gate, _)| gate);
 
         if let Some(gate) = nearest {
-            commands.entity(torpedo).insert(TorpedoTargetEntity(gate));
+            commands
+                .entity(torpedo)
+                .insert((TorpedoTargetEntity(gate), TorpedoTargetChosen));
         }
     }
 }
