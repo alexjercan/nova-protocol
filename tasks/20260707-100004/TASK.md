@@ -1,6 +1,6 @@
 # Torpedo despawns silently when its target dies mid-flight
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.4.0,bug,torpedo
 
