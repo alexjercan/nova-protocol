@@ -39,6 +39,21 @@ audio drops in by overwriting the files at the same paths;
   `SoundBank` param through `shoot_spawn_projectile`. This mirrors how the
   destruction cue rides the existing `IntegrityDestroyMarker`.
 
+- **Events vs. polling, and editor gating (task 20260708-222026).** The four
+  one-shots are *event-driven*: they fire on a spawn/damage/destroy, which only
+  happens inside `SpaceshipSectionSystems`. So they are inherently silent
+  wherever that set is gated off (e.g. the editor's build state) - holding the
+  fire key there spawns no projectile, hence no sound. The thruster hum is the
+  exception: it *polls* `ThrusterSectionInput` every frame, and that value is set
+  by the global `on_thruster_input` observer even in the editor build state
+  (where thrust physics is gated off). So the hum systems (`ensure_thruster_loop`,
+  `update_thruster_loop_volume`) are placed `.in_set(SpaceshipSectionSystems)`,
+  the same set the thruster physics and exhaust shader use; they inherit the
+  editor's `run_if(ExampleStates::Scenario)` and stay silent while building.
+  Known edge: switching Scenario -> Editor while holding thrust freezes the last
+  hum volume until you return (the gated update stops running) - the same
+  transition artifact the gated exhaust shader has.
+
 - **`SoundBank::load`, not the `GameAssets` collection.** The bank is populated
   in a `register_sounds` system on `OnEnter(GameAssetsStates::Processing)` via
   `SoundBank::load(&assets, NOVA_SFX_FILES)`. The bcs registry has no public
