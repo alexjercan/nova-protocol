@@ -140,7 +140,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             },
             SpaceshipSectionConfig {
                 id: "turret".to_string(),
-                position: Vec3::new(0.0, 0.5, -1.0),
+                position: Vec3::new(0.0, 0.0, -1.0),
                 // Matches the turret placement in the asteroid_field ship so the
                 // base sits upright.
                 rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),

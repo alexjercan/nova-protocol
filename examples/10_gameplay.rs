@@ -107,7 +107,7 @@ fn gameplay_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scena
             },
             SpaceshipSectionConfig {
                 id: "turret".to_string(),
-                position: Vec3::new(0.0, 0.5, -1.0),
+                position: Vec3::new(0.0, 0.0, -1.0),
                 // Sit the turret base upright (matches the asteroid_field ship).
                 rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
                 config: section("better_turret_section"),
