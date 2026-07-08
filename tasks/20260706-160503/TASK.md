@@ -1,6 +1,6 @@
 # Harden mesh slicer against degenerate meshes (bevy_common_systems)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 68
 - TAGS: v0.4.0, bug, crates
 
@@ -13,3 +13,6 @@ On the nova side we already: (a) only trigger the slicer on entities that have a
 (on_explode_entity), and (b) fall back to Collider::sphere when convex_hull_from_mesh
 fails (handle_entity_explosion). The remaining hardening is the slicing algorithm itself
 returning gracefully instead of panicking on bad input - do that in the external repo.
+
+Closed here: the remaining work lives entirely in bevy_common_systems and is now tracked
+there as its task 20260708-134706. Nothing more to do in this repo.
