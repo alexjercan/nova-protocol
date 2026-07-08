@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - @alexjercan consume the integrity, health, blast and mesh-slicer systems from `bevy_common_systems` instead of the in-tree copies
 - @alexjercan split the torpedo section into its own module with config-driven blast parameters
 - @alexjercan turret now leads moving targets with intercept aim
+- @alexjercan enrich the `ScenarioLoaded` event with init status (scenario id, handler count, object count) so the smoke harness can assert on it and scenario init is easier to debug
 
 ### Fixed
 

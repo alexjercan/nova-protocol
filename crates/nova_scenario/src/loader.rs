@@ -57,9 +57,37 @@ pub struct LoadScenario(pub ScenarioConfig);
 #[derive(Event, Clone, Debug)]
 pub struct UnloadScenario;
 
-/// Event that is triggered once a scenario has been successfully loaded.
+/// Event that is triggered once a scenario has been successfully loaded. Carries a snapshot of
+/// the loaded scenario's init status so consumers (e.g. the autopilot/screenshot smoke harness)
+/// can assert on it and so scenario init is easier to debug.
 #[derive(Event, Clone, Debug)]
-pub struct ScenarioLoaded;
+pub struct ScenarioLoaded {
+    /// The id of the scenario that was loaded.
+    pub scenario_id: ScenarioId,
+    /// The number of event handlers registered for the scenario (one per `ScenarioEventConfig`).
+    pub handler_count: usize,
+    /// The number of scenario objects the scenario will spawn, counted from the
+    /// `SpawnScenarioObject` actions across all of its events.
+    pub object_count: usize,
+}
+
+impl ScenarioLoaded {
+    /// Build the load-status snapshot from a scenario config. The counts come straight from the
+    /// config: one handler per event, and one object per `SpawnScenarioObject` action.
+    fn from_config(scenario: &ScenarioConfig) -> Self {
+        let object_count = scenario
+            .events
+            .iter()
+            .flat_map(|event| event.actions.iter())
+            .filter(|action| matches!(action, EventActionConfig::SpawnScenarioObject(_)))
+            .count();
+        Self {
+            scenario_id: scenario.id.clone(),
+            handler_count: scenario.events.len(),
+            object_count,
+        }
+    }
+}
 
 /// The current loaded scenario, if any. This will contain the scenario configuration.
 #[derive(Resource, Clone, Debug, Deref, DerefMut, Default)]
@@ -192,8 +220,13 @@ fn on_load_scenario(
         ));
     }
 
-    // Trigger ScenarioLoaded event
-    commands.trigger(ScenarioLoaded);
+    // Trigger ScenarioLoaded event with a snapshot of the init status.
+    let loaded = ScenarioLoaded::from_config(&scenario);
+    debug!(
+        "on_load_scenario: loaded scenario '{}' with {} handler(s) and {} object(s)",
+        loaded.scenario_id, loaded.handler_count, loaded.object_count
+    );
+    commands.trigger(loaded);
 
     // Fire onstart event
     commands.fire::<OnStartEvent>(OnStartEventInfo);
@@ -262,4 +295,85 @@ fn on_player_spaceship_destroyed(
         .entity(camera)
         .remove::<SpaceshipCameraController>()
         .insert(WASDCameraController);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn spawn_object_action() -> EventActionConfig {
+        EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: "obj".to_string(),
+                name: "Obj".to_string(),
+                position: Vec3::ZERO,
+                rotation: Quat::IDENTITY,
+            },
+            kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                radius: 1.0,
+                texture: Handle::default(),
+                health: 1.0,
+            }),
+        })
+    }
+
+    fn event_with(actions: Vec<EventActionConfig>) -> ScenarioEventConfig {
+        ScenarioEventConfig {
+            name: EventConfig::OnStart,
+            filters: vec![],
+            actions,
+        }
+    }
+
+    fn scenario_with(id: &str, events: Vec<ScenarioEventConfig>) -> ScenarioConfig {
+        ScenarioConfig {
+            id: id.to_string(),
+            name: "Test Scenario".to_string(),
+            description: "For tests".to_string(),
+            cubemap: Handle::default(),
+            events,
+        }
+    }
+
+    #[test]
+    fn snapshot_reports_id_and_handler_count() {
+        // One ScenarioLoaded handler_count per event, regardless of the actions inside.
+        let scenario = scenario_with(
+            "asteroid_field",
+            vec![event_with(vec![]), event_with(vec![]), event_with(vec![])],
+        );
+
+        let loaded = ScenarioLoaded::from_config(&scenario);
+
+        assert_eq!(loaded.scenario_id, "asteroid_field");
+        assert_eq!(loaded.handler_count, 3);
+    }
+
+    #[test]
+    fn snapshot_counts_spawn_object_actions_across_events() {
+        // object_count counts SpawnScenarioObject actions everywhere, and ignores other
+        // action kinds (here a bare DebugMessage-free event and a mixed one).
+        let scenario = scenario_with(
+            "mixed",
+            vec![
+                event_with(vec![spawn_object_action(), spawn_object_action()]),
+                event_with(vec![]),
+                event_with(vec![spawn_object_action()]),
+            ],
+        );
+
+        let loaded = ScenarioLoaded::from_config(&scenario);
+
+        assert_eq!(loaded.handler_count, 3);
+        assert_eq!(loaded.object_count, 3);
+    }
+
+    #[test]
+    fn empty_scenario_reports_zero_counts() {
+        let loaded = ScenarioLoaded::from_config(&scenario_with("empty", vec![]));
+
+        assert_eq!(loaded.scenario_id, "empty");
+        assert_eq!(loaded.handler_count, 0);
+        assert_eq!(loaded.object_count, 0);
+    }
 }
