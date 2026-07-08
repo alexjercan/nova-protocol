@@ -18,12 +18,14 @@ fn main() {
     #[allow(unused_variables)]
     let args = Cli::parse();
 
-    let builder = AppBuilder::new();
-
+    // The editor is the default game; `editor_app` is shared with the harnessed editor example
+    // (`examples/09_editor.rs`) so both launch the identical app.
     #[cfg(feature = "debug")]
-    let builder = builder.with_rendering(!args.norender);
+    let render = !args.norender;
+    #[cfg(not(feature = "debug"))]
+    let render = true;
 
-    let mut app = builder.build();
+    let mut app = editor_app(render);
 
     #[cfg(feature = "debug")]
     if args.debugdump {
