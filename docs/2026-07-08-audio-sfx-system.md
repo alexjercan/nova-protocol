@@ -138,6 +138,8 @@ bcs audio module).
 
 - A `SfxMasterVolume` slider in the UI (the knob exists; nothing drives it yet).
 - Per-ship thruster attribution once enemies are audible.
-- Spatial/positional audio (currently all cues are non-positional).
+- Stereo panning / true spatialization. Cues are already distance-attenuated
+  (volume by distance from the listener, tasks 213155/214821), but not panned;
+  real spatial audio would need bevy's `SpatialListener` + spatial playback.
 - Torpedo bay particle SFX coupling (task 133024) and lock-on cue audio
   (task 165703) build on this layer.

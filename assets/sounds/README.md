@@ -16,10 +16,14 @@ Replace each file below with a real sound **at the same path and filename**. No
 code changes are needed: the loader (`crates/nova_assets/src/lib.rs`) loads
 these fixed paths and the audio module plays whatever handle it is given.
 
-- Formats: WAV works today (the `bevy` dependency enables the `wav` decoder in
-  `crates/nova_gameplay/Cargo.toml`). OGG Vorbis also works, since vorbis is on
-  by default; to use `.ogg` files, change the extensions in the `#[asset(path =
-  "sounds/...")]` fields of `GameAssets`.
+- Formats: WAV works out of the box (the `bevy` dependency enables the `wav`
+  decoder in `crates/nova_gameplay/Cargo.toml`). Sounds are loaded by
+  `register_sounds` in `crates/nova_assets/src/lib.rs` via
+  `SoundBank::load(&assets, NOVA_SFX_FILES)`, which applies the fixed
+  `sounds/<name>.wav` convention. OGG Vorbis also decodes (vorbis is on by
+  default), but because that convention hard-codes the `.wav` extension, using
+  `.ogg` means switching `register_sounds` to `SoundBank::load_paths(&assets,
+  [(NovaSfx::TurretFire, "sounds/turret_fire.ogg"), ...])` with full paths.
 - Suggested: 44.1 kHz, normalized but not clipping. Keep the one-shots short;
   `thruster_loop.wav` is the only looping asset and should be seamless (its
   start and end must meet without a click).
