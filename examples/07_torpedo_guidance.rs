@@ -40,14 +40,20 @@ struct Cli;
 /// Lateral speed of the crossing target (units/s).
 const TARGET_CROSS_SPEED: f32 = 15.0;
 
+/// The scenario this example builds. Shared between `guidance_scenario` and the
+/// smoke-test assertion so both agree on what "loaded" means.
+const SCENARIO_ID: &str = "torpedo_guidance";
+
 fn main() {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
+    // The scenario-loaded assertion fails the headless run if init comes up empty.
     #[cfg(feature = "debug")]
     {
         app.add_plugins(nova_autopilot().input(autopilot_fire));
         app.add_plugins(nova_screenshot());
+        app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
     }
 
     app.run();
@@ -155,7 +161,7 @@ fn guidance_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scena
     }];
 
     ScenarioConfig {
-        id: "torpedo_guidance".to_string(),
+        id: SCENARIO_ID.to_string(),
         name: "Torpedo Guidance".to_string(),
         description: "A harness for the torpedo PN guidance.".to_string(),
         cubemap: game_assets.cubemap.clone(),

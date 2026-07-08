@@ -56,8 +56,10 @@
 
 // Re-export the underlying harness plugins so examples can name/extend them
 // (e.g. build a bespoke timeline) without reaching into bevy_common_systems.
+use bevy::prelude::*;
 pub use bevy_common_systems::debug::harness::prelude::{AutopilotPlugin, ScreenshotPlugin};
 use nova_gameplay::GameStates;
+use nova_scenario::prelude::{ScenarioId, ScenarioLoaded};
 
 /// Seconds the [`nova_autopilot`] preset holds `Loading` before exiting. Must
 /// comfortably outlast asset loading (the loader drives `Loading -> Playing` on
@@ -91,4 +93,102 @@ pub fn nova_autopilot() -> AutopilotPlugin<GameStates> {
 /// forced transition would run before `GameAssets` is ready.
 pub fn nova_screenshot() -> ScreenshotPlugin<GameStates> {
     ScreenshotPlugin::new(GameStates::Playing).settle_frames(NOVA_SCREENSHOT_SETTLE_FRAMES)
+}
+
+/// Smoke-test assertion preset: fail a headless run if scenario init is broken.
+///
+/// A scenario-loading example passes `autopilot: cycle complete, no panic` even
+/// if the scenario silently came up empty. This preset closes that gap: it
+/// observes the [`ScenarioLoaded`] init-status payload and panics (which fails
+/// the `BCS_AUTOPILOT` run with a non-zero exit) when init is trivial -- the
+/// wrong scenario id, zero event handlers, or zero objects -- and, via a `fired`
+/// flag checked on entering `Playing`, when the event never fires at all.
+///
+/// Add it under the `debug` feature next to [`nova_autopilot`], passing the id
+/// the example expects to load:
+///
+/// ```no_run
+/// # use bevy::prelude::*;
+/// # use nova_debug::harness::assert_scenario_loaded;
+/// # fn add(app: &mut App) {
+/// app.add_plugins(assert_scenario_loaded("asteroid_field"));
+/// # }
+/// ```
+///
+/// The assertion is an invariant every scenario-loading example already holds,
+/// so it is harmless (a single observer) in a normal `cargo run` too. It expects
+/// exactly one scenario to load, which fits the examples that load once and do
+/// not switch scenarios within the autopilot window.
+pub fn assert_scenario_loaded(expected_id: impl Into<ScenarioId>) -> ScenarioLoadedAssertPlugin {
+    ScenarioLoadedAssertPlugin {
+        expected_id: expected_id.into(),
+    }
+}
+
+/// Plugin returned by [`assert_scenario_loaded`]. Construct it through that
+/// preset rather than directly.
+pub struct ScenarioLoadedAssertPlugin {
+    expected_id: ScenarioId,
+}
+
+impl Plugin for ScenarioLoadedAssertPlugin {
+    fn build(&self, app: &mut App) {
+        app.insert_resource(ScenarioLoadAssertion {
+            expected_id: self.expected_id.clone(),
+            fired: false,
+        });
+        app.add_observer(assert_scenario_loaded_payload);
+        app.add_systems(OnEnter(GameStates::Playing), assert_scenario_loaded_fired);
+    }
+}
+
+/// Backs [`ScenarioLoadedAssertPlugin`]: the id the smoke run expects to load and
+/// whether [`ScenarioLoaded`] has fired for it yet.
+#[derive(Resource)]
+struct ScenarioLoadAssertion {
+    expected_id: ScenarioId,
+    fired: bool,
+}
+
+/// Assert the [`ScenarioLoaded`] payload is non-trivial, right where the data is
+/// known good. A panic here fails the smoke run, so a regression that loads the
+/// wrong scenario or spawns nothing is caught instead of passing on
+/// `autopilot: cycle complete` alone.
+fn assert_scenario_loaded_payload(
+    loaded: On<ScenarioLoaded>,
+    mut assertion: ResMut<ScenarioLoadAssertion>,
+) {
+    info!(
+        "smoke: ScenarioLoaded id={:?} handlers={} objects={}",
+        loaded.scenario_id, loaded.handler_count, loaded.object_count
+    );
+
+    assert_eq!(
+        loaded.scenario_id, assertion.expected_id,
+        "smoke: ScenarioLoaded reported scenario id {:?}, expected {:?}",
+        loaded.scenario_id, assertion.expected_id
+    );
+    assert!(
+        loaded.handler_count > 0,
+        "smoke: ScenarioLoaded for {:?} reported zero event handlers -- scenario init registered no handlers",
+        loaded.scenario_id
+    );
+    assert!(
+        loaded.object_count > 0,
+        "smoke: ScenarioLoaded for {:?} reported zero objects -- scenario init spawned nothing",
+        loaded.scenario_id
+    );
+
+    assertion.fired = true;
+}
+
+/// By the time gameplay starts, the scenario must have loaded. If [`ScenarioLoaded`]
+/// never fired, the payload assertion never ran, so guard the silent-empty case
+/// here: reaching `Playing` with no load is itself a failure.
+fn assert_scenario_loaded_fired(assertion: Res<ScenarioLoadAssertion>) {
+    assert!(
+        assertion.fired,
+        "smoke: reached Playing but ScenarioLoaded for {:?} never fired -- scenario init silently failed",
+        assertion.expected_id
+    );
 }

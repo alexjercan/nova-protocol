@@ -31,16 +31,22 @@ use nova_protocol::prelude::*;
 #[command(about = "A minimal nova_gameplay example: a ship with sections, health, and one weapon", long_about = None)]
 struct Cli;
 
+/// The scenario this example builds. Shared between `gameplay_scenario` and the
+/// smoke-test assertion so both agree on what "loaded" means.
+const SCENARIO_ID: &str = "gameplay_minimal";
+
 fn main() {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
     // Headless smoke-test harness: inert in a normal run. Scene is built on
     // `GameAssetsStates::Loaded` so the screenshot's forced Playing does not re-run setup.
+    // The scenario-loaded assertion fails the run if init comes up empty.
     #[cfg(feature = "debug")]
     {
         app.add_plugins(nova_autopilot().input(autopilot_fire));
         app.add_plugins(nova_screenshot());
+        app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
     }
 
     app.run();
@@ -158,7 +164,7 @@ fn gameplay_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scena
     }];
 
     ScenarioConfig {
-        id: "gameplay_minimal".to_string(),
+        id: SCENARIO_ID.to_string(),
         name: "Gameplay Minimal".to_string(),
         description: "A minimal nova_gameplay ship with sections, health, and one weapon."
             .to_string(),

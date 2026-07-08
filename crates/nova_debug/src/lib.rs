@@ -14,7 +14,7 @@ pub mod prelude {
     // with Bevy's own `bevy::render::view::screenshot::ScreenshotPlugin`.
     pub use super::{
         debugdump,
-        harness::{nova_autopilot, nova_screenshot},
+        harness::{assert_scenario_loaded, nova_autopilot, nova_screenshot},
         DebugPlugin,
     };
 }
