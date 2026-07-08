@@ -31,16 +31,20 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
+#[path = "08_turret_range/slider.rs"]
+mod slider;
+
 use avian3d::prelude::*;
 use bevy::{
     color::palettes::tailwind,
-    picking::hover::Hovered,
     platform::collections::HashMap,
     prelude::*,
-    ui_widgets::{observe, Slider, SliderRange, SliderThumb, SliderValue, ValueChange},
+    ui_widgets::{observe, ValueChange},
 };
 use clap::Parser;
 use nova_protocol::prelude::*;
+
+use slider::{slider, SliderWidgetPlugin};
 
 #[derive(Parser)]
 #[command(name = "08_turret_range")]
@@ -87,9 +91,7 @@ fn custom_plugin(app: &mut App) {
         ),
     );
     app.add_observer(tag_gate);
-    app.add_observer(slider_on_interaction::<Insert, Hovered>)
-        .add_observer(slider_on_change_value::<SliderValue>)
-        .add_observer(slider_on_change_value::<SliderRange>);
+    app.add_plugins(SliderWidgetPlugin);
 }
 
 /// Marks an asteroid the range treats as a target gate.
@@ -321,10 +323,8 @@ fn autopilot_fire(world: &mut World, _elapsed: f32) {
 // slider writes the live `TurretSectionConfigHelper`; the turret section keeps
 // its child rotators/fire-timer in sync (`apply_turret_config_to_children`),
 // and `muzzle_speed` is read live by the aim/shoot systems. Under autopilot
-// there is no pointer to drag the sliders, so they stay inert.
-
-const SLIDER_TRACK: Color = Color::srgb(0.05, 0.05, 0.05);
-const SLIDER_THUMB: Color = Color::srgb(0.35, 0.75, 0.35);
+// there is no pointer to drag the sliders, so they stay inert. The slider widget
+// itself lives in the sibling `slider` module.
 
 /// One tunable turret knob, and the mapping between its config field and the
 /// slider's display units (degrees for angles, so the panel reads naturally).
@@ -403,14 +403,6 @@ impl Knob {
     }
 }
 
-/// Marks a tuning slider (for the thumb/hover observers).
-#[derive(Component)]
-struct TuningSlider;
-
-/// Marks a tuning slider's thumb.
-#[derive(Component)]
-struct TuningSliderThumb;
-
 /// Marks a knob's value-readout text.
 #[derive(Component, Clone, Copy)]
 struct KnobLabel(Knob);
@@ -472,7 +464,7 @@ fn setup_tuning_ui(mut commands: Commands, sections: Res<GameSections>) {
         ));
 
         commands.spawn((
-            tuning_slider(min, max, value),
+            slider(min, max, value),
             ChildOf(row),
             observe(
                 move |change: On<ValueChange<f32>>,
@@ -504,96 +496,3 @@ fn update_knob_labels(
     }
 }
 
-/// A tuning slider bundle (mirrors the slider in `examples/02_thruster_shader.rs`).
-fn tuning_slider(min: f32, max: f32, value: f32) -> impl Bundle {
-    (
-        Node {
-            display: Display::Flex,
-            flex_direction: FlexDirection::Column,
-            justify_content: JustifyContent::Center,
-            align_items: AlignItems::Stretch,
-            height: px(12),
-            width: percent(100),
-            ..default()
-        },
-        Name::new("Tuning Slider"),
-        Hovered::default(),
-        TuningSlider,
-        Slider::default(),
-        SliderValue(value),
-        SliderRange::new(min, max),
-        Children::spawn((
-            Spawn((
-                Node {
-                    height: px(6),
-                    border_radius: BorderRadius::all(px(3)),
-                    ..default()
-                },
-                BackgroundColor(SLIDER_TRACK),
-            )),
-            Spawn((
-                Node {
-                    display: Display::Flex,
-                    position_type: PositionType::Absolute,
-                    left: px(0),
-                    right: px(12),
-                    top: px(0),
-                    bottom: px(0),
-                    ..default()
-                },
-                children![(
-                    TuningSliderThumb,
-                    SliderThumb,
-                    Node {
-                        display: Display::Flex,
-                        width: px(12),
-                        height: px(12),
-                        position_type: PositionType::Absolute,
-                        left: percent(0),
-                        border_radius: BorderRadius::MAX,
-                        ..default()
-                    },
-                    BackgroundColor(SLIDER_THUMB),
-                )],
-            )),
-        )),
-    )
-}
-
-fn slider_on_interaction<E: EntityEvent, C: Component>(
-    event: On<E, C>,
-    sliders: Query<(Entity, &Hovered), With<TuningSlider>>,
-    children: Query<&Children>,
-    mut thumbs: Query<(&mut BackgroundColor, Has<TuningSliderThumb>), Without<TuningSlider>>,
-) {
-    if let Ok((slider_ent, hovered)) = sliders.get(event.event_target()) {
-        for child in children.iter_descendants(slider_ent) {
-            if let Ok((mut thumb_bg, is_thumb)) = thumbs.get_mut(child) {
-                if is_thumb {
-                    thumb_bg.0 = if hovered.0 {
-                        SLIDER_THUMB.lighter(0.3)
-                    } else {
-                        SLIDER_THUMB
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn slider_on_change_value<C: Component>(
-    insert: On<Insert, C>,
-    sliders: Query<(Entity, &SliderValue, &SliderRange), With<TuningSlider>>,
-    children: Query<&Children>,
-    mut thumbs: Query<(&mut Node, Has<TuningSliderThumb>), Without<TuningSlider>>,
-) {
-    if let Ok((slider_ent, value, range)) = sliders.get(insert.entity) {
-        for child in children.iter_descendants(slider_ent) {
-            if let Ok((mut thumb_node, is_thumb)) = thumbs.get_mut(child) {
-                if is_thumb {
-                    thumb_node.left = percent(range.thumb_position(value.0) * 100.0);
-                }
-            }
-        }
-    }
-}
