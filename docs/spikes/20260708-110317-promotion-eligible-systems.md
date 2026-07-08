@@ -185,3 +185,26 @@ is completed by the first task below; the cross-repo moves stay under 20260706-1
 - tatr (new, see report): design the Tier-B destructible-graph seam
   (graph-builder API + generic destroyed trigger) before moving `integrity/plugin` +
   `explode`; blocks the Tier-B/C portion of 20260706-151804.
+
+## Outcome (2026-07-08)
+
+- **Tier A + Tier B - promoted.** The integrity destruction core (`components`, `blast`,
+  the `plugin` damage/leaf/chain logic), the `rigid_body_point_velocity` + `destructible_body`
+  helpers, and the `hud/health` + `hud/objectives` widgets were added to
+  `bevy_common_systems` and nova now consumes them (bcs PRs #2/#3; nova PR #52). The Tier-B
+  seam shipped as `NovaIntegrityPlugin` (bcs `IntegrityPlugin` + nova's `glue` + `explode`)
+  with `IntegrityDestroyMarker` as the generic "destroyed" signal - no new event type was
+  needed. `integrity/explode` and `integrity/glue` stayed nova-side as planned.
+- **Tier C `hud/velocity` - NOT promoted (decision).** Promoting the
+  `DirectionMagnitudeMaterial` / `DirectionSphereMaterial` requires vendoring their
+  `directional_*.wgsl` into `bevy_common_systems`, which would compile the shaders into the
+  crate (`embedded_asset!`) and make them awkward to tweak or hot-reload from a game. We
+  prefer shaders to stay game-side as editable assets, so the materials + shaders remain in
+  nova's `hud/velocity`. bcs PR #4 attempted the embed-and-promote and was closed as not
+  approved. This resolves the "shader vendoring" open question above: the answer is to not
+  vendor them.
+- **Tier D - unchanged.** `integrity/glue`, `hud/mod`, `hud/torpedo_target`, and
+  `camera_controller` stayed in nova.
+
+Net: everything worth promoting is promoted; `hud/velocity` is deliberately game-local. Tasks
+20260707-095020, 20260708-110449, and 20260706-151804 are closed.
