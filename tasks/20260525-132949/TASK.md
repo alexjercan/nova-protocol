@@ -1,6 +1,6 @@
 # Add collider section as separate child entity
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 25
 - TAGS: v0.4.0, refactor
 
@@ -71,3 +71,26 @@ Recommendation: do this together with 20260706-162911 (integrity graph via relat
 the whole collider/health/section-node model is reconsidered at once, rather than bolting a
 hierarchy change onto the current same-entity assumptions. Retagged to v0.4.0 to travel with
 that rework.
+
+## Resolution (CLOSED - won't do, 2026-07-08)
+
+Closed as no value. Decided not to split Collider onto a child entity:
+
+- No gameplay payoff. Purely an organizational refactor ("store collider components on a
+  child"), as the 2026-07-06 notes admit.
+- Reverted twice (v0.3.1 and 2026-07-06), both times destabilizing ship physics: avian's
+  mass/inertia aggregation broke ("Dynamic rigid body ... has no mass or inertia"), thrust
+  and bullet impulse stopped moving the ship. An unresolved deferred-spawn / AncestorMarker
+  ordering blocker remains.
+- The rework it was retagged to travel with, 20260706-162911 (integrity graph via
+  relations), is now CLOSED and landed keeping Collider + Health on the SAME section entity.
+  It works cleanly, proving the split is not a prerequisite for anything.
+- The split's only load-bearing requirement is teaching bcs's generic
+  `on_collider_of_spawn_insert_collision_events` to find Health on an ancestor (self-or-parent
+  check), because splitting moves Collider to the child while Health stays on the section.
+  We do not want to bloat the generic integrity core with ancestor-walking to support a
+  nova-only hierarchy that has no payoff.
+
+Keeping the current same-entity design (Collider + Health on the section entity) is simpler:
+exact-entity ColliderOf+Health match in bcs, HealthApplyDamage already auto-propagates up
+ChildOf, no ancestor-walking anywhere.
