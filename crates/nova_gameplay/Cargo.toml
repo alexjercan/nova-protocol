@@ -6,7 +6,13 @@ description = "Gameplay systems and logic for the Nova Protocol game"
 
 [dependencies]
 avian3d = { version = "0.7" }
-bevy = { version = "0.19.0" }
+# `wav` enables bevy's WAV audio decoder so the shipped binary can play the
+# placeholder sound effects under `assets/sounds/*.wav`. It is a normal (not
+# dev-only) feature because the game itself decodes them at runtime; cargo
+# unifies it across the workspace, so this single declaration covers every crate
+# and example. Vorbis stays default-on, so `.ogg` swap-ins work with only a
+# path-extension change.
+bevy = { version = "0.19.0", features = ["wav"] }
 bevy_enhanced_input = { version = "0.26.0" }
 rand = { version = "0.10.2" }
 bevy_hanabi = { version = "0.19.0", default-features = false, features = ["2d", "3d"] }

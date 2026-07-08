@@ -80,6 +80,7 @@ impl Plugin for NovaGameplayPlugin {
         app.add_plugins(crate::hud::NovaHudPlugin);
         app.add_plugins(crate::camera_controller::SpaceshipCameraControllerPlugin);
         app.add_plugins(crate::integrity::NovaIntegrityPlugin);
+        app.add_plugins(crate::audio::NovaAudioPlugin);
 
         // Diagnostics
         if !app.is_plugin_added::<bevy::diagnostic::FrameTimeDiagnosticsPlugin>() {

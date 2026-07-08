@@ -24,6 +24,32 @@ cargo test                        # tests
 The dev profile turns on `opt-level = 1` for our code and `opt-level = 3` for all
 dependencies (including Bevy), so the first build is slow but iteration is fast.
 
+Two habits that keep the check suite honest and fast in this repo:
+
+- Run **`cargo test --workspace`**, not bare `cargo test`. This is a
+  root-package-plus-members workspace and the unit tests live in the member
+  crates; bare `cargo test` only runs the root package and gives false comfort.
+- For a headless example run, **build cold first, then time only the run**
+  (`cargo build --example X --features debug`, then `BCS_AUTOPILOT=1 timeout N
+  cargo run --example X ...`). Wrapping a cold `cargo run` in a run-sized timeout
+  burns the whole window on the build and never executes.
+
+### Building from a sprout worktree
+
+A fresh `sprout` worktree has its own empty `target/`, so a build there is a full
+cold Bevy compile (minutes, and tens of GB of disk). Point it at the main
+checkout's warm cache instead - cargo fingerprints artifacts by crate + features,
+so sharing one target dir across worktrees is safe:
+
+```sh
+export CARGO_TARGET_DIR=/path/to/nova-protocol/target
+```
+
+With the shared cache, only the crates you actually changed (and anything a
+changed feature touches) recompile; an incremental worktree build drops from
+multi-minute to seconds. Set it for every build/test/clippy command run inside a
+worktree.
+
 The dev profile also sets `split-debuginfo = "unpacked"` and `debug = "line-tables-only"`.
 This is a **memory** knob, not a speed one: `cargo test` / `cargo build --all-targets`
 links one Bevy+avian binary per target (the lib unittest, every example, and doctests).
