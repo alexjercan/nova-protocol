@@ -110,6 +110,120 @@ pub(super) fn insert_torpedo_controller_render(
     ));
 }
 
+/// An expanding, fading sphere that visualizes a blast's area of effect. Unlike the
+/// hanabi particle burst (`insert_particle_effect`, wasm-blocked), this is a plain
+/// mesh + `StandardMaterial`, so it renders on every target including wasm. It is the
+/// blast's actual `radius` made visible: the sphere grows from a point to exactly the
+/// blast radius while fading out, so the player sees how far the detonation reached.
+#[derive(Component, Debug, Clone, Reflect)]
+pub(super) struct BlastRadiusVisual {
+    /// Full blast radius the sphere expands to reach, in world units.
+    radius: f32,
+    /// Seconds elapsed since the detonation.
+    elapsed: f32,
+    /// Total lifetime of the visual, in seconds.
+    duration: f32,
+    /// This visual's own material, faded each frame and freed on despawn.
+    material: Handle<StandardMaterial>,
+}
+
+/// Spawn the wasm-safe expanding-sphere blast visual when a blast sensor appears.
+///
+/// The sphere mesh is a unit sphere shared across all blasts (cached in a `Local`);
+/// only the material is per-instance so each blast can fade independently.
+pub(super) fn insert_blast_radius_visual(
+    add: On<Add, BlastDamageMarker>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut sphere_mesh: Local<Option<Handle<Mesh>>>,
+    q_blast: Query<(&Transform, &BlastDamageConfig), With<BlastDamageMarker>>,
+) {
+    let entity = add.entity;
+    trace!("insert_blast_radius_visual: entity {:?}", entity);
+
+    let Ok((blast_transform, config)) = q_blast.get(entity) else {
+        error!(
+            "insert_blast_radius_visual: entity {:?} not found in q_blast",
+            entity
+        );
+        return;
+    };
+
+    let mesh = sphere_mesh
+        .get_or_insert_with(|| meshes.add(Sphere::new(1.0)))
+        .clone();
+
+    let material = materials.add(StandardMaterial {
+        base_color: Color::srgba(1.0, 0.55, 0.15, 0.35),
+        emissive: LinearRgba::rgb(4.0, 1.6, 0.3),
+        alpha_mode: bevy::prelude::AlphaMode::Blend,
+        // Render both faces so the shell is visible from inside the blast too.
+        cull_mode: None,
+        unlit: true,
+        ..default()
+    });
+
+    commands.spawn((
+        Name::new("Blast Radius Visual"),
+        BlastRadiusVisual {
+            radius: config.radius,
+            elapsed: 0.0,
+            duration: 0.4,
+            material: material.clone(),
+        },
+        Mesh3d(mesh),
+        MeshMaterial3d(material),
+        // Start at a point; `animate_blast_radius_visual` grows it to `radius`.
+        Transform::from_translation(blast_transform.translation).with_scale(Vec3::ZERO),
+    ));
+}
+
+/// Base alpha of the blast shell at the start of its life (before it fades out).
+const BLAST_VISUAL_BASE_ALPHA: f32 = 0.35;
+
+/// The blast visual's world radius and fade factor at normalized time `t` in `[0, 1]`.
+///
+/// The radius follows an ease-out cubic (a quick punch outward that settles at the
+/// full `radius`); the fade goes linearly from 1 (opaque) at `t = 0` to 0 at `t = 1`.
+/// Pure, so the growth/fade curve is unit-tested without a render world.
+fn blast_visual_step(radius: f32, t: f32) -> (f32, f32) {
+    let t = t.clamp(0.0, 1.0);
+    let eased = 1.0 - (1.0 - t).powi(3);
+    (radius * eased, 1.0 - t)
+}
+
+/// Expand each blast visual out to its radius while fading it, then despawn it (and
+/// free its one-off material so the assets do not accumulate over a long session).
+pub(super) fn animate_blast_radius_visual(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut q_visual: Query<(Entity, &mut Transform, &mut BlastRadiusVisual)>,
+) {
+    for (entity, mut transform, mut visual) in &mut q_visual {
+        visual.elapsed += time.delta_secs();
+        let t = visual.elapsed / visual.duration;
+
+        if t >= 1.0 {
+            materials.remove(&visual.material);
+            commands.entity(entity).despawn();
+            continue;
+        }
+
+        let (scale, fade) = blast_visual_step(visual.radius, t);
+        transform.scale = Vec3::splat(scale);
+
+        // Fade the shell (and its glow) to nothing over the lifetime.
+        if let Some(mut material) = materials.get_mut(&visual.material) {
+            material
+                .base_color
+                .set_alpha(BLAST_VISUAL_BASE_ALPHA * fade);
+            material.emissive = LinearRgba::rgb(4.0 * fade, 1.6 * fade, 0.3 * fade);
+        }
+    }
+}
+
 pub(super) fn insert_particle_effect(
     add: On<Add, BlastDamageMarker>,
     mut commands: Commands,
@@ -221,4 +335,53 @@ pub(super) fn insert_particle_effect(
         EffectProperties::default(),
         TempEntity(2.0),
     ),));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blast_visual_starts_at_a_point_fully_opaque() {
+        // t = 0: no size yet, full opacity - the flash begins as a bright point.
+        let (scale, fade) = blast_visual_step(6.0, 0.0);
+        assert_eq!(scale, 0.0);
+        assert_eq!(fade, 1.0);
+    }
+
+    #[test]
+    fn blast_visual_ends_at_full_radius_fully_faded() {
+        // t = 1: the sphere has reached exactly the blast radius and faded out.
+        let (scale, fade) = blast_visual_step(6.0, 1.0);
+        assert!((scale - 6.0).abs() < 1e-6, "scale should reach the radius");
+        assert_eq!(fade, 0.0);
+    }
+
+    #[test]
+    fn blast_visual_grows_and_fades_monotonically() {
+        // Sampling forward in time, the shell only ever grows and only ever fades.
+        let radius = 6.0;
+        let mut prev = blast_visual_step(radius, 0.0);
+        for i in 1..=10 {
+            let t = i as f32 / 10.0;
+            let step = blast_visual_step(radius, t);
+            assert!(step.0 >= prev.0, "radius must not shrink");
+            assert!(step.1 <= prev.1, "opacity must not increase");
+            assert!(step.0 <= radius + 1e-6, "never exceeds the blast radius");
+            prev = step;
+        }
+    }
+
+    #[test]
+    fn blast_visual_step_clamps_out_of_range_time() {
+        let radius = 6.0;
+        assert_eq!(
+            blast_visual_step(radius, -0.5),
+            blast_visual_step(radius, 0.0)
+        );
+        assert_eq!(
+            blast_visual_step(radius, 2.0),
+            blast_visual_step(radius, 1.0)
+        );
+    }
 }

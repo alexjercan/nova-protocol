@@ -253,6 +253,11 @@ impl Plugin for TorpedoSectionPlugin {
             app.add_observer(insert_torpedo_render);
             app.add_observer(insert_torpedo_controller_render);
 
+            // Expanding-sphere blast-radius visual: a plain mesh + material, so unlike
+            // the hanabi particle burst below it also renders on wasm.
+            app.add_observer(insert_blast_radius_visual);
+            app.add_systems(Update, animate_blast_radius_visual);
+
             // FIXME(20260706-162908): For now we disable particle effects on wasm because it's not working
             #[cfg(not(target_family = "wasm"))]
             app.add_observer(insert_particle_effect);
