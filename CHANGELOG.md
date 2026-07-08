@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - @alexjercan add example test ranges: torpedo bay (`06_torpedo_range`), PDC turret (`08_turret_range`), and a minimal `nova_gameplay` showcase (`10_gameplay`)
 - @alexjercan add live turret-range tuning sliders and an FPS/version overlay to the examples
 - @alexjercan wire the `bevy_common_systems` autopilot + screenshot harness into the examples for headless smoke testing
+- @alexjercan add torpedo target aim-assist (angular lock-on cone, easier than a raycast) and a reticle that sizes itself to the locked target
 
 ### Changed
 
