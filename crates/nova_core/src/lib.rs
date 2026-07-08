@@ -26,7 +26,17 @@ pub mod prelude {
     pub use nova_info::prelude::*;
     pub use nova_scenario::prelude::*;
 
-    pub use super::AppBuilder;
+    pub use super::{editor_app, AppBuilder};
+}
+
+/// Build the editor application - the exact app the `nova_protocol` binary runs.
+///
+/// The editor is [`AppBuilder`]'s default "game": `build()` adds `NovaEditorPlugin` when no
+/// custom game plugins were supplied. Factoring it here lets the binary and the harnessed editor
+/// example (`examples/09_editor.rs`) launch the identical app instead of each open-coding it, so
+/// the example exercises the same editor the game ships.
+pub fn editor_app(render: bool) -> App {
+    AppBuilder::new().with_rendering(render).build()
 }
 
 pub struct AppBuilder {
