@@ -1,6 +1,6 @@
 # Promote generic nova_gameplay helpers to bevy_common_systems
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 66
 - TAGS: v0.4.0, refactor, crates
 
@@ -43,3 +43,11 @@ deleted the local copies, now consuming the promoted symbols:
 Still local (deferred, Tier C in the spike): hud/velocity.rs
 (DirectionMagnitudeMaterial / DirectionSphereMaterial + shaders/directional_*.wgsl) - needs
 the wgsl vendored into bcs first.
+
+Decision (2026-07-08): hud/velocity stays in nova and will NOT be promoted. Promoting the
+DirectionMagnitude / DirectionSphere materials requires vendoring their wgsl into
+bevy_common_systems, which would compile the shaders into the crate (embedded_asset) and make
+them awkward to tweak or hot-reload from a game. We prefer shaders to remain game-side,
+editable assets, so the materials + shaders stay in hud/velocity. (bcs PR #4 attempted the
+promotion and was closed as not approved.) With this, everything promotable from this task is
+done; closing.
