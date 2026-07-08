@@ -89,9 +89,11 @@ struct EditorAutopilot {
 /// to place it - a full editor interaction driven headless.
 #[cfg(feature = "debug")]
 fn editor_autopilot(world: &mut World, _elapsed: f32) {
-    use bevy::picking::pointer::{PointerAction, PointerButton};
-    use bevy::ui::Pressed;
-    use bevy::ui_widgets::Activate;
+    use bevy::{
+        picking::pointer::{PointerAction, PointerButton},
+        ui::Pressed,
+        ui_widgets::Activate,
+    };
 
     // The editor lives inside GameStates::Playing (it switches its own inner state to Editor
     // there); do nothing until the loader has reached it.
@@ -243,10 +245,7 @@ fn aim_at_a_section(world: &mut World) -> Option<(bevy::picking::pointer::Locati
         .ok()?;
     let target = render_target.normalize(Some(window_entity))?;
 
-    Some((
-        bevy::picking::pointer::Location { target, position },
-        count,
-    ))
+    Some((bevy::picking::pointer::Location { target, position }, count))
 }
 
 /// Write a synthetic mouse `PointerInput` at `location`, as if the user moved/clicked there.
@@ -257,5 +256,9 @@ fn send_pointer(
     action: bevy::picking::pointer::PointerAction,
 ) {
     use bevy::picking::pointer::{PointerId, PointerInput};
-    world.write_message(PointerInput::new(PointerId::Mouse, location.clone(), action));
+    world.write_message(PointerInput::new(
+        PointerId::Mouse,
+        location.clone(),
+        action,
+    ));
 }

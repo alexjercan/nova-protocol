@@ -43,7 +43,6 @@ use bevy::{
 };
 use clap::Parser;
 use nova_protocol::prelude::*;
-
 use slider::{slider, SliderWidgetPlugin};
 
 #[derive(Parser)]
@@ -206,7 +205,11 @@ fn tag_gate(add: On<Add, AsteroidMarker>, mut commands: Commands, q_id: Query<&E
     let entity = add.entity;
     commands.entity(entity).insert(RangeGateMarker);
 
-    if q_id.get(entity).map(|id| id.0 == MOVING_GATE_ID).unwrap_or(false) {
+    if q_id
+        .get(entity)
+        .map(|id| id.0 == MOVING_GATE_ID)
+        .unwrap_or(false)
+    {
         commands
             .entity(entity)
             .insert((RangeMovingTarget, LinearVelocity::default()));
@@ -229,7 +232,10 @@ fn drive_moving_gate(
 /// Also feeds the gate's velocity so the turret leads the mover.
 fn range_aim(
     mut q_turret: Query<
-        (&mut TurretSectionTargetInput, &mut TurretSectionTargetVelocity),
+        (
+            &mut TurretSectionTargetInput,
+            &mut TurretSectionTargetVelocity,
+        ),
         With<TurretSectionMarker>,
     >,
     q_moving: Query<(&GlobalTransform, &LinearVelocity), With<RangeMovingTarget>>,
@@ -495,4 +501,3 @@ fn update_knob_labels(
         text.0 = format!("{}: {:.0} {}", knob.label(), knob.read(config), knob.unit());
     }
 }
-

@@ -3,7 +3,11 @@ use super::*;
 pub(super) fn update_target_position(
     mut commands: Commands,
     mut q_torpedo: Query<
-        (Entity, Option<&mut TorpedoTargetPosition>, &TorpedoTargetEntity),
+        (
+            Entity,
+            Option<&mut TorpedoTargetPosition>,
+            &TorpedoTargetEntity,
+        ),
         With<TorpedoProjectileMarker>,
     >,
     q_target: Query<&Transform>,
@@ -64,7 +68,8 @@ pub(super) fn torpedo_detonate_system(
         With<TorpedoProjectileMarker>,
     >,
 ) {
-    for (torpedo, torpedo_transform, torpedo_target_position, arming, blast, part_of) in &q_torpedo {
+    for (torpedo, torpedo_transform, torpedo_target_position, arming, blast, part_of) in &q_torpedo
+    {
         // Do not detonate until the torpedo has armed (cleared the muzzle), so a
         // shot at a nearby target does not blow up on spawn.
         if !arming.is_armed() {
@@ -131,10 +136,7 @@ pub(super) fn pn_steer_direction(
     // Constant-bearing lead. Plan with at least the target's speed so the lead
     // stays defined while the torpedo is still accelerating up to speed.
     let target_perp = target_vel - target_vel.dot(los) * los;
-    let planning_speed = missile_vel
-        .length()
-        .max(target_vel.length())
-        .max(1e-3);
+    let planning_speed = missile_vel.length().max(target_vel.length()).max(1e-3);
     let closing = (planning_speed * planning_speed - target_perp.length_squared())
         .max(0.0)
         .sqrt();
@@ -228,7 +230,12 @@ pub(super) fn thrust_headroom(speed_along_nose: f32, max_speed: f32) -> f32 {
 /// [`thrust_headroom`] and [`TorpedoSectionConfig::max_speed`]).
 pub(super) fn torpedo_thrust_system(
     q_torpedo: Query<
-        (&Transform, &TorpedoSteering, &LinearVelocity, &TorpedoGuidance),
+        (
+            &Transform,
+            &TorpedoSteering,
+            &LinearVelocity,
+            &TorpedoGuidance,
+        ),
         With<TorpedoProjectileMarker>,
     >,
     mut q_thruster: Query<

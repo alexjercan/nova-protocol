@@ -1,8 +1,7 @@
 //! A Bevy plugin that adds various debugging tools.
 
 use bevy::prelude::*;
-use bevy_common_systems::debug::harness::AUTOPILOT_ENV;
-use bevy_common_systems::prelude::*;
+use bevy_common_systems::{debug::harness::AUTOPILOT_ENV, prelude::*};
 use nova_gameplay::GameStates;
 
 pub mod harness;
@@ -13,8 +12,11 @@ pub mod prelude {
     // `ScreenshotPlugin` types stay reachable via `nova_debug::harness::` for the
     // rare bespoke-timeline case, so glob-importing this prelude does not clash
     // with Bevy's own `bevy::render::view::screenshot::ScreenshotPlugin`.
-    pub use super::harness::{nova_autopilot, nova_screenshot};
-    pub use super::{debugdump, DebugPlugin};
+    pub use super::{
+        debugdump,
+        harness::{nova_autopilot, nova_screenshot},
+        DebugPlugin,
+    };
 }
 
 /// The keycode to toggle debug mode.
@@ -45,10 +47,9 @@ impl Plugin for DebugPlugin {
         // that silently stalls in `Loading` fails the smoke test instead of
         // passing on `autopilot: cycle complete, no panic` alone.
         if std::env::var(AUTOPILOT_ENV).is_ok() {
-            app.add_systems(
-                OnEnter(GameStates::Playing),
-                || info!("nova harness: reached Playing"),
-            );
+            app.add_systems(OnEnter(GameStates::Playing), || {
+                info!("nova harness: reached Playing")
+            });
         }
 
         app.configure_sets(

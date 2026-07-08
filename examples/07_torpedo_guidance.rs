@@ -164,7 +164,11 @@ fn guidance_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scena
 }
 
 fn tag_target(add: On<Add, AsteroidMarker>, mut commands: Commands, q_id: Query<&EntityId>) {
-    if q_id.get(add.entity).map(|id| id.0 == "crosser").unwrap_or(false) {
+    if q_id
+        .get(add.entity)
+        .map(|id| id.0 == "crosser")
+        .unwrap_or(false)
+    {
         commands.entity(add.entity).insert(GuidanceTarget);
     }
 }
@@ -228,11 +232,7 @@ fn report_torpedo_speed(
     if !timer.0.tick(time.delta()).just_finished() {
         return;
     }
-    if let Some(speed) = q_torpedo
-        .iter()
-        .map(|v| v.length())
-        .max_by(f32::total_cmp)
-    {
+    if let Some(speed) = q_torpedo.iter().map(|v| v.length()).max_by(f32::total_cmp) {
         info!("guidance: torpedo speed {:.1}", speed);
     }
 }
@@ -253,7 +253,11 @@ fn draw_guidance(
         };
         gizmos.sphere(Isometry3d::from_translation(pos), 0.6, status);
         gizmos.line(pos, **target, tailwind::RED_400);
-        gizmos.sphere(Isometry3d::from_translation(**target), 1.0, tailwind::RED_400);
+        gizmos.sphere(
+            Isometry3d::from_translation(**target),
+            1.0,
+            tailwind::RED_400,
+        );
     }
 }
 

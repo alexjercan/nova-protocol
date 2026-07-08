@@ -269,7 +269,9 @@ mod tests {
         let mut app = App::new();
         let id = app
             .world_mut()
-            .spawn(preview_controller_section(ControllerSectionConfig::default()))
+            .spawn(preview_controller_section(
+                ControllerSectionConfig::default(),
+            ))
             .id();
         app.update();
 

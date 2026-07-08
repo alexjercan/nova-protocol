@@ -54,11 +54,10 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
-use nova_gameplay::GameStates;
-
 // Re-export the underlying harness plugins so examples can name/extend them
 // (e.g. build a bespoke timeline) without reaching into bevy_common_systems.
 pub use bevy_common_systems::debug::harness::prelude::{AutopilotPlugin, ScreenshotPlugin};
+use nova_gameplay::GameStates;
 
 /// Seconds the [`nova_autopilot`] preset holds `Loading` before exiting. Must
 /// comfortably outlast asset loading (the loader drives `Loading -> Playing` on

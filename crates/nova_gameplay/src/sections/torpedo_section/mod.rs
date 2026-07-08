@@ -516,7 +516,6 @@ fn shoot_spawn_projectile(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -573,7 +572,10 @@ mod tests {
                 Transform::from_translation(Vec3::ZERO),
                 TorpedoTargetPosition(Vec3::ZERO), // on target: distance 0 < blast radius * 0.5
                 TorpedoArming::new(0.5, 5.0, Vec3::ZERO), // not armed
-                TorpedoBlast { radius: 30.0, damage: 100.0 },
+                TorpedoBlast {
+                    radius: 30.0,
+                    damage: 100.0,
+                },
                 TorpedoSectionPartOf(part_of),
             ))
             .id();
@@ -603,7 +605,10 @@ mod tests {
                 Transform::from_translation(Vec3::ZERO),
                 TorpedoTargetPosition(Vec3::ZERO),
                 arming,
-                TorpedoBlast { radius: 30.0, damage: 100.0 },
+                TorpedoBlast {
+                    radius: 30.0,
+                    damage: 100.0,
+                },
                 TorpedoSectionPartOf(part_of),
             ))
             .id();
@@ -679,8 +684,14 @@ mod tests {
             dir.x > 0.01,
             "PN should lead a +X-crossing target with a +X heading component, got {dir:?}"
         );
-        assert!(dir.z < 0.0, "torpedo should still be heading generally forward");
-        assert!(dir.is_normalized(), "steering direction must be a unit vector");
+        assert!(
+            dir.z < 0.0,
+            "torpedo should still be heading generally forward"
+        );
+        assert!(
+            dir.is_normalized(),
+            "steering direction must be a unit vector"
+        );
     }
 
     #[test]
@@ -692,7 +703,10 @@ mod tests {
 
         let dir = pn_steer_direction(rel_pos, Vec3::ZERO, missile_vel, 3.0);
 
-        assert!((dir - Vec3::NEG_Z).length() < 1e-3, "expected straight pursuit, got {dir:?}");
+        assert!(
+            (dir - Vec3::NEG_Z).length() < 1e-3,
+            "expected straight pursuit, got {dir:?}"
+        );
     }
 
     #[test]
@@ -717,10 +731,12 @@ mod tests {
     fn pn_handles_degenerate_inputs() {
         // Target on top of the torpedo, and a stationary torpedo: both must return
         // a finite unit direction, never NaN.
-        let coincident = pn_steer_direction(Vec3::ZERO, Vec3::ZERO, Vec3::new(0.0, 0.0, -10.0), 3.0);
+        let coincident =
+            pn_steer_direction(Vec3::ZERO, Vec3::ZERO, Vec3::new(0.0, 0.0, -10.0), 3.0);
         assert!(coincident.is_finite() && coincident.is_normalized());
 
-        let stationary = pn_steer_direction(Vec3::new(0.0, 0.0, -50.0), Vec3::ZERO, Vec3::ZERO, 3.0);
+        let stationary =
+            pn_steer_direction(Vec3::new(0.0, 0.0, -50.0), Vec3::ZERO, Vec3::ZERO, 3.0);
         assert!(stationary.is_finite() && stationary.is_normalized());
         assert!(
             (stationary - Vec3::NEG_Z).length() < 1e-3,
@@ -798,7 +814,11 @@ mod tests {
         assert_eq!(thrust_headroom(20.0, 35.0), 1.0);
         assert!((thrust_headroom(32.5, 35.0) - 0.5).abs() < 1e-6);
         assert_eq!(thrust_headroom(35.0, 35.0), 0.0);
-        assert_eq!(thrust_headroom(50.0, 35.0), 0.0, "cap cuts thrust, never brakes");
+        assert_eq!(
+            thrust_headroom(50.0, 35.0),
+            0.0,
+            "cap cuts thrust, never brakes"
+        );
     }
 
     #[test]
@@ -807,7 +827,10 @@ mod tests {
         // torpedo must come around and hit a stationary target ahead, instead of
         // thrusting off along its launch drift.
         let miss = launch_closest_approach(Vec3::new(0.0, 0.0, -60.0), Vec3::ZERO);
-        assert!(miss < 5.0, "torpedo should reach the stationary target, closest was {miss}");
+        assert!(
+            miss < 5.0,
+            "torpedo should reach the stationary target, closest was {miss}"
+        );
     }
 
     /// A closest approach that counts as a kill: inside the proximity fuze
@@ -819,11 +842,11 @@ mod tests {
     #[test]
     fn pn_intercepts_a_crossing_target() {
         // From the real launch state, intercept a target crossing the range.
-        let miss = launch_closest_approach(
-            Vec3::new(-30.0, 0.0, -80.0),
-            Vec3::new(15.0, 0.0, 0.0),
+        let miss = launch_closest_approach(Vec3::new(-30.0, 0.0, -80.0), Vec3::new(15.0, 0.0, 0.0));
+        assert!(
+            miss < HIT,
+            "PN should intercept the crossing target, closest approach was {miss}"
         );
-        assert!(miss < HIT, "PN should intercept the crossing target, closest approach was {miss}");
     }
 
     #[test]
@@ -834,7 +857,10 @@ mod tests {
                 Vec3::new(-2.0 * cross, 0.0, -80.0),
                 Vec3::new(cross, 0.0, 0.0),
             );
-            assert!(miss < HIT, "PN should intercept a target crossing at {cross}, miss was {miss}");
+            assert!(
+                miss < HIT,
+                "PN should intercept a target crossing at {cross}, miss was {miss}"
+            );
         }
     }
 

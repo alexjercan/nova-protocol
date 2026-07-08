@@ -177,7 +177,11 @@ mod tests {
 
         let slider = app
             .world_mut()
-            .spawn((SliderWidget, SliderValue(25.0), SliderRange::new(0.0, 100.0)))
+            .spawn((
+                SliderWidget,
+                SliderValue(25.0),
+                SliderRange::new(0.0, 100.0),
+            ))
             .id();
         let thumb = app
             .world_mut()
@@ -192,9 +196,7 @@ mod tests {
         // A later edit (the widget re-inserts `SliderValue`, which is immutable) must move the
         // thumb too - the case the old `On<Insert>`-per-slider wiring missed once nothing was
         // re-inserting it.
-        app.world_mut()
-            .entity_mut(slider)
-            .insert(SliderValue(75.0));
+        app.world_mut().entity_mut(slider).insert(SliderValue(75.0));
         app.update();
         assert_eq!(app.world().get::<Node>(thumb).unwrap().left, percent(75.0));
     }

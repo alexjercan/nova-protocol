@@ -110,10 +110,7 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: HashMap::from([(
                 "torpedo".to_string(),
-                vec![
-                    KeyCode::Space.into(),
-                    GamepadButton::RightTrigger.into(),
-                ],
+                vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
             )]),
         }),
         sections: vec![
@@ -163,9 +160,24 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
         },
         kind: ScenarioObjectKind::Spaceship(ship),
     }];
-    objects.push(gate("gate_near", "Near Gate", Vec3::new(0.0, 0.0, -30.0), 2.0));
-    objects.push(gate("gate_mid", "Mid Gate", Vec3::new(0.0, 0.0, -70.0), 3.0));
-    objects.push(gate("gate_far", "Far Gate", Vec3::new(6.0, 0.0, -120.0), 3.0));
+    objects.push(gate(
+        "gate_near",
+        "Near Gate",
+        Vec3::new(0.0, 0.0, -30.0),
+        2.0,
+    ));
+    objects.push(gate(
+        "gate_mid",
+        "Mid Gate",
+        Vec3::new(0.0, 0.0, -70.0),
+        3.0,
+    ));
+    objects.push(gate(
+        "gate_far",
+        "Far Gate",
+        Vec3::new(6.0, 0.0, -120.0),
+        3.0,
+    ));
     objects.push(gate(
         "gate_side",
         "Side Gate",
@@ -202,7 +214,11 @@ fn tag_gate(add: On<Add, AsteroidMarker>, mut commands: Commands, q_id: Query<&E
     let entity = add.entity;
     commands.entity(entity).insert(RangeGateMarker);
 
-    if q_id.get(entity).map(|id| id.0 == MOVING_GATE_ID).unwrap_or(false) {
+    if q_id
+        .get(entity)
+        .map(|id| id.0 == MOVING_GATE_ID)
+        .unwrap_or(false)
+    {
         commands
             .entity(entity)
             .insert((RangeMovingTarget, LinearVelocity::default()));
@@ -210,7 +226,10 @@ fn tag_gate(add: On<Add, AsteroidMarker>, mut commands: Commands, q_id: Query<&E
 }
 
 /// Drift the moving gate side to side so torpedoes have to lead it.
-fn drive_moving_gate(time: Res<Time>, mut q_gate: Query<&mut LinearVelocity, With<RangeMovingTarget>>) {
+fn drive_moving_gate(
+    time: Res<Time>,
+    mut q_gate: Query<&mut LinearVelocity, With<RangeMovingTarget>>,
+) {
     let speed = (time.elapsed_secs() * 0.5).sin() * 10.0;
     for mut velocity in &mut q_gate {
         velocity.0 = Vec3::new(speed, 0.0, 0.0);
@@ -270,7 +289,11 @@ fn draw_torpedo_guidance(
         };
         gizmos.sphere(Isometry3d::from_translation(pos), 0.6, status);
         gizmos.line(pos, **target, tailwind::RED_400);
-        gizmos.sphere(Isometry3d::from_translation(**target), 1.0, tailwind::RED_400);
+        gizmos.sphere(
+            Isometry3d::from_translation(**target),
+            1.0,
+            tailwind::RED_400,
+        );
     }
 }
 

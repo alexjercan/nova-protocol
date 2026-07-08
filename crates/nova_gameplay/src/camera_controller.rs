@@ -441,7 +441,10 @@ mod tests {
 
         // The anchor survives the switch (the bug reset it to the origin for a frame)...
         assert_eq!(
-            app.world().get::<ChaseCameraInput>(camera).unwrap().anchor_pos,
+            app.world()
+                .get::<ChaseCameraInput>(camera)
+                .unwrap()
+                .anchor_pos,
             anchor,
             "switching camera mode must not reset the chase anchor to the origin"
         );

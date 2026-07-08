@@ -15,10 +15,10 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        turret_section, TurretBulletProjectileMarker, TurretProjectileHooks,
+        turret_section, TurretBulletProjectileMarker, TurretProjectileHooks, TurretSectionAimPoint,
         TurretSectionBarrelMuzzleMarker, TurretSectionConfig, TurretSectionConfigHelper,
-        TurretSectionInput, TurretSectionAimPoint, TurretSectionMarker, TurretSectionMuzzleEntity,
-        TurretSectionPlugin, TurretSectionTargetInput, TurretSectionTargetVelocity,
+        TurretSectionInput, TurretSectionMarker, TurretSectionMuzzleEntity, TurretSectionPlugin,
+        TurretSectionTargetInput, TurretSectionTargetVelocity,
     };
 }
 
@@ -426,7 +426,10 @@ fn insert_turret_section(
 fn apply_turret_config_to_children(
     q_turret: Query<
         (Entity, &TurretSectionConfigHelper),
-        (With<TurretSectionMarker>, Changed<TurretSectionConfigHelper>),
+        (
+            With<TurretSectionMarker>,
+            Changed<TurretSectionConfigHelper>,
+        ),
     >,
     mut q_yaw: Query<
         (&TurretSectionPartOf, &mut SmoothLookRotation),
@@ -513,14 +516,15 @@ fn lead_intercept_point(
         (b.abs() > 1e-6).then(|| -c / b)
     } else {
         let discriminant = b * b - 4.0 * a * c;
-        (discriminant >= 0.0).then(|| {
-            let sqrt_d = discriminant.sqrt();
-            [(-b + sqrt_d) / (2.0 * a), (-b - sqrt_d) / (2.0 * a)]
-                .into_iter()
-                .filter(|&t| t > 0.0)
-                .reduce(f32::min)
-        })
-        .flatten()
+        (discriminant >= 0.0)
+            .then(|| {
+                let sqrt_d = discriminant.sqrt();
+                [(-b + sqrt_d) / (2.0 * a), (-b - sqrt_d) / (2.0 * a)]
+                    .into_iter()
+                    .filter(|&t| t > 0.0)
+                    .reduce(f32::min)
+            })
+            .flatten()
     };
 
     match time_to_intercept {
@@ -1348,7 +1352,10 @@ mod tests {
         // No motion, no lead: aim straight at the target.
         let target = Vec3::new(0.0, 0.0, -100.0);
         let aim = lead_intercept_point(Vec3::ZERO, target, Vec3::ZERO, 100.0);
-        assert!((aim - target).length() < 1e-3, "expected the target itself, got {aim:?}");
+        assert!(
+            (aim - target).length() < 1e-3,
+            "expected the target itself, got {aim:?}"
+        );
     }
 
     #[test]
@@ -1364,7 +1371,10 @@ mod tests {
 
         let aim = lead_intercept_point(shooter, target, target_vel, speed);
 
-        assert!(aim.x > 0.1, "intercept should lead a +X crosser, got {aim:?}");
+        assert!(
+            aim.x > 0.1,
+            "intercept should lead a +X crosser, got {aim:?}"
+        );
         // Consistency: at the bullet's flight time, the target is exactly there.
         let flight_time = (aim - shooter).length() / speed;
         let target_future = target + target_vel * flight_time;
@@ -1382,16 +1392,25 @@ mod tests {
         let target_vel = Vec3::new(0.0, 0.0, -200.0); // fleeing at 200, bullet only 100
         let aim = lead_intercept_point(Vec3::ZERO, target, target_vel, 100.0);
         assert!(aim.is_finite());
-        assert!((aim - target).length() < 1e-3, "expected fallback to the target, got {aim:?}");
+        assert!(
+            (aim - target).length() < 1e-3,
+            "expected fallback to the target, got {aim:?}"
+        );
     }
 
     /// Spawn a bare turret whose base rotators and fire timer are seeded from `config`,
     /// mimicking what `insert_turret_section` builds, without needing the render/physics
     /// plugins. Returns `(turret, yaw_base, pitch_base, muzzle)`.
-    fn spawn_turret_rig(app: &mut App, config: &TurretSectionConfig) -> (Entity, Entity, Entity, Entity) {
+    fn spawn_turret_rig(
+        app: &mut App,
+        config: &TurretSectionConfig,
+    ) -> (Entity, Entity, Entity, Entity) {
         let turret = app
             .world_mut()
-            .spawn((TurretSectionMarker, TurretSectionConfigHelper(config.clone())))
+            .spawn((
+                TurretSectionMarker,
+                TurretSectionConfigHelper(config.clone()),
+            ))
             .id();
         let yaw = app
             .world_mut()
@@ -1441,7 +1460,8 @@ mod tests {
         let mut app = App::new();
         app.add_systems(Update, apply_turret_config_to_children);
 
-        let (turret, yaw, pitch, muzzle) = spawn_turret_rig(&mut app, &TurretSectionConfig::default());
+        let (turret, yaw, pitch, muzzle) =
+            spawn_turret_rig(&mut app, &TurretSectionConfig::default());
 
         {
             let mut helper = app
@@ -1456,7 +1476,10 @@ mod tests {
         }
         app.update();
 
-        assert_eq!(app.world().get::<SmoothLookRotation>(yaw).unwrap().speed, 5.0);
+        assert_eq!(
+            app.world().get::<SmoothLookRotation>(yaw).unwrap().speed,
+            5.0
+        );
         let pitch_rot = app.world().get::<SmoothLookRotation>(pitch).unwrap();
         assert_eq!(pitch_rot.speed, 6.0);
         assert_eq!(pitch_rot.min, Some(-0.25));
@@ -1476,7 +1499,8 @@ mod tests {
         let mut app = App::new();
         app.add_systems(Update, apply_turret_config_to_children);
 
-        let (edited, edited_yaw, _, _) = spawn_turret_rig(&mut app, &TurretSectionConfig::default());
+        let (edited, edited_yaw, _, _) =
+            spawn_turret_rig(&mut app, &TurretSectionConfig::default());
         let (_other, other_yaw, _, _) = spawn_turret_rig(&mut app, &TurretSectionConfig::default());
 
         app.world_mut()
@@ -1485,9 +1509,18 @@ mod tests {
             .yaw_speed = 9.0;
         app.update();
 
-        assert_eq!(app.world().get::<SmoothLookRotation>(edited_yaw).unwrap().speed, 9.0);
         assert_eq!(
-            app.world().get::<SmoothLookRotation>(other_yaw).unwrap().speed,
+            app.world()
+                .get::<SmoothLookRotation>(edited_yaw)
+                .unwrap()
+                .speed,
+            9.0
+        );
+        assert_eq!(
+            app.world()
+                .get::<SmoothLookRotation>(other_yaw)
+                .unwrap()
+                .speed,
             TurretSectionConfig::default().yaw_speed,
             "an untouched turret's rotators must not change"
         );
