@@ -576,7 +576,7 @@ fn create_new_spaceship_with_controller(
             .spawn((
                 preview_section(base.clone()),
                 Transform::from_translation(position).with_rotation(rotation),
-                controller_section(controller.clone()),
+                preview_controller_section(controller.clone()),
             ))
             .id();
     });
@@ -738,7 +738,7 @@ fn on_click_spaceship_section(
                         controller_entity = parent
                             .spawn((
                                 preview_section(section.base.clone()),
-                                controller_section(controller.clone()),
+                                preview_controller_section(controller.clone()),
                                 Transform {
                                     translation: position,
                                     rotation,

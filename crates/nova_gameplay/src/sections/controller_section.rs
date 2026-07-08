@@ -8,8 +8,9 @@ use crate::prelude::{SectionInactiveMarker, SectionRenderOf};
 
 pub mod prelude {
     pub use super::{
-        controller_section, ControllerSectionConfig, ControllerSectionMarker,
-        ControllerSectionPlugin, ControllerSectionRenderMarker, ControllerSectionRotationInput,
+        controller_section, preview_controller_section, ControllerSectionConfig,
+        ControllerSectionMarker, ControllerSectionPlugin, ControllerSectionRenderMarker,
+        ControllerSectionRotationInput,
     };
 }
 
@@ -52,6 +53,21 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
             max_torque: config.max_torque,
         },
         ControllerSectionRotationInput::default(),
+        ControllerSectionRenderMesh(config.render_mesh),
+    )
+}
+
+/// A render-only controller section for the editor preview: it shows the controller mesh (and is
+/// pickable) but carries no [`PDController`], so it never tries to torque a root. The editor
+/// preview ship is a visual config preview with no `RigidBody`; a live controller there just
+/// floods the log with "root not found" every frame (task 20260706-212909). Because it has no
+/// `PDController`, the bcs PD systems and `insert_controller_section_target` both skip it, so the
+/// preview controller is inert.
+pub fn preview_controller_section(config: ControllerSectionConfig) -> impl Bundle {
+    debug!("preview_controller_section: config {:?}", config);
+
+    (
+        ControllerSectionMarker,
         ControllerSectionRenderMesh(config.render_mesh),
     )
 }
@@ -125,15 +141,14 @@ fn sync_controller_section_forces(
 fn insert_controller_section_target(
     add: On<Add, ControllerSectionMarker>,
     mut commands: Commands,
-    q_controller: Query<&ChildOf, With<ControllerSectionMarker>>,
+    // Only real (live) controllers carry a `PDController`; a render-only preview controller
+    // (`preview_controller_section`) does not, so it gets no target and stays inert.
+    q_controller: Query<&ChildOf, (With<ControllerSectionMarker>, With<PDController>)>,
 ) {
     let entity = add.entity;
     trace!("insert_controller_section_target: entity {:?}", entity);
     let Ok(ChildOf(root)) = q_controller.get(entity) else {
-        error!(
-            "insert_controller_section_target: entity {:?} not found in q_controller",
-            entity
-        );
+        // No `PDController` (a preview controller) - nothing to target. Not an error.
         return;
     };
 
@@ -245,5 +260,58 @@ mod tests {
         let render_mesh = app.world().get::<ControllerSectionRenderMesh>(id).unwrap();
         assert!(render_mesh.0.is_some());
         assert_eq!(render_mesh.0.as_ref().unwrap(), &custom_scene);
+    }
+
+    #[test]
+    fn preview_controller_carries_no_live_pd_controller() {
+        // The editor preview controller renders but must not carry a live PDController - that is
+        // what spammed "root not found" against the non-physics preview root (task 20260706-212909).
+        let mut app = App::new();
+        let id = app
+            .world_mut()
+            .spawn(preview_controller_section(ControllerSectionConfig::default()))
+            .id();
+        app.update();
+
+        assert!(app.world().get::<ControllerSectionMarker>(id).is_some());
+        assert!(
+            app.world().get::<PDController>(id).is_none(),
+            "a preview controller must not carry a live PDController"
+        );
+    }
+
+    #[test]
+    fn only_a_live_controller_gets_a_pd_target() {
+        // `insert_controller_section_target` gives a target only to controllers that carry a
+        // PDController. The bcs PD system iterates `(PDController, ..., PDControllerTarget, ...)`,
+        // so a preview controller with neither is never processed and never logs "root not found".
+        let mut app = App::new();
+        app.add_observer(insert_controller_section_target);
+
+        let root = app.world_mut().spawn_empty().id();
+        let live = app
+            .world_mut()
+            .spawn((
+                controller_section(ControllerSectionConfig::default()),
+                ChildOf(root),
+            ))
+            .id();
+        let preview = app
+            .world_mut()
+            .spawn((
+                preview_controller_section(ControllerSectionConfig::default()),
+                ChildOf(root),
+            ))
+            .id();
+        app.update();
+
+        assert!(
+            app.world().get::<PDControllerTarget>(live).is_some(),
+            "a live controller targets its root"
+        );
+        assert!(
+            app.world().get::<PDControllerTarget>(preview).is_none(),
+            "a preview controller must not target a root - that is the PD-spam fix"
+        );
     }
 }
