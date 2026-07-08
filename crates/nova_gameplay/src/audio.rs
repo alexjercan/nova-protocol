@@ -27,9 +27,11 @@
 //! The [`SoundBank<NovaSfx>`] resource is inserted by `nova_assets` once assets
 //! load; every system here degrades gracefully (does nothing) until it exists.
 
+use std::collections::HashMap;
+
 use bevy::{audio::Volume, prelude::*};
 
-use crate::prelude::*;
+use crate::{prelude::*, sections::turret_section::TurretSectionPartOf};
 
 /// Keys for Nova's sound effects, naming each cue the game plays. Used as the
 /// [`SoundBank`] key so call sites read `bank.get(NovaSfx::Explosion)`.
@@ -94,6 +96,17 @@ const SFX_AUDIBLE_THRESHOLD: f32 = 0.01;
 /// to a bounded rate keeps the cue legible and the entity churn sane.
 const TURRET_FIRE_MIN_INTERVAL: f32 = 0.05;
 const IMPACT_MIN_INTERVAL: f32 = 0.04;
+
+/// World-cell size (units) for grouping co-located area cues (impact, explosion).
+/// A blast hitting many colliders of one ship, or a ship's sections all destroyed
+/// at once, fall in the same cell and collapse to a single sound; events far
+/// enough apart get their own. Small enough to keep distinct ships/impacts
+/// separate. Turret fire is keyed by entity instead, so it does not use this.
+const SFX_AREA_CELL: f32 = 6.0;
+
+/// Drop throttle keys not touched within this many seconds, so the per-source map
+/// stays bounded as ships move through new cells and turrets come and go.
+const SFX_THROTTLE_PRUNE_WINDOW: f32 = 2.0;
 /// A dying multi-section ship marks every section destroyed in the same frame;
 /// this collapses that burst into a single explosion instead of N overlapping
 /// ones (which would clip). Short enough that genuinely separate kills >60ms
@@ -103,34 +116,47 @@ const EXPLOSION_MIN_INTERVAL: f32 = 0.06;
 /// Loudest the engine hum ever gets (at full thrust), on the linear scale.
 const ENGINE_MAX_VOLUME: f32 = 0.3;
 
-/// Last-played timestamps for the throttled cues, in seconds since startup.
-/// Both start at negative infinity so the first event of each kind always fires,
-/// even at `t == 0`, rather than being swallowed by the initial interval.
-#[derive(Resource)]
-struct SfxThrottle {
-    last_turret_fire: f32,
-    last_impact: f32,
-    last_explosion: f32,
+/// Per-source throttle key. Turret fire is keyed by the firing turret entity so
+/// each gun sounds independently (even two guns on one ship); the area cues are
+/// keyed by a quantized world cell so a co-located burst collapses to one sound
+/// while distinct locations each sound. Keying globally (one timestamp per cue)
+/// was the bug where a second gun firing in the same window was silenced.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+enum ThrottleKey {
+    TurretFire(Entity),
+    Impact(IVec3),
+    Explosion(IVec3),
 }
 
-impl Default for SfxThrottle {
-    fn default() -> Self {
-        Self {
-            last_turret_fire: f32::NEG_INFINITY,
-            last_impact: f32::NEG_INFINITY,
-            last_explosion: f32::NEG_INFINITY,
+/// Quantize a world position to a [`SFX_AREA_CELL`]-sized integer cell, so nearby
+/// events share a key and far ones do not.
+fn area_cell(pos: Vec3) -> IVec3 {
+    (pos / SFX_AREA_CELL).floor().as_ivec3()
+}
+
+/// Last-played timestamp per throttle key, in seconds since startup. A key that
+/// is absent has never played, so its first event always fires.
+#[derive(Resource, Default)]
+struct SfxThrottle {
+    last: HashMap<ThrottleKey, f32>,
+}
+
+impl SfxThrottle {
+    /// If `key` has not sounded within `min_interval` seconds, stamp it `now` and
+    /// return true; otherwise false. Each key throttles independently.
+    fn allow(&mut self, key: ThrottleKey, now: f32, min_interval: f32) -> bool {
+        let last = self.last.entry(key).or_insert(f32::NEG_INFINITY);
+        if now - *last >= min_interval {
+            *last = now;
+            true
+        } else {
+            false
         }
     }
-}
 
-/// Whether `now` is at least `min_interval` seconds after `last`; if so, advance
-/// `last` to `now` and return true. Pure so it can be unit-tested without audio.
-fn throttle(last: &mut f32, now: f32, min_interval: f32) -> bool {
-    if now - *last >= min_interval {
-        *last = now;
-        true
-    } else {
-        false
+    /// Drop keys idle for longer than `window` seconds so the map stays bounded.
+    fn prune(&mut self, now: f32, window: f32) {
+        self.last.retain(|_, &mut last| now - last < window);
     }
 }
 
@@ -211,9 +237,17 @@ impl Plugin for NovaAudioPlugin {
 
         app.add_systems(
             Update,
-            (ensure_thruster_loop, update_thruster_loop_volume).chain(),
+            (
+                (ensure_thruster_loop, update_thruster_loop_volume).chain(),
+                prune_sfx_throttle,
+            ),
         );
     }
+}
+
+/// Keep the per-source throttle map bounded by dropping idle keys.
+fn prune_sfx_throttle(time: Res<Time>, mut throttle_state: ResMut<SfxThrottle>) {
+    throttle_state.prune(time.elapsed_secs(), SFX_THROTTLE_PRUNE_WINDOW);
 }
 
 /// Explosion cue on any destruction (section, asteroid, or torpedo detonation,
@@ -233,8 +267,9 @@ fn on_destroyed_play_explosion(
     let Ok(source) = q_transform.get(add.entity) else {
         return;
     };
-    if throttle(
-        &mut throttle_state.last_explosion,
+    let pos = source.translation();
+    if throttle_state.allow(
+        ThrottleKey::Explosion(area_cell(pos)),
         time.elapsed_secs(),
         EXPLOSION_MIN_INTERVAL,
     ) {
@@ -243,7 +278,7 @@ fn on_destroyed_play_explosion(
             &bank,
             NovaSfx::Explosion,
             EXPLOSION_VOLUME,
-            source.translation(),
+            pos,
             listener_position(&q_camera),
         );
     }
@@ -264,8 +299,9 @@ fn on_damage_play_impact(
     let Ok(source) = q_transform.get(damage.entity) else {
         return;
     };
-    if throttle(
-        &mut throttle_state.last_impact,
+    let pos = source.translation();
+    if throttle_state.allow(
+        ThrottleKey::Impact(area_cell(pos)),
         time.elapsed_secs(),
         IMPACT_MIN_INTERVAL,
     ) {
@@ -274,7 +310,7 @@ fn on_damage_play_impact(
             &bank,
             NovaSfx::Impact,
             IMPACT_VOLUME,
-            source.translation(),
+            pos,
             listener_position(&q_camera),
         );
     }
@@ -286,7 +322,7 @@ fn on_turret_fire_play_sfx(
     add: On<Add, TurretBulletProjectileMarker>,
     bank: Option<Res<SoundBank<NovaSfx>>>,
     time: Res<Time>,
-    q_transform: Query<&Transform>,
+    q_projectile: Query<(&Transform, &TurretSectionPartOf)>,
     q_camera: Query<&GlobalTransform, With<Camera3d>>,
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
@@ -294,11 +330,13 @@ fn on_turret_fire_play_sfx(
     let Some(bank) = bank else { return };
     // The projectile is a freshly-spawned ROOT entity, so its GlobalTransform is
     // still identity this frame; its local Transform is already world-space.
-    let Ok(source) = q_transform.get(add.entity) else {
+    // `TurretSectionPartOf` names the firing turret, so each gun throttles on its
+    // own key - the fix for "only one of several guns is audible".
+    let Ok((transform, part_of)) = q_projectile.get(add.entity) else {
         return;
     };
-    if throttle(
-        &mut throttle_state.last_turret_fire,
+    if throttle_state.allow(
+        ThrottleKey::TurretFire(part_of.0),
         time.elapsed_secs(),
         TURRET_FIRE_MIN_INTERVAL,
     ) {
@@ -307,7 +345,7 @@ fn on_turret_fire_play_sfx(
             &bank,
             NovaSfx::TurretFire,
             TURRET_FIRE_VOLUME,
-            source.translation,
+            transform.translation,
             listener_position(&q_camera),
         );
     }
@@ -405,36 +443,59 @@ mod tests {
     use super::*;
 
     #[test]
-    fn throttle_blocks_until_the_interval_elapses() {
-        // Real usage seeds `last` at NEG_INFINITY (see SfxThrottle::default) so the
-        // first event always fires, even at t=0.
-        let mut last = f32::NEG_INFINITY;
-        assert!(throttle(&mut last, 0.0, 0.05));
-        assert_eq!(last, 0.0);
-        // Too soon: blocked, last unchanged.
-        assert!(!throttle(&mut last, 0.03, 0.05));
-        assert_eq!(last, 0.0);
-        // Exactly at the interval: fires and advances.
-        assert!(throttle(&mut last, 0.05, 0.05));
-        assert_eq!(last, 0.05);
-        // Immediately after: blocked again.
-        assert!(!throttle(&mut last, 0.06, 0.05));
+    fn throttle_blocks_one_key_until_the_interval_elapses() {
+        let key = ThrottleKey::Explosion(IVec3::ZERO);
+        let mut state = SfxThrottle::default();
+        // First event of a key always fires (absent -> NEG_INFINITY).
+        assert!(state.allow(key, 0.0, 0.05));
+        // Too soon: blocked.
+        assert!(!state.allow(key, 0.03, 0.05));
+        // Exactly at the interval: fires again.
+        assert!(state.allow(key, 0.05, 0.05));
+        // Immediately after: blocked.
+        assert!(!state.allow(key, 0.06, 0.05));
     }
 
     #[test]
-    fn sfx_throttle_default_lets_the_first_event_fire() {
+    fn throttle_is_independent_per_key() {
+        // The bug fix: two distinct sources firing in the same instant both play.
+        let mut world = World::new();
+        let gun_a = ThrottleKey::TurretFire(world.spawn_empty().id());
+        let gun_b = ThrottleKey::TurretFire(world.spawn_empty().id());
         let mut state = SfxThrottle::default();
-        assert!(throttle(
-            &mut state.last_turret_fire,
-            0.0,
-            TURRET_FIRE_MIN_INTERVAL
-        ));
-        assert!(throttle(&mut state.last_impact, 0.0, IMPACT_MIN_INTERVAL));
-        assert!(throttle(
-            &mut state.last_explosion,
-            0.0,
-            EXPLOSION_MIN_INTERVAL
-        ));
+        assert!(state.allow(gun_a, 0.0, 0.05));
+        assert!(
+            state.allow(gun_b, 0.0, 0.05),
+            "a second gun must not be silenced"
+        );
+        // Same gun again in the same window is still throttled.
+        assert!(!state.allow(gun_a, 0.0, 0.05));
+        // Different cue kinds at the same cell are independent too.
+        assert!(state.allow(ThrottleKey::Impact(IVec3::ZERO), 0.0, 0.04));
+        assert!(state.allow(ThrottleKey::Explosion(IVec3::ZERO), 0.0, 0.06));
+    }
+
+    #[test]
+    fn prune_drops_only_idle_keys() {
+        let mut state = SfxThrottle::default();
+        state.allow(ThrottleKey::Impact(IVec3::ZERO), 0.0, 0.04); // last = 0.0
+        state.allow(ThrottleKey::Impact(IVec3::ONE), 9.5, 0.04); // last = 9.5
+        state.prune(10.0, 2.0); // window 2s at now=10 -> keep >8.0
+        assert_eq!(state.last.len(), 1);
+        assert!(state.last.contains_key(&ThrottleKey::Impact(IVec3::ONE)));
+    }
+
+    #[test]
+    fn area_cell_groups_nearby_and_separates_distant() {
+        // Points within one cell share a key; points cells apart do not.
+        assert_eq!(
+            area_cell(Vec3::ZERO),
+            area_cell(Vec3::splat(SFX_AREA_CELL * 0.5))
+        );
+        assert_ne!(
+            area_cell(Vec3::ZERO),
+            area_cell(Vec3::splat(SFX_AREA_CELL * 1.5))
+        );
     }
 
     #[test]

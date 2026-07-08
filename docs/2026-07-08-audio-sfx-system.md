@@ -48,11 +48,20 @@ audio drops in by overwriting the files at the same paths;
   `NOVA_SFX_FILES` is the single source of truth for the key->file map, shared
   between `nova_gameplay` (the keys) and `nova_assets` (the load).
 
-- **Throttling.** Turret fire and impact can each fire many times per frame
-  (100/s PDC; a blast hitting every collider of a ship). Un-throttled that is a
-  wall of overlapping audio entities. A tiny per-cue min-interval collapses them
-  to a legible rate; the timestamps default to `NEG_INFINITY` so the first event
-  always fires.
+- **Throttling (per source, task 20260708-215922).** Turret fire and impact can
+  each fire many times per frame (100/s PDC; a blast hitting every collider of a
+  ship), and destruction marks a whole ship's sections at once - un-throttled
+  that is a wall of overlapping audio entities. The throttle keeps a last-played
+  timestamp *per source* (`SfxThrottle { last: HashMap<ThrottleKey, f32> }`), not
+  one global timestamp per cue. `ThrottleKey` is `TurretFire(Entity)` - keyed by
+  the firing turret so each gun sounds independently (the original global
+  throttle silenced a second gun firing in the same window) - and `Impact(IVec3)`
+  / `Explosion(IVec3)` - keyed by a quantized world cell (`SFX_AREA_CELL`) so a
+  co-located burst collapses to one sound while distinct locations each sound. An
+  absent key has never fired, so first events always play; a small system prunes
+  keys idle beyond a window so the map stays bounded. The area cell is a heuristic
+  (two sources within one cell collapse); an exact per-`IntegrityRoot` key is a
+  possible future refinement.
 
 - **Distance attenuation (feel pass, task 20260708-213155).** The four
   positional one-shots are scaled by how far the event is from the listener (the

@@ -142,8 +142,11 @@ pub struct TurretSectionTargetVelocity(pub Vec3);
 pub struct TurretSectionAimPoint(pub Option<Vec3>);
 
 /// The Turret "parent" entity of the turret component.
+///
+/// `pub(crate)` so the audio module can key each gun's fire SFX by its turret
+/// entity (multiple guns each sound). Not re-exported from the public prelude.
 #[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
-struct TurretSectionPartOf(pub Entity);
+pub(crate) struct TurretSectionPartOf(pub Entity);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct BulletProjectileRenderMesh(Option<Handle<WorldAsset>>);
