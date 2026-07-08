@@ -1,8 +1,8 @@
 # Mark promotion-eligible systems for bevy-common-systems
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 70
-- TAGS: v0.4.0,crates,refactor
+- TAGS: v0.4.0, crates, refactor
 
 Part of the v0.4.0 goal of identifying which nova systems are game-agnostic enough
 to be copy-pasted into other games via bevy-common-systems (tier 2 -> external in the

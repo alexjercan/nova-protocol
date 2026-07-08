@@ -1,8 +1,8 @@
 # Design the destructible-graph seam for promoting integrity to bevy-common-systems
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 55
-- TAGS: spike,v0.4.0,crates,refactor
+- TAGS: spike, v0.4.0, crates, refactor
 
 Goal: the integrity destruction pipeline (`integrity/plugin.rs` + `components.rs` +
 `blast.rs`, and `integrity/explode.rs`) is game-agnostic enough to promote to
