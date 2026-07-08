@@ -31,9 +31,29 @@ fn main() {
     // Required by the HUD Plugin
     app.add_plugins(DirectionalSphereOrbitPlugin);
 
-    app.add_systems(Startup, (setup_camera, setup_hud));
+    // FPS + version diagnostics overlay. Every other example gets this for free
+    // from `AppBuilder::build`; this one hand-builds its app, so wire the status
+    // bar (and its FPS diagnostics source) up explicitly to keep coverage even.
+    if !app.is_plugin_added::<bevy::diagnostic::FrameTimeDiagnosticsPlugin>() {
+        app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default());
+    }
+    app.add_plugins(StatusBarPlugin);
+
+    app.add_systems(Startup, (setup_camera, setup_hud, setup_status_ui));
 
     app.run();
+}
+
+fn setup_status_ui(mut commands: Commands) {
+    commands.spawn(status_bar(StatusBarRootConfig::default()));
+    commands.spawn(status_bar_with_fps());
+    commands.spawn(status_bar_item(StatusBarItemConfig {
+        icon: None,
+        value_fn: status_version_value_fn(APP_VERSION),
+        color_fn: status_version_color_fn(),
+        prefix: "v".to_string(),
+        suffix: "".to_string(),
+    }));
 }
 
 fn setup_camera(mut commands: Commands) {
