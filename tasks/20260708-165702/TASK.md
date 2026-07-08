@@ -1,8 +1,8 @@
 # Locked-target info readout: distance, closing speed, health (HUD)
 
 - STATUS: OPEN
-- PRIORITY: 36
-- TAGS: v0.5.0,hud,torpedo,spike
+- PRIORITY: 70
+- TAGS: v0.4.0,hud,torpedo,spike
 
 Spike: docs/spikes/20260708-165647-weapons-hud.md
 

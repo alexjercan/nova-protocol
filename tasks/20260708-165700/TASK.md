@@ -1,8 +1,8 @@
 # Screen-projected-indicator widget (HUD substrate)
 
 - STATUS: OPEN
-- PRIORITY: 40
-- TAGS: v0.5.0,hud,spike
+- PRIORITY: 78
+- TAGS: v0.4.0,hud,spike
 
 Spike: docs/spikes/20260708-165647-weapons-hud.md
 

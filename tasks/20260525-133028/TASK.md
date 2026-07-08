@@ -1,7 +1,7 @@
 # Add scenario config resource
 
 - STATUS: OPEN
-- PRIORITY: 75
+- PRIORITY: 0
 - TAGS: v0.5.0,objectives,modding
 
 Store all scenarios as a resource. Legacy #99.

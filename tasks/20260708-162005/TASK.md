@@ -1,8 +1,8 @@
 # Weapon and damage-type variety (alt-fire, AP/EMP)
 
 - STATUS: OPEN
-- PRIORITY: 20
-- TAGS: v0.6.0, weapons
+- PRIORITY: 0
+- TAGS: v0.5.0,weapons
 
 Spike: docs/spikes/20260708-161726-modding-language-and-scripting.md (roadmap)
 

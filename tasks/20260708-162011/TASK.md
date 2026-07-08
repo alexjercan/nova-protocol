@@ -1,8 +1,8 @@
 # Audio/SFX system (thrust, weapons, explosions, impacts)
 
 - STATUS: OPEN
-- PRIORITY: 55
-- TAGS: v0.5.0, audio
+- PRIORITY: 90
+- TAGS: v0.4.0,audio
 
 Spike: docs/spikes/20260708-161726-modding-language-and-scripting.md (roadmap)
 

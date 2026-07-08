@@ -1,8 +1,8 @@
 # Turret lead/intercept pip (HUD)
 
 - STATUS: OPEN
-- PRIORITY: 38
-- TAGS: v0.5.0,hud,turret,spike
+- PRIORITY: 72
+- TAGS: v0.4.0,hud,turret,spike
 
 Spike: docs/spikes/20260708-165647-weapons-hud.md
 

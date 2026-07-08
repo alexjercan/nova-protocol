@@ -1,8 +1,8 @@
 # Embed a sandboxed scripting VM for scenario logic (piccolo prototype)
 
 - STATUS: OPEN
-- PRIORITY: 30
-- TAGS: v0.6.0, modding, spike
+- PRIORITY: 0
+- TAGS: v0.5.0,modding,spike
 
 Spike: docs/spikes/20260708-161726-modding-language-and-scripting.md
 

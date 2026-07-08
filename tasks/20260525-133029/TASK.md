@@ -1,7 +1,7 @@
 # Scenario language/config format
 
 - STATUS: OPEN
-- PRIORITY: 80
+- PRIORITY: 0
 - TAGS: v0.5.0,objectives,modding
 
 Data-driven scenario definition. Legacy #101.

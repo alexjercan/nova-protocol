@@ -1,8 +1,8 @@
 # Ship editor polish + save/load ship blueprints
 
 - STATUS: OPEN
-- PRIORITY: 20
-- TAGS: v0.6.0, editor
+- PRIORITY: 0
+- TAGS: v0.5.0,editor
 
 Spike: docs/spikes/20260708-161726-modding-language-and-scripting.md (roadmap)
 

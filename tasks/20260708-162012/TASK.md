@@ -1,8 +1,8 @@
 # Smarter enemy AI (target selection, evasion, patrol)
 
 - STATUS: OPEN
-- PRIORITY: 60
-- TAGS: v0.5.0, ai
+- PRIORITY: 80
+- TAGS: v0.4.0,ai
 
 Spike: docs/spikes/20260708-161726-modding-language-and-scripting.md (roadmap)
 

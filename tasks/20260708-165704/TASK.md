@@ -1,8 +1,8 @@
 # Off-screen target/threat edge indicators (HUD)
 
 - STATUS: OPEN
-- PRIORITY: 22
-- TAGS: v0.6.0,hud,spike
+- PRIORITY: 0
+- TAGS: v0.5.0,hud,spike
 
 Spike: docs/spikes/20260708-165647-weapons-hud.md
 

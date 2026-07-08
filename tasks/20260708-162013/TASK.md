@@ -1,8 +1,8 @@
 # Hit feedback / game juice (camera shake, hit flash, impact FX)
 
 - STATUS: OPEN
-- PRIORITY: 50
-- TAGS: v0.5.0, polish
+- PRIORITY: 88
+- TAGS: v0.4.0,polish,destruction
 
 Spike: docs/spikes/20260708-161726-modding-language-and-scripting.md (roadmap)
 
