@@ -90,3 +90,13 @@ with distance from the detonation, applied to every section within range.
 
 Player-facing overlays: `health`, `objectives` (fed by scenario objective actions via
 `GameObjectivesHud`), `torpedo_target`, and `velocity`.
+
+The torpedo lock uses angular aim-assist rather than a single ray
+(`input/player.rs::update_spaceship_target_input`): among the dynamic bodies in front
+of the ship, it locks the one whose bearing is nearest the aim direction, within a cone
+(`TARGETING_CONE_HALF_ANGLE_DEG`) and range (`TARGETING_MAX_RANGE`). The player ship,
+static sensor areas, un-committed torpedoes and turret bullets are never locked. So the
+player only has to point roughly at a target, and panning the view cycles the lock to
+whichever body is now nearest the centre. The `torpedo_target` reticle then sizes itself
+to the locked target's on-screen extent (from the union of its collider AABBs), never
+shrinking below its minimum size.

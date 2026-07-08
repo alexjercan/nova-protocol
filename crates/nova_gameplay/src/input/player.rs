@@ -116,13 +116,54 @@ fn update_turret_target_input(
     }
 }
 
-// TODO(20260525-133018): Implement a more sophisticated target selection mechanism.
-// Maybe we can project the 3D objects onto the 2D screen and select the closest one to the
-// center of the screen.
-// TODO(20260525-133022): Add a HUD for the torpedo target selection.
+/// Maximum distance at which the aim-assist will lock a target. Bodies further
+/// than this from the ship are ignored, so distant clutter never steals the lock.
+const TARGETING_MAX_RANGE: f32 = 2000.0;
 
+/// Half-angle (degrees) of the lock-on cone around the aim direction. Any lockable
+/// body whose bearing from the ship falls within this angle of where the player is
+/// aiming is eligible, and the one closest to the aim ray wins. This is the whole
+/// point of the aim-assist: a wide cone means the player only has to point roughly
+/// at a target instead of landing a pixel-perfect ray on it. Pan the view and the
+/// lock snaps to whichever eligible body is now nearest the center, so cycling
+/// between targets is just "look at the next one".
+const TARGETING_CONE_HALF_ANGLE_DEG: f32 = 18.0;
+
+/// Choose the best lock-on target from `candidates` (each an entity and its world
+/// position): the one whose bearing from `origin` is closest to the `aim`
+/// direction, as long as it is within `max_range` and inside the cone (bearing
+/// dot aim `>= min_cos`, i.e. `min_cos = cos(half_angle)`). Returns `None` when
+/// nothing qualifies - e.g. the player is looking at empty space - which drops the
+/// lock and hides the reticle.
+///
+/// Pure and camera/physics-free so the selection rule can be unit-tested directly.
+fn pick_target(
+    origin: Vec3,
+    aim: Vec3,
+    max_range: f32,
+    min_cos: f32,
+    candidates: impl Iterator<Item = (Entity, Vec3)>,
+) -> Option<Entity> {
+    candidates
+        .filter_map(|(entity, position)| {
+            let to_target = position - origin;
+            let distance = to_target.length();
+            if distance > max_range || distance < f32::EPSILON {
+                return None;
+            }
+            let cos_angle = to_target.normalize().dot(aim);
+            (cos_angle >= min_cos).then_some((entity, cos_angle))
+        })
+        // Largest cosine == smallest angle from the aim ray == closest to center.
+        .max_by(|(_, a), (_, b)| a.total_cmp(b))
+        .map(|(entity, _)| entity)
+}
+
+/// Update the player's torpedo lock from where the crosshair is aimed, using
+/// angular aim-assist rather than a single ray: enumerate the physical bodies in
+/// front of the ship and lock the one nearest the aim direction (see
+/// [`pick_target`]).
 fn update_spaceship_target_input(
-    query: SpatialQuery,
     point_rotation: Single<
         &PointRotationOutput,
         (
@@ -130,53 +171,57 @@ fn update_spaceship_target_input(
             With<SpaceshipCameraTurretInputMarker>,
         ),
     >,
-    // Exclude from the aim cast only torpedoes that have not committed their
-    // launch-time targeting yet: a fresh torpedo spawns right on the aim ray, and
-    // if the cast could hit it, it could be assigned as its own target. Once
-    // committed (`TorpedoTargetChosen`) a torpedo can never receive a target
-    // again, so it becomes a normal lockable body - e.g. you can lock and shoot
-    // down your own dumb-fired torpedo.
-    q_torpedo: Query<
-        (Entity, &TorpedoProjectileOwner, &Children),
-        (With<TorpedoProjectileMarker>, Without<TorpedoTargetChosen>),
+    // Turret bullets are excluded outright: they are dynamic bodies that stream
+    // straight down the aim ray, so without this the lock would constantly snap
+    // onto the player's own gunfire instead of the enemy behind it.
+    q_candidates: Query<
+        (
+            Entity,
+            &GlobalTransform,
+            &RigidBody,
+            Option<&TorpedoProjectileMarker>,
+            Option<&TorpedoTargetChosen>,
+        ),
+        Without<TurretBulletProjectileMarker>,
     >,
     spaceship: Single<
-        (&Transform, &Children),
+        (&GlobalTransform, Entity),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
-    q_hits: Query<&ColliderOf>,
     mut res_target: ResMut<SpaceshipPlayerTorpedoTargetEntity>,
 ) {
     let point_rotation = point_rotation.into_inner();
-    let (transform, children) = spaceship.into_inner();
+    let (ship_transform, ship_entity) = spaceship.into_inner();
 
-    let shape = Collider::sphere(1.0);
-    let origin = transform.translation;
-    let shape_rotation = Quat::IDENTITY;
-    let forward = Dir3::new_unchecked((**point_rotation * Vec3::NEG_Z).normalize());
-    let mut children = children.iter().collect::<Vec<Entity>>();
-    q_torpedo.iter().for_each(|(_, _, torpedo_children)| {
-        for child in torpedo_children.iter() {
-            children.push(child);
-        }
-    });
-    let config = ShapeCastConfig::default();
-    let filter = SpatialQueryFilter::from_excluded_entities(children);
+    let origin = ship_transform.translation();
+    let aim = (**point_rotation * Vec3::NEG_Z).normalize();
+    let min_cos = TARGETING_CONE_HALF_ANGLE_DEG.to_radians().cos();
 
-    let Some(ray_hit_data) =
-        query.cast_shape(&shape, origin, shape_rotation, forward, &config, &filter)
-    else {
-        **res_target = None;
-        return;
-    };
-    let target_entity = ray_hit_data.entity;
-    let Ok(collider_of) = q_hits.get(target_entity) else {
-        **res_target = None;
-        return;
-    };
-    let target_entity = collider_of.body;
+    let candidates = q_candidates.iter().filter_map(
+        |(entity, transform, rigid_body, is_torpedo, torpedo_committed)| {
+            // Only physical, movable bodies are lockable. This skips static sensor
+            // volumes such as scenario trigger areas (`RigidBody::Static`), which
+            // are invisible and must never be locked.
+            if !matches!(rigid_body, RigidBody::Dynamic) {
+                return None;
+            }
+            // Never lock the player's own ship.
+            if entity == ship_entity {
+                return None;
+            }
+            // Skip a freshly launched torpedo that has not committed its
+            // launch-time target yet: it spawns right on the aim ray and would
+            // otherwise be picked as its own target. Once committed
+            // (`TorpedoTargetChosen`) a torpedo is a normal lockable body - e.g.
+            // you can lock and shoot down your own dumb-fired torpedo.
+            if is_torpedo.is_some() && torpedo_committed.is_none() {
+                return None;
+            }
+            Some((entity, transform.translation()))
+        },
+    );
 
-    **res_target = Some(target_entity);
+    **res_target = pick_target(origin, aim, TARGETING_MAX_RANGE, min_cos, candidates);
 }
 
 /// Commit each freshly launched torpedo to its launch-time target.
@@ -430,6 +475,88 @@ fn on_torpedo_input_completed(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn cone_cos(half_angle_deg: f32) -> f32 {
+        half_angle_deg.to_radians().cos()
+    }
+
+    #[test]
+    fn pick_target_locks_the_body_nearest_the_aim_ray() {
+        // Two candidates in front: one slightly off-axis, one further off-axis.
+        // The nearer-to-center one wins even though it is further away.
+        let origin = Vec3::ZERO;
+        let aim = Vec3::NEG_Z;
+        let near_center = Entity::from_raw_u32(1).unwrap();
+        let off_center = Entity::from_raw_u32(2).unwrap();
+        let candidates = [
+            (near_center, Vec3::new(2.0, 0.0, -100.0)), // ~1.1 deg off axis, far
+            (off_center, Vec3::new(3.0, 0.0, -20.0)),   // ~8.5 deg off axis, near
+        ];
+
+        let picked = pick_target(
+            origin,
+            aim,
+            TARGETING_MAX_RANGE,
+            cone_cos(18.0),
+            candidates.into_iter(),
+        );
+        assert_eq!(picked, Some(near_center));
+    }
+
+    #[test]
+    fn pick_target_ignores_bodies_outside_the_cone() {
+        // A body 90 deg off the aim direction (straight to the side) is not lockable.
+        let picked = pick_target(
+            Vec3::ZERO,
+            Vec3::NEG_Z,
+            TARGETING_MAX_RANGE,
+            cone_cos(18.0),
+            [(Entity::from_raw_u32(1).unwrap(), Vec3::new(50.0, 0.0, 0.0))].into_iter(),
+        );
+        assert_eq!(picked, None, "a body outside the cone must not be locked");
+    }
+
+    #[test]
+    fn pick_target_ignores_bodies_behind_the_ship() {
+        // A body directly behind (dot with aim is negative) is never locked.
+        let picked = pick_target(
+            Vec3::ZERO,
+            Vec3::NEG_Z,
+            TARGETING_MAX_RANGE,
+            cone_cos(18.0),
+            [(Entity::from_raw_u32(1).unwrap(), Vec3::new(0.0, 0.0, 100.0))].into_iter(),
+        );
+        assert_eq!(picked, None, "a body behind the ship must not be locked");
+    }
+
+    #[test]
+    fn pick_target_ignores_bodies_beyond_max_range() {
+        // Dead ahead but past the range limit: not lockable.
+        let picked = pick_target(
+            Vec3::ZERO,
+            Vec3::NEG_Z,
+            100.0,
+            cone_cos(18.0),
+            [(
+                Entity::from_raw_u32(1).unwrap(),
+                Vec3::new(0.0, 0.0, -500.0),
+            )]
+            .into_iter(),
+        );
+        assert_eq!(picked, None, "a body beyond max range must not be locked");
+    }
+
+    #[test]
+    fn pick_target_returns_none_with_no_candidates() {
+        let picked = pick_target(
+            Vec3::ZERO,
+            Vec3::NEG_Z,
+            TARGETING_MAX_RANGE,
+            cone_cos(18.0),
+            std::iter::empty(),
+        );
+        assert_eq!(picked, None);
+    }
 
     #[test]
     fn no_lock_does_not_despawn_untargeted_torpedo() {
