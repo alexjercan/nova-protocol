@@ -89,17 +89,17 @@ fn on_asteroid_node_destroyed(
         return;
     };
     if q_asteroid.contains(*parent) {
-        trace!("on_asteroid_node_destroyed: marking asteroid husk {:?}", parent);
+        trace!(
+            "on_asteroid_node_destroyed: marking asteroid husk {:?}",
+            parent
+        );
         commands.entity(*parent).try_insert(AsteroidHuskDespawn);
     }
 }
 
 /// Despawn asteroid roots whose node was destroyed last frame, clearing the empty
 /// `RigidBody` husk (and silencing avian's mass/inertia warning).
-fn despawn_asteroid_husk(
-    mut commands: Commands,
-    q_husk: Query<Entity, With<AsteroidHuskDespawn>>,
-) {
+fn despawn_asteroid_husk(mut commands: Commands, q_husk: Query<Entity, With<AsteroidHuskDespawn>>) {
     for husk in &q_husk {
         trace!("despawn_asteroid_husk: despawning {:?}", husk);
         commands.entity(husk).try_despawn();
@@ -134,6 +134,9 @@ fn insert_asteroid_collider(
         AsteroidRenderMesh(mesh.clone()),
         collider,
         destructible_body(**health, 1.0),
+        // destructible_body (bevy_common_systems) is Health + density + visibility; add
+        // ExplodableEntity so the asteroid enters nova's explode pipeline on destruction.
+        ExplodableEntity,
     )],));
 }
 

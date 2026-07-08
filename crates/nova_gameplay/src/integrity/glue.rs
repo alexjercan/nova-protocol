@@ -1,13 +1,12 @@
-//! Section-specific "glue" between the generic integrity core (in `plugin.rs`) and the
-//! spaceship sections. These systems know about `SectionMarker` and the ship hierarchy; the
-//! integrity core itself only deals with generic nodes ([`ConnectedTo`]) and roots
+//! Section-specific "glue" between the generic integrity core (in `bevy_common_systems`) and
+//! the spaceship sections. These systems know about `SectionMarker` and the ship hierarchy;
+//! the integrity core itself only deals with generic nodes ([`ConnectedTo`]) and roots
 //! ([`IntegrityRoot`]). Keeping them here stops the core from depending on sections.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 
-use super::components::*;
 use crate::prelude::{SectionInactiveMarker, SectionMarker, SpaceshipRootMarker};
 
 pub(super) struct IntegrityGluePlugin;
@@ -18,10 +17,7 @@ impl Plugin for IntegrityGluePlugin {
 
         app.add_observer(on_section_disable);
         app.add_observer(build_integrity_relations);
-        app.add_systems(
-            Update,
-            aggregate_ship_health.in_set(super::plugin::IntegritySystems),
-        );
+        app.add_systems(Update, aggregate_ship_health.in_set(IntegritySystems));
     }
 }
 
@@ -167,11 +163,23 @@ mod tests {
 
         let s1 = app
             .world_mut()
-            .spawn((SectionMarker, Health { current: 50.0, max: 100.0 }))
+            .spawn((
+                SectionMarker,
+                Health {
+                    current: 50.0,
+                    max: 100.0,
+                },
+            ))
             .id();
         let s2 = app
             .world_mut()
-            .spawn((SectionMarker, Health { current: 30.0, max: 100.0 }))
+            .spawn((
+                SectionMarker,
+                Health {
+                    current: 30.0,
+                    max: 100.0,
+                },
+            ))
             .id();
         let root = app
             .world_mut()
@@ -193,7 +201,13 @@ mod tests {
 
         let section = app
             .world_mut()
-            .spawn((SectionMarker, Health { current: 40.0, max: 40.0 }))
+            .spawn((
+                SectionMarker,
+                Health {
+                    current: 40.0,
+                    max: 40.0,
+                },
+            ))
             .id();
         let root = app
             .world_mut()
@@ -230,7 +244,10 @@ mod tests {
         let mut app = App::new();
         app.add_observer(on_section_disable);
 
-        let section = app.world_mut().spawn((SectionMarker, IntegrityLeafMarker)).id();
+        let section = app
+            .world_mut()
+            .spawn((SectionMarker, IntegrityLeafMarker))
+            .id();
         app.world_mut()
             .entity_mut(section)
             .insert(IntegrityDisabledMarker);
@@ -273,7 +290,11 @@ mod physics_tests {
         let mut app = integrity_physics_app();
         let root = app
             .world_mut()
-            .spawn((RigidBody::Dynamic, Transform::default(), SpaceshipRootMarker))
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                SpaceshipRootMarker,
+            ))
             .id();
         let left = spawn_section(&mut app, root, Vec3::new(0.0, 0.0, 0.0));
         let mid = spawn_section(&mut app, root, Vec3::new(1.0, 0.0, 0.0));

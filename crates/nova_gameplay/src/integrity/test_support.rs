@@ -9,11 +9,10 @@
 use core::time::Duration;
 
 use avian3d::prelude::*;
-use bevy::prelude::*;
-use bevy::time::TimeUpdateStrategy;
+use bevy::{prelude::*, time::TimeUpdateStrategy};
 use bevy_common_systems::prelude::*;
 
-use super::plugin::IntegrityPlugin;
+use super::NovaIntegrityPlugin;
 
 /// A headless avian app wired with the full integrity pipeline.
 ///
@@ -32,7 +31,7 @@ pub(crate) fn integrity_physics_app() -> App {
         bevy::mesh::MeshPlugin,
         PhysicsPlugins::default(),
         HealthPlugin,
-        IntegrityPlugin,
+        NovaIntegrityPlugin,
     ));
     app.insert_resource(Gravity(Vec3::ZERO));
     app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(

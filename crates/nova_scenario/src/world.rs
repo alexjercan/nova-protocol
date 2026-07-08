@@ -18,13 +18,15 @@ impl EventWorld for NovaEventWorld {
     fn world_to_state_system(_world: &mut World) {}
 
     fn state_to_world_system(world: &mut World) {
-        // Copy the objectives to the bevy world
-        let objectives = &world.resource::<Self>().objectives.clone();
-        world.resource_mut::<GameObjectivesHud>().objectives.clear();
-        world
-            .resource_mut::<GameObjectivesHud>()
-            .objectives
-            .extend(objectives.iter().cloned());
+        // Copy the objectives to the bevy world, mapping nova's scenario-action config to the
+        // generic bevy_common_systems Objective the HUD renders.
+        let objectives = world.resource::<Self>().objectives.clone();
+        world.resource_mut::<GameObjectives>().objectives.clear();
+        world.resource_mut::<GameObjectives>().objectives.extend(
+            objectives
+                .iter()
+                .map(|objective| Objective::new(&objective.id, &objective.message)),
+        );
 
         // Log variables
         debug!("# Current Variables:");

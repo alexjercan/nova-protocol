@@ -5,7 +5,6 @@ use bevy_rand::prelude::*;
 use nova_events::prelude::*;
 use rand::RngExt;
 
-use super::components::*;
 use crate::prelude::SectionMarker;
 
 pub mod prelude {

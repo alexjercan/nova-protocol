@@ -11,7 +11,7 @@ itertools = { version = "0.15.0" }
 bevy-inspector-egui = { version = "0.37" }
 bevy_mod_debugdump = { version = "0.16" }
 nova_gameplay = { path = "../nova_gameplay", features = ["debug"] }
-bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", rev = "47548cd2230abf510528309779f5b13c74485ae0", features = ["debug"] }
+bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", rev = "34b3f0a7db44af4d9c363a5fb152ad2b3e81a887", features = ["debug"] }
 
 [lints]
 workspace = true

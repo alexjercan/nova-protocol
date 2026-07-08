@@ -22,3 +22,24 @@ Promotion candidates:
 Each promotion should only happen once the API is stable enough to be reused by
 another game; until then they stay in nova_gameplay (tier 2 of the crate boundary
 policy in docs/architecture.md).
+
+## Progress
+
+Spike: docs/spikes/20260708-110317-promotion-eligible-systems.md. The generic code was
+added to bevy_common_systems (PRs #2 and #3 there, master 34b3f0a).
+
+Migrated here (this branch): bumped the bcs git rev to 34b3f0a in all four crates and
+deleted the local copies, now consuming the promoted symbols:
+- hud/health.rs -> bcs ui/health_display (HealthDisplay*).
+- hud/objectives.rs -> bcs ui/objectives (GameObjectives/Objective/objectives_panel). The
+  scenario-action ObjectiveActionConfig stays nova-local (it impls the foreign EventAction
+  trait; orphan rule), moved into nova_scenario and backed by the bcs Objective.
+- integrity/blast.rs + integrity/plugin.rs core (collision/blast damage, leaf/chain/destroy,
+  calculate_blast_damage) + integrity/components.rs -> bcs integrity. Nova keeps glue.rs +
+  explode.rs, now bundled by NovaIntegrityPlugin (bcs IntegrityPlugin + glue + explode).
+- game_object.rs (rigid_body_point_velocity, destructible_body) -> bcs physics/rigid_body.
+  bcs destructible_body omits ExplodableEntity, so section/asteroid spawns add it explicitly.
+
+Still local (deferred, Tier C in the spike): hud/velocity.rs
+(DirectionMagnitudeMaterial / DirectionSphereMaterial + shaders/directional_*.wgsl) - needs
+the wgsl vendored into bcs first.
