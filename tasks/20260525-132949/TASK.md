@@ -1,8 +1,8 @@
 # Add collider section as separate child entity
 
 - STATUS: OPEN
-- PRIORITY: 80
-- TAGS: v0.4.0,refactor
+- PRIORITY: 25
+- TAGS: v0.4.0, refactor
 
 Stores collider-related components, spawned per hull/section. Legacy #80.
 

@@ -1,8 +1,7 @@
 # Build graph of spaceship sections (DFS/BFS)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: v0.4.0,health
-
+- TAGS: v0.4.0, health
 
 Foundation for structural damage propagation. Legacy #148.
