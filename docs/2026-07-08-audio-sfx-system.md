@@ -54,6 +54,24 @@ audio drops in by overwriting the files at the same paths;
   to a legible rate; the timestamps default to `NEG_INFINITY` so the first event
   always fires.
 
+- **Distance attenuation (feel pass, task 20260708-213155).** The four
+  positional one-shots are scaled by how far the event is from the listener (the
+  gameplay `Camera3d`), so a distant explosion is quieter than a point-blank one.
+  `distance_attenuation` is a linear rolloff: full within `SFX_NEAR_DISTANCE`
+  (20 units), silent beyond `SFX_FAR_DISTANCE` (320), linear between - both are
+  tunable-by-ear constants. `play_positional` applies it and skips spawning an
+  audio entity below an audibility threshold. Source positions come from the
+  destroyed/damaged entity's `GlobalTransform` (valid, it has existed for
+  frames) and, for the two projectile cues, from the projectile's local
+  `Transform` - both projectiles spawn as ROOT entities whose `GlobalTransform`
+  is still identity on the spawn frame, so the local transform is the correct
+  world position. Base volumes were lowered at the same time. The thruster hum is
+  the player's own ship and is deliberately not attenuated. This is volume-only,
+  not true spatialization: **stereo panning** would need bevy spatial audio
+  (`SpatialListener` on the camera + `spatial: true` on the audio entities, which
+  means spawning our own spatial players instead of bcs `play_sfx`) and is left
+  as a future step.
+
 - **`wav` decoder as a normal feature.** Bevy's default audio decoder is vorbis;
   WAV needs the `wav` feature. It is set on `bevy` in
   `crates/nova_gameplay/Cargo.toml` (a normal, not dev-only, dependency feature,

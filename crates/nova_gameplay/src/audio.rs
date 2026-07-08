@@ -17,6 +17,13 @@
 //! The fifth cue, the thruster engine hum, is continuous: one looping audio
 //! entity whose volume tracks how hard the ship is thrusting.
 //!
+//! The four one-shots are **distance-attenuated**: their volume is scaled by how
+//! far the event is from the listener (the gameplay camera), so a distant
+//! explosion is quieter than one next to you. This is a volume-only rolloff for
+//! the cinematic feel, not true spatialization - stereo panning would need bevy
+//! spatial audio (`SpatialListener` + `spatial: true`) and is a future step. The
+//! thruster hum is the player's own ship, so it is never attenuated.
+//!
 //! The [`SoundBank<NovaSfx>`] resource is inserted by `nova_assets` once assets
 //! load; every system here degrades gracefully (does nothing) until it exists.
 
@@ -51,13 +58,25 @@ pub const NOVA_SFX_FILES: [(NovaSfx, &str); 5] = [
     (NovaSfx::Impact, "impact"),
 ];
 
-/// Per-cue playback volumes. The PDC fires ~100 rounds/s and impacts arrive in
+/// Per-cue *base* playback volumes (at point-blank; distance attenuation scales
+/// them down from here). The PDC fires ~100 rounds/s and impacts arrive in
 /// blast-sized bursts, so those two are quiet; destruction and launch are the
-/// punchy moments.
-const TURRET_FIRE_VOLUME: f32 = 0.15;
-const IMPACT_VOLUME: f32 = 0.35;
-const EXPLOSION_VOLUME: f32 = 0.6;
-const TORPEDO_LAUNCH_VOLUME: f32 = 0.7;
+/// punchy moments. Kept modest so nothing is harsh up close.
+const TURRET_FIRE_VOLUME: f32 = 0.10;
+const IMPACT_VOLUME: f32 = 0.22;
+const EXPLOSION_VOLUME: f32 = 0.40;
+const TORPEDO_LAUNCH_VOLUME: f32 = 0.45;
+
+/// Distance-attenuation rolloff for positional cues, in world units. A cue plays
+/// at full base volume within `SFX_NEAR_DISTANCE`, is inaudible beyond
+/// `SFX_FAR_DISTANCE`, and rolls off linearly between. Tune by ear for the scene
+/// scale (Nova ships are a few units across; combat happens over dozens).
+const SFX_NEAR_DISTANCE: f32 = 20.0;
+const SFX_FAR_DISTANCE: f32 = 320.0;
+
+/// Below this final (attenuated) linear volume a one-shot is not worth spawning -
+/// it would be inaudible. Skipping it avoids audio-entity churn for far events.
+const SFX_AUDIBLE_THRESHOLD: f32 = 0.01;
 
 /// Minimum seconds between successive turret-fire and impact one-shots. Without
 /// this the ~100/s PDC and the many-collider blast hits would each spawn a storm
@@ -72,7 +91,7 @@ const IMPACT_MIN_INTERVAL: f32 = 0.04;
 const EXPLOSION_MIN_INTERVAL: f32 = 0.06;
 
 /// Loudest the engine hum ever gets (at full thrust), on the linear scale.
-const ENGINE_MAX_VOLUME: f32 = 0.4;
+const ENGINE_MAX_VOLUME: f32 = 0.3;
 
 /// Last-played timestamps for the throttled cues, in seconds since startup.
 /// Both start at negative infinity so the first event of each kind always fires,
@@ -114,6 +133,44 @@ fn engine_volume(avg_throttle: f32) -> f32 {
     avg_throttle.clamp(0.0, 1.0) * ENGINE_MAX_VOLUME
 }
 
+/// Linear distance rolloff in [0, 1]: full within [`SFX_NEAR_DISTANCE`], zero
+/// beyond [`SFX_FAR_DISTANCE`], linear between. Pure for unit testing.
+fn distance_attenuation(distance: f32) -> f32 {
+    if distance <= SFX_NEAR_DISTANCE {
+        1.0
+    } else if distance >= SFX_FAR_DISTANCE {
+        0.0
+    } else {
+        1.0 - (distance - SFX_NEAR_DISTANCE) / (SFX_FAR_DISTANCE - SFX_NEAR_DISTANCE)
+    }
+}
+
+/// Play a positional one-shot: scale `base_volume` by the distance attenuation
+/// from `listener` to `source`, and skip entirely when the result is inaudible.
+/// A missing listener (no camera yet) falls back to full base volume rather than
+/// silence.
+fn play_positional(
+    commands: &mut Commands,
+    bank: &SoundBank<NovaSfx>,
+    key: NovaSfx,
+    base_volume: f32,
+    source: Vec3,
+    listener: Option<Vec3>,
+) {
+    let attenuation = listener.map_or(1.0, |l| distance_attenuation(l.distance(source)));
+    let volume = base_volume * attenuation;
+    if volume < SFX_AUDIBLE_THRESHOLD {
+        return;
+    }
+    commands.play_sfx_volume(bank.get(key), volume);
+}
+
+/// The listener position for distance attenuation: the gameplay camera's world
+/// translation, or `None` if no camera exists yet (early startup).
+fn listener_position(q_camera: &Query<&GlobalTransform, With<Camera3d>>) -> Option<Vec3> {
+    q_camera.iter().next().map(|t| t.translation())
+}
+
 /// Plugin wiring Nova's gameplay events to sound effects. Adds the reusable
 /// [`SfxPlugin`] and Nova's own observers + the thruster-loop systems.
 #[derive(Default)]
@@ -145,68 +202,121 @@ impl Plugin for NovaAudioPlugin {
 /// Explosion cue on any destruction (section, asteroid, or torpedo detonation,
 /// which all funnel through `IntegrityDestroyMarker`).
 fn on_destroyed_play_explosion(
-    _add: On<Add, IntegrityDestroyMarker>,
+    add: On<Add, IntegrityDestroyMarker>,
     bank: Option<Res<SoundBank<NovaSfx>>>,
     time: Res<Time>,
+    q_transform: Query<&GlobalTransform>,
+    q_camera: Query<&GlobalTransform, With<Camera3d>>,
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
     let Some(bank) = bank else { return };
+    // The destroyed entity has existed for frames, so its GlobalTransform is
+    // valid world-space.
+    let Ok(source) = q_transform.get(add.entity) else {
+        return;
+    };
     if throttle(
         &mut throttle_state.last_explosion,
         time.elapsed_secs(),
         EXPLOSION_MIN_INTERVAL,
     ) {
-        commands.play_sfx_volume(bank.get(NovaSfx::Explosion), EXPLOSION_VOLUME);
+        play_positional(
+            &mut commands,
+            &bank,
+            NovaSfx::Explosion,
+            EXPLOSION_VOLUME,
+            source.translation(),
+            listener_position(&q_camera),
+        );
     }
 }
 
 /// Impact cue whenever damage is applied. Throttled because a single blast deals
 /// damage to many colliders in one frame.
 fn on_damage_play_impact(
-    _damage: On<HealthApplyDamage>,
+    damage: On<HealthApplyDamage>,
     bank: Option<Res<SoundBank<NovaSfx>>>,
     time: Res<Time>,
+    q_transform: Query<&GlobalTransform>,
+    q_camera: Query<&GlobalTransform, With<Camera3d>>,
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
     let Some(bank) = bank else { return };
+    let Ok(source) = q_transform.get(damage.entity) else {
+        return;
+    };
     if throttle(
         &mut throttle_state.last_impact,
         time.elapsed_secs(),
         IMPACT_MIN_INTERVAL,
     ) {
-        commands.play_sfx_volume(bank.get(NovaSfx::Impact), IMPACT_VOLUME);
+        play_positional(
+            &mut commands,
+            &bank,
+            NovaSfx::Impact,
+            IMPACT_VOLUME,
+            source.translation(),
+            listener_position(&q_camera),
+        );
     }
 }
 
 /// Turret-fire cue when a round spawns. Throttled hard because the PDC fires at
 /// a high rate.
 fn on_turret_fire_play_sfx(
-    _add: On<Add, TurretBulletProjectileMarker>,
+    add: On<Add, TurretBulletProjectileMarker>,
     bank: Option<Res<SoundBank<NovaSfx>>>,
     time: Res<Time>,
+    q_transform: Query<&Transform>,
+    q_camera: Query<&GlobalTransform, With<Camera3d>>,
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
     let Some(bank) = bank else { return };
+    // The projectile is a freshly-spawned ROOT entity, so its GlobalTransform is
+    // still identity this frame; its local Transform is already world-space.
+    let Ok(source) = q_transform.get(add.entity) else {
+        return;
+    };
     if throttle(
         &mut throttle_state.last_turret_fire,
         time.elapsed_secs(),
         TURRET_FIRE_MIN_INTERVAL,
     ) {
-        commands.play_sfx_volume(bank.get(NovaSfx::TurretFire), TURRET_FIRE_VOLUME);
+        play_positional(
+            &mut commands,
+            &bank,
+            NovaSfx::TurretFire,
+            TURRET_FIRE_VOLUME,
+            source.translation,
+            listener_position(&q_camera),
+        );
     }
 }
 
 /// Launch cue when a torpedo projectile spawns.
 fn on_torpedo_launch_play_sfx(
-    _add: On<Add, TorpedoProjectileMarker>,
+    add: On<Add, TorpedoProjectileMarker>,
     bank: Option<Res<SoundBank<NovaSfx>>>,
+    q_transform: Query<&Transform>,
+    q_camera: Query<&GlobalTransform, With<Camera3d>>,
     mut commands: Commands,
 ) {
     let Some(bank) = bank else { return };
-    commands.play_sfx_volume(bank.get(NovaSfx::TorpedoLaunch), TORPEDO_LAUNCH_VOLUME);
+    // Freshly-spawned root entity: use local Transform (== world) this frame.
+    let Ok(source) = q_transform.get(add.entity) else {
+        return;
+    };
+    play_positional(
+        &mut commands,
+        &bank,
+        NovaSfx::TorpedoLaunch,
+        TORPEDO_LAUNCH_VOLUME,
+        source.translation,
+        listener_position(&q_camera),
+    );
 }
 
 /// Marker for the single looping engine-hum audio entity.
@@ -321,6 +431,24 @@ mod tests {
         // Negative input (reverse) is treated by magnitude at the call site, but
         // guard the clamp here too.
         assert_eq!(engine_volume(-1.0), 0.0);
+    }
+
+    #[test]
+    fn distance_attenuation_rolls_off_between_near_and_far() {
+        // Full within the near radius (including at exactly near).
+        assert_eq!(distance_attenuation(0.0), 1.0);
+        assert_eq!(distance_attenuation(SFX_NEAR_DISTANCE), 1.0);
+        // Silent at/beyond the far radius.
+        assert_eq!(distance_attenuation(SFX_FAR_DISTANCE), 0.0);
+        assert_eq!(distance_attenuation(SFX_FAR_DISTANCE + 100.0), 0.0);
+        // Monotonic decreasing in the rolloff band.
+        let mid = (SFX_NEAR_DISTANCE + SFX_FAR_DISTANCE) / 2.0;
+        let a = distance_attenuation(SFX_NEAR_DISTANCE + 10.0);
+        let m = distance_attenuation(mid);
+        let b = distance_attenuation(SFX_FAR_DISTANCE - 10.0);
+        assert!(a > m && m > b, "attenuation should decrease with distance");
+        // Midpoint of the band is ~0.5.
+        assert!((m - 0.5).abs() < 1e-6);
     }
 
     #[test]

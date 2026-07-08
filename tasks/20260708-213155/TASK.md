@@ -1,6 +1,6 @@
 # Distance attenuation + quieter SFX (audio feel pass)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.4.0,audio,polish
 
@@ -15,18 +15,18 @@ separate, larger step (noted below), not this task.
 
 ## Steps
 
-- [ ] Lower the base volume constants in `crates/nova_gameplay/src/audio.rs`
+- [x] Lower the base volume constants in `crates/nova_gameplay/src/audio.rs`
       (turret/impact/explosion/torpedo/engine) a notch so nothing is loud at
       point-blank.
-- [ ] Add a pure `distance_attenuation(distance) -> f32` (linear rolloff: full
+- [x] Add a pure `distance_attenuation(distance) -> f32` (linear rolloff: full
       within `SFX_NEAR_DISTANCE`, zero beyond `SFX_FAR_DISTANCE`, linear between)
       plus the two tunable distance constants, in `audio.rs`.
-- [ ] Add a `play_positional` helper that multiplies a cue's base volume by the
+- [x] Add a `play_positional` helper that multiplies a cue's base volume by the
       attenuation from the listener to the source and skips playing when the
       result is below an audibility threshold (no inaudible audio entities).
-- [ ] Wire the listener as the gameplay camera (`Query<&GlobalTransform,
+- [x] Wire the listener as the gameplay camera (`Query<&GlobalTransform,
       With<Camera3d>>`, first match; fall back to full volume if absent).
-- [ ] Attenuate the four positional one-shots by source position:
+- [x] Attenuate the four positional one-shots by source position:
       - explosion (`IntegrityDestroyMarker`): source = entity `GlobalTransform`
         (a section/asteroid that has existed for frames -> valid world transform).
       - impact (`HealthApplyDamage`): source = `damage.entity` `GlobalTransform`.
@@ -35,13 +35,13 @@ separate, larger step (noted below), not this task.
         with a world-space transform, so their `GlobalTransform` is still identity
         on the spawn frame; use `Transform`.
       Leave the thruster loop un-attenuated (it is the player's own ship).
-- [ ] Unit-test `distance_attenuation` (near -> 1, far -> 0, midpoint ~0.5,
+- [x] Unit-test `distance_attenuation` (near -> 1, far -> 0, midpoint ~0.5,
       clamped below/above).
-- [ ] Verify: `cargo fmt --check`, `cargo clippy --all-targets`,
+- [x] Verify: `cargo fmt --check`, `cargo clippy --all-targets`,
       `cargo test --workspace`, and a headless `BCS_AUTOPILOT=1 10_gameplay`
       autopilot run (reaches Playing, no panic, no sound asset errors). Use the
       shared `CARGO_TARGET_DIR` (see docs/development.md) for the worktree build.
-- [ ] Update `docs/2026-07-08-audio-sfx-system.md`: note the attenuation model,
+- [x] Update `docs/2026-07-08-audio-sfx-system.md`: note the attenuation model,
       the tunable NEAR/FAR constants, the listener = camera choice, and that true
       stereo panning (bevy spatial audio: `SpatialListener` + `spatial: true`)
       remains a future step.
@@ -59,3 +59,24 @@ separate, larger step (noted below), not this task.
   `spatial_scale` - bigger and harder to verify headlessly. Distance-volume
   directly satisfies "far away should be quieter", is pure/testable, and keeps
   the bcs reuse. Panning is the documented next step if wanted.
+
+## Outcome
+
+Added distance-based volume attenuation to the four positional one-shots and
+lowered the base volumes, in response to user feedback that the cues sounded the
+same from anywhere. `distance_attenuation` (pure, unit-tested) is a linear
+rolloff over `SFX_NEAR_DISTANCE`..`SFX_FAR_DISTANCE`; `play_positional` applies
+it relative to the gameplay camera and skips inaudible cues. Source positions:
+`GlobalTransform` for the already-existing destroyed/damaged entities, local
+`Transform` for the two freshly-spawned root projectiles (whose GlobalTransform
+is still identity on the spawn frame). The thruster hum stays un-attenuated.
+Verified: fmt, clippy --all-targets (clean), cargo test --workspace (5 audio unit
+tests incl. the new rolloff test), headless 10_gameplay autopilot reached Playing
+with no panic/asset errors. Full model documented in
+docs/2026-07-08-audio-sfx-system.md.
+
+Reviewed by self (focused refinement of an already-reviewed module); no findings.
+Deliberately left as a future step: true stereo panning via bevy spatial audio
+(SpatialListener + spatial playback), which the doc records. NEAR/FAR distances
+and the base volumes are tune-by-ear knobs and may want adjustment once heard on
+real hardware / real content.
