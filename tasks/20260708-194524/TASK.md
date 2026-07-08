@@ -1,8 +1,8 @@
 # Assert on ScenarioLoaded payload in the smoke harness
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 40
-- TAGS: v0.4.0,test
+- TAGS: v0.4.0, test
 
 Follow-up to 20260525-133011, which enriched `ScenarioLoaded` with `scenario_id`,
 `handler_count` and `object_count` (landed cc03c40). The event now carries the
