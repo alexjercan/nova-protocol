@@ -109,7 +109,6 @@ mod test {
         let custom_scene = Handle::<WorldAsset>::default();
         let config = HullSectionConfig {
             render_mesh: Some(custom_scene.clone()),
-            ..default()
         };
         let id = app.world_mut().spawn(hull_section(config)).id();
 
