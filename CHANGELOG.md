@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - @alexjercan add live turret-range tuning sliders and an FPS/version overlay to the examples
 - @alexjercan wire the `bevy_common_systems` autopilot + screenshot harness into the examples for headless smoke testing
 - @alexjercan add torpedo target aim-assist (angular lock-on cone, easier than a raycast) and a reticle that sizes itself to the locked target
+- @alexjercan add an expanding-sphere blast-radius visual on torpedo detonation (wasm-safe mesh effect, shows the actual area of effect)
 
 ### Changed
 
