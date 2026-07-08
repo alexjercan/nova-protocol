@@ -42,6 +42,7 @@ impl Plugin for GameAssetsPlugin {
             (
                 register_sections,
                 register_scenario,
+                register_sounds,
                 update_nova_hud_assets,
                 |mut state: ResMut<NextState<GameAssetsStates>>| {
                     state.set(GameAssetsStates::Loaded);
@@ -72,6 +73,17 @@ pub struct GameAssets {
     pub fps_icon: Handle<Image>,
     #[asset(path = "icons/target.png")]
     pub target_sprite: Handle<Image>,
+}
+
+/// Load the Nova sound effects into a keyed [`SoundBank`] the audio module reads.
+///
+/// Uses `SoundBank::load` (the bcs registry) rather than the `GameAssets`
+/// collection because the bank has no public "build from existing handles"
+/// constructor; loading here kicks the (tiny) WAVs off well before the first
+/// gameplay sound plays. The `sounds/<name>.wav` convention is applied by the
+/// bank, and `NOVA_SFX_FILES` is the single source of truth for the key->file map.
+fn register_sounds(mut commands: Commands, assets: Res<AssetServer>) {
+    commands.insert_resource(SoundBank::load(&assets, NOVA_SFX_FILES));
 }
 
 // TODO(20260525-133028): Probably need to refactor this somehow
