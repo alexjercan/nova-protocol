@@ -57,10 +57,14 @@ audio drops in by overwriting the files at the same paths;
 - **Distance attenuation (feel pass, task 20260708-213155).** The four
   positional one-shots are scaled by how far the event is from the listener (the
   gameplay `Camera3d`), so a distant explosion is quieter than a point-blank one.
-  `distance_attenuation` is a linear rolloff: full within `SFX_NEAR_DISTANCE`
-  (20 units), silent beyond `SFX_FAR_DISTANCE` (320), linear between - both are
-  tunable-by-ear constants. `play_positional` applies it and skips spawning an
-  audio entity below an audibility threshold. Source positions come from the
+  `distance_attenuation` is full within `SFX_NEAR_DISTANCE` (20 units) and silent
+  beyond `SFX_FAR_DISTANCE` (320) - both tunable-by-ear. Between them the
+  amplitude decays **geometrically** toward `SFX_ROLLOFF_FLOOR` (remapped so it
+  still reaches exactly zero at FAR), not linearly (task 20260708-214821):
+  because loudness perception is logarithmic, a linear amplitude ramp sounds flat
+  for most of the range and then cliffs to silence, whereas a constant-dB-per-
+  distance falloff makes the *perceived* volume fade evenly. `play_positional`
+  applies it and skips spawning an audio entity below an audibility threshold. Source positions come from the
   destroyed/damaged entity's `GlobalTransform` (valid, it has existed for
   frames) and, for the two projectile cues, from the projectile's local
   `Transform` - both projectiles spawn as ROOT entities whose `GlobalTransform`

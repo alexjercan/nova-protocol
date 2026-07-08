@@ -69,10 +69,20 @@ const TORPEDO_LAUNCH_VOLUME: f32 = 0.45;
 
 /// Distance-attenuation rolloff for positional cues, in world units. A cue plays
 /// at full base volume within `SFX_NEAR_DISTANCE`, is inaudible beyond
-/// `SFX_FAR_DISTANCE`, and rolls off linearly between. Tune by ear for the scene
-/// scale (Nova ships are a few units across; combat happens over dozens).
+/// `SFX_FAR_DISTANCE`, and rolls off between (see [`distance_attenuation`]). Tune
+/// by ear for the scene scale (Nova ships are a few units across; combat happens
+/// over dozens).
 const SFX_NEAR_DISTANCE: f32 = 20.0;
 const SFX_FAR_DISTANCE: f32 = 320.0;
+
+/// Shape of the distance rolloff between NEAR and FAR. Loudness perception is
+/// logarithmic, so a linear *amplitude* ramp sounds flat for most of the range
+/// and then cliffs to silence near the end. Decaying the amplitude geometrically
+/// toward this floor instead gives a roughly constant dB-per-distance falloff, so
+/// the *perceived* volume fades evenly. Smaller floor = steeper decay / more
+/// perceived range; 0.05 is about -26 dB at the far end (before the final remap
+/// to true zero).
+const SFX_ROLLOFF_FLOOR: f32 = 0.05;
 
 /// Below this final (attenuated) linear volume a one-shot is not worth spawning -
 /// it would be inaudible. Skipping it avoids audio-entity churn for far events.
@@ -133,15 +143,22 @@ fn engine_volume(avg_throttle: f32) -> f32 {
     avg_throttle.clamp(0.0, 1.0) * ENGINE_MAX_VOLUME
 }
 
-/// Linear distance rolloff in [0, 1]: full within [`SFX_NEAR_DISTANCE`], zero
-/// beyond [`SFX_FAR_DISTANCE`], linear between. Pure for unit testing.
+/// Distance rolloff in [0, 1]: full within [`SFX_NEAR_DISTANCE`], zero beyond
+/// [`SFX_FAR_DISTANCE`]. Between them the amplitude decays *geometrically* toward
+/// [`SFX_ROLLOFF_FLOOR`] (constant dB per distance), not linearly, so the
+/// perceived loudness fades evenly instead of staying flat and then cliffing -
+/// the fix for "same volume then instantly zero". The geometric curve is remapped
+/// from `[floor, 1]` back to `[0, 1]` so it still reaches exactly zero at FAR.
+/// Pure for unit testing.
 fn distance_attenuation(distance: f32) -> f32 {
     if distance <= SFX_NEAR_DISTANCE {
         1.0
     } else if distance >= SFX_FAR_DISTANCE {
         0.0
     } else {
-        1.0 - (distance - SFX_NEAR_DISTANCE) / (SFX_FAR_DISTANCE - SFX_NEAR_DISTANCE)
+        let t = (distance - SFX_NEAR_DISTANCE) / (SFX_FAR_DISTANCE - SFX_NEAR_DISTANCE);
+        let decayed = SFX_ROLLOFF_FLOOR.powf(t);
+        (decayed - SFX_ROLLOFF_FLOOR) / (1.0 - SFX_ROLLOFF_FLOOR)
     }
 }
 
@@ -438,17 +455,32 @@ mod tests {
         // Full within the near radius (including at exactly near).
         assert_eq!(distance_attenuation(0.0), 1.0);
         assert_eq!(distance_attenuation(SFX_NEAR_DISTANCE), 1.0);
-        // Silent at/beyond the far radius.
+        // Silent at/beyond the far radius (endpoints are clean 1 and 0).
         assert_eq!(distance_attenuation(SFX_FAR_DISTANCE), 0.0);
         assert_eq!(distance_attenuation(SFX_FAR_DISTANCE + 100.0), 0.0);
+
         // Monotonic decreasing in the rolloff band.
         let mid = (SFX_NEAR_DISTANCE + SFX_FAR_DISTANCE) / 2.0;
         let a = distance_attenuation(SFX_NEAR_DISTANCE + 10.0);
         let m = distance_attenuation(mid);
         let b = distance_attenuation(SFX_FAR_DISTANCE - 10.0);
         assert!(a > m && m > b, "attenuation should decrease with distance");
-        // Midpoint of the band is ~0.5.
-        assert!((m - 0.5).abs() < 1e-6);
+
+        // Convex/perceptual: the geometric curve sits *below* the old linear line
+        // (which would be 0.5 at the midpoint), so loudness is already clearly
+        // reduced by the middle distances instead of staying flat then cliffing.
+        assert!(
+            m < 0.5,
+            "midpoint should be well below the linear 0.5, got {m}"
+        );
+        // Values stay in range.
+        for d in [30.0, 100.0, 200.0, 300.0] {
+            let v = distance_attenuation(d);
+            assert!(
+                (0.0..=1.0).contains(&v),
+                "attenuation out of range at {d}: {v}"
+            );
+        }
     }
 
     #[test]
