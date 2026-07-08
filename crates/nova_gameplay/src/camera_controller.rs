@@ -262,7 +262,11 @@ fn sync_spaceship_control_mode(
     >,
     spaceship_input_free_look: Single<Entity, With<SpaceshipCameraFreeLookInputMarker>>,
     spaceship_input_turret: Single<Entity, With<SpaceshipCameraTurretInputMarker>>,
-    camera: Single<Entity, (With<ChaseCamera>, With<SpaceshipCameraController>)>,
+    // Mutate the existing `ChaseCamera` in place rather than re-inserting it. Re-inserting fires
+    // bcs's `On<Insert, ChaseCamera>` observer, which resets `ChaseCameraInput` (the anchor) to
+    // the origin; the camera then snaps to (0,0,0) for one frame until `update_chase_camera_input`
+    // restores the anchor. Mutating in place leaves the anchor (and smoothing state) untouched.
+    camera: Single<&mut ChaseCamera, With<SpaceshipCameraController>>,
 ) {
     if !mode.is_changed() {
         return;
@@ -271,7 +275,7 @@ fn sync_spaceship_control_mode(
     let (spaceship_input_rotation, point_rotation) = spaceship_input_rotation.into_inner();
     let spaceship_input_free_look = spaceship_input_free_look.into_inner();
     let spaceship_input_combat = spaceship_input_turret.into_inner();
-    let camera = camera.into_inner();
+    let mut camera = camera.into_inner();
 
     match *mode {
         SpaceshipCameraControlMode::Normal => {
@@ -284,11 +288,8 @@ fn sync_spaceship_control_mode(
             commands
                 .entity(spaceship_input_combat)
                 .remove::<SpaceshipRotationInputActiveMarker>();
-            commands.entity(camera).insert(ChaseCamera {
-                offset: Vec3::new(0.0, 5.0, -20.0),
-                focus_offset: Vec3::new(0.0, 0.0, 20.0),
-                ..default()
-            });
+            camera.offset = Vec3::new(0.0, 5.0, -20.0);
+            camera.focus_offset = Vec3::new(0.0, 0.0, 20.0);
         }
         SpaceshipCameraControlMode::FreeLook => {
             commands
@@ -303,11 +304,8 @@ fn sync_spaceship_control_mode(
             commands
                 .entity(spaceship_input_combat)
                 .remove::<SpaceshipRotationInputActiveMarker>();
-            commands.entity(camera).insert(ChaseCamera {
-                offset: Vec3::new(0.0, 10.0, -30.0),
-                focus_offset: Vec3::new(0.0, 0.0, 0.0),
-                ..default()
-            });
+            camera.offset = Vec3::new(0.0, 10.0, -30.0);
+            camera.focus_offset = Vec3::new(0.0, 0.0, 0.0);
         }
         SpaceshipCameraControlMode::Turret => {
             commands
@@ -322,11 +320,8 @@ fn sync_spaceship_control_mode(
                     initial_rotation: **point_rotation,
                 })
                 .insert(SpaceshipRotationInputActiveMarker);
-            commands.entity(camera).insert(ChaseCamera {
-                offset: Vec3::new(0.0, 5.0, -10.0),
-                focus_offset: Vec3::new(0.0, 0.0, 50.0),
-                ..default()
-            });
+            camera.offset = Vec3::new(0.0, 5.0, -10.0);
+            camera.focus_offset = Vec3::new(0.0, 0.0, 50.0);
         }
     }
 }
@@ -396,4 +391,64 @@ fn on_combat_input_completed(
     mut mode: ResMut<SpaceshipCameraControlMode>,
 ) {
     *mode = SpaceshipCameraControlMode::Normal;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Switching camera mode must retune the chase offsets without resetting the anchor to the
+    /// origin. Re-inserting `ChaseCamera` (the previous approach) fired bcs's insert observer,
+    /// which reset `ChaseCameraInput` to the origin for a frame - the visible one-frame snap.
+    #[test]
+    fn switching_camera_mode_keeps_the_anchor_off_origin() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(ChaseCameraPlugin);
+        app.init_resource::<SpaceshipCameraControlMode>();
+        app.add_systems(Update, sync_spaceship_control_mode);
+
+        // A player ship far from the origin, plus the input rig `sync_spaceship_control_mode`
+        // drives (one active-marked normal input, a free-look input, a turret input).
+        let anchor = Vec3::new(100.0, 20.0, -50.0);
+        app.world_mut().spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            Transform::from_translation(anchor),
+        ));
+        app.world_mut().spawn((
+            SpaceshipCameraInputMarker,
+            SpaceshipCameraNormalInputMarker,
+            SpaceshipRotationInputActiveMarker,
+            PointRotationOutput::default(),
+        ));
+        app.world_mut().spawn(SpaceshipCameraFreeLookInputMarker);
+        app.world_mut().spawn(SpaceshipCameraTurretInputMarker);
+        let camera = app.world_mut().spawn(SpaceshipCameraController).id();
+
+        // First frame initializes `ChaseCameraInput`; set the anchor as the per-frame input
+        // system (`update_chase_camera_input`) would.
+        app.update();
+        app.world_mut()
+            .get_mut::<ChaseCameraInput>(camera)
+            .expect("ChaseCameraInput should be initialized by the chase plugin")
+            .anchor_pos = anchor;
+
+        // Switch to FreeLook.
+        *app.world_mut().resource_mut::<SpaceshipCameraControlMode>() =
+            SpaceshipCameraControlMode::FreeLook;
+        app.update();
+
+        // The anchor survives the switch (the bug reset it to the origin for a frame)...
+        assert_eq!(
+            app.world().get::<ChaseCameraInput>(camera).unwrap().anchor_pos,
+            anchor,
+            "switching camera mode must not reset the chase anchor to the origin"
+        );
+        // ...and the offsets now reflect FreeLook.
+        assert_eq!(
+            app.world().get::<ChaseCamera>(camera).unwrap().offset,
+            Vec3::new(0.0, 10.0, -30.0)
+        );
+    }
 }
