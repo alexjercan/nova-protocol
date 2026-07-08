@@ -2,15 +2,15 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 use nova_events::prelude::*;
-use nova_gameplay::prelude::*;
 
 use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
         base_scenario_object, BaseScenarioObjectConfig, DebugMessageActionConfig,
-        EventActionConfig, NextScenarioActionConfig, ObjectiveCompleteActionConfig,
-        ScenarioAreaConfig, ScenarioObjectConfig, ScenarioObjectKind, VariableSetActionConfig,
+        EventActionConfig, NextScenarioActionConfig, ObjectiveActionConfig,
+        ObjectiveCompleteActionConfig, ScenarioAreaConfig, ScenarioObjectConfig,
+        ScenarioObjectKind, VariableSetActionConfig,
     };
 }
 
@@ -99,6 +99,30 @@ impl EventAction<NovaEventWorld> for NextScenarioActionConfig {
             self.scenario_id, self.linger
         );
         world.next_scenario = Some(self.clone());
+    }
+}
+
+/// A scenario action that adds an objective to the HUD.
+///
+/// The objective *data* (id + message) is the generic `bevy_common_systems` `Objective`, but
+/// this scenario-action wrapper stays nova-local because it implements the (foreign)
+/// `EventAction` trait - which the orphan rule forbids implementing on the foreign
+/// `Objective` type directly.
+#[derive(Clone, Debug)]
+pub struct ObjectiveActionConfig {
+    /// Opaque identifier, used to complete/remove the objective later.
+    pub id: String,
+    /// The text shown in the objectives HUD.
+    pub message: String,
+}
+
+impl ObjectiveActionConfig {
+    /// Construct from string slices.
+    pub fn new(id: &str, message: &str) -> Self {
+        Self {
+            id: id.to_string(),
+            message: message.to_string(),
+        }
     }
 }
 

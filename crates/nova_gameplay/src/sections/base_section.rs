@@ -4,7 +4,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use super::prelude::*;
-use crate::prelude::destructible_body;
+use crate::prelude::{destructible_body, ExplodableEntity};
 
 pub mod prelude {
     pub use super::{
@@ -64,6 +64,9 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
         SectionMarker,
         Collider::cuboid(1.0, 1.0, 1.0),
         destructible_body(config.health, config.mass),
+        // bevy_common_systems' destructible_body is the generic Health + density + visibility
+        // bundle; nova adds ExplodableEntity so the section enters the explode pipeline.
+        ExplodableEntity,
     )
 }
 

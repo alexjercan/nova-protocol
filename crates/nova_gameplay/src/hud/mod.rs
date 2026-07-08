@@ -2,15 +2,13 @@ use bevy::prelude::*;
 
 use crate::prelude::*;
 
-pub mod health;
-pub mod objectives;
 pub mod torpedo_target;
 pub mod velocity;
 
 pub mod prelude {
     pub use super::{
-        health::prelude::*, objectives::prelude::*, torpedo_target::prelude::*,
-        velocity::prelude::*, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
+        torpedo_target::prelude::*, velocity::prelude::*, NovaHudAssets, NovaHudPlugin,
+        NovaHudSystems,
     };
 }
 
@@ -32,9 +30,20 @@ impl Plugin for NovaHudPlugin {
         app.init_resource::<NovaHudAssets>();
 
         app.add_plugins(velocity::VelocityHudPlugin);
-        app.add_plugins(health::HealthHudPlugin);
-        app.add_plugins(objectives::ObjectivesHudPlugin);
+        // The health and objectives HUDs are now the generic bevy_common_systems widgets.
+        app.add_plugins(HealthDisplayPlugin);
+        app.add_plugins(ObjectivesPlugin);
         app.add_plugins(torpedo_target::TorpedoTargetHudPlugin);
+
+        // Keep the generic HUD widgets inside nova's HUD ordering slot, as the local ones were.
+        app.configure_sets(
+            Update,
+            (
+                HealthDisplayPluginSystems::Sync,
+                ObjectivesPluginSystems::Sync,
+            )
+                .in_set(NovaHudSystems),
+        );
 
         // Setup and remove HUDs when player spaceship is added/removed
         app.add_observer(setup_hud_velocity);
@@ -102,7 +111,7 @@ fn setup_hud_health(
         return;
     };
 
-    commands.spawn((health_hud(HealthHudConfig {
+    commands.spawn((health_display(HealthDisplayConfig {
         target: Some(spaceship),
     }),));
 }
@@ -110,7 +119,7 @@ fn setup_hud_health(
 fn remove_hud_health(
     remove: On<Remove, PlayerSpaceshipMarker>,
     mut commands: Commands,
-    q_hud: Query<(Entity, &HealthHudTargetEntity), With<HealthHudMarker>>,
+    q_hud: Query<(Entity, &HealthDisplayTarget), With<HealthDisplayMarker>>,
 ) {
     let entity = remove.entity;
     debug!("remove_hud_health: entity {:?}", entity);
@@ -140,13 +149,13 @@ fn setup_hud_objectives(
         return;
     };
 
-    commands.spawn((objectives_hud(ObjectiveRootHudConfig {}),));
+    commands.spawn((objectives_panel(ObjectivesPanelConfig {}),));
 }
 
 fn remove_hud_objectives(
     remove: On<Remove, PlayerSpaceshipMarker>,
     mut commands: Commands,
-    q_hud: Query<Entity, With<ObjectiveRootHudMarker>>,
+    q_hud: Query<Entity, With<ObjectivesPanelMarker>>,
 ) {
     let entity = remove.entity;
     debug!("remove_hud_objectives: entity {:?}", entity);
