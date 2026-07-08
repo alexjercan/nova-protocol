@@ -1,8 +1,8 @@
 # Add status info to ScenarioLoaded event
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 40
-- TAGS: v0.4.0,chore
+- TAGS: v0.4.0, chore
 
 Useful for debugging scenario init. Legacy #131.
 
