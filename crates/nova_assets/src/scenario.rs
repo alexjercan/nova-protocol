@@ -51,10 +51,10 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
     let spaceship = SpaceshipConfig {
         controller: SpaceshipController::Player(PlayerControllerConfig {
             // Translation is no longer a per-section binding: the flight
-            // computer (nova_gameplay::flight) owns it through the flight
-            // input rig (WASD/QE intent, Space/right trigger full burn, X
-            // brake, Z assist toggle). Direct per-thruster bindings remain
-            // supported for ships without a flight computer.
+            // layer (nova_gameplay::flight) owns it through the flight input
+            // rig (W/Space/right trigger analog burn; X autopilot STOP, G
+            // autopilot GOTO the lock, Z autopilot off). Direct per-thruster
+            // bindings remain supported for ships without a flight computer.
             input_mapping: HashMap::from([(
                 "turret".to_string(),
                 vec![

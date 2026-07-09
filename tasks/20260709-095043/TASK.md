@@ -5,15 +5,19 @@
 - TAGS: v0.4.0,handling,juice
 
 Spike: docs/spikes/20260709-094731-flight-feel-assisted-newtonian.md (design
-calls 4 and 5)
+calls 4 and 5); re-scoped for the diegetic-autopilot rework
+(docs/spikes/20260709-103324-diegetic-autopilot.md) which replaced the
+velocity-servo layer.
 
 ## Goal
 
-Make the hull's weight legible on top of the flight layer from 20260708-203655:
-the commanded rotation slews instead of teleporting, the PD constants become
-tuned handling stats instead of buried defaults, and the chase camera conveys
-acceleration. Ends with a playtest retune of every feel constant introduced by
-both tasks (reused tuning constants are decisions, not defaults - juice retro).
+Make the hull's weight legible on top of the autopilot-era flight layer: the
+manually commanded rotation slews instead of teleporting, the PD constants
+become tuned handling stats instead of buried defaults, and the chase camera
+conveys acceleration. Ends with a playtest retune of every feel constant from
+the flight cycle - spool rates, autopilot margin/standoff/alignment gate, PD
+constants, slew rate, camera smoothing/push (reused tuning constants are
+decisions, not defaults - juice retro).
 
 ## Steps
 
@@ -38,15 +42,17 @@ both tasks (reused tuning constants are decisions, not defaults - juice retro).
       more than one frame to reach the input component), camera offset returns
       to baseline when thrust stops.
 - [ ] Playtest retune with the user: shake/flash overlap check under burn
-      (juice), spool rates, slew rate, PD constants, camera smoothing/push;
-      record the final values and reasoning in the design note
-      (`docs/2026-07-09-flight-assist.md`).
+      (juice), spool rates, autopilot margin/standoff/alignment, slew rate,
+      PD constants, camera smoothing/push; record the final values and
+      reasoning in the flight design note.
 - [ ] Verify: fmt, clippy --all-targets, cargo test --workspace, wasm check.
 
 ## Notes
 
-- Depends on: 20260708-203655 (flight layer; provides FlightSettings + spooled
-  thruster input this task reads).
+- Depends on: 20260709-103434 (diegetic autopilot rework; provides
+  FlightSettings + spooled thruster input this task reads). The slew limiter
+  must only shape the MANUAL rotation command path - the autopilot writes
+  `ControllerSectionRotationInput` directly and plans its own turns.
 - Relevant: bcs chase.rs:86 (smoothing field exists, unused), bcs shake.rs
   (juice already owns trauma - do not double-feed from thrust here).
 - Camera offsets are currently hard-set per mode in

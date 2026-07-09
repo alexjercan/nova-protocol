@@ -42,10 +42,6 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 frequency: 4.0,
                 damping_ratio: 4.0,
                 max_torque: 100.0,
-                // RCS translation authority (impulse per physics tick, same
-                // units as thruster magnitude): half the main drive, so
-                // braking and strafing read weaker than a real burn.
-                rcs_magnitude: 0.5,
                 render_mesh: None,
             }),
         },

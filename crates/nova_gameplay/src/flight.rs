@@ -1,36 +1,38 @@
-//! Nova's flight-control layer: the ship's flight computer, sitting between
-//! player intent and the honest thruster simulation.
+//! Nova's flight layer: manual Newtonian piloting plus a diegetic autopilot
+//! that flies the ship through its real actuators.
 //!
-//! Design: docs/spikes/20260709-094731-flight-feel-assisted-newtonian.md.
-//! Two modes, toggled at runtime ([`FlightAssistMode`]):
+//! Design: docs/spikes/20260709-103324-diegetic-autopilot.md (which supersedes
+//! the velocity-servo model of the earlier flight-assist spike). There are no
+//! invisible forces anywhere in this module: the autopilot swings the nose by
+//! writing the same [`ControllerSectionRotationInput`] the player's mouse
+//! command uses (the controller section's PD torque does the turning), and it
+//! burns by writing the live thrusters' [`ThrusterSectionInput`] - so the
+//! plume, the engine hum, and the actual impulse are the maneuver.
 //!
-//! - **Assisted** (default): velocity-command. The player's intent nudges a
-//!   *commanded velocity* ([`FlightCommand`]); no input means hold the current
-//!   command (a real Newtonian hold, not drag), brake commands zero, and the
-//!   commanded speed is soft-capped. Each physics tick the computer burns
-//!   toward the command: the forward component goes to the main drive by
-//!   writing the live thrusters' [`ThrusterSectionInput`] (so the plume,
-//!   audio, and the actual impulse all ride the existing seam), and the
-//!   remainder goes to RCS as a clamped impulse at the center of mass.
-//! - **Newtonian** ("FA off"): no velocity servo. Intent maps directly to
-//!   thrust - forward intent drives the main thrusters, everything else is a
-//!   direct RCS burn - and momentum persists until you burn it off.
+//! - **Manual** (default): the mouse points the hull, W/Space/right-trigger is
+//!   an analog main-drive burn, momentum persists. Pure Newtonian.
+//! - **Autopilot** (engaged per action, [`Autopilot`] component present):
+//!   - `X` - **STOP**: face retrograde, burn until the ship is at rest.
+//!   - `G` - **GOTO** the current aim-assist lock: burn toward the target,
+//!     flip at the arrival curve (`v_allowed = sqrt(2 * a * margin * d)`),
+//!     decelerate, and come to rest at a standoff outside blast radius.
 //!
-//! Nothing here fakes physics: there is no drag anywhere, forces never exceed
-//! what the surviving sections can produce, and capability dies with them -
-//! thrusters shot off remove main-drive authority, and the RCS (plus the
-//! whole assisted servo) lives in the controller section, so a ship that
-//! loses its controller is adrift on raw engines. The layer only drives ships
-//! that carry [`FlightIntent`] (the player's; see [`insert_flight_control`]) -
-//! the AI keeps writing `ThrusterSectionInput` / rotation inputs directly.
+//!   Both are one rule: compute the desired velocity for the goal, face the
+//!   velocity *error*, and burn when aligned - the flip emerges naturally the
+//!   moment the error points backward. While engaged, the ship stops
+//!   listening to the mouse (the manual rotation copy is gated off), which
+//!   makes the mouse camera-only free-look for free; any flight input
+//!   disengages, and disengaging re-seeds the mouse rig from the ship's
+//!   current facing so nothing lurches (see `camera_controller.rs`).
 //!
-//! Thruster inputs are written through a spool ramp instead of snapping, so
-//! the exhaust shader and the engine hum read as an engine lighting up rather
-//! than a switch. All tunables live on the reflected [`FlightSettings`]
-//! resource; the whole tree is registered so the inspector and a future
-//! settings menu can traverse it. The math is in pure helpers, unit-tested,
-//! and deliberately free of avian types where possible - it is a future
-//! `bevy_common_systems` promotion candidate.
+//! Capability comes from the live sections: the main drive is the summed
+//! magnitude of forward-aligned live thrusters, and the flight computer *is*
+//! the controller section - no live controller, no autopilot (it disengages),
+//! exactly as rotation authority already dies with it. Thruster inputs are
+//! spooled (exponential ramp) so engines light up and cut instead of
+//! snapping. Tunables live on the reflected [`FlightSettings`]; the math is
+//! pure helpers, unit-tested, shared-shaped so the AI brain (input/ai.rs,
+//! today a cruder version of the same idea) can adopt it later.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -39,118 +41,132 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        FlightAssistMode, FlightCommand, FlightIntent, FlightRcsImpulse, FlightSettings,
-        NovaFlightPlugin, NovaFlightSystems,
+        Autopilot, AutopilotAction, AutopilotPhase, FlightIntent, FlightSettings, NovaFlightPlugin,
+        NovaFlightSystems,
     };
 }
 
 /// A thruster counts as part of the main drive when its thrust direction
 /// aligns with the ship's forward axis at least this much (cosine). Everything
-/// less aligned is left alone - the flight computer only commands the engines
+/// less aligned is left alone - the flight layer only commands the engines
 /// that actually push the ship forward.
 const FORWARD_ALIGNMENT_COS: f32 = 0.9;
 
-/// Which control law the flight computer applies. Lives on the ship root next
-/// to [`FlightIntent`].
-#[derive(Component, Clone, Copy, PartialEq, Eq, Debug, Default, Reflect)]
-pub enum FlightAssistMode {
-    /// Velocity-command: intent nudges a commanded velocity the computer
-    /// holds; brake commands zero. The approachable default.
-    #[default]
-    Assisted,
-    /// Direct thrust ("FA off"): intent maps straight to engine/RCS output,
-    /// momentum persists, you burn to stop.
-    Newtonian,
+/// The pilot's manual input, on the ship root. Written by the player input
+/// layer; consumed by [`manual_burn_system`] when no autopilot is engaged.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+pub struct FlightIntent {
+    /// Analog main-drive burn, `0..1` (W / Space / right trigger).
+    pub burn: f32,
 }
 
-impl FlightAssistMode {
-    /// The other mode; used by the toggle input.
-    pub fn toggled(self) -> Self {
-        match self {
-            FlightAssistMode::Assisted => FlightAssistMode::Newtonian,
-            FlightAssistMode::Newtonian => FlightAssistMode::Assisted,
+/// An engaged autopilot maneuver, on the ship root. Present = engaged; the
+/// input layer inserts it (X = STOP, G = GOTO the lock) and removes it on any
+/// flight input, so manual authority is simply "this component is absent".
+#[derive(Component, Clone, Copy, Debug, PartialEq, Reflect)]
+pub struct Autopilot {
+    /// What the computer is trying to do.
+    pub action: AutopilotAction,
+    /// Where the maneuver currently is (for the HUD); updated every tick by
+    /// [`autopilot_system`].
+    pub phase: AutopilotPhase,
+}
+
+impl Autopilot {
+    /// A freshly engaged maneuver, starting in the align phase.
+    pub fn engage(action: AutopilotAction) -> Self {
+        Self {
+            action,
+            phase: AutopilotPhase::Align,
         }
     }
 }
 
-/// The pilot's translation intent, in the ship's local axes (`-Z` is forward,
-/// matching the thruster and camera conventions): each component `-1..1`.
-/// Written by the player input layer every frame; consumed by the flight
-/// computer each physics tick.
-#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
-pub struct FlightIntent {
-    /// Local-frame thrust intent (`x` right, `y` up, `z` backward - a forward
-    /// burn is `z = -1`, exactly what a `Spatial` input preset produces).
-    pub linear: Vec3,
-    /// Brake. Assisted: a kill-velocity latch - while set the command is
-    /// zero, so tapping brake means "come to a stop" until a direction input
-    /// re-takes the command. Newtonian: a plain full retro RCS burn while
-    /// held (no servo - it burns past zero if you let it).
-    pub brake: bool,
+/// The autopilot's goal.
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+pub enum AutopilotAction {
+    /// Kill all velocity: flip retrograde and burn to rest.
+    Stop,
+    /// Fly to `target` and come to rest at [`FlightSettings::arrival_standoff`]
+    /// from it. Replans toward the target's current position every tick, so a
+    /// drifting target is tracked; there is no collision avoidance (spike).
+    Goto {
+        /// The destination entity (the aim-assist lock at engage time).
+        target: Entity,
+    },
 }
 
-/// The commanded (target) velocity the assisted mode holds, world-space.
-/// `None` until the first assisted tick initializes it from the ship's actual
-/// velocity, so a ship spawned in motion is held at that motion instead of
-/// being yanked to zero. In Newtonian mode it tracks the actual velocity every
-/// tick, which makes toggling back to assisted seamless.
-#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
-pub struct FlightCommand {
-    pub velocity: Option<Vec3>,
+/// Which part of the maneuver the ship is in, for the HUD readout.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Reflect)]
+pub enum AutopilotPhase {
+    /// Swinging the nose toward the burn direction; engines cold.
+    #[default]
+    Align,
+    /// Aligned and burning.
+    Burn,
 }
 
-/// The RCS impulse (world-space, per physics tick) the flight computer wants
-/// applied at the ship's center of mass this tick. Computed by
-/// [`flight_control_system`], applied by [`apply_flight_rcs`] - the same
-/// compute/apply split the PD controller uses, because avian's `Forces` query
-/// conflicts with reading `LinearVelocity` in the same system. Also a handy
-/// seam for future RCS visual/audio cues.
-#[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
-pub struct FlightRcsImpulse(pub Vec3);
-
-/// All flight-feel tunables in one reflected resource, for the inspector and
-/// a future settings menu. Authority (how hard the ship can burn) is *not*
-/// here - that comes from the ship's live sections.
+/// All flight tunables in one reflected resource, for the inspector and a
+/// future settings menu. Authority (how hard the ship can burn or turn) is
+/// *not* here - that comes from the ship's live sections.
 #[derive(Resource, Clone, Debug, Reflect)]
 #[reflect(Resource)]
 pub struct FlightSettings {
-    /// How fast a held intent slews the commanded velocity, world units/s per
-    /// second. Higher = the command outruns the ship more eagerly.
-    pub command_accel: f32,
-    /// Soft cap on the commanded speed in assisted mode. The computer refuses
-    /// to command faster; Newtonian mode is deliberately uncapped.
-    pub max_commanded_speed: f32,
     /// Spool rate toward a higher thruster input, 1/s (exponential). Engines
     /// light up at this rate.
     pub spool_up_rate: f32,
     /// Spool rate toward a lower thruster input, 1/s. Engines cut faster than
     /// they light.
     pub spool_down_rate: f32,
+    /// Fraction of the ship's braking acceleration the autopilot plans with.
+    /// Below 1.0 it brakes early, absorbing spool lag and PD settling instead
+    /// of overshooting the goal.
+    pub decel_margin: f32,
+    /// GOTO arrives at rest this far from the target, world units. Kept
+    /// outside the torpedo's 30u blast radius on purpose.
+    pub arrival_standoff: f32,
+    /// The autopilot only burns when the nose is at least this aligned with
+    /// the burn direction (cosine) - same discipline as the AI.
+    pub align_cos: f32,
+    /// Below this speed relative to the goal the maneuver counts as done and
+    /// the autopilot disengages.
+    pub stop_speed_epsilon: f32,
+    /// Minimum closing speed a GOTO keeps while still outside the standoff.
+    /// The pure arrival curve goes to zero *at* the boundary, so without a
+    /// floor the ship approaches it asymptotically and never crosses; with
+    /// it, the ship enters at this gentle speed and the terminal retro burn
+    /// kills the remainder.
+    pub min_approach_speed: f32,
+    /// Seconds of un-braked travel the arrival plan budgets for the hull to
+    /// physically flip retrograde (plus engine spool) before deceleration
+    /// actually starts. Without this the plan assumes instant retro thrust
+    /// and sails deep through the standoff at speed.
+    pub flip_lead_time: f32,
 }
 
 impl Default for FlightSettings {
     fn default() -> Self {
         Self {
-            // The command outpaces the ~13 u/s^2 the default single-thruster
-            // ship can actually pull, so holding W keeps the engine lit
-            // instead of stuttering at the command.
-            command_accel: 15.0,
-            // Comfortably above the AI's 20 u/s chase ceiling and below the
-            // torpedo's 35 u/s, so you can outrun ships but not ordnance.
-            max_commanded_speed: 30.0,
             spool_up_rate: 6.0,
             spool_down_rate: 10.0,
+            decel_margin: 0.85,
+            arrival_standoff: 50.0,
+            align_cos: 0.95,
+            stop_speed_epsilon: 0.2,
+            min_approach_speed: 1.5,
+            // A 180 at PD freq 4 settles in roughly a second; pad for spool.
+            flip_lead_time: 1.5,
         }
     }
 }
 
-/// System set for the flight computer; ordered before the section systems in
+/// System set for the flight layer; ordered before the section systems in
 /// `FixedUpdate` so the thruster impulse system consumes the inputs written
 /// this tick.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NovaFlightSystems;
 
-/// Plugin wiring the flight-control layer.
+/// Plugin wiring the flight layer.
 #[derive(Default)]
 pub struct NovaFlightPlugin;
 
@@ -161,10 +177,10 @@ impl Plugin for NovaFlightPlugin {
         app.init_resource::<FlightSettings>()
             // Register the whole reflected tree, not just the resource root.
             .register_type::<FlightSettings>()
-            .register_type::<FlightAssistMode>()
             .register_type::<FlightIntent>()
-            .register_type::<FlightCommand>()
-            .register_type::<FlightRcsImpulse>();
+            .register_type::<Autopilot>()
+            .register_type::<AutopilotAction>()
+            .register_type::<AutopilotPhase>();
 
         app.add_observer(insert_flight_control);
 
@@ -174,63 +190,67 @@ impl Plugin for NovaFlightPlugin {
         );
         app.add_systems(
             FixedUpdate,
-            (flight_control_system, apply_flight_rcs)
+            (autopilot_system, manual_burn_system)
                 .chain()
                 .in_set(NovaFlightSystems),
         );
     }
 }
 
-/// Give the player's ship the flight-control components. Only intent-carrying
-/// ships are driven by the flight computer; AI ships keep their direct seams.
+/// Give the player's ship its manual flight input. Only intent-carrying ships
+/// are driven by this layer; AI ships keep writing the raw seams directly.
 fn insert_flight_control(add: On<Add, PlayerSpaceshipMarker>, mut commands: Commands) {
     let entity = add.entity;
     trace!("insert_flight_control: entity {:?}", entity);
 
-    commands.entity(entity).insert((
-        FlightIntent::default(),
-        FlightAssistMode::default(),
-        FlightCommand::default(),
-        FlightRcsImpulse::default(),
-    ));
+    commands.entity(entity).insert(FlightIntent::default());
 }
 
-/// Nudge the commanded velocity toward `dir_world` (unit-ish intent direction
-/// in world space) and clamp the result to the soft cap. Pure for unit
-/// testing.
-fn nudge_command(command: Vec3, dir_world: Vec3, accel: f32, dt: f32, max_speed: f32) -> Vec3 {
-    (command + dir_world * accel * dt).clamp_length_max(max_speed)
-}
-
-/// Split a local-frame intent (`-Z` forward) into the main-drive throttle
-/// (forward component, `0..1`) and the RCS thrust direction (laterals plus
-/// retro), also local-frame with length clamped to 1. Pure for unit testing.
-fn split_intent(local: Vec3) -> (f32, Vec3) {
-    let throttle = (-local.z).clamp(0.0, 1.0);
-    let rcs = Vec3::new(
-        local.x.clamp(-1.0, 1.0),
-        local.y.clamp(-1.0, 1.0),
-        local.z.clamp(0.0, 1.0),
-    )
-    .clamp_length_max(1.0);
-    (throttle, rcs)
-}
-
-/// The main-drive input (`0..1`) that best serves the needed impulse: the
-/// forward component of `needed`, as a fraction of the drive's authority.
-/// Thrusters only push forward, so a backward need yields zero (the RCS or a
-/// flip handles it). Pure for unit testing.
-fn main_target_input(needed: Vec3, forward: Vec3, main_authority: f32) -> f32 {
-    if main_authority <= 0.0 {
+/// The fastest speed the ship may still carry `distance` short of its goal
+/// and still be able to stop there, budgeting `lead_time` seconds of
+/// un-braked travel for the flip: the `v` solving
+/// `v * lead_time + v^2 / (2 * a * margin) = distance`. With zero lead this
+/// is the classic `sqrt(2 * a * margin * d)` arrival rule. Zero at (or past)
+/// the goal. Pure for unit testing.
+fn arrival_speed_limit(distance: f32, accel: f32, margin: f32, lead_time: f32) -> f32 {
+    let braking = accel.max(0.0) * margin.clamp(0.0, 1.0);
+    let distance = distance.max(0.0);
+    if braking <= 0.0 || distance <= 0.0 {
         return 0.0;
     }
-    (needed.dot(forward) / main_authority).clamp(0.0, 1.0)
+    let lead = lead_time.max(0.0);
+    braking * ((lead * lead + 2.0 * distance / braking).sqrt() - lead)
 }
 
-/// The RCS impulse for this tick: whatever the (already spooling) main drive
-/// does not deliver, clamped to the RCS authority. Pure for unit testing.
-fn rcs_impulse(needed: Vec3, delivered_main: Vec3, rcs_authority: f32) -> Vec3 {
-    (needed - delivered_main).clamp_length_max(rcs_authority.max(0.0))
+/// The velocity a GOTO wants right now: toward the target, at the arrival
+/// rule's speed for the remaining distance (minus the standoff), floored at
+/// `min_approach` so the ship actually crosses the boundary instead of
+/// approaching it asymptotically. Zero once inside the standoff. Pure for
+/// unit testing.
+fn goto_desired_velocity(
+    to_target: Vec3,
+    standoff: f32,
+    accel: f32,
+    margin: f32,
+    lead_time: f32,
+    min_approach: f32,
+) -> Vec3 {
+    let distance = to_target.length();
+    let remaining = distance - standoff;
+    if remaining <= 0.0 || distance <= f32::EPSILON {
+        return Vec3::ZERO;
+    }
+    let speed = arrival_speed_limit(remaining, accel, margin, lead_time).max(min_approach.max(0.0));
+    (to_target / distance) * speed
+}
+
+/// Main-drive input (`0..1`) to deliver `impulse` this tick given the drive's
+/// per-tick authority. Pure for unit testing.
+fn burn_input(impulse: f32, authority: f32) -> f32 {
+    if authority <= 0.0 {
+        return 0.0;
+    }
+    (impulse / authority).clamp(0.0, 1.0)
 }
 
 /// Move a thruster input toward `target` on an exponential ramp -
@@ -248,30 +268,55 @@ fn is_forward_aligned(thrust_dir: Vec3, forward: Vec3) -> bool {
     thrust_dir.dot(forward) >= FORWARD_ALIGNMENT_COS
 }
 
-/// The flight computer. For every intent-carrying ship: update the commanded
-/// velocity from intent (assisted), then turn the velocity error into a main
-/// drive input (spooled onto the live thrusters) and an RCS impulse for
-/// [`apply_flight_rcs`]. Newtonian mode skips the servo and maps intent to
-/// thrust directly.
-fn flight_control_system(
+/// One line of HUD truth about the flight layer, shared with the HUD module
+/// so the formatting is unit-testable. `goto_distance` is the current
+/// distance to the GOTO target, when known.
+pub(crate) fn flight_status_line(
+    speed: f32,
+    autopilot: Option<&Autopilot>,
+    goto_distance: Option<f32>,
+) -> String {
+    let phase = |p: AutopilotPhase| match p {
+        AutopilotPhase::Align => "ALIGN",
+        AutopilotPhase::Burn => "BURN",
+    };
+    match autopilot {
+        None => format!("MAN     {speed:5.1} u/s"),
+        Some(ap) => match (ap.action, goto_distance) {
+            (AutopilotAction::Stop, _) => {
+                format!("AP STOP - {} | {speed:5.1} u/s", phase(ap.phase))
+            }
+            (AutopilotAction::Goto { .. }, Some(d)) => {
+                format!("AP GOTO - {} | {speed:5.1} u/s | {d:5.0}m", phase(ap.phase))
+            }
+            (AutopilotAction::Goto { .. }, None) => {
+                format!("AP GOTO - {} | {speed:5.1} u/s", phase(ap.phase))
+            }
+        },
+    }
+}
+
+/// The autopilot. One rule flies every maneuver: compute the desired velocity
+/// for the goal, face the velocity *error*, burn (spooled) when aligned. The
+/// flip-and-burn emerges the moment the error points backward. Disengages
+/// (removes [`Autopilot`]) when the goal is reached, the target is gone, or
+/// the flight computer (live controller section) is lost.
+fn autopilot_system(
     time: Res<Time>,
     settings: Res<FlightSettings>,
+    mut commands: Commands,
     mut q_ship: Query<
         (
             Entity,
-            &FlightAssistMode,
-            &FlightIntent,
-            &mut FlightCommand,
-            &mut FlightRcsImpulse,
+            &mut Autopilot,
+            &Position,
             &Rotation,
             &LinearVelocity,
             &ComputedMass,
         ),
         With<SpaceshipRootMarker>,
     >,
-    // A thruster with a manual per-section binding (the editor lets players
-    // bind keys straight to thrusters) belongs to the pilot, not the flight
-    // computer: it is excluded from both the authority sum and the drive.
+    // Editor-bound thrusters (manual per-section bindings) stay the pilot's.
     mut q_thruster: Query<
         (
             &mut ThrusterSectionInput,
@@ -286,84 +331,118 @@ fn flight_control_system(
             Without<SpaceshipThrusterInputBinding>,
         ),
     >,
-    q_rcs: Query<
-        (&ControllerSectionRcsMagnitude, &ChildOf),
+    // A live flight computer is a controller section that still has its PD
+    // (preview controllers have none) and is not disabled.
+    q_computer: Query<
+        &ChildOf,
         (
             With<ControllerSectionMarker>,
+            With<PDController>,
             Without<SectionInactiveMarker>,
         ),
     >,
+    mut q_rotation_input: Query<
+        (&mut ControllerSectionRotationInput, &ChildOf),
+        With<ControllerSectionMarker>,
+    >,
+    q_target: Query<&GlobalTransform>,
 ) {
     let dt = time.delta_secs();
 
-    for (ship, mode, intent, mut command, mut rcs_out, rotation, velocity, mass) in &mut q_ship {
+    for (ship, mut autopilot, position, rotation, velocity, mass) in &mut q_ship {
+        // No flight computer, no autopilot - the ship is adrift on manual.
+        if !q_computer.iter().any(|&ChildOf(parent)| parent == ship) {
+            debug!("autopilot_system: ship {ship:?} lost its flight computer, disengaging");
+            commands.entity(ship).remove::<Autopilot>();
+            continue;
+        }
+
         let forward = rotation.mul_vec3(Vec3::NEG_Z).normalize();
 
-        // Capability from the live sections: the computer (and its RCS
-        // authority) is the controller section; the main drive is the sum of
-        // the forward-aligned live thrusters.
-        let mut has_computer = false;
-        let mut rcs_authority = 0.0f32;
-        for (rcs_magnitude, &ChildOf(parent)) in &q_rcs {
-            if parent == ship {
-                has_computer = true;
-                rcs_authority = rcs_authority.max(**rcs_magnitude);
-            }
-        }
+        // Main-drive authority from the live, forward-aligned thrusters, and
+        // how hot those engines currently run (for the settle check below).
         let mut main_authority = 0.0f32;
-        for (_, magnitude, thruster_rotation, &ChildOf(parent)) in &q_thruster {
+        let mut hottest_input = 0.0f32;
+        for (input, magnitude, thruster_rotation, &ChildOf(parent)) in &q_thruster {
             if parent != ship {
                 continue;
             }
             let dir = thruster_rotation.mul_vec3(Vec3::NEG_Z).normalize();
             if is_forward_aligned(dir, forward) {
                 main_authority += **magnitude;
+                hottest_input = hottest_input.max(**input);
             }
         }
 
-        let assisted = *mode == FlightAssistMode::Assisted && has_computer;
-
-        // `servo_needed` carries the assisted servo impulse (computed once,
-        // reused for the RCS remainder below); `direct_rcs_local` carries the
-        // Newtonian direct burn. Exactly one is set.
-        let (target_input, servo_needed, direct_rcs_local) = if assisted {
-            // Update the commanded velocity: brake latches it to zero, intent
-            // nudges it (soft-capped), no input holds it.
-            let cmd = command.velocity.get_or_insert(**velocity);
-            if intent.brake {
-                *cmd = Vec3::ZERO;
-            } else if intent.linear != Vec3::ZERO {
-                let dir_world = rotation.mul_vec3(intent.linear.clamp_length_max(1.0));
-                *cmd = nudge_command(
-                    *cmd,
-                    dir_world,
-                    settings.command_accel,
-                    dt,
-                    settings.max_commanded_speed,
-                );
-            }
-
-            let needed = (*cmd - **velocity) * mass.value();
-            (
-                main_target_input(needed, forward, main_authority),
-                Some(needed),
-                None,
-            )
+        // Braking acceleration (u/s^2) the maneuver can plan with.
+        let accel = if dt > 0.0 && mass.value() > 0.0 {
+            (main_authority / mass.value()) / dt
         } else {
-            // Newtonian (or the computer is gone): track the actual velocity
-            // so toggling back to assisted is seamless, and map intent
-            // straight to thrust. Brake has no servo to command here, so it
-            // means a plain full retro burn instead of a dead key.
-            command.velocity = Some(**velocity);
-            let local = if intent.brake { Vec3::Z } else { intent.linear };
-            let (throttle, rcs_local) = split_intent(local);
-            (throttle, None, Some(rcs_local))
+            0.0
         };
 
-        // Spool the main drive toward its target and account for what it will
-        // actually deliver this tick, so the RCS only covers the remainder.
-        let mut delivered = Vec3::ZERO;
-        for (mut input, magnitude, thruster_rotation, &ChildOf(parent)) in &mut q_thruster {
+        // The goal, as a desired velocity right now.
+        let desired = match autopilot.action {
+            AutopilotAction::Stop => Vec3::ZERO,
+            AutopilotAction::Goto { target } => {
+                let Ok(target_transform) = q_target.get(target) else {
+                    debug!("autopilot_system: GOTO target {target:?} is gone, disengaging");
+                    commands.entity(ship).remove::<Autopilot>();
+                    continue;
+                };
+                goto_desired_velocity(
+                    target_transform.translation() - position.0,
+                    settings.arrival_standoff,
+                    accel,
+                    settings.decel_margin,
+                    settings.flip_lead_time,
+                    settings.min_approach_speed,
+                )
+            }
+        };
+
+        let error = desired - **velocity;
+        let error_speed = error.length();
+
+        // Done: the goal wants rest here, the ship is (nearly) at rest, AND
+        // the engines have wound down - releasing the ship with a still-hot,
+        // spooling-down drive would let the dying burn push it off again.
+        let at_rest = desired == Vec3::ZERO && error_speed <= settings.stop_speed_epsilon;
+        if at_rest && hottest_input <= 0.05 {
+            debug!("autopilot_system: ship {ship:?} maneuver complete, disengaging");
+            commands.entity(ship).remove::<Autopilot>();
+            continue;
+        }
+
+        // Face the error, burn when aligned - spool everything. While
+        // settling (at rest, engines still winding down) just command zero.
+        let (target_input, aligned) = if at_rest || error_speed <= 1e-3 {
+            (0.0, false)
+        } else {
+            let error_dir = error / error_speed;
+            // Minimal rotation from the current attitude, preserving roll.
+            let target_rotation = Quat::from_rotation_arc(forward, error_dir) * rotation.0;
+            for (mut input, &ChildOf(parent)) in &mut q_rotation_input {
+                if parent == ship {
+                    **input = target_rotation;
+                }
+            }
+            let aligned = forward.dot(error_dir) >= settings.align_cos;
+            let input = if aligned {
+                burn_input(error_speed * mass.value(), main_authority)
+            } else {
+                0.0
+            };
+            (input, aligned)
+        };
+
+        autopilot.phase = if aligned {
+            AutopilotPhase::Burn
+        } else {
+            AutopilotPhase::Align
+        };
+
+        for (mut input, _, thruster_rotation, &ChildOf(parent)) in &mut q_thruster {
             if parent != ship {
                 continue;
             }
@@ -378,50 +457,51 @@ fn flight_control_system(
                 settings.spool_down_rate,
                 dt,
             );
-            delivered += dir * **magnitude * **input;
         }
-
-        **rcs_out = match (servo_needed, direct_rcs_local) {
-            // Assisted: burn the remaining velocity error, clamped by RCS.
-            (Some(needed), _) => rcs_impulse(needed, delivered, rcs_authority),
-            // Direct: intent is the burn; no servo.
-            (None, Some(rcs_local)) if has_computer => rotation.mul_vec3(rcs_local * rcs_authority),
-            _ => Vec3::ZERO,
-        };
     }
 }
 
-/// Apply the RCS impulse computed by [`flight_control_system`] at the ship's
-/// center of mass. Separate system because avian's `Forces` query data writes
-/// `LinearVelocity`, which the control system reads.
-fn apply_flight_rcs(
-    q_ship: Query<(Entity, &FlightRcsImpulse), With<SpaceshipRootMarker>>,
-    mut q_forces: Query<Forces>,
+/// Manual main-drive burn for intent-carrying ships with no autopilot
+/// engaged: spool the live forward thrusters toward the analog burn input.
+fn manual_burn_system(
+    time: Res<Time>,
+    settings: Res<FlightSettings>,
+    q_ship: Query<
+        (Entity, &FlightIntent, &Rotation),
+        (With<SpaceshipRootMarker>, Without<Autopilot>),
+    >,
+    mut q_thruster: Query<
+        (&mut ThrusterSectionInput, &Rotation, &ChildOf),
+        (
+            With<ThrusterSectionMarker>,
+            Without<SectionInactiveMarker>,
+            Without<SpaceshipRootMarker>,
+            Without<SpaceshipThrusterInputBinding>,
+        ),
+    >,
 ) {
-    for (ship, impulse) in &q_ship {
-        if **impulse == Vec3::ZERO {
-            continue;
-        }
-        let Ok(mut forces) = q_forces.get_mut(ship) else {
-            continue;
-        };
-        forces.apply_linear_impulse(**impulse);
-    }
-}
+    let dt = time.delta_secs();
 
-/// One line of HUD truth about the flight computer, shared with the HUD
-/// module so the formatting is unit-testable.
-pub(crate) fn flight_status_line(
-    mode: FlightAssistMode,
-    speed: f32,
-    commanded_speed: Option<f32>,
-) -> String {
-    match (mode, commanded_speed) {
-        (FlightAssistMode::Assisted, Some(cmd)) => {
-            format!("FA ON   {speed:5.1} -> {cmd:5.1} u/s")
+    for (ship, intent, rotation) in &q_ship {
+        let forward = rotation.mul_vec3(Vec3::NEG_Z).normalize();
+        let target = intent.burn.clamp(0.0, 1.0);
+
+        for (mut input, thruster_rotation, &ChildOf(parent)) in &mut q_thruster {
+            if parent != ship {
+                continue;
+            }
+            let dir = thruster_rotation.mul_vec3(Vec3::NEG_Z).normalize();
+            if !is_forward_aligned(dir, forward) {
+                continue;
+            }
+            **input = spool(
+                **input,
+                target,
+                settings.spool_up_rate,
+                settings.spool_down_rate,
+                dt,
+            );
         }
-        (FlightAssistMode::Assisted, None) => format!("FA ON   {speed:5.1} u/s"),
-        (FlightAssistMode::Newtonian, _) => format!("FA OFF  {speed:5.1} u/s"),
     }
 }
 
@@ -432,14 +512,66 @@ mod tests {
     // --- Pure helpers ----------------------------------------------------
 
     #[test]
+    fn arrival_speed_limit_is_zero_at_the_goal_and_grows_with_distance() {
+        assert_eq!(arrival_speed_limit(0.0, 20.0, 0.85, 0.0), 0.0);
+        assert_eq!(arrival_speed_limit(-5.0, 20.0, 0.85, 0.0), 0.0);
+        let near = arrival_speed_limit(10.0, 20.0, 0.85, 0.0);
+        let far = arrival_speed_limit(100.0, 20.0, 0.85, 0.0);
+        assert!(near > 0.0 && far > near, "limit must grow with distance");
+        // The margin slows the plan down.
+        assert!(
+            arrival_speed_limit(100.0, 20.0, 0.5, 0.0) < arrival_speed_limit(100.0, 20.0, 1.0, 0.0)
+        );
+        // v = sqrt(2 a d) exactly at margin 1 with no flip lead.
+        assert!(
+            (arrival_speed_limit(100.0, 20.0, 1.0, 0.0) - (2.0f32 * 20.0 * 100.0).sqrt()).abs()
+                < 1e-4
+        );
+        // A flip lead budgets un-braked travel, so the allowed speed drops...
+        let with_lead = arrival_speed_limit(100.0, 20.0, 1.0, 1.5);
+        assert!(with_lead < arrival_speed_limit(100.0, 20.0, 1.0, 0.0));
+        // ...and satisfies v * lead + v^2 / (2a) = d.
+        let stopping = with_lead * 1.5 + with_lead * with_lead / (2.0 * 20.0);
+        assert!((stopping - 100.0).abs() < 1e-3, "got {stopping}");
+    }
+
+    #[test]
+    fn goto_desired_velocity_points_at_the_target_and_rests_inside_standoff() {
+        let desired =
+            goto_desired_velocity(Vec3::new(0.0, 0.0, -300.0), 50.0, 20.0, 0.85, 1.5, 1.5);
+        assert!(desired.z < 0.0 && desired.x == 0.0 && desired.y == 0.0);
+        assert!((desired.length() - arrival_speed_limit(250.0, 20.0, 0.85, 1.5)).abs() < 1e-4);
+        // Inside the standoff the goal is rest.
+        assert_eq!(
+            goto_desired_velocity(Vec3::new(0.0, 0.0, -40.0), 50.0, 20.0, 0.85, 1.5, 1.5),
+            Vec3::ZERO
+        );
+        // Just outside the boundary the floor keeps a closing speed, so the
+        // ship crosses instead of stalling on the asymptote.
+        let creeping =
+            goto_desired_velocity(Vec3::new(0.0, 0.0, -50.01), 50.0, 20.0, 0.85, 1.5, 1.5);
+        assert!((creeping.length() - 1.5).abs() < 1e-3);
+        // Degenerate zero offset is safe.
+        assert_eq!(
+            goto_desired_velocity(Vec3::ZERO, 50.0, 20.0, 0.85, 1.5, 1.5),
+            Vec3::ZERO
+        );
+    }
+
+    #[test]
+    fn burn_input_scales_and_saturates() {
+        assert!((burn_input(0.5, 1.0) - 0.5).abs() < 1e-6);
+        assert_eq!(burn_input(5.0, 1.0), 1.0);
+        assert_eq!(burn_input(1.0, 0.0), 0.0);
+        assert_eq!(burn_input(-1.0, 1.0), 0.0);
+    }
+
+    #[test]
     fn spool_ramps_up_and_down_at_distinct_rates_and_clamps() {
-        // Rising uses the up rate...
         let up = spool(0.0, 1.0, 6.0, 10.0, 0.1);
         assert!(up > 0.0 && up < 1.0);
-        // ...falling uses the (faster) down rate, so the same dt cuts deeper.
         let down = spool(1.0, 0.0, 6.0, 10.0, 0.1);
         assert!(1.0 - down > up, "cut should outpace light-up");
-        // Converges to the target and clamps into 0..1.
         let mut v = 0.0;
         for _ in 0..200 {
             v = spool(v, 1.0, 6.0, 10.0, 1.0 / 60.0);
@@ -449,101 +581,38 @@ mod tests {
     }
 
     #[test]
-    fn split_intent_separates_throttle_from_rcs() {
-        // Pure forward burn: all throttle, no RCS.
-        let (throttle, rcs) = split_intent(Vec3::new(0.0, 0.0, -1.0));
-        assert_eq!(throttle, 1.0);
-        assert_eq!(rcs, Vec3::ZERO);
-        // Retro + lateral: no throttle, RCS carries both.
-        let (throttle, rcs) = split_intent(Vec3::new(1.0, 0.0, 1.0));
-        assert_eq!(throttle, 0.0);
-        assert!(rcs.x > 0.0 && rcs.z > 0.0);
-        // Length is clamped so diagonal input cannot exceed the authority.
-        assert!(rcs.length() <= 1.0 + 1e-6);
-    }
-
-    #[test]
-    fn main_target_input_serves_only_the_forward_component() {
-        let forward = Vec3::NEG_Z;
-        // A forward need maps to a fraction of the authority.
-        assert!((main_target_input(Vec3::new(0.0, 0.0, -2.0), forward, 4.0) - 0.5).abs() < 1e-6);
-        // Saturates at full throttle.
-        assert_eq!(
-            main_target_input(Vec3::new(0.0, 0.0, -8.0), forward, 4.0),
-            1.0
-        );
-        // A backward need cannot be served by forward engines.
-        assert_eq!(
-            main_target_input(Vec3::new(0.0, 0.0, 3.0), forward, 4.0),
-            0.0
-        );
-        // No authority, no input (and no division by zero).
-        assert_eq!(main_target_input(Vec3::NEG_Z, forward, 0.0), 0.0);
-    }
-
-    #[test]
-    fn rcs_impulse_covers_the_remainder_and_respects_authority() {
-        let needed = Vec3::new(3.0, 0.0, -4.0);
-        let delivered = Vec3::new(0.0, 0.0, -4.0);
-        // Exactly the lateral remainder when within authority.
-        assert_eq!(
-            rcs_impulse(needed, delivered, 5.0),
-            Vec3::new(3.0, 0.0, 0.0)
-        );
-        // Clamped to the authority when the remainder is too large.
-        let clamped = rcs_impulse(needed, Vec3::ZERO, 1.0);
-        assert!((clamped.length() - 1.0).abs() < 1e-6);
-        // Negative authority is treated as none.
-        assert_eq!(rcs_impulse(needed, delivered, -1.0), Vec3::ZERO);
-    }
-
-    #[test]
-    fn nudge_command_accelerates_and_soft_caps() {
-        let cmd = nudge_command(Vec3::ZERO, Vec3::NEG_Z, 10.0, 0.5, 30.0);
-        assert!((cmd.z + 5.0).abs() < 1e-6);
-        // The cap is on the commanded speed, however long the key is held.
-        let mut c = Vec3::ZERO;
-        for _ in 0..1000 {
-            c = nudge_command(c, Vec3::NEG_Z, 10.0, 0.1, 30.0);
-        }
-        assert!((c.length() - 30.0).abs() < 1e-3);
-    }
-
-    #[test]
     fn forward_alignment_selects_main_drive_thrusters() {
         let forward = Vec3::NEG_Z;
         assert!(is_forward_aligned(Vec3::NEG_Z, forward));
-        // A retro or lateral thruster is not main drive.
         assert!(!is_forward_aligned(Vec3::Z, forward));
         assert!(!is_forward_aligned(Vec3::X, forward));
     }
 
     #[test]
-    fn flight_status_line_formats_each_mode() {
+    fn flight_status_line_formats_manual_and_each_maneuver() {
+        assert_eq!(flight_status_line(12.34, None, None), "MAN      12.3 u/s");
+        let stop = Autopilot {
+            action: AutopilotAction::Stop,
+            phase: AutopilotPhase::Align,
+        };
         assert_eq!(
-            flight_status_line(FlightAssistMode::Assisted, 12.34, Some(20.0)),
-            "FA ON    12.3 ->  20.0 u/s"
+            flight_status_line(12.34, Some(&stop), None),
+            "AP STOP - ALIGN |  12.3 u/s"
         );
+        let goto = Autopilot {
+            action: AutopilotAction::Goto {
+                target: Entity::PLACEHOLDER,
+            },
+            phase: AutopilotPhase::Burn,
+        };
         assert_eq!(
-            flight_status_line(FlightAssistMode::Newtonian, 5.0, Some(20.0)),
-            "FA OFF    5.0 u/s"
+            flight_status_line(5.0, Some(&goto), Some(320.4)),
+            "AP GOTO - BURN |   5.0 u/s |   320m"
         );
     }
 
     #[test]
-    fn toggled_flips_the_mode() {
-        assert_eq!(
-            FlightAssistMode::Assisted.toggled(),
-            FlightAssistMode::Newtonian
-        );
-        assert_eq!(
-            FlightAssistMode::Newtonian.toggled(),
-            FlightAssistMode::Assisted
-        );
-    }
-
-    #[test]
-    fn player_marker_receives_flight_components() {
+    fn player_marker_receives_flight_intent() {
         let mut app = App::new();
         app.add_observer(insert_flight_control);
 
@@ -554,51 +623,65 @@ mod tests {
         app.update();
 
         assert!(app.world().get::<FlightIntent>(ship).is_some());
-        assert_eq!(
-            app.world().get::<FlightAssistMode>(ship),
-            Some(&FlightAssistMode::Assisted),
-            "assisted is the default mode"
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "no maneuver engaged at spawn"
         );
-        assert!(app.world().get::<FlightCommand>(ship).is_some());
-        assert!(app.world().get::<FlightRcsImpulse>(ship).is_some());
     }
 
     // --- Physics-level integration ---------------------------------------
     //
-    // A real avian world (the integrity test harness) with the flight systems
-    // and the actual thruster impulse system, so these cover the whole
-    // pipeline: intent -> command -> spooled thruster input -> impulse ->
-    // velocity.
+    // A real avian world with the real PD controller, controller-section glue,
+    // and thruster impulse system, so these cover the whole diegetic pipeline:
+    // autopilot -> rotation command -> PD torque -> hull swings -> aligned ->
+    // spooled burn -> impulse -> velocity. No external forces anywhere.
 
     use crate::{
-        integrity::test_support::{integrity_physics_app, settle},
-        sections::thruster_section::thruster_impulse_system,
+        integrity::test_support::{settle, unfinished_integrity_physics_app},
+        sections::{
+            controller_section::{
+                sync_controller_section_forces, update_controller_section_rotation_input,
+            },
+            thruster_section::thruster_impulse_system,
+        },
     };
 
     fn flight_app() -> App {
-        let mut app = integrity_physics_app();
+        let mut app = unfinished_integrity_physics_app();
         app.init_resource::<FlightSettings>();
+        app.add_plugins(PDControllerPlugin);
         app.configure_sets(
             FixedUpdate,
-            NovaFlightSystems.before(SpaceshipSectionSystems),
+            (
+                NovaFlightSystems,
+                PDControllerSystems::Sync,
+                SpaceshipSectionSystems,
+            )
+                .chain(),
         );
         app.add_systems(
             FixedUpdate,
-            (flight_control_system, apply_flight_rcs)
+            (
+                autopilot_system,
+                manual_burn_system,
+                update_controller_section_rotation_input,
+            )
                 .chain()
                 .in_set(NovaFlightSystems),
         );
         app.add_systems(
             FixedUpdate,
-            thruster_impulse_system.in_set(SpaceshipSectionSystems),
+            (sync_controller_section_forces, thruster_impulse_system)
+                .in_set(SpaceshipSectionSystems),
         );
+        app.finish();
         app
     }
 
-    /// A minimal flyable ship: a hull collider at the origin, a rear main
-    /// thruster (thrusting toward -Z, the ship's forward), and optionally a
-    /// controller section carrying the RCS authority.
-    fn spawn_ship(app: &mut App, mode: FlightAssistMode, with_rcs: bool) -> (Entity, Entity) {
+    /// A minimal flyable ship: hull collider, a rear main thruster (thrusting
+    /// toward -Z, the ship's forward), and a live controller section with a
+    /// real PD so the autopilot can actually swing the hull.
+    fn spawn_ship(app: &mut App) -> (Entity, Entity, Entity) {
         let ship = app
             .world_mut()
             .spawn((
@@ -606,9 +689,6 @@ mod tests {
                 Transform::default(),
                 SpaceshipRootMarker,
                 FlightIntent::default(),
-                mode,
-                FlightCommand::default(),
-                FlightRcsImpulse::default(),
             ))
             .id();
         app.world_mut().spawn((
@@ -631,18 +711,25 @@ mod tests {
                 ColliderDensity(1.0),
             ))
             .id();
-        if with_rcs {
-            app.world_mut().spawn((
+        let controller = app
+            .world_mut()
+            .spawn((
                 ChildOf(ship),
                 Name::new("controller"),
                 ControllerSectionMarker,
-                ControllerSectionRcsMagnitude(0.5),
-                Transform::from_xyz(0.0, 1.0, 0.0),
+                ControllerSectionRotationInput::default(),
+                PDController {
+                    frequency: 4.0,
+                    damping_ratio: 4.0,
+                    max_torque: 100.0,
+                },
+                PDControllerTarget(ship),
+                Transform::from_xyz(0.0, 0.0, 0.0),
                 Collider::cuboid(1.0, 1.0, 1.0),
                 ColliderDensity(1.0),
-            ));
-        }
-        (ship, thruster)
+            ))
+            .id();
+        (ship, thruster, controller)
     }
 
     fn velocity_of(app: &App, ship: Entity) -> Vec3 {
@@ -656,155 +743,153 @@ mod tests {
     }
 
     #[test]
-    fn assisted_brake_kills_velocity() {
+    fn stop_flips_the_hull_and_kills_velocity_with_no_external_force() {
         let mut app = flight_app();
-        let (ship, _) = spawn_ship(&mut app, FlightAssistMode::Assisted, true);
+        let (ship, _, _) = spawn_ship(&mut app);
         settle(&mut app);
-
+        // Coasting sideways: the nose (-Z) must physically swing ~90 degrees
+        // to point retrograde before the drive can brake anything.
         app.world_mut()
             .entity_mut(ship)
-            .insert(LinearVelocity(Vec3::new(4.0, 0.0, -8.0)));
-        app.world_mut().get_mut::<FlightIntent>(ship).unwrap().brake = true;
+            .insert(LinearVelocity(Vec3::new(6.0, 0.0, 0.0)));
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
 
-        run(&mut app, 300);
+        run(&mut app, 900);
 
         let speed = velocity_of(&app, ship).length();
-        assert!(speed < 0.3, "brake should null the velocity, got {speed}");
+        assert!(speed < 0.5, "STOP should null the velocity, got {speed}");
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "a completed maneuver disengages"
+        );
     }
 
     #[test]
-    fn assisted_holds_velocity_against_an_external_push() {
+    fn goto_arrives_at_standoff_and_disengages() {
         let mut app = flight_app();
-        let (ship, _) = spawn_ship(&mut app, FlightAssistMode::Assisted, true);
+        let (ship, _, _) = spawn_ship(&mut app);
+        let target = app
+            .world_mut()
+            .spawn((
+                Transform::from_xyz(0.0, 0.0, -300.0),
+                GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -300.0)),
+            ))
+            .id();
         settle(&mut app);
-        // Let the command initialize to the resting velocity (zero), then
-        // shove the ship sideways as a blast would.
-        run(&mut app, 5);
-        let held = velocity_of(&app, ship);
         app.world_mut()
             .entity_mut(ship)
-            .insert(LinearVelocity(held + Vec3::new(3.0, 0.0, 0.0)));
+            .insert(Autopilot::engage(AutopilotAction::Goto { target }));
 
-        run(&mut app, 300);
+        run(&mut app, 2400);
 
-        let drift = (velocity_of(&app, ship) - held).length();
+        let standoff = app.world().resource::<FlightSettings>().arrival_standoff;
+        let pos = app.world().get::<Position>(ship).unwrap().0;
+        let distance = (Vec3::new(0.0, 0.0, -300.0) - pos).length();
+        let speed = velocity_of(&app, ship).length();
         assert!(
-            drift < 0.3,
-            "assist should station-keep after a push, drift {drift}"
+            distance <= standoff + 5.0 && distance >= standoff - 45.0,
+            "should arrive near the {standoff}u standoff, got {distance}"
+        );
+        assert!(speed < 0.5, "should arrive at rest, got {speed}");
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "arrival disengages"
         );
     }
 
     #[test]
-    fn newtonian_coasts_without_any_damping() {
+    fn goto_disengages_when_the_target_is_gone() {
         let mut app = flight_app();
-        let (ship, _) = spawn_ship(&mut app, FlightAssistMode::Newtonian, true);
+        let (ship, _, _) = spawn_ship(&mut app);
+        let target = app
+            .world_mut()
+            .spawn((
+                Transform::from_xyz(0.0, 0.0, -300.0),
+                GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -300.0)),
+            ))
+            .id();
         settle(&mut app);
-        let v0 = Vec3::new(2.0, 1.0, -6.0);
-        app.world_mut().entity_mut(ship).insert(LinearVelocity(v0));
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Goto { target }));
+        run(&mut app, 5);
 
-        run(&mut app, 240);
+        app.world_mut().entity_mut(target).despawn();
+        run(&mut app, 2);
 
-        let drift = (velocity_of(&app, ship) - v0).length();
-        assert!(drift < 1e-3, "coasting must not decay, drift {drift}");
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "a vanished destination disengages the autopilot"
+        );
     }
 
     #[test]
-    fn newtonian_burn_accelerates_forward_and_dies_with_the_thruster() {
+    fn a_dead_flight_computer_disengages_the_autopilot() {
         let mut app = flight_app();
-        let (ship, thruster) = spawn_ship(&mut app, FlightAssistMode::Newtonian, true);
+        let (ship, _, controller) = spawn_ship(&mut app);
         settle(&mut app);
         app.world_mut()
-            .get_mut::<FlightIntent>(ship)
-            .unwrap()
-            .linear = Vec3::new(0.0, 0.0, -1.0);
-
-        run(&mut app, 120);
-        let burned = velocity_of(&app, ship);
-        assert!(
-            burned.z < -1.0,
-            "full burn should accelerate along -Z, got {burned}"
-        );
-
-        // Kill the engine: no further forward acceleration.
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::new(6.0, 0.0, 0.0)));
         app.world_mut()
-            .entity_mut(thruster)
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+        run(&mut app, 5);
+        assert!(app.world().get::<Autopilot>(ship).is_some());
+
+        // The controller section is knocked out: no computer, no autopilot.
+        app.world_mut()
+            .entity_mut(controller)
             .insert(SectionInactiveMarker);
-        // Spool state no longer matters - the impulse system skips inactive
-        // sections - so velocity freezes.
-        run(&mut app, 5);
-        let at_cutoff = velocity_of(&app, ship);
-        run(&mut app, 120);
-        let after = velocity_of(&app, ship);
+        run(&mut app, 2);
+
         assert!(
-            (after - at_cutoff).length() < 1e-3,
-            "a dead thruster must not thrust"
+            app.world().get::<Autopilot>(ship).is_none(),
+            "losing the controller section must drop the autopilot"
         );
-    }
-
-    #[test]
-    fn newtonian_brake_is_a_direct_retro_burn() {
-        let mut app = flight_app();
-        let (ship, _) = spawn_ship(&mut app, FlightAssistMode::Newtonian, true);
-        settle(&mut app);
-        // Coasting forward (along -Z); braking with FA off must slow it via a
-        // direct retro RCS burn, not a servo (it will happily burn past zero
-        // if held, so only assert the decel while still moving forward).
-        let v0 = Vec3::new(0.0, 0.0, -6.0);
-        app.world_mut().entity_mut(ship).insert(LinearVelocity(v0));
-        app.world_mut().get_mut::<FlightIntent>(ship).unwrap().brake = true;
-
+        // And the ship coasts from here - nothing else brakes it.
+        let v0 = velocity_of(&app, ship);
         run(&mut app, 60);
-
-        let v = velocity_of(&app, ship);
-        assert!(
-            v.z > v0.z + 0.5,
-            "FA-off brake should retro-burn against the forward motion, got {v}"
-        );
+        assert!((velocity_of(&app, ship) - v0).length() < 0.2);
     }
 
     #[test]
-    fn assisted_without_a_computer_does_not_station_keep() {
+    fn manual_burn_accelerates_and_is_ignored_while_engaged() {
         let mut app = flight_app();
-        // No controller section: the flight computer is gone.
-        let (ship, _) = spawn_ship(&mut app, FlightAssistMode::Assisted, false);
+        let (ship, _, _) = spawn_ship(&mut app);
         settle(&mut app);
-        run(&mut app, 5);
-        let kick = Vec3::new(3.0, 0.0, 0.0);
+
+        // Manual: analog burn accelerates along the nose.
+        app.world_mut().get_mut::<FlightIntent>(ship).unwrap().burn = 1.0;
+        run(&mut app, 120);
+        let manual_speed = velocity_of(&app, ship).length();
+        assert!(
+            velocity_of(&app, ship).z < -1.0,
+            "manual burn should accelerate"
+        );
+
+        // Engaged with the burn value still set (in the real game holding W
+        // would disengage via the input observer; this pins that the manual
+        // *system* never drives an engaged ship): the ship must stop
+        // accelerating and start the maneuver instead of burning on.
         app.world_mut()
             .entity_mut(ship)
-            .insert(LinearVelocity(kick));
-
-        run(&mut app, 240);
-
-        let v = velocity_of(&app, ship);
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+        run(&mut app, 120);
+        let engaged_speed = velocity_of(&app, ship).length();
         assert!(
-            (v - kick).length() < 1e-3,
-            "without a controller there is no RCS to correct the push, got {v}"
+            engaged_speed < manual_speed + 0.5,
+            "an engaged ship must not keep accelerating from stale manual burn \
+             ({manual_speed} -> {engaged_speed})"
         );
-    }
 
-    #[test]
-    fn assisted_forward_intent_accelerates_and_respects_the_cap() {
-        let mut app = flight_app();
-        let (ship, _) = spawn_ship(&mut app, FlightAssistMode::Assisted, true);
-        settle(&mut app);
-        app.world_mut()
-            .get_mut::<FlightIntent>(ship)
-            .unwrap()
-            .linear = Vec3::new(0.0, 0.0, -1.0);
-
-        run(&mut app, 240);
-        let v = velocity_of(&app, ship);
-        assert!(v.z < -3.0, "assisted forward intent should burn, got {v}");
-
-        // The command never exceeds the soft cap, so neither does the ship
-        // (give it time to converge, then check).
-        run(&mut app, 2000);
+        // Pilot lets go; STOP runs to completion and hands back a resting ship.
+        app.world_mut().get_mut::<FlightIntent>(ship).unwrap().burn = 0.0;
+        run(&mut app, 1200);
         let speed = velocity_of(&app, ship).length();
-        let cap = app.world().resource::<FlightSettings>().max_commanded_speed;
-        assert!(
-            speed <= cap + 0.5,
-            "speed {speed} must respect the commanded cap {cap}"
-        );
+        assert!(speed < 0.5, "STOP should reach rest, got {speed}");
+        assert!(app.world().get::<Autopilot>(ship).is_none());
     }
 }

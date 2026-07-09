@@ -27,11 +27,11 @@ impl Plugin for SpaceshipPlayerInputPlugin {
         app.add_input_context::<FlightInputMarker>();
         app.add_observer(on_player_added_spawn_flight_input);
         app.add_observer(on_player_removed_despawn_flight_input);
-        app.add_observer(on_flight_move_input);
-        app.add_observer(on_flight_move_input_completed);
-        app.add_observer(on_flight_brake_input);
-        app.add_observer(on_flight_brake_input_completed);
-        app.add_observer(on_flight_assist_toggle_input);
+        app.add_observer(on_flight_burn_input);
+        app.add_observer(on_flight_burn_input_completed);
+        app.add_observer(on_autopilot_stop_input);
+        app.add_observer(on_autopilot_goto_input);
+        app.add_observer(on_autopilot_off_input);
 
         app.add_input_context::<ThrusterInputMarker>();
         app.add_observer(on_thruster_input_binding);
@@ -69,6 +69,10 @@ pub struct PlayerSpaceshipMarker;
 
 /// System that takes the point rotation output from the chase camera and applies it to the
 /// controller of the player's spaceship.
+///
+/// Gated on `Without<Autopilot>`: while a maneuver is engaged the autopilot
+/// owns the rotation command, and the mouse - which keeps driving the camera
+/// rig - becomes camera-only free-look for free.
 fn update_controller_target_rotation_torque(
     point_rotation: Single<
         &PointRotationOutput,
@@ -81,7 +85,14 @@ fn update_controller_target_rotation_torque(
         (&mut ControllerSectionRotationInput, &ChildOf),
         With<ControllerSectionMarker>,
     >,
-    spaceship: Single<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    spaceship: Single<
+        Entity,
+        (
+            With<SpaceshipRootMarker>,
+            With<PlayerSpaceshipMarker>,
+            Without<Autopilot>,
+        ),
+    >,
 ) {
     let point_rotation = point_rotation.into_inner();
     let spaceship = spaceship.into_inner();
@@ -275,26 +286,36 @@ fn update_torpedo_target_input(
     }
 }
 
-/// Input context for the player's flight controls (translation intent, brake,
-/// flight-assist toggle). One rig exists while a player ship does; the
-/// observers below write into the ship's [`FlightIntent`] / [`FlightAssistMode`],
-/// which the flight computer (`crate::flight`) consumes each physics tick.
+/// Input context for the player's flight controls: analog main-drive burn
+/// plus the autopilot engagements. One rig exists while a player ship does;
+/// the observers below write the ship's [`FlightIntent`] and insert/remove
+/// its [`Autopilot`] (`crate::flight`). Any flight input while an autopilot
+/// is engaged disengages it - mouse-look does not, so watching a maneuver
+/// never cancels it.
 #[derive(Component, Debug, Clone)]
 struct FlightInputMarker;
 
-/// 3D translation intent in ship-local axes; the `Spatial` preset already
-/// produces `-Z` for the forward key, matching [`FlightIntent::linear`].
+/// Analog main-drive burn (`0..1`).
 #[derive(InputAction)]
-#[action_output(Vec3)]
-struct FlightMoveInput;
+#[action_output(f32)]
+struct FlightBurnInput;
 
+/// Engage the STOP maneuver (kill all velocity); pressing it again while
+/// stopping disengages.
 #[derive(InputAction)]
 #[action_output(bool)]
-struct FlightBrakeInput;
+struct AutopilotStopInput;
 
+/// Engage the GOTO maneuver on the current aim-assist lock; pressing it again
+/// while flying there disengages.
 #[derive(InputAction)]
 #[action_output(bool)]
-struct FlightAssistToggleInput;
+struct AutopilotGotoInput;
+
+/// Plain autopilot off.
+#[derive(InputAction)]
+#[action_output(bool)]
+struct AutopilotOffInput;
 
 fn on_player_added_spawn_flight_input(
     add: On<Add, PlayerSpaceshipMarker>,
@@ -316,42 +337,21 @@ fn on_player_added_spawn_flight_input(
         actions!(
             FlightInputMarker[
                 (
-                    Name::new("Input: Flight Move"),
-                    Action::<FlightMoveInput>::new(),
+                    Name::new("Input: Flight Burn"),
+                    Action::<FlightBurnInput>::new(),
                     ActionSettings {
                         consume_input: false,
                         ..default()
                     },
-                    Bindings::spawn((
-                        Spatial::new(
-                            KeyCode::KeyW,
-                            KeyCode::KeyS,
-                            KeyCode::KeyA,
-                            KeyCode::KeyD,
-                            KeyCode::KeyE,
-                            KeyCode::KeyQ,
-                        ),
-                        // Space / right trigger stay "full burn" for muscle
-                        // memory from the old binary thruster binding. A
-                        // button reports on X, so swizzle it onto Z and negate
-                        // into the -Z-forward convention.
-                        Spawn((
-                            Binding::from(KeyCode::Space),
-                            SwizzleAxis::ZYX,
-                            Negate::all(),
-                        )),
-                        Spawn((
-                            Binding::from(GamepadButton::RightTrigger),
-                            SwizzleAxis::ZYX,
-                            Negate::all(),
-                        )),
-                        // Left stick = lateral/vertical trim on gamepad.
-                        Axial::left_stick(),
-                    )),
+                    bindings![
+                        KeyCode::KeyW,
+                        KeyCode::Space,
+                        GamepadButton::RightTrigger
+                    ],
                 ),
                 (
-                    Name::new("Input: Flight Brake"),
-                    Action::<FlightBrakeInput>::new(),
+                    Name::new("Input: Autopilot Stop"),
+                    Action::<AutopilotStopInput>::new(),
                     ActionSettings {
                         consume_input: false,
                         ..default()
@@ -359,13 +359,22 @@ fn on_player_added_spawn_flight_input(
                     bindings![KeyCode::KeyX, GamepadButton::East],
                 ),
                 (
-                    Name::new("Input: Flight Assist Toggle"),
-                    Action::<FlightAssistToggleInput>::new(),
+                    Name::new("Input: Autopilot Goto"),
+                    Action::<AutopilotGotoInput>::new(),
                     ActionSettings {
                         consume_input: false,
                         ..default()
                     },
-                    bindings![KeyCode::KeyZ, GamepadButton::North],
+                    bindings![KeyCode::KeyG, GamepadButton::North],
+                ),
+                (
+                    Name::new("Input: Autopilot Off"),
+                    Action::<AutopilotOffInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings![KeyCode::KeyZ, GamepadButton::West],
                 ),
             ]
         ),
@@ -386,46 +395,92 @@ fn on_player_removed_despawn_flight_input(
     }
 }
 
-fn on_flight_move_input(
-    fire: On<Fire<FlightMoveInput>>,
+fn on_flight_burn_input(
+    fire: On<Fire<FlightBurnInput>>,
+    mut commands: Commands,
+    ship: Single<(Entity, &mut FlightIntent, Has<Autopilot>), With<PlayerSpaceshipMarker>>,
+) {
+    let (entity, mut intent, engaged) = ship.into_inner();
+    intent.burn = fire.value;
+    // Grabbing the throttle is a flight input: it takes the ship back.
+    if engaged {
+        debug!("on_flight_burn_input: manual burn disengages the autopilot");
+        commands.entity(entity).remove::<Autopilot>();
+    }
+}
+
+fn on_flight_burn_input_completed(
+    _: On<Complete<FlightBurnInput>>,
     ship: Single<&mut FlightIntent, With<PlayerSpaceshipMarker>>,
 ) {
     let mut intent = ship.into_inner();
-    intent.linear = fire.value;
+    intent.burn = 0.0;
 }
 
-fn on_flight_move_input_completed(
-    _: On<Complete<FlightMoveInput>>,
-    ship: Single<&mut FlightIntent, With<PlayerSpaceshipMarker>>,
+fn on_autopilot_stop_input(
+    _: On<Start<AutopilotStopInput>>,
+    mut commands: Commands,
+    ship: Single<(Entity, Option<&Autopilot>), With<PlayerSpaceshipMarker>>,
 ) {
-    let mut intent = ship.into_inner();
-    intent.linear = Vec3::ZERO;
+    let (entity, autopilot) = ship.into_inner();
+    match autopilot.map(|ap| ap.action) {
+        // Toggle off an active STOP...
+        Some(AutopilotAction::Stop) => {
+            debug!("on_autopilot_stop_input: disengaging STOP");
+            commands.entity(entity).remove::<Autopilot>();
+        }
+        // ...but braking overrides any other maneuver (or engages fresh).
+        _ => {
+            debug!("on_autopilot_stop_input: engaging STOP");
+            commands
+                .entity(entity)
+                .insert(Autopilot::engage(AutopilotAction::Stop));
+        }
+    }
 }
 
-fn on_flight_brake_input(
-    _: On<Start<FlightBrakeInput>>,
-    ship: Single<&mut FlightIntent, With<PlayerSpaceshipMarker>>,
+fn on_autopilot_goto_input(
+    _: On<Start<AutopilotGotoInput>>,
+    mut commands: Commands,
+    res_target: Res<SpaceshipPlayerTorpedoTargetEntity>,
+    ship: Single<(Entity, Option<&Autopilot>), With<PlayerSpaceshipMarker>>,
 ) {
-    let mut intent = ship.into_inner();
-    intent.brake = true;
+    let (entity, autopilot) = ship.into_inner();
+
+    // Already flying somewhere? G toggles the trip off.
+    if let Some(Autopilot {
+        action: AutopilotAction::Goto { .. },
+        ..
+    }) = autopilot
+    {
+        debug!("on_autopilot_goto_input: disengaging GOTO");
+        commands.entity(entity).remove::<Autopilot>();
+        return;
+    }
+
+    // A destination needs a lock; without one this is a no-op (the status
+    // line keeps reading MAN, which is the v1 hint).
+    let Some(target) = **res_target else {
+        debug!("on_autopilot_goto_input: no lock, nothing to fly to");
+        return;
+    };
+
+    debug!("on_autopilot_goto_input: engaging GOTO {target:?}");
+    commands
+        .entity(entity)
+        .insert(Autopilot::engage(AutopilotAction::Goto { target }));
 }
 
-fn on_flight_brake_input_completed(
-    _: On<Complete<FlightBrakeInput>>,
-    ship: Single<&mut FlightIntent, With<PlayerSpaceshipMarker>>,
+fn on_autopilot_off_input(
+    _: On<Start<AutopilotOffInput>>,
+    mut commands: Commands,
+    ship: Single<(Entity, Has<Autopilot>), With<PlayerSpaceshipMarker>>,
 ) {
-    let mut intent = ship.into_inner();
-    intent.brake = false;
-}
-
-fn on_flight_assist_toggle_input(
-    _: On<Start<FlightAssistToggleInput>>,
-    ship: Single<&mut FlightAssistMode, With<PlayerSpaceshipMarker>>,
-) {
-    let mut mode = ship.into_inner();
-    let next = mode.toggled();
-    debug!("on_flight_assist_toggle_input: switching to {:?}", next);
-    *mode = next;
+    let (entity, engaged) = ship.into_inner();
+    if engaged {
+        debug!("on_autopilot_off_input: disengaging");
+        commands.entity(entity).remove::<Autopilot>();
+    }
 }
 
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]

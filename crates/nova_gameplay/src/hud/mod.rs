@@ -103,6 +103,7 @@ fn setup_hud_flight_status(
     add: On<Add, PlayerSpaceshipMarker>,
     mut commands: Commands,
     q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    assets: Res<NovaHudAssets>,
 ) {
     let entity = add.entity;
     debug!("setup_hud_flight_status: entity {:?}", entity);
@@ -118,12 +119,16 @@ fn setup_hud_flight_status(
     commands.spawn((flight_status_hud(FlightStatusHudConfig {
         target: spaceship,
     }),));
+    commands.spawn((autopilot_destination_hud(
+        AutopilotDestinationHudConfig::new(spaceship, assets.target_sprite.clone()),
+    ),));
 }
 
 fn remove_hud_flight_status(
     remove: On<Remove, PlayerSpaceshipMarker>,
     mut commands: Commands,
     q_hud: Query<(Entity, &FlightStatusHudTargetEntity), With<FlightStatusHudMarker>>,
+    q_destination: Query<Entity, With<AutopilotDestinationHudMarker>>,
 ) {
     let entity = remove.entity;
     debug!("remove_hud_flight_status: entity {:?}", entity);
@@ -132,6 +137,9 @@ fn remove_hud_flight_status(
         if **target == entity {
             commands.entity(hud_entity).despawn();
         }
+    }
+    for hud_entity in &q_destination {
+        commands.entity(hud_entity).despawn();
     }
 }
 

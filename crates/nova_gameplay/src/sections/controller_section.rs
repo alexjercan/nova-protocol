@@ -9,8 +9,8 @@ use crate::prelude::{SectionInactiveMarker, SectionRenderOf};
 pub mod prelude {
     pub use super::{
         controller_section, preview_controller_section, ControllerSectionConfig,
-        ControllerSectionMarker, ControllerSectionPlugin, ControllerSectionRcsMagnitude,
-        ControllerSectionRenderMarker, ControllerSectionRotationInput,
+        ControllerSectionMarker, ControllerSectionPlugin, ControllerSectionRenderMarker,
+        ControllerSectionRotationInput,
     };
 }
 
@@ -23,11 +23,6 @@ pub struct ControllerSectionConfig {
     pub damping_ratio: f32,
     /// The maximum torque that can be applied by the PD controller.
     pub max_torque: f32,
-    /// The RCS translation authority this controller provides (impulse per
-    /// physics tick, same units as a thruster's magnitude). The flight
-    /// computer and its RCS quads live in this section, so losing it means
-    /// losing assisted flight and lateral/retro authority with it.
-    pub rcs_magnitude: f32,
     /// The render mesh of the hull section, defaults to a cuboid of size 1x1x1.
     pub render_mesh: Option<Handle<WorldAsset>>,
 }
@@ -38,7 +33,6 @@ impl Default for ControllerSectionConfig {
             frequency: 2.0,
             damping_ratio: 2.0,
             max_torque: 1.0,
-            rcs_magnitude: 0.5,
             render_mesh: None,
         }
     }
@@ -59,7 +53,6 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
             max_torque: config.max_torque,
         },
         ControllerSectionRotationInput::default(),
-        ControllerSectionRcsMagnitude(config.rcs_magnitude),
         ControllerSectionRenderMesh(config.render_mesh),
     )
 }
@@ -83,16 +76,11 @@ pub fn preview_controller_section(config: ControllerSectionConfig) -> impl Bundl
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct ControllerSectionMarker;
 
-/// The desired rotation of the controller section, in world space.
+/// The desired rotation of the controller section, in world space. Written by
+/// the player's mouse command, the AI brain, or the autopilot
+/// (`crate::flight`) - whoever currently holds rotation authority.
 #[derive(Component, Debug, Clone, Default, Deref, DerefMut, Reflect)]
 pub struct ControllerSectionRotationInput(pub Quat);
-
-/// The RCS translation authority (impulse per physics tick) this controller
-/// section grants its ship. Read by the flight computer (`crate::flight`); a
-/// disabled or destroyed controller therefore takes the RCS - and assisted
-/// flight - with it.
-#[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
-pub struct ControllerSectionRcsMagnitude(pub f32);
 
 /// A plugin that will enable the ControllerSection.
 #[derive(Default)]
@@ -105,11 +93,9 @@ impl Plugin for ControllerSectionPlugin {
         debug!("ControllerSectionPlugin: build");
 
         // Register the section's reflected components so the debug inspector
-        // (and the flight-feel retune) can see and edit them - the RCS
-        // authority especially is a per-ship tunable.
+        // (and the flight-feel retune) can see and edit them.
         app.register_type::<ControllerSectionMarker>()
-            .register_type::<ControllerSectionRotationInput>()
-            .register_type::<ControllerSectionRcsMagnitude>();
+            .register_type::<ControllerSectionRotationInput>();
 
         app.add_observer(insert_controller_section_target);
 
@@ -134,7 +120,9 @@ impl Plugin for ControllerSectionPlugin {
     }
 }
 
-fn update_controller_section_rotation_input(
+// `pub(crate)` so the flight tests can register the real rotation pipeline
+// and cover autopilot -> PD -> hull swing end to end.
+pub(crate) fn update_controller_section_rotation_input(
     mut q_controller: Query<
         (&mut PDControllerInput, &ControllerSectionRotationInput),
         (
@@ -148,7 +136,7 @@ fn update_controller_section_rotation_input(
     }
 }
 
-fn sync_controller_section_forces(
+pub(crate) fn sync_controller_section_forces(
     mut q_root: Query<Forces>,
     q_controller: Query<(&PDControllerOutput, &PDControllerTarget)>,
 ) {
