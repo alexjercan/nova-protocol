@@ -41,7 +41,16 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
             kind: SectionKind::Controller(ControllerSectionConfig {
                 frequency: 4.0,
                 damping_ratio: 4.0,
-                max_torque: 100.0,
+                // Torque budget (task 20260709-095043): 40.0 keeps the
+                // asteroid_field flagship (max principal inertia ~10.8) at
+                // its familiar ~88 deg/s command rate while a hull+thruster
+                // remnant hits the 240 deg/s ceiling - weight becomes legible
+                // without regressing the baseline feel. 100.0 saturated
+                // nothing (every build turned identically at the old fixed
+                // slew). Flip-time optima per ship are tabled in
+                // docs/2026-07-09-flight-feel-retune.md; playtest owns the
+                // final number.
+                max_torque: 40.0,
                 render_mesh: None,
             }),
         },

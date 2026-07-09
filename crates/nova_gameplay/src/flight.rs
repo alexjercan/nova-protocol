@@ -143,10 +143,20 @@ pub struct FlightSettings {
     /// trims use your retro/lateral thrusters); big burns still flip to the
     /// strongest drive.
     pub rotation_bias: f32,
-    /// The planner's estimate of how fast the hull turns, degrees/second.
-    /// Used for rotation-time scores and the arrival lead; a knob rather
-    /// than a derivation from PD gains + inertia (recorded for the retune).
-    pub est_turn_rate_deg: f32,
+    /// Trim on the derived hull turn rate, dimensionless. The rate itself
+    /// comes from the ship's torque budget and live inertia
+    /// ([`hull_turn_rate`]): the average rate of a torque-limited 180 is
+    /// `sqrt(pi * max_torque / inertia) / 2`; 1.0 commands exactly that
+    /// optimum, lower is more stately. This is what makes mass legible -
+    /// a stripped hull turns visibly faster than a full build (torque-budget
+    /// decision, task 20260709-095043).
+    pub turn_rate_scale: f32,
+    /// Floor on the derived turn rate, degrees/second, so a crippled or
+    /// torque-starved hull still answers the helm.
+    pub turn_rate_min_deg: f32,
+    /// Ceiling on the derived turn rate, degrees/second, so a near-empty
+    /// hull snaps hard but does not teleport.
+    pub turn_rate_max_deg: f32,
     /// Extra seconds of un-braked travel the arrival plan budgets for engine
     /// spool-up on top of the brake group's rotation time.
     pub arrival_spool_pad: f32,
@@ -173,8 +183,16 @@ impl Default for FlightSettings {
             stop_speed_epsilon: 0.2,
             min_approach_speed: 1.5,
             rotation_bias: 1.5,
-            // A 180 at PD freq 4 settles in roughly two seconds.
-            est_turn_rate_deg: 90.0,
+            // 0.9 of the bang-bang optimum: the PD tracks a slightly
+            // conservative command instead of riding saturation the whole
+            // flip. Ship-class feel then comes from max_torque vs inertia -
+            // at torque 40 the asteroid_field flagship (I ~10.8) commands
+            // ~88 deg/s while a bare remnant pins the 240 deg/s ceiling.
+            // These are command rates; the PD tracks the ramp with ~0.5*w
+            // rad of lag, so delivered flips run ~25-30% past the optimum.
+            turn_rate_scale: 0.9,
+            turn_rate_min_deg: 10.0,
+            turn_rate_max_deg: 240.0,
             arrival_spool_pad: 0.5,
             // A 0.4 u/s drift is a slow creep nobody notices; chasing it
             // with attitude swings is what everybody notices.
@@ -287,6 +305,26 @@ pub(crate) fn slew_rotation(current: Quat, target: Quat, max_step: f32) -> Quat 
     }
 }
 
+/// The hull's achievable turn rate under its torque budget, radians/second.
+///
+/// A torque-limited bang-bang 180 at angular acceleration
+/// `alpha = max_torque / inertia` takes `2 * sqrt(pi / alpha)` seconds, an
+/// average rate of `sqrt(pi * alpha) / 2`. The command slew and the
+/// autopilot's rotation-time planning both run at this rate (trimmed by
+/// [`FlightSettings::turn_rate_scale`], clamped by the min/max), so the same
+/// stick input swings a stripped hull visibly faster than a fully built one.
+/// `inertia` is the largest principal component - the conservative axis.
+/// Pure for unit testing.
+pub(crate) fn hull_turn_rate(max_torque: f32, inertia: f32, settings: &FlightSettings) -> f32 {
+    let alpha = (max_torque / inertia.max(1e-6)).max(0.0);
+    let optimum = (core::f32::consts::PI * alpha).sqrt() * 0.5;
+    // Ordered defensively: both bounds are inspector-editable on the
+    // reflected FlightSettings, and f32::clamp panics when min > max.
+    let lo = settings.turn_rate_min_deg.to_radians();
+    let hi = settings.turn_rate_max_deg.to_radians().max(lo);
+    (optimum * settings.turn_rate_scale).clamp(lo, hi)
+}
+
 /// A cluster of live engines that push the ship in (roughly) the same world
 /// direction, with their summed per-tick authority. The planner's unit of
 /// choice: rotate whichever group is cheapest onto the needed burn.
@@ -384,7 +422,7 @@ fn spool(current: f32, target: f32, up_rate: f32, down_rate: f32, dt: f32) -> f3
 
 /// Whether a thruster's world thrust direction counts as main drive for a
 /// ship facing `forward`. Pure for unit testing.
-fn is_forward_aligned(thrust_dir: Vec3, forward: Vec3) -> bool {
+pub(crate) fn is_forward_aligned(thrust_dir: Vec3, forward: Vec3) -> bool {
     thrust_dir.dot(forward) >= FORWARD_ALIGNMENT_COS
 }
 
@@ -438,6 +476,7 @@ fn autopilot_system(
             &Rotation,
             &LinearVelocity,
             &ComputedMass,
+            &ComputedAngularInertia,
         ),
         With<SpaceshipRootMarker>,
     >,
@@ -462,12 +501,12 @@ fn autopilot_system(
         ),
     >,
     // A live flight computer is a controller section that still has its PD
-    // (preview controllers have none) and is not disabled.
+    // (preview controllers have none) and is not disabled. Its torque cap is
+    // the hull's rotation authority, so the planner reads it too.
     q_computer: Query<
-        &ChildOf,
+        (&PDController, &ChildOf),
         (
             With<ControllerSectionMarker>,
-            With<PDController>,
             Without<SectionInactiveMarker>,
         ),
     >,
@@ -479,17 +518,32 @@ fn autopilot_system(
 ) {
     let dt = time.delta_secs();
 
-    for (ship, mut autopilot, position, rotation, velocity, mass) in &mut q_ship {
+    for (ship, mut autopilot, position, rotation, velocity, mass, inertia) in &mut q_ship {
         // No flight computer, no autopilot - the ship is adrift on manual.
-        if !q_computer.iter().any(|&ChildOf(parent)| parent == ship) {
+        // The strongest live computer's torque cap is the rotation authority
+        // the turn-rate budget is derived from. (PD outputs stack additively
+        // across computers, so max under-reports a multi-computer hull - a
+        // deliberately conservative simplification.)
+        let Some(computer_torque) = q_computer
+            .iter()
+            .filter(|(_, &ChildOf(parent))| parent == ship)
+            .map(|(pd, _)| pd.max_torque)
+            .reduce(f32::max)
+        else {
             debug!("autopilot_system: ship {ship:?} lost its flight computer, disengaging");
             commands.entity(ship).remove::<Autopilot>();
             continue;
-        }
+        };
 
         // Every live engine as (world thrust direction, magnitude), plus how
         // hot the hottest one runs (for the settle check). A section's local
         // Transform is its fixed attitude on the hull; engines do not gimbal.
+        // Torque from off-center engines is unmodeled AND, since the torque
+        // retune, only partially held by the PD (its cap out-torques roughly
+        // max_torque/64 units of lateral lever arm per unit of thruster
+        // magnitude): an asymmetric build or a damage-shifted COM pulls under
+        // burn - diegetic, documented in the retune doc, with thrust
+        // balancing tracked as a follow-up task.
         let mut engines: Vec<(Vec3, f32)> = Vec::new();
         let mut hottest_input = 0.0f32;
         for (input, magnitude, transform, &ChildOf(parent)) in &q_thruster {
@@ -508,7 +562,8 @@ fn autopilot_system(
             continue;
         }
         let groups = cluster_thrusters(&engines, FORWARD_ALIGNMENT_COS);
-        let turn_rate = settings.est_turn_rate_deg.to_radians();
+        let (principal, _) = inertia.principal_angular_inertia_with_local_frame();
+        let turn_rate = hull_turn_rate(computer_torque, principal.max_element(), &settings);
 
         // The goal, as a desired velocity right now. For GOTO the arrival
         // curve is planned with the group the computer would actually brake
@@ -818,6 +873,73 @@ mod tests {
     }
 
     #[test]
+    fn hull_turn_rate_makes_mass_legible() {
+        let settings = FlightSettings::default();
+        // Same torque budget, less hull: the stripped ship turns visibly
+        // faster (stock 3-section ship ~2.3 inertia vs a ~0.9 remnant).
+        let full = hull_turn_rate(10.0, 2.3, &settings);
+        let stripped = hull_turn_rate(10.0, 0.9, &settings);
+        assert!(
+            stripped > full * 1.3,
+            "stripped {stripped} should clearly out-turn full {full}"
+        );
+        // A torque-starved barge still answers the helm at the floor...
+        let barge = hull_turn_rate(0.001, 1000.0, &settings);
+        assert!((barge - settings.turn_rate_min_deg.to_radians()).abs() < 1e-5);
+        // ...and an over-torqued skiff is capped at the ceiling.
+        let skiff = hull_turn_rate(1000.0, 0.01, &settings);
+        assert!((skiff - settings.turn_rate_max_deg.to_radians()).abs() < 1e-5);
+        // Degenerate inputs stay finite.
+        assert!(hull_turn_rate(10.0, 0.0, &settings).is_finite());
+        assert!(hull_turn_rate(0.0, 0.0, &settings).is_finite());
+    }
+
+    /// The torque retune's documented tradeoff (R1.2): a laterally offset
+    /// engine at full burn out-torques the flight computer (break-even lever
+    /// arm is roughly max_torque/64 units per unit thruster magnitude), so an
+    /// asymmetric build - or a damage-shifted COM - pulls under burn, while a
+    /// centered drive stays held. Diegetic and deliberate; thrust balancing
+    /// is a follow-up task.
+    #[test]
+    fn off_center_burn_pulls_but_a_centered_drive_is_held() {
+        let drift_after_burn = |thruster_x: f32| -> f32 {
+            let mut app = flight_app();
+            let (ship, thruster, controller) = spawn_ship(&mut app);
+            app.world_mut()
+                .get_mut::<PDController>(controller)
+                .unwrap()
+                .max_torque = 40.0; // the shipped torque budget
+            app.world_mut()
+                .get_mut::<Transform>(thruster)
+                .unwrap()
+                .translation
+                .x = thruster_x;
+            settle(&mut app);
+            app.world_mut().get_mut::<FlightIntent>(ship).unwrap().burn = 1.0;
+            for _ in 0..120 {
+                app.update();
+            }
+            app.world()
+                .get::<Rotation>(ship)
+                .unwrap()
+                .0
+                .angle_between(Quat::IDENTITY)
+        };
+
+        let held = drift_after_burn(0.0);
+        assert!(
+            held < 0.15,
+            "a centered main drive must stay held by the PD ({held} rad drift)"
+        );
+        let pulled = drift_after_burn(2.0);
+        assert!(
+            pulled > 0.4,
+            "an engine 2 units off the centerline must out-torque the computer \
+             ({pulled} rad drift)"
+        );
+    }
+
+    #[test]
     fn slew_rotation_caps_the_step_and_reaches_the_target() {
         let target = Quat::from_rotation_y(std::f32::consts::PI);
         // One capped step covers exactly max_step of the arc.
@@ -1051,6 +1173,11 @@ mod tests {
                 PDController {
                     frequency: 4.0,
                     damping_ratio: 4.0,
+                    // Deliberately over-torqued: the generic rig pins the
+                    // derived turn rate at the clamp ceiling so maneuver
+                    // tests exercise outcomes, not tuning. The shipped 40.0
+                    // regime is covered by the scratch-scenario and off-axis
+                    // tests.
                     max_torque: 100.0,
                 },
                 PDControllerTarget(ship),
@@ -1204,7 +1331,7 @@ mod tests {
                 controller_section(ControllerSectionConfig {
                     frequency: 4.0,
                     damping_ratio: 4.0,
-                    max_torque: 100.0,
+                    max_torque: 40.0,
                     render_mesh: None,
                 }),
                 Transform::default(),

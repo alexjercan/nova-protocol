@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- @alexjercan ship handling is now mass-legible: rotation commands slew at a turn rate derived from the flight computer's torque budget and the hull's live inertia (stripped ships snap, heavy builds lumber); ship controller max_torque retuned 100 -> 40
+- @alexjercan the chase camera gained weight: smoothing on all gameplay modes and a burn push-back that leans the camera with the spooled main drive
 - @alexjercan consume the integrity, health, blast and mesh-slicer systems from `bevy_common_systems` instead of the in-tree copies
 - @alexjercan split the torpedo section into its own module with config-driven blast parameters
 - @alexjercan turret now leads moving targets with intercept aim

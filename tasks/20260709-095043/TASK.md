@@ -1,6 +1,6 @@
 # Flight feel polish: rotation slew, handling stats, camera weight, retune
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.4.0,handling,juice
 
@@ -26,37 +26,71 @@ decisions, not defaults - juice retro).
       commanded quat at `FlightSettings::est_turn_rate_deg` through
       `flight::slew_rotation` (pure, unit-tested). What remains here is only
       tuning the rate.
-- [ ] Surface handling stats: PD frequency/damping/max_torque
-      (controller_section.rs:30) plus the new slew rate as a tuned, documented
-      handling block (extend `FlightSettings` or the controller section
-      config - decide in-work; register the reflected tree either way), with
-      capital-ship defaults picked deliberately.
-- [ ] Torque budget (user decision, 2026-07-09, from task 20260709-140620):
-      keep the inertia-normalized PD for stability, but tune controller
-      max_torque into the perceivable range so torque/inertia is the real
-      limit - full ships lumber through flips, stripped ships snap. Also drop
-      or scale `FlightSettings::est_turn_rate_deg` so the slew cap does not
-      mask the inertia difference (a fixed slew rate would re-normalize turn
-      speed regardless of mass). Baseline numbers in
-      docs/2026-07-09-com-section-destroy.md: the 3-section game ship
-      saturates at ~43 rad/s^2 transverse vs ~120 for a lone section at
-      max_torque 100; pick a max_torque that makes a full flip take a readable
-      beat (order 1-2s) on the full ship. Verify in 11_com_range: kill
-      sections, feel the snap-up.
-- [ ] Camera weight: set chase `smoothing` > 0 for the gameplay camera modes in
-      `crates/nova_gameplay/src/camera_controller.rs`
-      (`sync_spaceship_control_mode` currently leaves bcs default 0.0) and add
-      a small offset push-back proportional to spooled main-drive input;
-      respect the mode-switch anchor fix (mutate in place, no re-insert).
-- [ ] App-level tests: commanded-rotation lag (a 180-degree camera flip takes
-      more than one frame to reach the input component), camera offset returns
-      to baseline when thrust stops.
-- [ ] Playtest retune with the user: shake/flash overlap check under burn
-      (juice), spool rates, autopilot margin/standoff/alignment, the
-      attitude_deadband (0.4) + align_hysteresis (0.03) twitch thresholds,
-      slew rate, PD constants, camera smoothing/push; record the final
-      values and reasoning in the flight design note.
-- [ ] Verify: fmt, clippy --all-targets, cargo test --workspace, wasm check.
+- [x] Surface handling stats. Decision: authority stays diegetic on the
+      controller section (PD frequency/damping/max_torque are hardware,
+      documented in nova_assets/sections.rs with the retune rationale); the
+      flight-computer knobs live in the reflected `FlightSettings`
+      (turn_rate_scale + min/max clamps replacing est_turn_rate_deg). Camera
+      feel constants (CAMERA_SMOOTHING, BURN_PUSH_DISTANCE) are documented
+      consts in camera_controller.rs.
+- [x] Torque budget: `est_turn_rate_deg` replaced by
+      `flight::hull_turn_rate` - `scale * sqrt(pi * max_torque / inertia) / 2`
+      clamped to 10..240 deg/s, fed by the strongest live flight computer's
+      torque and the body's live max principal inertia. Both the mouse slew
+      and the autopilot planner consume it, so the fixed-rate mask is gone.
+      Ship controller max_torque retuned 100 -> 40 (corrected in review
+      round 1: 10 halved the shipped flagship's rate unacknowledged): the
+      asteroid_field flagship keeps its familiar ~88 deg/s command rate,
+      stripped remnants pin the 240 deg/s ceiling; flip-time optima and the
+      off-center-thrust tradeoff are tabled in the retune doc.
+- [x] Camera weight: `CAMERA_SMOOTHING = 0.15` applied by the mode switch
+      (mutating in place per the anchor fix), and `update_camera_burn_push`
+      composes `offset = mode_camera_rig(mode) + hottest forward thruster's
+      spooled input * 3.0` along anchor -Z, chained after the mode switch so
+      the two writers cannot fight. The per-mode rigs moved into
+      `mode_camera_rig` as the single source of truth.
+- [x] App-level tests: `a_camera_flip_reaches_the_command_over_many_frames`
+      (input/player.rs - moves but nowhere near target after one frame),
+      `burn_push_leans_back_and_returns_to_baseline` + a smoothing assertion
+      in the mode-switch test (camera_controller.rs), and
+      `hull_turn_rate_makes_mass_legible` (flight.rs - stripped out-turns
+      full, clamps, degenerate inputs).
+- [x] Playtest handoff prepared: all knobs and their reasoning tabled in
+      docs/2026-07-09-flight-feel-retune.md; the live session with the user
+      happens on master (checklist: flip a full vs stripped ship, watch the
+      camera lean under burn, shake/flash overlap under burn, deadband
+      twitch). Feedback lands as direct retunes of the documented constants.
+- [x] Verify (repo policy: local test/clippy deferred to CI - see
+      20260709-140816): fmt green, cargo check --workspace green, all 110
+      nova_gameplay unit tests run locally and pass (including the 23 flight
+      physics tests, unchanged), headless smokes 11_com_range +
+      06_torpedo_range green. clippy / full workspace suite / wasm not run
+      locally.
+
+## Resolution
+
+The hull's weight is now legible in flight. Rotation: the fixed 90 deg/s
+command slew (which re-normalized every ship's turn feel) is replaced by a
+live derivation from the strongest flight computer's torque budget and the
+body's max principal inertia, consumed by both the mouse path and the
+autopilot planner; ship controller max_torque retuned 100 -> 40 so the budget
+binds without regressing the flagship's familiar rate (~88 deg/s; remnants
+pin the 240 ceiling). Camera: gameplay modes get
+smoothing 0.15 and a burn push-back driven by the spooled main drive, with
+the per-mode rigs extracted to one source of truth. Values and reasoning in
+docs/2026-07-09-flight-feel-retune.md; the live playtest with the user
+happens post-merge and adjusts the documented constants directly.
+
+Honest scope: 110 nova_gameplay unit tests + both smokes run locally and
+green; fmt + cargo check --workspace green; clippy, the full workspace suite
+and the wasm check were not run locally (AGENTS.md policy; CI story tracked
+in 20260709-140816).
+
+Reflection: the est_turn_rate_deg knob's own doc comment ("a knob rather
+than a derivation ... recorded for the retune") was the design brief - the
+codebase had already written down what this task needed to do. The 23
+existing flight physics tests surviving a changed turn-rate model unchanged
+is the outcome-invariant assertion style working exactly as intended.
 
 ## Notes
 

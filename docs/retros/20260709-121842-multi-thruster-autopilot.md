@@ -46,7 +46,9 @@ A smooth cycle; short retro. See the task's close record for the change and
 
 ## Action items
 
-- [ ] 20260709-095043 (retune) now also owns rotation_bias, est_turn_rate_deg
-  and arrival_spool_pad.
+- [x] 20260709-095043 (retune) now also owns rotation_bias, est_turn_rate_deg
+  and arrival_spool_pad. (Delivered 2026-07-09: est_turn_rate_deg became the
+  derived flight::hull_turn_rate; rotation_bias and arrival_spool_pad kept
+  their values deliberately - see docs/2026-07-09-flight-feel-retune.md.)
 - [ ] Torque-aware allocation (section positions/COM) recorded in the spike;
   becomes a task when unbalanced builds visibly misbehave.

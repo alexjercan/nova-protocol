@@ -43,7 +43,14 @@ impl Plugin for SpaceshipCameraControllerPlugin {
 
         app.add_systems(
             Update,
-            (update_chase_camera_input, sync_spaceship_control_mode).in_set(NovaCameraSystems),
+            (
+                update_chase_camera_input,
+                // The rig system owns every ChaseCamera field, per frame, so
+                // it must run after the mode switch (whose markers decide the
+                // rig) - chained, not merely in the same set.
+                (sync_spaceship_control_mode, update_camera_rig).chain(),
+            )
+                .in_set(NovaCameraSystems),
         );
     }
 }
@@ -294,6 +301,74 @@ fn update_chase_camera_input(
     camera_input.anchor_rot = **point_rotation;
 }
 
+/// Chase smoothing for the gameplay camera modes (bcs
+/// `ChaseCamera::smoothing`; 0.0 = bolted on). Gives the camera weight: it
+/// trails the hull into and out of maneuvers instead of teleporting with it.
+/// Deliberate default from the flight-feel retune (task 20260709-095043).
+const CAMERA_SMOOTHING: f32 = 0.15;
+
+/// How far the camera is pushed back (anchor-frame -Z, away from the hull) at
+/// full main-drive burn, world units. Driven by the spooled thruster input,
+/// so the push ramps with the engines - lighting up leans the camera back,
+/// spool-down eases it home even after the key is released.
+const BURN_PUSH_DISTANCE: f32 = 3.0;
+
+/// Each control mode's camera rig: `(offset, focus_offset)`. One source of
+/// truth for the mode-switch system and the per-frame burn push, so the push
+/// composes onto the mode's base instead of fighting it.
+fn mode_camera_rig(mode: &SpaceshipCameraControlMode) -> (Vec3, Vec3) {
+    match mode {
+        SpaceshipCameraControlMode::Normal => {
+            (Vec3::new(0.0, 5.0, -20.0), Vec3::new(0.0, 0.0, 20.0))
+        }
+        SpaceshipCameraControlMode::FreeLook => (Vec3::new(0.0, 10.0, -30.0), Vec3::ZERO),
+        SpaceshipCameraControlMode::Turret => {
+            (Vec3::new(0.0, 5.0, -10.0), Vec3::new(0.0, 0.0, 50.0))
+        }
+    }
+}
+
+/// Applies the whole camera rig, every frame: `offset = mode rig + spooled
+/// main-drive heat * BURN_PUSH_DISTANCE`, the mode's focus offset, and the
+/// gameplay smoothing. Per-frame ownership (not on mode change) is load-
+/// bearing: player death removes `ChaseCamera` and respawn re-inserts a
+/// default (smoothing 0.0), so anything applied only on `mode.is_changed()`
+/// is silently lost after the first life. Heat is the hottest live
+/// forward-mounted thruster - the flight layer's main-drive definition - so
+/// autopilot burns push too, and spool-down eases the camera home. In
+/// FreeLook/Turret the offset lives in the mouse-rig frame, so the push is a
+/// dolly-out rather than a hull-frame lean; acceptable juice either way.
+fn update_camera_rig(
+    mode: Res<SpaceshipCameraControlMode>,
+    camera: Single<&mut ChaseCamera, With<SpaceshipCameraController>>,
+    spaceship: Single<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    q_thruster: Query<
+        (&ThrusterSectionInput, &Transform, &ChildOf),
+        (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>),
+    >,
+) {
+    let ship = spaceship.into_inner();
+    let mut camera = camera.into_inner();
+
+    let mut heat = 0.0f32;
+    for (input, transform, &ChildOf(parent)) in &q_thruster {
+        if parent != ship {
+            continue;
+        }
+        let local_dir = transform.rotation.mul_vec3(Vec3::NEG_Z).normalize();
+        if crate::flight::is_forward_aligned(local_dir, Vec3::NEG_Z) {
+            heat = heat.max(**input);
+        }
+    }
+
+    // Max heat, not a sum: the push reads "engines are lit", and one small
+    // engine at full burn is lit; authority-weighted push is a playtest knob.
+    let (base_offset, focus_offset) = mode_camera_rig(&mode);
+    camera.offset = base_offset + Vec3::new(0.0, 0.0, -BURN_PUSH_DISTANCE * heat.clamp(0.0, 1.0));
+    camera.focus_offset = focus_offset;
+    camera.smoothing = CAMERA_SMOOTHING;
+}
+
 fn sync_spaceship_control_mode(
     mut commands: Commands,
     mode: Res<SpaceshipCameraControlMode>,
@@ -304,11 +379,6 @@ fn sync_spaceship_control_mode(
     >,
     spaceship_input_free_look: Single<Entity, With<SpaceshipCameraFreeLookInputMarker>>,
     spaceship_input_turret: Single<Entity, With<SpaceshipCameraTurretInputMarker>>,
-    // Mutate the existing `ChaseCamera` in place rather than re-inserting it. Re-inserting fires
-    // bcs's `On<Insert, ChaseCamera>` observer, which resets `ChaseCameraInput` (the anchor) to
-    // the origin; the camera then snaps to (0,0,0) for one frame until `update_chase_camera_input`
-    // restores the anchor. Mutating in place leaves the anchor (and smoothing state) untouched.
-    camera: Single<&mut ChaseCamera, With<SpaceshipCameraController>>,
 ) {
     if !mode.is_changed() {
         return;
@@ -317,7 +387,6 @@ fn sync_spaceship_control_mode(
     let (spaceship_input_rotation, point_rotation) = spaceship_input_rotation.into_inner();
     let spaceship_input_free_look = spaceship_input_free_look.into_inner();
     let spaceship_input_combat = spaceship_input_turret.into_inner();
-    let mut camera = camera.into_inner();
 
     match *mode {
         SpaceshipCameraControlMode::Normal => {
@@ -330,8 +399,6 @@ fn sync_spaceship_control_mode(
             commands
                 .entity(spaceship_input_combat)
                 .remove::<SpaceshipRotationInputActiveMarker>();
-            camera.offset = Vec3::new(0.0, 5.0, -20.0);
-            camera.focus_offset = Vec3::new(0.0, 0.0, 20.0);
         }
         SpaceshipCameraControlMode::FreeLook => {
             commands
@@ -346,8 +413,6 @@ fn sync_spaceship_control_mode(
             commands
                 .entity(spaceship_input_combat)
                 .remove::<SpaceshipRotationInputActiveMarker>();
-            camera.offset = Vec3::new(0.0, 10.0, -30.0);
-            camera.focus_offset = Vec3::new(0.0, 0.0, 0.0);
         }
         SpaceshipCameraControlMode::Turret => {
             commands
@@ -362,10 +427,13 @@ fn sync_spaceship_control_mode(
                     initial_rotation: **point_rotation,
                 })
                 .insert(SpaceshipRotationInputActiveMarker);
-            camera.offset = Vec3::new(0.0, 5.0, -10.0);
-            camera.focus_offset = Vec3::new(0.0, 0.0, 50.0);
         }
     }
+    // The ChaseCamera fields themselves (offset/focus/smoothing) are owned by
+    // `update_camera_rig`, chained after this system - never re-inserted (an
+    // insert would fire bcs's observer and reset the anchor to the origin for
+    // a frame, the visible snap this system's history fixed), and never
+    // written only-on-change (a respawned camera would lose them, R1.1).
 }
 
 #[derive(Component, Debug, Clone)]
@@ -477,6 +545,67 @@ mod tests {
         assert_eq!(input.anchor_pos, position + local_com);
     }
 
+    /// The burn push leans the camera back with the spooled engines and eases
+    /// it home when they cool - offset returns exactly to the mode's base rig
+    /// (flight-feel retune, 20260709-095043). Also covers the respawn case:
+    /// the rig (including smoothing) lands on a factory-fresh `ChaseCamera`
+    /// with no mode change ever happening, as after a player death re-insert.
+    #[test]
+    fn burn_push_leans_back_and_returns_to_baseline() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(ChaseCameraPlugin);
+        app.init_resource::<SpaceshipCameraControlMode>();
+        app.add_systems(Update, update_camera_rig);
+
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::default(),
+            ))
+            .id();
+        // A main-drive thruster: section-local -Z, i.e. forward-mounted.
+        let thruster = app
+            .world_mut()
+            .spawn((
+                ChildOf(ship),
+                ThrusterSectionMarker,
+                ThrusterSectionInput(0.0),
+                Transform::default(),
+            ))
+            .id();
+        let camera = app.world_mut().spawn(SpaceshipCameraController).id();
+
+        let (base, focus) = mode_camera_rig(&SpaceshipCameraControlMode::Normal);
+
+        // Cold engines, no mode change ever: the full rig - offset, focus and
+        // the weight-giving smoothing - lands on the default ChaseCamera.
+        app.update();
+        let chase = app.world().get::<ChaseCamera>(camera).unwrap();
+        assert_eq!(chase.offset, base);
+        assert_eq!(chase.focus_offset, focus);
+        assert_eq!(chase.smoothing, CAMERA_SMOOTHING);
+
+        // Full spool: pushed straight back by the full distance.
+        app.world_mut()
+            .get_mut::<ThrusterSectionInput>(thruster)
+            .unwrap()
+            .0 = 1.0;
+        app.update();
+        let pushed = app.world().get::<ChaseCamera>(camera).unwrap().offset;
+        assert_eq!(pushed, base + Vec3::new(0.0, 0.0, -BURN_PUSH_DISTANCE));
+
+        // Engines cold again: the camera comes home, not to a drifted base.
+        app.world_mut()
+            .get_mut::<ThrusterSectionInput>(thruster)
+            .unwrap()
+            .0 = 0.0;
+        app.update();
+        assert_eq!(app.world().get::<ChaseCamera>(camera).unwrap().offset, base);
+    }
+
     /// Switching camera mode must retune the chase offsets without resetting the anchor to the
     /// origin. Re-inserting `ChaseCamera` (the previous approach) fired bcs's insert observer,
     /// which reset `ChaseCameraInput` to the origin for a frame - the visible one-frame snap.
@@ -486,7 +615,10 @@ mod tests {
         app.add_plugins(MinimalPlugins);
         app.add_plugins(ChaseCameraPlugin);
         app.init_resource::<SpaceshipCameraControlMode>();
-        app.add_systems(Update, sync_spaceship_control_mode);
+        app.add_systems(
+            Update,
+            (sync_spaceship_control_mode, update_camera_rig).chain(),
+        );
 
         // A player ship far from the origin, plus the input rig `sync_spaceship_control_mode`
         // drives (one active-marked normal input, a free-look input, a turret input).
@@ -518,6 +650,13 @@ mod tests {
         *app.world_mut().resource_mut::<SpaceshipCameraControlMode>() =
             SpaceshipCameraControlMode::FreeLook;
         app.update();
+
+        // The switch applied the mode rig's weight-giving smoothing.
+        assert_eq!(
+            app.world().get::<ChaseCamera>(camera).unwrap().smoothing,
+            CAMERA_SMOOTHING,
+            "mode switches must (re)apply the gameplay camera smoothing"
+        );
 
         // The anchor survives the switch (the bug reset it to the origin for a frame)...
         assert_eq!(

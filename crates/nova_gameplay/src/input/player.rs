@@ -88,22 +88,45 @@ fn update_controller_target_rotation_torque(
         With<ControllerSectionMarker>,
     >,
     spaceship: Single<
-        Entity,
+        (Entity, &ComputedAngularInertia),
         (
             With<SpaceshipRootMarker>,
             With<PlayerSpaceshipMarker>,
             Without<Autopilot>,
         ),
     >,
+    q_computer: Query<
+        (&PDController, &ChildOf),
+        (
+            With<ControllerSectionMarker>,
+            Without<SectionInactiveMarker>,
+        ),
+    >,
 ) {
     let point_rotation = point_rotation.into_inner();
-    let spaceship = spaceship.into_inner();
+    let (spaceship, inertia) = spaceship.into_inner();
     // Slew the command toward the camera instead of jumping: a mouse 180 fed
     // to the PD in one step drives it into torque saturation where its
     // damping is swamped and the hull limit-cycles (the high-speed flip
     // wobble). The camera stays instant; the hull's commanded target ramps
-    // at the same estimated turn rate the autopilot plans with.
-    let max_step = settings.est_turn_rate_deg.to_radians() * time.delta_secs();
+    // at the hull's own torque-budget turn rate - the same one the autopilot
+    // plans with - so a heavy build swings slower than a stripped one. (PD
+    // outputs stack additively across computers; max is a conservative
+    // simplification, matching the autopilot.) With no live computer the
+    // command FREEZES: nothing consumes it, and slewing a dead helm would
+    // drift it so a later re-activation snaps the hull.
+    let Some(computer_torque) = q_computer
+        .iter()
+        .filter(|(_, &ChildOf(parent))| parent == spaceship)
+        .map(|(pd, _)| pd.max_torque)
+        .reduce(f32::max)
+    else {
+        return;
+    };
+    let (principal, _) = inertia.principal_angular_inertia_with_local_frame();
+    let turn_rate =
+        crate::flight::hull_turn_rate(computer_torque, principal.max_element(), &settings);
+    let max_step = turn_rate * time.delta_secs();
 
     for (mut controller, _) in q_controller
         .iter_mut()
@@ -701,6 +724,89 @@ fn on_torpedo_input_completed(
     };
 
     **input = false;
+}
+
+#[cfg(test)]
+mod command_lag_tests {
+    // Kept as its own module for its distinct harness (manual time), but
+    // named and placed beside `tests` deliberately.
+    use core::time::Duration;
+
+    use bevy::time::TimeUpdateStrategy;
+
+    use super::*;
+
+    /// A mouse 180 must NOT reach the rotation command in one frame: the
+    /// command slews at the hull's torque-budget turn rate, so the PD tracks
+    /// a small error instead of saturating (flip-wobble fix) and a heavy
+    /// hull audibly lags the camera (flight-feel retune, 20260709-095043).
+    #[test]
+    fn a_camera_flip_reaches_the_command_over_many_frames() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            1.0 / 60.0,
+        )));
+        app.init_resource::<FlightSettings>();
+        app.add_systems(Update, update_controller_target_rotation_torque);
+
+        let target = Quat::from_rotation_y(core::f32::consts::PI);
+        app.world_mut().spawn((
+            SpaceshipCameraInputMarker,
+            SpaceshipCameraNormalInputMarker,
+            PointRotationOutput(target),
+        ));
+        // The stock ship's numbers: inertia ~2.3, computer torque 10.
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::default(),
+                ComputedAngularInertia::new(Vec3::splat(2.3)),
+            ))
+            .id();
+        let controller = app
+            .world_mut()
+            .spawn((
+                ChildOf(ship),
+                ControllerSectionMarker,
+                PDController {
+                    frequency: 4.0,
+                    damping_ratio: 4.0,
+                    max_torque: 10.0,
+                },
+                ControllerSectionRotationInput::default(),
+            ))
+            .id();
+
+        // First update has dt = 0; the second advances one real frame.
+        app.update();
+        app.update();
+
+        let command = **app
+            .world()
+            .get::<ControllerSectionRotationInput>(controller)
+            .unwrap();
+        let moved = command.angle_between(Quat::IDENTITY);
+        let remaining = command.angle_between(target);
+        // One frame advances exactly one slew step of the DERIVED rate - this
+        // pins hull_turn_rate's wiring, not just "some" slew.
+        let expected = crate::flight::hull_turn_rate(
+            10.0,
+            2.3,
+            &app.world().resource::<FlightSettings>().clone(),
+        ) / 60.0;
+        assert!(
+            (moved - expected).abs() < expected * 0.15,
+            "one frame must advance one torque-budget slew step \
+             (moved {moved}, expected {expected})"
+        );
+        assert!(
+            remaining > 2.0,
+            "a 180 flip must not reach the command in one frame ({remaining} left)"
+        );
+    }
 }
 
 #[cfg(test)]
