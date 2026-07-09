@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
+use super::targeting::{ComponentCycleNextInput, ComponentCyclePrevInput};
 use crate::prelude::*;
 
 pub mod prelude {
@@ -299,6 +300,24 @@ fn on_player_added_spawn_flight_input(
                         ..default()
                     },
                     bindings![KeyCode::KeyZ, GamepadButton::West],
+                ),
+                (
+                    Name::new("Input: Component Cycle Next"),
+                    Action::<ComponentCycleNextInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings![KeyCode::BracketRight, GamepadButton::DPadRight],
+                ),
+                (
+                    Name::new("Input: Component Cycle Prev"),
+                    Action::<ComponentCyclePrevInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings![KeyCode::BracketLeft, GamepadButton::DPadLeft],
                 ),
             ]
         ),

@@ -8,11 +8,13 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
+use bevy_enhanced_input::prelude::*;
 
 use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
+        ComponentLockMode, SpaceshipPlayerComponentLock, SpaceshipPlayerLockFocus,
         SpaceshipPlayerTargetLock, SpaceshipTargetingPlugin, SpaceshipTargetingSystems,
     };
 }
@@ -36,12 +38,21 @@ impl Plugin for SpaceshipTargetingPlugin {
         debug!("SpaceshipTargetingPlugin: build");
 
         app.insert_resource(SpaceshipPlayerTargetLock::default());
+        app.insert_resource(SpaceshipPlayerLockFocus::default());
+        app.insert_resource(SpaceshipPlayerComponentLock::default());
         app.add_systems(
             Update,
-            update_spaceship_target_input
+            (
+                update_spaceship_target_input,
+                tick_lock_focus,
+                update_component_lock,
+            )
+                .chain()
                 .in_set(SpaceshipTargetingSystems)
                 .in_set(super::SpaceshipInputSystems),
         );
+        app.add_observer(on_component_cycle_next);
+        app.add_observer(on_component_cycle_prev);
     }
 }
 
@@ -57,6 +68,80 @@ const TARGETING_MAX_RANGE: f32 = 2000.0;
 /// lock snaps to whichever eligible body is now nearest the center, so cycling
 /// between targets is just "look at the next one".
 const TARGETING_CONE_HALF_ANGLE_DEG: f32 = 18.0;
+
+/// Seconds of continuous lock on the same target before the component layer
+/// unlocks (the WoT-style aim-in dwell from the component-lock spike,
+/// docs/spikes/20260709-192358-component-lock-vats-lite.md).
+const FOCUS_TIME: f32 = 1.5;
+
+/// Seconds a cycle press pins the component selection before aim-snap
+/// resumes. A feel knob; tune in playtest.
+const COMPONENT_PIN_WINDOW: f32 = 2.0;
+
+/// Snap hysteresis: a challenger section only steals the fine lock when its
+/// ray distance is below this fraction of the incumbent's, so the selection
+/// does not flicker between adjacent sections. A feel knob; tune in playtest.
+const SNAP_HYSTERESIS: f32 = 0.75;
+
+/// Focus: how long the current lock has been held on the same target.
+/// Component fine-locking unlocks at [`FOCUS_TIME`]; the HUD renders the
+/// fill fraction while it accumulates.
+#[derive(Resource, Debug, Clone, PartialEq, Default)]
+pub struct SpaceshipPlayerLockFocus {
+    /// The target the timer is accumulating on (mirrors the lock).
+    pub target: Option<Entity>,
+    /// Continuous seconds the lock has stayed on `target`.
+    pub seconds: f32,
+}
+
+impl SpaceshipPlayerLockFocus {
+    /// Focus completion in [0, 1], for the HUD meter.
+    pub fn fraction(&self) -> f32 {
+        (self.seconds / FOCUS_TIME).clamp(0.0, 1.0)
+    }
+
+    /// Whether the component layer is unlocked for `target`.
+    pub fn focused_on(&self, target: Entity) -> bool {
+        self.target == Some(target) && self.seconds >= FOCUS_TIME
+    }
+}
+
+/// How the component fine-lock is currently selected.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub enum ComponentLockMode {
+    /// Follow the live section nearest the crosshair ray (with hysteresis).
+    #[default]
+    Snap,
+    /// A cycle press chose deliberately; snap is suppressed until `until`
+    /// (Time::elapsed_secs) or until the pinned section dies.
+    Pinned {
+        /// Elapsed-time deadline after which snap resumes.
+        until: f32,
+    },
+}
+
+/// The fine-locked section of the locked ship, only ever `Some` while the
+/// focus dwell is complete. Sections stay lockable while ATTACHED - a
+/// disabled-in-place section (`SectionInactiveMarker`) can still be targeted
+/// to blow it off the hull; despawn/detach clears the selection (decision
+/// from the component-lock spike, lockable-while-attached).
+#[derive(Resource, Debug, Clone, PartialEq, Default)]
+pub struct SpaceshipPlayerComponentLock {
+    /// The fine-locked section entity (a `SectionMarker` child of the lock).
+    pub section: Option<Entity>,
+    /// Snap or pinned-by-cycle selection.
+    pub mode: ComponentLockMode,
+}
+
+/// Cycle the component fine-lock to the next section (stable order).
+#[derive(InputAction)]
+#[action_output(bool)]
+pub(crate) struct ComponentCycleNextInput;
+
+/// Cycle the component fine-lock to the previous section (stable order).
+#[derive(InputAction)]
+#[action_output(bool)]
+pub(crate) struct ComponentCyclePrevInput;
 
 /// Range (m) of the close-in "signature" auto-acquisition: with nothing in
 /// the aim cone, the nearest hostile inside this range locks by itself, as if
@@ -211,6 +296,211 @@ fn update_spaceship_target_input(
             candidates.iter().copied(),
         )
     });
+}
+
+/// Accumulate focus while the lock stays on one target; any change (new
+/// target or lock lost) restarts the dwell from zero.
+fn tick_lock_focus(
+    time: Res<Time>,
+    lock: Res<SpaceshipPlayerTargetLock>,
+    mut focus: ResMut<SpaceshipPlayerLockFocus>,
+) {
+    if focus.target != **lock {
+        focus.target = **lock;
+        focus.seconds = 0.0;
+        return;
+    }
+    if focus.target.is_some() {
+        focus.seconds += time.delta_secs();
+    }
+}
+
+/// Distance from `point` to the ray `(origin, dir)`, with the projection
+/// clamped behind the origin (a point behind the ship measures to the origin
+/// rather than to the ray's backward extension).
+fn ray_distance(origin: Vec3, dir: Vec3, point: Vec3) -> f32 {
+    let to_point = point - origin;
+    let along = to_point.dot(dir).max(0.0);
+    (to_point - dir * along).length()
+}
+
+/// Snap selection with hysteresis: the nearest candidate wins, unless an
+/// incumbent is still selected and the challenger is not decisively closer
+/// (below [`SNAP_HYSTERESIS`] of the incumbent's distance).
+fn snap_pick(current: Option<Entity>, candidates: &[(Entity, f32)]) -> Option<Entity> {
+    let (best, best_distance) = candidates
+        .iter()
+        .min_by(|(_, a), (_, b)| a.total_cmp(b))
+        .copied()?;
+    if let Some(current) = current {
+        if let Some((_, current_distance)) =
+            candidates.iter().find(|(entity, _)| *entity == current)
+        {
+            if best_distance >= SNAP_HYSTERESIS * current_distance {
+                return Some(current);
+            }
+        }
+    }
+    Some(best)
+}
+
+/// Stable cycle order for a ship's sections: nose-to-tail by local build
+/// position (z, then x, then y), so repeated presses walk the hull the same
+/// way every time regardless of query iteration order.
+fn cycle_order(sections: &mut [(Entity, Vec3)]) {
+    sections.sort_by(|(_, a), (_, b)| {
+        a.z.total_cmp(&b.z)
+            .then(a.x.total_cmp(&b.x))
+            .then(a.y.total_cmp(&b.y))
+    });
+}
+
+/// Maintain the component fine-lock: valid only while focused on the locked
+/// ship and while the section stays attached; a pin expires by deadline or
+/// with its section; snap follows the crosshair ray otherwise.
+#[allow(clippy::type_complexity)]
+fn update_component_lock(
+    time: Res<Time>,
+    lock: Res<SpaceshipPlayerTargetLock>,
+    focus: Res<SpaceshipPlayerLockFocus>,
+    mut component: ResMut<SpaceshipPlayerComponentLock>,
+    q_sections: Query<(Entity, &ChildOf, &GlobalTransform), With<SectionMarker>>,
+    point_rotation: Option<
+        Single<
+            &PointRotationOutput,
+            (
+                With<SpaceshipCameraInputMarker>,
+                With<SpaceshipCameraTurretInputMarker>,
+            ),
+        >,
+    >,
+    spaceship: Option<
+        Single<
+            (&Transform, Option<&ComputedCenterOfMass>),
+            (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+        >,
+    >,
+) {
+    // The component layer only exists while focused on the current lock.
+    let target = match **lock {
+        Some(target) if focus.focused_on(target) => target,
+        _ => {
+            component.set_if_neq(SpaceshipPlayerComponentLock::default());
+            return;
+        }
+    };
+
+    let sections: Vec<(Entity, Vec3)> = q_sections
+        .iter()
+        .filter(|(_, ChildOf(parent), _)| *parent == target)
+        .map(|(entity, _, transform)| (entity, transform.translation()))
+        .collect();
+    if sections.is_empty() {
+        component.set_if_neq(SpaceshipPlayerComponentLock::default());
+        return;
+    }
+
+    // Detach/despawn invalidates the selection (inactive sections stay
+    // lockable - see SpaceshipPlayerComponentLock).
+    let current = component
+        .section
+        .filter(|section| sections.iter().any(|(entity, _)| entity == section));
+    if component.section != current {
+        component.section = current;
+    }
+
+    // A pin outlives neither its deadline nor its section.
+    if let ComponentLockMode::Pinned { until } = component.mode {
+        if component.section.is_none() || time.elapsed_secs() >= until {
+            component.mode = ComponentLockMode::Snap;
+        }
+    }
+
+    if component.mode != ComponentLockMode::Snap {
+        return;
+    }
+    let (Some(point_rotation), Some(spaceship)) = (point_rotation, spaceship) else {
+        // No aim rig (menu states, headless tests): hold the current
+        // selection rather than guessing.
+        return;
+    };
+    let (ship_transform, ship_com) = spaceship.into_inner();
+    let origin = live_structure_anchor(ship_transform, ship_com);
+    let dir = (***point_rotation * Vec3::NEG_Z).normalize();
+    let candidates: Vec<(Entity, f32)> = sections
+        .iter()
+        .map(|&(entity, position)| (entity, ray_distance(origin, dir, position)))
+        .collect();
+    let picked = snap_pick(component.section, &candidates);
+    if component.section != picked {
+        component.section = picked;
+    }
+}
+
+/// Shared body of the cycle observers: step the fine lock through the locked
+/// ship's attached sections in [`cycle_order`] and pin the choice for
+/// [`COMPONENT_PIN_WINDOW`] seconds.
+fn step_component_lock(
+    direction: isize,
+    time: &Time,
+    lock: &SpaceshipPlayerTargetLock,
+    focus: &SpaceshipPlayerLockFocus,
+    component: &mut SpaceshipPlayerComponentLock,
+    q_sections: &Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>,
+) {
+    let target = match **lock {
+        Some(target) if focus.focused_on(target) => target,
+        _ => return,
+    };
+
+    let mut order: Vec<(Entity, Vec3)> = q_sections
+        .iter()
+        .filter(|(_, ChildOf(parent), _)| *parent == target)
+        .map(|(entity, _, transform)| (entity, transform.translation))
+        .collect();
+    if order.is_empty() {
+        return;
+    }
+    cycle_order(&mut order);
+
+    let len = order.len() as isize;
+    let index = component
+        .section
+        .and_then(|section| order.iter().position(|(entity, _)| *entity == section));
+    let next = match index {
+        Some(index) => (index as isize + direction).rem_euclid(len) as usize,
+        // First press with no selection: next starts at the nose, prev at
+        // the tail.
+        None if direction >= 0 => 0,
+        None => (len - 1) as usize,
+    };
+
+    component.section = Some(order[next].0);
+    component.mode = ComponentLockMode::Pinned {
+        until: time.elapsed_secs() + COMPONENT_PIN_WINDOW,
+    };
+}
+
+fn on_component_cycle_next(
+    _: On<Start<ComponentCycleNextInput>>,
+    time: Res<Time>,
+    lock: Res<SpaceshipPlayerTargetLock>,
+    focus: Res<SpaceshipPlayerLockFocus>,
+    mut component: ResMut<SpaceshipPlayerComponentLock>,
+    q_sections: Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>,
+) {
+    step_component_lock(1, &time, &lock, &focus, &mut component, &q_sections);
+}
+
+fn on_component_cycle_prev(
+    _: On<Start<ComponentCyclePrevInput>>,
+    time: Res<Time>,
+    lock: Res<SpaceshipPlayerTargetLock>,
+    focus: Res<SpaceshipPlayerLockFocus>,
+    mut component: ResMut<SpaceshipPlayerComponentLock>,
+    q_sections: Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>,
+) {
+    step_component_lock(-1, &time, &lock, &focus, &mut component, &q_sections);
 }
 
 #[cfg(test)]
@@ -457,5 +747,279 @@ mod tests {
             .unwrap();
 
         assert_eq!(**world.resource::<SpaceshipPlayerTargetLock>(), None);
+    }
+
+    // -- focus dwell + component fine-lock --
+
+    use std::time::Duration;
+
+    /// A focused world: aim rig on -Z, player at the origin, a locked target
+    /// ship with three sections - one dead on the aim ray, two off to the
+    /// side - and the focus dwell already complete.
+    fn focused_world() -> (World, Entity, [Entity; 3]) {
+        let mut world = World::new();
+        world.insert_resource(Time::<()>::default());
+        world.spawn((
+            SpaceshipCameraInputMarker,
+            SpaceshipCameraTurretInputMarker,
+            PointRotationOutput(Quat::IDENTITY),
+        ));
+        world.spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            Transform::IDENTITY,
+        ));
+        let target = world.spawn(SpaceshipRootMarker).id();
+        // Local build order (z) deliberately different from spawn order, so
+        // the cycle-order sort is actually exercised.
+        let on_ray = world
+            .spawn((
+                SectionMarker,
+                Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -100.0)),
+                ChildOf(target),
+            ))
+            .id();
+        let near_ray = world
+            .spawn((
+                SectionMarker,
+                Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+                GlobalTransform::from_translation(Vec3::new(5.0, 0.0, -100.0)),
+                ChildOf(target),
+            ))
+            .id();
+        let far_ray = world
+            .spawn((
+                SectionMarker,
+                Transform::from_translation(Vec3::new(0.0, 0.0, 2.0)),
+                GlobalTransform::from_translation(Vec3::new(10.0, 0.0, -100.0)),
+                ChildOf(target),
+            ))
+            .id();
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
+        world.insert_resource(SpaceshipPlayerLockFocus {
+            target: Some(target),
+            seconds: FOCUS_TIME,
+        });
+        world.insert_resource(SpaceshipPlayerComponentLock::default());
+        (world, target, [on_ray, near_ray, far_ray])
+    }
+
+    fn cycle(world: &mut World, direction: isize) {
+        world
+            .run_system_once(
+                move |time: Res<Time>,
+                      lock: Res<SpaceshipPlayerTargetLock>,
+                      focus: Res<SpaceshipPlayerLockFocus>,
+                      mut component: ResMut<SpaceshipPlayerComponentLock>,
+                      q_sections: Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>| {
+                    step_component_lock(
+                        direction,
+                        &time,
+                        &lock,
+                        &focus,
+                        &mut component,
+                        &q_sections,
+                    );
+                },
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn focus_accumulates_and_resets_on_lock_change() {
+        let mut world = World::new();
+        world.insert_resource(Time::<()>::default());
+        let a = world.spawn_empty().id();
+        let b = world.spawn_empty().id();
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(a)));
+        world.insert_resource(SpaceshipPlayerLockFocus::default());
+
+        // First tick registers the new target (reset), then time accrues.
+        world.run_system_once(tick_lock_focus).unwrap();
+        world
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_secs_f32(1.0));
+        world.run_system_once(tick_lock_focus).unwrap();
+        let focus = world.resource::<SpaceshipPlayerLockFocus>();
+        assert_eq!(focus.target, Some(a));
+        assert!((focus.seconds - 1.0).abs() < 1e-6);
+        assert!(!focus.focused_on(a));
+
+        world
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_secs_f32(0.6));
+        world.run_system_once(tick_lock_focus).unwrap();
+        assert!(world.resource::<SpaceshipPlayerLockFocus>().focused_on(a));
+
+        // Switching targets restarts the dwell.
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(b)));
+        world.run_system_once(tick_lock_focus).unwrap();
+        let focus = world.resource::<SpaceshipPlayerLockFocus>();
+        assert_eq!(focus.target, Some(b));
+        assert_eq!(focus.seconds, 0.0);
+    }
+
+    #[test]
+    fn ray_distance_measures_perpendicular_and_clamps_behind() {
+        let origin = Vec3::ZERO;
+        let dir = Vec3::NEG_Z;
+        assert!((ray_distance(origin, dir, Vec3::new(3.0, 4.0, -10.0)) - 5.0).abs() < 1e-6);
+        // Behind the origin: distance to the origin itself, not the
+        // backward extension.
+        assert!((ray_distance(origin, dir, Vec3::new(0.0, 0.0, 7.0)) - 7.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn snap_pick_applies_hysteresis() {
+        let a = Entity::from_raw_u32(1).unwrap();
+        let b = Entity::from_raw_u32(2).unwrap();
+        assert_eq!(snap_pick(None, &[]), None);
+        // No incumbent: nearest wins.
+        assert_eq!(snap_pick(None, &[(a, 5.0), (b, 3.0)]), Some(b));
+        // Challenger at 0.8x of the incumbent: not decisive, keep a.
+        assert_eq!(snap_pick(Some(a), &[(a, 5.0), (b, 4.0)]), Some(a));
+        // Challenger well under the hysteresis fraction: switch.
+        assert_eq!(snap_pick(Some(a), &[(a, 5.0), (b, 2.0)]), Some(b));
+        // Dead incumbent (not in candidates): nearest wins.
+        assert_eq!(snap_pick(Some(a), &[(b, 9.0)]), Some(b));
+    }
+
+    #[test]
+    fn component_lock_requires_focus() {
+        let (mut world, _, [on_ray, _, _]) = focused_world();
+        world.resource_mut::<SpaceshipPlayerComponentLock>().section = Some(on_ray);
+        world.resource_mut::<SpaceshipPlayerLockFocus>().seconds = 0.5;
+
+        world.run_system_once(update_component_lock).unwrap();
+
+        assert_eq!(
+            *world.resource::<SpaceshipPlayerComponentLock>(),
+            SpaceshipPlayerComponentLock::default(),
+            "an incomplete dwell clears the fine lock"
+        );
+    }
+
+    #[test]
+    fn snap_selects_the_section_nearest_the_aim_ray() {
+        let (mut world, _, [on_ray, _, _]) = focused_world();
+
+        world.run_system_once(update_component_lock).unwrap();
+
+        assert_eq!(
+            world.resource::<SpaceshipPlayerComponentLock>().section,
+            Some(on_ray)
+        );
+    }
+
+    #[test]
+    fn cycle_steps_the_stable_order_and_pins() {
+        let (mut world, _, [on_ray, near_ray, far_ray]) = focused_world();
+
+        // Stable order is by local z: near_ray (0), on_ray (1), far_ray (2).
+        cycle(&mut world, 1);
+        let component = world.resource::<SpaceshipPlayerComponentLock>();
+        assert_eq!(component.section, Some(near_ray));
+        assert!(matches!(component.mode, ComponentLockMode::Pinned { .. }));
+
+        cycle(&mut world, 1);
+        assert_eq!(
+            world.resource::<SpaceshipPlayerComponentLock>().section,
+            Some(on_ray)
+        );
+        cycle(&mut world, 1);
+        assert_eq!(
+            world.resource::<SpaceshipPlayerComponentLock>().section,
+            Some(far_ray)
+        );
+        // Wraps.
+        cycle(&mut world, 1);
+        assert_eq!(
+            world.resource::<SpaceshipPlayerComponentLock>().section,
+            Some(near_ray)
+        );
+        // Prev from a fresh (unselected) state starts at the tail.
+        world.insert_resource(SpaceshipPlayerComponentLock::default());
+        cycle(&mut world, -1);
+        assert_eq!(
+            world.resource::<SpaceshipPlayerComponentLock>().section,
+            Some(far_ray)
+        );
+    }
+
+    #[test]
+    fn cycle_is_a_no_op_before_the_dwell_completes() {
+        let (mut world, _, _) = focused_world();
+        world.resource_mut::<SpaceshipPlayerLockFocus>().seconds = 0.5;
+
+        cycle(&mut world, 1);
+
+        assert_eq!(
+            *world.resource::<SpaceshipPlayerComponentLock>(),
+            SpaceshipPlayerComponentLock::default(),
+            "cycling before focus completes must not select anything"
+        );
+    }
+
+    #[test]
+    fn pin_expires_back_to_snap() {
+        let (mut world, _, [on_ray, near_ray, _]) = focused_world();
+        cycle(&mut world, 1);
+        assert_eq!(
+            world.resource::<SpaceshipPlayerComponentLock>().section,
+            Some(near_ray),
+            "pinned to the first section in cycle order"
+        );
+
+        // The pin holds against snap while its window is open...
+        world.run_system_once(update_component_lock).unwrap();
+        assert_eq!(
+            world.resource::<SpaceshipPlayerComponentLock>().section,
+            Some(near_ray)
+        );
+
+        // ...and expires after COMPONENT_PIN_WINDOW, letting snap retake.
+        world
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_secs_f32(COMPONENT_PIN_WINDOW + 0.5));
+        world.run_system_once(update_component_lock).unwrap();
+        let component = world.resource::<SpaceshipPlayerComponentLock>();
+        assert_eq!(component.mode, ComponentLockMode::Snap);
+        assert_eq!(component.section, Some(on_ray));
+    }
+
+    #[test]
+    fn pinned_section_death_reverts_to_snap() {
+        let (mut world, _, [on_ray, near_ray, _]) = focused_world();
+        cycle(&mut world, 1);
+        assert_eq!(
+            world.resource::<SpaceshipPlayerComponentLock>().section,
+            Some(near_ray)
+        );
+
+        world.despawn(near_ray);
+        world.run_system_once(update_component_lock).unwrap();
+
+        let component = world.resource::<SpaceshipPlayerComponentLock>();
+        assert_eq!(component.mode, ComponentLockMode::Snap);
+        assert_eq!(
+            component.section,
+            Some(on_ray),
+            "the dead pin falls back to the ray-nearest section"
+        );
+    }
+
+    #[test]
+    fn lock_loss_clears_the_component_lock() {
+        let (mut world, _, [on_ray, _, _]) = focused_world();
+        world.resource_mut::<SpaceshipPlayerComponentLock>().section = Some(on_ray);
+
+        world.insert_resource(SpaceshipPlayerTargetLock(None));
+        world.run_system_once(update_component_lock).unwrap();
+
+        assert_eq!(
+            *world.resource::<SpaceshipPlayerComponentLock>(),
+            SpaceshipPlayerComponentLock::default()
+        );
     }
 }
