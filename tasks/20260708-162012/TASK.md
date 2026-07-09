@@ -1,8 +1,8 @@
 # Smarter enemy AI (target selection, evasion, patrol)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
-- TAGS: v0.4.0,ai
+- TAGS: v0.4.0, ai
 
 Spike: docs/spikes/20260708-161726-modding-language-and-scripting.md (roadmap)
 
@@ -14,3 +14,11 @@ just nearest), evasion under fire, patrol/idle states, and firing discipline
 (bursts/lead). This is the enabler for enemies as a gameplay loop rather than
 inert asteroids, and pairs with the mission/objective work (133026-133029).
 </content>
+
+## Superseded (20260709)
+
+Split by spike docs/spikes/20260709-225508-ai-combat-behaviors.md into nine
+behavior-level tasks (20260709-225726 .. 20260709-225734) on a shared
+AIBehaviorState skeleton, with 20260708-203708 (factions) and
+20260709-155921 (AI rotation path) as the unchanged prerequisites. Closed as
+superseded, not implemented - the work continues in those tasks.
