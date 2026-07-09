@@ -37,6 +37,12 @@ dependency (`crates/nova_gameplay/Cargo.toml`). It used to be vendored under
 branch. If you need a generic helper, it is probably in that external crate,
 re-exported through `nova_gameplay::prelude`.
 
+`bevy-common-systems` is **owned by us**, not a third-party dependency. The local
+checkout lives at `~/personal/bevy-common-systems`. When a change is needed there
+(a fix or a new generic helper), do not work around it from this repo: add a tatr
+task in that repo and run it through the same plan/work/review/compound flow
+there, then bump the pinned `rev` in `crates/nova_gameplay/Cargo.toml` here.
+
 ## Build, run, test
 
 Toolchain is **nightly** (`rust-toolchain.toml`). On NixOS use `nix develop` to get
