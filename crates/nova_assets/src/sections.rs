@@ -108,6 +108,7 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 blast_radius: 30.0,
                 blast_damage: 100.0,
                 blast_effect: None,
+                launch_effect: None,
             }),
         },
     ]));

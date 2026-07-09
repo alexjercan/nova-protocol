@@ -73,6 +73,13 @@ pub struct TorpedoSectionConfig {
     pub blast_damage: f32,
     /// The explosion effect to play when the torpedo detonates.
     pub blast_effect: Option<Handle<EffectAsset>>,
+    /// The launch particle burst played at the bay spawner each time a torpedo is
+    /// fired. Mirrors the turret's `muzzle_effect`; when `None`, a default
+    /// spawn-on-command burst is built in `insert_torpedo_spawner_effect`. A
+    /// custom effect must be spawn-on-command and declare the `normal` and
+    /// `base_velocity` `Vec3` properties, which `on_torpedo_launch_effect` sets
+    /// per shot (unknown properties are ignored by hanabi).
+    pub launch_effect: Option<Handle<EffectAsset>>,
 }
 
 impl Default for TorpedoSectionConfig {
@@ -93,6 +100,7 @@ impl Default for TorpedoSectionConfig {
             blast_radius: 30.0,
             blast_damage: 100.0,
             blast_effect: None,
+            launch_effect: None,
         }
     }
 }
@@ -143,6 +151,17 @@ struct TorpedoSectionPartOf(Entity);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct TorpedoSectionSpawnerEntity(Entity);
+
+/// Holds the configured launch-effect handle on the spawner entity so
+/// `insert_torpedo_spawner_effect` can read it when the spawner is added. `None`
+/// means "build the default burst".
+#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
+struct TorpedoSectionSpawnerEffect(Option<Handle<EffectAsset>>);
+
+/// Marks the child `ParticleEffect` entity of the spawner, so the launch trigger
+/// (`on_torpedo_launch_effect`) can find its `EffectSpawner` and `reset()` it.
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+struct TorpedoSectionSpawnerEffectMarker;
 
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct TorpedoTargetEntity(pub Entity);
@@ -257,6 +276,14 @@ impl Plugin for TorpedoSectionPlugin {
             // FIXME(20260706-162908): For now we disable particle effects on wasm because it's not working
             #[cfg(not(target_family = "wasm"))]
             app.add_observer(insert_particle_effect);
+
+            // Launch burst at the bay: build the effect on the spawner, fire it
+            // whenever a torpedo projectile is spawned. Hanabi-only, wasm-gated
+            // like the blast burst above.
+            #[cfg(not(target_family = "wasm"))]
+            app.add_observer(insert_torpedo_spawner_effect);
+            #[cfg(not(target_family = "wasm"))]
+            app.add_observer(on_torpedo_launch_effect);
         }
 
         app.add_systems(
@@ -305,6 +332,7 @@ fn insert_torpedo_section(
             TorpedoSectionSpawnerMarker,
             TorpedoSectionPartOf(entity),
             TorpedoSectionSpawnerFireState(timer),
+            TorpedoSectionSpawnerEffect(config.launch_effect.clone()),
             Transform::from_translation(config.spawn_offset).with_rotation(config.spawn_rotation),
             Visibility::Inherited,
         ))
