@@ -1,6 +1,6 @@
 # Multi-thruster autopilot: per-engine directions, fastest-path group planner
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.4.0, handling, autopilot, spike
 
@@ -51,7 +51,7 @@ follow-up).
       thrusters, cool-on-release, GOTO arrival) stays green.
 - [x] Update `docs/2026-07-09-diegetic-autopilot.md` (group planner section,
       knob list, torque non-goal).
-- [ ] Verify: cargo check + fmt + targeted flight tests only (full suite and
+- [x] Verify: cargo check + fmt + targeted flight tests only (full suite and
       clippy are CI's job per AGENTS.md).
 
 ## Notes
@@ -62,3 +62,22 @@ follow-up).
   every engine is the computer's.
 - 20260709-095043 (retune) additionally owns rotation_bias and
   est_turn_rate_deg.
+
+## Close record (2026-07-09, restored - the original close chain silently died on a grep exit code)
+
+What changed: autopilot_system clusters live engines into direction groups
+(section-local Transform gives each thrust axis), scores each group with
+rotation_time * rotation_bias + burn_time, rotates the winning group (not
+the nose) onto the velocity error, and fires every engine inside the
+align_cos cone with a shared throttle; the GOTO arrival curve takes its
+deceleration and a dynamic lead from the scored brake group (flip_lead_time
+removed; rotation_bias 1.5, est_turn_rate_deg 90, arrival_spool_pad 0.5
+added). Deadband generalized (any engine on the crumb kills it); manual burn
+switched to a section-local -Z check; engineless ships disengage. Squash
+commit 26d7c3b; review round 1 APPROVE (1 NIT deferred to the torque-aware
+follow-up).
+
+Lessons already captured in docs/retros/20260709-121842-multi-thruster-autopilot.md.
+Process note for the record: chaining `grep -c` with `&&` broke this task's
+original close-out (grep -c exits 1 on zero matches) - the ticks, status and
+close record were all lost while the commit still landed.

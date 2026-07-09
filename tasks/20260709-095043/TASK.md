@@ -21,13 +21,11 @@ decisions, not defaults - juice retro).
 
 ## Steps
 
-- [ ] Slew-limit the commanded rotation: in
-      `crates/nova_gameplay/src/input/player.rs`
-      (`update_controller_target_rotation_torque`), track the camera quat
-      through a max-deg/s rate limiter (or `smooth_nudge`) before writing
-      `ControllerSectionRotationInput`, with the rate in the handling block.
-      The camera stays instant; only the hull's commanded target lags. Pure
-      helper for the limiter, unit-tested (angle never exceeds rate * dt).
+- [x] Slew-limit the commanded rotation: LANDED early via the flip-wobble
+      fix (e28b9ed) - both the mouse path and the autopilot slew the
+      commanded quat at `FlightSettings::est_turn_rate_deg` through
+      `flight::slew_rotation` (pure, unit-tested). What remains here is only
+      tuning the rate.
 - [ ] Surface handling stats: PD frequency/damping/max_torque
       (controller_section.rs:30) plus the new slew rate as a tuned, documented
       handling block (extend `FlightSettings` or the controller section
