@@ -32,12 +32,14 @@ In the same change, since it touches the same observers:
 
 - Add observer-level regression tests: a parented hierarchy with the parent
   one cell away must yield a single cue (flash count 1 / single trauma /
-  single sound) - plus the missing attenuation-path tests (camera past
-  `far_distance` -> no cue and no throttle stamp; mid-ramp camera -> scaled
-  trauma).
-- Fix the stale "Three effects" count in the `juice.rs` module doc (it lists
-  two), and document the propagation caveat on both observers so a future
-  damage-cue observer copies the guard along with the shape.
+  single sound).
+- Document the propagation caveat on both observers so a future damage-cue
+  observer copies the guard along with the shape.
+
+(Originally this task also carried the attenuation-path observer tests and the
+"Three effects" doc-count fix from review findings F3/F4; those landed in the
+PR #54 branch itself while addressing the Copilot comments - see the review
+addendum - along with flash distance attenuation, F7.)
 
 No Steps yet on purpose - this is a spike-seeded, direction-level task;
 `/plan` breaks it down when it is picked up.

@@ -53,11 +53,14 @@ So this module does not implement shake at all; it only *feeds* it:
 ### Impact / hit-flash FX (gizmos)
 
 An `ActiveJuiceFx` resource holds a bounded `Vec<Flash>` (`pos`, `start_secs`,
-`kind`). The observers push a flash; `draw_juice_flashes` (in `PostUpdate`, after
-transform propagation) renders each as one or more **camera-facing rings** that
-expand (ease-out radius) and fade (quadratic alpha) over the flash lifetime, then
-prunes the ones that have elapsed. Impact rings are small and quick; destruction
-rings are large and slower.
+`kind`, `strength`). The observers push a flash with the distance falloff captured
+as its `strength`; `draw_juice_flashes` (in `PostUpdate`, after transform
+propagation) renders each as one or more **camera-facing rings** that expand
+(ease-out radius) and fade (quadratic alpha scaled by `strength`, so a far event's
+ring is faint from its first frame - radius stays world-scale since perspective
+already shrinks distant rings) over the flash lifetime, then prunes the ones that
+have elapsed. Impact rings are small and quick; destruction rings are large and
+slower.
 
 Why gizmos rather than spawned meshes or particles:
 

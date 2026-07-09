@@ -1,6 +1,7 @@
 //! Nova's combat juice: moment-to-moment feedback when a shot lands or a target
-//! dies. Three effects, all driven off the same existing seams the audio layer
-//! uses so no gameplay system has to know about them:
+//! dies. Two effects (camera shake and flash rings), both driven off the same
+//! existing seams the audio layer uses so no gameplay system has to know about
+//! them:
 //!
 //! - damage applied to a target -> a small camera-shake kick + an impact flash
 //!   (`On<HealthApplyDamage>`);
@@ -21,10 +22,11 @@
 //! in shared, gltf-instanced children, so an overlay ring is chosen over recoloring
 //! their materials (a true per-section emissive flash is a possible follow-up).
 //!
-//! Both effects are **distance-attenuated** from the gameplay camera and
-//! **per-area-cell throttled**, mirroring `audio.rs`: a blast that damages a dozen
-//! colliders of one ship in a single frame collapses to one kick and one flash,
-//! and a distant event kicks/flashes weaker than one in your face. Every tunable
+//! Both effects are **distance-attenuated** from the gameplay camera (the trauma
+//! impulse and the ring alpha both scale with the falloff) and **per-area-cell
+//! throttled**, mirroring `audio.rs`: a blast that damages a dozen colliders of
+//! one ship in a single frame collapses to one kick and one flash, and a distant
+//! event kicks/flashes weaker than one in your face. Every tunable
 //! lives on the [`JuiceSettings`] resource (with per-effect enable toggles and a
 //! master switch) so a settings menu can bind to it later. All the math a headless
 //! run cannot exercise (the rendering) is pushed into pure helpers that are
@@ -264,13 +266,19 @@ impl JuiceThrottle {
     }
 }
 
-/// One in-flight flash ring. Position is fixed at spawn; the draw system derives
-/// the current radius/alpha from `age = now - start_secs`.
+/// One in-flight flash ring. Position and distance strength are fixed at spawn;
+/// the draw system derives the current radius/alpha from `age = now - start_secs`
+/// and scales the alpha by `strength`.
 #[derive(Clone, Copy, Debug)]
 struct Flash {
     pos: Vec3,
     start_secs: f32,
     kind: JuiceEventKind,
+    /// Distance falloff (`0..1`) captured at emit time, so a far event draws a
+    /// fainter ring than one in your face (the visual analog of the attenuated
+    /// trauma). Radius is left at world scale - perspective already shrinks a
+    /// distant ring, so scaling radius too would double-attenuate.
+    strength: f32,
 }
 
 /// The set of flashes currently being drawn. Pushed by the event observers, drawn
@@ -477,6 +485,7 @@ fn emit_juice(
                 pos,
                 start_secs: now,
                 kind,
+                strength: falloff,
             });
         } else {
             trace!("emit_juice: flash cap reached, dropping flash");
@@ -587,7 +596,9 @@ fn draw_juice_flashes(
             let lag = ring as f32 * 0.15;
             let rt = (t - lag).clamp(0.0, 1.0);
             let radius = flash_radius(rt, peak);
-            let alpha = flash_alpha(rt);
+            // Lifetime fade scaled by the distance strength captured at emit,
+            // so a far event's ring is faint from its first frame.
+            let alpha = flash_alpha(rt) * flash.strength;
             if alpha <= 0.0 || radius <= 0.0 {
                 continue;
             }
@@ -727,9 +738,11 @@ mod tests {
     //
     // These exercise the wiring the pure helpers cannot: that the event observers
     // actually feed trauma into `CameraShakeInput` and queue a `Flash`, that the
-    // per-cell throttle collapses a co-located burst, and that the master switch
-    // suppresses everything. They run without a camera, so the attenuation listener
-    // is `None` (falloff 1.0) and trauma lands at exactly the configured impulse.
+    // per-cell throttle collapses a co-located burst, that distance attenuation
+    // scales/suppresses through the observers, and that the master switch
+    // suppresses everything. Most run without a camera, so the attenuation
+    // listener is `None` (falloff 1.0) and trauma lands at exactly the configured
+    // impulse; the attenuation tests spawn a positioned `Camera3d`.
 
     /// A minimal app with the juice resources + event observers and no camera, so
     /// distance attenuation is a no-op and trauma equals the raw per-event impulse.
@@ -755,6 +768,14 @@ mod tests {
         app.world_mut()
             .spawn(GlobalTransform::from(Transform::from_translation(pos)))
             .id()
+    }
+
+    /// Spawn a gameplay camera (the attenuation listener) at `pos`.
+    fn spawn_camera_at(app: &mut App, pos: Vec3) {
+        app.world_mut().spawn((
+            Camera3d::default(),
+            GlobalTransform::from(Transform::from_translation(pos)),
+        ));
     }
 
     fn trauma_of(app: &App, sink: Entity) -> f32 {
@@ -841,6 +862,50 @@ mod tests {
         }
 
         assert_eq!(flash_count(&app), 2);
+    }
+
+    #[test]
+    fn a_mid_range_event_scales_trauma_and_flash_strength() {
+        let mut app = juice_test_app();
+        let sink = spawn_shake_sink(&mut app);
+        let target = spawn_at(&mut app, Vec3::ZERO);
+        // The smoothstep falloff is exactly 0.5 at the midpoint of the ramp.
+        let s = JuiceSettings::default();
+        let mid = (s.near_distance + s.far_distance) / 2.0;
+        spawn_camera_at(&mut app, Vec3::new(mid, 0.0, 0.0));
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: target,
+            source: None,
+            amount: 10.0,
+        });
+
+        let expected = s.shake.hit_trauma * 0.5;
+        assert!((trauma_of(&app, sink) - expected).abs() < 1e-6);
+        let flashes = &app.world().resource::<ActiveJuiceFx>().flashes;
+        assert_eq!(flashes.len(), 1);
+        assert!((flashes[0].strength - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_fully_attenuated_event_does_nothing_and_stamps_no_throttle() {
+        let mut app = juice_test_app();
+        let sink = spawn_shake_sink(&mut app);
+        let target = spawn_at(&mut app, Vec3::ZERO);
+        let far = JuiceSettings::default().far_distance;
+        spawn_camera_at(&mut app, Vec3::new(far + 50.0, 0.0, 0.0));
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: target,
+            source: None,
+            amount: 10.0,
+        });
+
+        assert_eq!(trauma_of(&app, sink), 0.0);
+        assert_eq!(flash_count(&app), 0);
+        // A far event must not consume throttle state either, so a near event in
+        // the same cell right after still fires.
+        assert!(app.world().resource::<JuiceThrottle>().last.is_empty());
     }
 
     #[test]

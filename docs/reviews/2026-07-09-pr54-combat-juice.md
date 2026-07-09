@@ -14,7 +14,7 @@ bcs `CameraShakePlugin`) and camera-facing gizmo flash rings, driven off the
 same `On<HealthApplyDamage>` / `On<Add, IntegrityDestroyMarker>` seams the
 audio layer uses. Distance-attenuated from the gameplay camera, per-area-cell
 throttled, all tunables on a reflected `JuiceSettings` resource. One new module
-`crates/nova_gameplay/src/juice.rs` (867 lines incl. 16 tests), two wiring
+`crates/nova_gameplay/src/juice.rs` (867 lines incl. 15 tests), two wiring
 lines, a design note, the task record with its on-branch review, and a retro.
 
 ## Verification (re-run at branch tip, fresh worktree)
@@ -22,7 +22,7 @@ lines, a design note, the task record with its on-branch review, and a retro.
 Every claim in the PR body was re-verified rather than trusted:
 
 - `cargo fmt --check` clean; `cargo clippy --all-targets` clean.
-- `cargo test --workspace` green: 74 nova_gameplay unit tests (16 juice: 11
+- `cargo test --workspace` green: 74 nova_gameplay unit tests (15 juice: 10
   pure-helper + 5 observer-level integration), 5 nova_scenario, and the
   `examples_smoke` harness test (44s) all pass.
 - `cargo check --target wasm32-unknown-unknown -p nova_gameplay` passes, so the
@@ -162,3 +162,30 @@ own tests either way.
 
 Merge (squash), same as PR #53. The follow-ups ride the branch so they land
 with it.
+
+## Addendum: GitHub Copilot PR comments (post-review)
+
+Copilot left four inline comments on the PR; triaged against this review:
+
+- **F7 (MINOR, valid - missed by this review): flash was distance-culled, not
+  distance-attenuated.** Three of the comments are one finding: `emit_juice`
+  scaled the *trauma* by the falloff but used it only as an on/off gate for the
+  flash - `Flash` recorded no strength and `flash_alpha` was purely
+  lifetime-based, so a ring at 150u drew at the same alpha as one at 5u,
+  contradicting the module doc / design note / PR body ("distant events flash
+  weaker"). Fixed on-branch rather than filed: `Flash` now captures the emit-
+  time falloff as `strength` and the draw scales alpha by it (alpha only -
+  radius stays world-scale, since perspective already shrinks a distant ring
+  and scaling radius too would double-attenuate). Two observer-level tests
+  added (mid-ramp camera -> trauma and flash strength at exactly 0.5; camera
+  past `far_distance` -> no cue and no throttle stamp), which also discharges
+  F3; the F4 doc-count nit was fixed in the same pass. Full check suite re-run
+  green (fmt, clippy, 76 nova_gameplay tests + smoke, wasm check).
+- **The fourth comment is F1** (propagation double-fire), independently found
+  and confirmed empirically above; it stays a follow-up via spike
+  20260709-091536 and task 20260709-091756. Copilot's suggested mechanism
+  (skip entities matching `IntegrityRoot + SpaceshipRootMarker`) filters by
+  what the *parent* is and would still double-fire for any future intermediate
+  hierarchy levels (and asteroid bodies without the ship marker); the spike's
+  `original_event_target()` guard dedups by propagation itself, which is the
+  cause.
