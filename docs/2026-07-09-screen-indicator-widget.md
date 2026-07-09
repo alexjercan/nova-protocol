@@ -27,7 +27,7 @@ consume it:
 - **Torpedo reticle** (`hud/torpedo_target.rs`): now spawns a layer + one
   indicator child (`TorpedoTargetReticleMarker`, ApparentSize 32 px minimum,
   Hide policy) and keeps a single 5-line driver that copies
-  `SpaceshipPlayerTorpedoTargetEntity` into the anchor. The bespoke
+  `SpaceshipPlayerTargetLock` into the anchor. The bespoke
   projection, sizing and visibility systems are gone.
 - **Autopilot destination marker** (`hud/flight_status.rs`): same shape -
   fixed 24 px indicator, driver maps the engaged GOTO target (or None) into

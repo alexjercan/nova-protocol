@@ -1,6 +1,6 @@
 //! The torpedo-lock reticle and the locked-target info readout: a
 //! screen-projected indicator on the entity the player's aim-assist currently
-//! locks (`SpaceshipPlayerTorpedoTargetEntity`), with distance, closing speed
+//! locks (`SpaceshipPlayerTargetLock`), with distance, closing speed
 //! and a health bar riding its edge (tasks 20260708-165700 / 165702).
 //!
 //! A thin consumer of the [`screen_indicator`](super::screen_indicator)
@@ -178,7 +178,7 @@ impl Plugin for TorpedoTargetHudPlugin {
 /// Point the reticle indicator at the current lock; `None` (no lock) hides it
 /// via the widget's anchor handling.
 fn drive_reticle_anchor(
-    res_target: Res<SpaceshipPlayerTorpedoTargetEntity>,
+    res_target: Res<SpaceshipPlayerTargetLock>,
     mut q_reticle: Query<&mut ScreenIndicatorAnchor, With<TorpedoTargetReticleMarker>>,
 ) {
     for mut anchor in &mut q_reticle {
@@ -237,7 +237,7 @@ fn health_color(fraction: f32) -> Color {
 /// which the widget already hides.
 #[allow(clippy::type_complexity)]
 fn update_target_readout(
-    res_target: Res<SpaceshipPlayerTorpedoTargetEntity>,
+    res_target: Res<SpaceshipPlayerTargetLock>,
     ship: Single<
         (&GlobalTransform, Option<&LinearVelocity>),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
@@ -353,7 +353,7 @@ mod tests {
     #[test]
     fn reticle_anchor_follows_the_lock_resource() {
         let mut world = World::new();
-        world.insert_resource(SpaceshipPlayerTorpedoTargetEntity(None));
+        world.insert_resource(SpaceshipPlayerTargetLock(None));
         let reticle = world
             .spawn((
                 TorpedoTargetReticleMarker,
@@ -371,7 +371,7 @@ mod tests {
         );
 
         let target = world.spawn_empty().id();
-        world.insert_resource(SpaceshipPlayerTorpedoTargetEntity(Some(target)));
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
         world.run_system_once(drive_reticle_anchor).unwrap();
         assert_eq!(
             **world
@@ -381,7 +381,7 @@ mod tests {
             Some(ScreenIndicatorAnchorKind::Entity(target))
         );
 
-        world.insert_resource(SpaceshipPlayerTorpedoTargetEntity(None));
+        world.insert_resource(SpaceshipPlayerTargetLock(None));
         world.run_system_once(drive_reticle_anchor).unwrap();
         assert_eq!(
             **world
@@ -477,7 +477,7 @@ mod tests {
                 },
             ))
             .id();
-        world.insert_resource(SpaceshipPlayerTorpedoTargetEntity(Some(target)));
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
 
         world.run_system_once(update_target_readout).unwrap();
 
@@ -513,7 +513,7 @@ mod tests {
                 0.0, 0.0, -80.0,
             )))
             .id();
-        world.insert_resource(SpaceshipPlayerTorpedoTargetEntity(Some(target)));
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
 
         world.run_system_once(update_target_readout).unwrap();
 

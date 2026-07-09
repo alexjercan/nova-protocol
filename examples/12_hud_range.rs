@@ -306,7 +306,7 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
     if t > 2.0 && !asserted_lock {
         world.resource_mut::<HudRangeScript>().asserted_lock = true;
 
-        let lock = (**world.resource::<SpaceshipPlayerTorpedoTargetEntity>())
+        let lock = (**world.resource::<SpaceshipPlayerTargetLock>())
             .expect("hud range: the aim-assist never locked the target ship dead ahead");
         let target = target_root(world).expect("hud range: target ship vanished before the kill");
         assert_eq!(

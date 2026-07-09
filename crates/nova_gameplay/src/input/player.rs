@@ -7,22 +7,16 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        PlayerSpaceshipMarker, SpaceshipPlayerInputPlugin, SpaceshipPlayerTorpedoTargetEntity,
-        SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
+        PlayerSpaceshipMarker, SpaceshipPlayerInputPlugin, SpaceshipThrusterInputBinding,
+        SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
     };
 }
-
-// TODO(20260706-162913): NEED TO REFACTOR THIS, right now we just scuff it out to make it work
-#[derive(Resource, Debug, Clone, Deref, DerefMut, Default)]
-pub struct SpaceshipPlayerTorpedoTargetEntity(pub Option<Entity>);
 
 pub struct SpaceshipPlayerInputPlugin;
 
 impl Plugin for SpaceshipPlayerInputPlugin {
     fn build(&self, app: &mut App) {
         debug!("SpaceshipPlayerInputPlugin: build");
-
-        app.insert_resource(SpaceshipPlayerTorpedoTargetEntity::default());
 
         app.add_input_context::<FlightInputMarker>();
         app.add_observer(on_player_added_spawn_flight_input);
@@ -53,7 +47,10 @@ impl Plugin for SpaceshipPlayerInputPlugin {
             (
                 update_controller_target_rotation_torque,
                 update_turret_target_input,
-                (update_spaceship_target_input, update_torpedo_target_input).chain(),
+                // Torpedoes commit to the lock the frame it is set, so the
+                // commit runs after the targeting update (previously a
+                // .chain() when both lived in this module).
+                update_torpedo_target_input.after(super::targeting::SpaceshipTargetingSystems),
             )
                 .in_set(super::SpaceshipInputSystems),
         );
@@ -171,117 +168,6 @@ fn update_turret_target_input(
     }
 }
 
-/// Maximum distance at which the aim-assist will lock a target. Bodies further
-/// than this from the ship are ignored, so distant clutter never steals the lock.
-const TARGETING_MAX_RANGE: f32 = 2000.0;
-
-/// Half-angle (degrees) of the lock-on cone around the aim direction. Any lockable
-/// body whose bearing from the ship falls within this angle of where the player is
-/// aiming is eligible, and the one closest to the aim ray wins. This is the whole
-/// point of the aim-assist: a wide cone means the player only has to point roughly
-/// at a target instead of landing a pixel-perfect ray on it. Pan the view and the
-/// lock snaps to whichever eligible body is now nearest the center, so cycling
-/// between targets is just "look at the next one".
-const TARGETING_CONE_HALF_ANGLE_DEG: f32 = 18.0;
-
-/// Choose the best lock-on target from `candidates` (each an entity and its world
-/// position): the one whose bearing from `origin` is closest to the `aim`
-/// direction, as long as it is within `max_range` and inside the cone (bearing
-/// dot aim `>= min_cos`, i.e. `min_cos = cos(half_angle)`). Returns `None` when
-/// nothing qualifies - e.g. the player is looking at empty space - which drops the
-/// lock and hides the reticle.
-///
-/// Pure and camera/physics-free so the selection rule can be unit-tested directly.
-fn pick_target(
-    origin: Vec3,
-    aim: Vec3,
-    max_range: f32,
-    min_cos: f32,
-    candidates: impl Iterator<Item = (Entity, Vec3)>,
-) -> Option<Entity> {
-    candidates
-        .filter_map(|(entity, position)| {
-            let to_target = position - origin;
-            let distance = to_target.length();
-            if distance > max_range || distance < f32::EPSILON {
-                return None;
-            }
-            let cos_angle = to_target.normalize().dot(aim);
-            (cos_angle >= min_cos).then_some((entity, cos_angle))
-        })
-        // Largest cosine == smallest angle from the aim ray == closest to center.
-        .max_by(|(_, a), (_, b)| a.total_cmp(b))
-        .map(|(entity, _)| entity)
-}
-
-/// Update the player's torpedo lock from where the crosshair is aimed, using
-/// angular aim-assist rather than a single ray: enumerate the physical bodies in
-/// front of the ship and lock the one nearest the aim direction (see
-/// [`pick_target`]).
-fn update_spaceship_target_input(
-    point_rotation: Single<
-        &PointRotationOutput,
-        (
-            With<SpaceshipCameraInputMarker>,
-            With<SpaceshipCameraTurretInputMarker>,
-        ),
-    >,
-    // Turret bullets are excluded outright: they are dynamic bodies that stream
-    // straight down the aim ray, so without this the lock would constantly snap
-    // onto the player's own gunfire instead of the enemy behind it.
-    q_candidates: Query<
-        (
-            Entity,
-            &GlobalTransform,
-            &RigidBody,
-            Option<&TorpedoProjectileMarker>,
-            Option<&TorpedoTargetChosen>,
-        ),
-        Without<TurretBulletProjectileMarker>,
-    >,
-    spaceship: Single<
-        (&Transform, Option<&ComputedCenterOfMass>, Entity),
-        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
-    >,
-    mut res_target: ResMut<SpaceshipPlayerTorpedoTargetEntity>,
-) {
-    let point_rotation = point_rotation.into_inner();
-    let (ship_transform, ship_com, ship_entity) = spaceship.into_inner();
-
-    // Cone origin on the live structure, not the root origin, so the lock
-    // cone agrees with the COM-anchored camera crosshair after losing
-    // sections (task 20260709-150711).
-    let origin = live_structure_anchor(ship_transform, ship_com);
-    let aim = (**point_rotation * Vec3::NEG_Z).normalize();
-    let min_cos = TARGETING_CONE_HALF_ANGLE_DEG.to_radians().cos();
-
-    let candidates = q_candidates.iter().filter_map(
-        |(entity, transform, rigid_body, is_torpedo, torpedo_committed)| {
-            // Only physical, movable bodies are lockable. This skips static sensor
-            // volumes such as scenario trigger areas (`RigidBody::Static`), which
-            // are invisible and must never be locked.
-            if !matches!(rigid_body, RigidBody::Dynamic) {
-                return None;
-            }
-            // Never lock the player's own ship.
-            if entity == ship_entity {
-                return None;
-            }
-            // Skip a freshly launched torpedo that has not committed its
-            // launch-time target yet: it spawns right on the aim ray and would
-            // otherwise be picked as its own target. Once committed
-            // (`TorpedoTargetChosen`) a torpedo is a normal lockable body - e.g.
-            // you can lock and shoot down your own dumb-fired torpedo.
-            if is_torpedo.is_some() && torpedo_committed.is_none() {
-                return None;
-            }
-            Some((entity, transform.translation()))
-        },
-    );
-
-    **res_target = pick_target(origin, aim, TARGETING_MAX_RANGE, min_cos, candidates);
-}
-
 /// Commit each freshly launched torpedo to its launch-time target.
 ///
 /// A torpedo's targeting decision is made exactly once, right after launch:
@@ -302,7 +188,7 @@ fn update_torpedo_target_input(
         ),
     >,
     spaceship: Single<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
-    res_target: Res<SpaceshipPlayerTorpedoTargetEntity>,
+    res_target: Res<SpaceshipPlayerTargetLock>,
 ) {
     let spaceship = spaceship.into_inner();
 
@@ -480,7 +366,7 @@ fn on_autopilot_stop_input(
 fn on_autopilot_goto_input(
     _: On<Start<AutopilotGotoInput>>,
     mut commands: Commands,
-    res_target: Res<SpaceshipPlayerTorpedoTargetEntity>,
+    res_target: Res<SpaceshipPlayerTargetLock>,
     ship: Single<(Entity, Option<&Autopilot>), With<PlayerSpaceshipMarker>>,
 ) {
     let (entity, autopilot) = ship.into_inner();
@@ -822,94 +708,12 @@ mod tests {
 
     use super::*;
 
-    fn cone_cos(half_angle_deg: f32) -> f32 {
-        half_angle_deg.to_radians().cos()
-    }
-
-    #[test]
-    fn pick_target_locks_the_body_nearest_the_aim_ray() {
-        // Two candidates in front: one slightly off-axis, one further off-axis.
-        // The nearer-to-center one wins even though it is further away.
-        let origin = Vec3::ZERO;
-        let aim = Vec3::NEG_Z;
-        let near_center = Entity::from_raw_u32(1).unwrap();
-        let off_center = Entity::from_raw_u32(2).unwrap();
-        let candidates = [
-            (near_center, Vec3::new(2.0, 0.0, -100.0)), // ~1.1 deg off axis, far
-            (off_center, Vec3::new(3.0, 0.0, -20.0)),   // ~8.5 deg off axis, near
-        ];
-
-        let picked = pick_target(
-            origin,
-            aim,
-            TARGETING_MAX_RANGE,
-            cone_cos(18.0),
-            candidates.into_iter(),
-        );
-        assert_eq!(picked, Some(near_center));
-    }
-
-    #[test]
-    fn pick_target_ignores_bodies_outside_the_cone() {
-        // A body 90 deg off the aim direction (straight to the side) is not lockable.
-        let picked = pick_target(
-            Vec3::ZERO,
-            Vec3::NEG_Z,
-            TARGETING_MAX_RANGE,
-            cone_cos(18.0),
-            [(Entity::from_raw_u32(1).unwrap(), Vec3::new(50.0, 0.0, 0.0))].into_iter(),
-        );
-        assert_eq!(picked, None, "a body outside the cone must not be locked");
-    }
-
-    #[test]
-    fn pick_target_ignores_bodies_behind_the_ship() {
-        // A body directly behind (dot with aim is negative) is never locked.
-        let picked = pick_target(
-            Vec3::ZERO,
-            Vec3::NEG_Z,
-            TARGETING_MAX_RANGE,
-            cone_cos(18.0),
-            [(Entity::from_raw_u32(1).unwrap(), Vec3::new(0.0, 0.0, 100.0))].into_iter(),
-        );
-        assert_eq!(picked, None, "a body behind the ship must not be locked");
-    }
-
-    #[test]
-    fn pick_target_ignores_bodies_beyond_max_range() {
-        // Dead ahead but past the range limit: not lockable.
-        let picked = pick_target(
-            Vec3::ZERO,
-            Vec3::NEG_Z,
-            100.0,
-            cone_cos(18.0),
-            [(
-                Entity::from_raw_u32(1).unwrap(),
-                Vec3::new(0.0, 0.0, -500.0),
-            )]
-            .into_iter(),
-        );
-        assert_eq!(picked, None, "a body beyond max range must not be locked");
-    }
-
-    #[test]
-    fn pick_target_returns_none_with_no_candidates() {
-        let picked = pick_target(
-            Vec3::ZERO,
-            Vec3::NEG_Z,
-            TARGETING_MAX_RANGE,
-            cone_cos(18.0),
-            std::iter::empty(),
-        );
-        assert_eq!(picked, None);
-    }
-
     #[test]
     fn no_lock_does_not_despawn_untargeted_torpedo() {
         // Regression: with no current lock, an un-targeted torpedo (e.g. one whose
         // target just died and had its link dropped) must keep flying, not vanish.
         let mut app = App::new();
-        app.insert_resource(SpaceshipPlayerTorpedoTargetEntity(None));
+        app.insert_resource(SpaceshipPlayerTargetLock(None));
         app.add_systems(Update, update_torpedo_target_input);
 
         let ship = app
@@ -943,7 +747,7 @@ mod tests {
         // is committed to it.
         let mut app = App::new();
         let target = app.world_mut().spawn_empty().id();
-        app.insert_resource(SpaceshipPlayerTorpedoTargetEntity(Some(target)));
+        app.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
         app.add_systems(Update, update_torpedo_target_input);
 
         let ship = app
@@ -974,7 +778,7 @@ mod tests {
         // dumb-fire; a lock appearing later (e.g. the aim cast hitting a bullet
         // fired down the crosshair ray) must not be assigned to it.
         let mut app = App::new();
-        app.insert_resource(SpaceshipPlayerTorpedoTargetEntity(None));
+        app.insert_resource(SpaceshipPlayerTargetLock(None));
         app.add_systems(Update, update_torpedo_target_input);
 
         let ship = app
@@ -992,7 +796,7 @@ mod tests {
 
         // A "bullet" gets locked by the aim cast afterwards.
         let bullet = app.world_mut().spawn_empty().id();
-        app.insert_resource(SpaceshipPlayerTorpedoTargetEntity(Some(bullet)));
+        app.insert_resource(SpaceshipPlayerTargetLock(Some(bullet)));
 
         // Frame 2: the committed torpedo must NOT pick it up.
         app.update();
@@ -1008,7 +812,7 @@ mod tests {
         // position frozen) keeps its commitment: a fresh lock must not re-target it.
         let mut app = App::new();
         let new_target = app.world_mut().spawn_empty().id();
-        app.insert_resource(SpaceshipPlayerTorpedoTargetEntity(Some(new_target)));
+        app.insert_resource(SpaceshipPlayerTargetLock(Some(new_target)));
         app.add_systems(Update, update_torpedo_target_input);
 
         let ship = app
@@ -1069,42 +873,6 @@ mod tests {
                 .unwrap(),
             Some(Vec3::new(12.0, 0.0, -100.0)),
             "aim ray base = anchor (12,0,0), not the root origin (10,0,0)"
-        );
-    }
-
-    #[test]
-    fn lock_cone_originates_at_the_live_structure_anchor() {
-        // A candidate dead ahead of the ANCHOR but 33 degrees off the ROOT
-        // ORIGIN bearing: it locks only if the cone originates at the anchor
-        // (18 degree half-angle).
-        let mut world = World::new();
-        world.insert_resource(SpaceshipPlayerTorpedoTargetEntity(None));
-        world.spawn((
-            SpaceshipCameraInputMarker,
-            SpaceshipCameraTurretInputMarker,
-            PointRotationOutput(Quat::IDENTITY),
-        ));
-        world.spawn((
-            SpaceshipRootMarker,
-            PlayerSpaceshipMarker,
-            Transform::from_translation(Vec3::new(10.0, 0.0, 0.0)),
-            ComputedCenterOfMass(Vec3::new(2.0, 0.0, 0.0)),
-        ));
-        let candidate = world
-            .spawn((
-                RigidBody::Dynamic,
-                GlobalTransform::from_translation(Vec3::new(12.0, 0.0, -3.0)),
-            ))
-            .id();
-
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTorpedoTargetEntity>(),
-            Some(candidate),
-            "the cone must originate at the anchor, not the root origin"
         );
     }
 }

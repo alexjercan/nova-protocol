@@ -2,10 +2,12 @@ use bevy::prelude::*;
 
 pub mod ai;
 pub mod player;
+pub mod targeting;
 
 pub mod prelude {
     pub use super::{
-        ai::prelude::*, player::prelude::*, SpaceshipInputPlugin, SpaceshipInputSystems,
+        ai::prelude::*, player::prelude::*, targeting::prelude::*, SpaceshipInputPlugin,
+        SpaceshipInputSystems,
     };
 }
 
@@ -19,6 +21,7 @@ impl Plugin for SpaceshipInputPlugin {
         debug!("SpaceshipInputPlugin: build");
 
         app.add_plugins(player::SpaceshipPlayerInputPlugin);
+        app.add_plugins(targeting::SpaceshipTargetingPlugin);
         app.add_plugins(ai::SpaceshipAIInputPlugin);
     }
 }
