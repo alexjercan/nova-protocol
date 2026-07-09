@@ -334,6 +334,27 @@ pub(crate) fn hull_turn_rate(max_torque: f32, inertia: f32, settings: &FlightSet
     (optimum * settings.turn_rate_scale).clamp(lo, hi)
 }
 
+/// The ship-level turn rate: the strongest live computer's torque against
+/// the hull's largest principal inertia, through [`hull_turn_rate`]. `None`
+/// with no live computer - every caller's "adrift" case. (PD outputs stack
+/// additively across computers, so max under-reports a multi-computer hull -
+/// a deliberately conservative simplification.) Shared by the player command
+/// slew, the autopilot and the AI brain so the derivation cannot drift
+/// apart.
+pub(crate) fn ship_turn_rate(
+    torques: impl Iterator<Item = f32>,
+    inertia: &ComputedAngularInertia,
+    settings: &FlightSettings,
+) -> Option<f32> {
+    let max_torque = torques.reduce(f32::max)?;
+    let (principal, _) = inertia.principal_angular_inertia_with_local_frame();
+    Some(hull_turn_rate(
+        max_torque,
+        principal.max_element(),
+        settings,
+    ))
+}
+
 /// A cluster of live engines that push the ship in (roughly) the same world
 /// direction, with their summed per-tick authority. The planner's unit of
 /// choice: rotate whichever group is cheapest onto the needed burn.
@@ -643,16 +664,16 @@ fn autopilot_system(
 
     for (ship, mut autopilot, position, rotation, velocity, mass, inertia, com) in &mut q_ship {
         // No flight computer, no autopilot - the ship is adrift on manual.
-        // The strongest live computer's torque cap is the rotation authority
-        // the turn-rate budget is derived from. (PD outputs stack additively
-        // across computers, so max under-reports a multi-computer hull - a
-        // deliberately conservative simplification.)
-        let Some(computer_torque) = q_computer
-            .iter()
-            .filter(|(_, &ChildOf(parent))| parent == ship)
-            .map(|(pd, _)| pd.max_torque)
-            .reduce(f32::max)
-        else {
+        // The turn-rate budget derives from the strongest live computer (see
+        // ship_turn_rate).
+        let Some(turn_rate) = ship_turn_rate(
+            q_computer
+                .iter()
+                .filter(|(_, &ChildOf(parent))| parent == ship)
+                .map(|(pd, _)| pd.max_torque),
+            inertia,
+            &settings,
+        ) else {
             debug!("autopilot_system: ship {ship:?} lost its flight computer, disengaging");
             commands.entity(ship).remove::<Autopilot>();
             continue;
@@ -683,8 +704,6 @@ fn autopilot_system(
             continue;
         }
         let groups = cluster_thrusters(&engines, FORWARD_ALIGNMENT_COS);
-        let (principal, _) = inertia.principal_angular_inertia_with_local_frame();
-        let turn_rate = hull_turn_rate(computer_torque, principal.max_element(), &settings);
 
         // The goal, as a desired velocity right now. For GOTO the arrival
         // curve is planned with the group the computer would actually brake

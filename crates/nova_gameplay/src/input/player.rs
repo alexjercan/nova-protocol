@@ -110,22 +110,20 @@ fn update_controller_target_rotation_torque(
     // damping is swamped and the hull limit-cycles (the high-speed flip
     // wobble). The camera stays instant; the hull's commanded target ramps
     // at the hull's own torque-budget turn rate - the same one the autopilot
-    // plans with - so a heavy build swings slower than a stripped one. (PD
-    // outputs stack additively across computers; max is a conservative
-    // simplification, matching the autopilot.) With no live computer the
-    // command FREEZES: nothing consumes it, and slewing a dead helm would
-    // drift it so a later re-activation snaps the hull.
-    let Some(computer_torque) = q_computer
-        .iter()
-        .filter(|(_, &ChildOf(parent))| parent == spaceship)
-        .map(|(pd, _)| pd.max_torque)
-        .reduce(f32::max)
-    else {
+    // plans with (see flight::ship_turn_rate) - so a heavy build swings
+    // slower than a stripped one. With no live computer the command FREEZES:
+    // nothing consumes it, and slewing a dead helm would drift it so a later
+    // re-activation snaps the hull.
+    let Some(turn_rate) = crate::flight::ship_turn_rate(
+        q_computer
+            .iter()
+            .filter(|(_, &ChildOf(parent))| parent == spaceship)
+            .map(|(pd, _)| pd.max_torque),
+        inertia,
+        &settings,
+    ) else {
         return;
     };
-    let (principal, _) = inertia.principal_angular_inertia_with_local_frame();
-    let turn_rate =
-        crate::flight::hull_turn_rate(computer_torque, principal.max_element(), &settings);
     let max_step = turn_rate * time.delta_secs();
 
     for (mut controller, _) in q_controller
