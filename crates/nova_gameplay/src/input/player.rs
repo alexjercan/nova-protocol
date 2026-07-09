@@ -527,12 +527,13 @@ fn on_thruster_input_binding(
 
 fn on_thruster_input(
     fire: On<Start<ThrusterInput>>,
-    mut q_input: Query<&mut ThrusterSectionInput, With<ThrusterInputMarker>>,
+    mut commands: Commands,
+    mut q_input: Query<(&mut ThrusterSectionInput, Option<&ChildOf>), With<ThrusterInputMarker>>,
 ) {
     let entity = fire.event().context;
     trace!("on_thruster_input: entity {:?}", entity);
 
-    let Ok(mut input) = q_input.get_mut(entity) else {
+    let Ok((mut input, child_of)) = q_input.get_mut(entity) else {
         error!(
             "on_thruster_input: entity {:?} not found in q_input",
             entity
@@ -541,6 +542,11 @@ fn on_thruster_input(
     };
 
     **input = 1.0;
+    // Grabbing a bound throttle is a flight input: it takes the ship back
+    // from an engaged autopilot (removing an absent component is a no-op).
+    if let Some(&ChildOf(ship)) = child_of {
+        commands.entity(ship).remove::<Autopilot>();
+    }
 }
 
 fn on_thruster_input_completed(

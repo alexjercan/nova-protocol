@@ -66,6 +66,15 @@ v1 (spike-recorded limitation).
   the ship's *current* attitude (`camera_controller::on_autopilot_disengaged`),
   so the PD holds the hull where the maneuver left it instead of violently
   swinging back to a stale mouse command.
+- **The computer commands every live engine.** A thruster with a manual
+  per-section binding (the editor binds keys straight to thrusters) is only
+  reserved in MANUAL mode - the W-burn path leaves it to its own key. An
+  engaged autopilot drives bindings included (excluding them left
+  editor-built ships with a computer that could rotate but never burn - the
+  2026-07-09 playtest bug), pressing a bound thruster key disengages like
+  any flight input, and on release the autopilot cools every engine it was
+  driving (a residual input on a bound thruster would ghost-burn forever,
+  since nothing else writes it between key events).
 - **Degradation is diegetic.** The flight computer is the controller section:
   if it dies (or is disabled), the autopilot disengages and the ship is
   adrift on manual thrust. Engines shot off leave the autopilot aligning at

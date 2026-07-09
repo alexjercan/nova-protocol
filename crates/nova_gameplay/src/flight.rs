@@ -183,6 +183,7 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<AutopilotPhase>();
 
         app.add_observer(insert_flight_control);
+        app.add_observer(on_autopilot_removed_cool_engines);
 
         app.configure_sets(
             FixedUpdate,
@@ -316,7 +317,13 @@ fn autopilot_system(
         ),
         With<SpaceshipRootMarker>,
     >,
-    // Editor-bound thrusters (manual per-section bindings) stay the pilot's.
+    // ALL live forward engines, including thrusters with manual per-section
+    // bindings (the editor binds keys straight to thrusters): when the
+    // computer takes the ship it commands every engine - an editor-built
+    // ship would otherwise leave the autopilot with zero authority (it
+    // rotated but could never burn, the 2026-07-09 playtest bug). Pressing a
+    // bound thruster key is a flight input and disengages instead (see
+    // input/player.rs).
     mut q_thruster: Query<
         (
             &mut ThrusterSectionInput,
@@ -328,7 +335,6 @@ fn autopilot_system(
             With<ThrusterSectionMarker>,
             Without<SectionInactiveMarker>,
             Without<SpaceshipRootMarker>,
-            Without<SpaceshipThrusterInputBinding>,
         ),
     >,
     // A live flight computer is a controller section that still has its PD
@@ -457,6 +463,22 @@ fn autopilot_system(
                 settings.spool_down_rate,
                 dt,
             );
+        }
+    }
+}
+
+/// When the autopilot lets go - completion or any breakout - it cools the
+/// engines it was driving. Nothing else writes a *bound* thruster's input
+/// between key events (the manual burn system deliberately leaves bound
+/// thrusters to their own keys), so a residual autopilot burn would
+/// otherwise ghost on forever.
+fn on_autopilot_removed_cool_engines(
+    remove: On<Remove, Autopilot>,
+    mut q_thruster: Query<(&mut ThrusterSectionInput, &ChildOf), With<ThrusterSectionMarker>>,
+) {
+    for (mut input, &ChildOf(parent)) in &mut q_thruster {
+        if parent == remove.entity {
+            **input = 0.0;
         }
     }
 }
@@ -659,6 +681,7 @@ mod tests {
             )
                 .chain(),
         );
+        app.add_observer(on_autopilot_removed_cool_engines);
         app.add_systems(
             FixedUpdate,
             (
@@ -797,6 +820,143 @@ mod tests {
             app.world().get::<Autopilot>(ship).is_none(),
             "arrival disengages"
         );
+    }
+
+    /// Reproduction attempt for the in-game report "autopilot rotates but
+    /// never thrusts": build the ship EXACTLY like the scenario does
+    /// (base_section + kind bundles, real config values from
+    /// nova_assets/sections.rs) instead of the hand-rolled test sections, and
+    /// diagnose the thruster-query conditions directly.
+    #[test]
+    fn scratch_scenario_built_ship_autopilot_thrusts() {
+        let mut app = flight_app();
+        let ship = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                Visibility::Visible,
+                SpaceshipRootMarker,
+                FlightIntent::default(),
+            ))
+            .id();
+        let base = |id: &str| BaseSectionConfig {
+            id: id.to_string(),
+            name: id.to_string(),
+            description: String::new(),
+            mass: 1.0,
+            health: 100.0,
+        };
+        let controller = app
+            .world_mut()
+            .spawn((
+                ChildOf(ship),
+                base_section(base("controller")),
+                controller_section(ControllerSectionConfig {
+                    frequency: 4.0,
+                    damping_ratio: 4.0,
+                    max_torque: 100.0,
+                    render_mesh: None,
+                }),
+                Transform::default(),
+            ))
+            .id();
+        // The real game wires PDControllerTarget via the section observer;
+        // mirror it manually like the other tests do.
+        app.world_mut()
+            .entity_mut(controller)
+            .insert(PDControllerTarget(ship));
+        let thruster = app
+            .world_mut()
+            .spawn((
+                ChildOf(ship),
+                base_section(base("thruster")),
+                thruster_section(ThrusterSectionConfig {
+                    magnitude: 1.0,
+                    render_mesh: None,
+                }),
+                Transform::from_translation(Vec3::new(0.0, 0.0, 2.0)),
+            ))
+            .id();
+        settle(&mut app);
+
+        // Diagnose the exact conditions the autopilot's thruster query needs.
+        println!(
+            "thruster: rotation={:?} binding={} inactive={} marker={} magnitude={:?} childof={:?} ship={ship:?}",
+            app.world().get::<Rotation>(thruster),
+            app.world()
+                .get::<SpaceshipThrusterInputBinding>(thruster)
+                .is_some(),
+            app.world().get::<SectionInactiveMarker>(thruster).is_some(),
+            app.world().get::<ThrusterSectionMarker>(thruster).is_some(),
+            app.world()
+                .get::<ThrusterSectionMagnitude>(thruster)
+                .map(|m| **m),
+            app.world().get::<ChildOf>(thruster),
+        );
+
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::new(6.0, 0.0, 0.0)));
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+        run(&mut app, 60);
+        println!(
+            "after 60 ticks: thruster_input={:?} velocity={:?} ap={:?}",
+            app.world()
+                .get::<ThrusterSectionInput>(thruster)
+                .map(|i| **i),
+            app.world().get::<LinearVelocity>(ship).map(|v| **v),
+            app.world().get::<Autopilot>(ship),
+        );
+        run(&mut app, 840);
+
+        let speed = app
+            .world()
+            .get::<LinearVelocity>(ship)
+            .map(|v| v.length())
+            .unwrap_or(f32::NAN);
+        assert!(
+            speed < 0.5,
+            "scenario-built ship STOP should reach rest, got {speed}"
+        );
+    }
+
+    /// The 2026-07-09 playtest bug: an editor-built ship binds keys straight
+    /// to its thrusters (`SpaceshipThrusterInputBinding`), and the autopilot
+    /// used to exclude bound thrusters from its authority - so it rotated but
+    /// could never burn. The computer must command every live engine.
+    #[test]
+    fn autopilot_commands_editor_bound_thrusters() {
+        let mut app = flight_app();
+        let (ship, thruster, _) = spawn_ship(&mut app);
+        app.world_mut()
+            .entity_mut(thruster)
+            .insert(SpaceshipThrusterInputBinding(vec![]));
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::new(6.0, 0.0, 0.0)));
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+
+        run(&mut app, 900);
+
+        let speed = velocity_of(&app, ship).length();
+        assert!(
+            speed < 0.5,
+            "STOP must burn bound thrusters too, got {speed}"
+        );
+        // And the engines are cooled on release - a residual input on a
+        // bound thruster would ghost-burn forever (nothing else writes it).
+        let residual = app
+            .world()
+            .get::<ThrusterSectionInput>(thruster)
+            .map(|i| i.0)
+            .unwrap_or(f32::NAN);
+        assert_eq!(residual, 0.0, "disengage must cool the engines");
     }
 
     #[test]
