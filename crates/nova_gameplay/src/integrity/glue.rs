@@ -119,6 +119,12 @@ fn build_integrity_relations(
 /// which flows through disable -> destroy (`handle_parent_destroy`); the meshless root is then
 /// despawned and the ship dies (its `PlayerSpaceshipMarker` is removed, reverting the camera
 /// and clearing the HUDs).
+///
+/// The bubbled amount is *clamped to what actually landed on the section*: bcs's `on_damage`
+/// propagates `min(amount, section.current)`, not the raw hit. That is why overkill on one
+/// section cannot kill the ship (a 1000-damage hit on a 100 hp section costs the root 100, not
+/// 1000, task 20260709-144906), while the last-section case still works - there the aggregate
+/// equals that lone section, so the clamped amount is exactly enough to zero the root.
 fn aggregate_ship_health(
     mut commands: Commands,
     q_root: Query<
@@ -451,6 +457,87 @@ mod physics_tests {
         assert!(
             com_after.x.abs() < 1e-3,
             "COM must shift onto the survivor: {com_before:?} -> {com_after:?}"
+        );
+    }
+
+    /// Regression for task 20260709-144906: overkill on ONE section must not
+    /// kill the whole ship. A 1000-damage hit on a 100 hp section used to
+    /// propagate its full amount to the root aggregate (200 -> -800 -> zeroed),
+    /// dragging an otherwise-healthy ship through disable -> destroy. With the
+    /// bcs clamp, the root is charged only the section's remaining 100, so the
+    /// other section and the ship root survive.
+    #[test]
+    fn overkill_on_one_section_does_not_kill_the_ship() {
+        let mut app = unfinished_integrity_physics_app();
+        // The destroy path's debris observers need material assets and the
+        // global rng even in a headless run.
+        app.init_asset::<StandardMaterial>();
+        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.finish();
+
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                SpaceshipRootMarker,
+            ))
+            .id();
+        let survivor = spawn_section(&mut app, root, Vec3::ZERO);
+        let hit = spawn_section(&mut app, root, Vec3::X);
+        settle(&mut app);
+
+        // Sanity: the aggregate starts at both sections' health.
+        assert_eq!(app.world().get::<Health>(root).unwrap().current, 200.0);
+
+        // Ten times the section's health, well past its 100 hp.
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: hit,
+            source: None,
+            amount: 1000.0,
+        });
+        for _ in 0..10 {
+            app.update();
+        }
+
+        // The hit section is destroyed and gone...
+        assert!(
+            !app.world().entities().contains(hit),
+            "the over-killed section should be destroyed and despawned"
+        );
+
+        // ...but the ship survives it: the root still exists, is not marked for
+        // death, and its aggregate health is exactly the surviving section's.
+        assert!(
+            app.world().entities().contains(root),
+            "the ship root must not die from overkill on one section"
+        );
+        assert!(
+            app.world().get::<HealthZeroMarker>(root).is_none(),
+            "the root must never be marked zero-health while a section lives"
+        );
+        // The root should have lost only the destroyed section's ~100 hp, not the
+        // 1000 overkill (which would zero it). A wide tolerance absorbs the tiny
+        // contact damage the two touching unit-cube sections trade in avian - the
+        // point is 100, decisively not 0.
+        let root_health = app.world().get::<Health>(root).unwrap().current;
+        assert!(
+            (root_health - 100.0).abs() < 1.0,
+            "the ship should have lost only the destroyed section (~100 hp), not \
+             the 1000 overkill: root health = {root_health}"
+        );
+
+        // The other section survives, carrying essentially all its health (again
+        // modulo negligible section-to-section contact damage).
+        assert!(
+            app.world().entities().contains(survivor),
+            "the healthy section must survive its neighbor's destruction"
+        );
+        let survivor_health = app.world().get::<Health>(survivor).unwrap().current;
+        assert!(
+            (survivor_health - 100.0).abs() < 1.0,
+            "the surviving section should take no damage from the overkill: \
+             survivor health = {survivor_health}"
         );
     }
 

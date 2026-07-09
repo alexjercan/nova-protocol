@@ -10,7 +10,7 @@ bevy = { version = "0.19.0" }
 bevy_enhanced_input = { version = "0.26.0" }
 rand = { version = "0.10.2" }
 noise = { version = "0.9" }
-bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", rev = "34b3f0a7db44af4d9c363a5fb152ad2b3e81a887" }
+bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", rev = "4c58835708feb888f3a1872e74d6ae5fd742dd0c" }
 bevy_rand = { version = "0.15.0", default-features = false, features = ["chacha20", "wyrand"] }
 nova_events = { path = "../nova_events" }
 nova_gameplay = { path = "../nova_gameplay" }
