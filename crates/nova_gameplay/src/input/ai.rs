@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use crate::prelude::*;
 
 pub mod prelude {
-    pub use super::{AISpaceshipMarker, SpaceshipAIInputPlugin};
+    pub use super::{AIBehaviorState, AISpaceshipMarker, SpaceshipAIInputPlugin};
 }
 
 pub struct SpaceshipAIInputPlugin;
@@ -13,14 +13,18 @@ impl Plugin for SpaceshipAIInputPlugin {
     fn build(&self, app: &mut App) {
         debug!("SpaceshipAIInputPlugin: build");
 
+        app.register_type::<AIBehaviorState>();
+
         app.add_systems(
             Update,
             (
+                update_behavior_state,
                 update_controller_target_rotation_torque,
                 on_thruster_input,
                 update_turret_target_input,
                 on_projectile_input,
             )
+                .chain()
                 .in_set(super::SpaceshipInputSystems),
         );
     }
@@ -29,11 +33,89 @@ impl Plugin for SpaceshipAIInputPlugin {
 /// Marker component to identify the ai's spaceship.
 ///
 /// This should be added to the root entity of the ai's spaceship.
-/// Carries [`Allegiance::Enemy`] by requirement, so every AI-marked root
-/// participates in the relation model without extra spawn wiring.
+/// Carries [`Allegiance::Enemy`] and an [`AIBehaviorState`] by requirement,
+/// so every AI-marked root participates in the relation model and the
+/// behavior state machine without extra spawn wiring.
 #[derive(Component, Debug, Clone, Reflect)]
-#[require(SpaceshipRootMarker, Allegiance = Allegiance::Enemy)]
+#[require(SpaceshipRootMarker, Allegiance = Allegiance::Enemy, AIBehaviorState)]
 pub struct AISpaceshipMarker;
+
+/// What an AI ship is currently doing - the state skeleton of the AI combat
+/// arc (docs/spikes/20260709-225508-ai-combat-behaviors.md). One state per
+/// ship root, driven by [`update_behavior_state`]; every AI system gates its
+/// behavior on it.
+///
+/// Only `Engage` and `Idle` have real behavior today. The others exist so
+/// their tasks slot into a stable enum instead of reshaping it:
+/// - `Patrol`: waypoint flight, task 20260709-225730 (behaves as `Idle`).
+/// - `Evade`: under-fire jinking, task 20260709-225731 (stubs to `Engage`).
+/// - `Retreat`: low-integrity disengage, task 20260709-225734 (stubs to
+///   `Engage`).
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq, Reflect)]
+#[reflect(Component)]
+pub enum AIBehaviorState {
+    /// Station-keeping: no thrust, no fire, frozen helm.
+    Idle,
+    /// Waypoint flight (20260709-225730); behaves as `Idle` until then.
+    Patrol,
+    /// Chase and shoot the hostile - today's whole AI, and the default so
+    /// an AI ship dropped into a fight behaves exactly as before the state
+    /// machine existed.
+    #[default]
+    Engage,
+    /// Under-fire evasion (20260709-225731); stubs to `Engage` until then.
+    Evade,
+    /// Low-integrity disengage (20260709-225734); stubs to `Engage` until
+    /// then.
+    Retreat,
+}
+
+impl AIBehaviorState {
+    /// Whether this state runs the engage-style chase/aim/fire pipeline.
+    /// `Evade` and `Retreat` deliberately stub to Engage behavior until
+    /// their tasks land (see the variant docs).
+    fn engages(&self) -> bool {
+        matches!(self, Self::Engage | Self::Evade | Self::Retreat)
+    }
+}
+
+/// The skeleton's one real transition: combat states need a hostile to
+/// fight - with none in the world every state falls back to `Idle`, and a
+/// hostile appearing pulls the passive states into `Engage`. Detection
+/// RANGE (engage only when close enough) is the patrol task's scope
+/// (20260709-225730); presence-based engagement matches today's
+/// always-chase behavior. Pure for unit testing.
+fn next_behavior_state(current: AIBehaviorState, hostile_present: bool) -> AIBehaviorState {
+    if !hostile_present {
+        return AIBehaviorState::Idle;
+    }
+    match current {
+        // A hostile appeared: the passive states pick the fight up.
+        AIBehaviorState::Idle | AIBehaviorState::Patrol => AIBehaviorState::Engage,
+        // Combat states hold; their exit triggers are their tasks' scope.
+        state => state,
+    }
+}
+
+/// Drive each AI ship's [`AIBehaviorState`] from the world. Runs before the
+/// behavior systems in the same frame so a transition takes effect
+/// immediately (no one-frame stale-state window).
+fn update_behavior_state(
+    q_player: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    mut q_spaceship: Query<&mut AIBehaviorState, With<AISpaceshipMarker>>,
+) {
+    // Minimal hostility: the player is the AI's only hostile until target
+    // selection over the relation model lands (20260709-225727).
+    let hostile_present = !q_player.is_empty();
+
+    for mut state in &mut q_spaceship {
+        let next = next_behavior_state(*state, hostile_present);
+        // Change-detection hygiene: only write on a real transition.
+        if *state != next {
+            *state = next;
+        }
+    }
+}
 
 // AI "brain" tuning constants. The AI chases the player at a speed that scales with
 // distance (so it slows as it closes in) and brakes when it overshoots.
@@ -94,21 +176,34 @@ fn update_controller_target_rotation_torque(
             &LinearVelocity,
             &ComputedAngularInertia,
             Option<&ComputedCenterOfMass>,
+            &AIBehaviorState,
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
-    player: Single<
-        (&Transform, Option<&ComputedCenterOfMass>),
-        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    player: Option<
+        Single<
+            (&Transform, Option<&ComputedCenterOfMass>),
+            (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+        >,
     >,
 ) {
     // Chase the player's live structure, not the root origin: the origin is
     // the build spot of the first sections and floats in empty space once
-    // they are destroyed (task 20260709-150711).
+    // they are destroyed (task 20260709-150711). With no player at all the
+    // command freezes, same as a non-engaging state.
+    let Some(player) = player else {
+        return;
+    };
     let (player_transform, player_com) = player.into_inner();
     let player_anchor = live_structure_anchor(player_transform, player_com);
 
-    for (entity, transform, velocity, inertia, com) in &q_spaceship {
+    for (entity, transform, velocity, inertia, com, state) in &q_spaceship {
+        // A non-engaging state (Idle/Patrol) holds its helm: the command
+        // freezes exactly like a dead helm, so re-engaging resumes from
+        // where the hull actually points.
+        if !state.engages() {
+            continue;
+        }
         // Both ends of the chase vector track live structure: the AI's own
         // root origin goes as stale as the player's once sections die.
         let own_anchor = live_structure_anchor(transform, com);
@@ -167,30 +262,45 @@ fn on_thruster_input(
             &Transform,
             &LinearVelocity,
             Option<&ComputedCenterOfMass>,
+            &AIBehaviorState,
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
-    player: Single<
-        (&Transform, Option<&ComputedCenterOfMass>),
-        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    player: Option<
+        Single<
+            (&Transform, Option<&ComputedCenterOfMass>),
+            (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+        >,
     >,
 ) {
-    let (player_transform, player_com) = player.into_inner();
-    let player_anchor = live_structure_anchor(player_transform, player_com);
+    let player_anchor = player.map(|player| {
+        let (player_transform, player_com) = player.into_inner();
+        live_structure_anchor(player_transform, player_com)
+    });
 
-    for (entity, transform, velocity, com) in &q_spaceship {
-        // Same live-structure vector as the rotation system, so the thrust
-        // gate and the rotation command agree on where "toward the player" is.
-        let to_player = player_anchor - live_structure_anchor(transform, com);
-        let desired_direction = ai_desired_direction(to_player, **velocity);
+    for (entity, transform, velocity, com, state) in &q_spaceship {
+        // A non-engaging state (or no player left to chase) cuts the burn -
+        // written as an explicit 0.0, not a skip, so a ship that was
+        // thrusting when the state flipped actually stops.
+        let thrust_level = match player_anchor {
+            Some(player_anchor) if state.engages() => {
+                // Same live-structure vector as the rotation system, so the
+                // thrust gate and the rotation command agree on where
+                // "toward the player" is.
+                let to_player = player_anchor - live_structure_anchor(transform, com);
+                let desired_direction = ai_desired_direction(to_player, **velocity);
 
-        // Thrust only when the ship is pointing roughly toward the desired direction.
-        let forward = transform.forward();
-        let alignment = forward.dot(desired_direction);
-        let thrust_level = if alignment > AI_THRUST_ALIGNMENT {
-            1.0
-        } else {
-            0.0
+                // Thrust only when the ship is pointing roughly toward the
+                // desired direction.
+                let forward = transform.forward();
+                let alignment = forward.dot(desired_direction);
+                if alignment > AI_THRUST_ALIGNMENT {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
+            _ => 0.0,
         };
 
         for (mut thruster_input, _, _) in q_thruster
@@ -204,23 +314,33 @@ fn on_thruster_input(
 
 fn update_turret_target_input(
     mut q_turret: Query<(&mut TurretSectionTargetInput, &ChildOf), With<TurretSectionMarker>>,
-    q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<AISpaceshipMarker>)>,
-    player: Single<
-        (&Transform, Option<&ComputedCenterOfMass>),
-        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    q_spaceship: Query<
+        (Entity, &AIBehaviorState),
+        (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
+    >,
+    player: Option<
+        Single<
+            (&Transform, Option<&ComputedCenterOfMass>),
+            (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+        >,
     >,
 ) {
     // Aim at the live structure: fire converging on the root origin lands in
     // empty space once the player's front sections die (task 20260709-150711).
-    let (transform, com) = player.into_inner();
-    let player_anchor = live_structure_anchor(transform, com);
+    let player_anchor = player.map(|player| {
+        let (transform, com) = player.into_inner();
+        live_structure_anchor(transform, com)
+    });
 
-    for entity in &q_spaceship {
+    for (entity, state) in &q_spaceship {
+        // A non-engaging state (or no player) clears the aim: turrets slew
+        // back to rest instead of tracking a fight that is over.
+        let target = if state.engages() { player_anchor } else { None };
         for (mut turret_input, _) in q_turret
             .iter_mut()
             .filter(|(_, ChildOf(c_parent))| *c_parent == entity)
         {
-            **turret_input = Some(player_anchor);
+            **turret_input = target;
         }
     }
 }
@@ -235,20 +355,34 @@ fn on_projectile_input(
         With<TurretSectionMarker>,
     >,
     q_muzzle: Query<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>,
-    q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<AISpaceshipMarker>)>,
-    player: Single<
-        (&Transform, Option<&ComputedCenterOfMass>),
-        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    q_spaceship: Query<
+        (Entity, &AIBehaviorState),
+        (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
+    >,
+    player: Option<
+        Single<
+            (&Transform, Option<&ComputedCenterOfMass>),
+            (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+        >,
     >,
 ) {
-    let (player_transform, player_com) = player.into_inner();
-    let player_anchor = live_structure_anchor(player_transform, player_com);
+    let player_anchor = player.map(|player| {
+        let (player_transform, player_com) = player.into_inner();
+        live_structure_anchor(player_transform, player_com)
+    });
 
-    for entity in &q_spaceship {
+    for (entity, state) in &q_spaceship {
         for (muzzle, mut input, _) in q_turret
             .iter_mut()
             .filter(|(_, _, ChildOf(c_parent))| *c_parent == entity)
         {
+            // Hold fire outside the engaging states (or with no player) -
+            // written as an explicit false so a firing turret stops.
+            let (Some(player_anchor), true) = (player_anchor, state.engages()) else {
+                **input = false;
+                continue;
+            };
+
             let Ok(muzzle_transform) = q_muzzle.get(**muzzle) else {
                 error!(
                     "on_projectile_input: muzzle entity {:?} not found in q_muzzle",
@@ -263,6 +397,125 @@ fn on_projectile_input(
             let alignment = forward.dot(direction_to_player);
             **input = alignment > AI_FIRE_ALIGNMENT;
         }
+    }
+}
+
+#[cfg(test)]
+mod behavior_state_tests {
+    use bevy::ecs::system::RunSystemOnce;
+
+    use super::*;
+
+    #[test]
+    fn transitions_need_a_hostile_to_fight() {
+        use AIBehaviorState::*;
+
+        // No hostile: every state falls back to Idle.
+        for state in [Idle, Patrol, Engage, Evade, Retreat] {
+            assert_eq!(next_behavior_state(state, false), Idle, "from {state:?}");
+        }
+        // Hostile present: passive states engage, combat states hold (their
+        // exit triggers belong to their own tasks).
+        assert_eq!(next_behavior_state(Idle, true), Engage);
+        assert_eq!(next_behavior_state(Patrol, true), Engage);
+        assert_eq!(next_behavior_state(Engage, true), Engage);
+        assert_eq!(next_behavior_state(Evade, true), Evade);
+        assert_eq!(next_behavior_state(Retreat, true), Retreat);
+    }
+
+    #[test]
+    fn an_ai_ship_spawns_engaged_by_requirement() {
+        // The default state preserves pre-state-machine behavior: an AI
+        // ship dropped into a fight chases and shoots immediately.
+        let mut world = World::new();
+        let ship = world.spawn(AISpaceshipMarker).id();
+        assert_eq!(
+            *world.entity(ship).get::<AIBehaviorState>().unwrap(),
+            AIBehaviorState::Engage
+        );
+    }
+
+    #[test]
+    fn the_state_idles_without_a_player_and_reengages_with_one() {
+        let mut world = World::new();
+        let ship = world.spawn(AISpaceshipMarker).id();
+
+        world.run_system_once(update_behavior_state).unwrap();
+        assert_eq!(
+            *world.entity(ship).get::<AIBehaviorState>().unwrap(),
+            AIBehaviorState::Idle,
+            "no hostile in the world: nothing to engage"
+        );
+
+        world.spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
+        world.run_system_once(update_behavior_state).unwrap();
+        assert_eq!(
+            *world.entity(ship).get::<AIBehaviorState>().unwrap(),
+            AIBehaviorState::Engage,
+            "a hostile appearing pulls Idle back into the fight"
+        );
+    }
+
+    #[test]
+    fn idle_cuts_thrust_fire_and_aim() {
+        // Flip a fully lit ship to Idle with the player still present: every
+        // actuator must be explicitly zeroed, not left at its last value.
+        let mut world = World::new();
+        world.spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+        ));
+        let ship = world
+            .spawn((
+                AISpaceshipMarker,
+                AIBehaviorState::Idle,
+                Transform::default(),
+                LinearVelocity(Vec3::ZERO),
+            ))
+            .id();
+        let thruster = world
+            .spawn((
+                ThrusterSectionMarker,
+                ThrusterSectionInput(1.0),
+                GlobalTransform::IDENTITY,
+                ChildOf(ship),
+            ))
+            .id();
+        let turret = world
+            .spawn((
+                TurretSectionMarker,
+                TurretSectionTargetInput(Some(Vec3::X)),
+                TurretSectionInput(true),
+                TurretSectionMuzzleEntity(Entity::PLACEHOLDER),
+                ChildOf(ship),
+            ))
+            .id();
+
+        world.run_system_once(on_thruster_input).unwrap();
+        world.run_system_once(update_turret_target_input).unwrap();
+        world.run_system_once(on_projectile_input).unwrap();
+
+        assert_eq!(
+            **world
+                .entity(thruster)
+                .get::<ThrusterSectionInput>()
+                .unwrap(),
+            0.0,
+            "Idle cuts the burn"
+        );
+        assert_eq!(
+            **world
+                .entity(turret)
+                .get::<TurretSectionTargetInput>()
+                .unwrap(),
+            None,
+            "Idle clears the turret aim"
+        );
+        assert!(
+            !**world.entity(turret).get::<TurretSectionInput>().unwrap(),
+            "Idle holds fire"
+        );
     }
 }
 
