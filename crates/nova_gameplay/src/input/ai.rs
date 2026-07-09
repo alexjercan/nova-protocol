@@ -5,7 +5,8 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        AIBehaviorState, AIFireCadence, AISpaceshipMarker, AITarget, SpaceshipAIInputPlugin,
+        AIBehaviorState, AIFireCadence, AIPointDefenseTarget, AISpaceshipMarker, AITarget,
+        SpaceshipAIInputPlugin,
     };
 }
 
@@ -18,11 +19,13 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.register_type::<AIBehaviorState>();
         app.register_type::<AITarget>();
         app.register_type::<AIFireCadence>();
+        app.register_type::<AIPointDefenseTarget>();
 
         app.add_systems(
             Update,
             (
                 update_ai_target,
+                update_point_defense_target,
                 update_behavior_state,
                 update_fire_cadence,
                 update_controller_target_rotation_torque,
@@ -49,6 +52,7 @@ impl Plugin for SpaceshipAIInputPlugin {
     Allegiance = Allegiance::Enemy,
     AIBehaviorState,
     AITarget,
+    AIPointDefenseTarget,
     AIFireCadence
 )]
 pub struct AISpaceshipMarker;
@@ -166,6 +170,91 @@ fn update_ai_target(
         // it), so consumers never chase a stale entity.
         if **target != next {
             **target = next;
+        }
+    }
+}
+
+/// The inbound torpedo this ship's guns are currently defending against.
+/// When set, it OVERRIDES the primary [`AITarget`] for turret aim and fire -
+/// the PDC role is the turrets' main purpose (user decision, 20260710) -
+/// while flight keeps chasing the primary target. Written by
+/// [`update_point_defense_target`].
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq, Deref, DerefMut, Reflect)]
+#[reflect(Component)]
+pub struct AIPointDefenseTarget(pub Option<Entity>);
+
+/// Range (m) inside which an inbound hostile torpedo pulls the guns off the
+/// primary target. Kept inside the default turret's effective range
+/// (muzzle_speed * lifetime * margin = 450 m) so a defending turret can
+/// actually reach what it defends against.
+const AI_POINT_DEFENSE_RANGE: f32 = 400.0;
+
+/// Choose the torpedo to defend against: ones hunting THIS ship outrank
+/// ones hunting someone else (a tier, like the ship/torpedo target tiers),
+/// nearest wins within a tier, nothing outside
+/// [`AI_POINT_DEFENSE_RANGE`]. Pure for unit testing.
+fn pick_point_defense_target(
+    own_anchor: Vec3,
+    candidates: impl Iterator<Item = (Entity, Vec3, bool)>,
+) -> Option<Entity> {
+    candidates
+        .filter_map(|(entity, position, targeting_me)| {
+            let distance = own_anchor.distance(position);
+            if distance > AI_POINT_DEFENSE_RANGE || distance <= f32::EPSILON {
+                return None;
+            }
+            // false < true, so invert: hunting-me sorts first.
+            Some((entity, !targeting_me, distance))
+        })
+        .min_by(|(_, me_a, dist_a), (_, me_b, dist_b)| {
+            me_a.cmp(me_b).then(dist_a.total_cmp(dist_b))
+        })
+        .map(|(entity, _, _)| entity)
+}
+
+/// Acquire each AI ship's [`AIPointDefenseTarget`]: hostile committed
+/// torpedoes inside point-defense range, preferring ones whose
+/// [`TorpedoTargetEntity`] is this ship. Runs right after primary
+/// acquisition; the turret systems consume the override the same frame.
+#[allow(clippy::type_complexity)]
+fn update_point_defense_target(
+    q_torpedoes: Query<
+        (
+            Entity,
+            &Transform,
+            Option<&Allegiance>,
+            Option<&TorpedoTargetEntity>,
+        ),
+        (With<TorpedoProjectileMarker>, With<TorpedoTargetChosen>),
+    >,
+    mut q_spaceship: Query<
+        (
+            Entity,
+            &Transform,
+            Option<&ComputedCenterOfMass>,
+            &Allegiance,
+            &mut AIPointDefenseTarget,
+        ),
+        (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
+    >,
+) {
+    for (ship, transform, com, own_allegiance, mut pd_target) in &mut q_spaceship {
+        let own_anchor = live_structure_anchor(transform, com);
+        let candidates =
+            q_torpedoes
+                .iter()
+                .filter_map(|(entity, t_transform, allegiance, torpedo_target)| {
+                    if relation(Some(own_allegiance), allegiance) != Relation::Hostile {
+                        return None;
+                    }
+                    let targeting_me = torpedo_target.map(|t| **t) == Some(ship);
+                    Some((entity, t_transform.translation, targeting_me))
+                });
+
+        let next = pick_point_defense_target(own_anchor, candidates);
+        // Change-detection hygiene, and stale-entity safety as with AITarget.
+        if **pd_target != next {
+            **pd_target = next;
         }
     }
 }
@@ -288,14 +377,14 @@ fn ai_desired_direction(to_target: Vec3, velocity: Vec3) -> Vec3 {
     }
 }
 
-/// The live-structure anchor of a ship's [`AITarget`], or `None` without a
-/// target (or when it despawned this frame). The shared aim/chase point of
-/// every AI behavior system.
+/// The live-structure anchor of a target entity, or `None` without one (or
+/// when it despawned this frame). The shared aim/chase point of every AI
+/// behavior system, for both the primary and the point-defense target.
 fn ai_target_anchor(
-    target: &AITarget,
+    target: Option<Entity>,
     q_target: &Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) -> Option<Vec3> {
-    let (transform, com) = q_target.get((**target)?).ok()?;
+    let (transform, com) = q_target.get(target?).ok()?;
     Some(live_structure_anchor(transform, com))
 }
 
@@ -337,7 +426,7 @@ fn update_controller_target_rotation_torque(
         // Chase the target's live structure, not its root origin: the origin
         // is the build spot of the first sections and floats in empty space
         // once they are destroyed (task 20260709-150711).
-        let Some(target_anchor) = ai_target_anchor(target, &q_target) else {
+        let Some(target_anchor) = ai_target_anchor(**target, &q_target) else {
             continue;
         };
         // Both ends of the chase vector track live structure: the AI's own
@@ -409,7 +498,7 @@ fn on_thruster_input(
         // A non-engaging state (or no target left to chase) cuts the burn -
         // written as an explicit 0.0, not a skip, so a ship that was
         // thrusting when the state flipped actually stops.
-        let thrust_level = match ai_target_anchor(target, &q_target) {
+        let thrust_level = match ai_target_anchor(**target, &q_target) {
             Some(target_anchor) if state.engages() => {
                 // Same live-structure vector as the rotation system, so the
                 // thrust gate and the rotation command agree on where
@@ -449,29 +538,30 @@ fn update_turret_target_input(
         With<TurretSectionMarker>,
     >,
     q_spaceship: Query<
-        (Entity, &AIBehaviorState, &AITarget),
+        (Entity, &AIBehaviorState, &AITarget, &AIPointDefenseTarget),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
     q_target_velocity: Query<&LinearVelocity>,
 ) {
-    for (entity, state, target) in &q_spaceship {
-        // Aim at the target's live structure: fire converging on the root
-        // origin lands in empty space once its front sections die (task
-        // 20260709-150711). A non-engaging state (or no target) clears the
-        // aim: turrets slew back to rest instead of tracking a fight that
-        // is over.
-        let aim = if state.engages() {
-            ai_target_anchor(target, &q_target)
-        } else {
-            None
-        };
+    for (entity, state, target, pd_target) in &q_spaceship {
+        // The PDC override first: an inbound torpedo pulls the guns off the
+        // primary target (the turrets' main purpose is torpedo defense -
+        // user decision 20260710), and it applies in EVERY behavior state:
+        // a patrolling or idle ship still defends itself. Otherwise the
+        // engaging states track the primary target, and non-engaging states
+        // clear the aim so turrets slew back to rest.
+        let gun_target = (**pd_target).or_else(|| if state.engages() { **target } else { None });
+        // Aim at the live structure: fire converging on the root origin
+        // lands in empty space once the front sections die (task
+        // 20260709-150711).
+        let aim = ai_target_anchor(gun_target, &q_target);
         // Feed the target root's velocity alongside the position so
         // lead_intercept_point computes a real lead for AI turrets - the
         // AI-side sibling of the player lock feed (20260709-173700). The
         // solve is shooter-frame-correct on its own (20260709-211701).
         let velocity = aim
-            .and_then(|_| (**target).and_then(|entity| q_target_velocity.get(entity).ok()))
+            .and_then(|_| gun_target.and_then(|entity| q_target_velocity.get(entity).ok()))
             .map(|velocity| **velocity)
             .unwrap_or(Vec3::ZERO);
         for (mut turret_input, mut turret_velocity, _) in q_turret
@@ -550,22 +640,33 @@ fn on_projectile_input(
     >,
     q_muzzle: Query<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>,
     q_spaceship: Query<
-        (Entity, &AIBehaviorState, &AITarget, &AIFireCadence),
+        (
+            Entity,
+            &AIBehaviorState,
+            &AITarget,
+            &AIPointDefenseTarget,
+            &AIFireCadence,
+        ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {
-    for (entity, state, target, cadence) in &q_spaceship {
-        let target_anchor = ai_target_anchor(target, &q_target);
+    for (entity, state, target, pd_target, cadence) in &q_spaceship {
+        // Same gun-target resolution as the aim system: PDC override first,
+        // in every behavior state. While defending, the burst cadence is
+        // BYPASSED - point defense fires continuously; bursts are a
+        // discipline for shooting at ships, not at inbound ordnance.
+        let defending = pd_target.is_some();
+        let gun_target = (**pd_target).or_else(|| if state.engages() { **target } else { None });
+        let target_anchor = ai_target_anchor(gun_target, &q_target);
+        let firing_allowed = defending || (state.engages() && cadence.firing);
         for (muzzle, aim_point, config, mut input, _) in q_turret
             .iter_mut()
             .filter(|(_, _, _, _, ChildOf(c_parent))| *c_parent == entity)
         {
-            // Hold fire outside the engaging states, with no target, or
-            // outside the burst window - written as an explicit false so a
-            // firing turret stops.
-            let (Some(target_anchor), true) = (target_anchor, state.engages() && cadence.firing)
-            else {
+            // Hold fire with no gun target or outside the burst window -
+            // written as an explicit false so a firing turret stops.
+            let (Some(target_anchor), true) = (target_anchor, firing_allowed) else {
                 **input = false;
                 continue;
             };
@@ -979,6 +1080,7 @@ mod physics_tests {
             FixedUpdate,
             (
                 update_ai_target,
+                update_point_defense_target,
                 update_behavior_state,
                 update_controller_target_rotation_torque,
                 update_controller_section_rotation_input,
@@ -1397,6 +1499,186 @@ mod fire_discipline_tests {
         assert!(
             !**world.entity(turret).get::<TurretSectionInput>().unwrap(),
             "hold phase: no fire, alignment notwithstanding"
+        );
+    }
+}
+
+#[cfg(test)]
+mod point_defense_tests {
+    use bevy::ecs::system::RunSystemOnce;
+
+    use super::*;
+
+    fn entity(raw: u32) -> Entity {
+        Entity::from_raw_u32(raw).unwrap()
+    }
+
+    // -- the pure picker --
+
+    #[test]
+    fn a_torpedo_hunting_me_outranks_a_nearer_one_hunting_someone_else() {
+        let mine = entity(1);
+        let other = entity(2);
+        let picked = pick_point_defense_target(
+            Vec3::ZERO,
+            [
+                (other, Vec3::new(0.0, 0.0, -50.0), false),
+                (mine, Vec3::new(0.0, 0.0, -300.0), true),
+            ]
+            .into_iter(),
+        );
+        assert_eq!(picked, Some(mine));
+    }
+
+    #[test]
+    fn nearest_wins_within_a_threat_tier_and_range_gates() {
+        let near = entity(1);
+        let far = entity(2);
+        assert_eq!(
+            pick_point_defense_target(
+                Vec3::ZERO,
+                [
+                    (far, Vec3::new(0.0, 0.0, -350.0), true),
+                    (near, Vec3::new(0.0, 0.0, -100.0), true),
+                ]
+                .into_iter(),
+            ),
+            Some(near)
+        );
+        assert_eq!(
+            pick_point_defense_target(
+                Vec3::ZERO,
+                [(near, Vec3::new(0.0, 0.0, -500.0), true)].into_iter(),
+            ),
+            None,
+            "outside point-defense range: the primary target keeps the guns"
+        );
+    }
+
+    // -- the acquisition + turret override --
+
+    /// An AI ship engaged on the player, with a hostile committed torpedo
+    /// hunting the AI ship inside point-defense range. Returns
+    /// (world, ai_ship, player, torpedo, turret).
+    fn defended_world() -> (World, Entity, Entity, Entity, Entity) {
+        let mut world = World::new();
+        let player = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::from_translation(Vec3::new(300.0, 0.0, 0.0)),
+                LinearVelocity(Vec3::ZERO),
+            ))
+            .id();
+        let ai_ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let torpedo = world
+            .spawn((
+                TorpedoProjectileMarker,
+                TorpedoTargetChosen,
+                TorpedoTargetEntity(ai_ship),
+                Allegiance::Player,
+                Transform::from_translation(Vec3::new(0.0, 0.0, -150.0)),
+                LinearVelocity(Vec3::new(0.0, 0.0, 30.0)),
+            ))
+            .id();
+        let turret = world
+            .spawn((
+                TurretSectionMarker,
+                TurretSectionTargetInput(None),
+                TurretSectionTargetVelocity(Vec3::ZERO),
+                TurretSectionAimPoint(None),
+                TurretSectionConfigHelper(TurretSectionConfig::default()),
+                TurretSectionInput(false),
+                TurretSectionMuzzleEntity(Entity::PLACEHOLDER),
+                ChildOf(ai_ship),
+            ))
+            .id();
+        (world, ai_ship, player, torpedo, turret)
+    }
+
+    #[test]
+    fn the_guns_defend_while_the_hull_keeps_chasing_the_ship() {
+        let (mut world, ai_ship, player, torpedo, turret) = defended_world();
+
+        world.run_system_once(update_ai_target).unwrap();
+        world.run_system_once(update_point_defense_target).unwrap();
+        world.run_system_once(update_turret_target_input).unwrap();
+
+        // Flight target: still the hostile SHIP (ship-first tiers).
+        assert_eq!(
+            **world.entity(ai_ship).get::<AITarget>().unwrap(),
+            Some(player),
+            "the hull keeps chasing the ship"
+        );
+        // Gun target: the inbound torpedo, position and velocity.
+        assert_eq!(
+            **world.entity(ai_ship).get::<AIPointDefenseTarget>().unwrap(),
+            Some(torpedo)
+        );
+        assert_eq!(
+            **world
+                .entity(turret)
+                .get::<TurretSectionTargetInput>()
+                .unwrap(),
+            Some(Vec3::new(0.0, 0.0, -150.0)),
+            "the guns aim at the torpedo, not the ship"
+        );
+        assert_eq!(
+            **world
+                .entity(turret)
+                .get::<TurretSectionTargetVelocity>()
+                .unwrap(),
+            Vec3::new(0.0, 0.0, 30.0),
+            "the lead feed follows the gun target"
+        );
+    }
+
+    #[test]
+    fn point_defense_bypasses_the_burst_hold() {
+        let (mut world, ai_ship, _, _, turret) = defended_world();
+        // Muzzle at the origin facing -Z: dead on the torpedo at -150.
+        let muzzle = world
+            .spawn((TurretSectionBarrelMuzzleMarker, GlobalTransform::IDENTITY))
+            .id();
+        world
+            .entity_mut(turret)
+            .insert(TurretSectionMuzzleEntity(muzzle));
+        // Force the cadence into a hold phase: bursts must not delay defense.
+        {
+            let mut entity = world.entity_mut(ai_ship);
+            let mut cadence = entity.get_mut::<AIFireCadence>().unwrap();
+            cadence.tick(core::time::Duration::from_secs_f32(
+                AI_BURST_FIRE_SECS + 0.01,
+            ));
+            assert!(!cadence.firing);
+        }
+
+        world.run_system_once(update_ai_target).unwrap();
+        world.run_system_once(update_point_defense_target).unwrap();
+        world.run_system_once(on_projectile_input).unwrap();
+
+        assert!(
+            **world.entity(turret).get::<TurretSectionInput>().unwrap(),
+            "PDC fires through the burst hold"
+        );
+    }
+
+    #[test]
+    fn an_idle_ship_still_defends_itself() {
+        let (mut world, ai_ship, _, torpedo, turret) = defended_world();
+        world.entity_mut(ai_ship).insert(AIBehaviorState::Idle);
+
+        world.run_system_once(update_point_defense_target).unwrap();
+        world.run_system_once(update_turret_target_input).unwrap();
+
+        let _ = torpedo;
+        assert_eq!(
+            **world
+                .entity(turret)
+                .get::<TurretSectionTargetInput>()
+                .unwrap(),
+            Some(Vec3::new(0.0, 0.0, -150.0)),
+            "point defense applies in every behavior state"
         );
     }
 }
