@@ -1,6 +1,6 @@
 # Hit feedback / game juice (camera shake, hit flash, impact FX)
 
-- STATUS: DONE
+- STATUS: CLOSED
 - PRIORITY: 88
 - TAGS: v0.4.0,polish,destruction
 
