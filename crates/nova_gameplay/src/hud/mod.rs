@@ -5,12 +5,14 @@ use crate::prelude::*;
 pub mod flight_status;
 pub mod screen_indicator;
 pub mod torpedo_target;
+pub mod turret_lead;
 pub mod velocity;
 
 pub mod prelude {
     pub use super::{
         flight_status::prelude::*, screen_indicator::prelude::*, torpedo_target::prelude::*,
-        velocity::prelude::*, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
+        turret_lead::prelude::*, velocity::prelude::*, NovaHudAssets, NovaHudPlugin,
+        NovaHudSystems,
     };
 }
 
@@ -38,6 +40,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(ObjectivesPlugin);
         app.add_plugins(screen_indicator::ScreenIndicatorPlugin);
         app.add_plugins(torpedo_target::TorpedoTargetHudPlugin);
+        app.add_plugins(turret_lead::TurretLeadPlugin);
 
         // Keep the generic HUD widgets inside nova's HUD ordering slot, as the local ones were.
         app.configure_sets(
@@ -67,6 +70,8 @@ impl Plugin for NovaHudPlugin {
         app.add_observer(remove_hud_objectives);
         app.add_observer(setup_hud_torpedo_target);
         app.add_observer(remove_hud_torpedo_target);
+        app.add_observer(setup_hud_turret_lead);
+        app.add_observer(remove_hud_turret_lead);
     }
 }
 
@@ -239,6 +244,38 @@ fn remove_hud_objectives(
 ) {
     let entity = remove.entity;
     debug!("remove_hud_objectives: entity {:?}", entity);
+
+    for hud_entity in &q_hud {
+        commands.entity(hud_entity).despawn();
+    }
+}
+
+fn setup_hud_turret_lead(
+    add: On<Add, PlayerSpaceshipMarker>,
+    mut commands: Commands,
+    q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+) {
+    let entity = add.entity;
+    debug!("setup_hud_turret_lead: entity {:?}", entity);
+
+    let Ok(_spaceship) = q_spaceship.get(entity) else {
+        error!(
+            "setup_hud_turret_lead: entity {:?} not found in q_spaceship",
+            entity
+        );
+        return;
+    };
+
+    commands.spawn(turret_lead_hud());
+}
+
+fn remove_hud_turret_lead(
+    remove: On<Remove, PlayerSpaceshipMarker>,
+    mut commands: Commands,
+    q_hud: Query<Entity, With<TurretLeadHudMarker>>,
+) {
+    let entity = remove.entity;
+    debug!("remove_hud_turret_lead: entity {:?}", entity);
 
     for hud_entity in &q_hud {
         commands.entity(hud_entity).despawn();

@@ -1,8 +1,8 @@
 # Turret lead/intercept pip (HUD)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 72
-- TAGS: v0.4.0,hud,turret,spike
+- TAGS: v0.4.0, hud, turret, spike
 
 ## Goal
 
@@ -18,33 +18,33 @@ docs/spikes/20260709-164502-screen-indicator-architecture.md.
 
 ## Steps
 
-- [ ] Create `crates/nova_gameplay/src/hud/turret_lead.rs`: pip consumer
+- [x] Create `crates/nova_gameplay/src/hud/turret_lead.rs`: pip consumer
       module with `TurretLeadPipMarker` and `TurretLeadPipTurret(Entity)`
       linking each pip to its turret section. Pip visual: small fixed-size
-      plain `Node` (about 8 px, tinted `BackgroundColor`), no new sprite
-      asset; `Fixed` size, `Hide` off-screen policy.
-- [ ] Lifecycle via observers (hud/mod.rs pattern): on
-      `On<Add, PlayerSpaceshipMarker>` spawn one pip per turret child of the
-      ship root (`ChildOf` == root + `With<TurretSectionMarker>`, the
-      player.rs:158 enumeration pattern) under a `screen_indicator_layer()`;
-      despawn pips on `On<Remove, PlayerSpaceshipMarker>` and when their
-      turret entity is despawned (`On<Remove, TurretSectionMarker>`).
-- [ ] Driver system: copy each turret's `TurretSectionAimPoint` into the
+      plain `Node` (8 px, amber `BackgroundColor`), no new sprite asset;
+      `Fixed` size, `Hide` off-screen policy.
+- [x] Lifecycle (adjusted from the planned observers, see Notes): the layer
+      spawns/despawns with the player ship via hud/mod.rs observers like the
+      sibling overlays, but pip membership is a per-frame reconcile system
+      `sync_turret_pips` - one idempotent pass spawns missing pips and
+      despawns orphans, covering turrets destroyed mid-fight and sections
+      attached after the player marker without observer choreography.
+- [x] Driver system: copy each turret's `TurretSectionAimPoint` into the
       pip's `ScreenIndicatorAnchor` as `Point`/None each frame; force None
       when the turret carries `SectionInactiveMarker` (the aim-point system
       does not clear stale values for inactive turrets - verified in
       turret_section.rs `update_turret_aim_point`).
-- [ ] Register the module in `NovaHudPlugin` and the hud prelude.
-- [ ] Behavioral tests: aim point Some -> anchor Point, inactive turret ->
+- [x] Register the module in `NovaHudPlugin` and the hud prelude.
+- [x] Behavioral tests: aim point Some -> anchor Point, inactive turret ->
       anchor None, turret despawn -> pip despawned, second turret gets its
-      own pip.
-- [ ] Extend `examples/12_hud_range.rs`: give the ship a turret and a moving
-      target; assert a pip is visible near the projected
-      `TurretSectionAimPoint` while tracking, and disappears when the turret
-      loses its target (mandatory expects, asserted-at-exit guard).
-- [ ] Verify: `cargo fmt`, `cargo check --workspace`, run only the newly
+      own pip, other ships' turrets ignored, reconcile idempotent.
+- [x] Extend `examples/12_hud_range.rs`: player ship gains a
+      better_turret_section; assert the pip is visible on the projected
+      `TurretSectionAimPoint` while tracking (0.0 px drift) and hides when
+      the section is disabled (mandatory expects, asserted-at-exit guard).
+- [x] Verify: `cargo fmt`, `cargo check --workspace`, run only the newly
       written tests (skip full suite per user instruction; report skips).
-- [ ] Extend `docs/2026-07-09-screen-indicator-widget.md` with the pip
+- [x] Extend `docs/2026-07-09-screen-indicator-widget.md` with the pip
       consumer section.
 
 ## Notes
@@ -54,3 +54,23 @@ docs/spikes/20260709-164502-screen-indicator-architecture.md.
   of the ship root; per-turret pips, so a multi-turret ship shows several.
 - The aim point is a bare world point recomputed each frame - this is the
   `Point` anchor case the widget was designed for.
+
+## Resolution (20260709)
+
+Shipped: `hud/turret_lead.rs` (one amber 8 px pip per player turret on the
+turret's `TurretSectionAimPoint`, Point-anchored on the screen-indicator
+widget), layer observers in hud/mod.rs, 4 behavioral tests, pip stages in
+`examples/12_hud_range.rs` (PASS: pip on the projected aim point at 0.0 px
+drift, hidden after the section is disabled). Doc section added to
+docs/2026-07-09-screen-indicator-widget.md.
+
+Deviation from plan: pip membership is a reconcile system rather than
+add/remove observers - turrets can be destroyed mid-fight and sections can
+attach after `PlayerSpaceshipMarker`, and a single idempotent pass covers
+every ordering; the plan step was updated to match. The player-input turret
+never drops its target input (it always aims down the camera ray), so the
+example exercises the disappearing-pip path through `SectionInactiveMarker`,
+the same marker the health pipeline sets on disabled sections.
+
+Skipped honestly per user instruction: full local test suite and clippy
+(check + fmt + the 29 hud tests only).

@@ -1,15 +1,16 @@
 //! 12_hud_range: verify the screen-projected HUD indicators, live.
 //!
-//! Task 20260708-165700: the torpedo-lock reticle and the autopilot
-//! destination marker are now consumers of the generic screen-indicator
-//! widget (`hud/screen_indicator.rs`). This range checks the whole wiring in
-//! the real app: the camera glue observer tags the chase camera, the
-//! aim-assist lock drives the reticle anchor, the engaged GOTO drives the
-//! destination marker, and both indicators hide again when their anchor dies.
+//! Tasks 20260708-165700/165701: the torpedo-lock reticle, the autopilot
+//! destination marker and the turret lead pips are consumers of the generic
+//! screen-indicator widget (`hud/screen_indicator.rs`). This range checks the
+//! whole wiring in the real app: the camera glue observer tags the chase
+//! camera, the aim-assist lock drives the reticle anchor, the engaged GOTO
+//! drives the destination marker, the turret's computed intercept point
+//! drives its pip, and every indicator hides again when its anchor dies.
 //!
-//! One player ship at the origin facing -Z, one uncontrolled target ship
-//! parked dead ahead at z = -150 - inside the aim-assist cone, so the lock
-//! acquires by itself.
+//! One player ship at the origin facing -Z (with one turret, so exactly one
+//! lead pip exists), one uncontrolled target ship parked dead ahead at
+//! z = -150 - inside the aim-assist cone, so the lock acquires by itself.
 //!
 //! Controls: none needed; fly and look around freely in interactive runs.
 //!
@@ -17,12 +18,13 @@
 //! ```text
 //! BCS_AUTOPILOT=1 cargo run --example 12_hud_range --features debug
 //! # scripted (relative to entering Playing): at +2s assert the aim-assist
-//! # locked the target and the reticle is visible and centered on the
-//! # target's projection; at +2.5s engage a GOTO on the target; at +3.5s
+//! # locked the target, the reticle is visible and centered on the target's
+//! # projection, and the turret lead pip is visible on the projected
+//! # TurretSectionAimPoint; at +2.5s engage a GOTO on the target; at +3.5s
 //! # assert the destination marker is visible and centered on it; at +4s
-//! # despawn the target; at +4.5s assert both indicators hid again. Exits
-//! # non-zero on any failed stage or if the script never finishes (e.g.
-//! # loading ate the window).
+//! # despawn the target and disable the turret section; at +4.5s assert all
+//! # three indicators hid again. Exits non-zero on any failed stage or if
+//! # the script never finishes (e.g. loading ate the window).
 //! ```
 
 use bevy::{platform::collections::HashMap, prelude::*};
@@ -110,11 +112,20 @@ fn hud_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
         ]
     };
 
+    let mut player_sections = sections_line("player");
+    player_sections.push(SpaceshipSectionConfig {
+        id: "player_turret".to_string(),
+        position: Vec3::new(0.0, 0.0, -1.0),
+        // Matches the turret placement in 08_turret_range so the base sits
+        // upright.
+        rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
+        config: section("better_turret_section"),
+    });
     let player = SpaceshipConfig {
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: HashMap::new(),
         }),
-        sections: sections_line("player"),
+        sections: player_sections,
     };
     let target = SpaceshipConfig {
         controller: SpaceshipController::None,
@@ -177,6 +188,18 @@ fn target_root(world: &mut World) -> Option<Entity> {
         .query_filtered::<Entity, (With<SpaceshipRootMarker>, Without<PlayerSpaceshipMarker>)>()
         .iter(world)
         .next()
+}
+
+/// The player ship's turret section. Mandatory: the range spawns exactly one.
+#[cfg(feature = "debug")]
+fn player_turret(world: &mut World) -> Entity {
+    let player = player_root(world);
+    world
+        .query_filtered::<(Entity, &ChildOf), With<TurretSectionMarker>>()
+        .iter(world)
+        .find(|(_, ChildOf(parent))| *parent == player)
+        .map(|(turret, _)| turret)
+        .expect("hud range: the player ship has no turret section")
 }
 
 /// Fresh projection of `world_pos` through the screen-indicator camera. The
@@ -286,6 +309,31 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
             size.x
         );
         info!("hud range: lock + reticle OK (drift {drift:.1} px, size {size:?})");
+
+        // The turret aims where the player aims (a point 100 m down the
+        // camera ray), so its intercept point exists from the first Playing
+        // frame and its pip must be visible on that point's projection.
+        let turret = player_turret(world);
+        let aim_point = (**world
+            .entity(turret)
+            .get::<TurretSectionAimPoint>()
+            .expect("hud range: the turret has no aim point component"))
+        .expect("hud range: the turret never computed an intercept point");
+        let expected_pip = project_through_indicator_camera(world, aim_point);
+        let (pip_center, _, pip_visibility) =
+            indicator_state::<TurretLeadPipMarker>(world, "turret lead pip");
+        assert_eq!(
+            pip_visibility,
+            Visibility::Visible,
+            "hud range: the lead pip is not visible while the turret tracks"
+        );
+        let pip_drift = pip_center.distance(expected_pip);
+        assert!(
+            pip_drift < CENTER_TOLERANCE_PX,
+            "hud range: lead pip center {pip_center:?} is {pip_drift:.1} px \
+             from the projected aim point {expected_pip:?}"
+        );
+        info!("hud range: turret lead pip OK (drift {pip_drift:.1} px)");
     }
 
     if t > 2.5 && !engaged_goto {
@@ -328,7 +376,12 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
         world.resource_mut::<HudRangeScript>().killed_target = true;
         let target = target_root(world).expect("hud range: target ship vanished before the kill");
         world.entity_mut(target).despawn();
-        info!("hud range: target ship despawned");
+        // The turret keeps aiming at the camera ray even with no enemy, so
+        // its anchor only clears through the disabled path: mark the section
+        // inactive like the health pipeline does.
+        let turret = player_turret(world);
+        world.entity_mut(turret).insert(SectionInactiveMarker);
+        info!("hud range: target ship despawned, turret section disabled");
     }
 
     if t > 4.5 && !done {
@@ -347,6 +400,13 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
             marker_visibility,
             Visibility::Hidden,
             "hud range: the destination marker is still visible after the GOTO target died"
+        );
+        let (_, _, pip_visibility) =
+            indicator_state::<TurretLeadPipMarker>(world, "turret lead pip");
+        assert_eq!(
+            pip_visibility,
+            Visibility::Hidden,
+            "hud range: the lead pip is still visible after the turret was disabled"
         );
         info!("hud range: PASS - indicators track their anchors and hide when they die");
     }

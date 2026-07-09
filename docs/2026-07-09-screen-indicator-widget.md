@@ -1,6 +1,7 @@
 # Screen-projected-indicator widget (HUD substrate)
 
-- TASK: 20260708-165700
+- TASKS: 20260708-165700 (widget + migrations), 20260708-165701 (turret lead
+  pip)
 - SPIKES: docs/spikes/20260708-165647-weapons-hud.md (direction),
   docs/spikes/20260709-164502-screen-indicator-architecture.md (architecture)
 
@@ -35,6 +36,17 @@ consume it:
   `SpaceshipCameraController` onto `ScreenIndicatorCamera`, keeping the
   widget itself camera-agnostic (promotable to bevy_common_systems, task
   20260709-164608).
+- **Turret lead pips** (`hud/turret_lead.rs`, task 20260708-165701): the
+  first fresh consumer and the first `Point`-anchor user. One 8 px amber pip
+  per turret child of the player ship, drawn at the turret's computed
+  intercept point (`TurretSectionAimPoint`). Membership is a per-frame
+  reconcile system (`sync_turret_pips`) rather than add/remove observers:
+  turret sections die mid-fight and ships can gain sections after the player
+  marker lands, and one idempotent pass covers every ordering. The driver
+  clears the anchor for `SectionInactiveMarker` turrets explicitly, because
+  `update_turret_aim_point` keeps computing aim points for disabled turrets.
+  The layer spawns/despawns with the player ship via the hud/mod.rs
+  observers like every other overlay.
 
 ## Why this design
 
@@ -69,19 +81,22 @@ Migration is not pixel-identical; the differences are deliberate:
 
 ## Verification
 
-- 24 unit/behavioral tests in the hud modules (`cargo test -p nova_gameplay
+- 29 unit/behavioral tests in the hud modules (`cargo test -p nova_gameplay
   --lib hud::`), including whole-system runs against a fabricated camera
   (90 degree vertical FOV, 800x600 target, identity transform): anchor
   lifecycle, offset, both off-screen policies with arrow rotation, apparent
-  size vs its projected expectation, missing-camera hiding, and both
-  consumer drivers.
+  size vs its projected expectation, missing/duplicate-camera handling, the
+  reticle and destination drivers, and the pip reconcile + driver (spawn per
+  turret, despawn on turret death, other ships ignored, inactive turrets
+  cleared).
 - Scripted range `examples/12_hud_range.rs` (BCS_AUTOPILOT timeline on a
   1280x720 Xvfb display): the aim-assist locks a ship parked 150 m dead
   ahead, the reticle centers on its projection (0.0 px drift, 32 px minimum
-  size), an engaged GOTO shows the destination marker on the same ship
-  (0.1 px drift), and despawning the ship hides both indicators. Mandatory
-  `expect` lookups and an asserted-at-exit backstop per the com-range retro
-  lessons.
+  size), the turret lead pip sits on the projected `TurretSectionAimPoint`
+  (0.0 px drift), an engaged GOTO shows the destination marker on the same
+  ship (0.1 px drift), and despawning the target + disabling the turret
+  hides all three indicators. Mandatory `expect` lookups and an
+  asserted-at-exit backstop per the com-range retro lessons.
 - Honest skips (user instruction): the full workspace test suite and clippy
   were not run locally; `cargo check --workspace` (via the example build) and
   `cargo fmt` are green, and only the newly written tests were executed.
