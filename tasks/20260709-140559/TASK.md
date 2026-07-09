@@ -1,6 +1,6 @@
 # Torpedo blast self-harm at close range: own ship and salvo siblings caught in blast
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.4.0,torpedo,balance
 
@@ -40,3 +40,12 @@ This is a balance/design question, not a code bug:
   owner-filter fix, as expected.
 - Related: 20260709-091756 (one hit = one cue dedup) will change how such blasts
   sound/feel; 20260525-133025 (ammo limits) raises the cost of losing a salvo.
+
+## Decision
+
+We decided to keep the blast as-is: it can hurt the firing ship and its salvo
+siblings. The rationale is that this encourages players to maintain a safe
+distance when firing torpedoes, adding a layer of tactical consideration to
+their use. Players will need to be mindful of their positioning and the timing
+of their shots to avoid self-inflicted damage, which can lead to more strategic
+gameplay.
