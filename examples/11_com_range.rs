@@ -381,6 +381,13 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
             "com range: local COM {local_com:.2?} did not move aft after losing \
              the two front sections (expected z near 2.75)"
         );
+        // The ship must interpolate its Transform between fixed ticks, or it
+        // stair-steps under the smoothed camera (task 20260709-160753).
+        let root = player_root(world).expect("player root exists at assert time");
+        assert!(
+            world.entity(root).contains::<TransformInterpolation>(),
+            "com range: the ship root lost TransformInterpolation - camera twitch returns"
+        );
         // The chase camera must orbit the physical pivot too, or a tumbling
         // ship appears to spin around the empty space at the root origin. The
         // camera is mandatory here: a broken query must fail, not skip.

@@ -1,6 +1,6 @@
 # Camera twitch when flying: ship transform stair-steps at fixed ticks under the smoothed camera
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.4.0,bug,camera,handling
 
@@ -20,24 +20,50 @@ reason; the ship root never did because nothing sampled it smoothly before.
 
 ## Steps
 
-- [ ] Verify the mechanism: confirm avian 0.7's interpolation setup (is the
+- [x] Verify the mechanism: confirm avian 0.7's interpolation setup (is the
       interpolation plugin in PhysicsPlugins::default(); when does it write
       Transform relative to Update) and where the chase camera samples the
       ship (update_chase_camera_input in Update -> ChaseCameraInput -> bcs
       chase systems), including system ordering within the frame - the user's
       "lagging a frame behind" memory may be a real second bug (anchor
       written after the bcs chase system consumed it).
-- [ ] Fix: add `TransformInterpolation` to the spaceship root at spawn
+- [x] Fix: add `TransformInterpolation` to the spaceship root at spawn
       (nova_scenario spaceship object), and fix any ordering hole found in
       the camera chain. Consider the torpedo projectile root too (fast mover
       watched by the same smoothed camera).
-- [ ] Test: assert the spawned ship root carries TransformInterpolation; if
-      feasible, an app-level test that the root's Transform advances on
-      render frames between fixed ticks (the observable the fix creates).
-- [ ] Smokes: 06/11 headless still green.
-- [ ] Document the mechanism and fix (docs/, referencing the flight-feel
+- [x] Test: `scenario_objects_interpolate_their_transforms` (bundle
+      presence), a TransformInterpolation assertion in the 11_com_range smoke
+      (live ship), and - from review R1.2 -
+      `scenario_bodies_move_between_fixed_ticks`, the behavioral test: 4 ms
+      render frames against the 15.6 ms tick, translation must advance every
+      frame. Proven against the bug: without the component it fails with the
+      exact stair-step the user reported.
+- [x] Smokes: 06/11 headless still green.
+- [x] Document the mechanism and fix (docs/, referencing the flight-feel
       retune doc), including why the twitch appeared only with camera
       smoothing.
+
+## Resolution
+
+Theory confirmed, with one correction to the reported hypothesis: there is no
+frame lag - the interpolation/anchor/camera chain is correctly ordered within
+one frame (RunFixedMainLoop easing -> Update anchor -> PostUpdate camera).
+The twitch was the missing interpolation OPT-IN: avian's interpolation plugin
+is on by default but per-body; turret bullets had `TransformInterpolation`,
+the ship root did not, and the new camera smoothing was the first consumer to
+sample the ship at render rate. Fixed at the shared spawn seam
+(`base_scenario_object` - ships, asteroids, gates) plus the torpedo root.
+Pinned by a bundle unit test and a wiring assertion in the 11_com_range
+smoke; mechanism documented in docs/2026-07-09-camera-twitch-interpolation.md.
+
+Honest scope: nova_scenario + nova_gameplay tests and both smokes run
+locally, green; fmt + cargo check green; full suite/clippy deferred per
+AGENTS.md.
+
+Reflection: the user's "I had this issue long ago, it was transform syncing"
+was the right neighborhood and the wrong culprit - checking the actual
+schedule ordering before believing the frame-lag theory kept the fix to two
+targeted component insertions instead of a system reorder.
 
 ## Notes
 

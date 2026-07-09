@@ -164,8 +164,100 @@ pub fn base_scenario_object(config: &BaseScenarioObjectConfig) -> impl Bundle {
         EntityId::new(config.id.clone()),
         Transform::from_translation(config.position).with_rotation(config.rotation),
         RigidBody::Dynamic,
+        // Physics advances Transform only on fixed ticks (64 Hz by
+        // default); everything
+        // watched by the render-rate camera must interpolate between them or
+        // it stair-steps. Invisible while the chase camera was bolted rigidly
+        // to the ship (both stepped together), but the camera smoothing from
+        // the flight-feel retune eases at render rate and exposed the steps
+        // as twitch (task 20260709-160753).
+        TransformInterpolation,
         Visibility::Visible,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The behavior the component buys (task 20260709-160753): a moving
+    /// scenario body's Transform advances on EVERY render frame, not just on
+    /// fixed physics ticks. 4 ms frames against the 15.6 ms tick mean at
+    /// most one tick lands inside any 3-frame span - without easing at
+    /// least two consecutive frames would show identical translations.
+    #[test]
+    fn scenario_bodies_move_between_fixed_ticks() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+
+        let mut app = App::new();
+        // Mirrors the integrity physics harness: MeshPlugin because avian's
+        // collider-from-mesh backend reads AssetEvent<Mesh> at startup.
+        app.add_plugins((
+            MinimalPlugins,
+            TransformPlugin,
+            bevy::asset::AssetPlugin::default(),
+            bevy::mesh::MeshPlugin,
+            PhysicsPlugins::default(),
+        ));
+        app.insert_resource(Gravity(Vec3::ZERO));
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            0.004,
+        )));
+        app.finish();
+
+        let body = app
+            .world_mut()
+            .spawn((
+                base_scenario_object(&BaseScenarioObjectConfig {
+                    id: "mover".to_string(),
+                    name: "Mover".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                }),
+                Collider::cuboid(1.0, 1.0, 1.0),
+                ColliderDensity(1.0),
+                LinearVelocity(Vec3::X * 10.0),
+            ))
+            .id();
+
+        // Warm up past two fixed ticks so the easing has start+end states.
+        for _ in 0..10 {
+            app.update();
+        }
+
+        // Four consecutive 4 ms frames: with easing every frame advances the
+        // translation; stair-stepping would repeat a value.
+        let mut positions = Vec::new();
+        for _ in 0..4 {
+            app.update();
+            positions.push(app.world().get::<Transform>(body).unwrap().translation.x);
+        }
+        for pair in positions.windows(2) {
+            assert!(
+                pair[1] > pair[0],
+                "translation must advance every render frame, got {positions:?}"
+            );
+        }
+    }
+
+    /// Every dynamic scenario body must interpolate its Transform between
+    /// fixed physics ticks, or it stair-steps under the smoothed chase
+    /// camera (task 20260709-160753).
+    #[test]
+    fn scenario_objects_interpolate_their_transforms() {
+        let mut world = World::new();
+        let entity = world
+            .spawn(base_scenario_object(&BaseScenarioObjectConfig {
+                id: "test".to_string(),
+                name: "Test".to_string(),
+                position: Vec3::ZERO,
+                rotation: Quat::IDENTITY,
+            }))
+            .id();
+        assert!(world.get::<TransformInterpolation>(entity).is_some());
+    }
 }
 
 #[derive(Clone, Debug)]

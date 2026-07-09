@@ -429,6 +429,9 @@ fn shoot_spawn_projectile(
             ProjectileOwner(*spaceship),
             projectile_transform,
             RigidBody::Dynamic,
+            // Fast mover watched by the smoothed chase camera: interpolate
+            // between fixed ticks like turret bullets do, or it stair-steps.
+            TransformInterpolation,
             LinearVelocity(linear_velocity),
             TorpedoSectionPartOf(section),
             TorpedoSectionSpawnerEntity(**spawner),
