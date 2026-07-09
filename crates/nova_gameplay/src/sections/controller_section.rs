@@ -9,8 +9,8 @@ use crate::prelude::{SectionInactiveMarker, SectionRenderOf};
 pub mod prelude {
     pub use super::{
         controller_section, preview_controller_section, ControllerSectionConfig,
-        ControllerSectionMarker, ControllerSectionPlugin, ControllerSectionRenderMarker,
-        ControllerSectionRotationInput,
+        ControllerSectionMarker, ControllerSectionPlugin, ControllerSectionRcsMagnitude,
+        ControllerSectionRenderMarker, ControllerSectionRotationInput,
     };
 }
 
@@ -23,6 +23,11 @@ pub struct ControllerSectionConfig {
     pub damping_ratio: f32,
     /// The maximum torque that can be applied by the PD controller.
     pub max_torque: f32,
+    /// The RCS translation authority this controller provides (impulse per
+    /// physics tick, same units as a thruster's magnitude). The flight
+    /// computer and its RCS quads live in this section, so losing it means
+    /// losing assisted flight and lateral/retro authority with it.
+    pub rcs_magnitude: f32,
     /// The render mesh of the hull section, defaults to a cuboid of size 1x1x1.
     pub render_mesh: Option<Handle<WorldAsset>>,
 }
@@ -33,6 +38,7 @@ impl Default for ControllerSectionConfig {
             frequency: 2.0,
             damping_ratio: 2.0,
             max_torque: 1.0,
+            rcs_magnitude: 0.5,
             render_mesh: None,
         }
     }
@@ -53,6 +59,7 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
             max_torque: config.max_torque,
         },
         ControllerSectionRotationInput::default(),
+        ControllerSectionRcsMagnitude(config.rcs_magnitude),
         ControllerSectionRenderMesh(config.render_mesh),
     )
 }
@@ -80,6 +87,13 @@ pub struct ControllerSectionMarker;
 #[derive(Component, Debug, Clone, Default, Deref, DerefMut, Reflect)]
 pub struct ControllerSectionRotationInput(pub Quat);
 
+/// The RCS translation authority (impulse per physics tick) this controller
+/// section grants its ship. Read by the flight computer (`crate::flight`); a
+/// disabled or destroyed controller therefore takes the RCS - and assisted
+/// flight - with it.
+#[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
+pub struct ControllerSectionRcsMagnitude(pub f32);
+
 /// A plugin that will enable the ControllerSection.
 #[derive(Default)]
 pub struct ControllerSectionPlugin {
@@ -89,6 +103,13 @@ pub struct ControllerSectionPlugin {
 impl Plugin for ControllerSectionPlugin {
     fn build(&self, app: &mut App) {
         debug!("ControllerSectionPlugin: build");
+
+        // Register the section's reflected components so the debug inspector
+        // (and the flight-feel retune) can see and edit them - the RCS
+        // authority especially is a per-ship tunable.
+        app.register_type::<ControllerSectionMarker>()
+            .register_type::<ControllerSectionRotationInput>()
+            .register_type::<ControllerSectionRcsMagnitude>();
 
         app.add_observer(insert_controller_section_target);
 

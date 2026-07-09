@@ -80,6 +80,7 @@ impl Plugin for NovaGameplayPlugin {
         app.add_plugins(crate::hud::NovaHudPlugin);
         app.add_plugins(crate::camera_controller::SpaceshipCameraControllerPlugin);
         app.add_plugins(crate::integrity::NovaIntegrityPlugin);
+        app.add_plugins(crate::flight::NovaFlightPlugin);
         app.add_plugins(crate::audio::NovaAudioPlugin);
         app.add_plugins(crate::juice::NovaJuicePlugin);
 

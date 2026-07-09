@@ -19,7 +19,7 @@ use bevy_common_systems::prelude::IntegrityPlugin;
 pub mod explode;
 pub mod glue;
 #[cfg(test)]
-mod test_support;
+pub(crate) mod test_support;
 
 pub mod prelude {
     pub use super::{explode::prelude::*, NovaIntegrityPlugin};

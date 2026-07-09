@@ -2,13 +2,14 @@ use bevy::prelude::*;
 
 use crate::prelude::*;
 
+pub mod flight_status;
 pub mod torpedo_target;
 pub mod velocity;
 
 pub mod prelude {
     pub use super::{
-        torpedo_target::prelude::*, velocity::prelude::*, NovaHudAssets, NovaHudPlugin,
-        NovaHudSystems,
+        flight_status::prelude::*, torpedo_target::prelude::*, velocity::prelude::*, NovaHudAssets,
+        NovaHudPlugin, NovaHudSystems,
     };
 }
 
@@ -30,6 +31,7 @@ impl Plugin for NovaHudPlugin {
         app.init_resource::<NovaHudAssets>();
 
         app.add_plugins(velocity::VelocityHudPlugin);
+        app.add_plugins(flight_status::FlightStatusHudPlugin);
         // The health and objectives HUDs are now the generic bevy_common_systems widgets.
         app.add_plugins(HealthDisplayPlugin);
         app.add_plugins(ObjectivesPlugin);
@@ -48,6 +50,8 @@ impl Plugin for NovaHudPlugin {
         // Setup and remove HUDs when player spaceship is added/removed
         app.add_observer(setup_hud_velocity);
         app.add_observer(remove_hud_velocity);
+        app.add_observer(setup_hud_flight_status);
+        app.add_observer(remove_hud_flight_status);
         app.add_observer(setup_hud_health);
         app.add_observer(remove_hud_health);
         app.add_observer(setup_hud_objectives);
@@ -87,6 +91,42 @@ fn remove_hud_velocity(
 ) {
     let entity = remove.entity;
     debug!("remove_hud_velocity: entity {:?}", entity);
+
+    for (hud_entity, target) in &q_hud {
+        if **target == entity {
+            commands.entity(hud_entity).despawn();
+        }
+    }
+}
+
+fn setup_hud_flight_status(
+    add: On<Add, PlayerSpaceshipMarker>,
+    mut commands: Commands,
+    q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+) {
+    let entity = add.entity;
+    debug!("setup_hud_flight_status: entity {:?}", entity);
+
+    let Ok(spaceship) = q_spaceship.get(entity) else {
+        error!(
+            "setup_hud_flight_status: entity {:?} not found in q_spaceship",
+            entity
+        );
+        return;
+    };
+
+    commands.spawn((flight_status_hud(FlightStatusHudConfig {
+        target: spaceship,
+    }),));
+}
+
+fn remove_hud_flight_status(
+    remove: On<Remove, PlayerSpaceshipMarker>,
+    mut commands: Commands,
+    q_hud: Query<(Entity, &FlightStatusHudTargetEntity), With<FlightStatusHudMarker>>,
+) {
+    let entity = remove.entity;
+    debug!("remove_hud_flight_status: entity {:?}", entity);
 
     for (hud_entity, target) in &q_hud {
         if **target == entity {

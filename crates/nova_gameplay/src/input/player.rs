@@ -24,6 +24,15 @@ impl Plugin for SpaceshipPlayerInputPlugin {
 
         app.insert_resource(SpaceshipPlayerTorpedoTargetEntity::default());
 
+        app.add_input_context::<FlightInputMarker>();
+        app.add_observer(on_player_added_spawn_flight_input);
+        app.add_observer(on_player_removed_despawn_flight_input);
+        app.add_observer(on_flight_move_input);
+        app.add_observer(on_flight_move_input_completed);
+        app.add_observer(on_flight_brake_input);
+        app.add_observer(on_flight_brake_input_completed);
+        app.add_observer(on_flight_assist_toggle_input);
+
         app.add_input_context::<ThrusterInputMarker>();
         app.add_observer(on_thruster_input_binding);
         app.add_observer(on_thruster_input);
@@ -264,6 +273,159 @@ fn update_torpedo_target_input(
             torpedo_commands.insert(TorpedoTargetEntity(target_entity));
         }
     }
+}
+
+/// Input context for the player's flight controls (translation intent, brake,
+/// flight-assist toggle). One rig exists while a player ship does; the
+/// observers below write into the ship's [`FlightIntent`] / [`FlightAssistMode`],
+/// which the flight computer (`crate::flight`) consumes each physics tick.
+#[derive(Component, Debug, Clone)]
+struct FlightInputMarker;
+
+/// 3D translation intent in ship-local axes; the `Spatial` preset already
+/// produces `-Z` for the forward key, matching [`FlightIntent::linear`].
+#[derive(InputAction)]
+#[action_output(Vec3)]
+struct FlightMoveInput;
+
+#[derive(InputAction)]
+#[action_output(bool)]
+struct FlightBrakeInput;
+
+#[derive(InputAction)]
+#[action_output(bool)]
+struct FlightAssistToggleInput;
+
+fn on_player_added_spawn_flight_input(
+    add: On<Add, PlayerSpaceshipMarker>,
+    mut commands: Commands,
+    q_existing: Query<(), With<FlightInputMarker>>,
+) {
+    trace!(
+        "on_player_added_spawn_flight_input: entity {:?}",
+        add.entity
+    );
+    // One player, one flight rig; a respawn reuses the existing one.
+    if !q_existing.is_empty() {
+        return;
+    }
+
+    commands.spawn((
+        Name::new("Input: Flight"),
+        FlightInputMarker,
+        actions!(
+            FlightInputMarker[
+                (
+                    Name::new("Input: Flight Move"),
+                    Action::<FlightMoveInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    Bindings::spawn((
+                        Spatial::new(
+                            KeyCode::KeyW,
+                            KeyCode::KeyS,
+                            KeyCode::KeyA,
+                            KeyCode::KeyD,
+                            KeyCode::KeyE,
+                            KeyCode::KeyQ,
+                        ),
+                        // Space / right trigger stay "full burn" for muscle
+                        // memory from the old binary thruster binding. A
+                        // button reports on X, so swizzle it onto Z and negate
+                        // into the -Z-forward convention.
+                        Spawn((
+                            Binding::from(KeyCode::Space),
+                            SwizzleAxis::ZYX,
+                            Negate::all(),
+                        )),
+                        Spawn((
+                            Binding::from(GamepadButton::RightTrigger),
+                            SwizzleAxis::ZYX,
+                            Negate::all(),
+                        )),
+                        // Left stick = lateral/vertical trim on gamepad.
+                        Axial::left_stick(),
+                    )),
+                ),
+                (
+                    Name::new("Input: Flight Brake"),
+                    Action::<FlightBrakeInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings![KeyCode::KeyX, GamepadButton::East],
+                ),
+                (
+                    Name::new("Input: Flight Assist Toggle"),
+                    Action::<FlightAssistToggleInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings![KeyCode::KeyZ, GamepadButton::North],
+                ),
+            ]
+        ),
+    ));
+}
+
+fn on_player_removed_despawn_flight_input(
+    remove: On<Remove, PlayerSpaceshipMarker>,
+    mut commands: Commands,
+    q_rig: Query<Entity, With<FlightInputMarker>>,
+) {
+    trace!(
+        "on_player_removed_despawn_flight_input: entity {:?}",
+        remove.entity
+    );
+    for rig in &q_rig {
+        commands.entity(rig).try_despawn();
+    }
+}
+
+fn on_flight_move_input(
+    fire: On<Fire<FlightMoveInput>>,
+    ship: Single<&mut FlightIntent, With<PlayerSpaceshipMarker>>,
+) {
+    let mut intent = ship.into_inner();
+    intent.linear = fire.value;
+}
+
+fn on_flight_move_input_completed(
+    _: On<Complete<FlightMoveInput>>,
+    ship: Single<&mut FlightIntent, With<PlayerSpaceshipMarker>>,
+) {
+    let mut intent = ship.into_inner();
+    intent.linear = Vec3::ZERO;
+}
+
+fn on_flight_brake_input(
+    _: On<Start<FlightBrakeInput>>,
+    ship: Single<&mut FlightIntent, With<PlayerSpaceshipMarker>>,
+) {
+    let mut intent = ship.into_inner();
+    intent.brake = true;
+}
+
+fn on_flight_brake_input_completed(
+    _: On<Complete<FlightBrakeInput>>,
+    ship: Single<&mut FlightIntent, With<PlayerSpaceshipMarker>>,
+) {
+    let mut intent = ship.into_inner();
+    intent.brake = false;
+}
+
+fn on_flight_assist_toggle_input(
+    _: On<Start<FlightAssistToggleInput>>,
+    ship: Single<&mut FlightAssistMode, With<PlayerSpaceshipMarker>>,
+) {
+    let mut mode = ship.into_inner();
+    let next = mode.toggled();
+    debug!("on_flight_assist_toggle_input: switching to {:?}", next);
+    *mode = next;
 }
 
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]

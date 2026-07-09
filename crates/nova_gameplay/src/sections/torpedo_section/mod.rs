@@ -477,6 +477,9 @@ fn shoot_spawn_projectile(
                         frequency: 4.0,
                         damping_ratio: 4.0,
                         max_torque: 10.0,
+                        // A warhead steers with its PD controller and drive; it
+                        // has no RCS (and no FlightIntent to consume one).
+                        rcs_magnitude: 0.0,
                         render_mesh: None,
                     }),
                 ),

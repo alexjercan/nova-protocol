@@ -126,7 +126,9 @@ impl Plugin for ThrusterSectionPlugin {
     }
 }
 
-fn thruster_impulse_system(
+// `pub(crate)` so the flight-control tests can register the real impulse
+// system and cover the whole intent -> thrust -> velocity pipeline.
+pub(crate) fn thruster_impulse_system(
     q_thruster: Query<
         (
             &GlobalTransform,
