@@ -1,4 +1,4 @@
-use avian3d::prelude::Rotation;
+use avian3d::prelude::{ComputedCenterOfMass, Rotation};
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 use bevy_enhanced_input::prelude::*;
@@ -262,7 +262,10 @@ fn on_autopilot_disengaged(
 
 fn update_chase_camera_input(
     camera: Single<&mut ChaseCameraInput, (With<ChaseCamera>, With<SpaceshipCameraController>)>,
-    spaceship: Single<&Transform, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    spaceship: Single<
+        (&Transform, Option<&ComputedCenterOfMass>),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
     point_rotation: Single<
         &PointRotationOutput,
         (
@@ -272,10 +275,22 @@ fn update_chase_camera_input(
     >,
 ) {
     let mut camera_input = camera.into_inner();
-    let spaceship_transform = spaceship.into_inner();
+    let (spaceship_transform, center_of_mass) = spaceship.into_inner();
     let point_rotation = point_rotation.into_inner();
 
-    camera_input.anchor_pos = spaceship_transform.translation;
+    // Anchor on the live center of mass, not the root origin. The origin sits
+    // wherever the ship's first sections were built and never moves; once those
+    // sections are destroyed the body still spins about its (shifted) COM, so a
+    // camera anchored at the origin makes the wreck appear to orbit an empty
+    // point in space (task 20260709-140620). `ComputedCenterOfMass` is
+    // body-local and avian ignores render scale, so lift it with rotation and
+    // translation only (not `transform_point`, which would scale it). Every
+    // real ship root has a `RigidBody`, which requires the component; the
+    // fallback is defensive (marker-only roots in tests).
+    camera_input.anchor_pos = match center_of_mass {
+        Some(com) => spaceship_transform.rotation * com.0 + spaceship_transform.translation,
+        None => spaceship_transform.translation,
+    };
     camera_input.anchor_rot = **point_rotation;
 }
 
@@ -423,6 +438,44 @@ fn on_combat_input_completed(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The chase anchor is the ship's live center of mass, not the root
+    /// origin: the origin is where the first sections were built and never
+    /// moves, so after those sections are destroyed a tumbling ship anchored
+    /// there appears to orbit an empty point in space (task 20260709-140620).
+    #[test]
+    fn chase_anchor_tracks_the_center_of_mass() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(ChaseCameraPlugin);
+        app.add_systems(Update, update_chase_camera_input);
+
+        let position = Vec3::new(10.0, 0.0, 5.0);
+        let local_com = Vec3::new(0.0, 0.0, 3.0);
+        app.world_mut().spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            Transform::from_translation(position),
+            ComputedCenterOfMass(local_com),
+        ));
+        app.world_mut().spawn((
+            SpaceshipCameraInputMarker,
+            SpaceshipRotationInputActiveMarker,
+            PointRotationOutput::default(),
+        ));
+        let camera = app.world_mut().spawn(SpaceshipCameraController).id();
+
+        // First update initializes `ChaseCameraInput`; the second runs the
+        // input system against it.
+        app.update();
+        app.update();
+
+        let input = app
+            .world()
+            .get::<ChaseCameraInput>(camera)
+            .expect("ChaseCameraInput should be initialized by the chase plugin");
+        assert_eq!(input.anchor_pos, position + local_com);
+    }
 
     /// Switching camera mode must retune the chase offsets without resetting the anchor to the
     /// origin. Re-inserting `ChaseCamera` (the previous approach) fired bcs's insert observer,

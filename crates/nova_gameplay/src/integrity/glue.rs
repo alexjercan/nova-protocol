@@ -261,8 +261,12 @@ mod tests {
 /// from the real `ColliderOf` links avian adds once a body's colliders are prepared.
 #[cfg(test)]
 mod physics_tests {
+    use bevy_rand::prelude::*;
+
     use super::*;
-    use crate::integrity::test_support::{integrity_physics_app, settle};
+    use crate::integrity::test_support::{
+        integrity_physics_app, settle, unfinished_integrity_physics_app,
+    };
 
     /// Spawn a ship section entity (as `base_section` does: `SectionMarker` + cuboid collider
     /// + health/density) at a grid position, parented to `root`.
@@ -311,6 +315,143 @@ mod physics_tests {
         assert!(mid_neighbors.contains(&left) && mid_neighbors.contains(&right));
         assert_eq!(neighbors(&app, left), vec![mid]);
         assert_eq!(neighbors(&app, right), vec![mid]);
+    }
+
+    /// The physical half of task 20260709-140620: when a section is gone, the
+    /// body's mass, center of mass and angular inertia must follow the
+    /// survivors. This is avian ground truth (direct despawn), separating
+    /// "avian does not recompute on collider removal" from "our destroy path
+    /// never removes the collider".
+    #[test]
+    fn mass_properties_follow_a_despawned_section() {
+        let mut app = integrity_physics_app();
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                SpaceshipRootMarker,
+            ))
+            .id();
+        let _left = spawn_section(&mut app, root, Vec3::ZERO);
+        let right = spawn_section(&mut app, root, Vec3::X);
+        settle(&mut app);
+
+        let mass_before = app.world().get::<ComputedMass>(root).unwrap().value();
+        let com_before = app.world().get::<ComputedCenterOfMass>(root).unwrap().0;
+        let (inertia_before, _) = app
+            .world()
+            .get::<ComputedAngularInertia>(root)
+            .unwrap()
+            .principal_angular_inertia_with_local_frame();
+        assert!(
+            (mass_before - 2.0).abs() < 1e-3,
+            "two unit-density unit cubes should weigh 2: {mass_before}"
+        );
+        assert!(
+            (com_before.x - 0.5).abs() < 1e-3,
+            "COM should start midway between the sections: {com_before:?}"
+        );
+
+        app.world_mut().entity_mut(right).despawn();
+        settle(&mut app);
+
+        let mass_after = app.world().get::<ComputedMass>(root).unwrap().value();
+        let com_after = app.world().get::<ComputedCenterOfMass>(root).unwrap().0;
+        let (inertia_after, _) = app
+            .world()
+            .get::<ComputedAngularInertia>(root)
+            .unwrap()
+            .principal_angular_inertia_with_local_frame();
+        assert!(
+            (mass_after - 1.0).abs() < 1e-3,
+            "mass must drop with the lost section: {mass_before} -> {mass_after}"
+        );
+        assert!(
+            com_after.x.abs() < 1e-3,
+            "COM must shift onto the survivor: {com_before:?} -> {com_after:?}"
+        );
+        // Analytic solid-cuboid values (sorted principal components; the
+        // principal frame may permute axes): two unit cubes side by side are
+        // [2*(1/6), 2*(1/6) + 2*(1/4), same] = [1/3, 5/6, 5/6]; the lone
+        // survivor is a plain unit cube, 1/6 on every axis.
+        let sorted = |v: Vec3| {
+            let mut a = v.to_array();
+            a.sort_by(f32::total_cmp);
+            a
+        };
+        for (got, expected) in
+            sorted(inertia_before)
+                .into_iter()
+                .zip([1.0 / 3.0, 5.0 / 6.0, 5.0 / 6.0])
+        {
+            assert!(
+                (got - expected).abs() < 0.02,
+                "pre-despawn principal inertia off: {inertia_before:?}"
+            );
+        }
+        for got in sorted(inertia_after) {
+            assert!(
+                (got - 1.0 / 6.0).abs() < 0.02,
+                "post-despawn principal inertia off: {inertia_after:?}"
+            );
+        }
+    }
+
+    /// The same claim through the real pipeline: a section driven to zero
+    /// health is disabled, destroyed (it is a leaf), despawned - and the mass
+    /// properties follow. Exercises health -> integrity -> explode end to end.
+    #[test]
+    fn mass_properties_follow_a_section_destroyed_by_damage() {
+        let mut app = unfinished_integrity_physics_app();
+        // The destroy path's debris observers need material assets and the
+        // global rng even in a headless run.
+        app.init_asset::<StandardMaterial>();
+        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.finish();
+
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                SpaceshipRootMarker,
+            ))
+            .id();
+        let _left = spawn_section(&mut app, root, Vec3::ZERO);
+        let right = spawn_section(&mut app, root, Vec3::X);
+        settle(&mut app);
+
+        let mass_before = app.world().get::<ComputedMass>(root).unwrap().value();
+        let com_before = app.world().get::<ComputedCenterOfMass>(root).unwrap().0;
+
+        // Exactly the section's health, torpedo-blast scale. The amount also
+        // propagates through ChildOf to the root's aggregate health (200 ->
+        // 100 here); exact damage leaves the root alive, while overkill would
+        // zero it and kill the whole ship (see task 20260709-144906).
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: right,
+            source: None,
+            amount: 100.0,
+        });
+        for _ in 0..10 {
+            app.update();
+        }
+
+        assert!(
+            !app.world().entities().contains(right),
+            "a zero-health leaf section should be destroyed and despawned"
+        );
+        let mass_after = app.world().get::<ComputedMass>(root).unwrap().value();
+        let com_after = app.world().get::<ComputedCenterOfMass>(root).unwrap().0;
+        assert!(
+            (mass_after - 1.0).abs() < 1e-3,
+            "mass must follow the destroyed section: {mass_before} -> {mass_after}"
+        );
+        assert!(
+            com_after.x.abs() < 1e-3,
+            "COM must shift onto the survivor: {com_before:?} -> {com_after:?}"
+        );
     }
 
     #[test]
