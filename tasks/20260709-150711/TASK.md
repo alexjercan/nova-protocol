@@ -20,12 +20,28 @@ space once those sections are destroyed:
 
 ## Steps
 
-- [ ] Decide the aim anchor: live COM (matches the camera) or the surviving
-      structure's bounds center; probably a shared helper on the ship root.
-- [ ] Update AI targeting (input/ai.rs) and player turret aim/lock-on
-      (input/player.rs) to use it.
-- [ ] Cover: unit test for the helper; check an AI scenario headlessly (enemy
-      shots land on a front-stripped ship, not behind it).
+- [ ] Add a shared `live_structure_anchor(transform, Option<&ComputedCenterOfMass>)
+      -> Vec3` helper in `crates/nova_gameplay/src/sections/mod.rs` (next to
+      `SpaceshipRootMarker`): live COM lifted with rotation + translation only
+      (the exact math of camera_controller.rs:297-300, which must not scale),
+      falling back to the root translation for marker-only roots. Unit tests:
+      lift matches rotation*com+translation, fallback without COM.
+- [ ] Refactor `update_chase_camera_input` (camera_controller.rs) onto the
+      helper so the COM-anchor math lives once; its existing anchor tests
+      must stay green (run them - they are touched code).
+- [ ] AI (input/ai.rs): all four player-position reads (rotation target,
+      thruster alignment, turret target input, projectile fire alignment)
+      query `Option<&ComputedCenterOfMass>` alongside the player transform
+      and aim at the helper's anchor instead of `transform.translation`.
+- [ ] Player (input/player.rs): the turret camera-ray base and the
+      `pick_target` cone origin use the ship's anchor instead of the root
+      translation (kills the parallax vs the COM-anchored crosshair).
+- [ ] Behavioral tests: with a shifted COM on the world, AI turret input and
+      the cone origin equal the anchor, not the origin (player.rs/ai.rs test
+      modules, existing world-test patterns).
+- [ ] Verify: cargo fmt, cargo check --workspace, run the new tests plus the
+      touched camera-anchor tests (skip full suite per user instruction;
+      report skips).
 
 ## Notes
 

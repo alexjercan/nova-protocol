@@ -27,3 +27,32 @@ live-structure anchor (150711 helper), no lock -> camera ray as today; lock
 modes also feed the target root's LinearVelocity so lead_intercept_point
 computes a real intercept. Depends on: 20260709-192522 (focus/component-lock
 state), 20260709-150711 (anchor helper).
+
+## Steps
+
+- [ ] Rework the player `update_turret_target_input` (input/player.rs) into
+      the three-tier feed: component lock -> that section's GlobalTransform
+      translation; else ship lock -> the locked ship's live-structure anchor
+      (150711 helper, querying the lock entity's transform +
+      Option<ComputedCenterOfMass>); else -> the camera-ray point as today.
+- [ ] Feed `TurretSectionTargetVelocity` alongside: the lock root's
+      `LinearVelocity` in both lock tiers, `Vec3::ZERO` on the camera-ray
+      fallback - `lead_intercept_point` then computes a real intercept and
+      the lead pip (hud/turret_lead.rs) finally shows true lead.
+- [ ] Tests: three-tier priority (component beats ship lock beats ray), the
+      velocity feed values per tier, dead section/lock falling through to
+      the next tier.
+- [ ] Extend examples/12_hud_range.rs: with the target locked, assert the
+      turret aim point now tracks the TARGET (pip near the reticle within
+      tolerance) instead of the camera ray; the existing disable stage keeps
+      asserting the pip hides.
+- [ ] Verify: cargo fmt, cargo check --workspace, new + touched tests, one
+      scripted 12_hud_range run under Xvfb (report skips).
+
+## Notes
+
+- Depends on: 20260709-192522 (component lock state), 20260709-150711
+  (anchor helper).
+- AI turret feed stays as 150711 left it (live-structure anchor, zero
+  velocity); feeding AI target velocity can ride the AI rotation task
+  (20260709-155921) later.
