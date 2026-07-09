@@ -31,6 +31,18 @@ decisions, not defaults - juice retro).
       handling block (extend `FlightSettings` or the controller section
       config - decide in-work; register the reflected tree either way), with
       capital-ship defaults picked deliberately.
+- [ ] Torque budget (user decision, 2026-07-09, from task 20260709-140620):
+      keep the inertia-normalized PD for stability, but tune controller
+      max_torque into the perceivable range so torque/inertia is the real
+      limit - full ships lumber through flips, stripped ships snap. Also drop
+      or scale `FlightSettings::est_turn_rate_deg` so the slew cap does not
+      mask the inertia difference (a fixed slew rate would re-normalize turn
+      speed regardless of mass). Baseline numbers in
+      docs/2026-07-09-com-section-destroy.md: the 3-section game ship
+      saturates at ~43 rad/s^2 transverse vs ~120 for a lone section at
+      max_torque 100; pick a max_torque that makes a full flip take a readable
+      beat (order 1-2s) on the full ship. Verify in 11_com_range: kill
+      sections, feel the snap-up.
 - [ ] Camera weight: set chase `smoothing` > 0 for the gameplay camera modes in
       `crates/nova_gameplay/src/camera_controller.rs`
       (`sync_spaceship_control_mode` currently leaves bcs default 0.0) and add
