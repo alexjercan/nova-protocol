@@ -6,13 +6,14 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use crate::{camera_controller::SpaceshipCameraController, flight::prelude::*};
+use super::screen_indicator::prelude::*;
+use crate::flight::prelude::*;
 
 pub mod prelude {
     pub use super::{
         autopilot_destination_hud, flight_status_hud, AutopilotDestinationHudConfig,
-        AutopilotDestinationHudMarker, FlightStatusHudConfig, FlightStatusHudMarker,
-        FlightStatusHudPlugin, FlightStatusHudTargetEntity,
+        AutopilotDestinationHudMarker, AutopilotDestinationUIMarker, FlightStatusHudConfig,
+        FlightStatusHudMarker, FlightStatusHudPlugin, FlightStatusHudTargetEntity,
     };
 }
 
@@ -56,9 +57,10 @@ pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct AutopilotDestinationHudMarker;
 
-/// Marker for the inner, absolutely-positioned marker node.
+/// Marker for the inner, screen-projected marker node. Public so range
+/// examples can assert on the marker's node state.
 #[derive(Component, Debug, Clone, Reflect)]
-struct AutopilotDestinationUIMarker;
+pub struct AutopilotDestinationUIMarker;
 
 /// The ship whose engaged GOTO destination this marker projects.
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
@@ -79,9 +81,10 @@ impl AutopilotDestinationHudConfig {
     }
 }
 
-/// UI bundle for the destination marker: the same full-screen click-through
-/// layer + projected child the torpedo-target reticle uses, but fixed-size
-/// and tinted, visible only while a GOTO is engaged.
+/// UI bundle for the destination marker: a screen-projected indicator on the
+/// engaged GOTO destination, fixed-size and tinted, visible only while a GOTO
+/// is engaged. The screen_indicator widget owns projection and visibility;
+/// this module only drives the anchor from the ship's [`Autopilot`].
 pub fn autopilot_destination_hud(config: AutopilotDestinationHudConfig) -> impl Bundle {
     debug!("autopilot_destination_hud: config {:?}", config);
 
@@ -89,28 +92,20 @@ pub fn autopilot_destination_hud(config: AutopilotDestinationHudConfig) -> impl 
         Name::new("AutopilotDestinationHUD"),
         AutopilotDestinationHudMarker,
         AutopilotDestinationShipEntity(config.ship),
-        Node {
-            position_type: PositionType::Absolute,
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
-            ..default()
-        },
-        Pickable::IGNORE,
+        screen_indicator_layer(),
         children![(
             Name::new("AutopilotDestinationUI"),
             AutopilotDestinationUIMarker,
-            Node {
-                position_type: PositionType::Absolute,
-                width: Val::Px(DESTINATION_MARKER_PX),
-                height: Val::Px(DESTINATION_MARKER_PX),
-                ..default()
-            },
+            screen_indicator(ScreenIndicatorConfig {
+                anchor: None,
+                size: ScreenIndicatorSize::Fixed(Vec2::splat(DESTINATION_MARKER_PX)),
+                offset: Vec2::ZERO,
+                offscreen: ScreenIndicatorOffscreen::Hide,
+            }),
             // Reuse the target sprite, tinted toward "nav" cyan so it never
             // reads as a weapons lock.
             ImageNode::new(config.marker_sprite.clone())
                 .with_color(Color::srgba(0.3, 0.9, 1.0, 0.9)),
-            Pickable::IGNORE,
-            Visibility::Hidden,
         )],
     )
 }
@@ -124,7 +119,11 @@ impl Plugin for FlightStatusHudPlugin {
 
         app.add_systems(
             Update,
-            (update_flight_status_text, update_destination_marker).in_set(super::NovaHudSystems),
+            (
+                update_flight_status_text,
+                drive_destination_anchor.before(ScreenIndicatorSystems),
+            )
+                .in_set(super::NovaHudSystems),
         );
     }
 }
@@ -153,18 +152,15 @@ fn update_flight_status_text(
     }
 }
 
-/// Project the engaged GOTO destination to the screen; hidden in manual mode,
-/// during STOP, or while the destination is off-screen/behind the camera.
-fn update_destination_marker(
+/// Anchor the destination marker to the engaged GOTO destination; manual
+/// mode, STOP, or a vanished destination clear the anchor, and the widget
+/// hides the marker (including while the destination is behind the camera).
+fn drive_destination_anchor(
     q_hud: Query<&AutopilotDestinationShipEntity, With<AutopilotDestinationHudMarker>>,
-    mut q_ui: Query<(&mut Node, &mut Visibility, &ChildOf), With<AutopilotDestinationUIMarker>>,
+    mut q_ui: Query<(&mut ScreenIndicatorAnchor, &ChildOf), With<AutopilotDestinationUIMarker>>,
     q_ship: Query<&Autopilot>,
-    q_transform: Query<&GlobalTransform>,
-    main_camera: Single<(&GlobalTransform, &Camera), With<SpaceshipCameraController>>,
 ) {
-    let (camera_transform, camera) = main_camera.into_inner();
-
-    for (mut node, mut visibility, &ChildOf(parent)) in &mut q_ui {
+    for (mut anchor, &ChildOf(parent)) in &mut q_ui {
         let Ok(ship) = q_hud.get(parent) else {
             continue;
         };
@@ -173,23 +169,80 @@ fn update_destination_marker(
             AutopilotAction::Goto { target } => Some(target),
             AutopilotAction::Stop => None,
         });
-        let center = destination
-            .and_then(|d| q_transform.get(d).ok())
-            .and_then(|t| {
-                camera
-                    .world_to_viewport(camera_transform, t.translation())
-                    .ok()
-            });
+        **anchor = destination.map(ScreenIndicatorAnchorKind::Entity);
+    }
+}
 
-        match center {
-            Some(center) => {
-                *visibility = Visibility::Visible;
-                node.left = Val::Px(center.x - DESTINATION_MARKER_PX / 2.0);
-                node.top = Val::Px(center.y - DESTINATION_MARKER_PX / 2.0);
-            }
-            None => {
-                *visibility = Visibility::Hidden;
-            }
-        }
+#[cfg(test)]
+mod tests {
+    use bevy::ecs::system::RunSystemOnce;
+
+    use super::*;
+
+    fn spawn_destination_hud(world: &mut World, ship: Entity) -> Entity {
+        let layer = world
+            .spawn(autopilot_destination_hud(
+                AutopilotDestinationHudConfig::new(ship, Handle::default()),
+            ))
+            .id();
+        world
+            .entity(layer)
+            .get::<Children>()
+            .expect("layer has the marker child")[0]
+    }
+
+    #[test]
+    fn destination_anchor_follows_the_engaged_goto() {
+        let mut world = World::new();
+        let destination = world.spawn_empty().id();
+        let ship = world
+            .spawn(Autopilot::engage(AutopilotAction::Goto {
+                target: destination,
+            }))
+            .id();
+        let marker = spawn_destination_hud(&mut world, ship);
+
+        world.run_system_once(drive_destination_anchor).unwrap();
+        assert_eq!(
+            **world.entity(marker).get::<ScreenIndicatorAnchor>().unwrap(),
+            Some(ScreenIndicatorAnchorKind::Entity(destination))
+        );
+
+        // STOP has no destination: the anchor clears and the widget hides.
+        world
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+        world.run_system_once(drive_destination_anchor).unwrap();
+        assert_eq!(
+            **world.entity(marker).get::<ScreenIndicatorAnchor>().unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn destination_anchor_clears_in_manual_mode() {
+        let mut world = World::new();
+        let destination = world.spawn_empty().id();
+        let ship = world
+            .spawn(Autopilot::engage(AutopilotAction::Goto {
+                target: destination,
+            }))
+            .id();
+        let marker = spawn_destination_hud(&mut world, ship);
+
+        world.run_system_once(drive_destination_anchor).unwrap();
+        assert!(world
+            .entity(marker)
+            .get::<ScreenIndicatorAnchor>()
+            .unwrap()
+            .is_some());
+
+        // Disengaging the autopilot removes the component entirely.
+        world.entity_mut(ship).remove::<Autopilot>();
+        world.run_system_once(drive_destination_anchor).unwrap();
+        assert_eq!(
+            **world.entity(marker).get::<ScreenIndicatorAnchor>().unwrap(),
+            None
+        );
     }
 }

@@ -1,67 +1,63 @@
-use avian3d::prelude::*;
+//! The torpedo-lock reticle: a screen-projected indicator on the entity the
+//! player's aim-assist currently locks (`SpaceshipPlayerTorpedoTargetEntity`).
+//!
+//! A thin consumer of the [`screen_indicator`](super::screen_indicator)
+//! widget: the widget owns projection, sizing and visibility; this module
+//! only spawns the reticle and drives its anchor from the lock resource.
+
 use bevy::prelude::*;
 
 use crate::prelude::*;
 
-/// Minimum on-screen size (px) of the target reticle. This is its historical fixed
-/// size: the reticle grows to match larger targets but never shrinks below this, so
-/// small or distant targets still show a clearly visible, clickable marker.
+/// Minimum on-screen size (px) of the target reticle. This is its historical
+/// fixed size: the reticle grows to match larger targets but never shrinks
+/// below this, so small or distant targets still show a clearly visible,
+/// clickable marker.
 const MIN_RETICLE_PX: f32 = 32.0;
 
 pub mod prelude {
     pub use super::{
-        torpedo_target_hud, TorpedoTargetHudConfig, TorpedoTargetHudEntity, TorpedoTargetHudMarker,
-        TorpedoTargetHudPlugin,
+        torpedo_target_hud, TorpedoTargetHudConfig, TorpedoTargetHudMarker, TorpedoTargetHudPlugin,
+        TorpedoTargetReticleMarker,
     };
 }
 
+/// Marker for the full-screen reticle layer (the root the HUD setup spawns).
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TorpedoTargetHudMarker;
 
+/// Marker for the reticle indicator node itself. Public so other HUD pieces
+/// (e.g. the locked-target readout) can attach content to it.
 #[derive(Component, Debug, Clone, Reflect)]
-struct TorpedoTargetUIMarker;
-
-#[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
-pub struct TorpedoTargetHudEntity(pub Option<Entity>);
+pub struct TorpedoTargetReticleMarker;
 
 #[derive(Clone, Debug, Default)]
 pub struct TorpedoTargetHudConfig {
     pub target_sprite: Handle<Image>,
 }
 
+/// UI bundle for the torpedo-lock reticle: a full-screen click-through layer
+/// whose child is a screen-projected indicator sized to the locked target's
+/// on-screen extent.
 pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
     debug!("torpedo_target_hud: config {:?}", config);
 
     (
         Name::new("TorpedoTargetHUD"),
         TorpedoTargetHudMarker,
-        TorpedoTargetHudEntity(None),
-        // Full-screen, click-through UI layer. The reticle is an absolutely-positioned
-        // child moved to the target's screen position each frame. This uses the UI pass
-        // (like the health/objectives HUDs) instead of a second Camera2d: a second
-        // window-targeting camera on Bevy 0.19 blacks out the 3D scene camera, so the
-        // crosshair must be plain UI.
-        Node {
-            position_type: PositionType::Absolute,
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
-            ..default()
-        },
-        Pickable::IGNORE,
+        screen_indicator_layer(),
         children![(
-            Name::new("TorpedoTargetUI"),
-            TorpedoTargetUIMarker,
-            Node {
-                position_type: PositionType::Absolute,
-                // Starting/minimum size; `update_position_indicator_hud` grows this
-                // to match the target's on-screen bounds each frame.
-                width: Val::Px(MIN_RETICLE_PX),
-                height: Val::Px(MIN_RETICLE_PX),
-                ..default()
-            },
+            Name::new("TorpedoTargetReticle"),
+            TorpedoTargetReticleMarker,
+            screen_indicator(ScreenIndicatorConfig {
+                anchor: None,
+                size: ScreenIndicatorSize::ApparentSize {
+                    min_px: MIN_RETICLE_PX,
+                },
+                offset: Vec2::ZERO,
+                offscreen: ScreenIndicatorOffscreen::Hide,
+            }),
             ImageNode::new(config.target_sprite.clone()),
-            Pickable::IGNORE,
-            Visibility::Hidden,
         )],
     )
 }
@@ -73,176 +69,92 @@ impl Plugin for TorpedoTargetHudPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (
-                update_target_system,
-                update_ui_target_system,
-                update_position_indicator_hud,
-            )
-                .in_set(super::NovaHudSystems),
+            drive_reticle_anchor
+                .in_set(super::NovaHudSystems)
+                .before(ScreenIndicatorSystems),
         );
     }
 }
 
-fn update_target_system(
-    mut q_target: Query<&mut TorpedoTargetHudEntity, With<TorpedoTargetHudMarker>>,
+/// Point the reticle indicator at the current lock; `None` (no lock) hides it
+/// via the widget's anchor handling.
+fn drive_reticle_anchor(
     res_target: Res<SpaceshipPlayerTorpedoTargetEntity>,
+    mut q_reticle: Query<&mut ScreenIndicatorAnchor, With<TorpedoTargetReticleMarker>>,
 ) {
-    for mut target in &mut q_target {
-        **target = **res_target;
+    for mut anchor in &mut q_reticle {
+        **anchor = (**res_target).map(ScreenIndicatorAnchorKind::Entity);
     }
-}
-
-fn update_ui_target_system(
-    q_target: Query<&TorpedoTargetHudEntity, With<TorpedoTargetHudMarker>>,
-    mut q_ui: Query<(&mut Visibility, &ChildOf), With<TorpedoTargetUIMarker>>,
-) {
-    for (mut visibility, ChildOf(parent)) in &mut q_ui {
-        let Ok(target) = q_target.get(*parent) else {
-            continue;
-        };
-
-        match &**target {
-            Some(_target) => {
-                *visibility = Visibility::Visible;
-            }
-            None => {
-                *visibility = Visibility::Hidden;
-            }
-        }
-    }
-}
-
-fn update_position_indicator_hud(
-    q_target: Query<&TorpedoTargetHudEntity, With<TorpedoTargetHudMarker>>,
-    mut q_ui: Query<(&mut Node, &ChildOf), With<TorpedoTargetUIMarker>>,
-    q_transform: Query<&GlobalTransform>,
-    q_children: Query<&Children>,
-    q_aabb: Query<&ColliderAabb>,
-    main_camera: Single<(&GlobalTransform, &Camera), With<SpaceshipCameraController>>,
-) {
-    let (main_transform, main_camera) = main_camera.into_inner();
-
-    for (mut node, ChildOf(parent)) in &mut q_ui {
-        let Ok(target) = q_target.get(*parent) else {
-            continue;
-        };
-
-        let Some(target_entity) = &**target else {
-            continue;
-        };
-        let target_entity = *target_entity;
-
-        let Ok(target_transform) = q_transform.get(target_entity) else {
-            continue;
-        };
-
-        let Ok(center) =
-            main_camera.world_to_viewport(main_transform, target_transform.translation())
-        else {
-            continue;
-        };
-
-        // Size the reticle to the target's on-screen extent. Take the target's
-        // world bounding-sphere radius (from the union of its collider AABBs),
-        // project a point one radius to the camera's right, and measure its pixel
-        // distance from the centre - so the reticle grows with apparent size and
-        // shrinks with distance. Using the centre plus a side point (rather than
-        // projecting all 8 AABB corners) stays robust when the target is close and
-        // its far corners fall behind the camera: only the centre must project,
-        // which it always does while the target is locked and on-screen. Falls
-        // back to the minimum size when the target has no collider AABB yet (e.g.
-        // the frame it spawned).
-        let mut size = MIN_RETICLE_PX;
-        if let Some(aabb) = target_world_aabb(target_entity, &q_children, &q_aabb) {
-            let world_radius = aabb.size().length() * 0.5;
-            let edge_world = target_transform.translation() + main_transform.right() * world_radius;
-            if let Ok(edge) = main_camera.world_to_viewport(main_transform, edge_world) {
-                size = (2.0 * center.distance(edge)).max(MIN_RETICLE_PX);
-            }
-        }
-
-        node.width = Val::Px(size);
-        node.height = Val::Px(size);
-        // Center the reticle on the target's screen position.
-        node.left = Val::Px(center.x - size / 2.0);
-        node.top = Val::Px(center.y - size / 2.0);
-    }
-}
-
-/// Union the world-space [`ColliderAabb`]s of `entity` and all of its descendants
-/// into a single bounding box, or `None` if none of them has a collider AABB.
-///
-/// A lockable body keeps its colliders on child entities (an asteroid's collider
-/// node, or a ship's sections), so the whole subtree is walked rather than just the
-/// root.
-fn target_world_aabb(
-    entity: Entity,
-    q_children: &Query<&Children>,
-    q_aabb: &Query<&ColliderAabb>,
-) -> Option<ColliderAabb> {
-    let mut acc: Option<ColliderAabb> = None;
-    let mut stack = vec![entity];
-    while let Some(current) = stack.pop() {
-        if let Ok(aabb) = q_aabb.get(current) {
-            acc = Some(match acc {
-                Some(existing) => existing.merged(*aabb),
-                None => *aabb,
-            });
-        }
-        if let Ok(children) = q_children.get(current) {
-            stack.extend(children.iter());
-        }
-    }
-    acc
 }
 
 #[cfg(test)]
 mod tests {
-    use bevy::ecs::system::SystemState;
+    use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
 
     #[test]
-    fn target_world_aabb_unions_child_collider_aabbs() {
-        // The reticle sizes to the whole target, whose colliders live on child
-        // nodes (asteroid collider node, ship sections). The parent itself has no
-        // collider, so the union must come from walking the children.
+    fn torpedo_target_hud_spawns_the_reticle_indicator() {
         let mut world = World::new();
-        let child_a = world
-            .spawn(ColliderAabb::from_min_max(
-                Vec3::new(-1.0, -1.0, -1.0),
-                Vec3::ZERO,
-            ))
+        let layer = world
+            .spawn(torpedo_target_hud(TorpedoTargetHudConfig::default()))
             .id();
-        let child_b = world
-            .spawn(ColliderAabb::from_min_max(
-                Vec3::ZERO,
-                Vec3::new(2.0, 3.0, 4.0),
-            ))
-            .id();
-        let parent = world.spawn_empty().add_children(&[child_a, child_b]).id();
 
-        let mut state: SystemState<(Query<&Children>, Query<&ColliderAabb>)> =
-            SystemState::new(&mut world);
-        let (q_children, q_aabb) = state.get(&world).unwrap();
-
-        let aabb =
-            target_world_aabb(parent, &q_children, &q_aabb).expect("subtree has collider AABBs");
-        assert_eq!(aabb.min, Vec3::new(-1.0, -1.0, -1.0));
-        assert_eq!(aabb.max, Vec3::new(2.0, 3.0, 4.0));
+        let children = world
+            .entity(layer)
+            .get::<Children>()
+            .expect("layer has the reticle child");
+        assert_eq!(children.len(), 1);
+        let reticle = world.entity(children[0]);
+        assert!(reticle.contains::<TorpedoTargetReticleMarker>());
+        assert!(reticle.contains::<ScreenIndicatorMarker>());
+        assert_eq!(
+            **reticle.get::<ScreenIndicatorAnchor>().unwrap(),
+            None,
+            "the reticle starts unanchored (hidden) until a lock exists"
+        );
     }
 
     #[test]
-    fn target_world_aabb_is_none_without_colliders() {
-        // A target whose colliders are not ready yet (e.g. spawn frame) yields no
-        // AABB, so the caller falls back to the minimum reticle size.
+    fn reticle_anchor_follows_the_lock_resource() {
         let mut world = World::new();
-        let entity = world.spawn_empty().id();
+        world.insert_resource(SpaceshipPlayerTorpedoTargetEntity(None));
+        let reticle = world
+            .spawn((
+                TorpedoTargetReticleMarker,
+                screen_indicator(ScreenIndicatorConfig::default()),
+            ))
+            .id();
 
-        let mut state: SystemState<(Query<&Children>, Query<&ColliderAabb>)> =
-            SystemState::new(&mut world);
-        let (q_children, q_aabb) = state.get(&world).unwrap();
+        world.run_system_once(drive_reticle_anchor).unwrap();
+        assert_eq!(
+            **world
+                .entity(reticle)
+                .get::<ScreenIndicatorAnchor>()
+                .unwrap(),
+            None
+        );
 
-        assert!(target_world_aabb(entity, &q_children, &q_aabb).is_none());
+        let target = world.spawn_empty().id();
+        world.insert_resource(SpaceshipPlayerTorpedoTargetEntity(Some(target)));
+        world.run_system_once(drive_reticle_anchor).unwrap();
+        assert_eq!(
+            **world
+                .entity(reticle)
+                .get::<ScreenIndicatorAnchor>()
+                .unwrap(),
+            Some(ScreenIndicatorAnchorKind::Entity(target))
+        );
+
+        world.insert_resource(SpaceshipPlayerTorpedoTargetEntity(None));
+        world.run_system_once(drive_reticle_anchor).unwrap();
+        assert_eq!(
+            **world
+                .entity(reticle)
+                .get::<ScreenIndicatorAnchor>()
+                .unwrap(),
+            None,
+            "dropping the lock clears the anchor so the widget hides the reticle"
+        );
     }
 }

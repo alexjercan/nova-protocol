@@ -3,13 +3,14 @@ use bevy::prelude::*;
 use crate::prelude::*;
 
 pub mod flight_status;
+pub mod screen_indicator;
 pub mod torpedo_target;
 pub mod velocity;
 
 pub mod prelude {
     pub use super::{
-        flight_status::prelude::*, torpedo_target::prelude::*, velocity::prelude::*, NovaHudAssets,
-        NovaHudPlugin, NovaHudSystems,
+        flight_status::prelude::*, screen_indicator::prelude::*, torpedo_target::prelude::*,
+        velocity::prelude::*, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
     };
 }
 
@@ -35,6 +36,7 @@ impl Plugin for NovaHudPlugin {
         // The health and objectives HUDs are now the generic bevy_common_systems widgets.
         app.add_plugins(HealthDisplayPlugin);
         app.add_plugins(ObjectivesPlugin);
+        app.add_plugins(screen_indicator::ScreenIndicatorPlugin);
         app.add_plugins(torpedo_target::TorpedoTargetHudPlugin);
 
         // Keep the generic HUD widgets inside nova's HUD ordering slot, as the local ones were.
@@ -43,9 +45,16 @@ impl Plugin for NovaHudPlugin {
             (
                 HealthDisplayPluginSystems::Sync,
                 ObjectivesPluginSystems::Sync,
+                ScreenIndicatorSystems,
             )
                 .in_set(NovaHudSystems),
         );
+
+        // Screen indicators project through the spaceship chase camera. The
+        // widget is camera-agnostic (its own marker keeps it promotable), so
+        // nova tags the camera whenever the controller hands it over.
+        app.add_observer(add_screen_indicator_camera);
+        app.add_observer(remove_screen_indicator_camera);
 
         // Setup and remove HUDs when player spaceship is added/removed
         app.add_observer(setup_hud_velocity);
@@ -58,6 +67,29 @@ impl Plugin for NovaHudPlugin {
         app.add_observer(remove_hud_objectives);
         app.add_observer(setup_hud_torpedo_target);
         app.add_observer(remove_hud_torpedo_target);
+    }
+}
+
+/// Tag the spaceship chase camera as the projection camera for screen
+/// indicators.
+fn add_screen_indicator_camera(
+    add: On<Add, crate::camera_controller::SpaceshipCameraController>,
+    mut commands: Commands,
+) {
+    debug!("add_screen_indicator_camera: entity {:?}", add.entity);
+    commands.entity(add.entity).insert(ScreenIndicatorCamera);
+}
+
+/// Untag the camera when the spaceship controller releases it (e.g. back to
+/// the WASD camera after the player ship dies), so indicators hide instead of
+/// projecting through a free camera.
+fn remove_screen_indicator_camera(
+    remove: On<Remove, crate::camera_controller::SpaceshipCameraController>,
+    mut commands: Commands,
+) {
+    debug!("remove_screen_indicator_camera: entity {:?}", remove.entity);
+    if let Ok(mut camera) = commands.get_entity(remove.entity) {
+        camera.remove::<ScreenIndicatorCamera>();
     }
 }
 
