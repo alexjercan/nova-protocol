@@ -16,3 +16,9 @@ Direction: promote the transient best-pick into a maintained candidate set (a
 resource or per-candidate marker), render the set, and drive an explicit cycle input
 alongside the existing look-to-aim behaviour.
 </content>
+
+Narrowed (20260709) by
+docs/spikes/20260709-192358-component-lock-vats-lite.md: the subtarget-cycle
+half lands with the component fine-lock (tatr 20260709-192522/192523). This
+task keeps the multi-target half only: maintaining and rendering the candidate
+SET of lockable ships and cycling the active ship lock between them.

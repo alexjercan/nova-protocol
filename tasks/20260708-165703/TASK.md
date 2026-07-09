@@ -15,3 +15,10 @@ audio-visual cue when it snaps. Makes locking legible and satisfying.
 Depends on the audio system (162011) for the cue, and changes targeting feel - decide
 during planning whether the dwell replaces or augments the instant lock.
 </content>
+
+Superseded in part (20260709) by
+docs/spikes/20260709-192358-component-lock-vats-lite.md: the dwell mechanic
+moved one level down - the SHIP lock stays instant, and the dwell/focus timer
+gates the component fine-lock layer instead (tatr 20260709-192522). What
+remains of this task is the acquire/lock audio-visual cue polish riding the
+component-lock HUD (20260709-192523).

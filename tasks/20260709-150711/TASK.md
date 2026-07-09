@@ -32,3 +32,9 @@ space once those sections are destroyed:
 - Origin consumers that are fine as-is: autopilot GOTO/navigation (meter-scale
   offsets do not matter) and HUD projections (they project target entities).
 - Related: 20260709-140620 (camera anchored on live COM, this bug's sibling).
+
+Update (20260709): this bug seeded the component-lock arc
+(docs/spikes/20260709-192358-component-lock-vats-lite.md). The live-structure
+anchor helper decided in Steps is now also the pre-focus turret aim anchor and
+the AI aim anchor for that arc - land this task first; it fixes the bug on its
+own even if the rest of the arc waits.

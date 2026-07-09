@@ -19,3 +19,11 @@ feed the lock's position into `TurretSectionTargetInput` and its
 ray with zero velocity when unlocked. The AI path (20260709-155921 territory)
 should feed its target's velocity the same way. The lead pip
 (hud/turret_lead.rs) then shows a real intercept point with no HUD changes.
+
+Rescoped (20260709) by docs/spikes/20260709-192358-component-lock-vats-lite.md:
+the velocity feed lands as part of the turret auto-fire feed from the
+ship/component lock - component lock -> section position, ship lock ->
+live-structure anchor (150711 helper), no lock -> camera ray as today; lock
+modes also feed the target root's LinearVelocity so lead_intercept_point
+computes a real intercept. Depends on: 20260709-192522 (focus/component-lock
+state), 20260709-150711 (anchor helper).
