@@ -137,11 +137,19 @@ pub struct FlightSettings {
     /// it, the ship enters at this gentle speed and the terminal retro burn
     /// kills the remainder.
     pub min_approach_speed: f32,
-    /// Seconds of un-braked travel the arrival plan budgets for the hull to
-    /// physically flip retrograde (plus engine spool) before deceleration
-    /// actually starts. Without this the plan assumes instant retro thrust
-    /// and sails deep through the standoff at speed.
-    pub flip_lead_time: f32,
+    /// How expensive rotating feels to the planner relative to burning:
+    /// group score = `rotation_time * rotation_bias + burn_time`. Above 1.0
+    /// the computer prefers the engine already pointing the right way (small
+    /// trims use your retro/lateral thrusters); big burns still flip to the
+    /// strongest drive.
+    pub rotation_bias: f32,
+    /// The planner's estimate of how fast the hull turns, degrees/second.
+    /// Used for rotation-time scores and the arrival lead; a knob rather
+    /// than a derivation from PD gains + inertia (recorded for the retune).
+    pub est_turn_rate_deg: f32,
+    /// Extra seconds of un-braked travel the arrival plan budgets for engine
+    /// spool-up on top of the brake group's rotation time.
+    pub arrival_spool_pad: f32,
     /// Velocity errors at or below this are "crumbs": the computer stops
     /// re-aiming the hull for them (it finishes axially if the nose is
     /// already on the error, and otherwise accepts the residual). Without
@@ -164,8 +172,10 @@ impl Default for FlightSettings {
             align_cos: 0.95,
             stop_speed_epsilon: 0.2,
             min_approach_speed: 1.5,
-            // A 180 at PD freq 4 settles in roughly a second; pad for spool.
-            flip_lead_time: 1.5,
+            rotation_bias: 1.5,
+            // A 180 at PD freq 4 settles in roughly two seconds.
+            est_turn_rate_deg: 90.0,
+            arrival_spool_pad: 0.5,
             // A 0.4 u/s drift is a slow creep nobody notices; chasing it
             // with attitude swings is what everybody notices.
             attitude_deadband: 0.4,
@@ -259,6 +269,83 @@ fn goto_desired_velocity(
     (to_target / distance) * speed
 }
 
+/// A cluster of live engines that push the ship in (roughly) the same world
+/// direction, with their summed per-tick authority. The planner's unit of
+/// choice: rotate whichever group is cheapest onto the needed burn.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ThrusterGroup {
+    world_dir: Vec3,
+    authority: f32,
+}
+
+/// Greedily cluster engines (`(world thrust dir, magnitude)`) into direction
+/// groups: an engine joins the first group within `cone_cos` of its
+/// direction, else seeds a new one. Group direction is the magnitude-weighted
+/// mean. Pure for unit testing.
+fn cluster_thrusters(engines: &[(Vec3, f32)], cone_cos: f32) -> Vec<ThrusterGroup> {
+    let mut sums: Vec<(Vec3, f32)> = Vec::new();
+    for &(dir, magnitude) in engines {
+        if magnitude <= 0.0 {
+            continue;
+        }
+        match sums
+            .iter_mut()
+            .find(|(sum, _)| sum.normalize_or_zero().dot(dir) >= cone_cos)
+        {
+            Some((sum, authority)) => {
+                *sum += dir * magnitude;
+                *authority += magnitude;
+            }
+            None => sums.push((dir * magnitude, magnitude)),
+        }
+    }
+    sums.into_iter()
+        .map(|(sum, authority)| ThrusterGroup {
+            world_dir: sum.normalize_or_zero(),
+            authority,
+        })
+        .collect()
+}
+
+/// Estimated seconds for `group` to deliver a `delta_v` burn along
+/// `burn_dir`: time to rotate the group onto the burn (weighted by the
+/// rotation bias - turning feels expensive) plus time to burn the impulse at
+/// the group's authority. Pure for unit testing.
+fn group_time_score(
+    group: &ThrusterGroup,
+    burn_dir: Vec3,
+    delta_v: f32,
+    mass: f32,
+    dt: f32,
+    turn_rate: f32,
+    bias: f32,
+) -> f32 {
+    let rotation_time = group.world_dir.angle_between(burn_dir) / turn_rate.max(1e-3);
+    let burn_time = if group.authority > 0.0 {
+        delta_v * mass * dt / group.authority
+    } else {
+        f32::INFINITY
+    };
+    rotation_time * bias + burn_time
+}
+
+/// The fastest group for a burn, per [`group_time_score`].
+fn choose_group<'a>(
+    groups: &'a [ThrusterGroup],
+    burn_dir: Vec3,
+    delta_v: f32,
+    mass: f32,
+    dt: f32,
+    turn_rate: f32,
+    bias: f32,
+) -> Option<&'a ThrusterGroup> {
+    groups.iter().min_by(|a, b| {
+        group_time_score(a, burn_dir, delta_v, mass, dt, turn_rate, bias).total_cmp(
+            &group_time_score(b, burn_dir, delta_v, mass, dt, turn_rate, bias),
+        )
+    })
+}
+
 /// Main-drive input (`0..1`) to deliver `impulse` this tick given the drive's
 /// per-tick authority. Pure for unit testing.
 fn burn_input(impulse: f32, authority: f32) -> f32 {
@@ -312,10 +399,15 @@ pub(crate) fn flight_status_line(
 }
 
 /// The autopilot. One rule flies every maneuver: compute the desired velocity
-/// for the goal, face the velocity *error*, burn (spooled) when aligned. The
-/// flip-and-burn emerges the moment the error points backward. Disengages
-/// (removes [`Autopilot`]) when the goal is reached, the target is gone, or
-/// the flight computer (live controller section) is lost.
+/// for the goal, rotate the *cheapest engine group* onto the velocity error
+/// (rotation time * bias + burn time; the nose is nothing special), and fire
+/// every engine currently inside the alignment cone. The flip-and-burn
+/// emerges when the main drive is worth turning for; a retro or lateral
+/// group handles what it already points at. Disengages (removes
+/// [`Autopilot`]) when the goal is reached, the target is gone, the ship has
+/// no engines, or the flight computer (live controller section) is lost.
+/// Torque from off-center engines is deliberately unmodeled (the PD fights
+/// it; see the multi-thruster spike).
 fn autopilot_system(
     time: Res<Time>,
     settings: Res<FlightSettings>,
@@ -342,7 +434,7 @@ fn autopilot_system(
         (
             &mut ThrusterSectionInput,
             &ThrusterSectionMagnitude,
-            &Rotation,
+            &Transform,
             &ChildOf,
         ),
         (
@@ -377,31 +469,34 @@ fn autopilot_system(
             continue;
         }
 
-        let forward = rotation.mul_vec3(Vec3::NEG_Z).normalize();
-
-        // Main-drive authority from the live, forward-aligned thrusters, and
-        // how hot those engines currently run (for the settle check below).
-        let mut main_authority = 0.0f32;
+        // Every live engine as (world thrust direction, magnitude), plus how
+        // hot the hottest one runs (for the settle check). A section's local
+        // Transform is its fixed attitude on the hull; engines do not gimbal.
+        let mut engines: Vec<(Vec3, f32)> = Vec::new();
         let mut hottest_input = 0.0f32;
-        for (input, magnitude, thruster_rotation, &ChildOf(parent)) in &q_thruster {
+        for (input, magnitude, transform, &ChildOf(parent)) in &q_thruster {
             if parent != ship {
                 continue;
             }
-            let dir = thruster_rotation.mul_vec3(Vec3::NEG_Z).normalize();
-            if is_forward_aligned(dir, forward) {
-                main_authority += **magnitude;
-                hottest_input = hottest_input.max(**input);
-            }
+            let dir = rotation
+                .mul_vec3(transform.rotation.mul_vec3(Vec3::NEG_Z))
+                .normalize();
+            engines.push((dir, **magnitude));
+            hottest_input = hottest_input.max(**input);
         }
+        if engines.is_empty() {
+            debug!("autopilot_system: ship {ship:?} has no live engines, disengaging");
+            commands.entity(ship).remove::<Autopilot>();
+            continue;
+        }
+        let groups = cluster_thrusters(&engines, FORWARD_ALIGNMENT_COS);
+        let turn_rate = settings.est_turn_rate_deg.to_radians();
 
-        // Braking acceleration (u/s^2) the maneuver can plan with.
-        let accel = if dt > 0.0 && mass.value() > 0.0 {
-            (main_authority / mass.value()) / dt
-        } else {
-            0.0
-        };
-
-        // The goal, as a desired velocity right now.
+        // The goal, as a desired velocity right now. For GOTO the arrival
+        // curve is planned with the group the computer would actually brake
+        // with: its authority sets the deceleration, its rotation distance
+        // sets the lead (a retro-equipped ship brakes late and flat; a
+        // main-drive-only ship budgets its 180).
         let desired = match autopilot.action {
             AutopilotAction::Stop => Vec3::ZERO,
             AutopilotAction::Goto { target } => {
@@ -410,93 +505,148 @@ fn autopilot_system(
                     commands.entity(ship).remove::<Autopilot>();
                     continue;
                 };
-                goto_desired_velocity(
-                    target_transform.translation() - position.0,
-                    settings.arrival_standoff,
-                    accel,
-                    settings.decel_margin,
-                    settings.flip_lead_time,
-                    settings.min_approach_speed,
-                )
+                let to_target = target_transform.translation() - position.0;
+                if to_target.length() <= settings.arrival_standoff {
+                    Vec3::ZERO
+                } else {
+                    let brake_dir = -to_target.normalize();
+                    let brake_speed = velocity.length().max(settings.min_approach_speed);
+                    let brake = choose_group(
+                        &groups,
+                        brake_dir,
+                        brake_speed,
+                        mass.value(),
+                        dt,
+                        turn_rate,
+                        settings.rotation_bias,
+                    );
+                    let (brake_authority, brake_angle) = brake
+                        .map(|g| (g.authority, g.world_dir.angle_between(brake_dir)))
+                        .unwrap_or((0.0, 0.0));
+                    let accel = if dt > 0.0 && mass.value() > 0.0 {
+                        (brake_authority / mass.value()) / dt
+                    } else {
+                        0.0
+                    };
+                    let lead = brake_angle / turn_rate.max(1e-3) + settings.arrival_spool_pad;
+                    goto_desired_velocity(
+                        to_target,
+                        settings.arrival_standoff,
+                        accel,
+                        settings.decel_margin,
+                        lead,
+                        settings.min_approach_speed,
+                    )
+                }
             }
         };
 
         let error = desired - **velocity;
         let error_speed = error.length();
-
-        // Direction of the needed burn, and whether the nose is on it. Lit
-        // engines get a slightly looser gate (hysteresis) so the plume does
-        // not flicker on/off right at the alignment boundary.
         let error_dir = (error_speed > 1e-3).then(|| error / error_speed);
-        let align_gate = if hottest_input > 0.1 {
-            settings.align_cos - settings.align_hysteresis
-        } else {
-            settings.align_cos
-        };
-        let nose_on_error = error_dir
-            .map(|dir| forward.dot(dir) >= align_gate)
-            .unwrap_or(false);
+
+        // The firing set: every live engine currently inside the alignment
+        // cone of the needed burn (lit engines keep a slightly looser gate -
+        // hysteresis via their own spooled input - so the plume does not
+        // flicker at the boundary). Their summed authority sets the shared
+        // throttle.
+        let mut firing_authority = 0.0f32;
+        if let Some(error_dir) = error_dir {
+            for (input, magnitude, transform, &ChildOf(parent)) in &q_thruster {
+                if parent != ship {
+                    continue;
+                }
+                let dir = rotation
+                    .mul_vec3(transform.rotation.mul_vec3(Vec3::NEG_Z))
+                    .normalize();
+                let gate = if **input > 0.1 {
+                    settings.align_cos - settings.align_hysteresis
+                } else {
+                    settings.align_cos
+                };
+                if dir.dot(error_dir) >= gate {
+                    firing_authority += **magnitude;
+                }
+            }
+        }
 
         // Within the deadband the leftover is a crumb: never re-aim the hull
-        // for it - finish it axially if the nose already points the right
-        // way, otherwise accept it. This is what stops the ship twitching
-        // after perfection at the end of (and during) a maneuver.
+        // for it - any engine already on the error finishes it, and a
+        // residual only a rotation could remove is accepted. This is what
+        // stops the ship twitching after perfection.
         let fine = error_speed <= settings.attitude_deadband;
 
         // Done: the goal wants rest here and the ship is at rest - exactly,
-        // or within the deadband with a residual only a pirouette could
-        // remove. Release only once the engines have wound down: a still-hot,
-        // spooling-down drive would push the ship off again.
+        // or within the deadband with no engine on the residual. Release
+        // only once the engines have wound down: a still-hot, spooling-down
+        // drive would push the ship off again.
         let done = desired == Vec3::ZERO
-            && (error_speed <= settings.stop_speed_epsilon || (fine && !nose_on_error));
+            && (error_speed <= settings.stop_speed_epsilon || (fine && firing_authority <= 0.0));
         if done && hottest_input <= 0.05 {
             debug!("autopilot_system: ship {ship:?} maneuver complete, disengaging");
             commands.entity(ship).remove::<Autopilot>();
             continue;
         }
 
-        // Face the error (only for corrections worth turning for), burn when
-        // aligned - spool everything. While settling (done, engines still
-        // winding down) just command zero.
-        let (target_input, aligned) = match error_dir {
+        // Rotate the cheapest group onto the error (only for corrections
+        // worth turning for), fire the aligned set - spool everything. While
+        // settling (done, engines still winding down) just command zero.
+        let (target_input, burning) = match error_dir {
             None => (0.0, false),
             _ if done => (0.0, false),
             Some(error_dir) => {
                 if !fine {
-                    // Minimal rotation from the current attitude, preserving roll.
-                    let target_rotation = Quat::from_rotation_arc(forward, error_dir) * rotation.0;
-                    for (mut input, &ChildOf(parent)) in &mut q_rotation_input {
-                        if parent == ship {
-                            **input = target_rotation;
+                    if let Some(chosen) = choose_group(
+                        &groups,
+                        error_dir,
+                        error_speed,
+                        mass.value(),
+                        dt,
+                        turn_rate,
+                        settings.rotation_bias,
+                    ) {
+                        // Minimal rotation from the current attitude that
+                        // brings the chosen group onto the burn, preserving
+                        // roll. The nose goes wherever that puts it.
+                        let target_rotation =
+                            Quat::from_rotation_arc(chosen.world_dir, error_dir) * rotation.0;
+                        for (mut input, &ChildOf(parent)) in &mut q_rotation_input {
+                            if parent == ship {
+                                **input = target_rotation;
+                            }
                         }
                     }
                 }
-                let input = if nose_on_error {
-                    burn_input(error_speed * mass.value(), main_authority)
-                } else {
-                    0.0
-                };
-                (input, nose_on_error)
+                let input = burn_input(error_speed * mass.value(), firing_authority);
+                (input, input > 0.0)
             }
         };
 
-        autopilot.phase = if aligned {
+        autopilot.phase = if burning {
             AutopilotPhase::Burn
         } else {
             AutopilotPhase::Align
         };
 
-        for (mut input, _, thruster_rotation, &ChildOf(parent)) in &mut q_thruster {
+        // Spool every engine: the firing set toward the shared throttle,
+        // everything else toward zero.
+        for (mut input, _, transform, &ChildOf(parent)) in &mut q_thruster {
             if parent != ship {
                 continue;
             }
-            let dir = thruster_rotation.mul_vec3(Vec3::NEG_Z).normalize();
-            if !is_forward_aligned(dir, forward) {
-                continue;
-            }
+            let dir = rotation
+                .mul_vec3(transform.rotation.mul_vec3(Vec3::NEG_Z))
+                .normalize();
+            let gate = if **input > 0.1 {
+                settings.align_cos - settings.align_hysteresis
+            } else {
+                settings.align_cos
+            };
+            let fires = error_dir.map(|e| dir.dot(e) >= gate).unwrap_or(false);
+            let target = if fires && !done { target_input } else { 0.0 };
             **input = spool(
                 **input,
-                target_input,
+                target,
                 settings.spool_up_rate,
                 settings.spool_down_rate,
                 dt,
@@ -526,12 +676,9 @@ fn on_autopilot_removed_cool_engines(
 fn manual_burn_system(
     time: Res<Time>,
     settings: Res<FlightSettings>,
-    q_ship: Query<
-        (Entity, &FlightIntent, &Rotation),
-        (With<SpaceshipRootMarker>, Without<Autopilot>),
-    >,
+    q_ship: Query<(Entity, &FlightIntent), (With<SpaceshipRootMarker>, Without<Autopilot>)>,
     mut q_thruster: Query<
-        (&mut ThrusterSectionInput, &Rotation, &ChildOf),
+        (&mut ThrusterSectionInput, &Transform, &ChildOf),
         (
             With<ThrusterSectionMarker>,
             Without<SectionInactiveMarker>,
@@ -542,16 +689,18 @@ fn manual_burn_system(
 ) {
     let dt = time.delta_secs();
 
-    for (ship, intent, rotation) in &q_ship {
-        let forward = rotation.mul_vec3(Vec3::NEG_Z).normalize();
+    for (ship, intent) in &q_ship {
         let target = intent.burn.clamp(0.0, 1.0);
 
-        for (mut input, thruster_rotation, &ChildOf(parent)) in &mut q_thruster {
+        for (mut input, transform, &ChildOf(parent)) in &mut q_thruster {
             if parent != ship {
                 continue;
             }
-            let dir = thruster_rotation.mul_vec3(Vec3::NEG_Z).normalize();
-            if !is_forward_aligned(dir, forward) {
+            // The manual burn is the MAIN drive only: engines mounted facing
+            // the hull's forward (section-local check; retro/laterals keep
+            // their own keys, and the autopilot commands everything anyway).
+            let local_dir = transform.rotation.mul_vec3(Vec3::NEG_Z).normalize();
+            if !is_forward_aligned(local_dir, Vec3::NEG_Z) {
                 continue;
             }
             **input = spool(
@@ -616,6 +765,53 @@ mod tests {
             goto_desired_velocity(Vec3::ZERO, 50.0, 20.0, 0.85, 1.5, 1.5),
             Vec3::ZERO
         );
+    }
+
+    #[test]
+    fn cluster_thrusters_groups_by_direction() {
+        let engines = [
+            (Vec3::NEG_Z, 1.0),
+            (Vec3::NEG_Z, 0.5), // joins the main group
+            (Vec3::Z, 0.25),    // retro group
+            (Vec3::X, 0.25),    // lateral group
+        ];
+        let groups = cluster_thrusters(&engines, 0.9);
+        assert_eq!(groups.len(), 3);
+        let main = groups
+            .iter()
+            .find(|g| g.world_dir.dot(Vec3::NEG_Z) > 0.99)
+            .expect("main group");
+        assert!((main.authority - 1.5).abs() < 1e-6);
+        // Dead weight is ignored.
+        assert_eq!(cluster_thrusters(&[(Vec3::X, 0.0)], 0.9).len(), 0);
+    }
+
+    #[test]
+    fn group_choice_trades_rotation_against_burn_time() {
+        let main = ThrusterGroup {
+            world_dir: Vec3::NEG_Z,
+            authority: 1.0,
+        };
+        let retro = ThrusterGroup {
+            world_dir: Vec3::Z,
+            authority: 0.25,
+        };
+        let groups = [main, retro];
+        let (mass, dt, rate, bias) = (4.0, 1.0 / 64.0, 90.0f32.to_radians(), 1.5);
+        // A small brake (+Z burn): the retro already points there and wins.
+        let small = choose_group(&groups, Vec3::Z, 2.0, mass, dt, rate, bias).expect("group");
+        assert_eq!(small.world_dir, Vec3::Z, "small trims use the retro");
+        // A large brake: flipping the big main drive is faster overall.
+        let large = choose_group(&groups, Vec3::Z, 60.0, mass, dt, rate, bias).expect("group");
+        assert_eq!(large.world_dir, Vec3::NEG_Z, "big burns flip to the main");
+        // Zero-authority groups never win over a usable one.
+        let dead = ThrusterGroup {
+            world_dir: Vec3::Z,
+            authority: 0.0,
+        };
+        let handicapped = [main, dead];
+        let pick = choose_group(&handicapped, Vec3::Z, 2.0, mass, dt, rate, bias).expect("group");
+        assert_eq!(pick.world_dir, Vec3::NEG_Z);
     }
 
     #[test]
@@ -793,6 +989,36 @@ mod tests {
         (ship, thruster, controller)
     }
 
+    /// Mount an extra engine on the hull with a section-local attitude
+    /// (thrust pushes along its local -Z). Kept on the ship's long axis so
+    /// the tests stay torque-free unless they want torque.
+    fn spawn_extra_thruster(
+        app: &mut App,
+        ship: Entity,
+        magnitude: f32,
+        local_rotation: Quat,
+    ) -> Entity {
+        app.world_mut()
+            .spawn((
+                ChildOf(ship),
+                Name::new("extra thruster"),
+                ThrusterSectionMarker,
+                ThrusterSectionMagnitude(magnitude),
+                ThrusterSectionInput(0.0),
+                Transform::from_xyz(0.0, 0.0, -2.0).with_rotation(local_rotation),
+                Collider::cuboid(1.0, 1.0, 1.0),
+                ColliderDensity(1.0),
+            ))
+            .id()
+    }
+
+    fn forward_of(app: &App, ship: Entity) -> Vec3 {
+        app.world()
+            .get::<Rotation>(ship)
+            .unwrap()
+            .mul_vec3(Vec3::NEG_Z)
+    }
+
     fn velocity_of(app: &App, ship: Entity) -> Vec3 {
         **app.world().get::<LinearVelocity>(ship).unwrap()
     }
@@ -958,6 +1184,148 @@ mod tests {
         assert!(
             speed < 0.5,
             "scenario-built ship STOP should reach rest, got {speed}"
+        );
+    }
+
+    /// A retro-equipped ship must brake a small overspeed with the engine
+    /// already pointing the right way - zero hull rotation, no flip.
+    #[test]
+    fn retro_group_brakes_a_small_overspeed_without_flipping() {
+        let mut app = flight_app();
+        let (ship, _, _) = spawn_ship(&mut app);
+        spawn_extra_thruster(
+            &mut app,
+            ship,
+            0.25,
+            Quat::from_rotation_y(std::f32::consts::PI),
+        );
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::new(0.0, 0.0, -2.0)));
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+
+        run(&mut app, 600);
+
+        let speed = velocity_of(&app, ship).length();
+        assert!(speed < 0.5, "retro should brake to rest, got {speed}");
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "completed maneuver disengages"
+        );
+        let forward = forward_of(&app, ship);
+        assert!(
+            forward.dot(Vec3::NEG_Z) > 0.95,
+            "a retro brake must not flip the hull, forward now {forward}"
+        );
+    }
+
+    /// For a big burn the math flips: rotating the strong main drive around
+    /// beats a long slow burn on the little retro (the rotation-bias knob).
+    #[test]
+    fn large_burn_still_flips_to_the_main_drive() {
+        let mut app = flight_app();
+        let (ship, _, _) = spawn_ship(&mut app);
+        spawn_extra_thruster(
+            &mut app,
+            ship,
+            0.25,
+            Quat::from_rotation_y(std::f32::consts::PI),
+        );
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::new(0.0, 0.0, -30.0)));
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+
+        run(&mut app, 1800);
+
+        let speed = velocity_of(&app, ship).length();
+        assert!(speed < 0.5, "STOP should reach rest, got {speed}");
+        let forward = forward_of(&app, ship);
+        assert!(
+            forward.dot(Vec3::NEG_Z) < 0.5,
+            "a large brake should have swung the hull off the nose line, forward {forward}"
+        );
+    }
+
+    /// Inside the deadband nothing rotates - but an engine that already
+    /// points at the crumb kills it instead of the residual being accepted.
+    #[test]
+    fn side_thruster_kills_a_lateral_crumb_in_the_deadband() {
+        let mut app = flight_app();
+        let (ship, _, _) = spawn_ship(&mut app);
+        // Thrust toward -X (local -Z rotated +90 degrees about Y).
+        spawn_extra_thruster(
+            &mut app,
+            ship,
+            0.25,
+            Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),
+        );
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::new(0.3, 0.0, 0.0)));
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+
+        run(&mut app, 300);
+
+        let speed = velocity_of(&app, ship).length();
+        assert!(
+            speed < 0.25,
+            "the side engine should kill the crumb, got {speed}"
+        );
+        assert!(app.world().get::<Autopilot>(ship).is_none());
+        let forward = forward_of(&app, ship);
+        assert!(
+            forward.dot(Vec3::NEG_Z) > 0.95,
+            "no rotation inside the deadband, forward now {forward}"
+        );
+    }
+
+    /// Destroying the retro removes its group: the ship falls back to the
+    /// flip-and-burn it would have needed anyway.
+    #[test]
+    fn a_dead_retro_falls_back_to_the_flip() {
+        let mut app = flight_app();
+        let (ship, _, _) = spawn_ship(&mut app);
+        let retro = spawn_extra_thruster(
+            &mut app,
+            ship,
+            0.25,
+            Quat::from_rotation_y(std::f32::consts::PI),
+        );
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(retro)
+            .insert(SectionInactiveMarker);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::new(0.0, 0.0, -2.0)));
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+
+        run(&mut app, 900);
+
+        let speed = velocity_of(&app, ship).length();
+        assert!(
+            speed < 0.5,
+            "main-drive fallback should still stop, got {speed}"
+        );
+        // The exact parking attitude wanders with the endgame crumbs; what
+        // matters is that stopping required leaving the original facing (the
+        // retro would have braked without turning at all).
+        let forward = forward_of(&app, ship);
+        assert!(
+            forward.dot(Vec3::NEG_Z) < 0.5,
+            "without the retro the hull must have turned away to brake, forward {forward}"
         );
     }
 

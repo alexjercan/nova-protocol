@@ -28,25 +28,36 @@ its **real actuators**, not apply invisible RCS forces at the center of mass.
 
 Each tick the autopilot computes the **desired velocity** for its goal
 (`Vec3::ZERO` for STOP; for GOTO, the arrival rule solved with a reaction
-budget: the `v` satisfying `v * flip_lead_time + v^2 / (2 * a * margin) =
-remaining`, with `a` derived from live main-drive authority and
-`ComputedMass`), then:
+budget: the `v` satisfying `v * lead + v^2 / (2 * a * margin) = remaining`,
+where both `a` and the lead come from the engine group the computer would
+actually brake with - a retro-equipped ship brakes late and flat, a
+main-drive-only ship budgets its 180 plus `arrival_spool_pad`), then:
 
-1. faces the **velocity error** (`desired - actual`) - the flip-and-burn
-   emerges naturally: the moment the ship is going faster than the arrival
-   rule allows, the error points backward and the nose swings retrograde;
-2. burns (spooled) only when aligned within `align_cos` (0.95, the same
-   discipline the AI already uses);
+1. clusters the live engines into **direction groups** (a section's local
+   `Transform.rotation` is its thrust axis; greedy clustering inside the
+   ~25 degree cone) and rotates the *cheapest group* onto the **velocity
+   error** (`desired - actual`) - cheapest by
+   `rotation_time * rotation_bias + burn_time`, so a retro thruster handles
+   the small brake it already points at while a big burn still flips the
+   main drive around. The nose is nothing special;
+2. fires **every** live engine currently inside the `align_cos` cone of the
+   error (per-engine hysteresis via its own spooled input), sharing the
+   throttle across the firing set's summed authority;
 3. disengages when the goal wants rest, the ship is at rest
    (`stop_speed_epsilon`), **and the engines have wound down** - releasing
    the ship mid-spool-down would let the dying burn push it off station.
 
-Two terms exist because the physics-level tests demanded them: the
-`flip_lead_time` budgets the seconds of un-braked travel a real 180 costs
+Two terms exist because the physics-level tests demanded them: the arrival
+lead budgets the un-braked travel that rotating the brake group costs
 (without it the plan assumes instant retro thrust and sails through the
 standoff at 30+ u/s), and `min_approach_speed` floors the GOTO closing speed
 (the pure arrival curve reaches zero *at* the boundary, so the ship would
 approach it asymptotically and never arrive).
+
+The planner knobs `rotation_bias` (1.5) and `est_turn_rate_deg` (90) shape
+the rotate-vs-burn tradeoff and are retune-owned, as is the
+`arrival_spool_pad` on the dynamic brake lead (which replaced the fixed
+`flip_lead_time`).
 
 Two more came from playtest feel: `attitude_deadband` (0.4 u/s) marks
 velocity errors as crumbs the computer never re-aims the hull for - it
@@ -58,7 +69,10 @@ flicker at the boundary.
 
 GOTO replans against the target's current position every tick: slow drift is
 tracked, fast targets just take longer. There is no collision avoidance in
-v1 (spike-recorded limitation).
+v1, and torque from off-center engines is deliberately unmodeled - the PD
+fights it, an unbalanced ship flies badly, and that is diegetic (both
+spike-recorded; torque-aware allocation via section positions/COM is the
+follow-up).
 
 ### Authority handover
 
