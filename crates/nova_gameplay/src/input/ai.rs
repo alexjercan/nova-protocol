@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use crate::prelude::*;
 
 pub mod prelude {
-    pub use super::{AIBehaviorState, AISpaceshipMarker, SpaceshipAIInputPlugin};
+    pub use super::{AIBehaviorState, AISpaceshipMarker, AITarget, SpaceshipAIInputPlugin};
 }
 
 pub struct SpaceshipAIInputPlugin;
@@ -14,10 +14,12 @@ impl Plugin for SpaceshipAIInputPlugin {
         debug!("SpaceshipAIInputPlugin: build");
 
         app.register_type::<AIBehaviorState>();
+        app.register_type::<AITarget>();
 
         app.add_systems(
             Update,
             (
+                update_ai_target,
                 update_behavior_state,
                 update_controller_target_rotation_torque,
                 on_thruster_input,
@@ -33,12 +35,135 @@ impl Plugin for SpaceshipAIInputPlugin {
 /// Marker component to identify the ai's spaceship.
 ///
 /// This should be added to the root entity of the ai's spaceship.
-/// Carries [`Allegiance::Enemy`] and an [`AIBehaviorState`] by requirement,
-/// so every AI-marked root participates in the relation model and the
-/// behavior state machine without extra spawn wiring.
+/// Carries [`Allegiance::Enemy`], an [`AIBehaviorState`] and an [`AITarget`]
+/// by requirement, so every AI-marked root participates in the relation
+/// model, the behavior state machine and target selection without extra
+/// spawn wiring.
 #[derive(Component, Debug, Clone, Reflect)]
-#[require(SpaceshipRootMarker, Allegiance = Allegiance::Enemy, AIBehaviorState)]
+#[require(
+    SpaceshipRootMarker,
+    Allegiance = Allegiance::Enemy,
+    AIBehaviorState,
+    AITarget
+)]
 pub struct AISpaceshipMarker;
+
+/// The entity this AI ship currently fights - what every AI behavior system
+/// aims, chases and shoots at. Written by [`update_ai_target`] from the
+/// relation model (task 20260709-225727); `None` means nothing hostile in
+/// acquisition range, which [`update_behavior_state`] turns into `Idle`.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq, Deref, DerefMut, Reflect)]
+#[reflect(Component)]
+pub struct AITarget(pub Option<Entity>);
+
+/// What kind of body a target candidate is. Priority TIER, not a score
+/// tweak: hostile ships always beat hostile torpedoes (the urgency flip for
+/// an incoming torpedo is the point-defense task, 20260709-225733).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum AITargetKind {
+    Ship,
+    Torpedo,
+}
+
+/// Acquisition range (m) of AI target selection, matching the player's
+/// TARGETING_MAX_RANGE.
+const AI_TARGET_MAX_RANGE: f32 = 2000.0;
+/// Switch hysteresis: the current target's distance is discounted by this
+/// factor, so a rival has to be meaningfully closer (not a frame-noise
+/// sliver) to steal the pick.
+const AI_TARGET_HYSTERESIS_DISCOUNT: f32 = 0.8;
+
+/// Choose the best target from `candidates`: highest priority tier first
+/// ([`AITargetKind`] order), nearest within the tier, with the current
+/// target's distance discounted by [`AI_TARGET_HYSTERESIS_DISCOUNT`] so the
+/// pick does not flip-flop between two comparably distant hostiles. Out of
+/// [`AI_TARGET_MAX_RANGE`] (or with no candidates) the pick is `None`.
+/// Pure for unit testing.
+fn pick_ai_target(
+    own_anchor: Vec3,
+    current: Option<Entity>,
+    candidates: impl Iterator<Item = (Entity, Vec3, AITargetKind)>,
+) -> Option<Entity> {
+    candidates
+        .filter_map(|(entity, position, kind)| {
+            let mut distance = own_anchor.distance(position);
+            if distance > AI_TARGET_MAX_RANGE || distance <= f32::EPSILON {
+                return None;
+            }
+            if current == Some(entity) {
+                distance *= AI_TARGET_HYSTERESIS_DISCOUNT;
+            }
+            Some((entity, kind, distance))
+        })
+        .min_by(|(_, kind_a, dist_a), (_, kind_b, dist_b)| {
+            kind_a.cmp(kind_b).then(dist_a.total_cmp(dist_b))
+        })
+        .map(|(entity, _, _)| entity)
+}
+
+/// Acquire each AI ship's [`AITarget`] over the relation model: every
+/// hostile ship root or committed hostile torpedo inside acquisition range
+/// is a candidate; [`pick_ai_target`] scores them. Runs first in the AI
+/// chain - acquisition drives engagement, so a ship in `Idle` still scans.
+#[allow(clippy::type_complexity)]
+fn update_ai_target(
+    q_candidates: Query<(
+        Entity,
+        &Transform,
+        Option<&ComputedCenterOfMass>,
+        Option<&Allegiance>,
+        Has<SpaceshipRootMarker>,
+        Option<&TorpedoProjectileMarker>,
+        Option<&TorpedoTargetChosen>,
+    )>,
+    mut q_spaceship: Query<
+        (
+            Entity,
+            &Transform,
+            Option<&ComputedCenterOfMass>,
+            &Allegiance,
+            &mut AITarget,
+        ),
+        (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
+    >,
+) {
+    for (ship, transform, com, own_allegiance, mut target) in &mut q_spaceship {
+        let own_anchor = live_structure_anchor(transform, com);
+        let candidates = q_candidates.iter().filter_map(
+            |(entity, c_transform, c_com, allegiance, is_ship, is_torpedo, committed)| {
+                if entity == ship {
+                    return None;
+                }
+                // Hostility comes from the relation model: the player's ship
+                // and projectiles are hostile to an Enemy-aligned AI, other
+                // AI ships and neutral bodies (asteroids) are not.
+                if relation(Some(own_allegiance), allegiance) != Relation::Hostile {
+                    return None;
+                }
+                let kind = if is_ship {
+                    AITargetKind::Ship
+                } else if is_torpedo.is_some() {
+                    // Only committed torpedoes are targets, matching the
+                    // player targeting rule: a just-launched torpedo has not
+                    // decided what it is yet.
+                    committed?;
+                    AITargetKind::Torpedo
+                } else {
+                    return None;
+                };
+                Some((entity, live_structure_anchor(c_transform, c_com), kind))
+            },
+        );
+
+        let next = pick_ai_target(own_anchor, **target, candidates);
+        // Change-detection hygiene: only write on a real change. A dead or
+        // out-of-range target clears here (the pick simply no longer finds
+        // it), so consumers never chase a stale entity.
+        if **target != next {
+            **target = next;
+        }
+    }
+}
 
 /// What an AI ship is currently doing - the state skeleton of the AI combat
 /// arc (docs/spikes/20260709-225508-ai-combat-behaviors.md). One state per
@@ -97,19 +222,14 @@ fn next_behavior_state(current: AIBehaviorState, hostile_present: bool) -> AIBeh
     }
 }
 
-/// Drive each AI ship's [`AIBehaviorState`] from the world. Runs before the
-/// behavior systems in the same frame so a transition takes effect
-/// immediately (no one-frame stale-state window).
+/// Drive each AI ship's [`AIBehaviorState`] from its [`AITarget`]. Runs
+/// after acquisition and before the behavior systems in the same frame so a
+/// transition takes effect immediately (no one-frame stale-state window).
 fn update_behavior_state(
-    q_player: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
-    mut q_spaceship: Query<&mut AIBehaviorState, With<AISpaceshipMarker>>,
+    mut q_spaceship: Query<(&mut AIBehaviorState, &AITarget), With<AISpaceshipMarker>>,
 ) {
-    // Minimal hostility: the player is the AI's only hostile until target
-    // selection over the relation model lands (20260709-225727).
-    let hostile_present = !q_player.is_empty();
-
-    for mut state in &mut q_spaceship {
-        let next = next_behavior_state(*state, hostile_present);
+    for (mut state, target) in &mut q_spaceship {
+        let next = next_behavior_state(*state, target.is_some());
         // Change-detection hygiene: only write on a real transition.
         if *state != next {
             *state = next;
@@ -132,27 +252,38 @@ const AI_THRUST_ALIGNMENT: f32 = 0.95;
 /// Only fire when the muzzle aligns with the player at least this much.
 const AI_FIRE_ALIGNMENT: f32 = 0.95;
 
-/// The direction an AI ship should face: toward the player while it is slower than its
+/// The direction an AI ship should face: toward its target while it is slower than its
 /// distance-scaled target speed, or opposite its velocity when overshooting (braking).
-/// Falls back to facing the player if the computed direction degenerates to zero.
-fn ai_desired_direction(to_player: Vec3, velocity: Vec3) -> Vec3 {
+/// Falls back to facing the target if the computed direction degenerates to zero.
+fn ai_desired_direction(to_target: Vec3, velocity: Vec3) -> Vec3 {
     let target_speed =
-        (to_player.length() * AI_CHASE_SPEED_GAIN).clamp(AI_MIN_CHASE_SPEED, AI_MAX_CHASE_SPEED);
+        (to_target.length() * AI_CHASE_SPEED_GAIN).clamp(AI_MIN_CHASE_SPEED, AI_MAX_CHASE_SPEED);
     let too_fast = velocity.length() > target_speed + AI_BRAKE_SPEED_MARGIN;
 
     let desired = if too_fast {
         // Brake: point opposite the current velocity.
         -velocity.normalize_or_zero()
     } else {
-        // Chase: point toward the player.
-        to_player.normalize()
+        // Chase: point toward the target.
+        to_target.normalize()
     };
 
     if desired.length_squared() == 0.0 {
-        to_player.normalize_or_zero()
+        to_target.normalize_or_zero()
     } else {
         desired
     }
+}
+
+/// The live-structure anchor of a ship's [`AITarget`], or `None` without a
+/// target (or when it despawned this frame). The shared aim/chase point of
+/// every AI behavior system.
+fn ai_target_anchor(
+    target: &AITarget,
+    q_target: &Query<(&Transform, Option<&ComputedCenterOfMass>)>,
+) -> Option<Vec3> {
+    let (transform, com) = q_target.get((**target)?).ok()?;
+    Some(live_structure_anchor(transform, com))
 }
 
 fn update_controller_target_rotation_torque(
@@ -177,38 +308,30 @@ fn update_controller_target_rotation_torque(
             &ComputedAngularInertia,
             Option<&ComputedCenterOfMass>,
             &AIBehaviorState,
+            &AITarget,
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
-    player: Option<
-        Single<
-            (&Transform, Option<&ComputedCenterOfMass>),
-            (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
-        >,
-    >,
+    q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {
-    // Chase the player's live structure, not the root origin: the origin is
-    // the build spot of the first sections and floats in empty space once
-    // they are destroyed (task 20260709-150711). With no player at all the
-    // command freezes, same as a non-engaging state.
-    let Some(player) = player else {
-        return;
-    };
-    let (player_transform, player_com) = player.into_inner();
-    let player_anchor = live_structure_anchor(player_transform, player_com);
-
-    for (entity, transform, velocity, inertia, com, state) in &q_spaceship {
+    for (entity, transform, velocity, inertia, com, state, target) in &q_spaceship {
         // A non-engaging state (Idle/Patrol) holds its helm: the command
         // freezes exactly like a dead helm, so re-engaging resumes from
-        // where the hull actually points.
+        // where the hull actually points. No target freezes it the same way.
         if !state.engages() {
             continue;
         }
+        // Chase the target's live structure, not its root origin: the origin
+        // is the build spot of the first sections and floats in empty space
+        // once they are destroyed (task 20260709-150711).
+        let Some(target_anchor) = ai_target_anchor(target, &q_target) else {
+            continue;
+        };
         // Both ends of the chase vector track live structure: the AI's own
-        // root origin goes as stale as the player's once sections die.
+        // root origin goes as stale as the target's once sections die.
         let own_anchor = live_structure_anchor(transform, com);
-        let to_player = player_anchor - own_anchor;
-        let desired_direction = ai_desired_direction(to_player, **velocity);
+        let to_target = target_anchor - own_anchor;
+        let desired_direction = ai_desired_direction(to_target, **velocity);
 
         // Slew the command at the hull's torque-budget turn rate instead of
         // rewriting it every frame: a distant setpoint drives the PD into
@@ -263,32 +386,23 @@ fn on_thruster_input(
             &LinearVelocity,
             Option<&ComputedCenterOfMass>,
             &AIBehaviorState,
+            &AITarget,
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
-    player: Option<
-        Single<
-            (&Transform, Option<&ComputedCenterOfMass>),
-            (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
-        >,
-    >,
+    q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {
-    let player_anchor = player.map(|player| {
-        let (player_transform, player_com) = player.into_inner();
-        live_structure_anchor(player_transform, player_com)
-    });
-
-    for (entity, transform, velocity, com, state) in &q_spaceship {
-        // A non-engaging state (or no player left to chase) cuts the burn -
+    for (entity, transform, velocity, com, state, target) in &q_spaceship {
+        // A non-engaging state (or no target left to chase) cuts the burn -
         // written as an explicit 0.0, not a skip, so a ship that was
         // thrusting when the state flipped actually stops.
-        let thrust_level = match player_anchor {
-            Some(player_anchor) if state.engages() => {
+        let thrust_level = match ai_target_anchor(target, &q_target) {
+            Some(target_anchor) if state.engages() => {
                 // Same live-structure vector as the rotation system, so the
                 // thrust gate and the rotation command agree on where
-                // "toward the player" is.
-                let to_player = player_anchor - live_structure_anchor(transform, com);
-                let desired_direction = ai_desired_direction(to_player, **velocity);
+                // "toward the target" is.
+                let to_target = target_anchor - live_structure_anchor(transform, com);
+                let desired_direction = ai_desired_direction(to_target, **velocity);
 
                 // Thrust only when the ship is pointing roughly toward the
                 // desired direction.
@@ -315,32 +429,27 @@ fn on_thruster_input(
 fn update_turret_target_input(
     mut q_turret: Query<(&mut TurretSectionTargetInput, &ChildOf), With<TurretSectionMarker>>,
     q_spaceship: Query<
-        (Entity, &AIBehaviorState),
+        (Entity, &AIBehaviorState, &AITarget),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
-    player: Option<
-        Single<
-            (&Transform, Option<&ComputedCenterOfMass>),
-            (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
-        >,
-    >,
+    q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {
-    // Aim at the live structure: fire converging on the root origin lands in
-    // empty space once the player's front sections die (task 20260709-150711).
-    let player_anchor = player.map(|player| {
-        let (transform, com) = player.into_inner();
-        live_structure_anchor(transform, com)
-    });
-
-    for (entity, state) in &q_spaceship {
-        // A non-engaging state (or no player) clears the aim: turrets slew
-        // back to rest instead of tracking a fight that is over.
-        let target = if state.engages() { player_anchor } else { None };
+    for (entity, state, target) in &q_spaceship {
+        // Aim at the target's live structure: fire converging on the root
+        // origin lands in empty space once its front sections die (task
+        // 20260709-150711). A non-engaging state (or no target) clears the
+        // aim: turrets slew back to rest instead of tracking a fight that
+        // is over.
+        let aim = if state.engages() {
+            ai_target_anchor(target, &q_target)
+        } else {
+            None
+        };
         for (mut turret_input, _) in q_turret
             .iter_mut()
             .filter(|(_, ChildOf(c_parent))| *c_parent == entity)
         {
-            **turret_input = target;
+            **turret_input = aim;
         }
     }
 }
@@ -356,29 +465,20 @@ fn on_projectile_input(
     >,
     q_muzzle: Query<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>,
     q_spaceship: Query<
-        (Entity, &AIBehaviorState),
+        (Entity, &AIBehaviorState, &AITarget),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
-    player: Option<
-        Single<
-            (&Transform, Option<&ComputedCenterOfMass>),
-            (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
-        >,
-    >,
+    q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {
-    let player_anchor = player.map(|player| {
-        let (player_transform, player_com) = player.into_inner();
-        live_structure_anchor(player_transform, player_com)
-    });
-
-    for (entity, state) in &q_spaceship {
+    for (entity, state, target) in &q_spaceship {
+        let target_anchor = ai_target_anchor(target, &q_target);
         for (muzzle, mut input, _) in q_turret
             .iter_mut()
             .filter(|(_, _, ChildOf(c_parent))| *c_parent == entity)
         {
-            // Hold fire outside the engaging states (or with no player) -
+            // Hold fire outside the engaging states (or with no target) -
             // written as an explicit false so a firing turret stops.
-            let (Some(player_anchor), true) = (player_anchor, state.engages()) else {
+            let (Some(target_anchor), true) = (target_anchor, state.engages()) else {
                 **input = false;
                 continue;
             };
@@ -391,10 +491,10 @@ fn on_projectile_input(
                 continue;
             };
 
-            let direction_to_player = (player_anchor - muzzle_transform.translation()).normalize();
+            let direction_to_target = (target_anchor - muzzle_transform.translation()).normalize();
             let forward = muzzle_transform.forward();
 
-            let alignment = forward.dot(direction_to_player);
+            let alignment = forward.dot(direction_to_target);
             **input = alignment > AI_FIRE_ALIGNMENT;
         }
     }
@@ -436,10 +536,13 @@ mod behavior_state_tests {
     }
 
     #[test]
-    fn the_state_idles_without_a_player_and_reengages_with_one() {
+    fn the_state_idles_without_a_target_and_reengages_with_one() {
+        // Drive the real acquisition -> transition pipeline: no hostile in
+        // range means no target means Idle; a hostile appearing re-engages.
         let mut world = World::new();
-        let ship = world.spawn(AISpaceshipMarker).id();
+        let ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
 
+        world.run_system_once(update_ai_target).unwrap();
         world.run_system_once(update_behavior_state).unwrap();
         assert_eq!(
             *world.entity(ship).get::<AIBehaviorState>().unwrap(),
@@ -447,7 +550,12 @@ mod behavior_state_tests {
             "no hostile in the world: nothing to engage"
         );
 
-        world.spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
+        world.spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+        ));
+        world.run_system_once(update_ai_target).unwrap();
         world.run_system_once(update_behavior_state).unwrap();
         assert_eq!(
             *world.entity(ship).get::<AIBehaviorState>().unwrap(),
@@ -458,18 +566,21 @@ mod behavior_state_tests {
 
     #[test]
     fn idle_cuts_thrust_fire_and_aim() {
-        // Flip a fully lit ship to Idle with the player still present: every
+        // Flip a fully lit ship to Idle with its target still present: every
         // actuator must be explicitly zeroed, not left at its last value.
         let mut world = World::new();
-        world.spawn((
-            SpaceshipRootMarker,
-            PlayerSpaceshipMarker,
-            Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
-        ));
+        let player = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+            ))
+            .id();
         let ship = world
             .spawn((
                 AISpaceshipMarker,
                 AIBehaviorState::Idle,
+                AITarget(Some(player)),
                 Transform::default(),
                 LinearVelocity(Vec3::ZERO),
             ))
@@ -527,8 +638,9 @@ mod tests {
 
     #[test]
     fn ai_turrets_target_the_live_structure_anchor() {
-        // AI fire must converge on the player's surviving structure, not the
-        // root origin build-spot (task 20260709-150711).
+        // AI fire must converge on the target's surviving structure, not the
+        // root origin build-spot (task 20260709-150711). Driven through the
+        // real acquisition system, not a hand-set target.
         let mut world = World::new();
         world.spawn((
             SpaceshipRootMarker,
@@ -536,7 +648,7 @@ mod tests {
             Transform::from_translation(Vec3::new(10.0, 0.0, 0.0)),
             ComputedCenterOfMass(Vec3::new(0.0, 0.0, 3.0)),
         ));
-        let ai_ship = world.spawn(AISpaceshipMarker).id();
+        let ai_ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
         let turret = world
             .spawn((
                 TurretSectionMarker,
@@ -545,6 +657,7 @@ mod tests {
             ))
             .id();
 
+        world.run_system_once(update_ai_target).unwrap();
         world.run_system_once(update_turret_target_input).unwrap();
 
         assert_eq!(
@@ -565,7 +678,7 @@ mod tests {
             PlayerSpaceshipMarker,
             Transform::from_translation(Vec3::new(1.0, 2.0, 3.0)),
         ));
-        let ai_ship = world.spawn(AISpaceshipMarker).id();
+        let ai_ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
         let turret = world
             .spawn((
                 TurretSectionMarker,
@@ -574,6 +687,7 @@ mod tests {
             ))
             .id();
 
+        world.run_system_once(update_ai_target).unwrap();
         world.run_system_once(update_turret_target_input).unwrap();
 
         assert_eq!(
@@ -606,7 +720,12 @@ mod rotation_tests {
             1.0 / 60.0,
         )));
         app.init_resource::<FlightSettings>();
-        app.add_systems(Update, update_controller_target_rotation_torque);
+        // The real acquisition system feeds the rotation system, so the
+        // harness drives the same pipeline the plugin chains.
+        app.add_systems(
+            Update,
+            (update_ai_target, update_controller_target_rotation_torque).chain(),
+        );
 
         app.world_mut().spawn((
             SpaceshipRootMarker,
@@ -751,6 +870,8 @@ mod physics_tests {
         app.add_systems(
             FixedUpdate,
             (
+                update_ai_target,
+                update_behavior_state,
                 update_controller_target_rotation_torque,
                 update_controller_section_rotation_input,
             )
@@ -830,6 +951,193 @@ mod physics_tests {
             max_spin < 0.5,
             "residual spin must stay within the known roll-damping bound \
              (20260709-125640), got {max_spin} rad/s"
+        );
+    }
+}
+
+#[cfg(test)]
+mod target_selection_tests {
+    use bevy::ecs::system::RunSystemOnce;
+
+    use super::*;
+
+    fn entity(raw: u32) -> Entity {
+        Entity::from_raw_u32(raw).unwrap()
+    }
+
+    // -- the pure picker --
+
+    #[test]
+    fn nearest_wins_within_a_tier() {
+        let near = entity(1);
+        let far = entity(2);
+        let picked = pick_ai_target(
+            Vec3::ZERO,
+            None,
+            [
+                (far, Vec3::new(0.0, 0.0, -500.0), AITargetKind::Ship),
+                (near, Vec3::new(0.0, 0.0, -100.0), AITargetKind::Ship),
+            ]
+            .into_iter(),
+        );
+        assert_eq!(picked, Some(near));
+    }
+
+    #[test]
+    fn a_ship_beats_a_nearer_torpedo() {
+        // Tiered priority, not a distance tweak: the urgency flip for
+        // incoming torpedoes is the point-defense task (20260709-225733).
+        let ship = entity(1);
+        let torpedo = entity(2);
+        let picked = pick_ai_target(
+            Vec3::ZERO,
+            None,
+            [
+                (torpedo, Vec3::new(0.0, 0.0, -50.0), AITargetKind::Torpedo),
+                (ship, Vec3::new(0.0, 0.0, -1500.0), AITargetKind::Ship),
+            ]
+            .into_iter(),
+        );
+        assert_eq!(picked, Some(ship));
+    }
+
+    #[test]
+    fn hysteresis_holds_the_current_pick_against_slivers() {
+        let current = entity(1);
+        let rival = entity(2);
+        // The rival is 10% closer: inside the 20% hysteresis discount, the
+        // current target holds.
+        let held = pick_ai_target(
+            Vec3::ZERO,
+            Some(current),
+            [
+                (current, Vec3::new(0.0, 0.0, -1000.0), AITargetKind::Ship),
+                (rival, Vec3::new(0.0, 0.0, -900.0), AITargetKind::Ship),
+            ]
+            .into_iter(),
+        );
+        assert_eq!(held, Some(current), "a sliver does not steal the pick");
+
+        // At 2x closer the rival wins even against the discount.
+        let stolen = pick_ai_target(
+            Vec3::ZERO,
+            Some(current),
+            [
+                (current, Vec3::new(0.0, 0.0, -1000.0), AITargetKind::Ship),
+                (rival, Vec3::new(0.0, 0.0, -500.0), AITargetKind::Ship),
+            ]
+            .into_iter(),
+        );
+        assert_eq!(stolen, Some(rival), "a real gap does steal the pick");
+    }
+
+    #[test]
+    fn out_of_range_or_empty_picks_nothing() {
+        assert_eq!(
+            pick_ai_target(
+                Vec3::ZERO,
+                None,
+                [(entity(1), Vec3::new(0.0, 0.0, -2500.0), AITargetKind::Ship)].into_iter(),
+            ),
+            None,
+            "beyond acquisition range"
+        );
+        assert_eq!(
+            pick_ai_target(Vec3::ZERO, None, std::iter::empty()),
+            None,
+            "no candidates"
+        );
+    }
+
+    // -- the acquisition system over the relation model --
+
+    #[test]
+    fn acquisition_prefers_the_hostile_ship_and_ignores_non_hostiles() {
+        let mut world = World::new();
+        let ai_ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        // A fellow AI ship (Own), a neutral asteroid-like body (no
+        // allegiance), and an uncommitted hostile torpedo: all ignored.
+        world.spawn((
+            AISpaceshipMarker,
+            Transform::from_translation(Vec3::new(20.0, 0.0, 0.0)),
+        ));
+        world.spawn(Transform::from_translation(Vec3::new(30.0, 0.0, 0.0)));
+        world.spawn((
+            TorpedoProjectileMarker,
+            Allegiance::Player,
+            Transform::from_translation(Vec3::new(40.0, 0.0, 0.0)),
+        ));
+        // A committed hostile torpedo nearer than the hostile ship: the
+        // ship still wins the tier.
+        world.spawn((
+            TorpedoProjectileMarker,
+            TorpedoTargetChosen,
+            Allegiance::Player,
+            Transform::from_translation(Vec3::new(50.0, 0.0, 0.0)),
+        ));
+        let player = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::from_translation(Vec3::new(500.0, 0.0, 0.0)),
+            ))
+            .id();
+
+        world.run_system_once(update_ai_target).unwrap();
+
+        assert_eq!(
+            **world.entity(ai_ship).get::<AITarget>().unwrap(),
+            Some(player),
+            "the hostile SHIP wins over the nearer hostile torpedo; \
+             own/neutral/uncommitted bodies are never candidates"
+        );
+    }
+
+    #[test]
+    fn a_committed_hostile_torpedo_is_acquired_when_no_ship_remains() {
+        let mut world = World::new();
+        let ai_ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let torpedo = world
+            .spawn((
+                TorpedoProjectileMarker,
+                TorpedoTargetChosen,
+                Allegiance::Player,
+                Transform::from_translation(Vec3::new(50.0, 0.0, 0.0)),
+            ))
+            .id();
+
+        world.run_system_once(update_ai_target).unwrap();
+
+        assert_eq!(
+            **world.entity(ai_ship).get::<AITarget>().unwrap(),
+            Some(torpedo)
+        );
+    }
+
+    #[test]
+    fn a_dead_target_clears_on_the_next_pick() {
+        let mut world = World::new();
+        let ai_ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let player = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+            ))
+            .id();
+
+        world.run_system_once(update_ai_target).unwrap();
+        assert_eq!(
+            **world.entity(ai_ship).get::<AITarget>().unwrap(),
+            Some(player)
+        );
+
+        world.despawn(player);
+        world.run_system_once(update_ai_target).unwrap();
+        assert_eq!(
+            **world.entity(ai_ship).get::<AITarget>().unwrap(),
+            None,
+            "consumers must never chase a stale entity"
         );
     }
 }
