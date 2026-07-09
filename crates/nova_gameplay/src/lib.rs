@@ -12,6 +12,7 @@ pub mod input;
 pub mod integrity;
 pub mod juice;
 pub mod plugin;
+pub mod relations;
 pub mod sections;
 
 pub use bevy_common_systems;
@@ -29,6 +30,7 @@ pub mod prelude {
         integrity::prelude::*,
         juice::prelude::*,
         plugin::{NovaGameplayPlugin, SpaceshipSystems},
+        relations::prelude::*,
         sections::prelude::*,
         GameStates,
     };

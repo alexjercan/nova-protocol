@@ -152,9 +152,9 @@ const TARGETING_SIGNATURE_RANGE: f32 = 550.0;
 
 /// Choose the closest hostile within `max_range` of `origin` - the signature
 /// fallback used when the aim cone is empty. Candidates carry an
-/// `is_hostile` flag (minimally: AI-controlled ships, until the faction
-/// model 20260708-203708 generalizes hostility); non-hostiles are never
-/// auto-acquired, so asteroids and stray torpedoes do not steal the lock.
+/// `is_hostile` flag (resolved by the relation model: [`relation`] vs the
+/// player is [`Relation::Hostile`]); non-hostiles are never auto-acquired,
+/// so asteroids, neutrals and stray torpedoes do not steal the lock.
 ///
 /// Pure and camera/physics-free so the selection rule can be unit-tested
 /// directly.
@@ -228,18 +228,23 @@ fn update_spaceship_target_input(
             &RigidBody,
             Option<&TorpedoProjectileMarker>,
             Option<&TorpedoTargetChosen>,
-            Has<AISpaceshipMarker>,
+            Option<&Allegiance>,
         ),
         Without<TurretBulletProjectileMarker>,
     >,
     spaceship: Single<
-        (&Transform, Option<&ComputedCenterOfMass>, Entity),
+        (
+            &Transform,
+            Option<&ComputedCenterOfMass>,
+            Entity,
+            Option<&Allegiance>,
+        ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
     mut res_target: ResMut<SpaceshipPlayerTargetLock>,
 ) {
     let point_rotation = point_rotation.into_inner();
-    let (ship_transform, ship_com, ship_entity) = spaceship.into_inner();
+    let (ship_transform, ship_com, ship_entity, ship_allegiance) = spaceship.into_inner();
 
     // Cone origin on the live structure, not the root origin, so the lock
     // cone agrees with the COM-anchored camera crosshair after losing
@@ -253,7 +258,7 @@ fn update_spaceship_target_input(
     let candidates: Vec<(Entity, Vec3, bool)> = q_candidates
         .iter()
         .filter_map(
-            |(entity, transform, rigid_body, is_torpedo, torpedo_committed, is_hostile)| {
+            |(entity, transform, rigid_body, is_torpedo, torpedo_committed, allegiance)| {
                 // Only physical, movable bodies are lockable. This skips static sensor
                 // volumes such as scenario trigger areas (`RigidBody::Static`), which
                 // are invisible and must never be locked.
@@ -272,6 +277,9 @@ fn update_spaceship_target_input(
                 if is_torpedo.is_some() && torpedo_committed.is_none() {
                     return None;
                 }
+                // Hostility comes from the relation model, so an enemy's
+                // torpedo is auto-acquirable while the player's own is not.
+                let is_hostile = relation(ship_allegiance, allegiance) == Relation::Hostile;
                 Some((entity, transform.translation(), is_hostile))
             },
         )
@@ -740,6 +748,26 @@ mod tests {
             AISpaceshipMarker,
             RigidBody::Dynamic,
             GlobalTransform::from_translation(Vec3::new(0.0, 0.0, 900.0)),
+        ));
+
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+
+        assert_eq!(**world.resource::<SpaceshipPlayerTargetLock>(), None);
+    }
+
+    #[test]
+    fn empty_cone_never_auto_acquires_a_neutral_ship() {
+        // An explicitly Neutral ship close by is a bystander, not a threat:
+        // the signature fallback must leave it alone (task 20260708-203708).
+        let mut world = World::new();
+        spawn_acquisition_rig(&mut world);
+        world.spawn((
+            SpaceshipRootMarker,
+            Allegiance::Neutral,
+            RigidBody::Dynamic,
+            GlobalTransform::from_translation(Vec3::new(0.0, 0.0, 100.0)),
         ));
 
         world

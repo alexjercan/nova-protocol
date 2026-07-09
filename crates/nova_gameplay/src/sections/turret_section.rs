@@ -752,7 +752,12 @@ fn sync_turret_rotator_pitch_system(
 fn shoot_spawn_projectile(
     mut commands: Commands,
     q_spaceship: Query<
-        (&LinearVelocity, &AngularVelocity, &ComputedCenterOfMass),
+        (
+            &LinearVelocity,
+            &AngularVelocity,
+            &ComputedCenterOfMass,
+            Option<&Allegiance>,
+        ),
         With<SpaceshipRootMarker>,
     >,
     q_turret: Query<
@@ -775,7 +780,7 @@ fn shoot_spawn_projectile(
             continue;
         }
 
-        let Ok((lin_vel, ang_vel, center)) = q_spaceship.get(*spaceship) else {
+        let Ok((lin_vel, ang_vel, center, allegiance)) = q_spaceship.get(*spaceship) else {
             error!(
                 "on_shoot_spawn_projectile: entity {:?} not found in q_spaceship",
                 spaceship
@@ -831,7 +836,7 @@ fn shoot_spawn_projectile(
             ..default()
         };
 
-        commands.spawn((
+        let mut projectile = commands.spawn((
             Name::new("Turret Projectile"),
             TurretBulletProjectileMarker,
             ProjectileOwner(*spaceship),
@@ -848,6 +853,12 @@ fn shoot_spawn_projectile(
             Visibility::Visible,
             TransformInterpolation,
         ));
+        // The projectile COPIES the shooter's allegiance instead of resolving
+        // through ProjectileOwner at read time: it stays attributable even if
+        // the owner dies mid-flight, and consumers stay single-query.
+        if let Some(&allegiance) = allegiance {
+            projectile.insert(allegiance);
+        }
 
         // Reset the fire state timer
         fire_state.reset();
@@ -1660,5 +1671,68 @@ mod tests {
             TurretSectionConfig::default().yaw_speed,
             "an untouched turret's rotators must not change"
         );
+    }
+
+    // -- projectile allegiance (task 20260708-203708) --
+
+    /// A ready-to-fire ship + turret + muzzle rig for `shoot_spawn_projectile`,
+    /// with the shooter's allegiance as given (`None` = unaligned shooter).
+    fn spawn_firing_rig(world: &mut World, allegiance: Option<Allegiance>) {
+        let muzzle = world
+            .spawn((TurretSectionBarrelMuzzleMarker, Transform::default(), {
+                // Pre-expired so the very first run fires.
+                let mut timer = Timer::from_seconds(0.1, TimerMode::Once);
+                timer.tick(std::time::Duration::from_secs(1));
+                TurretSectionBarrelFireState(timer)
+            }))
+            .id();
+        let mut ship = world.spawn((
+            SpaceshipRootMarker,
+            Transform::default(),
+            LinearVelocity(Vec3::ZERO),
+            AngularVelocity(Vec3::ZERO),
+            ComputedCenterOfMass(Vec3::ZERO),
+        ));
+        if let Some(allegiance) = allegiance {
+            ship.insert(allegiance);
+        }
+        let ship = ship.id();
+        world.spawn((
+            TurretSectionMarker,
+            ChildOf(ship),
+            TurretSectionMuzzleEntity(muzzle),
+            TurretSectionConfigHelper(TurretSectionConfig::default()),
+            TurretSectionInput(true),
+        ));
+    }
+
+    fn spawned_projectile_allegiance(world: &mut World) -> Option<Allegiance> {
+        use bevy::ecs::system::RunSystemOnce;
+        world.run_system_once(shoot_spawn_projectile).unwrap();
+        world
+            .query_filtered::<Option<&Allegiance>, With<TurretBulletProjectileMarker>>()
+            .iter(world)
+            .next()
+            .expect("a projectile spawned")
+            .copied()
+    }
+
+    #[test]
+    fn spawned_projectile_copies_the_shooter_allegiance() {
+        // The bullet must read as the shooter's side (relation model): copied
+        // at spawn so it stays attributable even if the shooter dies.
+        let mut world = World::new();
+        spawn_firing_rig(&mut world, Some(Allegiance::Enemy));
+        assert_eq!(
+            spawned_projectile_allegiance(&mut world),
+            Some(Allegiance::Enemy)
+        );
+    }
+
+    #[test]
+    fn spawned_projectile_of_an_unaligned_shooter_carries_no_allegiance() {
+        let mut world = World::new();
+        spawn_firing_rig(&mut world, None);
+        assert_eq!(spawned_projectile_allegiance(&mut world), None);
     }
 }

@@ -372,7 +372,12 @@ fn update_spawner_fire_state(
 fn shoot_spawn_projectile(
     mut commands: Commands,
     q_spaceship: Query<
-        (&LinearVelocity, &AngularVelocity, &ComputedCenterOfMass),
+        (
+            &LinearVelocity,
+            &AngularVelocity,
+            &ComputedCenterOfMass,
+            Option<&Allegiance>,
+        ),
         With<SpaceshipRootMarker>,
     >,
     q_section: Query<
@@ -395,7 +400,7 @@ fn shoot_spawn_projectile(
             continue;
         }
 
-        let Ok((lin_vel, ang_vel, center)) = q_spaceship.get(*spaceship) else {
+        let Ok((lin_vel, ang_vel, center, allegiance)) = q_spaceship.get(*spaceship) else {
             error!(
                 "shoot_spawn_projectile: entity {:?} not found in q_spaceship",
                 spaceship
@@ -451,7 +456,7 @@ fn shoot_spawn_projectile(
             ..default()
         };
 
-        commands.spawn((
+        let mut projectile = commands.spawn((
             Name::new("Torpedo Projectile"),
             TorpedoProjectileMarker,
             ProjectileOwner(*spaceship),
@@ -547,6 +552,12 @@ fn shoot_spawn_projectile(
                 )
             ],
         ));
+        // The torpedo COPIES the shooter's allegiance instead of resolving
+        // through ProjectileOwner at read time: it stays attributable even if
+        // the owner dies mid-flight, and consumers stay single-query.
+        if let Some(&allegiance) = allegiance {
+            projectile.insert(allegiance);
+        }
 
         // Reset the fire state timer
         fire_state.reset();
@@ -930,5 +941,51 @@ mod tests {
             (steering - Vec3::NEG_Z).length() < 1e-3,
             "untargeted torpedo should fly straight ahead (-Z), got {steering:?}"
         );
+    }
+
+    // -- torpedo allegiance (task 20260708-203708) --
+
+    #[test]
+    fn launched_torpedo_copies_the_shooter_allegiance() {
+        // Same rule as turret bullets: the torpedo reads as the shooter's
+        // side (relation model), copied at spawn so "your own torpedo" stays
+        // yours even if the shooter dies mid-flight.
+        use bevy::ecs::system::RunSystemOnce;
+
+        let mut world = World::new();
+        let spawner = world
+            .spawn((TorpedoSectionSpawnerMarker, Transform::default(), {
+                // Pre-expired so the very first run fires.
+                let mut timer = Timer::from_seconds(0.1, TimerMode::Once);
+                timer.tick(std::time::Duration::from_secs(1));
+                TorpedoSectionSpawnerFireState(timer)
+            }))
+            .id();
+        let ship = world
+            .spawn((
+                SpaceshipRootMarker,
+                Allegiance::Player,
+                Transform::default(),
+                LinearVelocity(Vec3::ZERO),
+                AngularVelocity(Vec3::ZERO),
+                ComputedCenterOfMass(Vec3::ZERO),
+            ))
+            .id();
+        world.spawn((
+            TorpedoSectionMarker,
+            ChildOf(ship),
+            TorpedoSectionSpawnerEntity(spawner),
+            TorpedoSectionConfigHelper(TorpedoSectionConfig::default()),
+            TorpedoSectionInput(true),
+        ));
+
+        world.run_system_once(shoot_spawn_projectile).unwrap();
+
+        let allegiance = world
+            .query_filtered::<Option<&Allegiance>, With<TorpedoProjectileMarker>>()
+            .iter(&world)
+            .next()
+            .expect("a torpedo spawned");
+        assert_eq!(allegiance, Some(&Allegiance::Player));
     }
 }

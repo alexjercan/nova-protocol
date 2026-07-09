@@ -61,8 +61,10 @@ impl Plugin for SpaceshipPlayerInputPlugin {
 /// Marker component to identify the player's spaceship.
 ///
 /// This should be added to the root entity of the player's spaceship.
+/// Carries [`Allegiance::Player`] by requirement, so every player-marked
+/// root participates in the relation model without extra spawn wiring.
 #[derive(Component, Debug, Clone, Reflect)]
-#[require(SpaceshipRootMarker)]
+#[require(SpaceshipRootMarker, Allegiance = Allegiance::Player)]
 pub struct PlayerSpaceshipMarker;
 
 /// System that takes the point rotation output from the chase camera and applies it to the

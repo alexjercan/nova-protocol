@@ -46,6 +46,13 @@ const FOCUS_METER_BACKDROP: Color = Color::srgba(0.15, 0.15, 0.15, 0.8);
 /// unlocks.
 const FOCUS_METER_COLOR: Color = Color::srgba(1.0, 0.4, 0.25, 0.9);
 
+// Reticle tint by relation to the locked target (task 20260708-203708):
+// hostile reads as a threat, your own torpedo as friendly, everything else
+// (asteroids, neutral ships) stays plain white.
+const RETICLE_HOSTILE_COLOR: Color = Color::srgba(1.0, 0.35, 0.3, 1.0);
+const RETICLE_OWN_COLOR: Color = Color::srgba(0.35, 0.9, 0.55, 1.0);
+const RETICLE_NEUTRAL_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 1.0);
+
 pub mod prelude {
     pub use super::{
         torpedo_target_hud, TorpedoTargetFocusFillMarker, TorpedoTargetFocusMeterMarker,
@@ -224,6 +231,7 @@ impl Plugin for TorpedoTargetHudPlugin {
             Update,
             (
                 drive_reticle_anchor.before(ScreenIndicatorSystems),
+                update_reticle_relation_tint,
                 update_target_readout,
                 update_focus_meter,
             )
@@ -240,6 +248,40 @@ fn drive_reticle_anchor(
 ) {
     for mut anchor in &mut q_reticle {
         **anchor = (**res_target).map(ScreenIndicatorAnchorKind::Entity);
+    }
+}
+
+/// The reticle tint for a relation to the locked target.
+fn reticle_color(relation: Relation) -> Color {
+    match relation {
+        Relation::Hostile => RETICLE_HOSTILE_COLOR,
+        Relation::Own => RETICLE_OWN_COLOR,
+        Relation::Neutral => RETICLE_NEUTRAL_COLOR,
+    }
+}
+
+/// Tint the reticle sprite by the locked target's relation to the player:
+/// hostile vs your-own(-torpedo) vs neutral. With no lock the tint is left
+/// alone - the widget hides the reticle anyway.
+fn update_reticle_relation_tint(
+    res_target: Res<SpaceshipPlayerTargetLock>,
+    player: Single<Option<&Allegiance>, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    q_allegiance: Query<Option<&Allegiance>>,
+    mut q_reticle: Query<&mut ImageNode, With<TorpedoTargetReticleMarker>>,
+) {
+    let Some(target) = **res_target else {
+        return;
+    };
+    let Ok(target_allegiance) = q_allegiance.get(target) else {
+        // The lock can outlive its entity by a frame (see the readout).
+        return;
+    };
+
+    let color = reticle_color(relation(*player, target_allegiance));
+    for mut image in &mut q_reticle {
+        if image.color != color {
+            image.color = color;
+        }
     }
 }
 
@@ -698,5 +740,43 @@ mod tests {
         });
         world.run_system_once(update_focus_meter).unwrap();
         assert_eq!(meter_state(&mut world).0, Visibility::Hidden);
+    }
+
+    // -- reticle relation tint (task 20260708-203708) --
+
+    fn reticle_tint(world: &mut World) -> Color {
+        world
+            .query_filtered::<&ImageNode, With<TorpedoTargetReticleMarker>>()
+            .iter(world)
+            .next()
+            .expect("reticle exists")
+            .color
+    }
+
+    #[test]
+    fn reticle_tints_by_relation_to_the_locked_target() {
+        let mut world = World::new();
+        world.spawn(torpedo_target_hud(TorpedoTargetHudConfig::default()));
+        // The player marker requires Allegiance::Player, so the rig gets the
+        // relation model's player side for free.
+        world.spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
+
+        // Hostile lock: an enemy-aligned body.
+        let enemy = world.spawn(Allegiance::Enemy).id();
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(enemy)));
+        world.run_system_once(update_reticle_relation_tint).unwrap();
+        assert_eq!(reticle_tint(&mut world), RETICLE_HOSTILE_COLOR);
+
+        // Own lock: e.g. the player's own loitering torpedo.
+        let own_torpedo = world.spawn(Allegiance::Player).id();
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(own_torpedo)));
+        world.run_system_once(update_reticle_relation_tint).unwrap();
+        assert_eq!(reticle_tint(&mut world), RETICLE_OWN_COLOR);
+
+        // Neutral lock: an unmarked body (asteroid).
+        let asteroid = world.spawn_empty().id();
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(asteroid)));
+        world.run_system_once(update_reticle_relation_tint).unwrap();
+        assert_eq!(reticle_tint(&mut world), RETICLE_NEUTRAL_COLOR);
     }
 }

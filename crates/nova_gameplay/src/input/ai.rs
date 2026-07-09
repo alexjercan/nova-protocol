@@ -29,8 +29,10 @@ impl Plugin for SpaceshipAIInputPlugin {
 /// Marker component to identify the ai's spaceship.
 ///
 /// This should be added to the root entity of the ai's spaceship.
+/// Carries [`Allegiance::Enemy`] by requirement, so every AI-marked root
+/// participates in the relation model without extra spawn wiring.
 #[derive(Component, Debug, Clone, Reflect)]
-#[require(SpaceshipRootMarker)]
+#[require(SpaceshipRootMarker, Allegiance = Allegiance::Enemy)]
 pub struct AISpaceshipMarker;
 
 // AI "brain" tuning constants. The AI chases the player at a speed that scales with
