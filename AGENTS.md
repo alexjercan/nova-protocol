@@ -70,6 +70,12 @@ test suite alone takes ~1-2 minutes because of the examples smoke test). A quick
 catches breakage early. When tests were not run locally, say so plainly instead of
 claiming the suite is green; CI is the source of truth.
 
+CI is `.github/workflows/ci.yaml` (runs on `pull_request` and pushes to
+`master`): `cargo fmt --check`, `cargo clippy --workspace --all-targets` (plus a
+`--features debug` pass), and `cargo test --workspace` under Xvfb + lavapipe so
+the windowed `examples_smoke` test renders headlessly. That is the "runs in CI on
+every PR" this section relies on.
+
 Examples in `examples/` (`01_scene`, `02_thruster_shader`, `03_scenario`,
 `04_asteroids`, `05_directional`, `07b_slicer`) are the fastest way to exercise a
 subsystem end to end. When adding a substantial feature, prefer wiring up an example

@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# Cancel superseded runs on the same ref to save runner time.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: fmt / clippy / test
+    runs-on: ubuntu-latest
+    # examples_smoke launches real gameplay subprocesses with no internal
+    # timeout; under lavapipe a wedged example would otherwise hang the runner
+    # up to GitHub's 6h cap. Fail fast instead - a clean run is well under this.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # Two tiers of system deps. BUILD needs the ALSA + udev headers Bevy links
+      # against, plus wayland/xkb headers a transitive dep's build script
+      # pkg-configs even when nothing opens a window. RUNTIME is what sets this
+      # repo apart from a compile-only CI: tests/examples_smoke.rs actually
+      # LAUNCHES the harnessed examples (they use DefaultPlugins and open a real
+      # window), so we also need a Vulkan loader plus mesa's software rasterizer
+      # (lavapipe) to render with no GPU, and Xvfb to give winit an X display.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev \
+            libvulkan1 mesa-vulkan-drivers xvfb
+
+      # rust-toolchain.toml pins nightly with rustfmt + clippy; install it
+      # explicitly so a toolchain problem surfaces here instead of being folded
+      # into the first (slow) cargo invocation.
+      - name: Install Rust nightly toolchain
+        run: rustup toolchain install nightly --profile minimal -c rustfmt -c clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      # The suite documented in AGENTS.md ("Build, run, test"), run as CI is now
+      # the source of truth for it.
+      - name: Formatting
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets
+
+      # The `debug` feature is defined on the root `nova-protocol` package and
+      # fans out to every crate's debug feature, so linting the root package
+      # with it enabled covers all the debug-gated tooling in one pass.
+      - name: Clippy (debug feature)
+        run: cargo clippy --all-targets --features debug
+
+      # `cargo test --workspace` runs every crate's tests plus the root
+      # tests/examples_smoke.rs, which spawns each harnessed example under
+      # BCS_AUTOPILOT and asserts it reaches gameplay and exits without panic.
+      # Those examples open a window, so the whole run happens under Xvfb;
+      # lavapipe does the actual rendering. This is the ~1-2 min step.
+      - name: Tests
+        run: xvfb-run --auto-servernum cargo test --workspace
