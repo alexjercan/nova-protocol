@@ -34,11 +34,24 @@ const HEALTH_BAR_SIZE: Vec2 = Vec2::new(64.0, 6.0);
 /// Health bar backdrop (the "missing health" part).
 const HEALTH_BAR_BACKDROP: Color = Color::srgba(0.15, 0.15, 0.15, 0.8);
 
+/// Focus meter size (px): a thin underline below the reticle that fills
+/// while the focus dwell accumulates (component-lock arc, task
+/// 20260709-192523).
+const FOCUS_METER_SIZE: Vec2 = Vec2::new(48.0, 4.0);
+
+/// Focus meter backdrop.
+const FOCUS_METER_BACKDROP: Color = Color::srgba(0.15, 0.15, 0.15, 0.8);
+
+/// Focus meter fill: hot-metal red, matching the component markers it
+/// unlocks.
+const FOCUS_METER_COLOR: Color = Color::srgba(1.0, 0.4, 0.25, 0.9);
+
 pub mod prelude {
     pub use super::{
-        torpedo_target_hud, TorpedoTargetHealthBarMarker, TorpedoTargetHealthFillMarker,
-        TorpedoTargetHudConfig, TorpedoTargetHudMarker, TorpedoTargetHudPlugin,
-        TorpedoTargetReadoutLine, TorpedoTargetReadoutMarker, TorpedoTargetReticleMarker,
+        torpedo_target_hud, TorpedoTargetFocusFillMarker, TorpedoTargetFocusMeterMarker,
+        TorpedoTargetHealthBarMarker, TorpedoTargetHealthFillMarker, TorpedoTargetHudConfig,
+        TorpedoTargetHudMarker, TorpedoTargetHudPlugin, TorpedoTargetReadoutLine,
+        TorpedoTargetReadoutMarker, TorpedoTargetReticleMarker,
     };
 }
 
@@ -74,6 +87,14 @@ pub struct TorpedoTargetHealthBarMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TorpedoTargetHealthFillMarker;
 
+/// Marker for the focus meter backdrop below the reticle.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct TorpedoTargetFocusMeterMarker;
+
+/// Marker for the focus meter fill node (width = focus fraction).
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct TorpedoTargetFocusFillMarker;
+
 #[derive(Clone, Debug, Default)]
 pub struct TorpedoTargetHudConfig {
     pub target_sprite: Handle<Image>,
@@ -101,60 +122,95 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
                 offscreen: ScreenIndicatorOffscreen::Hide,
             }),
             ImageNode::new(config.target_sprite.clone()),
-            children![(
-                Name::new("TorpedoTargetReadout"),
-                TorpedoTargetReadoutMarker,
-                Node {
-                    position_type: PositionType::Absolute,
-                    // Riding the reticle's right edge: `left: 100%` of the
-                    // reticle node tracks its ApparentSize scaling for free.
-                    left: Val::Percent(100.0),
-                    top: Val::Px(0.0),
-                    margin: UiRect::left(Val::Px(READOUT_GAP_PX)),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(2.0),
-                    ..default()
-                },
-                Pickable::IGNORE,
-                children![
-                    (
-                        Name::new("TorpedoTargetReadoutDistance"),
-                        TorpedoTargetReadoutLine::Distance,
-                        Text::new(""),
-                        TextFont::from_font_size(READOUT_FONT_PX),
-                        Pickable::IGNORE,
-                    ),
-                    (
-                        Name::new("TorpedoTargetReadoutClosing"),
-                        TorpedoTargetReadoutLine::ClosingSpeed,
-                        Text::new(""),
-                        TextFont::from_font_size(READOUT_FONT_PX),
-                        Pickable::IGNORE,
-                    ),
-                    (
-                        Name::new("TorpedoTargetHealthBar"),
-                        TorpedoTargetHealthBarMarker,
-                        Node {
-                            width: Val::Px(HEALTH_BAR_SIZE.x),
-                            height: Val::Px(HEALTH_BAR_SIZE.y),
+            children![
+                (
+                    Name::new("TorpedoTargetFocusMeter"),
+                    TorpedoTargetFocusMeterMarker,
+                    Node {
+                        position_type: PositionType::Absolute,
+                        // Centered under the reticle, tracking its scaled edge
+                        // via UI layout like the readout does.
+                        top: Val::Percent(100.0),
+                        left: Val::Percent(50.0),
+                        margin: UiRect {
+                            left: Val::Px(-FOCUS_METER_SIZE.x / 2.0),
+                            top: Val::Px(4.0),
                             ..default()
                         },
-                        BackgroundColor(HEALTH_BAR_BACKDROP),
+                        width: Val::Px(FOCUS_METER_SIZE.x),
+                        height: Val::Px(FOCUS_METER_SIZE.y),
+                        ..default()
+                    },
+                    BackgroundColor(FOCUS_METER_BACKDROP),
+                    Pickable::IGNORE,
+                    Visibility::Hidden,
+                    children![(
+                        Name::new("TorpedoTargetFocusFill"),
+                        TorpedoTargetFocusFillMarker,
+                        Node {
+                            width: Val::Percent(0.0),
+                            height: Val::Percent(100.0),
+                            ..default()
+                        },
+                        BackgroundColor(FOCUS_METER_COLOR),
                         Pickable::IGNORE,
-                        children![(
-                            Name::new("TorpedoTargetHealthFill"),
-                            TorpedoTargetHealthFillMarker,
+                    )],
+                ),
+                (
+                    Name::new("TorpedoTargetReadout"),
+                    TorpedoTargetReadoutMarker,
+                    Node {
+                        position_type: PositionType::Absolute,
+                        // Riding the reticle's right edge: `left: 100%` of the
+                        // reticle node tracks its ApparentSize scaling for free.
+                        left: Val::Percent(100.0),
+                        top: Val::Px(0.0),
+                        margin: UiRect::left(Val::Px(READOUT_GAP_PX)),
+                        flex_direction: FlexDirection::Column,
+                        row_gap: Val::Px(2.0),
+                        ..default()
+                    },
+                    Pickable::IGNORE,
+                    children![
+                        (
+                            Name::new("TorpedoTargetReadoutDistance"),
+                            TorpedoTargetReadoutLine::Distance,
+                            Text::new(""),
+                            TextFont::from_font_size(READOUT_FONT_PX),
+                            Pickable::IGNORE,
+                        ),
+                        (
+                            Name::new("TorpedoTargetReadoutClosing"),
+                            TorpedoTargetReadoutLine::ClosingSpeed,
+                            Text::new(""),
+                            TextFont::from_font_size(READOUT_FONT_PX),
+                            Pickable::IGNORE,
+                        ),
+                        (
+                            Name::new("TorpedoTargetHealthBar"),
+                            TorpedoTargetHealthBarMarker,
                             Node {
-                                width: Val::Percent(100.0),
-                                height: Val::Percent(100.0),
+                                width: Val::Px(HEALTH_BAR_SIZE.x),
+                                height: Val::Px(HEALTH_BAR_SIZE.y),
                                 ..default()
                             },
-                            BackgroundColor(health_color(1.0)),
+                            BackgroundColor(HEALTH_BAR_BACKDROP),
                             Pickable::IGNORE,
-                        )],
-                    ),
-                ],
-            )],
+                            children![(
+                                Name::new("TorpedoTargetHealthFill"),
+                                TorpedoTargetHealthFillMarker,
+                                Node {
+                                    width: Val::Percent(100.0),
+                                    height: Val::Percent(100.0),
+                                    ..default()
+                                },
+                                BackgroundColor(health_color(1.0)),
+                                Pickable::IGNORE,
+                            )],
+                        ),
+                    ],
+                )
+            ],
         )],
     )
 }
@@ -169,6 +225,7 @@ impl Plugin for TorpedoTargetHudPlugin {
             (
                 drive_reticle_anchor.before(ScreenIndicatorSystems),
                 update_target_readout,
+                update_focus_meter,
             )
                 .in_set(super::NovaHudSystems),
         );
@@ -293,6 +350,36 @@ fn update_target_readout(
             let fill_color = health_color(fraction);
             if color.0 != fill_color {
                 color.0 = fill_color;
+            }
+        }
+    }
+}
+
+/// Drive the focus meter: visible with a partial fill while a lock is held
+/// and the dwell is still accumulating, gone before a lock exists and once
+/// focus completes (the component markers appearing is the completion
+/// signal).
+fn update_focus_meter(
+    lock: Res<SpaceshipPlayerTargetLock>,
+    focus: Res<SpaceshipPlayerLockFocus>,
+    mut q_meter: Query<&mut Visibility, With<TorpedoTargetFocusMeterMarker>>,
+    mut q_fill: Query<&mut Node, With<TorpedoTargetFocusFillMarker>>,
+) {
+    let filling =
+        matches!(**lock, Some(target) if focus.target == Some(target) && !focus.focused_on(target));
+
+    for mut visibility in &mut q_meter {
+        visibility.set_if_neq(if filling {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        });
+    }
+    if filling {
+        let width = Val::Percent(focus.fraction() * 100.0);
+        for mut node in &mut q_fill {
+            if node.width != width {
+                node.width = width;
             }
         }
     }
@@ -531,5 +618,85 @@ mod tests {
             .next()
             .expect("bar exists");
         assert_eq!(bar_visibility, Visibility::Hidden);
+    }
+
+    // -- focus meter --
+
+    fn meter_state(world: &mut World) -> (Visibility, Val) {
+        let visibility = *world
+            .query_filtered::<&Visibility, With<TorpedoTargetFocusMeterMarker>>()
+            .iter(world)
+            .next()
+            .expect("meter exists");
+        let width = world
+            .query_filtered::<&Node, With<TorpedoTargetFocusFillMarker>>()
+            .iter(world)
+            .next()
+            .expect("fill exists")
+            .width;
+        (visibility, width)
+    }
+
+    #[test]
+    fn focus_meter_fills_while_the_dwell_accumulates() {
+        let mut world = World::new();
+        world.spawn(torpedo_target_hud(TorpedoTargetHudConfig::default()));
+        let target = world.spawn_empty().id();
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
+        // Halfway through the dwell.
+        let mut focus = SpaceshipPlayerLockFocus::default();
+        focus.target = Some(target);
+        world.insert_resource(focus);
+        let half = {
+            let mut focus = world.resource_mut::<SpaceshipPlayerLockFocus>();
+            // fraction() is defined by FOCUS_TIME internally; drive through
+            // the public API by finding the seconds that yield 0.5.
+            focus.seconds = 0.0;
+            let mut lo = 0.0_f32;
+            let mut hi = 60.0_f32;
+            for _ in 0..40 {
+                let mid = (lo + hi) / 2.0;
+                focus.seconds = mid;
+                if focus.fraction() < 0.5 {
+                    lo = mid;
+                } else {
+                    hi = mid;
+                }
+            }
+            focus.seconds
+        };
+        let _ = half;
+
+        world.run_system_once(update_focus_meter).unwrap();
+
+        let (visibility, width) = meter_state(&mut world);
+        assert_eq!(visibility, Visibility::Inherited);
+        match width {
+            Val::Percent(percent) => {
+                assert!((percent - 50.0).abs() < 1.0, "width {percent}")
+            }
+            other => panic!("expected Val::Percent, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn focus_meter_hides_without_a_lock_and_once_focused() {
+        let mut world = World::new();
+        world.spawn(torpedo_target_hud(TorpedoTargetHudConfig::default()));
+        world.insert_resource(SpaceshipPlayerTargetLock(None));
+        world.insert_resource(SpaceshipPlayerLockFocus::default());
+
+        world.run_system_once(update_focus_meter).unwrap();
+        assert_eq!(meter_state(&mut world).0, Visibility::Hidden);
+
+        // Focused: the meter yields to the component markers.
+        let target = world.spawn_empty().id();
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
+        world.insert_resource(SpaceshipPlayerLockFocus {
+            target: Some(target),
+            seconds: f32::MAX,
+        });
+        world.run_system_once(update_focus_meter).unwrap();
+        assert_eq!(meter_state(&mut world).0, Visibility::Hidden);
     }
 }

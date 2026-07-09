@@ -19,19 +19,26 @@
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! BCS_AUTOPILOT=1 cargo run --example 12_hud_range --features debug
-//! # scripted (relative to entering Playing): at +2s assert the aim-assist
+//! # scripted (relative to entering Playing): at +0.5s assert the focus
+//! # meter is filling (lock held, dwell incomplete, no component markers
+//! # yet); at +2s assert the aim-assist
 //! # locked the target, the reticle is visible and centered on the target's
 //! # projection, the readout shows the real distance and a full health bar,
 //! # the turret auto-fire feed aims at the locked ship's live structure
 //! # (not the camera-ray point), and the turret lead pip is visible on the
-//! # projected TurretSectionAimPoint; at +2.5s engage a GOTO on the target; at +3.5s
+//! # projected TurretSectionAimPoint, plus the focus dwell completed: the
+//! # meter is gone and one component marker overlays each of the target's
+//! # three sections; at +2.5s engage a GOTO on the target; at +3s pin a
+//! # component lock on the tail section and at +3.5s assert its marker is
+//! # highlighted; at +3.5s
 //! # assert the destination marker is visible and centered on it and the
 //! # readout's closing speed went positive under the approach burn; at +4s
 //! # despawn the target and disable the turret section; at +4.5s assert all
-//! # three indicators hid again. Exits non-zero on any failed stage or if
+//! # three indicators hid again and the component markers are gone. Exits non-zero on any failed stage or if
 //! # the script never finishes (e.g. loading ate the window).
 //! ```
 
+#[cfg(feature = "debug")]
 use avian3d::prelude::ComputedCenterOfMass;
 use bevy::{platform::collections::HashMap, prelude::*};
 use clap::Parser;
@@ -80,8 +87,10 @@ fn custom_plugin(app: &mut App) {
 #[derive(Resource, Default)]
 struct HudRangeScript {
     playing_since: Option<f32>,
+    asserted_meter: bool,
     asserted_lock: bool,
     engaged_goto: bool,
+    pinned_component: bool,
     asserted_goto: bool,
     killed_target: bool,
     done: bool,
@@ -297,13 +306,64 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
     };
     let t = elapsed - playing_since;
     let script = world.resource::<HudRangeScript>();
-    let (asserted_lock, engaged_goto, asserted_goto, killed_target, done) = (
+    let (
+        asserted_meter,
+        asserted_lock,
+        engaged_goto,
+        pinned_component,
+        asserted_goto,
+        killed_target,
+        done,
+    ) = (
+        script.asserted_meter,
         script.asserted_lock,
         script.engaged_goto,
+        script.pinned_component,
         script.asserted_goto,
         script.killed_target,
         script.done,
     );
+
+    if t > 0.5 && !asserted_meter {
+        world.resource_mut::<HudRangeScript>().asserted_meter = true;
+
+        // The lock exists from the first Playing frames; half a second in,
+        // the 1.5 s dwell is still filling: meter visible and partial, no
+        // component markers yet.
+        (**world.resource::<SpaceshipPlayerTargetLock>())
+            .expect("hud range: no lock at the meter stage");
+        let meter_visibility = *world
+            .query_filtered::<&Visibility, With<TorpedoTargetFocusMeterMarker>>()
+            .iter(world)
+            .next()
+            .expect("hud range: no focus meter node");
+        assert_eq!(
+            meter_visibility,
+            Visibility::Inherited,
+            "hud range: the focus meter is not filling while the dwell runs"
+        );
+        let fill = world
+            .query_filtered::<&Node, With<TorpedoTargetFocusFillMarker>>()
+            .iter(world)
+            .next()
+            .expect("hud range: no focus fill node");
+        let Val::Percent(fill_percent) = fill.width else {
+            panic!("hud range: focus fill width is not a percent");
+        };
+        assert!(
+            (5.0..95.0).contains(&fill_percent),
+            "hud range: focus fill {fill_percent:.0}% is not mid-dwell"
+        );
+        let markers = world
+            .query_filtered::<(), With<ComponentLockSectionMarker>>()
+            .iter(world)
+            .count();
+        assert_eq!(
+            markers, 0,
+            "hud range: component markers appeared before the dwell completed"
+        );
+        info!("hud range: focus meter OK (fill {fill_percent:.0}%)");
+    }
 
     if t > 2.0 && !asserted_lock {
         world.resource_mut::<HudRangeScript>().asserted_lock = true;
@@ -418,6 +478,34 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
              from the projected aim point {expected_pip:?}"
         );
         info!("hud range: turret lead pip OK (drift {pip_drift:.1} px)");
+
+        // Dwell complete by now (lock held since ~+0s, FOCUS_TIME 1.5 s):
+        // the meter yields to one marker per attached target section.
+        let meter_visibility = *world
+            .query_filtered::<&Visibility, With<TorpedoTargetFocusMeterMarker>>()
+            .iter(world)
+            .next()
+            .expect("hud range: no focus meter node");
+        assert_eq!(
+            meter_visibility,
+            Visibility::Hidden,
+            "hud range: the focus meter is still visible after the dwell"
+        );
+        let sections = world
+            .query_filtered::<&ChildOf, With<SectionMarker>>()
+            .iter(world)
+            .filter(|ChildOf(parent)| *parent == target)
+            .count();
+        let markers = world
+            .query_filtered::<(), With<ComponentLockSectionMarker>>()
+            .iter(world)
+            .count();
+        assert_eq!(
+            markers, sections,
+            "hud range: expected one component marker per attached section"
+        );
+        assert_eq!(sections, 3, "hud range: the target ship has 3 sections");
+        info!("hud range: component markers OK ({markers} of {sections} sections)");
     }
 
     if t > 2.5 && !engaged_goto {
@@ -428,6 +516,27 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
             .entity_mut(player)
             .insert(Autopilot::engage(AutopilotAction::Goto { target }));
         info!("hud range: GOTO engaged on the target ship");
+    }
+
+    if t > 3.0 && !pinned_component {
+        world.resource_mut::<HudRangeScript>().pinned_component = true;
+
+        let target = target_root(world).expect("hud range: target ship vanished before the pin");
+        // Deliberately pick the TAIL section (largest local z) - snap would
+        // favor whatever sits nearest the crosshair ray, so a highlight on
+        // the tail proves the pinned selection drives the HUD.
+        let tail = world
+            .query_filtered::<(Entity, &ChildOf, &Transform), With<SectionMarker>>()
+            .iter(world)
+            .filter(|(_, ChildOf(parent), _)| *parent == target)
+            .max_by(|(_, _, a), (_, _, b)| a.translation.z.total_cmp(&b.translation.z))
+            .map(|(entity, _, _)| entity)
+            .expect("hud range: target has sections to pin");
+        let until = elapsed + 30.0;
+        let mut component = world.resource_mut::<SpaceshipPlayerComponentLock>();
+        component.section = Some(tail);
+        component.mode = ComponentLockMode::Pinned { until };
+        info!("hud range: pinned component lock on the tail section");
     }
 
     if t > 3.5 && !asserted_goto {
@@ -464,6 +573,43 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
              burning toward the target"
         );
         info!("hud range: GOTO destination marker OK (drift {drift:.1} px, '{closing_text}')");
+
+        // The pinned tail section's marker must carry the highlight style.
+        let pinned = world
+            .resource::<SpaceshipPlayerComponentLock>()
+            .section
+            .expect("hud range: the pinned component lock vanished");
+        let (selected, others): (Vec<f32>, Vec<f32>) = world
+            .query_filtered::<(&Node, &ComponentLockSectionTarget), With<ComponentLockSectionMarker>>()
+            .iter(world)
+            .map(|(node, section)| {
+                let Val::Px(px) = node.width else {
+                    panic!("hud range: marker width is not Val::Px");
+                };
+                (px, **section == pinned)
+            })
+            .fold((Vec::new(), Vec::new()), |(mut sel, mut rest), (px, is_sel)| {
+                if is_sel {
+                    sel.push(px);
+                } else {
+                    rest.push(px);
+                }
+                (sel, rest)
+            });
+        assert_eq!(
+            selected.len(),
+            1,
+            "hud range: pinned section has one marker"
+        );
+        assert!(
+            others.iter().all(|px| *px < selected[0]),
+            "hud range: the pinned marker {selected:?} is not larger than its \
+             siblings {others:?}"
+        );
+        info!(
+            "hud range: component highlight OK (selected {:.0} px)",
+            selected[0]
+        );
     }
 
     if t > 4.0 && !killed_target {
@@ -501,6 +647,14 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
             pip_visibility,
             Visibility::Hidden,
             "hud range: the lead pip is still visible after the turret was disabled"
+        );
+        let markers = world
+            .query_filtered::<(), With<ComponentLockSectionMarker>>()
+            .iter(world)
+            .count();
+        assert_eq!(
+            markers, 0,
+            "hud range: component markers survived their target's death"
         );
         info!("hud range: PASS - indicators track their anchors and hide when they die");
     }
