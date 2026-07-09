@@ -27,3 +27,9 @@ as an ABSOLUTE world rotation.
 ## Notes
 
 - Related: 20260708-162012 (smarter enemy AI), 20260709-095043 (retune).
+
+Note (20260709, from the 150711 review): AI ships still measure chase/aim
+direction FROM their own root origin (to_player = player_anchor - own
+translation). When picking up this task, move the own side onto
+live_structure_anchor too (sections/mod.rs) so both ends of the vector track
+live structure.

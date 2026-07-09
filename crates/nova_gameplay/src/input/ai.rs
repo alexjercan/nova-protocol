@@ -80,12 +80,19 @@ fn update_controller_target_rotation_torque(
         (Entity, &Transform, &LinearVelocity),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
-    player: Single<&Transform, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    player: Single<
+        (&Transform, Option<&ComputedCenterOfMass>),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
 ) {
-    let player_transform = player.into_inner();
+    // Chase the player's live structure, not the root origin: the origin is
+    // the build spot of the first sections and floats in empty space once
+    // they are destroyed (task 20260709-150711).
+    let (player_transform, player_com) = player.into_inner();
+    let player_anchor = live_structure_anchor(player_transform, player_com);
 
     for (entity, transform, velocity) in &q_spaceship {
-        let to_player = player_transform.translation - transform.translation;
+        let to_player = player_anchor - transform.translation;
         let desired_direction = ai_desired_direction(to_player, **velocity);
 
         let forward = transform.forward().into();
@@ -109,12 +116,16 @@ fn on_thruster_input(
         (Entity, &Transform, &LinearVelocity),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
-    player: Single<&Transform, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    player: Single<
+        (&Transform, Option<&ComputedCenterOfMass>),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
 ) {
-    let player_transform = player.into_inner();
+    let (player_transform, player_com) = player.into_inner();
+    let player_anchor = live_structure_anchor(player_transform, player_com);
 
     for (entity, transform, velocity) in &q_spaceship {
-        let to_player = player_transform.translation - transform.translation;
+        let to_player = player_anchor - transform.translation;
         let desired_direction = ai_desired_direction(to_player, **velocity);
 
         // Thrust only when the ship is pointing roughly toward the desired direction.
@@ -138,16 +149,22 @@ fn on_thruster_input(
 fn update_turret_target_input(
     mut q_turret: Query<(&mut TurretSectionTargetInput, &ChildOf), With<TurretSectionMarker>>,
     q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<AISpaceshipMarker>)>,
-    player: Single<&Transform, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    player: Single<
+        (&Transform, Option<&ComputedCenterOfMass>),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
 ) {
-    let transform = player.into_inner();
+    // Aim at the live structure: fire converging on the root origin lands in
+    // empty space once the player's front sections die (task 20260709-150711).
+    let (transform, com) = player.into_inner();
+    let player_anchor = live_structure_anchor(transform, com);
 
     for entity in &q_spaceship {
         for (mut turret_input, _) in q_turret
             .iter_mut()
             .filter(|(_, ChildOf(c_parent))| *c_parent == entity)
         {
-            **turret_input = Some(transform.translation);
+            **turret_input = Some(player_anchor);
         }
     }
 }
@@ -163,9 +180,13 @@ fn on_projectile_input(
     >,
     q_muzzle: Query<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>,
     q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<AISpaceshipMarker>)>,
-    player: Single<&Transform, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    player: Single<
+        (&Transform, Option<&ComputedCenterOfMass>),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
 ) {
-    let player_transform = player.into_inner();
+    let (player_transform, player_com) = player.into_inner();
+    let player_anchor = live_structure_anchor(player_transform, player_com);
 
     for entity in &q_spaceship {
         for (muzzle, mut input, _) in q_turret
@@ -180,12 +201,78 @@ fn on_projectile_input(
                 continue;
             };
 
-            let direction_to_player =
-                (player_transform.translation - muzzle_transform.translation()).normalize();
+            let direction_to_player = (player_anchor - muzzle_transform.translation()).normalize();
             let forward = muzzle_transform.forward();
 
             let alignment = forward.dot(direction_to_player);
             **input = alignment > AI_FIRE_ALIGNMENT;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::ecs::system::RunSystemOnce;
+
+    use super::*;
+
+    #[test]
+    fn ai_turrets_target_the_live_structure_anchor() {
+        // AI fire must converge on the player's surviving structure, not the
+        // root origin build-spot (task 20260709-150711).
+        let mut world = World::new();
+        world.spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            Transform::from_translation(Vec3::new(10.0, 0.0, 0.0)),
+            ComputedCenterOfMass(Vec3::new(0.0, 0.0, 3.0)),
+        ));
+        let ai_ship = world.spawn(AISpaceshipMarker).id();
+        let turret = world
+            .spawn((
+                TurretSectionMarker,
+                TurretSectionTargetInput(None),
+                ChildOf(ai_ship),
+            ))
+            .id();
+
+        world.run_system_once(update_turret_target_input).unwrap();
+
+        assert_eq!(
+            **world
+                .entity(turret)
+                .get::<TurretSectionTargetInput>()
+                .unwrap(),
+            Some(Vec3::new(10.0, 0.0, 3.0)),
+            "AI turret input = the player's live-structure anchor"
+        );
+    }
+
+    #[test]
+    fn ai_turrets_fall_back_to_the_origin_without_a_com() {
+        let mut world = World::new();
+        world.spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            Transform::from_translation(Vec3::new(1.0, 2.0, 3.0)),
+        ));
+        let ai_ship = world.spawn(AISpaceshipMarker).id();
+        let turret = world
+            .spawn((
+                TurretSectionMarker,
+                TurretSectionTargetInput(None),
+                ChildOf(ai_ship),
+            ))
+            .id();
+
+        world.run_system_once(update_turret_target_input).unwrap();
+
+        assert_eq!(
+            **world
+                .entity(turret)
+                .get::<TurretSectionTargetInput>()
+                .unwrap(),
+            Some(Vec3::new(1.0, 2.0, 3.0))
+        );
     }
 }

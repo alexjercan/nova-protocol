@@ -285,19 +285,15 @@ fn update_chase_camera_input(
     let (spaceship_transform, center_of_mass) = spaceship.into_inner();
     let point_rotation = point_rotation.into_inner();
 
-    // Anchor on the live center of mass, not the root origin. The origin sits
-    // wherever the ship's first sections were built and never moves; once those
-    // sections are destroyed the body still spins about its (shifted) COM, so a
-    // camera anchored at the origin makes the wreck appear to orbit an empty
-    // point in space (task 20260709-140620). `ComputedCenterOfMass` is
-    // body-local and avian ignores render scale, so lift it with rotation and
-    // translation only (not `transform_point`, which would scale it). Every
-    // real ship root has a `RigidBody`, which requires the component; the
-    // fallback is defensive (marker-only roots in tests).
-    camera_input.anchor_pos = match center_of_mass {
-        Some(com) => spaceship_transform.rotation * com.0 + spaceship_transform.translation,
-        None => spaceship_transform.translation,
-    };
+    // Anchor on the live center of mass, not the root origin: a camera
+    // anchored at the origin makes a section-stripped wreck appear to orbit
+    // an empty point in space (task 20260709-140620). The COM lift lives in
+    // the shared helper so aim, lock cones and the camera agree on the
+    // anchor (task 20260709-150711). Every real ship root has a `RigidBody`,
+    // which requires the component; the None fallback is defensive
+    // (marker-only roots in tests).
+    camera_input.anchor_pos =
+        crate::sections::live_structure_anchor(spaceship_transform, center_of_mass);
     camera_input.anchor_rot = **point_rotation;
 }
 

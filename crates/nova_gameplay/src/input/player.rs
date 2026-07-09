@@ -148,19 +148,23 @@ fn update_turret_target_input(
     >,
     mut q_turret: Query<(&mut TurretSectionTargetInput, &ChildOf), With<TurretSectionMarker>>,
     spaceship: Single<
-        (&Transform, Entity),
+        (&Transform, Option<&ComputedCenterOfMass>, Entity),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
 ) {
     let point_rotation = point_rotation.into_inner();
-    let (transform, spaceship) = spaceship.into_inner();
+    let (transform, com, spaceship) = spaceship.into_inner();
+
+    // Base the aim ray on the live structure so the turret aim point matches
+    // the COM-anchored camera crosshair after losing sections (task
+    // 20260709-150711).
+    let position = live_structure_anchor(transform, com);
 
     for (mut turret, _) in q_turret
         .iter_mut()
         .filter(|(_, ChildOf(t_parent))| *t_parent == spaceship)
     {
         let forward = **point_rotation * Vec3::NEG_Z;
-        let position = transform.translation;
         let distance = 100.0;
 
         **turret = Some(position + forward * distance);
@@ -236,15 +240,18 @@ fn update_spaceship_target_input(
         Without<TurretBulletProjectileMarker>,
     >,
     spaceship: Single<
-        (&GlobalTransform, Entity),
+        (&Transform, Option<&ComputedCenterOfMass>, Entity),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
     mut res_target: ResMut<SpaceshipPlayerTorpedoTargetEntity>,
 ) {
     let point_rotation = point_rotation.into_inner();
-    let (ship_transform, ship_entity) = spaceship.into_inner();
+    let (ship_transform, ship_com, ship_entity) = spaceship.into_inner();
 
-    let origin = ship_transform.translation();
+    // Cone origin on the live structure, not the root origin, so the lock
+    // cone agrees with the COM-anchored camera crosshair after losing
+    // sections (task 20260709-150711).
+    let origin = live_structure_anchor(ship_transform, ship_com);
     let aim = (**point_rotation * Vec3::NEG_Z).normalize();
     let min_cos = TARGETING_CONE_HALF_ANGLE_DEG.to_radians().cos();
 
@@ -811,6 +818,8 @@ mod command_lag_tests {
 
 #[cfg(test)]
 mod tests {
+    use bevy::ecs::system::RunSystemOnce;
+
     use super::*;
 
     fn cone_cos(half_angle_deg: f32) -> f32 {
@@ -1021,6 +1030,81 @@ mod tests {
         assert!(
             app.world().get::<TorpedoTargetEntity>(torpedo).is_none(),
             "a torpedo keeps its first target for life - no re-targeting after loss"
+        );
+    }
+
+    #[test]
+    fn turret_aim_ray_bases_on_the_live_structure_anchor() {
+        // COM offset perpendicular to the aim: the ray base must shift with
+        // it (task 20260709-150711), or the turret aim point keeps a
+        // parallax against the COM-anchored crosshair.
+        let mut world = World::new();
+        world.spawn((
+            SpaceshipCameraInputMarker,
+            SpaceshipCameraTurretInputMarker,
+            PointRotationOutput(Quat::IDENTITY),
+        ));
+        let ship = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::from_translation(Vec3::new(10.0, 0.0, 0.0)),
+                ComputedCenterOfMass(Vec3::new(2.0, 0.0, 0.0)),
+            ))
+            .id();
+        let turret = world
+            .spawn((
+                TurretSectionMarker,
+                TurretSectionTargetInput(None),
+                ChildOf(ship),
+            ))
+            .id();
+
+        world.run_system_once(update_turret_target_input).unwrap();
+
+        assert_eq!(
+            **world
+                .entity(turret)
+                .get::<TurretSectionTargetInput>()
+                .unwrap(),
+            Some(Vec3::new(12.0, 0.0, -100.0)),
+            "aim ray base = anchor (12,0,0), not the root origin (10,0,0)"
+        );
+    }
+
+    #[test]
+    fn lock_cone_originates_at_the_live_structure_anchor() {
+        // A candidate dead ahead of the ANCHOR but 33 degrees off the ROOT
+        // ORIGIN bearing: it locks only if the cone originates at the anchor
+        // (18 degree half-angle).
+        let mut world = World::new();
+        world.insert_resource(SpaceshipPlayerTorpedoTargetEntity(None));
+        world.spawn((
+            SpaceshipCameraInputMarker,
+            SpaceshipCameraTurretInputMarker,
+            PointRotationOutput(Quat::IDENTITY),
+        ));
+        world.spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            Transform::from_translation(Vec3::new(10.0, 0.0, 0.0)),
+            ComputedCenterOfMass(Vec3::new(2.0, 0.0, 0.0)),
+        ));
+        let candidate = world
+            .spawn((
+                RigidBody::Dynamic,
+                GlobalTransform::from_translation(Vec3::new(12.0, 0.0, -3.0)),
+            ))
+            .id();
+
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTorpedoTargetEntity>(),
+            Some(candidate),
+            "the cone must originate at the anchor, not the root origin"
         );
     }
 }
