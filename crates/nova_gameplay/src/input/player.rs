@@ -74,6 +74,8 @@ pub struct PlayerSpaceshipMarker;
 /// owns the rotation command, and the mouse - which keeps driving the camera
 /// rig - becomes camera-only free-look for free.
 fn update_controller_target_rotation_torque(
+    time: Res<Time>,
+    settings: Res<FlightSettings>,
     point_rotation: Single<
         &PointRotationOutput,
         (
@@ -96,12 +98,18 @@ fn update_controller_target_rotation_torque(
 ) {
     let point_rotation = point_rotation.into_inner();
     let spaceship = spaceship.into_inner();
+    // Slew the command toward the camera instead of jumping: a mouse 180 fed
+    // to the PD in one step drives it into torque saturation where its
+    // damping is swamped and the hull limit-cycles (the high-speed flip
+    // wobble). The camera stays instant; the hull's commanded target ramps
+    // at the same estimated turn rate the autopilot plans with.
+    let max_step = settings.est_turn_rate_deg.to_radians() * time.delta_secs();
 
     for (mut controller, _) in q_controller
         .iter_mut()
         .filter(|(_, ChildOf(c_parent))| *c_parent == spaceship)
     {
-        **controller = **point_rotation;
+        **controller = crate::flight::slew_rotation(**controller, **point_rotation, max_step);
     }
 }
 
