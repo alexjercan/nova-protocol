@@ -9,6 +9,7 @@ pub mod camera_controller;
 pub mod hud;
 pub mod input;
 pub mod integrity;
+pub mod juice;
 pub mod plugin;
 pub mod sections;
 
@@ -24,6 +25,7 @@ pub mod prelude {
         hud::prelude::*,
         input::prelude::*,
         integrity::prelude::*,
+        juice::prelude::*,
         plugin::{NovaGameplayPlugin, SpaceshipSystems},
         sections::prelude::*,
         GameStates,
