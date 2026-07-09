@@ -22,8 +22,9 @@
 //! # scripted (relative to entering Playing): at +2s assert the aim-assist
 //! # locked the target, the reticle is visible and centered on the target's
 //! # projection, the readout shows the real distance and a full health bar,
-//! # and the turret lead pip is visible on the projected
-//! # TurretSectionAimPoint; at +2.5s engage a GOTO on the target; at +3.5s
+//! # the turret auto-fire feed aims at the locked ship's live structure
+//! # (not the camera-ray point), and the turret lead pip is visible on the
+//! # projected TurretSectionAimPoint; at +2.5s engage a GOTO on the target; at +3.5s
 //! # assert the destination marker is visible and centered on it and the
 //! # readout's closing speed went positive under the approach burn; at +4s
 //! # despawn the target and disable the turret section; at +4.5s assert all
@@ -31,6 +32,7 @@
 //! # the script never finishes (e.g. loading ate the window).
 //! ```
 
+use avian3d::prelude::ComputedCenterOfMass;
 use bevy::{platform::collections::HashMap, prelude::*};
 use clap::Parser;
 use nova_protocol::prelude::*;
@@ -384,6 +386,23 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
             .get::<TurretSectionAimPoint>()
             .expect("hud range: the turret has no aim point component"))
         .expect("hud range: the turret never computed an intercept point");
+        // The three-tier feed must aim the turret at the LOCKED SHIP's live
+        // structure, not the camera-ray point 100 m out (task 20260709-173700):
+        // dead ahead both project to the screen center, so discriminate in
+        // world space instead.
+        let (target_transform, target_com) = world
+            .entity(target)
+            .get_components::<(&Transform, Option<&ComputedCenterOfMass>)>()
+            .expect("hud range: target has a transform");
+        let target_anchor = live_structure_anchor(target_transform, target_com);
+        let feed_error = (aim_point - target_anchor).length();
+        assert!(
+            feed_error < 5.0,
+            "hud range: turret aim point {aim_point:?} is {feed_error:.1} m from \
+             the locked ship's anchor {target_anchor:?} - the lock feed is not \
+             driving the turret (camera-ray point would be ~50 m short)"
+        );
+
         let expected_pip = project_through_indicator_camera(world, aim_point);
         let (pip_center, _, pip_visibility) =
             indicator_state::<TurretLeadPipMarker>(world, "turret lead pip");

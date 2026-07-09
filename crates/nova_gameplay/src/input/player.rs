@@ -47,10 +47,10 @@ impl Plugin for SpaceshipPlayerInputPlugin {
             Update,
             (
                 update_controller_target_rotation_torque,
-                update_turret_target_input,
-                // Torpedoes commit to the lock the frame it is set, so the
-                // commit runs after the targeting update (previously a
-                // .chain() when both lived in this module).
+                // The turret feed reads the lock, focus and component state,
+                // so it runs after the targeting chain, same as the torpedo
+                // commit (previously a .chain() when they shared a module).
+                update_turret_target_input.after(super::targeting::SpaceshipTargetingSystems),
                 update_torpedo_target_input.after(super::targeting::SpaceshipTargetingSystems),
             )
                 .in_set(super::SpaceshipInputSystems),
@@ -144,11 +144,26 @@ fn update_turret_target_input(
             With<SpaceshipCameraTurretInputMarker>,
         ),
     >,
-    mut q_turret: Query<(&mut TurretSectionTargetInput, &ChildOf), With<TurretSectionMarker>>,
+    mut q_turret: Query<
+        (
+            &mut TurretSectionTargetInput,
+            &mut TurretSectionTargetVelocity,
+            &ChildOf,
+        ),
+        With<TurretSectionMarker>,
+    >,
     spaceship: Single<
         (&Transform, Option<&ComputedCenterOfMass>, Entity),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
+    lock: Res<SpaceshipPlayerTargetLock>,
+    component: Res<SpaceshipPlayerComponentLock>,
+    q_lock_target: Query<(
+        &Transform,
+        Option<&ComputedCenterOfMass>,
+        Option<&LinearVelocity>,
+    )>,
+    q_section_position: Query<&GlobalTransform, With<SectionMarker>>,
 ) {
     let point_rotation = point_rotation.into_inner();
     let (transform, com, spaceship) = spaceship.into_inner();
@@ -158,14 +173,43 @@ fn update_turret_target_input(
     // 20260709-150711).
     let position = live_structure_anchor(transform, com);
 
-    for (mut turret, _) in q_turret
-        .iter_mut()
-        .filter(|(_, ChildOf(t_parent))| *t_parent == spaceship)
-    {
+    // Three-tier auto-fire feed (component-lock spike, task 20260709-173700):
+    // the fine-locked section, else the locked ship's live structure, else
+    // the camera ray as always. Lock tiers carry the lock root's velocity so
+    // lead_intercept_point computes a real intercept; the ray tier aims at a
+    // commanded point, not a body, so its velocity is zero. A dead section or
+    // lock falls through to the next tier the same frame (the targeting
+    // systems clear the stale state on their next run).
+    let lock_tier = (**lock).and_then(|target| {
+        q_lock_target
+            .get(target)
+            .ok()
+            .map(|(target_transform, target_com, target_velocity)| {
+                (
+                    live_structure_anchor(target_transform, target_com),
+                    target_velocity
+                        .map(|velocity| **velocity)
+                        .unwrap_or(Vec3::ZERO),
+                )
+            })
+    });
+    let component_tier = component.section.and_then(|section| {
+        let section_position = q_section_position.get(section).ok()?;
+        let (_, lock_velocity) = lock_tier?;
+        Some((section_position.translation(), lock_velocity))
+    });
+    let ray_tier = {
         let forward = **point_rotation * Vec3::NEG_Z;
-        let distance = 100.0;
+        (position + forward * 100.0, Vec3::ZERO)
+    };
+    let (target_point, target_velocity) = component_tier.or(lock_tier).unwrap_or(ray_tier);
 
-        **turret = Some(position + forward * distance);
+    for (mut turret, mut velocity, _) in q_turret
+        .iter_mut()
+        .filter(|(_, _, ChildOf(t_parent))| *t_parent == spaceship)
+    {
+        **turret = Some(target_point);
+        **velocity = target_velocity;
     }
 }
 
@@ -862,6 +906,8 @@ mod tests {
         // it (task 20260709-150711), or the turret aim point keeps a
         // parallax against the COM-anchored crosshair.
         let mut world = World::new();
+        world.insert_resource(SpaceshipPlayerTargetLock(None));
+        world.insert_resource(SpaceshipPlayerComponentLock::default());
         world.spawn((
             SpaceshipCameraInputMarker,
             SpaceshipCameraTurretInputMarker,
@@ -879,6 +925,7 @@ mod tests {
             .spawn((
                 TurretSectionMarker,
                 TurretSectionTargetInput(None),
+                TurretSectionTargetVelocity(Vec3::ZERO),
                 ChildOf(ship),
             ))
             .id();
@@ -893,5 +940,117 @@ mod tests {
             Some(Vec3::new(12.0, 0.0, -100.0)),
             "aim ray base = anchor (12,0,0), not the root origin (10,0,0)"
         );
+    }
+
+    // -- three-tier turret auto-fire feed --
+
+    /// Player + aim rig + one turret, a locked target ship (moving, with a
+    /// shifted COM) and one of its sections. Returns (turret, target,
+    /// section).
+    fn turret_feed_world() -> (World, Entity, Entity, Entity) {
+        let mut world = World::new();
+        world.spawn((
+            SpaceshipCameraInputMarker,
+            SpaceshipCameraTurretInputMarker,
+            PointRotationOutput(Quat::IDENTITY),
+        ));
+        let ship = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::IDENTITY,
+            ))
+            .id();
+        let turret = world
+            .spawn((
+                TurretSectionMarker,
+                TurretSectionTargetInput(None),
+                TurretSectionTargetVelocity(Vec3::ZERO),
+                ChildOf(ship),
+            ))
+            .id();
+        let target = world
+            .spawn((
+                SpaceshipRootMarker,
+                Transform::from_translation(Vec3::new(0.0, 0.0, -200.0)),
+                ComputedCenterOfMass(Vec3::new(0.0, 0.0, 2.0)),
+                LinearVelocity(Vec3::new(7.0, 0.0, 0.0)),
+            ))
+            .id();
+        let section = world
+            .spawn((
+                SectionMarker,
+                GlobalTransform::from_translation(Vec3::new(1.0, 0.5, -199.0)),
+                ChildOf(target),
+            ))
+            .id();
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
+        world.insert_resource(SpaceshipPlayerComponentLock::default());
+        (world, turret, target, section)
+    }
+
+    fn turret_feed(world: &mut World, turret: Entity) -> (Option<Vec3>, Vec3) {
+        world.run_system_once(update_turret_target_input).unwrap();
+        let entity = world.entity(turret);
+        (
+            **entity.get::<TurretSectionTargetInput>().unwrap(),
+            **entity.get::<TurretSectionTargetVelocity>().unwrap(),
+        )
+    }
+
+    #[test]
+    fn component_lock_feeds_the_section_position() {
+        let (mut world, turret, _, section) = turret_feed_world();
+        world.resource_mut::<SpaceshipPlayerComponentLock>().section = Some(section);
+
+        let (point, velocity) = turret_feed(&mut world, turret);
+
+        assert_eq!(point, Some(Vec3::new(1.0, 0.5, -199.0)));
+        assert_eq!(velocity, Vec3::new(7.0, 0.0, 0.0), "lock root velocity");
+    }
+
+    #[test]
+    fn ship_lock_feeds_the_live_structure_anchor() {
+        let (mut world, turret, _, _) = turret_feed_world();
+
+        let (point, velocity) = turret_feed(&mut world, turret);
+
+        // Anchor = target translation + COM offset (identity rotation).
+        assert_eq!(point, Some(Vec3::new(0.0, 0.0, -198.0)));
+        assert_eq!(velocity, Vec3::new(7.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn no_lock_feeds_the_camera_ray_with_zero_velocity() {
+        let (mut world, turret, _, _) = turret_feed_world();
+        world.insert_resource(SpaceshipPlayerTargetLock(None));
+
+        let (point, velocity) = turret_feed(&mut world, turret);
+
+        assert_eq!(point, Some(Vec3::new(0.0, 0.0, -100.0)));
+        assert_eq!(velocity, Vec3::ZERO, "a commanded point has no velocity");
+    }
+
+    #[test]
+    fn dead_section_falls_through_to_the_ship_lock() {
+        let (mut world, turret, _, section) = turret_feed_world();
+        world.resource_mut::<SpaceshipPlayerComponentLock>().section = Some(section);
+        world.despawn(section);
+
+        let (point, velocity) = turret_feed(&mut world, turret);
+
+        assert_eq!(point, Some(Vec3::new(0.0, 0.0, -198.0)));
+        assert_eq!(velocity, Vec3::new(7.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn dead_lock_falls_through_to_the_camera_ray() {
+        let (mut world, turret, target, _) = turret_feed_world();
+        world.despawn(target);
+
+        let (point, velocity) = turret_feed(&mut world, turret);
+
+        assert_eq!(point, Some(Vec3::new(0.0, 0.0, -100.0)));
+        assert_eq!(velocity, Vec3::ZERO);
     }
 }
