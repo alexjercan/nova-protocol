@@ -57,6 +57,13 @@ Features: `debug` gates all debug tooling; `dev` = `debug`. The `--norender` and
 `--debugdump` CLI flags exist only under the `debug` feature (`--debugdump` writes a
 system schedule graph and exits).
 
+**Skip `cargo test` and `cargo clippy` locally unless explicitly asked to run
+them** - both run in CI on every PR, so local runs mostly burn time (the workspace
+test suite alone takes ~1-2 minutes because of the examples smoke test). A quick
+`cargo check` (and `cargo fmt`) before committing is still fine - it is cheap and
+catches breakage early. When tests were not run locally, say so plainly instead of
+claiming the suite is green; CI is the source of truth.
+
 Examples in `examples/` (`01_scene`, `02_thruster_shader`, `03_scenario`,
 `04_asteroids`, `05_directional`, `07b_slicer`) are the fastest way to exercise a
 subsystem end to end. When adding a substantial feature, prefer wiring up an example

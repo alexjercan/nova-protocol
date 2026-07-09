@@ -6,6 +6,7 @@ use bevy::prelude::*;
 
 pub mod audio;
 pub mod camera_controller;
+pub mod flight;
 pub mod hud;
 pub mod input;
 pub mod integrity;
@@ -22,6 +23,7 @@ pub mod prelude {
     pub use super::{
         audio::{NovaAudioPlugin, NovaSfx, NOVA_SFX_FILES},
         camera_controller::prelude::*,
+        flight::prelude::*,
         hud::prelude::*,
         input::prelude::*,
         integrity::prelude::*,

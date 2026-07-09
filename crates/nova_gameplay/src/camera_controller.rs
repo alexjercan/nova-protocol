@@ -1,3 +1,4 @@
+use avian3d::prelude::Rotation;
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 use bevy_enhanced_input::prelude::*;
@@ -30,6 +31,8 @@ impl Plugin for SpaceshipCameraControllerPlugin {
         app.add_observer(insert_camera_turret);
         app.add_observer(insert_player_input);
         app.add_observer(destroy_camera_controller);
+
+        app.add_observer(on_autopilot_disengaged);
 
         app.add_observer(on_rotation_input);
         app.add_observer(on_rotation_input_completed);
@@ -231,6 +234,30 @@ fn destroy_camera_controller(
     commands
         .entity(entity)
         .try_remove::<(ChaseCamera, SpaceshipCameraController)>();
+}
+
+/// When an autopilot maneuver disengages, re-seed the normal rotation rig
+/// from the ship's *current* attitude. While engaged the mouse kept turning
+/// the rig (as camera free-look) but the hull followed the maneuver, so the
+/// rig's quat is stale; without this re-seed the PD would violently swing the
+/// ship back to wherever the rig last pointed. Re-inserting `PointRotation`
+/// resets its internal state, exactly like the free-look mode switches do.
+fn on_autopilot_disengaged(
+    remove: On<Remove, Autopilot>,
+    mut commands: Commands,
+    q_ship: Query<&Rotation, With<PlayerSpaceshipMarker>>,
+    q_rig: Query<Entity, With<SpaceshipCameraNormalInputMarker>>,
+) {
+    let Ok(rotation) = q_ship.get(remove.entity) else {
+        // Not the player's ship (or it is despawning) - nothing to re-seed.
+        return;
+    };
+
+    for rig in &q_rig {
+        commands.entity(rig).try_insert(PointRotation {
+            initial_rotation: rotation.0,
+        });
+    }
 }
 
 fn update_chase_camera_input(
@@ -452,6 +479,40 @@ mod tests {
         assert_eq!(
             app.world().get::<ChaseCamera>(camera).unwrap().offset,
             Vec3::new(0.0, 10.0, -30.0)
+        );
+    }
+
+    /// Disengaging the autopilot must hand the mouse a rig seeded from the
+    /// hull's *current* attitude - otherwise the PD would violently swing the
+    /// ship back to the rig's stale pre-maneuver command.
+    #[test]
+    fn disengaging_autopilot_reseeds_the_normal_rig_from_the_hull() {
+        let mut app = App::new();
+        app.add_observer(on_autopilot_disengaged);
+
+        let rig = app
+            .world_mut()
+            .spawn((SpaceshipCameraNormalInputMarker, PointRotation::default()))
+            .id();
+        let attitude = Quat::from_rotation_y(1.2);
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Rotation(attitude),
+                Autopilot::engage(AutopilotAction::Stop),
+            ))
+            .id();
+        app.update();
+
+        app.world_mut().entity_mut(ship).remove::<Autopilot>();
+        app.update();
+
+        let seeded = app.world().get::<PointRotation>(rig).unwrap();
+        assert_eq!(
+            seeded.initial_rotation, attitude,
+            "the rig must be re-seeded from the hull attitude on disengage"
         );
     }
 }

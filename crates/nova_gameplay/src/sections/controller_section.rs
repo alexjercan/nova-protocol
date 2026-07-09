@@ -76,7 +76,9 @@ pub fn preview_controller_section(config: ControllerSectionConfig) -> impl Bundl
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct ControllerSectionMarker;
 
-/// The desired rotation of the controller section, in world space.
+/// The desired rotation of the controller section, in world space. Written by
+/// the player's mouse command, the AI brain, or the autopilot
+/// (`crate::flight`) - whoever currently holds rotation authority.
 #[derive(Component, Debug, Clone, Default, Deref, DerefMut, Reflect)]
 pub struct ControllerSectionRotationInput(pub Quat);
 
@@ -89,6 +91,11 @@ pub struct ControllerSectionPlugin {
 impl Plugin for ControllerSectionPlugin {
     fn build(&self, app: &mut App) {
         debug!("ControllerSectionPlugin: build");
+
+        // Register the section's reflected components so the debug inspector
+        // (and the flight-feel retune) can see and edit them.
+        app.register_type::<ControllerSectionMarker>()
+            .register_type::<ControllerSectionRotationInput>();
 
         app.add_observer(insert_controller_section_target);
 
@@ -113,7 +120,9 @@ impl Plugin for ControllerSectionPlugin {
     }
 }
 
-fn update_controller_section_rotation_input(
+// `pub(crate)` so the flight tests can register the real rotation pipeline
+// and cover autopilot -> PD -> hull swing end to end.
+pub(crate) fn update_controller_section_rotation_input(
     mut q_controller: Query<
         (&mut PDControllerInput, &ControllerSectionRotationInput),
         (
@@ -127,7 +136,7 @@ fn update_controller_section_rotation_input(
     }
 }
 
-fn sync_controller_section_forces(
+pub(crate) fn sync_controller_section_forces(
     mut q_root: Query<Forces>,
     q_controller: Query<(&PDControllerOutput, &PDControllerTarget)>,
 ) {

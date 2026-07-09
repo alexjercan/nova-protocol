@@ -23,6 +23,15 @@ use super::NovaIntegrityPlugin;
 /// makes stepping deterministic, and gravity is zeroed so a body stays exactly where the
 /// test puts it.
 pub(crate) fn integrity_physics_app() -> App {
+    let mut app = unfinished_integrity_physics_app();
+    app.finish();
+    app
+}
+
+/// The same harness without `finish()`, for tests that must add further
+/// plugins first (the flight tests add the bcs PD controller); the caller
+/// finishes the app itself.
+pub(crate) fn unfinished_integrity_physics_app() -> App {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
@@ -37,7 +46,6 @@ pub(crate) fn integrity_physics_app() -> App {
     app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
         1.0 / 60.0,
     )));
-    app.finish();
     app
 }
 
