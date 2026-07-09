@@ -142,6 +142,16 @@ pub struct FlightSettings {
     /// actually starts. Without this the plan assumes instant retro thrust
     /// and sails deep through the standoff at speed.
     pub flip_lead_time: f32,
+    /// Velocity errors at or below this are "crumbs": the computer stops
+    /// re-aiming the hull for them (it finishes axially if the nose is
+    /// already on the error, and otherwise accepts the residual). Without
+    /// this deadband the ship pirouettes after ever-smaller leftovers,
+    /// twitching toward a perfection nobody can see.
+    pub attitude_deadband: f32,
+    /// Once the engines are lit, keep burning until alignment falls this far
+    /// below [`FlightSettings::align_cos`], so the plume does not flicker
+    /// on/off right at the gate boundary.
+    pub align_hysteresis: f32,
 }
 
 impl Default for FlightSettings {
@@ -156,6 +166,10 @@ impl Default for FlightSettings {
             min_approach_speed: 1.5,
             // A 180 at PD freq 4 settles in roughly a second; pad for spool.
             flip_lead_time: 1.5,
+            // A 0.4 u/s drift is a slow creep nobody notices; chasing it
+            // with attitude swings is what everybody notices.
+            attitude_deadband: 0.4,
+            align_hysteresis: 0.03,
         }
     }
 }
@@ -410,36 +424,60 @@ fn autopilot_system(
         let error = desired - **velocity;
         let error_speed = error.length();
 
-        // Done: the goal wants rest here, the ship is (nearly) at rest, AND
-        // the engines have wound down - releasing the ship with a still-hot,
-        // spooling-down drive would let the dying burn push it off again.
-        let at_rest = desired == Vec3::ZERO && error_speed <= settings.stop_speed_epsilon;
-        if at_rest && hottest_input <= 0.05 {
+        // Direction of the needed burn, and whether the nose is on it. Lit
+        // engines get a slightly looser gate (hysteresis) so the plume does
+        // not flicker on/off right at the alignment boundary.
+        let error_dir = (error_speed > 1e-3).then(|| error / error_speed);
+        let align_gate = if hottest_input > 0.1 {
+            settings.align_cos - settings.align_hysteresis
+        } else {
+            settings.align_cos
+        };
+        let nose_on_error = error_dir
+            .map(|dir| forward.dot(dir) >= align_gate)
+            .unwrap_or(false);
+
+        // Within the deadband the leftover is a crumb: never re-aim the hull
+        // for it - finish it axially if the nose already points the right
+        // way, otherwise accept it. This is what stops the ship twitching
+        // after perfection at the end of (and during) a maneuver.
+        let fine = error_speed <= settings.attitude_deadband;
+
+        // Done: the goal wants rest here and the ship is at rest - exactly,
+        // or within the deadband with a residual only a pirouette could
+        // remove. Release only once the engines have wound down: a still-hot,
+        // spooling-down drive would push the ship off again.
+        let done = desired == Vec3::ZERO
+            && (error_speed <= settings.stop_speed_epsilon || (fine && !nose_on_error));
+        if done && hottest_input <= 0.05 {
             debug!("autopilot_system: ship {ship:?} maneuver complete, disengaging");
             commands.entity(ship).remove::<Autopilot>();
             continue;
         }
 
-        // Face the error, burn when aligned - spool everything. While
-        // settling (at rest, engines still winding down) just command zero.
-        let (target_input, aligned) = if at_rest || error_speed <= 1e-3 {
-            (0.0, false)
-        } else {
-            let error_dir = error / error_speed;
-            // Minimal rotation from the current attitude, preserving roll.
-            let target_rotation = Quat::from_rotation_arc(forward, error_dir) * rotation.0;
-            for (mut input, &ChildOf(parent)) in &mut q_rotation_input {
-                if parent == ship {
-                    **input = target_rotation;
+        // Face the error (only for corrections worth turning for), burn when
+        // aligned - spool everything. While settling (done, engines still
+        // winding down) just command zero.
+        let (target_input, aligned) = match error_dir {
+            None => (0.0, false),
+            _ if done => (0.0, false),
+            Some(error_dir) => {
+                if !fine {
+                    // Minimal rotation from the current attitude, preserving roll.
+                    let target_rotation = Quat::from_rotation_arc(forward, error_dir) * rotation.0;
+                    for (mut input, &ChildOf(parent)) in &mut q_rotation_input {
+                        if parent == ship {
+                            **input = target_rotation;
+                        }
+                    }
                 }
+                let input = if nose_on_error {
+                    burn_input(error_speed * mass.value(), main_authority)
+                } else {
+                    0.0
+                };
+                (input, nose_on_error)
             }
-            let aligned = forward.dot(error_dir) >= settings.align_cos;
-            let input = if aligned {
-                burn_input(error_speed * mass.value(), main_authority)
-            } else {
-                0.0
-            };
-            (input, aligned)
         };
 
         autopilot.phase = if aligned {
@@ -920,6 +958,45 @@ mod tests {
         assert!(
             speed < 0.5,
             "scenario-built ship STOP should reach rest, got {speed}"
+        );
+    }
+
+    /// The twitch fix: a residual drift below the attitude deadband, with the
+    /// nose nowhere near the retro direction, is a crumb - the autopilot must
+    /// accept it and let go instead of pirouetting the hull to chase it.
+    #[test]
+    fn stop_accepts_a_crumb_without_pirouetting() {
+        let mut app = flight_app();
+        let (ship, _, _) = spawn_ship(&mut app);
+        settle(&mut app);
+        // Slow lateral creep, below the deadband; killing it would need a
+        // ~90 degree pirouette.
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::new(0.3, 0.0, 0.0)));
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+
+        run(&mut app, 120);
+
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "a crumb residual must be accepted, not chased"
+        );
+        let forward = app
+            .world()
+            .get::<Rotation>(ship)
+            .unwrap()
+            .mul_vec3(Vec3::NEG_Z);
+        assert!(
+            forward.dot(Vec3::NEG_Z) > 0.98,
+            "the hull must not pirouette for a crumb, forward now {forward}"
+        );
+        let v = velocity_of(&app, ship);
+        assert!(
+            (v - Vec3::new(0.3, 0.0, 0.0)).length() < 0.05,
+            "the crumb is accepted as-is, got {v}"
         );
     }
 

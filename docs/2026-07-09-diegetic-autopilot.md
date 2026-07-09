@@ -48,6 +48,14 @@ standoff at 30+ u/s), and `min_approach_speed` floors the GOTO closing speed
 (the pure arrival curve reaches zero *at* the boundary, so the ship would
 approach it asymptotically and never arrive).
 
+Two more came from playtest feel: `attitude_deadband` (0.4 u/s) marks
+velocity errors as crumbs the computer never re-aims the hull for - it
+finishes them axially if the nose already points the right way and otherwise
+accepts the residual, which is what stops the ship twitching after perfection
+at the end of a maneuver - and `align_hysteresis` keeps lit engines burning
+until alignment falls a little below the ignition gate, so the plume does not
+flicker at the boundary.
+
 GOTO replans against the target's current position every tick: slow drift is
 tracked, fast targets just take longer. There is no collision avoidance in
 v1 (spike-recorded limitation).
