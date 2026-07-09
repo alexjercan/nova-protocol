@@ -32,16 +32,22 @@ pub(crate) fn integrity_physics_app() -> App {
 /// plugins first (the flight tests add the bcs PD controller); the caller
 /// finishes the app itself.
 pub(crate) fn unfinished_integrity_physics_app() -> App {
+    unfinished_integrity_physics_app_with(PhysicsPlugins::default())
+}
+
+/// The same harness with a caller-supplied physics plugin group, for tests
+/// that need a non-default physics setup (the projectile-hook tests register
+/// `with_collision_hooks`, as `NovaGameplayPlugin` does).
+pub(crate) fn unfinished_integrity_physics_app_with(physics: impl PluginGroup) -> App {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
         TransformPlugin,
         bevy::asset::AssetPlugin::default(),
         bevy::mesh::MeshPlugin,
-        PhysicsPlugins::default(),
-        HealthPlugin,
-        NovaIntegrityPlugin,
     ));
+    app.add_plugins(physics);
+    app.add_plugins((HealthPlugin, NovaIntegrityPlugin));
     app.insert_resource(Gravity(Vec3::ZERO));
     app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
         1.0 / 60.0,

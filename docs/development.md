@@ -37,18 +37,21 @@ Two habits that keep the check suite honest and fast in this repo:
 ### Building from a sprout worktree
 
 A fresh `sprout` worktree has its own empty `target/`, so a build there is a full
-cold Bevy compile (minutes, and tens of GB of disk). Point it at the main
-checkout's warm cache instead - cargo fingerprints artifacts by crate + features,
-so sharing one target dir across worktrees is safe:
+cold Bevy compile (minutes, and tens of GB of disk). The tempting shortcut of
+pointing `CARGO_TARGET_DIR` at the main checkout's warm cache is **not safe for
+the workspace's own crates**: both checkouts are the same packages at the same
+versions, so when the sources diverge, builds from the two checkouts overwrite
+each other's artifacts and a worktree binary can silently link the main
+checkout's version of `nova_gameplay` (observed in task 20260709-131502: the
+worktree's torpedo-range smoke ran master's gameplay code, faking a bug in the
+branch, and later failed to resolve a symbol that existed only in the worktree).
 
-```sh
-export CARGO_TARGET_DIR=/path/to/nova-protocol/target
-```
-
-With the shared cache, only the crates you actually changed (and anything a
-changed feature touches) recompile; an incremental worktree build drops from
-multi-minute to seconds. Set it for every build/test/clippy command run inside a
-worktree.
+If you want to reuse the warm cache, it is only trustworthy while the two
+checkouts' workspace crates are identical (a freshly cut worktree), and never
+after building from the other checkout in between. When in doubt, build in the
+worktree's own `target/` and accept the one-time cold compile; the third-party
+dependency artifacts are the bulk of it and sccache-style sharing of those is a
+separate problem.
 
 The dev profile also sets `split-debuginfo = "unpacked"` and `debug = "line-tables-only"`.
 This is a **memory** knob, not a speed one: `cargo test` / `cargo build --all-targets`

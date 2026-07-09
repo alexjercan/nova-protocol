@@ -33,7 +33,7 @@ impl Plugin for NovaGameplayPlugin {
 
         // We need to enable the physics plugins to have access to RigidBody and other components.
         // We will also disable gravity for this example, since we are in space, duh.
-        app.add_plugins(PhysicsPlugins::default().with_collision_hooks::<TurretProjectileHooks>());
+        app.add_plugins(PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>());
         app.add_plugins(PhysicsPickingPlugin);
         app.insert_resource(Gravity::ZERO);
 

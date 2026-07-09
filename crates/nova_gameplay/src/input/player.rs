@@ -264,7 +264,7 @@ fn update_spaceship_target_input(
 fn update_torpedo_target_input(
     mut commands: Commands,
     q_torpedo: Query<
-        (Entity, &TorpedoProjectileOwner),
+        (Entity, &ProjectileOwner),
         (
             With<TorpedoProjectileMarker>,
             Without<TorpedoTargetEntity>,
@@ -803,7 +803,7 @@ mod tests {
             .id();
         let torpedo = app
             .world_mut()
-            .spawn((TorpedoProjectileMarker, TorpedoProjectileOwner(ship)))
+            .spawn((TorpedoProjectileMarker, ProjectileOwner(ship)))
             .id();
 
         app.update();
@@ -837,7 +837,7 @@ mod tests {
             .id();
         let torpedo = app
             .world_mut()
-            .spawn((TorpedoProjectileMarker, TorpedoProjectileOwner(ship)))
+            .spawn((TorpedoProjectileMarker, ProjectileOwner(ship)))
             .id();
 
         app.update();
@@ -868,7 +868,7 @@ mod tests {
             .id();
         let torpedo = app
             .world_mut()
-            .spawn((TorpedoProjectileMarker, TorpedoProjectileOwner(ship)))
+            .spawn((TorpedoProjectileMarker, ProjectileOwner(ship)))
             .id();
 
         // Frame 1: no lock -> committed dumb-fire.
@@ -905,7 +905,7 @@ mod tests {
             .world_mut()
             .spawn((
                 TorpedoProjectileMarker,
-                TorpedoProjectileOwner(ship),
+                ProjectileOwner(ship),
                 TorpedoTargetChosen,
             ))
             .id();

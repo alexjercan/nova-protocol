@@ -1,6 +1,6 @@
 # Torpedo takes no contact damage from its own ship at launch: unify projectile owner collision filter
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 95
 - TAGS: v0.4.0,bug,torpedo
 
@@ -37,38 +37,90 @@ working.
 
 ## Steps
 
-- [ ] Add a shared `ProjectileOwner(pub Entity)` component and a `ProjectileHooks`
+- [x] Add a shared `ProjectileOwner(pub Entity)` component and a `ProjectileHooks`
       `CollisionHooks` impl in a new `crates/nova_gameplay/src/sections/projectile_hooks.rs`,
       exported through the sections prelude. `filter_pairs` resolves each collider's
       owner by looking for `ProjectileOwner` on the collider entity itself OR on its
       `ColliderOf.body` (torpedo colliders are children of the owning root), and
       returns false when that owner equals the other collider's `ColliderOf.body`
       (check both orientations of the pair).
-- [ ] Replace `TurretBulletProjectileOwner` (private, turret_section.rs) and
+- [x] Replace `TurretBulletProjectileOwner` (private, turret_section.rs) and
       `TorpedoProjectileOwner` (pub, torpedo_section/mod.rs:149, used by
       input/player.rs:267 and its tests) with `ProjectileOwner`. Keep the marker
       components (`TurretBulletProjectileMarker`, `TorpedoProjectileMarker`) as the
       type discriminators in queries.
-- [ ] Register the generalized hook in `crates/nova_gameplay/src/plugin.rs`:
+- [x] Register the generalized hook in `crates/nova_gameplay/src/plugin.rs`:
       `with_collision_hooks::<ProjectileHooks>()` replacing `TurretProjectileHooks`.
-- [ ] In `shoot_spawn_projectile` (torpedo_section/mod.rs), add
+- [x] In `shoot_spawn_projectile` (torpedo_section/mod.rs), add
       `ActiveCollisionHooks::FILTER_PAIRS` to both torpedo child section entities
       (the entities that carry the colliders - the flag on the collider-less root
       does nothing).
-- [ ] Physics-level integration tests (avian stepping, cf.
+- [x] Physics-level integration tests (avian stepping, cf.
       `integrity/glue.rs::physics_tests` and `integrity/test_support.rs`; the test
       app must register `PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>()`):
       (1) a torpedo spawned overlapping its owner ship takes no damage and the ship
       sections take none; (2) the same torpedo overlapping a NON-owner body still
       collides (damage or contact reported); (3) a turret bullet still ignores its
       owner (regression for the renamed hook).
-- [ ] Verify end to end with the torpedo range: headless
+- [x] Verify end to end with the torpedo range: headless
       `BCS_AUTOPILOT=1` run of `examples/06_torpedo_range.rs` under Xvfb still
       reports 3 fired / 3 armed / 3 detonated with no torpedo dying at spawn and no
-      spawn-time hit flash/damage on the player ship.
-- [ ] Document the decision (owner filter is permanent, turret parity; why a
+      spawn-time hit flash/damage on the player ship. Done as an A/B run: on master
+      every launch logs a 0.30-damage impact pair torpedo-section <-> bay-section
+      (the damage that feeds the hit flash); on the branch those owner-pair
+      impacts are gone, cycle intact, exit 0 both runs.
+- [x] Document the decision (owner filter is permanent, turret parity; why a
       state-dependent/arming-gated filter was rejected) in the task resolution and
-      retro.
+      `docs/2026-07-09-projectile-owner-collision-filter.md` (retro follows via
+      /compound). Also added a CHANGELOG entry under Fixed.
+
+## Resolution
+
+Implemented as planned. New `sections/projectile_hooks.rs` holds the shared
+`ProjectileOwner(Entity)` component and the single avian `CollisionHooks` impl
+(`ProjectileHooks`); it resolves ownership on the collider entity itself (turret
+bullet) or via `ColliderOf.body` (torpedo child sections) and skips owner pairs in
+both orientations. Turret and torpedo spawns both attach `ProjectileOwner`;
+`TurretBulletProjectileOwner`, `TorpedoProjectileOwner` and the old
+`TurretProjectileHooks` are gone; the torpedo's two child sections opt in with
+`ActiveCollisionHooks::FILTER_PAIRS`. `integrity/test_support.rs` gained a
+hook-capable app builder for the tests.
+
+Verified with 3 new physics-level tests (owner overlap: no damage, motion
+unperturbed; non-owner overlap: damage lands; turret-bullet regression) and an A/B
+headless run of `06_torpedo_range` (master: every launch deals 0.30 contact damage
+both ways between torpedo and bay; branch: no owner-pair impacts, fire/arm/detonate
+cycle and exit 0 unchanged).
+
+Honest test scope: the 4 new tests were run locally and pass; `cargo check
+--workspace` and `cargo fmt` are green; the full test suite and clippy were NOT run
+locally, per the AGENTS.md instruction to defer them. Review round 1 (R1.2) found
+that no in-repo PR workflow actually runs them (.github/workflows has only
+deploy-page.yaml and release.yaml), so where the suite runs is surfaced to the
+user in the flow report rather than assumed here.
+
+Difficulty hit: the control test first used a realistic 1 hp warhead, whose death
+dragged the render-facing destroy/explode observer into the headless harness and
+panicked (missing `Assets<StandardMaterial>`/`GlobalRng`). Reworked to high health
+on both sides - the invariant is "contact damage lands", not the death cascade.
+
+Review round 1 additions: a wiring assertion in `06_torpedo_range`
+(`assert_no_owner_pair_damage` observer, fails any run where a torpedo section
+and a ship section exchange contact damage - the smoke now regression-tests the
+FILTER_PAIRS flag and hook registration, not just the hook logic), a direct
+`filter_pairs` orientation-symmetry test (4 tests total now), and de-tupled hook
+queries. While verifying the observer, a false alarm surfaced a real tooling
+trap: sharing CARGO_TARGET_DIR between the worktree and the main checkout linked
+master's stale nova_gameplay into the worktree smoke binary (master code, no
+filter, "intermittent" owner damage). docs/development.md's worktree-cache
+advice is corrected on this branch; the smoke is clean (3/3 runs, 0 owner-pair
+events) when built in the worktree's own target.
+
+Reflection: reading avian's hook semantics up front (one hook type per app,
+either-collider activation, broad-phase-time filtering) shaped the design
+correctly on the first try; the A/B example run was the cheapest, clearest
+evidence of the fix and is worth repeating for physics bugs with an existing
+range example. Details in `docs/2026-07-09-projectile-owner-collision-filter.md`.
 
 ## Notes
 

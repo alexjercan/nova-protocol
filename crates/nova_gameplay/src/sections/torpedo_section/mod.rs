@@ -19,10 +19,9 @@ use render::*;
 pub mod prelude {
     pub use super::{
         torpedo_section, TorpedoArming, TorpedoBlast, TorpedoControllerMarker, TorpedoGuidance,
-        TorpedoProjectileMarker, TorpedoProjectileOwner, TorpedoSectionConfig, TorpedoSectionInput,
-        TorpedoSectionMarker, TorpedoSectionPlugin, TorpedoSectionSpawnerFireState,
-        TorpedoSectionSpawnerMarker, TorpedoSteering, TorpedoTargetChosen, TorpedoTargetEntity,
-        TorpedoTargetPosition,
+        TorpedoProjectileMarker, TorpedoSectionConfig, TorpedoSectionInput, TorpedoSectionMarker,
+        TorpedoSectionPlugin, TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker,
+        TorpedoSteering, TorpedoTargetChosen, TorpedoTargetEntity, TorpedoTargetPosition,
     };
 }
 
@@ -144,9 +143,6 @@ struct TorpedoSectionPartOf(Entity);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct TorpedoSectionSpawnerEntity(Entity);
-
-#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-pub struct TorpedoProjectileOwner(pub Entity);
 
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct TorpedoTargetEntity(pub Entity);
@@ -430,7 +426,7 @@ fn shoot_spawn_projectile(
         commands.spawn((
             Name::new("Torpedo Projectile"),
             TorpedoProjectileMarker,
-            TorpedoProjectileOwner(*spaceship),
+            ProjectileOwner(*spaceship),
             projectile_transform,
             RigidBody::Dynamic,
             LinearVelocity(linear_velocity),
@@ -462,6 +458,10 @@ fn shoot_spawn_projectile(
             children![
                 (
                     TorpedoControllerMarker,
+                    // The torpedo's colliders live on these child sections, so the
+                    // owner collision filter (ProjectileHooks) opts in here, not on
+                    // the collider-less root.
+                    ActiveCollisionHooks::FILTER_PAIRS,
                     base_section(BaseSectionConfig {
                         id: "torpedo_controller".to_string(),
                         name: "Torpedo Controller".to_string(),
@@ -482,6 +482,7 @@ fn shoot_spawn_projectile(
                 ),
                 (
                     TorpedoThrusterMarker,
+                    ActiveCollisionHooks::FILTER_PAIRS,
                     base_section(BaseSectionConfig {
                         id: "torpedo_thruster".to_string(),
                         name: "Torpedo Thruster".to_string(),

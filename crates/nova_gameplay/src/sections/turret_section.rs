@@ -4,10 +4,7 @@
 use std::time::Duration;
 
 use avian3d::prelude::*;
-use bevy::{
-    ecs::system::{lifetimeless::Read, SystemParam},
-    prelude::*,
-};
+use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 use bevy_hanabi::prelude::*;
 
@@ -15,7 +12,7 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        turret_section, TurretBulletProjectileMarker, TurretProjectileHooks, TurretSectionAimPoint,
+        turret_section, TurretBulletProjectileMarker, TurretSectionAimPoint,
         TurretSectionBarrelMuzzleMarker, TurretSectionConfig, TurretSectionConfigHelper,
         TurretSectionInput, TurretSectionMarker, TurretSectionMuzzleEntity, TurretSectionPlugin,
         TurretSectionTargetInput, TurretSectionTargetVelocity,
@@ -203,10 +200,6 @@ struct TurretSectionBarrelMuzzleEffectMarker;
 #[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
 pub struct TurretSectionMuzzleEntity(pub Entity);
 
-/// The spaceship entity that owns the projectile.
-#[derive(Component, Clone, Debug, Reflect)]
-struct TurretBulletProjectileOwner(pub Entity);
-
 /// A plugin that enables the TurretSection component and its related systems.
 #[derive(Default)]
 pub struct TurretSectionPlugin {
@@ -258,38 +251,6 @@ impl Plugin for TurretSectionPlugin {
                 .after(TransformSystems::Propagate)
                 .in_set(super::SpaceshipSectionSystems),
         );
-    }
-}
-
-// Define a custom `SystemParam` for our collision hooks.
-// It can have read-only access to queries, resources, and other system parameters.
-#[derive(SystemParam)]
-pub struct TurretProjectileHooks<'w, 's> {
-    projectile_query: Query<'w, 's, (Read<TurretBulletProjectileOwner>,)>,
-    colider_of_query: Query<'w, 's, (Read<ColliderOf>,)>,
-}
-
-impl CollisionHooks for TurretProjectileHooks<'_, '_> {
-    fn filter_pairs(&self, collider1: Entity, collider2: Entity, _commands: &mut Commands) -> bool {
-        // Don't allow collision between a projectile and its owner
-
-        if let Ok((&TurretBulletProjectileOwner(owner),)) = self.projectile_query.get(collider1) {
-            if let Ok((&ColliderOf { body },)) = self.colider_of_query.get(collider2) {
-                if owner == body {
-                    return false;
-                }
-            }
-        }
-
-        if let Ok((&TurretBulletProjectileOwner(owner),)) = self.projectile_query.get(collider2) {
-            if let Ok((&ColliderOf { body },)) = self.colider_of_query.get(collider1) {
-                if owner == body {
-                    return false;
-                }
-            }
-        }
-
-        true
     }
 }
 
@@ -822,7 +783,7 @@ fn shoot_spawn_projectile(
         commands.spawn((
             Name::new("Turret Projectile"),
             TurretBulletProjectileMarker,
-            TurretBulletProjectileOwner(*spaceship),
+            ProjectileOwner(*spaceship),
             projectile_transform,
             RigidBody::Dynamic,
             LinearVelocity(linear_velocity),

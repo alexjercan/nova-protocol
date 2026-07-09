@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - @alexjercan make blast damage reach every body overlapping the blast instead of only one
+- @alexjercan projectiles no longer contact-collide with the ship that fired them: torpedoes (like turret rounds) get an owner collision filter, so they stop taking and dealing hull damage at launch
 - @alexjercan despawn the leftover `RigidBody` husk when an asteroid's collider child is destroyed
 - @alexjercan stop the one-frame origin snap when switching camera modes
 - @alexjercan torpedoes: add an arming gate so they no longer self-detonate on spawn, keep flying when their target dies, and stop vanishing when there is no lock

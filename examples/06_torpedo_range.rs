@@ -76,6 +76,7 @@ fn custom_plugin(app: &mut App) {
     app.add_observer(tag_gate);
     app.add_observer(log_torpedo_fired);
     app.add_observer(log_torpedo_detonated);
+    app.add_observer(assert_no_owner_pair_damage);
 }
 
 /// Marks an asteroid the range treats as a target gate.
@@ -319,6 +320,54 @@ fn log_torpedo_armed(
 
 fn log_torpedo_detonated(add: On<Add, BlastDamageMarker>) {
     info!("range: torpedo detonated ({:?})", add.entity);
+}
+
+/// Fail the range loudly if a torpedo section and a ship section ever exchange
+/// contact damage - the launch self-damage bug (task 20260709-131502). In this
+/// range every torpedo is fired by the only ship, so any such pair is a
+/// projectile hitting its owner, which the owner collision filter must prevent.
+/// Blast damage does not trip this: its source is the standalone blast entity,
+/// not a child of a torpedo or ship root. Under the headless autopilot the
+/// panic fails the smoke run, so the filter wiring (the FILTER_PAIRS flag on
+/// torpedo sections and the ProjectileHooks registration) stays regression-tested.
+fn assert_no_owner_pair_damage(
+    damage: On<HealthApplyDamage>,
+    q_child_of: Query<&ChildOf>,
+    q_torpedo: Query<(), With<TorpedoProjectileMarker>>,
+    q_ship: Query<(), With<SpaceshipRootMarker>>,
+    q_collider_of: Query<&ColliderOf>,
+    q_owner: Query<&ProjectileOwner>,
+) {
+    let Some(source) = damage.source else {
+        return;
+    };
+    let torpedo_section = |entity: Entity| {
+        q_child_of
+            .get(entity)
+            .is_ok_and(|&ChildOf(root)| q_torpedo.contains(root))
+    };
+    let ship_section = |entity: Entity| {
+        q_child_of
+            .get(entity)
+            .is_ok_and(|&ChildOf(root)| q_ship.contains(root))
+    };
+    let entity = damage.entity;
+    if (torpedo_section(entity) && ship_section(source))
+        || (ship_section(entity) && torpedo_section(source))
+    {
+        let describe = |e: Entity| {
+            let collider_of = q_collider_of.get(e).map(|c| c.body).ok();
+            let body_owner = collider_of.and_then(|b| q_owner.get(b).map(|o| o.0).ok());
+            format!("{e:?} (ColliderOf {collider_of:?}, body's ProjectileOwner {body_owner:?})")
+        };
+        panic!(
+            "range: owner-pair contact damage, {} <- {} ({:.2}): \
+             the projectile owner collision filter is broken",
+            describe(entity),
+            describe(source),
+            damage.amount
+        );
+    }
 }
 
 /// Autopilot input: hold the fire key while in Playing so the range fires
