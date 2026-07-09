@@ -42,9 +42,10 @@ decisions, not defaults - juice retro).
       more than one frame to reach the input component), camera offset returns
       to baseline when thrust stops.
 - [ ] Playtest retune with the user: shake/flash overlap check under burn
-      (juice), spool rates, autopilot margin/standoff/alignment, slew rate,
-      PD constants, camera smoothing/push; record the final values and
-      reasoning in the flight design note.
+      (juice), spool rates, autopilot margin/standoff/alignment, the
+      attitude_deadband (0.4) + align_hysteresis (0.03) twitch thresholds,
+      slew rate, PD constants, camera smoothing/push; record the final
+      values and reasoning in the flight design note.
 - [ ] Verify: fmt, clippy --all-targets, cargo test --workspace, wasm check.
 
 ## Notes
