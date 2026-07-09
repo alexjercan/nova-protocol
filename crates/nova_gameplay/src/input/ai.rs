@@ -4,7 +4,9 @@ use bevy::prelude::*;
 use crate::prelude::*;
 
 pub mod prelude {
-    pub use super::{AIBehaviorState, AISpaceshipMarker, AITarget, SpaceshipAIInputPlugin};
+    pub use super::{
+        AIBehaviorState, AIFireCadence, AISpaceshipMarker, AITarget, SpaceshipAIInputPlugin,
+    };
 }
 
 pub struct SpaceshipAIInputPlugin;
@@ -15,12 +17,14 @@ impl Plugin for SpaceshipAIInputPlugin {
 
         app.register_type::<AIBehaviorState>();
         app.register_type::<AITarget>();
+        app.register_type::<AIFireCadence>();
 
         app.add_systems(
             Update,
             (
                 update_ai_target,
                 update_behavior_state,
+                update_fire_cadence,
                 update_controller_target_rotation_torque,
                 on_thruster_input,
                 update_turret_target_input,
@@ -44,7 +48,8 @@ impl Plugin for SpaceshipAIInputPlugin {
     SpaceshipRootMarker,
     Allegiance = Allegiance::Enemy,
     AIBehaviorState,
-    AITarget
+    AITarget,
+    AIFireCadence
 )]
 pub struct AISpaceshipMarker;
 
@@ -249,8 +254,16 @@ const AI_BRAKE_SPEED_MARGIN: f32 = 1.0;
 /// Only thrust when the ship's forward vector aligns with the desired direction at least
 /// this much (dot product, 1.0 == perfectly aligned).
 const AI_THRUST_ALIGNMENT: f32 = 0.95;
-/// Only fire when the muzzle aligns with the player at least this much.
+/// Only fire when the muzzle aligns with the aim point at least this much.
 const AI_FIRE_ALIGNMENT: f32 = 0.95;
+/// Fraction of a turret's maximum bullet travel (muzzle_speed * lifetime)
+/// inside which the AI considers a shot worth taking: a margin below 1.0 so
+/// bullets arrive with the target still catchable, not at their despawn
+/// range.
+const AI_FIRE_RANGE_FACTOR: f32 = 0.9;
+/// Burst cadence (s): guns fire for the window, then hold, cyclically.
+const AI_BURST_FIRE_SECS: f32 = 1.5;
+const AI_BURST_HOLD_SECS: f32 = 0.8;
 
 /// The direction an AI ship should face: toward its target while it is slower than its
 /// distance-scaled target speed, or opposite its velocity when overshooting (braking).
@@ -427,12 +440,20 @@ fn on_thruster_input(
 }
 
 fn update_turret_target_input(
-    mut q_turret: Query<(&mut TurretSectionTargetInput, &ChildOf), With<TurretSectionMarker>>,
+    mut q_turret: Query<
+        (
+            &mut TurretSectionTargetInput,
+            &mut TurretSectionTargetVelocity,
+            &ChildOf,
+        ),
+        With<TurretSectionMarker>,
+    >,
     q_spaceship: Query<
         (Entity, &AIBehaviorState, &AITarget),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
+    q_target_velocity: Query<&LinearVelocity>,
 ) {
     for (entity, state, target) in &q_spaceship {
         // Aim at the target's live structure: fire converging on the root
@@ -445,12 +466,74 @@ fn update_turret_target_input(
         } else {
             None
         };
-        for (mut turret_input, _) in q_turret
+        // Feed the target root's velocity alongside the position so
+        // lead_intercept_point computes a real lead for AI turrets - the
+        // AI-side sibling of the player lock feed (20260709-173700). The
+        // solve is shooter-frame-correct on its own (20260709-211701).
+        let velocity = aim
+            .and_then(|_| (**target).and_then(|entity| q_target_velocity.get(entity).ok()))
+            .map(|velocity| **velocity)
+            .unwrap_or(Vec3::ZERO);
+        for (mut turret_input, mut turret_velocity, _) in q_turret
             .iter_mut()
-            .filter(|(_, ChildOf(c_parent))| *c_parent == entity)
+            .filter(|(_, _, ChildOf(c_parent))| *c_parent == entity)
         {
             **turret_input = aim;
+            **turret_velocity = velocity;
         }
+    }
+}
+
+/// The free-running burst cycle of an AI ship's guns: fire for
+/// [`AI_BURST_FIRE_SECS`], hold for [`AI_BURST_HOLD_SECS`], repeat. A ship
+/// fires only while the window is open (and every other gate passes), so AI
+/// fire reads as deliberate bursts instead of a continuous hose. Required by
+/// [`AISpaceshipMarker`]; ticked by [`update_fire_cadence`].
+#[derive(Component, Debug, Clone, Reflect)]
+#[reflect(Component)]
+pub struct AIFireCadence {
+    /// Time left in the current phase.
+    timer: Timer,
+    /// Whether the current phase is a fire window (else a hold).
+    firing: bool,
+}
+
+impl Default for AIFireCadence {
+    fn default() -> Self {
+        // Starts in a fire window so an AI ship dropped into a fight shoots
+        // immediately, matching pre-cadence behavior at spawn.
+        Self {
+            timer: Timer::from_seconds(AI_BURST_FIRE_SECS, TimerMode::Once),
+            firing: true,
+        }
+    }
+}
+
+impl AIFireCadence {
+    /// Advance the cycle, flipping between fire and hold phases.
+    fn tick(&mut self, delta: core::time::Duration) {
+        self.timer.tick(delta);
+        if self.timer.is_finished() {
+            self.firing = !self.firing;
+            let phase = if self.firing {
+                AI_BURST_FIRE_SECS
+            } else {
+                AI_BURST_HOLD_SECS
+            };
+            self.timer = Timer::from_seconds(phase, TimerMode::Once);
+        }
+    }
+}
+
+/// Tick every AI ship's burst cycle. Free-running (it does not reset on
+/// state or target changes): the phase offset between ships also staggers
+/// their volleys for free.
+fn update_fire_cadence(
+    time: Res<Time>,
+    mut q_spaceship: Query<&mut AIFireCadence, With<AISpaceshipMarker>>,
+) {
+    for mut cadence in &mut q_spaceship {
+        cadence.tick(time.delta());
     }
 }
 
@@ -458,6 +541,8 @@ fn on_projectile_input(
     mut q_turret: Query<
         (
             &TurretSectionMuzzleEntity,
+            &TurretSectionAimPoint,
+            &TurretSectionConfigHelper,
             &mut TurretSectionInput,
             &ChildOf,
         ),
@@ -465,20 +550,22 @@ fn on_projectile_input(
     >,
     q_muzzle: Query<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>,
     q_spaceship: Query<
-        (Entity, &AIBehaviorState, &AITarget),
+        (Entity, &AIBehaviorState, &AITarget, &AIFireCadence),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {
-    for (entity, state, target) in &q_spaceship {
+    for (entity, state, target, cadence) in &q_spaceship {
         let target_anchor = ai_target_anchor(target, &q_target);
-        for (muzzle, mut input, _) in q_turret
+        for (muzzle, aim_point, config, mut input, _) in q_turret
             .iter_mut()
-            .filter(|(_, _, ChildOf(c_parent))| *c_parent == entity)
+            .filter(|(_, _, _, _, ChildOf(c_parent))| *c_parent == entity)
         {
-            // Hold fire outside the engaging states (or with no target) -
-            // written as an explicit false so a firing turret stops.
-            let (Some(target_anchor), true) = (target_anchor, state.engages()) else {
+            // Hold fire outside the engaging states, with no target, or
+            // outside the burst window - written as an explicit false so a
+            // firing turret stops.
+            let (Some(target_anchor), true) = (target_anchor, state.engages() && cadence.firing)
+            else {
                 **input = false;
                 continue;
             };
@@ -491,10 +578,26 @@ fn on_projectile_input(
                 continue;
             };
 
-            let direction_to_target = (target_anchor - muzzle_transform.translation()).normalize();
+            // Range gate per turret: past the distance its bullets can
+            // actually live (muzzle_speed * lifetime, with a margin), a shot
+            // is noise, not pressure.
+            let effective_range =
+                config.muzzle_speed * config.projectile_lifetime * AI_FIRE_RANGE_FACTOR;
+            let muzzle_position = muzzle_transform.translation();
+            if target_anchor.distance(muzzle_position) > effective_range {
+                **input = false;
+                continue;
+            }
+
+            // Align against the LEADED aim point the turret actually steers
+            // to (falling back to the anchor before the lead resolves): a
+            // turret correctly leading a crossing target never aligns with
+            // the raw anchor, and would otherwise hold fire forever.
+            let aim = aim_point.unwrap_or(target_anchor);
+            let direction_to_aim = (aim - muzzle_position).normalize();
             let forward = muzzle_transform.forward();
 
-            let alignment = forward.dot(direction_to_target);
+            let alignment = forward.dot(direction_to_aim);
             **input = alignment > AI_FIRE_ALIGNMENT;
         }
     }
@@ -597,6 +700,9 @@ mod behavior_state_tests {
             .spawn((
                 TurretSectionMarker,
                 TurretSectionTargetInput(Some(Vec3::X)),
+                TurretSectionTargetVelocity(Vec3::ZERO),
+                TurretSectionAimPoint(None),
+                TurretSectionConfigHelper(TurretSectionConfig::default()),
                 TurretSectionInput(true),
                 TurretSectionMuzzleEntity(Entity::PLACEHOLDER),
                 ChildOf(ship),
@@ -653,6 +759,7 @@ mod tests {
             .spawn((
                 TurretSectionMarker,
                 TurretSectionTargetInput(None),
+                TurretSectionTargetVelocity(Vec3::ZERO),
                 ChildOf(ai_ship),
             ))
             .id();
@@ -683,6 +790,7 @@ mod tests {
             .spawn((
                 TurretSectionMarker,
                 TurretSectionTargetInput(None),
+                TurretSectionTargetVelocity(Vec3::ZERO),
                 ChildOf(ai_ship),
             ))
             .id();
@@ -1138,6 +1246,157 @@ mod target_selection_tests {
             **world.entity(ai_ship).get::<AITarget>().unwrap(),
             None,
             "consumers must never chase a stale entity"
+        );
+    }
+}
+
+#[cfg(test)]
+mod fire_discipline_tests {
+    use bevy::ecs::system::RunSystemOnce;
+
+    use super::*;
+
+    /// An AI ship engaged on a hand-set target, with one turret whose
+    /// muzzle sits at the origin facing -Z. Returns (world, turret, muzzle).
+    fn firing_world(target_position: Vec3, target_velocity: Vec3) -> (World, Entity, Entity) {
+        let mut world = World::new();
+        let target = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::from_translation(target_position),
+                LinearVelocity(target_velocity),
+            ))
+            .id();
+        let ship = world
+            .spawn((
+                AISpaceshipMarker,
+                AITarget(Some(target)),
+                Transform::default(),
+                LinearVelocity(Vec3::ZERO),
+            ))
+            .id();
+        let muzzle = world
+            .spawn((TurretSectionBarrelMuzzleMarker, GlobalTransform::IDENTITY))
+            .id();
+        let turret = world
+            .spawn((
+                TurretSectionMarker,
+                TurretSectionTargetInput(None),
+                TurretSectionTargetVelocity(Vec3::ZERO),
+                TurretSectionAimPoint(None),
+                TurretSectionConfigHelper(TurretSectionConfig::default()),
+                TurretSectionInput(false),
+                TurretSectionMuzzleEntity(muzzle),
+                ChildOf(ship),
+            ))
+            .id();
+        (world, turret, muzzle)
+    }
+
+    #[test]
+    fn the_turret_feed_carries_the_target_velocity() {
+        // The AI-side sibling of the player lock feed (20260709-173700):
+        // without it, lead_intercept_point degenerates to aim-at-the-target
+        // and AI turrets shoot behind every mover.
+        let velocity = Vec3::new(30.0, 0.0, 0.0);
+        let (mut world, turret, _) = firing_world(Vec3::new(0.0, 0.0, -100.0), velocity);
+
+        world.run_system_once(update_turret_target_input).unwrap();
+
+        assert_eq!(
+            **world
+                .entity(turret)
+                .get::<TurretSectionTargetVelocity>()
+                .unwrap(),
+            velocity
+        );
+    }
+
+    #[test]
+    fn fire_aligns_with_the_leaded_aim_point_not_the_anchor() {
+        // A crossing target: the aim point leads it well off the raw
+        // anchor bearing. The muzzle (facing -Z) is ON the lead point and
+        // ~22 degrees OFF the anchor (cos ~0.93, outside the 0.95 cone) -
+        // discipline must fire anyway, because the turret is exactly where
+        // the lead solution wants it.
+        let (mut world, turret, _) = firing_world(Vec3::new(40.0, 0.0, -100.0), Vec3::ZERO);
+        **world
+            .entity_mut(turret)
+            .get_mut::<TurretSectionAimPoint>()
+            .unwrap() = Some(Vec3::new(0.0, 0.0, -100.0));
+
+        world.run_system_once(on_projectile_input).unwrap();
+
+        assert!(
+            **world.entity(turret).get::<TurretSectionInput>().unwrap(),
+            "aligned with the LEADED point: fire, even though the raw \
+             anchor is off-axis"
+        );
+    }
+
+    #[test]
+    fn no_fire_beyond_the_effective_range() {
+        // Dead ahead and perfectly aligned, but past muzzle_speed *
+        // lifetime * margin (default 100 * 5 * 0.9 = 450 m): the bullet
+        // dies in flight, so discipline holds.
+        let (mut world, turret, _) = firing_world(Vec3::new(0.0, 0.0, -500.0), Vec3::ZERO);
+
+        world.run_system_once(on_projectile_input).unwrap();
+
+        assert!(
+            !**world.entity(turret).get::<TurretSectionInput>().unwrap(),
+            "beyond effective range: hold fire"
+        );
+
+        // The same shot inside the envelope fires.
+        let (mut world, turret, _) = firing_world(Vec3::new(0.0, 0.0, -400.0), Vec3::ZERO);
+        world.run_system_once(on_projectile_input).unwrap();
+        assert!(
+            **world.entity(turret).get::<TurretSectionInput>().unwrap(),
+            "inside effective range and aligned: fire"
+        );
+    }
+
+    #[test]
+    fn the_burst_cadence_alternates_fire_and_hold() {
+        let mut cadence = AIFireCadence::default();
+        assert!(cadence.firing, "spawns in a fire window");
+
+        // Tick past the fire window: the hold begins.
+        cadence.tick(core::time::Duration::from_secs_f32(
+            AI_BURST_FIRE_SECS + 0.01,
+        ));
+        assert!(!cadence.firing, "fire window over: hold");
+
+        // Tick past the hold: firing resumes.
+        cadence.tick(core::time::Duration::from_secs_f32(
+            AI_BURST_HOLD_SECS + 0.01,
+        ));
+        assert!(cadence.firing, "hold over: next burst");
+    }
+
+    #[test]
+    fn a_closed_burst_window_holds_fire_even_when_aligned() {
+        let (mut world, turret, _) = firing_world(Vec3::new(0.0, 0.0, -100.0), Vec3::ZERO);
+        // Force the ship's cadence into a hold phase.
+        let ship = world
+            .query_filtered::<Entity, With<AISpaceshipMarker>>()
+            .iter(&world)
+            .next()
+            .unwrap();
+        let mut cadence = world.entity_mut(ship);
+        let mut cadence = cadence.get_mut::<AIFireCadence>().unwrap();
+        cadence.tick(core::time::Duration::from_secs_f32(
+            AI_BURST_FIRE_SECS + 0.01,
+        ));
+        assert!(!cadence.firing);
+
+        world.run_system_once(on_projectile_input).unwrap();
+
+        assert!(
+            !**world.entity(turret).get::<TurretSectionInput>().unwrap(),
+            "hold phase: no fire, alignment notwithstanding"
         );
     }
 }
