@@ -331,13 +331,22 @@ fn update_behavior_state(
     }
 }
 
-// AI "brain" tuning constants. The AI chases the player at a speed that scales with
-// distance (so it slows as it closes in) and brakes when it overshoots.
-/// Target chase speed per unit of distance to the player.
+// AI "brain" tuning constants. The AI flies a standoff envelope around its
+// target: approach when far, orbit at the preferred range, extend when too
+// close, and brake when it overshoots.
+/// Target speed per unit of RANGE ERROR (distance outside the standoff
+/// band), so the ship slows as it nears the band instead of the target.
 const AI_CHASE_SPEED_GAIN: f32 = 0.2;
-/// Lower/upper clamp on the distance-scaled chase speed.
-const AI_MIN_CHASE_SPEED: f32 = 2.0;
+/// Orbit speed floor: inside the band the ship keeps circling at least this
+/// fast, so it stays a moving target instead of a parked one.
+const AI_ORBIT_SPEED: f32 = 8.0;
 const AI_MAX_CHASE_SPEED: f32 = 20.0;
+/// Preferred engagement range (m): inside the turrets' effective range
+/// (default 450 m, see AI_FIRE_RANGE_FACTOR) with room to spare.
+const AI_STANDOFF_RANGE: f32 = 250.0;
+/// Half-width (m) of the band around the preferred range where the orbit
+/// term dominates the radial term.
+const AI_STANDOFF_BAND: f32 = 60.0;
 /// The ship brakes once its speed exceeds the target chase speed by this margin.
 const AI_BRAKE_SPEED_MARGIN: f32 = 1.0;
 /// Only thrust when the ship's forward vector aligns with the desired direction at least
@@ -354,20 +363,46 @@ const AI_FIRE_RANGE_FACTOR: f32 = 0.9;
 const AI_BURST_FIRE_SECS: f32 = 1.5;
 const AI_BURST_HOLD_SECS: f32 = 0.8;
 
-/// The direction an AI ship should face: toward its target while it is slower than its
-/// distance-scaled target speed, or opposite its velocity when overshooting (braking).
-/// Falls back to facing the target if the computed direction degenerates to zero.
+/// The direction an AI ship should face: the standoff envelope around its
+/// target. Far outside the band it approaches; inside the band it orbits
+/// (tangential to the line of sight, stable handedness); too close it
+/// extends away - pure pursuit is what parked the old AI at zero range in
+/// a turret duel, or rammed. Overshooting its speed budget it brakes
+/// (opposite its velocity), as before. Falls back to facing the target if
+/// the computed direction degenerates to zero. Pure for unit testing.
 fn ai_desired_direction(to_target: Vec3, velocity: Vec3) -> Vec3 {
+    let distance = to_target.length();
+    if distance <= f32::EPSILON {
+        return Vec3::ZERO;
+    }
+    let los = to_target / distance;
+
+    // Positive = too far (approach), negative = too close (extend).
+    let range_error = distance - AI_STANDOFF_RANGE;
+    // Orbit tangent with a stable handedness; the X fallback covers a
+    // dead-polar line of sight. Global handedness (every ship circles the
+    // same way) is fine for one archetype - see task Notes.
+    let tangent = los
+        .cross(Vec3::Y)
+        .try_normalize()
+        .unwrap_or_else(|| los.cross(Vec3::X).normalize());
+    // Radial weight ramps with how far outside the band the ship is; inside
+    // the band the orbit term dominates.
+    let radial_weight = (range_error.abs() / AI_STANDOFF_BAND).clamp(0.0, 1.0);
+    let radial = los * range_error.signum();
+    let desired = radial * radial_weight + tangent * (1.0 - radial_weight);
+
+    // Speed budget scales with the range error, never below orbit speed;
+    // overshooting it brakes, exactly as the old chase regime did.
     let target_speed =
-        (to_target.length() * AI_CHASE_SPEED_GAIN).clamp(AI_MIN_CHASE_SPEED, AI_MAX_CHASE_SPEED);
+        (range_error.abs() * AI_CHASE_SPEED_GAIN).clamp(AI_ORBIT_SPEED, AI_MAX_CHASE_SPEED);
     let too_fast = velocity.length() > target_speed + AI_BRAKE_SPEED_MARGIN;
 
     let desired = if too_fast {
         // Brake: point opposite the current velocity.
         -velocity.normalize_or_zero()
     } else {
-        // Chase: point toward the target.
-        to_target.normalize()
+        desired.normalize_or_zero()
     };
 
     if desired.length_squared() == 0.0 {
@@ -936,10 +971,12 @@ mod rotation_tests {
             (update_ai_target, update_controller_target_rotation_torque).chain(),
         );
 
+        // Dead astern, well OUTSIDE the standoff band so the approach
+        // regime points straight at the player and the flip semantics hold.
         app.world_mut().spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
-            Transform::from_translation(Vec3::new(0.0, 0.0, 100.0)),
+            Transform::from_translation(Vec3::new(0.0, 0.0, 800.0)),
         ));
         // The stock ship's numbers: inertia ~2.3, computer torque 10.
         let ship = app
@@ -1094,11 +1131,12 @@ mod physics_tests {
         );
         app.finish();
 
-        // Player abeam at +X: a 90-degree swing from the AI's initial -Z.
+        // Player abeam at +X, far outside the standoff band (approach
+        // regime): a 90-degree swing from the AI's initial -Z onto +X.
         app.world_mut().spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
-            Transform::from_translation(Vec3::new(200.0, 0.0, 0.0)),
+            Transform::from_translation(Vec3::new(1000.0, 0.0, 0.0)),
         ));
         let ship = app
             .world_mut()
@@ -1679,6 +1717,198 @@ mod point_defense_tests {
                 .unwrap(),
             Some(Vec3::new(0.0, 0.0, -150.0)),
             "point defense applies in every behavior state"
+        );
+    }
+}
+
+#[cfg(test)]
+mod standoff_tests {
+    use super::*;
+
+    #[test]
+    fn far_outside_the_band_the_ship_approaches() {
+        let to_target = Vec3::new(0.0, 0.0, -1000.0);
+        let desired = ai_desired_direction(to_target, Vec3::ZERO);
+        assert!(
+            desired.dot(to_target.normalize()) > 0.999,
+            "far away: point straight at the target, got {desired:?}"
+        );
+    }
+
+    #[test]
+    fn inside_the_band_the_ship_orbits() {
+        // Dead on the preferred range: the radial term vanishes and the
+        // desired direction is tangential to the line of sight.
+        let to_target = Vec3::new(0.0, 0.0, -AI_STANDOFF_RANGE);
+        let desired = ai_desired_direction(to_target, Vec3::ZERO);
+        assert!(
+            desired.dot(to_target.normalize()).abs() < 0.05,
+            "in band: orbit, not chase (los dot {})",
+            desired.dot(to_target.normalize())
+        );
+        assert!(
+            (desired.length() - 1.0).abs() < 1e-3,
+            "the desired direction stays a unit vector"
+        );
+    }
+
+    #[test]
+    fn too_close_the_ship_extends_away() {
+        let to_target = Vec3::new(0.0, 0.0, -50.0);
+        let desired = ai_desired_direction(to_target, Vec3::ZERO);
+        assert!(
+            desired.dot(to_target.normalize()) < -0.9,
+            "well inside the envelope: extend AWAY from the target, got {desired:?}"
+        );
+    }
+
+    #[test]
+    fn the_overshoot_brake_regime_survives_the_envelope() {
+        // Screaming toward the target far faster than the speed budget:
+        // the ship points opposite its velocity, exactly as pre-envelope.
+        let to_target = Vec3::new(0.0, 0.0, -1000.0);
+        let velocity = Vec3::new(0.0, 0.0, -100.0);
+        let desired = ai_desired_direction(to_target, velocity);
+        assert!(
+            desired.dot(velocity.normalize()) < -0.999,
+            "overshooting: brake against the velocity, got {desired:?}"
+        );
+    }
+
+    #[test]
+    fn a_polar_line_of_sight_still_orbits() {
+        // Line of sight straight up Y: the Y-cross tangent degenerates and
+        // the X fallback must keep the orbit term finite.
+        let to_target = Vec3::new(0.0, AI_STANDOFF_RANGE, 0.0);
+        let desired = ai_desired_direction(to_target, Vec3::ZERO);
+        assert!(
+            desired.is_finite() && desired.length() > 0.9,
+            "polar approach must not degenerate, got {desired:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod standoff_physics_tests {
+    // The full diegetic loop on the physics harness: acquisition ->
+    // behavior -> rotation command -> PD torque -> hull swing -> aligned
+    // thrust -> impulses. Pins the task's acceptance: the ship settles
+    // into the standoff band instead of closing to zero (ramming/parking).
+    use super::*;
+    use crate::{
+        integrity::test_support::{settle, unfinished_integrity_physics_app},
+        sections::{
+            controller_section::{
+                sync_controller_section_forces, update_controller_section_rotation_input,
+            },
+            thruster_section::thruster_impulse_system,
+        },
+    };
+
+    #[test]
+    fn the_ship_settles_into_the_standoff_band() {
+        let mut app = unfinished_integrity_physics_app();
+        app.init_resource::<FlightSettings>();
+        app.add_plugins(PDControllerPlugin);
+        app.configure_sets(
+            FixedUpdate,
+            (
+                super::super::SpaceshipInputSystems,
+                PDControllerSystems::Sync,
+                SpaceshipSectionSystems,
+            )
+                .chain(),
+        );
+        app.add_systems(
+            FixedUpdate,
+            (
+                update_ai_target,
+                update_behavior_state,
+                update_controller_target_rotation_torque,
+                on_thruster_input,
+                update_controller_section_rotation_input,
+            )
+                .chain()
+                .in_set(super::super::SpaceshipInputSystems),
+        );
+        app.add_systems(
+            FixedUpdate,
+            (sync_controller_section_forces, thruster_impulse_system)
+                .in_set(SpaceshipSectionSystems),
+        );
+        app.finish();
+
+        // The target dead ahead (-Z), outside the band.
+        let player_position = Vec3::new(0.0, 0.0, -600.0);
+        app.world_mut().spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            Transform::from_translation(player_position),
+        ));
+        let ship = app
+            .world_mut()
+            .spawn((RigidBody::Dynamic, Transform::default(), AISpaceshipMarker))
+            .id();
+        app.world_mut().spawn((
+            ChildOf(ship),
+            Name::new("hull"),
+            Transform::from_xyz(0.0, 0.0, -1.0),
+            Collider::cuboid(1.0, 1.0, 1.0),
+            ColliderDensity(1.0),
+        ));
+        app.world_mut().spawn((
+            ChildOf(ship),
+            Name::new("thruster"),
+            ThrusterSectionMarker,
+            ThrusterSectionMagnitude(1.0),
+            ThrusterSectionInput(0.0),
+            Transform::from_xyz(0.0, 0.0, 1.0),
+            Collider::cuboid(1.0, 1.0, 1.0),
+            ColliderDensity(1.0),
+        ));
+        app.world_mut().spawn((
+            ChildOf(ship),
+            Name::new("controller"),
+            ControllerSectionMarker,
+            ControllerSectionRotationInput::default(),
+            PDController {
+                frequency: 4.0,
+                damping_ratio: 4.0,
+                max_torque: 40.0,
+            },
+            PDControllerTarget(ship),
+            Transform::from_xyz(0.0, 0.0, 0.0),
+            Collider::cuboid(1.0, 1.0, 1.0),
+            ColliderDensity(1.0),
+        ));
+
+        settle(&mut app);
+        // Fly for 45 simulated seconds: approach (~350 m at up to ~20 u/s)
+        // plus braking and orbit capture.
+        let mut min_distance = f32::INFINITY;
+        for _ in 0..2700 {
+            app.update();
+            let position = app.world().get::<Transform>(ship).unwrap().translation;
+            min_distance = min_distance.min(position.distance(player_position));
+        }
+
+        // The last simulated second must stay inside a generous band around
+        // the standoff range - the old pure pursuit closes to ~zero.
+        let mut worst_error = 0.0f32;
+        for _ in 0..60 {
+            app.update();
+            let position = app.world().get::<Transform>(ship).unwrap().translation;
+            let error = (position.distance(player_position) - AI_STANDOFF_RANGE).abs();
+            worst_error = worst_error.max(error);
+        }
+        assert!(
+            worst_error < AI_STANDOFF_BAND * 2.0,
+            "the ship must hold the standoff band (worst error {worst_error} m)"
+        );
+        assert!(
+            min_distance > 100.0,
+            "the ship must never dive far inside the envelope \
+             (closest approach {min_distance} m)"
         );
     }
 }
