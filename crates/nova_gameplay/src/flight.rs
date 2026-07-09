@@ -1440,6 +1440,60 @@ mod tests {
         );
     }
 
+    /// Control case for the disabled-controller regression below: a LIVE
+    /// controller damps an imposed spin, so the "disabled" test cannot pass
+    /// vacuously. Spins about Y (a transverse axis); the ship is a symmetric
+    /// top about its long z-axis, so this spin is torque-free-constant with no
+    /// tumbling - any decay is the PD doing its job.
+    #[test]
+    fn a_live_controller_damps_an_imposed_spin() {
+        let mut app = flight_app();
+        let (ship, _, _) = spawn_ship(&mut app);
+        settle(&mut app);
+
+        let spin = Vec3::new(0.0, 2.0, 0.0);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(AngularVelocity(spin));
+        run(&mut app, 120);
+
+        let rate = app.world().get::<AngularVelocity>(ship).unwrap().length();
+        assert!(
+            rate < spin.length() * 0.5,
+            "a live controller should damp the imposed spin: {} -> {rate} rad/s",
+            spin.length()
+        );
+    }
+
+    /// Regression for task 20260709-155922: a controller disabled in place
+    /// (`SectionInactiveMarker`, as the integrity pipeline marks a zero-health
+    /// non-leaf section) must stop torquing the hull. Before the fix,
+    /// `sync_controller_section_forces` still applied the PD output toward the
+    /// frozen command, so a dead computer kept stabilizing the ship. Now the
+    /// imposed spin is left untouched - a spun ship keeps spinning.
+    #[test]
+    fn a_disabled_controller_leaves_the_spin_untouched() {
+        let mut app = flight_app();
+        let (ship, _, controller) = spawn_ship(&mut app);
+        settle(&mut app);
+
+        let spin = Vec3::new(0.0, 2.0, 0.0);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(AngularVelocity(spin));
+        app.world_mut()
+            .entity_mut(controller)
+            .insert(SectionInactiveMarker);
+        run(&mut app, 120);
+
+        // No live computer, no other torque source: the spin is conserved.
+        let rate = app.world().get::<AngularVelocity>(ship).unwrap().0;
+        assert!(
+            (rate - spin).length() < 0.05,
+            "a disabled controller must not damp the spin: {spin:?} -> {rate:?}"
+        );
+    }
+
     /// A retro-equipped ship must brake a small overspeed with the engine
     /// already pointing the right way - zero hull rotation, no flip.
     #[test]

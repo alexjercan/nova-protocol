@@ -138,7 +138,15 @@ pub(crate) fn update_controller_section_rotation_input(
 
 pub(crate) fn sync_controller_section_forces(
     mut q_root: Query<Forces>,
-    q_controller: Query<(&PDControllerOutput, &PDControllerTarget)>,
+    // A disabled-in-place controller (zero-health, non-leaf, still attached ->
+    // `SectionInactiveMarker`) must stop stabilizing the hull: with no live
+    // computer the flight layer's semantics are "adrift" (the autopilot
+    // disengages and the player command freezes). Its `PDControllerOutput` is
+    // still computed by the bcs PD system, but this is the only seam that
+    // applies it, so gating here is what actually stops the torque. Mirrors the
+    // filter already on `update_controller_section_rotation_input` and the
+    // flight systems.
+    q_controller: Query<(&PDControllerOutput, &PDControllerTarget), Without<SectionInactiveMarker>>,
 ) {
     for (output, target) in &q_controller {
         if let Ok(mut forces) = q_root.get_mut(**target) {
