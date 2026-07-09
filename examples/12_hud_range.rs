@@ -1,12 +1,14 @@
 //! 12_hud_range: verify the screen-projected HUD indicators, live.
 //!
-//! Tasks 20260708-165700/165701: the torpedo-lock reticle, the autopilot
-//! destination marker and the turret lead pips are consumers of the generic
-//! screen-indicator widget (`hud/screen_indicator.rs`). This range checks the
-//! whole wiring in the real app: the camera glue observer tags the chase
-//! camera, the aim-assist lock drives the reticle anchor, the engaged GOTO
-//! drives the destination marker, the turret's computed intercept point
-//! drives its pip, and every indicator hides again when its anchor dies.
+//! Tasks 20260708-165700/165701/165702: the torpedo-lock reticle, the
+//! locked-target readout, the autopilot destination marker and the turret
+//! lead pips are consumers of the generic screen-indicator widget
+//! (`hud/screen_indicator.rs`). This range checks the whole wiring in the
+//! real app: the camera glue observer tags the chase camera, the aim-assist
+//! lock drives the reticle anchor and fills the readout (distance, closing
+//! speed, health bar), the engaged GOTO drives the destination marker, the
+//! turret's computed intercept point drives its pip, and every indicator
+//! hides again when its anchor dies.
 //!
 //! One player ship at the origin facing -Z (with one turret, so exactly one
 //! lead pip exists), one uncontrolled target ship parked dead ahead at
@@ -19,9 +21,11 @@
 //! BCS_AUTOPILOT=1 cargo run --example 12_hud_range --features debug
 //! # scripted (relative to entering Playing): at +2s assert the aim-assist
 //! # locked the target, the reticle is visible and centered on the target's
-//! # projection, and the turret lead pip is visible on the projected
+//! # projection, the readout shows the real distance and a full health bar,
+//! # and the turret lead pip is visible on the projected
 //! # TurretSectionAimPoint; at +2.5s engage a GOTO on the target; at +3.5s
-//! # assert the destination marker is visible and centered on it; at +4s
+//! # assert the destination marker is visible and centered on it and the
+//! # readout's closing speed went positive under the approach burn; at +4s
 //! # despawn the target and disable the turret section; at +4.5s assert all
 //! # three indicators hid again. Exits non-zero on any failed stage or if
 //! # the script never finishes (e.g. loading ate the window).
@@ -239,8 +243,34 @@ fn indicator_state<M: Component>(world: &mut World, what: &str) -> (Vec2, Vec2, 
     (center, size, *visibility)
 }
 
-/// Scripted headless run: assert the lock-driven reticle, the GOTO-driven
-/// destination marker, and that both hide when the target dies.
+/// Text of the given readout line. Mandatory: the readout ships with both
+/// lines, so a missing one is a broken HUD.
+#[cfg(feature = "debug")]
+fn readout_line(world: &mut World, which: TorpedoTargetReadoutLine) -> String {
+    world
+        .query::<(&Text, &TorpedoTargetReadoutLine)>()
+        .iter(world)
+        .find(|(_, line)| **line == which)
+        .map(|(text, _)| text.0.clone())
+        .unwrap_or_else(|| panic!("hud range: readout line {which:?} not found"))
+}
+
+/// Parse the trailing number out of a readout line like `DST   150m` or
+/// `CLS +12.3 u/s`.
+#[cfg(feature = "debug")]
+fn readout_value(line: &str) -> f32 {
+    let number: String = line
+        .chars()
+        .filter(|c| c.is_ascii_digit() || *c == '.' || *c == '-' || *c == '+')
+        .collect();
+    number
+        .parse()
+        .unwrap_or_else(|_| panic!("hud range: no number in readout line '{line}'"))
+}
+
+/// Scripted headless run: assert the lock-driven reticle + readout, the
+/// GOTO-driven destination marker, and that everything hides when the target
+/// dies.
 #[cfg(feature = "debug")]
 fn autopilot_script(world: &mut World, elapsed: f32) {
     // Backstop first, before the state gate: if the run is about to exit and
@@ -310,6 +340,41 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
         );
         info!("hud range: lock + reticle OK (drift {drift:.1} px, size {size:?})");
 
+        // Readout: the distance line must match the actual separation, the
+        // closing line must carry real velocity data (both ships have
+        // LinearVelocity), and the untouched target's bar must be full.
+        let player = player_root(world);
+        let player_pos = world
+            .entity(player)
+            .get::<GlobalTransform>()
+            .expect("hud range: player has a GlobalTransform")
+            .translation();
+        let actual_distance = player_pos.distance(target_pos);
+        let distance_text = readout_line(world, TorpedoTargetReadoutLine::Distance);
+        let shown_distance = readout_value(&distance_text);
+        assert!(
+            (shown_distance - actual_distance).abs() < 5.0,
+            "hud range: readout '{distance_text}' does not match the actual \
+             distance {actual_distance:.1}"
+        );
+        let closing_text = readout_line(world, TorpedoTargetReadoutLine::ClosingSpeed);
+        assert!(
+            !closing_text.contains("---"),
+            "hud range: closing-speed line is the no-data placeholder \
+             although both ships have LinearVelocity"
+        );
+        let fill = world
+            .query_filtered::<&Node, With<TorpedoTargetHealthFillMarker>>()
+            .iter(world)
+            .next()
+            .expect("hud range: no health bar fill node");
+        assert_eq!(
+            fill.width,
+            Val::Percent(100.0),
+            "hud range: the untouched target's health bar is not full"
+        );
+        info!("hud range: readout OK ('{distance_text}', '{closing_text}', bar full)");
+
         // The turret aims where the player aims (a point 100 m down the
         // camera ray), so its intercept point exists from the first Playing
         // frame and its pip must be visible on that point's projection.
@@ -369,7 +434,17 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
             "hud range: destination marker center {center:?} is {drift:.1} px \
              from the GOTO target projection {expected:?}"
         );
-        info!("hud range: GOTO destination marker OK (drift {drift:.1} px)");
+
+        // One second into the approach burn the ship moves toward the parked
+        // target, so the readout's closing speed must be positive.
+        let closing_text = readout_line(world, TorpedoTargetReadoutLine::ClosingSpeed);
+        let closing = readout_value(&closing_text);
+        assert!(
+            closing > 0.0,
+            "hud range: closing speed '{closing_text}' is not positive while \
+             burning toward the target"
+        );
+        info!("hud range: GOTO destination marker OK (drift {drift:.1} px, '{closing_text}')");
     }
 
     if t > 4.0 && !killed_target {

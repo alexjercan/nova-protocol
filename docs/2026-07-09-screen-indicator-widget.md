@@ -1,7 +1,7 @@
 # Screen-projected-indicator widget (HUD substrate)
 
 - TASKS: 20260708-165700 (widget + migrations), 20260708-165701 (turret lead
-  pip)
+  pip), 20260708-165702 (locked-target readout)
 - SPIKES: docs/spikes/20260708-165647-weapons-hud.md (direction),
   docs/spikes/20260709-164502-screen-indicator-architecture.md (architecture)
 
@@ -47,6 +47,19 @@ consume it:
   `update_turret_aim_point` keeps computing aim points for disabled turrets.
   The layer spawns/despawns with the player ship via the hud/mod.rs
   observers like every other overlay.
+- **Locked-target readout** (`hud/torpedo_target.rs`, task 20260708-165702):
+  distance (`DST {:5.0}m`), closing speed (`CLS {:+5.1} u/s`, positive when
+  approaching, computed as -(rel_velocity dot los_dir) from both bodies'
+  `LinearVelocity`) and a 64x6 px health bar (fill width = current/max of
+  the target root's `Health`, green-to-red by fraction). The readout column
+  is a child of the reticle indicator at `left: 100%`, so UI layout keeps it
+  on the reticle's ApparentSize-scaled edge and visibility inheritance hides
+  it with the reticle - the readout has no projection or visibility code.
+  Degrades per datum: missing `LinearVelocity` on either body renders
+  `CLS   ---`, a target without `Health` hides the bar. The
+  sibling-with-offset alternative from the spike stays available via
+  `ScreenIndicatorOffset` if the edge-riding column ever crowds large
+  silhouettes.
 
 ## Why this design
 
@@ -81,22 +94,26 @@ Migration is not pixel-identical; the differences are deliberate:
 
 ## Verification
 
-- 29 unit/behavioral tests in the hud modules (`cargo test -p nova_gameplay
+- 35 unit/behavioral tests in the hud modules (`cargo test -p nova_gameplay
   --lib hud::`), including whole-system runs against a fabricated camera
   (90 degree vertical FOV, 800x600 target, identity transform): anchor
   lifecycle, offset, both off-screen policies with arrow rotation, apparent
   size vs its projected expectation, missing/duplicate-camera handling, the
-  reticle and destination drivers, and the pip reconcile + driver (spawn per
+  reticle and destination drivers, the pip reconcile + driver (spawn per
   turret, despawn on turret death, other ships ignored, inactive turrets
-  cleared).
+  cleared), and the readout (closing-speed sign convention, flight-status
+  formatting, health clamping, fill-from-lock, per-datum degradation).
 - Scripted range `examples/12_hud_range.rs` (BCS_AUTOPILOT timeline on a
   1280x720 Xvfb display): the aim-assist locks a ship parked 150 m dead
   ahead, the reticle centers on its projection (0.0 px drift, 32 px minimum
-  size), the turret lead pip sits on the projected `TurretSectionAimPoint`
-  (0.0 px drift), an engaged GOTO shows the destination marker on the same
-  ship (0.1 px drift), and despawning the target + disabling the turret
-  hides all three indicators. Mandatory `expect` lookups and an
-  asserted-at-exit backstop per the com-range retro lessons.
+  size), the readout shows the real separation ("DST   150m"), velocity-fed
+  closing speed and a full health bar, the turret lead pip sits on the
+  projected `TurretSectionAimPoint` (0.0 px drift), an engaged GOTO shows
+  the destination marker on the same ship (0.1 px drift) and flips the
+  closing speed positive under the approach burn ("CLS +13.5 u/s"), and
+  despawning the target + disabling the turret hides all three indicators.
+  Mandatory `expect` lookups and an asserted-at-exit backstop per the
+  com-range retro lessons.
 - Honest skips (user instruction): the full workspace test suite and clippy
   were not run locally; `cargo check --workspace` (via the example build) and
   `cargo fmt` are green, and only the newly written tests were executed.
