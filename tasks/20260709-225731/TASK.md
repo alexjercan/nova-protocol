@@ -16,3 +16,8 @@ evasion feels blind.
 
 Depends on: 20260709-225726 (skeleton), 20260709-225729 (engagement flight,
 for sane re-entry into Engage).
+
+Note (20260710, from 225727): this task also owns wiring damage
+attribution (populating HealthApplyDamage.source from projectile owners -
+nothing sets it today) and, once attributed, adding recently-damaged-me
+threat scoring to pick_ai_target (deferred from 225727).
