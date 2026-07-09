@@ -352,7 +352,14 @@ fn on_player_added_spawn_flight_input(
                         consume_input: false,
                         ..default()
                     },
-                    bindings![KeyCode::BracketRight, GamepadButton::DPadRight],
+                    // Scroll up = next: the wheel is an axis (y = vertical),
+                    // so swizzle y into the action value and clamp away the
+                    // opposite direction so only up-scrolls actuate.
+                    bindings![
+                        KeyCode::BracketRight,
+                        GamepadButton::DPadRight,
+                        (Binding::mouse_wheel(), SwizzleAxis::YXZ, Clamp::pos()),
+                    ],
                 ),
                 (
                     Name::new("Input: Component Cycle Prev"),
@@ -361,7 +368,18 @@ fn on_player_added_spawn_flight_input(
                         consume_input: false,
                         ..default()
                     },
-                    bindings![KeyCode::BracketLeft, GamepadButton::DPadLeft],
+                    // Scroll down = prev: negate the (swizzled) wheel axis so
+                    // down-scrolls become positive, then clamp like above.
+                    bindings![
+                        KeyCode::BracketLeft,
+                        GamepadButton::DPadLeft,
+                        (
+                            Binding::mouse_wheel(),
+                            SwizzleAxis::YXZ,
+                            Negate::all(),
+                            Clamp::pos()
+                        ),
+                    ],
                 ),
             ]
         ),
