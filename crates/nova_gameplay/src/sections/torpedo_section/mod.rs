@@ -286,6 +286,11 @@ impl Plugin for TorpedoSectionPlugin {
             app.add_observer(on_torpedo_launch_effect);
         }
 
+        // A torpedo whose body is shot dead must die as a whole: without
+        // this the collider-less root keeps flying, armed, and still
+        // detonates (user report 20260710, task 20260710-003734).
+        app.add_observer(on_torpedo_body_destroyed);
+
         app.add_systems(
             Update,
             (
@@ -304,6 +309,34 @@ impl Plugin for TorpedoSectionPlugin {
                 .in_set(super::SpaceshipSectionSystems),
         );
     }
+}
+
+/// Kill the whole torpedo when any of its body sections dies.
+///
+/// The torpedo root is collider-less: bullets kill its CHILD sections
+/// (controller/thruster, 1 HP each) through the normal health pipeline, but
+/// nothing told the root - the husk kept flying and its proximity fuze
+/// still fired. On ordnance every section is vital, so one dead section
+/// despawns the root (and with it the rest of the body). Deliberately NO
+/// `blast_damage` here: defeating the warhead is the point of shooting a
+/// torpedo down - a shot-down torpedo dies quietly, only a detonation
+/// (torpedo_detonate_system) explodes.
+fn on_torpedo_body_destroyed(
+    add: On<Add, HealthZeroMarker>,
+    q_section: Query<&ChildOf>,
+    q_torpedo: Query<Entity, With<TorpedoProjectileMarker>>,
+    mut commands: Commands,
+) {
+    let entity = add.entity;
+    let Ok(ChildOf(parent)) = q_section.get(entity) else {
+        return;
+    };
+    let Ok(root) = q_torpedo.get(*parent) else {
+        return;
+    };
+    // try_despawn: both body sections can die in the same blast/burst and
+    // each triggers this observer; the second despawn must be a no-op.
+    commands.entity(root).try_despawn();
 }
 
 fn insert_torpedo_section(
@@ -941,6 +974,92 @@ mod tests {
             (steering - Vec3::NEG_Z).length() < 1e-3,
             "untargeted torpedo should fly straight ahead (-Z), got {steering:?}"
         );
+    }
+
+    // -- shoot-down kills (task 20260710-003734) --
+
+    #[test]
+    fn a_dead_body_section_kills_the_whole_torpedo() {
+        // The root is collider-less: bullets kill child sections, and one
+        // dead section must take the whole torpedo down before its fuze
+        // can fire again.
+        let mut app = App::new();
+        app.add_observer(on_torpedo_body_destroyed);
+        let root = app
+            .world_mut()
+            .spawn((TorpedoProjectileMarker, Transform::default()))
+            .id();
+        let body = app
+            .world_mut()
+            .spawn((SectionMarker, Health::new(1.0), ChildOf(root)))
+            .id();
+
+        app.world_mut().entity_mut(body).insert(HealthZeroMarker);
+        app.update();
+
+        assert!(
+            !app.world().entities().contains(root),
+            "the torpedo root must despawn with its dead body section"
+        );
+        assert!(!app.world().entities().contains(body));
+    }
+
+    #[test]
+    fn a_shot_down_torpedo_dies_without_its_blast() {
+        // Through the real health pipeline: damage a body section to zero
+        // and assert the torpedo dies QUIETLY - no blast_damage entity.
+        // Defeating the warhead is the point of shooting it down.
+        let mut app = App::new();
+        app.add_plugins(HealthPlugin);
+        app.add_observer(on_torpedo_body_destroyed);
+        let root = app
+            .world_mut()
+            .spawn((TorpedoProjectileMarker, Transform::default()))
+            .id();
+        let body = app
+            .world_mut()
+            .spawn((SectionMarker, Health::new(1.0), ChildOf(root)))
+            .id();
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: body,
+            source: None,
+            amount: 2.0,
+        });
+        app.update();
+
+        assert!(
+            !app.world().entities().contains(root),
+            "one killed section ends the threat"
+        );
+        let blasts = app
+            .world_mut()
+            .query_filtered::<Entity, With<BlastDamageMarker>>()
+            .iter(app.world())
+            .count();
+        assert_eq!(blasts, 0, "a shot-down torpedo must not detonate");
+    }
+
+    #[test]
+    fn a_dead_section_of_a_non_torpedo_parent_is_left_to_integrity() {
+        // A ship section dying must NOT despawn its ship: the observer only
+        // acts on torpedo roots.
+        let mut app = App::new();
+        app.add_observer(on_torpedo_body_destroyed);
+        let ship = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, Transform::default()))
+            .id();
+        let section = app
+            .world_mut()
+            .spawn((SectionMarker, Health::new(1.0), ChildOf(ship)))
+            .id();
+
+        app.world_mut().entity_mut(section).insert(HealthZeroMarker);
+        app.update();
+
+        assert!(app.world().entities().contains(ship));
+        assert!(app.world().entities().contains(section));
     }
 
     // -- torpedo allegiance (task 20260708-203708) --
