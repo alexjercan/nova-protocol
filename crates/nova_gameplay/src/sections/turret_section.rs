@@ -131,10 +131,12 @@ pub struct TurretSectionTargetInput(pub Option<Vec3>);
 pub struct TurretSectionTargetVelocity(pub Vec3);
 
 /// The world-space point the turret is actually aiming its barrel at: the lead
-/// intercept of `TurretSectionTargetInput` given `TurretSectionTargetVelocity` and
-/// the bullet `muzzle_speed` (see `update_turret_aim_point`). `None` when there is
-/// no target. Read by the yaw/pitch systems to steer, and exposed so tooling (aim
-/// gizmos, a HUD lead indicator) can show where the turret leads.
+/// intercept of `TurretSectionTargetInput` given `TurretSectionTargetVelocity`,
+/// the bullet `muzzle_speed`, and the shooter's own muzzle velocity that the
+/// bullet inherits on launch (see `update_turret_aim_point` - the solve runs in
+/// the shooter's frame). `None` when there is no target. Read by the yaw/pitch
+/// systems to steer, and exposed so tooling (aim gizmos, the HUD lead pip) can
+/// show where the turret leads.
 #[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
 pub struct TurretSectionAimPoint(pub Option<Vec3>);
 
@@ -459,8 +461,14 @@ fn update_barrel_fire_state(
 /// at `target_vel`. Solves `|(target - shooter) + target_vel*t| = projectile_speed*t`
 /// for the smallest positive time-to-intercept `t` and returns `target + target_vel*t`.
 ///
+/// The solve assumes the bullet travels at `projectile_speed` from the shooter in
+/// the frame `target_vel` is expressed in. Because bullets inherit the shooter's
+/// muzzle velocity on launch, the caller passes the target velocity RELATIVE to
+/// the shooter (see `update_turret_aim_point`); pass a world velocity only for a
+/// shooter that is truly at rest.
+///
 /// Falls back to the target's current position when there is no valid intercept -
-/// a stationary target (velocity zero) resolves to the target itself, and a target
+/// a target with no relative motion resolves to the target itself, and a target
 /// too fast to catch (or receding faster than the bullet) has no positive solution,
 /// so the turret simply aims where the target is now.
 fn lead_intercept_point(
@@ -500,6 +508,16 @@ fn lead_intercept_point(
 /// Resolve each turret's lead intercept point into [`TurretSectionAimPoint`] from
 /// its target position, target velocity, and the bullet `muzzle_speed`. Runs
 /// before the yaw/pitch systems, which steer toward this point.
+///
+/// The intercept is solved in the SHOOTER's frame: bullets inherit the full
+/// muzzle point velocity at fire time (`shoot_spawn_projectile` adds ship
+/// linear velocity plus the angular swing at the muzzle), so the solve uses
+/// the target velocity RELATIVE to that same muzzle point velocity. Aiming
+/// the barrel at the shooter-frame intercept and adding the inherited
+/// velocity on launch lands the bullet on the true world-frame intercept:
+/// dir*s*t = (target - muzzle) + (v_target - v_muzzle)*t. Solving in the
+/// world frame instead makes every shot drift off by the shooter's own
+/// motion (task 20260709-211701).
 fn update_turret_aim_point(
     mut q_turret: Query<
         (
@@ -507,14 +525,30 @@ fn update_turret_aim_point(
             &TurretSectionTargetVelocity,
             &TurretSectionConfigHelper,
             &TurretSectionMuzzleEntity,
+            &ChildOf,
             &mut TurretSectionAimPoint,
         ),
         With<TurretSectionMarker>,
     >,
     q_muzzle: Query<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>,
+    q_spaceship: Query<
+        (
+            &GlobalTransform,
+            &LinearVelocity,
+            &AngularVelocity,
+            &ComputedCenterOfMass,
+        ),
+        With<SpaceshipRootMarker>,
+    >,
 ) {
-    for (target_input, target_velocity, config, TurretSectionMuzzleEntity(muzzle), mut aim_point) in
-        &mut q_turret
+    for (
+        target_input,
+        target_velocity,
+        config,
+        TurretSectionMuzzleEntity(muzzle),
+        ChildOf(spaceship),
+        mut aim_point,
+    ) in &mut q_turret
     {
         let Some(target_pos) = **target_input else {
             **aim_point = None;
@@ -523,10 +557,27 @@ fn update_turret_aim_point(
         let Ok(muzzle_transform) = q_muzzle.get(*muzzle) else {
             continue;
         };
+        let muzzle_pos = muzzle_transform.translation();
+
+        // The same muzzle point velocity the bullet will inherit on launch
+        // (same COM lift as shoot_spawn_projectile). A shooter without
+        // physics components (test rigs) inherits nothing.
+        let shooter_velocity = q_spaceship
+            .get(*spaceship)
+            .map(|(ship_transform, lin_vel, ang_vel, center)| {
+                rigid_body_point_velocity(
+                    **lin_vel,
+                    **ang_vel,
+                    ship_transform.transform_point(**center),
+                    muzzle_pos,
+                )
+            })
+            .unwrap_or(Vec3::ZERO);
+
         **aim_point = Some(lead_intercept_point(
-            muzzle_transform.translation(),
+            muzzle_pos,
             target_pos,
-            **target_velocity,
+            **target_velocity - shooter_velocity,
             config.muzzle_speed,
         ));
     }
@@ -1360,6 +1411,127 @@ mod tests {
             (aim - target).length() < 1e-3,
             "expected fallback to the target, got {aim:?}"
         );
+    }
+
+    /// World for aim-point tests: a ship with physics state, one turret with
+    /// its muzzle 100 m ahead of a target-bearing setup. Returns (turret,
+    /// muzzle position).
+    fn aim_point_world(ship_velocity: Vec3, muzzle_pos: Vec3) -> (bevy::ecs::world::World, Entity) {
+        let mut world = World::new();
+        let ship = world
+            .spawn((
+                SpaceshipRootMarker,
+                GlobalTransform::IDENTITY,
+                LinearVelocity(ship_velocity),
+                AngularVelocity(Vec3::ZERO),
+                ComputedCenterOfMass(Vec3::ZERO),
+            ))
+            .id();
+        let muzzle = world
+            .spawn((
+                TurretSectionBarrelMuzzleMarker,
+                GlobalTransform::from_translation(muzzle_pos),
+            ))
+            .id();
+        let turret = world
+            .spawn((
+                TurretSectionMarker,
+                TurretSectionTargetInput(None),
+                TurretSectionTargetVelocity(Vec3::ZERO),
+                TurretSectionConfigHelper(TurretSectionConfig::default()),
+                TurretSectionMuzzleEntity(muzzle),
+                TurretSectionAimPoint(None),
+                ChildOf(ship),
+            ))
+            .id();
+        (world, turret)
+    }
+
+    fn aim_point(world: &mut World, turret: Entity) -> Option<Vec3> {
+        use bevy::ecs::system::RunSystemOnce;
+        world.run_system_once(update_turret_aim_point).unwrap();
+        **world.entity(turret).get::<TurretSectionAimPoint>().unwrap()
+    }
+
+    #[test]
+    fn formation_flight_needs_no_lead() {
+        // Shooter and target flying in formation (equal velocities): the
+        // bullet inherits the shared motion on launch, so the correct aim is
+        // the target itself. Solving in the world frame instead would lead a
+        // target that, relatively, is not moving - the shots that never hit
+        // from a moving ship (task 20260709-211701).
+        let velocity = Vec3::new(40.0, 0.0, -10.0);
+        let target = Vec3::new(0.0, 0.0, -100.0);
+        let (mut world, turret) = aim_point_world(velocity, Vec3::ZERO);
+        {
+            let mut entity = world.entity_mut(turret);
+            **entity.get_mut::<TurretSectionTargetInput>().unwrap() = Some(target);
+            **entity.get_mut::<TurretSectionTargetVelocity>().unwrap() = velocity;
+        }
+
+        let aim = aim_point(&mut world, turret).expect("aim point computed");
+
+        assert!(
+            (aim - target).length() < 1e-2,
+            "formation flight must aim at the target itself, got {aim:?}"
+        );
+    }
+
+    #[test]
+    fn moving_shooter_aims_retrograde_of_its_own_motion() {
+        // Static target, shooter strafing +X: the bullet inherits +X on
+        // launch, so the barrel must point BEHIND the shooter's motion for
+        // the drift to carry the bullet onto the target.
+        let target = Vec3::new(0.0, 0.0, -100.0);
+        let (mut world, turret) = aim_point_world(Vec3::new(30.0, 0.0, 0.0), Vec3::ZERO);
+        {
+            let mut entity = world.entity_mut(turret);
+            **entity.get_mut::<TurretSectionTargetInput>().unwrap() = Some(target);
+        }
+
+        let aim = aim_point(&mut world, turret).expect("aim point computed");
+
+        assert!(
+            aim.x < -0.1,
+            "a +X shooter must aim -X of the target, got {aim:?}"
+        );
+        // Consistency: bullet (barrel direction * speed + inherited velocity)
+        // and target meet at the flight time the solve implies.
+        let speed = TurretSectionConfig::default().muzzle_speed;
+        let flight_time = aim.length() / speed;
+        let barrel_dir = aim.normalize();
+        let bullet_at_t = (barrel_dir * speed + Vec3::new(30.0, 0.0, 0.0)) * flight_time;
+        assert!(
+            (bullet_at_t - target).length() < 0.5,
+            "inherited drift must carry the bullet onto the target: bullet \
+             {bullet_at_t:?}, target {target:?}"
+        );
+    }
+
+    #[test]
+    fn shooter_without_physics_inherits_nothing() {
+        // Test rigs and previews have marker-only ships: the aim point must
+        // fall back to the plain world-frame solve instead of skipping.
+        let target = Vec3::new(0.0, 0.0, -100.0);
+        let mut world = World::new();
+        let ship = world.spawn(SpaceshipRootMarker).id();
+        let muzzle = world
+            .spawn((TurretSectionBarrelMuzzleMarker, GlobalTransform::IDENTITY))
+            .id();
+        let turret = world
+            .spawn((
+                TurretSectionMarker,
+                TurretSectionTargetInput(Some(target)),
+                TurretSectionTargetVelocity(Vec3::ZERO),
+                TurretSectionConfigHelper(TurretSectionConfig::default()),
+                TurretSectionMuzzleEntity(muzzle),
+                TurretSectionAimPoint(None),
+                ChildOf(ship),
+            ))
+            .id();
+
+        let aim = aim_point(&mut world, turret).expect("aim point computed");
+        assert!((aim - target).length() < 1e-3);
     }
 
     /// Spawn a bare turret whose base rotators and fire timer are seeded from `config`,
