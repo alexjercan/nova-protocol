@@ -19,9 +19,10 @@ use render::*;
 pub mod prelude {
     pub use super::{
         torpedo_section, TorpedoArming, TorpedoBlast, TorpedoControllerMarker, TorpedoGuidance,
-        TorpedoProjectileMarker, TorpedoSectionConfig, TorpedoSectionInput, TorpedoSectionMarker,
-        TorpedoSectionPlugin, TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker,
-        TorpedoSteering, TorpedoTargetChosen, TorpedoTargetEntity, TorpedoTargetPosition,
+        TorpedoProjectileMarker, TorpedoSectionConfig, TorpedoSectionConfigHelper,
+        TorpedoSectionInput, TorpedoSectionMarker, TorpedoSectionPartOf, TorpedoSectionPlugin,
+        TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker, TorpedoSteering,
+        TorpedoTargetChosen, TorpedoTargetEntity, TorpedoTargetPosition,
     };
 }
 
@@ -140,14 +141,22 @@ pub struct TorpedoThrusterMarker;
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct TorpedoBlastEffectMarker;
 
-#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TorpedoSectionConfigHelper(TorpedoSectionConfig);
+/// The bay's full config, kept on the section entity. Pub (read-only via
+/// `Deref`) so the AI input side can derive its launch envelope from the
+/// same numbers the bay actually fires with (blast radius), like it reads
+/// the turret's config helper for the fire-range gate.
+#[derive(Component, Clone, Debug, Deref, Reflect)]
+pub struct TorpedoSectionConfigHelper(TorpedoSectionConfig);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct TorpedoSectionSpawnerFireState(pub Timer);
 
-#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TorpedoSectionPartOf(Entity);
+/// Back-pointer from a bay's spawned entities (spawner, body, projectile,
+/// blast) to the torpedo SECTION they belong to. Pub so the AI input side
+/// can attribute a fresh projectile to the bay that launched it and reset
+/// that bay's launch cooldown.
+#[derive(Component, Clone, Debug, Deref, Reflect)]
+pub struct TorpedoSectionPartOf(pub Entity);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct TorpedoSectionSpawnerEntity(Entity);
