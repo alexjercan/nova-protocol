@@ -147,6 +147,7 @@ fn guidance_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scena
                 radius: 3.0,
                 texture: game_assets.asteroid_texture.clone(),
                 health: 100_000.0,
+                surface_gravity: None,
             }),
         },
     ];

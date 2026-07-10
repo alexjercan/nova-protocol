@@ -149,6 +149,7 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
             radius,
             texture: game_assets.asteroid_texture.clone(),
             health: 60.0,
+            surface_gravity: None,
         }),
     };
 
