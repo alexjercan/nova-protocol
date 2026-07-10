@@ -44,9 +44,30 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
                 radius,
                 texture,
                 health: 100.0,
+                surface_gravity: None,
             }),
         });
     }
+
+    // One large designated body clear of the combat field (+X, past the
+    // scatter cube), so the gravity well is playtestable: 20u rock at the
+    // spike's sanity strength (3 u/s^2 surface, SOI 80u, v_circ ~ 4.9 u/s
+    // at r = 50u). The field rocks above stay well-free via the radius
+    // threshold in GravitySettings.
+    objects.push(ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: "asteroid_grav".to_string(),
+            name: "Gravity Rock".to_string(),
+            position: Vec3::new(250.0, 0.0, 0.0),
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+            radius: 20.0,
+            texture: game_assets.asteroid_texture.clone(),
+            health: 2000.0,
+            surface_gravity: Some(3.0),
+        }),
+    });
 
     let spaceship = SpaceshipConfig {
         controller: SpaceshipController::Player(PlayerControllerConfig {

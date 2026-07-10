@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use bevy_common_systems::{debug::harness::AUTOPILOT_ENV, prelude::*};
 use nova_gameplay::GameStates;
 
+pub mod gravity;
 pub mod harness;
 pub mod sections;
 
@@ -39,6 +40,7 @@ impl Plugin for DebugPlugin {
         app.add_plugins(InspectorDebugPlugin);
         app.add_plugins(WireframeDebugPlugin);
         app.add_plugins(sections::SectionsDebugPlugin);
+        app.add_plugins(gravity::GravityDebugPlugin);
 
         app.add_systems(Update, toggle_debug_mode);
 

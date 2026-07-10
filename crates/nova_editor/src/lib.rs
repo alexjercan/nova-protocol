@@ -173,6 +173,7 @@ fn test_scenario(
                 radius,
                 texture,
                 health: 100.0,
+                surface_gravity: None,
             }),
         });
     }

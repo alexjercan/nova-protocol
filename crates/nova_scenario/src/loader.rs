@@ -316,6 +316,7 @@ mod tests {
                 radius: 1.0,
                 texture: Handle::default(),
                 health: 1.0,
+                surface_gravity: None,
             }),
         })
     }

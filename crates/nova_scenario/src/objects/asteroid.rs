@@ -10,7 +10,7 @@ use rand::Rng;
 pub mod prelude {
     pub use super::{
         asteroid_scenario_object, AsteroidConfig, AsteroidMarker, AsteroidPlugin, AsteroidRadius,
-        AsteroidRenderMesh, AsteroidTexture, ASTEROID_TYPE_NAME,
+        AsteroidRenderMesh, AsteroidSurfaceGravity, AsteroidTexture, ASTEROID_TYPE_NAME,
     };
 }
 
@@ -21,6 +21,13 @@ pub struct AsteroidConfig {
     pub radius: f32,
     pub texture: Handle<Image>,
     pub health: f32,
+    /// Per-body gravity override, u/s^2 at the surface. `Some` always makes
+    /// this asteroid a gravity well at that strength (subject to the
+    /// [`GravitySettings::max_surface_gravity`] cap), even below the radius
+    /// threshold; `None` falls back to the global rule (a default-strength
+    /// well when `radius >= GravitySettings::min_well_radius`, none
+    /// otherwise).
+    pub surface_gravity: Option<f32>,
 }
 
 pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
@@ -32,6 +39,7 @@ pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
         AsteroidTexture(config.texture),
         AsteroidRadius(config.radius),
         AsteroidHealth(config.health),
+        AsteroidSurfaceGravity(config.surface_gravity),
     )
 }
 
@@ -50,6 +58,12 @@ pub struct AsteroidRadius(pub f32);
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidHealth(pub f32);
 
+/// The scenario's authored gravity for this asteroid (see
+/// [`AsteroidConfig::surface_gravity`]). Consumed by
+/// `insert_asteroid_gravity_well` when the asteroid spawns.
+#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
+pub struct AsteroidSurfaceGravity(pub Option<f32>);
+
 /// Marks an asteroid root whose collider/health node has been destroyed, so its
 /// now-empty `RigidBody` husk is despawned next frame (see `despawn_asteroid_husk`).
 #[derive(Component, Clone, Debug, Default, Reflect)]
@@ -63,7 +77,12 @@ impl Plugin for AsteroidPlugin {
     fn build(&self, app: &mut App) {
         debug!("AsteroidPlugin: build");
 
+        // The gravity layer normally initializes this (NovaGravityPlugin);
+        // init here too so the asteroid observer works in scenario-only apps.
+        app.init_resource::<GravitySettings>();
+
         app.add_observer(insert_asteroid_collider);
+        app.add_observer(insert_asteroid_gravity_well);
         app.add_observer(on_asteroid_node_destroyed);
         app.add_systems(Update, despawn_asteroid_husk);
         if self.render {
@@ -104,6 +123,46 @@ fn despawn_asteroid_husk(mut commands: Commands, q_husk: Query<Entity, With<Aste
         trace!("despawn_asteroid_husk: despawning {:?}", husk);
         commands.entity(husk).try_despawn();
     }
+}
+
+/// Designate qualifying asteroids as gravity wells (spike
+/// docs/spikes/20260709-193147-gravity-wells-orbital-mechanics.md): an
+/// authored [`AsteroidSurfaceGravity`] always makes a well at that strength;
+/// otherwise big rocks (radius at or above
+/// [`GravitySettings::min_well_radius`]) get a default-strength well and the
+/// small field rocks stay flat space. Strength and SOI derive through
+/// [`GravityWell::from_surface_gravity`], which also applies the escapability
+/// cap. The well goes on the asteroid root - which never carries
+/// `GravityAffected`, so wells stay one-way and the field cannot clump -
+/// and the source is put on rails (`RigidBody::Static`, overriding the base
+/// scenario bundle's Dynamic): a well that rams, blasts, or recoil could
+/// shove around would drag its SOI and every orbit in it along (spike
+/// option B, "bodies on rails"). Small well-less rocks stay dynamic.
+fn insert_asteroid_gravity_well(
+    add: On<Add, AsteroidMarker>,
+    mut commands: Commands,
+    settings: Res<GravitySettings>,
+    q_asteroid: Query<(&AsteroidRadius, &AsteroidSurfaceGravity), With<AsteroidMarker>>,
+) {
+    let entity = add.entity;
+    let Ok((radius, authored)) = q_asteroid.get(entity) else {
+        error!(
+            "insert_asteroid_gravity_well: entity {:?} not found in q_asteroid",
+            entity
+        );
+        return;
+    };
+
+    let surface_gravity = match **authored {
+        Some(gravity) => gravity,
+        None if **radius >= settings.min_well_radius => settings.default_surface_gravity,
+        None => return,
+    };
+
+    commands.entity(entity).insert((
+        GravityWell::from_surface_gravity(surface_gravity, **radius, &settings),
+        RigidBody::Static,
+    ));
 }
 
 fn insert_asteroid_collider(
@@ -453,6 +512,77 @@ mod tests {
             !app.world().entities().contains(asteroid),
             "the asteroid husk should be despawned when its node is destroyed"
         );
+    }
+
+    fn gravity_app() -> App {
+        let mut app = App::new();
+        app.init_resource::<GravitySettings>();
+        app.add_observer(insert_asteroid_gravity_well);
+        app
+    }
+
+    /// Spawn an asteroid the way the scenario does: the base bundle's
+    /// dynamic rigid body plus the asteroid components, minus render bits.
+    fn spawn_asteroid(app: &mut App, radius: f32, surface_gravity: Option<f32>) -> Entity {
+        app.world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                asteroid_scenario_object(AsteroidConfig {
+                    radius,
+                    texture: Handle::default(),
+                    health: 100.0,
+                    surface_gravity,
+                }),
+            ))
+            .id()
+    }
+
+    #[test]
+    fn a_big_rock_gets_a_default_well_and_a_field_rock_gets_none() {
+        let mut app = gravity_app();
+        let settings = GravitySettings::default();
+        let big = spawn_asteroid(&mut app, 20.0, None);
+        let small = spawn_asteroid(&mut app, 2.0, None);
+        app.update();
+
+        let well = app.world().get::<GravityWell>(big).expect("big rock well");
+        assert_eq!(well.mu, settings.default_surface_gravity * 400.0);
+        assert_eq!(well.soi_radius, settings.soi_factor * 20.0);
+        assert!(
+            app.world().get::<GravityWell>(small).is_none(),
+            "field rocks below the radius threshold stay flat space"
+        );
+
+        // Well sources go on rails so nothing can shove an SOI around;
+        // well-less rocks keep the base bundle's dynamic body.
+        assert_eq!(
+            app.world().get::<RigidBody>(big),
+            Some(&RigidBody::Static),
+            "a well source must be static"
+        );
+        assert_eq!(
+            app.world().get::<RigidBody>(small),
+            Some(&RigidBody::Dynamic)
+        );
+    }
+
+    #[test]
+    fn an_authored_surface_gravity_overrides_the_threshold_and_is_capped() {
+        let mut app = gravity_app();
+        let settings = GravitySettings::default();
+        // Authored well on a rock below the threshold: still a well.
+        let small = spawn_asteroid(&mut app, 2.0, Some(1.0));
+        // Authored strength beyond the guardrail: capped, not honored.
+        let hot = spawn_asteroid(&mut app, 20.0, Some(50.0));
+        app.update();
+
+        let small_well = app
+            .world()
+            .get::<GravityWell>(small)
+            .expect("authored well");
+        assert_eq!(small_well.mu, 1.0 * 4.0);
+        let hot_well = app.world().get::<GravityWell>(hot).expect("capped well");
+        assert_eq!(hot_well.mu, settings.max_surface_gravity * 400.0);
     }
 
     #[test]
