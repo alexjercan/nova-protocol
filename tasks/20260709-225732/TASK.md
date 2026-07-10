@@ -1,6 +1,6 @@
 # AI torpedo usage from Engage: launch envelope + cooldown
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 66
 - TAGS: v0.4.0, ai, spike, torpedo
 
