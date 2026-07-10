@@ -1,9 +1,8 @@
 # Gravity wells: bounded one-way gravity with sphere of influence (physics substrate)
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: v0.5.0,physics,gravity,spike
-
+- PRIORITY: 100
+- TAGS: v0.5.0, physics, gravity, spike
 
 Spike: docs/spikes/20260709-193147-gravity-wells-orbital-mechanics.md
 

@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.5.0,hud,torpedo,spike
+- TAGS: v0.6.0,hud,torpedo,spike
 
 Spike: docs/spikes/20260708-165647-weapons-hud.md
 

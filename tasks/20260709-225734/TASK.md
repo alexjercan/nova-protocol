@@ -2,8 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.5.0,ai,spike,health
-
+- TAGS: v0.6.0,ai,spike,health
 
 Spike: docs/spikes/20260709-225508-ai-combat-behaviors.md (wave 3)
 

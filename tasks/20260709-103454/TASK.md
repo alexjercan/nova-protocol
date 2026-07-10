@@ -1,8 +1,8 @@
 # Diegetic flight instruments: in-world autopilot/maneuver UI
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: v0.5.0,hud,autopilot,spike
+- PRIORITY: 70
+- TAGS: v0.5.0, hud, autopilot, spike
 
 Spike: docs/spikes/20260709-103324-diegetic-autopilot.md
 

@@ -2,6 +2,6 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.5.0,docs
+- TAGS: v0.6.0,docs
 
 [new]

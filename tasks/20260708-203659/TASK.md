@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.5.0,example,scenario
+- TAGS: v0.6.0,example,scenario
 
 Spike: docs/spikes/20260708-203517-roadmap-reprioritization-and-juice.md
 

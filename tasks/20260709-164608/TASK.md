@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.5.0,hud,refactor,spike
+- TAGS: v0.6.0,hud,refactor,spike
 
 Spike: docs/spikes/20260709-164502-screen-indicator-architecture.md
 

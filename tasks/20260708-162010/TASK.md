@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.5.0,modding,spike
+- TAGS: v0.6.0,modding,spike
 
 Spike: docs/spikes/20260708-161726-modding-language-and-scripting.md
 

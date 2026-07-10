@@ -1,8 +1,8 @@
 # Target inset view: render-to-texture close-up panel of the locked ship
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: v0.5.0,hud,targeting,camera,spike
+- PRIORITY: 65
+- TAGS: v0.5.0, hud, targeting, camera, spike
 
 Spike: docs/spikes/20260710-104011-target-inset-view.md
 

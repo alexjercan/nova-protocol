@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.5.0,objectives,modding
+- TAGS: v0.6.0,objectives,modding
 
 Data-driven scenario definition. Legacy #101.
 

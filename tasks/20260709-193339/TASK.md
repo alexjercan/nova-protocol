@@ -1,9 +1,8 @@
 # ORBIT autopilot verb: circularize and station-keep inside a gravity well
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: v0.5.0,handling,autopilot,gravity,spike
-
+- PRIORITY: 90
+- TAGS: v0.5.0, handling, autopilot, gravity, spike
 
 Spike: docs/spikes/20260709-193147-gravity-wells-orbital-mechanics.md
 Depends on: 20260709-193338 (gravity-well substrate)
