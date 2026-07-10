@@ -1,6 +1,6 @@
 # Diegetic flight status v1: rehome the bottom-left status text and delete it
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.5.0,hud,ux
 
@@ -32,7 +32,7 @@ text node go away here - the goal is REPLACEMENT, not addition.
 
 ## Steps
 
-- [ ] Rework `flight_status_hud` in crates/nova_gameplay/src/hud/flight_status.rs:
+- [x] Rework `flight_status_hud` in crates/nova_gameplay/src/hud/flight_status.rs:
       replace the absolute-positioned Text node with a screen_indicator
       layer holding two ship-anchored chips (pattern: the chip children
       in maneuver_instruments.rs): a speed chip and a mode chip, both
@@ -41,16 +41,16 @@ text node go away here - the goal is REPLACEMENT, not addition.
       pixel offsets that park them beside the velocity sphere (tunable
       consts, e.g. right of the ship point and stacked one row apart;
       final values by eye in /work).
-- [ ] Replace `update_flight_status_text` with two drive systems in
+- [x] Replace `update_flight_status_text` with two drive systems in
       flight_status.rs: `drive_speed_chip` (always: `<speed> u/s` from
       LinearVelocity) and `drive_mode_chip` (engaged only: `AP <VERB> -
       <PHASE>` from Autopilot; clears anchor + text when no Autopilot).
       Register them before ScreenIndicatorSystems in NovaHudSystems.
-- [ ] Delete `flight::flight_status_line`, `flight::GravStatus`, and
+- [x] Delete `flight::flight_status_line`, `flight::GravStatus`, and
       their unit tests in crates/nova_gameplay/src/flight.rs; move the
       verb/phase label formatting into flight_status.rs as a small pure
       fn with its own tests.
-- [ ] Add the radius spoke to
+- [x] Add the radius spoke to
       crates/nova_gameplay/src/hud/maneuver_instruments.rs: a
       `RadiusSpokeMarker { ship }` world-space entity synced by a new
       `sync_radius_spoke` system while the player's ORBIT action is
@@ -61,24 +61,24 @@ text node go away here - the goal is REPLACEMENT, not addition.
       to the ship position, updated every frame, despawned when the
       maneuver or well ends. Add it to the despawn sweep in
       hud/mod.rs remove_hud_flight_status.
-- [ ] Add a `RadiusSpokeChipUIMarker` chip to the maneuver_instruments
+- [x] Add a `RadiusSpokeChipUIMarker` chip to the maneuver_instruments
       layer showing the current radius (`r <dist>` from ship-to-well
       distance) anchored at the spoke midpoint
       (ScreenIndicatorAnchorKind::Point), driven by a
       `drive_radius_spoke_chip` system; hidden outside engaged ORBIT.
-- [ ] Re-dock the keybind hint cluster in
+- [x] Re-dock the keybind hint cluster in
       crates/nova_gameplay/src/hud/keybind_hints.rs from bottom 28px to
       bottom 8px (the status line under it is gone); update the comment
       that references the line.
-- [ ] Unit tests: speed/mode chip drive systems (manual vs engaged,
+- [x] Unit tests: speed/mode chip drive systems (manual vs engaged,
       formatting, clear-on-disengage) in flight_status.rs; spoke + chip
       lifecycle (spawn on engaged plan, tracks ship, despawn on
       disengage) in maneuver_instruments.rs, mirroring the existing
       orbit-ring test.
-- [ ] Sweep for stragglers: `grep -rn "flight_status_line\|GravStatus"`
+- [x] Sweep for stragglers: `grep -rn "flight_status_line\|GravStatus"`
       must come back empty; `cargo check` and `cargo fmt` clean; run the
       newly written tests only (per repo test policy).
-- [ ] CHANGELOG.md under [Unreleased]: one Changed line - the bottom-left
+- [x] CHANGELOG.md under [Unreleased]: one Changed line - the bottom-left
       flight status line is replaced by ship-anchored speed and mode
       chips plus an ORBIT radius spoke holo.
 
@@ -96,3 +96,37 @@ text node go away here - the goal is REPLACEMENT, not addition.
   first); the velocity sphere has world radius 5.0/5.6 u, so pick
   offsets that clear it at typical chase-camera distance.
 - Speed format `{:5.1} u/s` matched the old line; keep one decimal.
+
+## Closing notes (2026-07-10)
+
+What changed: flight_status.rs traded its absolute-positioned text node
+for a screen_indicator layer with two ship-anchored chips - speed
+(anchored from spawn, always on) and mode (anchor driven at runtime,
+spawns hidden exactly like the disengaged state it reports, per the
+gravity-indicator retro lesson). flight_status_line and GravStatus left
+flight.rs entirely; the verb/phase formatting lives on as the pure
+mode_chip_label in flight_status.rs with its own tests.
+maneuver_instruments.rs gained the radius spoke (well-to-ship holo line,
+reusing HoloAssets::segment_mesh and holo_instruments::segment_transform,
+both promoted to pub(crate) instead of duplicating) plus a fourth chip
+showing the current radius at the spoke midpoint. The keybind cluster
+re-docked from bottom 28px to 8px. The spoke joined the teardown sweep in
+hud/mod.rs.
+
+Decisions: the spoke engages on the ORBIT verb alone (plan not required)
+- the current radius exists the moment the verb does, unlike the ring
+which renders the plan; the old status line behaved the same way. Chip
+offsets are fixed-px v1 as the spike resolved; constants are documented
+for the by-eye pass.
+
+Difficulties: none of substance; the substrate absorbed everything. The
+concept-grep sweep (retro lesson) caught one stale "docked above the
+flight-status line" comment in keybind_hints.rs that the symbol grep
+could not.
+
+Reflection: the questionnaire-first spike made this task almost
+mechanical - every open design fork was already closed before /work
+started. Worth repeating for UX-flavored tasks. Verification hole to
+note honestly: the chip offsets (120px right of ship center) have not
+been seen with eyes; they may sit inside the velocity sphere at close
+zoom and need the planned by-eye tune.

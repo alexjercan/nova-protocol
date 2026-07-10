@@ -4,7 +4,7 @@
 //! [`FlightVerbHints`] resource - availability and key labels are resolved
 //! where the verbs live, this module is a dumb view.
 //!
-//! - **Hint cluster**: a small column docked above the flight-status line,
+//! - **Hint cluster**: a small column docked in the lower-left corner,
 //!   one `[KEY] VERB` row per flight verb, nav-cyan when pressing it would
 //!   do something, dimmed when not.
 //! - **Anchored cues**: the hint sits on the thing you would act on -
@@ -54,8 +54,9 @@ struct OrbitCueUIMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 struct GotoCueUIMarker;
 
-/// UI bundle for the hint cluster: a fixed column just above the
-/// flight-status line (which sits at bottom 8, left 8).
+/// UI bundle for the hint cluster: a fixed column in the lower-left
+/// corner (the flight status that used to sit under it moved onto the
+/// ship as chips, task 20260710-231926).
 pub fn keybind_hint_cluster_hud() -> impl Bundle {
     let row = |index: usize| {
         (
@@ -71,7 +72,7 @@ pub fn keybind_hint_cluster_hud() -> impl Bundle {
         KeybindHintClusterMarker,
         Node {
             position_type: PositionType::Absolute,
-            bottom: Val::Px(28.0),
+            bottom: Val::Px(8.0),
             left: Val::Px(8.0),
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(2.0),

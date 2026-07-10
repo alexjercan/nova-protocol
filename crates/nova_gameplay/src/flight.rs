@@ -1008,58 +1008,6 @@ pub(crate) fn is_forward_aligned(thrust_dir: Vec3, forward: Vec3) -> bool {
     thrust_dir.dot(forward) >= FORWARD_ALIGNMENT_COS
 }
 
-/// One line of HUD truth about the flight layer, shared with the HUD module
-/// so the formatting is unit-testable. `goto_distance` is the current
-/// distance to the GOTO target, when known.
-/// The gravity context the HUD feeds the status line: the ship's dominant
-/// well and its current distance from it.
-pub(crate) struct GravStatus<'a> {
-    /// The well's display name (its `Name`, or a generic fallback).
-    pub name: &'a str,
-    /// Current distance from the well center, world units.
-    pub radius: f32,
-}
-
-pub(crate) fn flight_status_line(
-    speed: f32,
-    autopilot: Option<&Autopilot>,
-    goto_distance: Option<f32>,
-    grav: Option<GravStatus>,
-) -> String {
-    let phase = |p: AutopilotPhase| match p {
-        AutopilotPhase::Align => "ALIGN",
-        AutopilotPhase::Burn => "BURN",
-        AutopilotPhase::Hold => "HOLD",
-    };
-    match autopilot {
-        // Coasting inside a well is worth a word: a curving trajectory must
-        // never read as a bug (spike decision 7).
-        None => match grav {
-            Some(g) => format!("MAN     {speed:5.1} u/s | GRAV {}", g.name),
-            None => format!("MAN     {speed:5.1} u/s"),
-        },
-        Some(ap) => match (ap.action, goto_distance) {
-            (AutopilotAction::Stop, _) => {
-                format!("AP STOP - {} | {speed:5.1} u/s", phase(ap.phase))
-            }
-            (AutopilotAction::Goto { .. } | AutopilotAction::GotoPos { .. }, Some(d)) => {
-                format!("AP GOTO - {} | {speed:5.1} u/s | {d:5.0}m", phase(ap.phase))
-            }
-            (AutopilotAction::Goto { .. } | AutopilotAction::GotoPos { .. }, None) => {
-                format!("AP GOTO - {} | {speed:5.1} u/s", phase(ap.phase))
-            }
-            (AutopilotAction::Orbit { .. }, _) => match grav {
-                Some(g) => format!(
-                    "AP ORBIT - {} | r {:4.0} | {speed:5.1} u/s",
-                    phase(ap.phase),
-                    g.radius
-                ),
-                None => format!("AP ORBIT - {} | {speed:5.1} u/s", phase(ap.phase)),
-            },
-        },
-    }
-}
-
 /// The autopilot. One rule flies every maneuver: compute the desired velocity
 /// for the goal, rotate the *cheapest engine group* onto the velocity error
 /// (rotation time * bias + burn time; the nose is nothing special), and fire
@@ -2544,68 +2492,6 @@ mod tests {
         assert!(is_forward_aligned(Vec3::NEG_Z, forward));
         assert!(!is_forward_aligned(Vec3::Z, forward));
         assert!(!is_forward_aligned(Vec3::X, forward));
-    }
-
-    #[test]
-    fn flight_status_line_formats_manual_and_each_maneuver() {
-        assert_eq!(
-            flight_status_line(12.34, None, None, None),
-            "MAN      12.3 u/s"
-        );
-        let stop = Autopilot {
-            action: AutopilotAction::Stop,
-            phase: AutopilotPhase::Align,
-        };
-        assert_eq!(
-            flight_status_line(12.34, Some(&stop), None, None),
-            "AP STOP - ALIGN |  12.3 u/s"
-        );
-        let goto = Autopilot {
-            action: AutopilotAction::Goto {
-                target: Entity::PLACEHOLDER,
-            },
-            phase: AutopilotPhase::Burn,
-        };
-        assert_eq!(
-            flight_status_line(5.0, Some(&goto), Some(320.4), None),
-            "AP GOTO - BURN |   5.0 u/s |   320m"
-        );
-    }
-
-    #[test]
-    fn flight_status_line_shows_the_well_and_the_orbit_phases() {
-        let grav = || {
-            Some(GravStatus {
-                name: "Gravity Rock",
-                radius: 52.4,
-            })
-        };
-        // Coasting inside a well: the curve on the trajectory gets a name.
-        assert_eq!(
-            flight_status_line(12.34, None, None, grav()),
-            "MAN      12.3 u/s | GRAV Gravity Rock"
-        );
-        let orbit = |phase| Autopilot {
-            action: AutopilotAction::Orbit {
-                well: Entity::PLACEHOLDER,
-                plan: None,
-            },
-            phase,
-        };
-        assert_eq!(
-            flight_status_line(4.9, Some(&orbit(AutopilotPhase::Burn)), None, grav()),
-            "AP ORBIT - BURN | r   52 |   4.9 u/s"
-        );
-        assert_eq!(
-            flight_status_line(4.9, Some(&orbit(AutopilotPhase::Hold)), None, grav()),
-            "AP ORBIT - HOLD | r   52 |   4.9 u/s"
-        );
-        // The well can die a flush before the handle clears: no radius, no
-        // panic, the line degrades gracefully.
-        assert_eq!(
-            flight_status_line(4.9, Some(&orbit(AutopilotPhase::Align)), None, None),
-            "AP ORBIT - ALIGN |   4.9 u/s"
-        );
     }
 
     #[test]

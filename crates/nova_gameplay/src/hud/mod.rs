@@ -207,6 +207,7 @@ fn remove_hud_flight_status(
     q_cues: Query<Entity, With<VerbCuesHudMarker>>,
     q_instruments: Query<Entity, With<ManeuverInstrumentsHudMarker>>,
     q_ring: Query<Entity, With<OrbitRingMarker>>,
+    q_spoke: Query<Entity, With<RadiusSpokeMarker>>,
     q_ribbon: Query<Entity, With<TrajectoryRibbonSegment>>,
     q_gate: Query<Entity, With<FlipGateMarker>>,
 ) {
@@ -233,7 +234,7 @@ fn remove_hud_flight_status(
     for hud_entity in &q_ring {
         commands.entity(hud_entity).despawn();
     }
-    for hud_entity in q_ribbon.iter().chain(&q_gate) {
+    for hud_entity in q_spoke.iter().chain(q_ribbon.iter()).chain(&q_gate) {
         commands.entity(hud_entity).despawn();
     }
 }

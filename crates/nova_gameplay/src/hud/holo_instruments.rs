@@ -63,7 +63,7 @@ pub(crate) struct HoloAssets {
 }
 
 impl HoloAssets {
-    fn segment_mesh(&mut self, meshes: &mut Assets<Mesh>) -> Handle<Mesh> {
+    pub(crate) fn segment_mesh(&mut self, meshes: &mut Assets<Mesh>) -> Handle<Mesh> {
         self.segment_mesh
             .get_or_insert_with(|| meshes.add(Cylinder::new(RIBBON_RADIUS, 1.0)))
             .clone()
@@ -116,8 +116,9 @@ impl Plugin for HoloInstrumentsPlugin {
     }
 }
 
-/// The Y-up unit cylinder stretched onto a world segment.
-fn segment_transform(from: Vec3, to: Vec3) -> Transform {
+/// The Y-up unit cylinder stretched onto a world segment. Shared with the
+/// radius spoke in maneuver_instruments.
+pub(crate) fn segment_transform(from: Vec3, to: Vec3) -> Transform {
     let axis = to - from;
     let length = axis.length().max(f32::EPSILON);
     Transform {

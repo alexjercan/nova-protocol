@@ -1,16 +1,15 @@
-//! Minimal flight readouts: a one-line text status (manual vs engaged
-//! maneuver, phase, speed, GOTO distance) and a projected marker on the GOTO
-//! destination. The autopilot would be invisible without them; anything
-//! richer is the diegetic-instruments task (20260709-103454).
+//! Diegetic flight readouts (task 20260710-231926, spike
+//! docs/spikes/20260710-234019-diegetic-flight-status.md): the old
+//! bottom-left status text rehomed onto the ship - a speed chip parked
+//! beside the velocity sphere and a mode chip (verb + phase) shown only
+//! while the autopilot is engaged; manual flight keeps a quiet HUD. Plus
+//! the projected marker on the GOTO destination.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use super::{screen_indicator::prelude::*, NAV_CYAN};
-use crate::{
-    flight::{prelude::*, GravStatus},
-    gravity::prelude::*,
-};
+use crate::flight::prelude::*;
 
 pub mod prelude {
     pub use super::{
@@ -25,6 +24,19 @@ pub mod prelude {
 /// silhouette.
 const DESTINATION_MARKER_PX: f32 = 24.0;
 
+/// On-screen size of the ship status chips (px).
+const CHIP_SIZE: Vec2 = Vec2::new(120.0, 16.0);
+
+/// The speed chip parks to the right of the ship, clear of the velocity
+/// sphere (world radius 5.6 u for the outer gravity shell) at typical
+/// chase-camera distance. Fixed px in v1; a projected-radius offset is the
+/// richer option if the fixed one misbehaves at extreme zooms.
+const SPEED_CHIP_OFFSET: Vec2 = Vec2::new(120.0, 0.0);
+
+/// The mode chip stacks one row above the speed chip (screen y grows
+/// downward).
+const MODE_CHIP_OFFSET: Vec2 = Vec2::new(120.0, -18.0);
+
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct FlightStatusHudMarker;
 
@@ -32,28 +44,69 @@ pub struct FlightStatusHudMarker;
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct FlightStatusHudTargetEntity(pub Entity);
 
+/// Marker for the speed chip.
+#[derive(Component, Debug, Clone, Reflect)]
+struct SpeedChipUIMarker;
+
+/// Marker for the autopilot mode (verb + phase) chip.
+#[derive(Component, Debug, Clone, Reflect)]
+struct ModeChipUIMarker;
+
 #[derive(Clone, Debug)]
 pub struct FlightStatusHudConfig {
     pub target: Entity,
 }
 
-/// UI bundle for the readout: a small fixed text node in the lower-left,
-/// clear of the velocity sphere and the health bar.
+/// UI bundle for the ship status chips: one indicator layer with the speed
+/// chip (anchored to the ship from spawn - it is always on) and the mode
+/// chip (anchor driven at runtime; it spawns hidden exactly like the
+/// disengaged state it starts in).
 pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
     debug!("flight_status_hud: config {:?}", config);
+
+    let chip = |anchor: Option<ScreenIndicatorAnchorKind>, offset: Vec2| {
+        screen_indicator(ScreenIndicatorConfig {
+            anchor,
+            size: ScreenIndicatorSize::Fixed(CHIP_SIZE),
+            offset,
+            offscreen: ScreenIndicatorOffscreen::Hide,
+        })
+    };
 
     (
         Name::new("FlightStatusHUD"),
         FlightStatusHudMarker,
         FlightStatusHudTargetEntity(config.target),
-        Text::new(""),
-        TextFont::from_font_size(14.0),
-        Node {
-            position_type: PositionType::Absolute,
-            bottom: Val::Px(8.0),
-            left: Val::Px(8.0),
-            ..default()
-        },
+        screen_indicator_layer(),
+        children![
+            (
+                Name::new("SpeedChipUI"),
+                SpeedChipUIMarker,
+                chip(
+                    Some(ScreenIndicatorAnchorKind::Entity(config.target)),
+                    SPEED_CHIP_OFFSET,
+                ),
+                Text::new(""),
+                TextFont::from_font_size(12.0),
+                TextLayout {
+                    linebreak: LineBreak::NoWrap,
+                    ..default()
+                },
+                TextColor(NAV_CYAN),
+            ),
+            (
+                Name::new("ModeChipUI"),
+                ModeChipUIMarker,
+                chip(None, MODE_CHIP_OFFSET),
+                Text::new(""),
+                TextFont::from_font_size(12.0),
+                TextLayout {
+                    linebreak: LineBreak::NoWrap,
+                    ..default()
+                },
+                TextColor(NAV_CYAN),
+            ),
+        ],
     )
 }
 
@@ -121,66 +174,79 @@ impl Plugin for FlightStatusHudPlugin {
 
         app.add_systems(
             Update,
-            (
-                update_flight_status_text,
-                drive_destination_anchor.before(ScreenIndicatorSystems),
-            )
+            (drive_speed_chip, drive_mode_chip, drive_destination_anchor)
+                .before(ScreenIndicatorSystems)
                 .in_set(super::NovaHudSystems),
         );
     }
 }
 
-fn update_flight_status_text(
-    mut q_hud: Query<(&FlightStatusHudTargetEntity, &mut Text), With<FlightStatusHudMarker>>,
-    q_ship: Query<(
-        &GlobalTransform,
-        &LinearVelocity,
-        Option<&Autopilot>,
-        Option<&DominantWell>,
-    )>,
-    q_target: Query<&GlobalTransform>,
-    q_well: Query<(&GlobalTransform, Option<&Name>), With<GravityWell>>,
+/// The mode chip's label for an engaged autopilot: the verb and its phase.
+fn mode_chip_label(autopilot: &Autopilot) -> String {
+    let verb = match autopilot.action {
+        AutopilotAction::Stop => "STOP",
+        AutopilotAction::Goto { .. } | AutopilotAction::GotoPos { .. } => "GOTO",
+        AutopilotAction::Orbit { .. } => "ORBIT",
+    };
+    let phase = match autopilot.phase {
+        AutopilotPhase::Align => "ALIGN",
+        AutopilotPhase::Burn => "BURN",
+        AutopilotPhase::Hold => "HOLD",
+    };
+    format!("AP {verb} - {phase}")
+}
+
+/// The ship's speed beside the velocity sphere, always on. A dead ship
+/// clears the anchor so the chip hides in the frame gap before the HUD
+/// observer despawns the layer.
+fn drive_speed_chip(
+    q_hud: Query<&FlightStatusHudTargetEntity, With<FlightStatusHudMarker>>,
+    mut q_ui: Query<(&mut ScreenIndicatorAnchor, &mut Text, &ChildOf), With<SpeedChipUIMarker>>,
+    q_ship: Query<&LinearVelocity>,
 ) {
-    for (target, mut text) in &mut q_hud {
-        let Ok((ship_transform, velocity, autopilot, dominant)) = q_ship.get(**target) else {
-            // The ship can die a frame before the HUD is despawned.
+    for (mut anchor, mut text, &ChildOf(parent)) in &mut q_ui {
+        let Ok(ship) = q_hud.get(parent) else {
             continue;
         };
 
-        // Distance to an engaged GOTO destination, when it still exists.
-        let goto_distance = autopilot.and_then(|ap| match ap.action {
-            AutopilotAction::Goto { target } => q_target
-                .get(target)
-                .ok()
-                .map(|t| t.translation().distance(ship_transform.translation())),
-            AutopilotAction::GotoPos { position } => {
-                Some(position.distance(ship_transform.translation()))
+        match q_ship.get(**ship) {
+            Ok(velocity) => {
+                // Re-assert the anchor so a transient query miss cannot
+                // leave the chip dark while its text keeps updating.
+                **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
+                **text = format!("{:5.1} u/s", velocity.length());
             }
-            AutopilotAction::Stop | AutopilotAction::Orbit { .. } => None,
-        });
+            Err(_) => {
+                **anchor = None;
+                text.clear();
+            }
+        }
+    }
+}
 
-        // The well the line reports on: while ORBIT is engaged it is the
-        // action's well (dominance can flip to another rock mid-orbit, and
-        // an insertion overshoot can drop DominantWell entirely - the
-        // readout must track what the computer actually flies); otherwise
-        // the dominant well, when the ship is inside one. Either can be
-        // dead for a flush, so the lookup degrades gracefully.
-        let grav_well = match autopilot.map(|ap| ap.action) {
-            Some(AutopilotAction::Orbit { well, .. }) => Some(well),
-            _ => dominant.map(|d| **d),
+/// The engaged maneuver's verb and phase above the speed chip; manual
+/// flight (no [`Autopilot`]) shows nothing - a quiet HUD is the manual
+/// look.
+fn drive_mode_chip(
+    q_hud: Query<&FlightStatusHudTargetEntity, With<FlightStatusHudMarker>>,
+    mut q_ui: Query<(&mut ScreenIndicatorAnchor, &mut Text, &ChildOf), With<ModeChipUIMarker>>,
+    q_ship: Query<&Autopilot>,
+) {
+    for (mut anchor, mut text, &ChildOf(parent)) in &mut q_ui {
+        let Ok(ship) = q_hud.get(parent) else {
+            continue;
         };
-        let grav =
-            grav_well
-                .and_then(|well| q_well.get(well).ok())
-                .map(|(well_transform, name)| GravStatus {
-                    name: name.map(|n| n.as_str()).unwrap_or("WELL"),
-                    radius: well_transform
-                        .translation()
-                        .distance(ship_transform.translation()),
-                });
 
-        **text =
-            crate::flight::flight_status_line(velocity.length(), autopilot, goto_distance, grav);
+        match q_ship.get(**ship) {
+            Ok(autopilot) => {
+                **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
+                **text = mode_chip_label(autopilot);
+            }
+            Err(_) => {
+                **anchor = None;
+                text.clear();
+            }
+        }
     }
 }
 
@@ -214,6 +280,91 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
+
+    fn spawn_status_hud(world: &mut World, ship: Entity) -> (Entity, Entity) {
+        let layer = world
+            .spawn(flight_status_hud(FlightStatusHudConfig { target: ship }))
+            .id();
+        let children = world.entity(layer).get::<Children>().unwrap();
+        (children[0], children[1])
+    }
+
+    fn anchor_of(world: &World, entity: Entity) -> Option<ScreenIndicatorAnchorKind> {
+        **world.entity(entity).get::<ScreenIndicatorAnchor>().unwrap()
+    }
+
+    fn text_of(world: &World, entity: Entity) -> String {
+        world.entity(entity).get::<Text>().unwrap().0.clone()
+    }
+
+    #[test]
+    fn speed_chip_tracks_the_ship_and_hides_when_it_dies() {
+        let mut world = World::new();
+        let ship = world.spawn(LinearVelocity(Vec3::new(3.0, 0.0, 4.0))).id();
+        let (speed, _) = spawn_status_hud(&mut world, ship);
+
+        // Anchored to the ship from spawn: the chip is always on.
+        assert_eq!(
+            anchor_of(&world, speed),
+            Some(ScreenIndicatorAnchorKind::Entity(ship))
+        );
+
+        world.run_system_once(drive_speed_chip).unwrap();
+        assert_eq!(text_of(&world, speed), "  5.0 u/s");
+
+        // The ship dies a frame before the HUD observer sweeps the layer.
+        world.despawn(ship);
+        world.run_system_once(drive_speed_chip).unwrap();
+        assert_eq!(anchor_of(&world, speed), None);
+        assert!(text_of(&world, speed).is_empty());
+    }
+
+    #[test]
+    fn mode_chip_spawns_hidden_and_follows_engagement() {
+        let mut world = World::new();
+        let ship = world.spawn(LinearVelocity(Vec3::ZERO)).id();
+        let (_, mode) = spawn_status_hud(&mut world, ship);
+
+        // Manual from frame zero: hidden at spawn, hidden after a run.
+        assert_eq!(anchor_of(&world, mode), None);
+        world.run_system_once(drive_mode_chip).unwrap();
+        assert_eq!(anchor_of(&world, mode), None);
+        assert!(text_of(&world, mode).is_empty());
+
+        // Engaging shows verb + phase.
+        world
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+        world.run_system_once(drive_mode_chip).unwrap();
+        assert_eq!(
+            anchor_of(&world, mode),
+            Some(ScreenIndicatorAnchorKind::Entity(ship))
+        );
+        assert_eq!(text_of(&world, mode), "AP STOP - ALIGN");
+
+        // Disengaging (component removed) hides it again.
+        world.entity_mut(ship).remove::<Autopilot>();
+        world.run_system_once(drive_mode_chip).unwrap();
+        assert_eq!(anchor_of(&world, mode), None);
+        assert!(text_of(&world, mode).is_empty());
+    }
+
+    #[test]
+    fn mode_chip_labels_every_verb_and_phase() {
+        let goto = Autopilot::engage(AutopilotAction::GotoPos {
+            position: Vec3::ZERO,
+        });
+        assert_eq!(mode_chip_label(&goto), "AP GOTO - ALIGN");
+
+        let mut orbit = Autopilot::engage(AutopilotAction::Orbit {
+            well: Entity::PLACEHOLDER,
+            plan: None,
+        });
+        orbit.phase = AutopilotPhase::Burn;
+        assert_eq!(mode_chip_label(&orbit), "AP ORBIT - BURN");
+        orbit.phase = AutopilotPhase::Hold;
+        assert_eq!(mode_chip_label(&orbit), "AP ORBIT - HOLD");
+    }
 
     fn spawn_destination_hud(world: &mut World, ship: Entity) -> Entity {
         let layer = world

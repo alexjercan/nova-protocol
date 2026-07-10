@@ -12,11 +12,20 @@
 //! - **ORBIT holo ring**: a world-space torus at the engaged orbit plan's
 //!   ring (velocity-sphere visual family) plus a `r | v_circ` chip on the
 //!   ring point nearest the ship.
+//! - **Radius spoke** (task 20260710-231926, spike
+//!   docs/spikes/20260710-234019-diegetic-flight-status.md): while ORBIT
+//!   is engaged, a thin holo line from the well center to the ship with
+//!   the current radius as a chip at its midpoint - the in-world home of
+//!   the old status line's `r` readout.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use super::{holo_instruments::HoloAssets, screen_indicator::prelude::*, NAV_CYAN};
+use super::{
+    holo_instruments::{segment_transform, HoloAssets},
+    screen_indicator::prelude::*,
+    NAV_CYAN,
+};
 use crate::{
     flight::{orbit_ring_point, prelude::*},
     gravity::prelude::*,
@@ -26,7 +35,7 @@ use crate::{
 pub mod prelude {
     pub use super::{
         maneuver_instruments_hud, ManeuverInstrumentsHudConfig, ManeuverInstrumentsHudMarker,
-        ManeuverInstrumentsPlugin, OrbitRingMarker,
+        ManeuverInstrumentsPlugin, OrbitRingMarker, RadiusSpokeMarker,
     };
 }
 
@@ -63,6 +72,18 @@ struct FlipMarkerUIMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 struct OrbitChipUIMarker;
 
+/// Marker for the radius-spoke chip.
+#[derive(Component, Debug, Clone, Reflect)]
+struct RadiusSpokeChipUIMarker;
+
+/// The world-space holo spoke from the orbited well's center to the ship.
+/// Public so the HUD teardown sweep (and tests) can find it.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct RadiusSpokeMarker {
+    /// The ship whose orbit radius this spoke renders.
+    pub ship: Entity,
+}
+
 /// The world-space holo ring of an engaged ORBIT plan. Public so tests and
 /// the future holo-expansion task can find it.
 #[derive(Component, Debug, Clone, Reflect)]
@@ -78,9 +99,9 @@ pub struct ManeuverInstrumentsHudConfig {
     pub ship: Entity,
 }
 
-/// UI bundle: one indicator layer with the three chips. The holo ring is
-/// not part of this layer - it is a world-space entity owned by
-/// [`sync_orbit_ring`].
+/// UI bundle: one indicator layer with the four chips. The holo ring and
+/// the radius spoke are not part of this layer - they are world-space
+/// entities owned by [`sync_orbit_ring`] and [`sync_radius_spoke`].
 pub fn maneuver_instruments_hud(config: ManeuverInstrumentsHudConfig) -> impl Bundle {
     debug!("maneuver_instruments_hud: config {:?}", config);
 
@@ -127,6 +148,14 @@ pub fn maneuver_instruments_hud(config: ManeuverInstrumentsHudConfig) -> impl Bu
                 TextFont::from_font_size(12.0),
                 TextColor(NAV_CYAN),
             ),
+            (
+                Name::new("RadiusSpokeChipUI"),
+                RadiusSpokeChipUIMarker,
+                chip(CHIP_SIZE, Vec2::ZERO),
+                Text::new(""),
+                TextFont::from_font_size(12.0),
+                TextColor(NAV_CYAN),
+            ),
         ],
     )
 }
@@ -142,7 +171,8 @@ impl Plugin for ManeuverInstrumentsPlugin {
         // the whole set); idempotent with HoloInstrumentsPlugin's init.
         app.init_resource::<HoloAssets>();
 
-        app.register_type::<OrbitRingMarker>();
+        app.register_type::<OrbitRingMarker>()
+            .register_type::<RadiusSpokeMarker>();
 
         app.add_systems(
             Update,
@@ -151,9 +181,11 @@ impl Plugin for ManeuverInstrumentsPlugin {
                     drive_destination_readout,
                     drive_flip_marker,
                     drive_orbit_chip,
+                    drive_radius_spoke_chip,
                 )
                     .before(ScreenIndicatorSystems),
                 sync_orbit_ring,
+                sync_radius_spoke,
             )
                 .in_set(super::NovaHudSystems),
         );
@@ -345,6 +377,96 @@ fn sync_orbit_ring(
     }
 }
 
+/// `r <radius>` at the spoke's midpoint, while ORBIT is engaged and the
+/// well exists. The current radius, unlike the ring chip's planned one -
+/// the pair converges as the insertion settles.
+fn drive_radius_spoke_chip(
+    q_hud: Query<&ManeuverInstrumentsShipEntity, With<ManeuverInstrumentsHudMarker>>,
+    mut q_ui: Query<
+        (&mut ScreenIndicatorAnchor, &mut Text, &ChildOf),
+        With<RadiusSpokeChipUIMarker>,
+    >,
+    q_ship: Query<(&Position, &Autopilot)>,
+    q_well: Query<&Position, With<GravityWell>>,
+) {
+    for (mut anchor, mut text, &ChildOf(parent)) in &mut q_ui {
+        let Ok(ship) = q_hud.get(parent) else {
+            continue;
+        };
+
+        let spoke = q_ship.get(**ship).ok().and_then(|(position, autopilot)| {
+            let AutopilotAction::Orbit { well, .. } = autopilot.action else {
+                return None;
+            };
+            let well_position = q_well.get(well).ok()?;
+            Some((**well_position, **position))
+        });
+
+        match spoke {
+            Some((well_position, ship_position)) => {
+                **anchor = Some(ScreenIndicatorAnchorKind::Point(
+                    (well_position + ship_position) * 0.5,
+                ));
+                **text = format!("r {:4.0}", well_position.distance(ship_position));
+            }
+            None => {
+                **anchor = None;
+                text.clear();
+            }
+        }
+    }
+}
+
+/// Own the radius spoke: a thin holo line from the well center to the ship
+/// while the player's ORBIT is engaged (with or without a plan - the
+/// current radius exists the moment the verb does), stretched every frame
+/// (both ends move), despawned when the maneuver or the well ends.
+fn sync_radius_spoke(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut assets: ResMut<HoloAssets>,
+    q_ship: Query<(Entity, &Position, &Autopilot), With<PlayerSpaceshipMarker>>,
+    q_well: Query<&Position, With<GravityWell>>,
+    mut q_spoke: Query<(Entity, &RadiusSpokeMarker, &mut Transform)>,
+) {
+    let engaged = q_ship.iter().find_map(|(ship, position, autopilot)| {
+        let AutopilotAction::Orbit { well, .. } = autopilot.action else {
+            return None;
+        };
+        let well_position = q_well.get(well).ok()?;
+        Some((ship, **well_position, **position))
+    });
+
+    let Some((ship, well_position, ship_position)) = engaged else {
+        for (entity, _, _) in &q_spoke {
+            commands.entity(entity).despawn();
+        }
+        return;
+    };
+
+    let transform = segment_transform(well_position, ship_position);
+    let mut found = false;
+    for (entity, spoke, mut spoke_transform) in &mut q_spoke {
+        if spoke.ship != ship {
+            commands.entity(entity).despawn();
+            continue;
+        }
+        found = true;
+        *spoke_transform = transform;
+    }
+    if !found {
+        commands.spawn((
+            Name::new("RadiusSpokeHolo"),
+            RadiusSpokeMarker { ship },
+            Mesh3d(assets.segment_mesh(&mut meshes)),
+            MeshMaterial3d(assets.material(&mut materials)),
+            transform,
+            Visibility::Visible,
+        ));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
@@ -352,14 +474,14 @@ mod tests {
     use super::*;
     use crate::sections::prelude::*;
 
-    fn spawn_instruments(world: &mut World, ship: Entity) -> (Entity, Entity, Entity) {
+    fn spawn_instruments(world: &mut World, ship: Entity) -> (Entity, Entity, Entity, Entity) {
         let layer = world
             .spawn(maneuver_instruments_hud(ManeuverInstrumentsHudConfig {
                 ship,
             }))
             .id();
         let children = world.entity(layer).get::<Children>().unwrap();
-        (children[0], children[1], children[2])
+        (children[0], children[1], children[2], children[3])
     }
 
     fn anchor_of(world: &World, entity: Entity) -> Option<ScreenIndicatorAnchorKind> {
@@ -385,7 +507,7 @@ mod tests {
                 eta: Some(18.0),
             })
             .id();
-        let (readout, flip, _) = spawn_instruments(&mut world, ship);
+        let (readout, flip, _, _) = spawn_instruments(&mut world, ship);
 
         world.run_system_once(drive_destination_readout).unwrap();
         world.run_system_once(drive_flip_marker).unwrap();
@@ -429,7 +551,7 @@ mod tests {
                 eta: Some(16.0),
             })
             .id();
-        let (readout, flip, _) = spawn_instruments(&mut world, ship);
+        let (readout, flip, _, _) = spawn_instruments(&mut world, ship);
 
         world.run_system_once(drive_destination_readout).unwrap();
         world.run_system_once(drive_flip_marker).unwrap();
@@ -467,7 +589,7 @@ mod tests {
                 }),
             ))
             .id();
-        let (_, _, chip) = spawn_instruments(&mut world, ship);
+        let (_, _, chip, _) = spawn_instruments(&mut world, ship);
 
         world.run_system_once(sync_orbit_ring).unwrap();
         world.run_system_once(drive_orbit_chip).unwrap();
@@ -518,5 +640,100 @@ mod tests {
             "the ring dies with the maneuver"
         );
         assert_eq!(anchor_of(&world, chip), None);
+    }
+
+    #[test]
+    fn radius_spoke_and_chip_track_the_engaged_orbit() {
+        let mut world = World::new();
+        world.init_resource::<Assets<Mesh>>();
+        world.init_resource::<Assets<StandardMaterial>>();
+        world.init_resource::<HoloAssets>();
+
+        let gravity = GravitySettings::default();
+        let well = world
+            .spawn((
+                Position(Vec3::ZERO),
+                GravityWell::from_surface_gravity(3.0, 20.0, &gravity),
+            ))
+            .id();
+        // Plan still None (insertion being solved): the current radius
+        // exists the moment the verb does, so the spoke is already up.
+        let ship = world
+            .spawn((
+                PlayerSpaceshipMarker,
+                SpaceshipRootMarker,
+                Position(Vec3::new(60.0, 0.0, 0.0)),
+                Autopilot::engage(AutopilotAction::Orbit { well, plan: None }),
+            ))
+            .id();
+        let (_, _, _, chip) = spawn_instruments(&mut world, ship);
+
+        world.run_system_once(sync_radius_spoke).unwrap();
+        world.run_system_once(drive_radius_spoke_chip).unwrap();
+
+        let (_, transform) = world
+            .query::<(&RadiusSpokeMarker, &Transform)>()
+            .single(&world)
+            .expect("an engaged ORBIT spawns exactly one spoke");
+        // The unit cylinder is stretched over well -> ship: centered at the
+        // midpoint, scaled to the current radius.
+        assert_eq!(transform.translation, Vec3::new(30.0, 0.0, 0.0));
+        assert!((transform.scale.y - 60.0).abs() < 1e-4);
+        assert_eq!(
+            anchor_of(&world, chip),
+            Some(ScreenIndicatorAnchorKind::Point(Vec3::new(30.0, 0.0, 0.0)))
+        );
+        assert_eq!(text_of(&world, chip), "r   60");
+
+        // The ship spirals in: both ends of the spoke follow.
+        world
+            .entity_mut(ship)
+            .insert(Position(Vec3::new(0.0, 0.0, 40.0)));
+        world.run_system_once(sync_radius_spoke).unwrap();
+        world.run_system_once(drive_radius_spoke_chip).unwrap();
+        let (_, transform) = world
+            .query::<(&RadiusSpokeMarker, &Transform)>()
+            .single(&world)
+            .expect("still one spoke");
+        assert_eq!(transform.translation, Vec3::new(0.0, 0.0, 20.0));
+        assert!((transform.scale.y - 40.0).abs() < 1e-4);
+        assert_eq!(text_of(&world, chip), "r   40");
+
+        // Breakout: the spoke and the chip die with the maneuver.
+        world.entity_mut(ship).remove::<Autopilot>();
+        world.run_system_once(sync_radius_spoke).unwrap();
+        world.run_system_once(drive_radius_spoke_chip).unwrap();
+        assert_eq!(
+            world.query::<&RadiusSpokeMarker>().iter(&world).count(),
+            0,
+            "the spoke dies with the maneuver"
+        );
+        assert_eq!(anchor_of(&world, chip), None);
+        assert!(text_of(&world, chip).is_empty());
+
+        // Re-engage, then destroy the well mid-orbit (rocks are
+        // destructible): the spoke and the chip must go the same way.
+        world
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Orbit {
+                well,
+                plan: None,
+            }));
+        world.run_system_once(sync_radius_spoke).unwrap();
+        assert_eq!(
+            world.query::<&RadiusSpokeMarker>().iter(&world).count(),
+            1,
+            "re-engaging rebuilds the spoke"
+        );
+        world.despawn(well);
+        world.run_system_once(sync_radius_spoke).unwrap();
+        world.run_system_once(drive_radius_spoke_chip).unwrap();
+        assert_eq!(
+            world.query::<&RadiusSpokeMarker>().iter(&world).count(),
+            0,
+            "the spoke dies with the well"
+        );
+        assert_eq!(anchor_of(&world, chip), None);
+        assert!(text_of(&world, chip).is_empty());
     }
 }
