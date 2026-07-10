@@ -101,6 +101,16 @@ game plugins were supplied) the editor `NovaEditorPlugin` from `nova_editor`, pl
 - Bevy idioms: plugin-per-subsystem, systems grouped into `SystemSet`s, communicate
   via events (`nova_events`) rather than direct coupling.
 - Keep the module/prelude pattern: new public items go through the crate's `prelude`.
+- When code promises behavior owned by another system - a readout mirroring a
+  control law, an "available" flag mirroring another module's gates, a doc comment
+  saying "pressing this does something" - derive the implementation from that
+  system's actual code (call the same function or share its terms) and enumerate
+  every producer/consumer of the promised state before calling it done. Deriving
+  from first principles next to the cursor is how instruments drift from the thing
+  they instrument (this bit twice in one day: the flip marker vs the arrival rule,
+  hint availability vs the autopilot's capability gates - see
+  docs/retros/20260709-103454-flight-instruments.md and
+  docs/retros/20260710-174646-keybind-hints.md).
 - Document meaningful changes in `docs/` per the global reflection guideline: what
   changed and why, difficulties, and lessons.
 
