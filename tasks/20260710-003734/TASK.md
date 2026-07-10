@@ -1,6 +1,6 @@
 # Shot-down torpedo dies: destroyed body section kills the torpedo root without full blast
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 74
 - TAGS: v0.4.0,torpedo,bug,ai
 
