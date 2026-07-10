@@ -1,6 +1,6 @@
 # Robust SFX/juice listener: dedicated camera marker, not first Camera3d
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.4.0, audio, juice, refactor
 
