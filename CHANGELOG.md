@@ -18,6 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - @alexjercan add an expanding-sphere blast-radius visual on torpedo detonation (wasm-safe mesh effect, shows the actual area of effect)
 - @alexjercan add `11_com_range` example: live center-of-mass / attached-centroid gizmos, spin and kill-section hotkeys, and a headless assertion that mass properties follow section destruction
 - @alexjercan the scenario-loading smoke tests (`03_scenario`, `10_gameplay`, `07_torpedo_guidance`) observe `ScenarioLoaded` via a shared `assert_scenario_loaded` harness helper and fail the headless run if scenario init is trivial (wrong id, zero handlers/objects) or never fires
+- @alexjercan first audio: placeholder SFX for explosions, impacts, turret fire, torpedo launches and a throttle-tracking thruster loop, with distance attenuation and per-source throttling; placeholder WAVs are committed so the game is audible out of the box
+- @alexjercan combat juice: subtle trauma-model camera shake on impacts and destructions, plus wasm-safe expanding gizmo hit/impact flash rings, both distance-attenuated and per-area throttled
+- @alexjercan flight-assist overhaul: the flight computer turns pilot intent into forces the surviving sections can actually produce - assisted mode holds a commanded velocity (WASDQE nudges, X brake latch, 30 u/s soft cap) through the spooled thrusters plus a controller-bound RCS budget, Z toggles a direct-thrust Newtonian mode, and the HUD gains an FA/speed readout
+- @alexjercan HUD screen-projected-indicator substrate (entity/point anchors, apparent-size sizing, clamp-to-edge with direction arrow); the torpedo reticle and autopilot GOTO marker become thin consumers of it
+- @alexjercan HUD turret lead/intercept pips (one amber pip per player turret on its computed aim point) and a locked-target info readout beside the reticle (range, closing speed, health bar)
+- @alexjercan player targeting arc: a dedicated targeting module with close-range signature auto-acquisition (550 m), a focus dwell (1.5 s) that unlocks a per-section component fine-lock with aim-snap and cycle inputs (bracket keys, dpad, scroll wheel), and HUD component-lock markers with selection highlight and a focus meter
+- @alexjercan player turrets auto-aim from the target lock through a three-tier feed: fine-locked section, else the locked ship's live structure, else the camera ray - with the lock's velocity feeding a true intercept lead
+- @alexjercan minimal faction/relation model (hostile/neutral/own): ship markers carry an allegiance, projectiles copy the shooter's at spawn, signature acquisition only grabs hostiles, and the lock reticle tints by relation
+- @alexjercan AI combat-behavior wave: a behavior state machine (Idle/Patrol/Engage/Evade/Retreat) with threat-tiered target selection over the relation model; fire discipline (turret lead feed, leaded aim-point and range gates, staggered burst cadence); point-defense turret priority that pulls the guns onto inbound torpedoes in every state; a standoff orbit/strafe envelope replacing pure pursuit; patrol waypoint routes and idle station-keeping flown through the real autopilot (new position-goal GOTO variant); evasion under fire driven by a threat memory of recent attackers (jink maneuvers, attacker-biased targeting); and torpedo launches from Engage gated by a launch envelope and per-bay cadence
+- @alexjercan the flight computer balances thrust through the live center of mass: differential throttle across the firing set nulls burn torque, and off-axis thrusters are recruited for counter-torque so a single surviving drive on a damage-shifted hull still holds heading
+- @alexjercan torpedo bays emit a launch particle burst on fire, mirroring the turret muzzle flash
+- @alexjercan CI workflow: cargo fmt, clippy and the full workspace test suite (windowed smoke examples under Xvfb) run on every PR and push to master
 
 ### Changed
 
@@ -27,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - @alexjercan split the torpedo section into its own module with config-driven blast parameters
 - @alexjercan turret now leads moving targets with intercept aim
 - @alexjercan enrich the `ScenarioLoaded` event with init status (scenario id, handler count, object count) so the smoke harness can assert on it and scenario init is easier to debug
+- @alexjercan the player lock reaches out to 20 km (up from 2 km) so distant bodies can be designated for GOTO legs and torpedo launches; the AI's 2 km sensor scan is unchanged
+- @alexjercan the SFX/juice listener is an explicit `SfxListenerMarker` on the gameplay camera instead of "any Camera3d", so the editor camera never grows shake and attenuation follows the right camera
 
 ### Fixed
 
@@ -39,6 +53,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - @alexjercan torpedoes: add an arming gate so they no longer self-detonate on spawn, keep flying when their target dies, and stop vanishing when there is no lock
 - @alexjercan fix the turret resting position
 - @alexjercan make the editor preview controller inert to stop physics 'root not found' log spam
+- @alexjercan enemy fire, the player turret aim ray and the lock cone anchor on the surviving hull (shared `live_structure_anchor`) instead of the empty build spot after front sections die
+- @alexjercan absorb section overkill instead of forwarding it: a 1000-damage hit on a 100 hp section no longer drags an otherwise-healthy ship through disable and destroy
+- @alexjercan a controller section disabled in place no longer keeps torquing the hull toward its frozen command - a dead computer means adrift
+- @alexjercan solve bullet lead in the shooter's frame: the lead solve subtracts the muzzle point velocity the bullet inherits, so a moving shooter's rounds land instead of drifting by exactly the ship's motion
+- @alexjercan the AI helm writes an absolute, slewed rotation command through a shared `ship_turn_rate` (also used by the player path and autopilot) instead of rewriting an unslewed delta every frame
+- @alexjercan a torpedo whose body section is destroyed dies whole and blast-free, so point defense actually stops it; the shot-down despawn is deferred one tick to avoid a command-flush panic
+- @alexjercan one hit plays one cue: the audio and juice damage observers ignore propagation re-entry, fixing doubled impact sounds, doubled camera trauma and phantom flash rings at the ship root
 
 ## [0.3.1] - 2026-07-07
 
