@@ -8,8 +8,9 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        PlayerSpaceshipMarker, SpaceshipPlayerInputPlugin, SpaceshipThrusterInputBinding,
-        SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
+        FlightVerbHints, PlayerSpaceshipMarker, SpaceshipPlayerInputPlugin,
+        SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
+        VerbHint,
     };
 }
 
@@ -44,6 +45,9 @@ impl Plugin for SpaceshipPlayerInputPlugin {
         app.add_observer(on_torpedo_input);
         app.add_observer(on_torpedo_input_completed);
 
+        app.init_resource::<FlightVerbHints>();
+        app.register_type::<FlightVerbHints>();
+
         app.add_systems(
             Update,
             (
@@ -53,9 +57,136 @@ impl Plugin for SpaceshipPlayerInputPlugin {
                 // commit (previously a .chain() when they shared a module).
                 update_turret_target_input.after(super::targeting::SpaceshipTargetingSystems),
                 update_torpedo_target_input.after(super::targeting::SpaceshipTargetingSystems),
+                update_flight_verb_hints.after(super::targeting::SpaceshipTargetingSystems),
             )
                 .in_set(super::SpaceshipInputSystems),
         );
+    }
+}
+
+/// One flight verb's hint state, for the keybind-hint HUD (spike
+/// docs/spikes/20260710-174523-diegetic-instruments-keybind-hints.md).
+#[derive(Clone, Debug, Default, PartialEq, Reflect)]
+pub struct VerbHint {
+    /// The verb's keyboard label ("X", "G", ...), read from the live
+    /// bindings of the flight rig; empty until the rig exists.
+    pub key: String,
+    /// Whether pressing the key right now would do something.
+    pub available: bool,
+    /// The world entity the verb would act on (the aim lock for GOTO, the
+    /// dominant well for ORBIT), for hints anchored on the object itself.
+    pub anchor: Option<Entity>,
+}
+
+/// The player's currently available flight verbs, resolved every frame by
+/// [`update_flight_verb_hints`] - computed here, where the verbs and their
+/// (private) input actions live; the HUD renders it dumb. Keyboard labels
+/// only in v1 (device awareness is a recorded open question).
+#[derive(Resource, Clone, Debug, Default, PartialEq, Reflect)]
+#[reflect(Resource)]
+pub struct FlightVerbHints {
+    pub stop: VerbHint,
+    pub goto: VerbHint,
+    pub orbit: VerbHint,
+    pub cancel: VerbHint,
+    /// Whether any maneuver is engaged right now - explicit, so consumers
+    /// (the GOTO cue hides mid-maneuver) do not have to proxy it through
+    /// another verb's availability.
+    pub engaged: bool,
+}
+
+/// A short chip label for a keyboard binding: `KeyX` -> `X`,
+/// `Digit1` -> `1`, everything else (Space, Enter, ...) as spelled.
+fn keyboard_label(key: KeyCode) -> String {
+    let name = format!("{key:?}");
+    name.strip_prefix("Key")
+        .or_else(|| name.strip_prefix("Digit"))
+        .unwrap_or(&name)
+        .to_string()
+}
+
+/// Resolve the verb hints from the live world: availability from the same
+/// state the input observers AND the autopilot gate on (lock, dominant
+/// well, engagement, and a flyable ship - a live flight computer plus at
+/// least one live engine, else autopilot_system strips the maneuver on its
+/// next tick and a lit hint would be a lie), labels from the flight rig's
+/// actual `Bindings` so a future remap screen cannot desync the hints.
+#[expect(clippy::type_complexity, reason = "one query per private action type")]
+fn update_flight_verb_hints(
+    mut hints: ResMut<FlightVerbHints>,
+    lock: Res<SpaceshipPlayerTargetLock>,
+    q_ship: Query<(Entity, Option<&Autopilot>, Option<&DominantWell>), With<PlayerSpaceshipMarker>>,
+    q_computer: Query<
+        &ChildOf,
+        (
+            With<ControllerSectionMarker>,
+            With<PDController>,
+            Without<SectionInactiveMarker>,
+        ),
+    >,
+    q_thruster: Query<&ChildOf, (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>)>,
+    q_stop: Query<&Bindings, With<Action<AutopilotStopInput>>>,
+    q_goto: Query<&Bindings, With<Action<AutopilotGotoInput>>>,
+    q_orbit: Query<&Bindings, With<Action<AutopilotOrbitInput>>>,
+    q_off: Query<&Bindings, With<Action<AutopilotOffInput>>>,
+    q_binding: Query<&Binding>,
+) {
+    let label = |bindings: Option<&Bindings>| -> String {
+        bindings
+            .into_iter()
+            .flatten()
+            .find_map(|entity| match q_binding.get(entity) {
+                Ok(Binding::Keyboard { key, .. }) => Some(keyboard_label(*key)),
+                _ => None,
+            })
+            .unwrap_or_default()
+    };
+
+    // Exactly one player ship, same rule as the Single-based observers.
+    let (ship, autopilot, dominant) = match q_ship.single() {
+        Ok((entity, autopilot, dominant)) => (Some(entity), autopilot, dominant),
+        Err(_) => (None, None, None),
+    };
+    // The autopilot needs a live flight computer and at least one live
+    // engine or it disengages on its next tick; a hint below that bar
+    // would light a key that visibly does nothing.
+    let flyable = ship.is_some_and(|ship| {
+        q_computer.iter().any(|&ChildOf(parent)| parent == ship)
+            && q_thruster.iter().any(|&ChildOf(parent)| parent == ship)
+    });
+    let engaged = autopilot.is_some();
+    let orbiting = matches!(
+        autopilot.map(|ap| ap.action),
+        Some(AutopilotAction::Orbit { .. })
+    );
+
+    let next = FlightVerbHints {
+        stop: VerbHint {
+            key: label(q_stop.single().ok()),
+            available: flyable,
+            anchor: None,
+        },
+        goto: VerbHint {
+            key: label(q_goto.single().ok()),
+            available: flyable && lock.is_some(),
+            anchor: **lock,
+        },
+        orbit: VerbHint {
+            key: label(q_orbit.single().ok()),
+            available: flyable && dominant.is_some() && !orbiting,
+            anchor: dominant.map(|well| **well),
+        },
+        cancel: VerbHint {
+            key: label(q_off.single().ok()),
+            // Z always answers while engaged, even on a crippled ship.
+            available: engaged,
+            anchor: None,
+        },
+        engaged,
+    };
+    // set_if_neq semantics by hand: only dirty the resource on real change.
+    if *hints != next {
+        *hints = next;
     }
 }
 
@@ -846,6 +977,122 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
+
+    /// A world with the flight rig's four autopilot actions bound as in
+    /// the real rig, plus the resources the resolver reads.
+    fn hint_world() -> World {
+        let mut world = World::new();
+        world.init_resource::<FlightVerbHints>();
+        world.insert_resource(SpaceshipPlayerTargetLock(None));
+        world.spawn((
+            Action::<AutopilotStopInput>::new(),
+            bindings![KeyCode::KeyX, GamepadButton::East],
+        ));
+        world.spawn((
+            Action::<AutopilotGotoInput>::new(),
+            bindings![KeyCode::KeyG, GamepadButton::North],
+        ));
+        world.spawn((
+            Action::<AutopilotOrbitInput>::new(),
+            bindings![KeyCode::KeyO, GamepadButton::DPadDown],
+        ));
+        world.spawn((
+            Action::<AutopilotOffInput>::new(),
+            bindings![KeyCode::KeyZ, GamepadButton::West],
+        ));
+        world
+    }
+
+    /// A flyable player ship: live controller (with PD) + live thruster.
+    fn spawn_flyable_ship(world: &mut World) -> (Entity, Entity) {
+        let ship = world.spawn(PlayerSpaceshipMarker).id();
+        let controller = world
+            .spawn((
+                ChildOf(ship),
+                ControllerSectionMarker,
+                PDController {
+                    frequency: 4.0,
+                    damping_ratio: 4.0,
+                    max_torque: 40.0,
+                },
+            ))
+            .id();
+        world.spawn((ChildOf(ship), ThrusterSectionMarker));
+        (ship, controller)
+    }
+
+    #[test]
+    fn verb_hints_derive_labels_from_the_live_bindings() {
+        let mut world = hint_world();
+        spawn_flyable_ship(&mut world);
+
+        world.run_system_once(update_flight_verb_hints).unwrap();
+
+        let hints = world.resource::<FlightVerbHints>();
+        // The keyboard binding wins even with a gamepad binding first in
+        // line; "Key" prefixes are stripped for chip-sized labels.
+        assert_eq!(hints.stop.key, "X");
+        assert_eq!(hints.goto.key, "G");
+        assert_eq!(hints.orbit.key, "O");
+        assert_eq!(hints.cancel.key, "Z");
+    }
+
+    #[test]
+    fn verb_hints_track_lock_well_and_engagement() {
+        let mut world = hint_world();
+        let (ship, controller) = spawn_flyable_ship(&mut world);
+
+        // Flyable ship in flat space: STOP only.
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert!(hints.stop.available);
+        assert!(!hints.goto.available && !hints.orbit.available && !hints.cancel.available);
+
+        // A lock offers GOTO and anchors it; a dominant well offers ORBIT.
+        let lock = world.spawn_empty().id();
+        let well = world.spawn_empty().id();
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(lock)));
+        world.entity_mut(ship).insert(DominantWell(well));
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert!(hints.goto.available);
+        assert_eq!(hints.goto.anchor, Some(lock));
+        assert!(hints.orbit.available);
+        assert_eq!(hints.orbit.anchor, Some(well));
+
+        // Orbiting retires the ORBIT offer and arms CANCEL.
+        world
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Orbit {
+                well,
+                plan: None,
+            }));
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert!(!hints.orbit.available, "already orbiting");
+        assert!(hints.cancel.available);
+        assert!(hints.engaged);
+
+        // A dead flight computer grounds every verb except CANCEL: the
+        // autopilot would strip the maneuver on its next tick, so a lit
+        // hint would be a lie (review R1.1).
+        world.entity_mut(controller).insert(SectionInactiveMarker);
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert!(!hints.stop.available, "no computer, no STOP");
+        assert!(!hints.goto.available && !hints.orbit.available);
+        assert!(hints.cancel.available, "Z still answers while engaged");
+        world
+            .entity_mut(controller)
+            .remove::<SectionInactiveMarker>();
+
+        // No player ship at all: nothing is available, labels remain.
+        world.entity_mut(ship).despawn();
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert!(!hints.stop.available && !hints.cancel.available);
+        assert_eq!(hints.stop.key, "X", "labels survive the ship");
+    }
 
     #[test]
     fn no_lock_does_not_despawn_untargeted_torpedo() {

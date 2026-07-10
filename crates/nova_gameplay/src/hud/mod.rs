@@ -4,6 +4,7 @@ use crate::prelude::*;
 
 pub mod component_lock;
 pub mod flight_status;
+pub mod keybind_hints;
 pub mod maneuver_instruments;
 pub mod screen_indicator;
 pub mod torpedo_target;
@@ -12,9 +13,10 @@ pub mod velocity;
 
 pub mod prelude {
     pub use super::{
-        component_lock::prelude::*, flight_status::prelude::*, maneuver_instruments::prelude::*,
-        screen_indicator::prelude::*, torpedo_target::prelude::*, turret_lead::prelude::*,
-        velocity::prelude::*, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
+        component_lock::prelude::*, flight_status::prelude::*, keybind_hints::prelude::*,
+        maneuver_instruments::prelude::*, screen_indicator::prelude::*, torpedo_target::prelude::*,
+        turret_lead::prelude::*, velocity::prelude::*, NovaHudAssets, NovaHudPlugin,
+        NovaHudSystems,
     };
 }
 
@@ -43,6 +45,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(velocity::VelocityHudPlugin);
         app.add_plugins(flight_status::FlightStatusHudPlugin);
         app.add_plugins(maneuver_instruments::ManeuverInstrumentsPlugin);
+        app.add_plugins(keybind_hints::KeybindHintsPlugin);
         // The health and objectives HUDs are now the generic bevy_common_systems widgets.
         app.add_plugins(HealthDisplayPlugin);
         app.add_plugins(ObjectivesPlugin);
@@ -151,6 +154,7 @@ fn setup_hud_flight_status(
     add: On<Add, PlayerSpaceshipMarker>,
     mut commands: Commands,
     q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    q_existing_cluster: Query<(), With<KeybindHintClusterMarker>>,
     assets: Res<NovaHudAssets>,
 ) {
     let entity = add.entity;
@@ -170,12 +174,15 @@ fn setup_hud_flight_status(
     commands.spawn((autopilot_destination_hud(
         AutopilotDestinationHudConfig::new(spaceship, assets.target_sprite.clone()),
     ),));
-    commands.spawn((orbit_available_hud(OrbitAvailableHudConfig {
-        ship: spaceship,
-    }),));
     commands.spawn((maneuver_instruments_hud(ManeuverInstrumentsHudConfig {
         ship: spaceship,
     }),));
+    // The cluster and cues are global singletons, not ship-targeted
+    // widgets: one player, one set (same guard as the flight input rig).
+    if q_existing_cluster.is_empty() {
+        commands.spawn((keybind_hint_cluster_hud(),));
+        commands.spawn((verb_cues_hud(),));
+    }
 }
 
 fn remove_hud_flight_status(
@@ -183,7 +190,8 @@ fn remove_hud_flight_status(
     mut commands: Commands,
     q_hud: Query<(Entity, &FlightStatusHudTargetEntity), With<FlightStatusHudMarker>>,
     q_destination: Query<Entity, With<AutopilotDestinationHudMarker>>,
-    q_orbit_cue: Query<Entity, With<OrbitAvailableHudMarker>>,
+    q_cluster: Query<Entity, With<KeybindHintClusterMarker>>,
+    q_cues: Query<Entity, With<VerbCuesHudMarker>>,
     q_instruments: Query<Entity, With<ManeuverInstrumentsHudMarker>>,
     q_ring: Query<Entity, With<OrbitRingMarker>>,
 ) {
@@ -198,7 +206,10 @@ fn remove_hud_flight_status(
     for hud_entity in &q_destination {
         commands.entity(hud_entity).despawn();
     }
-    for hud_entity in &q_orbit_cue {
+    for hud_entity in &q_cluster {
+        commands.entity(hud_entity).despawn();
+    }
+    for hud_entity in &q_cues {
         commands.entity(hud_entity).despawn();
     }
     for hud_entity in &q_instruments {
