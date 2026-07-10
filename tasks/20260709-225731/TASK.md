@@ -1,9 +1,8 @@
 # AI evasion under fire: threat model + jink maneuvers
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 68
-- TAGS: v0.4.0,ai,spike,handling
-
+- TAGS: v0.4.0, ai, spike, handling
 
 Spike: docs/spikes/20260709-225508-ai-combat-behaviors.md (wave 3)
 
