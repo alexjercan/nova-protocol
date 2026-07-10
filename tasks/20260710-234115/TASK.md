@@ -23,3 +23,6 @@ user's "chip + shader tint" questionnaire choice.
   the richer option - decide at /plan time.
 - Depends on nothing, but lands best after 20260710-231926 so the mode
   chip and the tint ship as one language.
+- Piggyback playtest (retro 20260710-231926): the new chip offsets (120px
+  right of the ship, mode row stacked above) and the spoke thickness were
+  set headless; give them a by-eye check while tuning the tint.
