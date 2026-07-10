@@ -10,8 +10,7 @@
 //! - **Flip marker**: a `FLIP <n>s` chip projected on the flight path
 //!   where the arrival rule says the flip-and-burn starts.
 //! - **ORBIT holo ring**: a world-space torus at the engaged orbit plan's
-//!   ring (velocity-sphere visual family) plus a `r | v_circ` chip on the
-//!   ring point nearest the ship.
+//!   ring (velocity-sphere visual family).
 //! - **Radius spoke** (task 20260710-231926, spike
 //!   docs/spikes/20260710-234019-diegetic-flight-status.md): while ORBIT
 //!   is engaged, a thin holo line from the well center to the ship with
@@ -26,11 +25,7 @@ use super::{
     screen_indicator::prelude::*,
     NAV_CYAN,
 };
-use crate::{
-    flight::{orbit_ring_point, prelude::*},
-    gravity::prelude::*,
-    input::prelude::*,
-};
+use crate::{flight::prelude::*, gravity::prelude::*, input::prelude::*};
 
 pub mod prelude {
     pub use super::{
@@ -68,10 +63,6 @@ struct DestinationReadoutUIMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 struct FlipMarkerUIMarker;
 
-/// Marker for the orbit-ring chip.
-#[derive(Component, Debug, Clone, Reflect)]
-struct OrbitChipUIMarker;
-
 /// Marker for the radius-spoke chip.
 #[derive(Component, Debug, Clone, Reflect)]
 struct RadiusSpokeChipUIMarker;
@@ -99,7 +90,7 @@ pub struct ManeuverInstrumentsHudConfig {
     pub ship: Entity,
 }
 
-/// UI bundle: one indicator layer with the four chips. The holo ring and
+/// UI bundle: one indicator layer with the three chips. The holo ring and
 /// the radius spoke are not part of this layer - they are world-space
 /// entities owned by [`sync_orbit_ring`] and [`sync_radius_spoke`].
 pub fn maneuver_instruments_hud(config: ManeuverInstrumentsHudConfig) -> impl Bundle {
@@ -141,14 +132,6 @@ pub fn maneuver_instruments_hud(config: ManeuverInstrumentsHudConfig) -> impl Bu
                 TextColor(NAV_CYAN),
             ),
             (
-                Name::new("OrbitChipUI"),
-                OrbitChipUIMarker,
-                chip(CHIP_SIZE, Vec2::ZERO),
-                Text::new(""),
-                TextFont::from_font_size(12.0),
-                TextColor(NAV_CYAN),
-            ),
-            (
                 Name::new("RadiusSpokeChipUI"),
                 RadiusSpokeChipUIMarker,
                 chip(CHIP_SIZE, Vec2::ZERO),
@@ -180,7 +163,6 @@ impl Plugin for ManeuverInstrumentsPlugin {
                 (
                     drive_destination_readout,
                     drive_flip_marker,
-                    drive_orbit_chip,
                     drive_radius_spoke_chip,
                 )
                     .before(ScreenIndicatorSystems),
@@ -255,49 +237,6 @@ fn drive_flip_marker(
             Some((point, seconds)) => {
                 **anchor = Some(ScreenIndicatorAnchorKind::Point(point));
                 **text = format!("FLIP {seconds:3.0}s");
-            }
-            None => {
-                **anchor = None;
-                text.clear();
-            }
-        }
-    }
-}
-
-/// `r <radius> | <v_circ> u/s` on the planned ring's point nearest the
-/// ship, while an ORBIT plan is engaged and its well still exists.
-fn drive_orbit_chip(
-    q_hud: Query<&ManeuverInstrumentsShipEntity, With<ManeuverInstrumentsHudMarker>>,
-    mut q_ui: Query<(&mut ScreenIndicatorAnchor, &mut Text, &ChildOf), With<OrbitChipUIMarker>>,
-    q_ship: Query<(&Position, &Autopilot)>,
-    q_well: Query<(&Position, &GravityWell)>,
-) {
-    for (mut anchor, mut text, &ChildOf(parent)) in &mut q_ui {
-        let Ok(ship) = q_hud.get(parent) else {
-            continue;
-        };
-
-        let ring = q_ship.get(**ship).ok().and_then(|(position, autopilot)| {
-            let AutopilotAction::Orbit {
-                well,
-                plan: Some(plan),
-            } = autopilot.action
-            else {
-                return None;
-            };
-            let (well_position, well_data) = q_well.get(well).ok()?;
-            let point = **well_position + orbit_ring_point(**position - **well_position, &plan);
-            Some((
-                point,
-                plan.radius,
-                circular_orbit_speed(well_data.mu, plan.radius),
-            ))
-        });
-
-        match ring {
-            Some((point, radius, v_circ)) => {
-                **anchor = Some(ScreenIndicatorAnchorKind::Point(point));
-                **text = format!("r {radius:3.0} | {v_circ:3.1} u/s");
             }
             None => {
                 **anchor = None;
@@ -474,14 +413,14 @@ mod tests {
     use super::*;
     use crate::sections::prelude::*;
 
-    fn spawn_instruments(world: &mut World, ship: Entity) -> (Entity, Entity, Entity, Entity) {
+    fn spawn_instruments(world: &mut World, ship: Entity) -> (Entity, Entity, Entity) {
         let layer = world
             .spawn(maneuver_instruments_hud(ManeuverInstrumentsHudConfig {
                 ship,
             }))
             .id();
         let children = world.entity(layer).get::<Children>().unwrap();
-        (children[0], children[1], children[2], children[3])
+        (children[0], children[1], children[2])
     }
 
     fn anchor_of(world: &World, entity: Entity) -> Option<ScreenIndicatorAnchorKind> {
@@ -507,7 +446,7 @@ mod tests {
                 eta: Some(18.0),
             })
             .id();
-        let (readout, flip, _, _) = spawn_instruments(&mut world, ship);
+        let (readout, flip, _) = spawn_instruments(&mut world, ship);
 
         world.run_system_once(drive_destination_readout).unwrap();
         world.run_system_once(drive_flip_marker).unwrap();
@@ -551,7 +490,7 @@ mod tests {
                 eta: Some(16.0),
             })
             .id();
-        let (readout, flip, _, _) = spawn_instruments(&mut world, ship);
+        let (readout, flip, _) = spawn_instruments(&mut world, ship);
 
         world.run_system_once(drive_destination_readout).unwrap();
         world.run_system_once(drive_flip_marker).unwrap();
@@ -561,7 +500,7 @@ mod tests {
     }
 
     #[test]
-    fn orbit_ring_and_chip_live_and_die_with_the_plan() {
+    fn orbit_ring_lives_and_dies_with_the_plan() {
         let mut world = World::new();
         world.init_resource::<Assets<Mesh>>();
         world.init_resource::<Assets<StandardMaterial>>();
@@ -589,10 +528,7 @@ mod tests {
                 }),
             ))
             .id();
-        let (_, _, chip, _) = spawn_instruments(&mut world, ship);
-
         world.run_system_once(sync_orbit_ring).unwrap();
-        world.run_system_once(drive_orbit_chip).unwrap();
 
         let (ring_entity, marker, transform) = world
             .query::<(Entity, &OrbitRingMarker, &Transform)>()
@@ -605,7 +541,6 @@ mod tests {
             (up - Vec3::Z).length() < 1e-5,
             "ring plane matches the plan"
         );
-        assert!(text_of(&world, chip).starts_with("r  50 | 4.9"));
 
         // Replanning (re-engage picked a different ring) rebuilds the holo.
         world
@@ -631,15 +566,13 @@ mod tests {
             .expect("one rebuilt ring");
         assert_eq!(marker.radius, 80.0);
 
-        // Breakout: the maneuver ends, the holo and the chip go with it.
+        // Breakout: the maneuver ends, the holo goes with it.
         world.entity_mut(ship).remove::<Autopilot>();
         world.run_system_once(sync_orbit_ring).unwrap();
-        world.run_system_once(drive_orbit_chip).unwrap();
         assert!(
             !world.entities().contains(ring_entity),
             "the ring dies with the maneuver"
         );
-        assert_eq!(anchor_of(&world, chip), None);
     }
 
     #[test]
@@ -666,7 +599,7 @@ mod tests {
                 Autopilot::engage(AutopilotAction::Orbit { well, plan: None }),
             ))
             .id();
-        let (_, _, _, chip) = spawn_instruments(&mut world, ship);
+        let (_, _, chip) = spawn_instruments(&mut world, ship);
 
         world.run_system_once(sync_radius_spoke).unwrap();
         world.run_system_once(drive_radius_spoke_chip).unwrap();

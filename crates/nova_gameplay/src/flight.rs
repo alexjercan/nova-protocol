@@ -690,12 +690,6 @@ pub(crate) fn orbit_ring_offset(r_vec: Vec3, plan: &OrbitPlan) -> Vec3 {
     orbit_ring_radial(r_vec, plan) * plan.radius - r_vec
 }
 
-/// The planned ring's point nearest the ship, as an offset from the well
-/// center - where the HUD anchors the orbit chip.
-pub(crate) fn orbit_ring_point(r_vec: Vec3, plan: &OrbitPlan) -> Vec3 {
-    orbit_ring_radial(r_vec, plan) * plan.radius
-}
-
 /// Rotate `current` toward `target` by at most `max_step` radians. The PD's
 /// torque clamp caps the SUM of its P and D terms, so feeding it a distant
 /// setpoint (a 180 flip) drives it deep into saturation where the damping

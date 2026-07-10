@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- @alexjercan the bottom-left flight status text is replaced by diegetic readouts: a speed chip and an engaged-mode chip (verb + phase) anchored to the ship beside the velocity sphere, and an ORBIT radius spoke holo (well-to-ship line with the current radius riding it); the GRAV coasting cue is retired in favor of the gravity sphere and the keybind hint cluster re-docks to the freed corner
+- @alexjercan the bottom-left flight status text is replaced by diegetic readouts: a speed chip and an engaged-mode chip (verb + phase) anchored to the ship beside the velocity sphere, and an ORBIT radius spoke holo (well-to-ship line with the current radius riding it); the GRAV coasting cue is retired in favor of the gravity sphere and the keybind hint cluster re-docks to the freed corner; the ring's planned `r | v_circ` chip is retired as redundant with the new readouts
 
 ## [0.4.1] - 2026-07-10
 
