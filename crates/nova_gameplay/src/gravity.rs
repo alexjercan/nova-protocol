@@ -116,8 +116,12 @@ pub struct GravitySettings {
     /// the 1-3u field rocks stay flat space. A scenario can still author a
     /// well onto a small body explicitly.
     pub min_well_radius: f32,
-    /// SOI radius as a multiple of the body radius. 4.0 puts a 20u rock's
-    /// SOI at 80u - room for the whole fun orbit band (30-80u) inside it.
+    /// SOI radius as a multiple of the body radius. 8.0 puts a 20u rock's
+    /// SOI at 160u: the fun orbit band (30-80u) sits deep in the unfaded
+    /// core, and the well announces itself with a gentle inverse-square tug
+    /// long before the rock fills the screen. Retuned from 4.0 after the
+    /// 2026-07-10 playtest ("had to be almost near it to experience the
+    /// pull").
     pub soi_factor: f32,
     /// Fraction of the SOI (outermost band) over which the pull smoothsteps
     /// to zero, so there is no force discontinuity at the boundary for the
@@ -148,7 +152,7 @@ impl Default for GravitySettings {
         Self {
             default_surface_gravity: 3.0,
             min_well_radius: 5.0,
-            soi_factor: 4.0,
+            soi_factor: 8.0,
             fade_fraction: 0.15,
             surface_margin: 1.0,
             switch_hysteresis: 1.1,
@@ -428,7 +432,7 @@ mod tests {
         let well = GravityWell::from_surface_gravity(3.0, 20.0, &settings);
         assert_eq!(well.mu, 1200.0);
         assert_eq!(well.body_radius, 20.0);
-        assert_eq!(well.soi_radius, 80.0);
+        assert_eq!(well.soi_radius, settings.soi_factor * 20.0);
 
         // Authored strength beyond the guardrail is capped, not honored.
         let capped = GravityWell::from_surface_gravity(50.0, 20.0, &settings);
@@ -611,8 +615,9 @@ mod tests {
     fn outside_the_soi_there_is_no_force_at_all() {
         let mut app = gravity_app();
         spawn_well(&mut app, Vec3::ZERO);
-        // SOI ends at 80; park at 100 with zero velocity.
-        let probe = spawn_probe(&mut app, Vec3::new(100.0, 0.0, 0.0), Vec3::ZERO);
+        // SOI ends at 160 (soi_factor 8 x 20u body); park at 250 with zero
+        // velocity.
+        let probe = spawn_probe(&mut app, Vec3::new(250.0, 0.0, 0.0), Vec3::ZERO);
         settle(&mut app);
 
         for _ in 0..120 {
@@ -677,7 +682,8 @@ mod tests {
     #[test]
     fn overlapping_sois_hand_off_with_hysteresis_not_flicker() {
         let mut app = gravity_app();
-        // Two equal wells 120u apart: SOIs [0, 80] and [40, 120] overlap.
+        // Two equal wells 120u apart: with SOI 160 each, their spheres
+        // overlap across the whole segment between them.
         let a = spawn_well(&mut app, Vec3::ZERO);
         let b = spawn_well(&mut app, Vec3::new(120.0, 0.0, 0.0));
         // At x = 55 A's pull (r 55) clearly beats B's (r 65): A owns.

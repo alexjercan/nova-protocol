@@ -51,7 +51,7 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
 
     // One large designated body clear of the combat field (+X, past the
     // scatter cube), so the gravity well is playtestable: 20u rock at the
-    // spike's sanity strength (3 u/s^2 surface, SOI 80u, v_circ ~ 4.9 u/s
+    // spike's sanity strength (3 u/s^2 surface, SOI 160u, v_circ ~ 4.9 u/s
     // at r = 50u). The field rocks above stay well-free via the radius
     // threshold in GravitySettings.
     objects.push(ScenarioObjectConfig {

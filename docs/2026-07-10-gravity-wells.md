@@ -30,7 +30,8 @@ Scenario side, asteroids designate themselves: an observer on
 `AsteroidConfig::surface_gravity: Option<f32>` is the per-body override
 (always a well when Some, capped). The asteroid_field scenario gained a 20u
 "Gravity Rock" at (250, 0, 0) - outside the combat scatter cube - at the
-spike's sanity strength (3 u/s^2, SOI 80u, v_circ ~ 4.9 u/s at r = 50u) so
+spike's sanity strength (3 u/s^2, SOI 160u after the reach retune, v_circ ~ 4.9
+u/s at r = 50u) so
 the well is playtestable today.
 
 ## Decisions and deviations
