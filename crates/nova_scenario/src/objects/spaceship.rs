@@ -25,8 +25,13 @@ pub struct PlayerControllerConfig {
     pub input_mapping: HashMap<SectionId, Vec<Binding>>,
 }
 
-#[derive(Clone, Debug, Reflect)]
-pub struct AIControllerConfig {}
+#[derive(Clone, Debug, Default, Reflect)]
+pub struct AIControllerConfig {
+    /// Waypoint loop the ship patrols while nothing hostile is in detection
+    /// range (world coordinates). Empty = no patrol assignment: the ship
+    /// station-keeps instead.
+    pub patrol: Vec<Vec3>,
+}
 
 pub type SectionId = String;
 
@@ -151,8 +156,13 @@ fn insert_spaceship_sections(
         SpaceshipController::Player(_) => {
             commands.entity(entity).insert(PlayerSpaceshipMarker);
         }
-        SpaceshipController::AI(_) => {
+        SpaceshipController::AI(config) => {
             commands.entity(entity).insert(AISpaceshipMarker);
+            if !config.patrol.is_empty() {
+                commands
+                    .entity(entity)
+                    .insert(AIPatrolRoute::new(config.patrol.clone()));
+            }
         }
     }
 }

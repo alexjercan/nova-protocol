@@ -103,6 +103,15 @@ pub enum AutopilotAction {
         /// The destination entity (the aim-assist lock at engage time).
         target: Entity,
     },
+    /// Fly to a fixed world position and come to rest at
+    /// [`FlightSettings::arrival_standoff`] from it - the same arrival rule
+    /// as `Goto`, just without an entity to track. The AI patrol loop flies
+    /// its waypoints with this (task 20260709-225730); the player input
+    /// layer never engages it.
+    GotoPos {
+        /// The destination, world coordinates.
+        position: Vec3,
+    },
 }
 
 /// Which part of the maneuver the ship is in, for the HUD readout.
@@ -585,10 +594,10 @@ pub(crate) fn flight_status_line(
             (AutopilotAction::Stop, _) => {
                 format!("AP STOP - {} | {speed:5.1} u/s", phase(ap.phase))
             }
-            (AutopilotAction::Goto { .. }, Some(d)) => {
+            (AutopilotAction::Goto { .. } | AutopilotAction::GotoPos { .. }, Some(d)) => {
                 format!("AP GOTO - {} | {speed:5.1} u/s | {d:5.0}m", phase(ap.phase))
             }
-            (AutopilotAction::Goto { .. }, None) => {
+            (AutopilotAction::Goto { .. } | AutopilotAction::GotoPos { .. }, None) => {
                 format!("AP GOTO - {} | {speed:5.1} u/s", phase(ap.phase))
             }
         },
@@ -710,15 +719,22 @@ fn autopilot_system(
         // with: its authority sets the deceleration, its rotation distance
         // sets the lead (a retro-equipped ship brakes late and flat; a
         // main-drive-only ship budgets its 180).
-        let desired = match autopilot.action {
-            AutopilotAction::Stop => Vec3::ZERO,
+        let goal_position = match autopilot.action {
+            AutopilotAction::Stop => None,
             AutopilotAction::Goto { target } => {
                 let Ok(target_transform) = q_target.get(target) else {
                     debug!("autopilot_system: GOTO target {target:?} is gone, disengaging");
                     commands.entity(ship).remove::<Autopilot>();
                     continue;
                 };
-                let to_target = target_transform.translation() - position.0;
+                Some(target_transform.translation())
+            }
+            AutopilotAction::GotoPos { position } => Some(position),
+        };
+        let desired = match goal_position {
+            None => Vec3::ZERO,
+            Some(goal) => {
+                let to_target = goal - position.0;
                 if to_target.length() <= settings.arrival_standoff {
                     Vec3::ZERO
                 } else {
@@ -1674,6 +1690,41 @@ mod tests {
         let standoff = app.world().resource::<FlightSettings>().arrival_standoff;
         let pos = app.world().get::<Position>(ship).unwrap().0;
         let distance = (Vec3::new(0.0, 0.0, -300.0) - pos).length();
+        let speed = velocity_of(&app, ship).length();
+        assert!(
+            distance <= standoff + 6.0 && distance >= standoff - 45.0,
+            "should arrive near the {standoff}u standoff, got {distance}"
+        );
+        assert!(speed < 0.5, "should arrive at rest, got {speed}");
+    }
+
+    #[test]
+    fn goto_pos_arrives_at_standoff_and_disengages() {
+        // The position-goal twin of the entity GOTO (the AI patrol leg,
+        // task 20260709-225730): same arrival rule, no entity to track.
+        let mut app = flight_app();
+        let (ship, _, _) = spawn_ship(&mut app);
+        settle(&mut app);
+        let destination = Vec3::new(0.0, 0.0, -300.0);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::GotoPos {
+                position: destination,
+            }));
+
+        let mut released = false;
+        for _ in 0..4800 {
+            app.update();
+            if app.world().get::<Autopilot>(ship).is_none() {
+                released = true;
+                break;
+            }
+        }
+        assert!(released, "GotoPos must complete and disengage in budget");
+
+        let standoff = app.world().resource::<FlightSettings>().arrival_standoff;
+        let pos = app.world().get::<Position>(ship).unwrap().0;
+        let distance = (destination - pos).length();
         let speed = velocity_of(&app, ship).length();
         assert!(
             distance <= standoff + 6.0 && distance >= standoff - 45.0,

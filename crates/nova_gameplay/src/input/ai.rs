@@ -5,8 +5,8 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        AIBehaviorState, AIFireCadence, AIPointDefenseTarget, AISpaceshipMarker, AITarget,
-        SpaceshipAIInputPlugin,
+        AIBehaviorState, AIFireCadence, AIPatrolRoute, AIPointDefenseTarget, AISpaceshipMarker,
+        AITarget, SpaceshipAIInputPlugin,
     };
 }
 
@@ -20,6 +20,7 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.register_type::<AITarget>();
         app.register_type::<AIFireCadence>();
         app.register_type::<AIPointDefenseTarget>();
+        app.register_type::<AIPatrolRoute>();
 
         app.add_systems(
             Update,
@@ -27,6 +28,7 @@ impl Plugin for SpaceshipAIInputPlugin {
                 update_ai_target,
                 update_point_defense_target,
                 update_behavior_state,
+                update_passive_flight,
                 update_fire_cadence,
                 update_controller_target_rotation_torque,
                 on_thruster_input,
@@ -264,18 +266,18 @@ fn update_point_defense_target(
 /// ship root, driven by [`update_behavior_state`]; every AI system gates its
 /// behavior on it.
 ///
-/// Only `Engage` and `Idle` have real behavior today. The others exist so
-/// their tasks slot into a stable enum instead of reshaping it:
-/// - `Patrol`: waypoint flight, task 20260709-225730 (behaves as `Idle`).
+/// `Engage`, `Patrol` and `Idle` have real behavior today. The others exist
+/// so their tasks slot into a stable enum instead of reshaping it:
 /// - `Evade`: under-fire jinking, task 20260709-225731 (stubs to `Engage`).
 /// - `Retreat`: low-integrity disengage, task 20260709-225734 (stubs to
 ///   `Engage`).
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 pub enum AIBehaviorState {
-    /// Station-keeping: no thrust, no fire, frozen helm.
+    /// Station-keeping: kill drift, hold position loosely, no fire.
     Idle,
-    /// Waypoint flight (20260709-225730); behaves as `Idle` until then.
+    /// Fly the ship's [`AIPatrolRoute`] waypoint loop through the GOTO
+    /// autopilot (20260709-225730); no fire.
     Patrol,
     /// Chase and shoot the hostile - today's whole AI, and the default so
     /// an AI ship dropped into a fight behaves exactly as before the state
@@ -298,19 +300,84 @@ impl AIBehaviorState {
     }
 }
 
-/// The skeleton's one real transition: combat states need a hostile to
-/// fight - with none in the world every state falls back to `Idle`, and a
-/// hostile appearing pulls the passive states into `Engage`. Detection
-/// RANGE (engage only when close enough) is the patrol task's scope
-/// (20260709-225730); presence-based engagement matches today's
-/// always-chase behavior. Pure for unit testing.
-fn next_behavior_state(current: AIBehaviorState, hostile_present: bool) -> AIBehaviorState {
-    if !hostile_present {
-        return AIBehaviorState::Idle;
+/// The waypoint loop an AI ship flies while nothing hostile is close enough
+/// to fight. Present = the ship has a patrol assignment: the no-hostile
+/// fallback state becomes `Patrol` instead of `Idle`
+/// ([`next_behavior_state`]). Spawn-configured (scenario/editor); flown by
+/// [`update_passive_flight`] through the real GOTO autopilot, leg by leg.
+#[derive(Component, Debug, Clone, PartialEq, Reflect)]
+#[reflect(Component)]
+pub struct AIPatrolRoute {
+    /// The loop's waypoints, world coordinates. Legs shorter than the
+    /// arrival radius (arrival_standoff + [`AI_WAYPOINT_SLACK`]) are all
+    /// "arrived" at once and collapse into station keeping at the cluster.
+    pub waypoints: Vec<Vec3>,
+    /// Index of the waypoint currently being flown to. Out-of-range values
+    /// (both fields are inspector-editable) self-heal by wrapping.
+    pub current: usize,
+}
+
+impl AIPatrolRoute {
+    /// A route starting at its first waypoint.
+    pub fn new(waypoints: Vec<Vec3>) -> Self {
+        Self {
+            waypoints,
+            current: 0,
+        }
     }
+
+    /// `current` wrapped into range; `None` for an empty route. An edited
+    /// route (waypoints shrunk below `current`) must strand the patrol
+    /// never, so out-of-range indices wrap instead of failing the lookup.
+    fn wrapped_current(&self) -> Option<usize> {
+        (!self.waypoints.is_empty()).then(|| self.current % self.waypoints.len())
+    }
+
+    /// The waypoint currently being flown to; `None` for an empty route.
+    fn current_waypoint(&self) -> Option<Vec3> {
+        Some(self.waypoints[self.wrapped_current()?])
+    }
+
+    /// Turn onto the next leg, wrapping - the route is a loop. Also snaps
+    /// an out-of-range `current` back into range.
+    fn advance(&mut self) {
+        if let Some(current) = self.wrapped_current() {
+            self.current = (current + 1) % self.waypoints.len();
+        }
+    }
+}
+
+/// Hostile-detection range (m): a passive ship (Idle/Patrol) leaves its
+/// routine and engages only when the acquired target is inside this range.
+/// Acquisition itself scans out to [`AI_TARGET_MAX_RANGE`], so a patrolling
+/// ship knows what is out there without aborting the patrol for it; combat
+/// states keep holding on any acquired target, as before.
+const AI_ENGAGE_RANGE: f32 = 800.0;
+
+/// The skeleton's transitions: combat states need a hostile to fight - with
+/// none acquired every state falls back to its passive routine (`Patrol`
+/// with a route, `Idle` without) - and a hostile inside [`AI_ENGAGE_RANGE`]
+/// pulls the passive states into `Engage`. One merely acquired further out
+/// does not abort the routine (detection range, task 20260709-225730). Pure
+/// for unit testing.
+fn next_behavior_state(
+    current: AIBehaviorState,
+    hostile_distance: Option<f32>,
+    has_route: bool,
+) -> AIBehaviorState {
+    let passive = if has_route {
+        AIBehaviorState::Patrol
+    } else {
+        AIBehaviorState::Idle
+    };
+    let Some(distance) = hostile_distance else {
+        return passive;
+    };
     match current {
-        // A hostile appeared: the passive states pick the fight up.
-        AIBehaviorState::Idle | AIBehaviorState::Patrol => AIBehaviorState::Engage,
+        AIBehaviorState::Idle | AIBehaviorState::Patrol if distance <= AI_ENGAGE_RANGE => {
+            AIBehaviorState::Engage
+        }
+        AIBehaviorState::Idle | AIBehaviorState::Patrol => passive,
         // Combat states hold; their exit triggers are their tasks' scope.
         state => state,
     }
@@ -320,13 +387,122 @@ fn next_behavior_state(current: AIBehaviorState, hostile_present: bool) -> AIBeh
 /// after acquisition and before the behavior systems in the same frame so a
 /// transition takes effect immediately (no one-frame stale-state window).
 fn update_behavior_state(
-    mut q_spaceship: Query<(&mut AIBehaviorState, &AITarget), With<AISpaceshipMarker>>,
+    mut q_spaceship: Query<
+        (
+            &Transform,
+            Option<&ComputedCenterOfMass>,
+            &mut AIBehaviorState,
+            &AITarget,
+            Has<AIPatrolRoute>,
+        ),
+        With<AISpaceshipMarker>,
+    >,
+    q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {
-    for (mut state, target) in &mut q_spaceship {
-        let next = next_behavior_state(*state, target.is_some());
+    for (transform, com, mut state, target, has_route) in &mut q_spaceship {
+        // The detection distance runs anchor to anchor - the same
+        // live-structure vector the behavior systems fly and shoot along.
+        let hostile_distance = ai_target_anchor(**target, &q_target)
+            .map(|anchor| anchor.distance(live_structure_anchor(transform, com)));
+        let next = next_behavior_state(*state, hostile_distance, has_route);
         // Change-detection hygiene: only write on a real transition.
         if *state != next {
             *state = next;
+        }
+    }
+}
+
+/// Arrival slack (m) on top of the autopilot's arrival standoff for calling
+/// a patrol waypoint reached and turning onto the next leg. Turning early,
+/// while the arrival curve is still braking, keeps the loop flowing instead
+/// of stop-and-go at every corner.
+const AI_WAYPOINT_SLACK: f32 = 25.0;
+/// Drift speed (u/s) above which a station-keeping ship burns to rest.
+/// Holding position "loosely" means arresting drift, not chasing crumbs:
+/// kept well above the autopilot's stop_speed_epsilon so a completed STOP
+/// actually satisfies it and the helm rests between corrections.
+const AI_IDLE_DRIFT_SPEED: f32 = 1.0;
+
+/// Fly the passive states through the real autopilot (flight.rs) instead of
+/// a parallel steering path: `Patrol` keeps a GOTO engaged toward the
+/// current [`AIPatrolRoute`] waypoint and turns onto the next leg on
+/// arrival; `Idle` engages a STOP burn while drifting faster than
+/// [`AI_IDLE_DRIFT_SPEED`] (station keeping - the drift is arrested, not
+/// rewound). The engaging states drop the autopilot: the AI's own actuator
+/// systems own the helm and engines in combat, and a leftover passive
+/// maneuver would fight them. Runs right after the state transition so a
+/// flip takes effect the same frame.
+///
+/// Idle lets an already-engaged maneuver finish before taking over, so a
+/// ship whose route is removed mid-leg (not a supported flow today) flies
+/// out its stale GOTO once before settling into station keeping.
+fn update_passive_flight(
+    settings: Res<FlightSettings>,
+    mut commands: Commands,
+    mut q_spaceship: Query<
+        (
+            Entity,
+            &Transform,
+            &LinearVelocity,
+            &AIBehaviorState,
+            Option<&mut AIPatrolRoute>,
+            Has<Autopilot>,
+        ),
+        (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
+    >,
+) {
+    for (ship, transform, velocity, state, route, has_autopilot) in &mut q_spaceship {
+        match *state {
+            AIBehaviorState::Patrol => {
+                // Patrol without a route cannot happen through the
+                // transition function (the fallback picks Patrol only with
+                // one), but a hand-set state should idle, not panic.
+                let Some(mut route) = route else {
+                    continue;
+                };
+                let Some(waypoint) = route.current_waypoint() else {
+                    continue;
+                };
+                // Arrived: turn onto the next leg. The check runs on the
+                // ship's position, not on autopilot completion, so a ship
+                // shoved onto its waypoint (or re-entering Patrol on top of
+                // one) advances too.
+                let arrive_radius = settings.arrival_standoff + AI_WAYPOINT_SLACK;
+                if transform.translation.distance(waypoint) <= arrive_radius {
+                    route.advance();
+                }
+                let Some(goal) = route.current_waypoint() else {
+                    continue;
+                };
+                // On station (a single-waypoint route, parked at it with the
+                // drift killed) there is nothing left to fly; re-engaging
+                // would churn engage/complete every frame.
+                let on_station = transform.translation.distance(goal) <= arrive_radius
+                    && velocity.length() <= AI_IDLE_DRIFT_SPEED;
+                // (Re)engage when the leg changed or nothing is engaged; a
+                // maneuver already flying the current leg is left alone.
+                let leg_changed = goal != waypoint;
+                if (leg_changed || !has_autopilot) && !on_station {
+                    commands
+                        .entity(ship)
+                        .insert(Autopilot::engage(AutopilotAction::GotoPos {
+                            position: goal,
+                        }));
+                }
+            }
+            AIBehaviorState::Idle => {
+                if !has_autopilot && velocity.length() > AI_IDLE_DRIFT_SPEED {
+                    commands
+                        .entity(ship)
+                        .insert(Autopilot::engage(AutopilotAction::Stop));
+                }
+            }
+            // Combat: the AI actuator systems own the ship.
+            _ => {
+                if has_autopilot {
+                    commands.entity(ship).remove::<Autopilot>();
+                }
+            }
         }
     }
 }
@@ -524,12 +700,19 @@ fn on_thruster_input(
             Option<&ComputedCenterOfMass>,
             &AIBehaviorState,
             &AITarget,
+            Has<Autopilot>,
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {
-    for (entity, transform, velocity, com, state, target) in &q_spaceship {
+    for (entity, transform, velocity, com, state, target, has_autopilot) in &q_spaceship {
+        // While a passive-state maneuver is engaged the flight computer
+        // owns the engines: writing here - even an explicit 0.0 - would
+        // fight the autopilot's spooled inputs every frame.
+        if has_autopilot {
+            continue;
+        }
         // A non-engaging state (or no target left to chase) cuts the burn -
         // written as an explicit 0.0, not a skip, so a ship that was
         // thrusting when the state flipped actually stops.
@@ -749,17 +932,42 @@ mod behavior_state_tests {
     fn transitions_need_a_hostile_to_fight() {
         use AIBehaviorState::*;
 
-        // No hostile: every state falls back to Idle.
+        // No hostile: every state falls back to the passive routine - Idle
+        // without a patrol assignment, Patrol with one.
         for state in [Idle, Patrol, Engage, Evade, Retreat] {
-            assert_eq!(next_behavior_state(state, false), Idle, "from {state:?}");
+            assert_eq!(
+                next_behavior_state(state, None, false),
+                Idle,
+                "from {state:?}"
+            );
+            assert_eq!(
+                next_behavior_state(state, None, true),
+                Patrol,
+                "from {state:?}"
+            );
         }
-        // Hostile present: passive states engage, combat states hold (their
-        // exit triggers belong to their own tasks).
-        assert_eq!(next_behavior_state(Idle, true), Engage);
-        assert_eq!(next_behavior_state(Patrol, true), Engage);
-        assert_eq!(next_behavior_state(Engage, true), Engage);
-        assert_eq!(next_behavior_state(Evade, true), Evade);
-        assert_eq!(next_behavior_state(Retreat, true), Retreat);
+        // Hostile inside detection range: passive states engage, combat
+        // states hold (their exit triggers belong to their own tasks).
+        let near = Some(AI_ENGAGE_RANGE * 0.5);
+        assert_eq!(next_behavior_state(Idle, near, false), Engage);
+        assert_eq!(next_behavior_state(Patrol, near, true), Engage);
+        assert_eq!(next_behavior_state(Engage, near, false), Engage);
+        assert_eq!(next_behavior_state(Evade, near, false), Evade);
+        assert_eq!(next_behavior_state(Retreat, near, false), Retreat);
+    }
+
+    #[test]
+    fn a_hostile_beyond_detection_range_does_not_abort_the_routine() {
+        use AIBehaviorState::*;
+
+        // Acquired (inside the 2000 m scan) but outside the 800 m detection
+        // range: the passive states keep their routine...
+        let far = Some(AI_ENGAGE_RANGE * 1.5);
+        assert_eq!(next_behavior_state(Patrol, far, true), Patrol);
+        assert_eq!(next_behavior_state(Idle, far, false), Idle);
+        // ...while a combat state already on that target keeps fighting -
+        // the detection range gates entry, not pursuit.
+        assert_eq!(next_behavior_state(Engage, far, false), Engage);
     }
 
     #[test]
@@ -868,6 +1076,294 @@ mod behavior_state_tests {
         assert!(
             !**world.entity(turret).get::<TurretSectionInput>().unwrap(),
             "Idle holds fire"
+        );
+    }
+}
+
+#[cfg(test)]
+mod patrol_idle_tests {
+    use bevy::ecs::system::RunSystemOnce;
+
+    use super::*;
+
+    const W1: Vec3 = Vec3::new(0.0, 0.0, -400.0);
+    const W2: Vec3 = Vec3::new(400.0, 0.0, -400.0);
+
+    /// Run the acquisition -> transition -> passive-flight pipeline once.
+    fn run_pipeline(world: &mut World) {
+        world.run_system_once(update_ai_target).unwrap();
+        world.run_system_once(update_behavior_state).unwrap();
+        world.run_system_once(update_passive_flight).unwrap();
+    }
+
+    fn patrol_world() -> (World, Entity) {
+        let mut world = World::new();
+        world.init_resource::<FlightSettings>();
+        let ship = world
+            .spawn((
+                AISpaceshipMarker,
+                AIPatrolRoute::new(vec![W1, W2]),
+                Transform::default(),
+                LinearVelocity(Vec3::ZERO),
+            ))
+            .id();
+        (world, ship)
+    }
+
+    #[test]
+    fn a_patrol_ship_engages_a_goto_toward_its_waypoint() {
+        // No hostile in the world: the route makes the fallback Patrol, and
+        // Patrol flies the first leg through the real autopilot.
+        let (mut world, ship) = patrol_world();
+
+        run_pipeline(&mut world);
+
+        assert_eq!(
+            *world.entity(ship).get::<AIBehaviorState>().unwrap(),
+            AIBehaviorState::Patrol,
+            "a routed ship without a hostile patrols instead of idling"
+        );
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::GotoPos { position: W1 }),
+            "Patrol engages the GOTO autopilot toward the current waypoint"
+        );
+    }
+
+    #[test]
+    fn arrival_turns_onto_the_next_leg() {
+        let (mut world, ship) = patrol_world();
+        // Parked just short of W1, inside standoff + slack: arrived.
+        world
+            .entity_mut(ship)
+            .get_mut::<Transform>()
+            .unwrap()
+            .translation = W1 + Vec3::new(0.0, 0.0, 60.0);
+
+        run_pipeline(&mut world);
+
+        assert_eq!(
+            world.entity(ship).get::<AIPatrolRoute>().unwrap().current,
+            1,
+            "reaching a waypoint advances the loop"
+        );
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::GotoPos { position: W2 }),
+            "the new leg is engaged immediately"
+        );
+    }
+
+    #[test]
+    fn the_loop_wraps_back_to_the_first_waypoint() {
+        let (mut world, ship) = patrol_world();
+        world
+            .entity_mut(ship)
+            .get_mut::<AIPatrolRoute>()
+            .unwrap()
+            .current = 1;
+        world
+            .entity_mut(ship)
+            .get_mut::<Transform>()
+            .unwrap()
+            .translation = W2;
+
+        run_pipeline(&mut world);
+
+        assert_eq!(
+            world.entity(ship).get::<AIPatrolRoute>().unwrap().current,
+            0,
+            "the route is a loop, not a one-way trip"
+        );
+    }
+
+    #[test]
+    fn an_out_of_range_index_self_heals() {
+        // Both route fields are inspector-editable: shrinking the waypoint
+        // list below `current` must wrap, not strand the patrol (R1.1).
+        let (mut world, ship) = patrol_world();
+        world
+            .entity_mut(ship)
+            .get_mut::<AIPatrolRoute>()
+            .unwrap()
+            .current = 7; // 7 % 2 waypoints = W2
+
+        run_pipeline(&mut world);
+
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::GotoPos { position: W2 }),
+            "an out-of-range index wraps instead of stranding the route"
+        );
+    }
+
+    #[test]
+    fn a_mid_leg_maneuver_is_left_alone() {
+        // Re-running the pipeline mid-leg must not re-engage (churning the
+        // autopilot would reset its phase every frame).
+        let (mut world, ship) = patrol_world();
+
+        run_pipeline(&mut world);
+        let engaged = *world.entity(ship).get::<Autopilot>().unwrap();
+        run_pipeline(&mut world);
+
+        assert_eq!(
+            *world.entity(ship).get::<Autopilot>().unwrap(),
+            engaged,
+            "an autopilot already flying the current leg is untouched"
+        );
+    }
+
+    #[test]
+    fn a_single_waypoint_station_holds_without_churn() {
+        // Parked on a one-waypoint route with the drift killed: nothing to
+        // fly, so nothing is engaged (re-engaging would churn
+        // engage/complete every frame).
+        let mut world = World::new();
+        world.init_resource::<FlightSettings>();
+        let ship = world
+            .spawn((
+                AISpaceshipMarker,
+                AIPatrolRoute::new(vec![W1]),
+                Transform::from_translation(W1 + Vec3::new(0.0, 0.0, 60.0)),
+                LinearVelocity(Vec3::ZERO),
+            ))
+            .id();
+
+        run_pipeline(&mut world);
+
+        assert!(
+            world.entity(ship).get::<Autopilot>().is_none(),
+            "on station at rest: no maneuver to fly"
+        );
+    }
+
+    #[test]
+    fn an_idle_drifter_burns_to_rest_and_then_rests() {
+        // No route, no hostile: Idle. Drifting engages a STOP burn...
+        let mut world = World::new();
+        world.init_resource::<FlightSettings>();
+        let ship = world
+            .spawn((
+                AISpaceshipMarker,
+                Transform::default(),
+                LinearVelocity(Vec3::new(5.0, 0.0, 0.0)),
+            ))
+            .id();
+
+        run_pipeline(&mut world);
+
+        assert_eq!(
+            *world.entity(ship).get::<AIBehaviorState>().unwrap(),
+            AIBehaviorState::Idle
+        );
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::Stop),
+            "station keeping kills the drift through the real autopilot"
+        );
+
+        // ...while a ship already at rest is left alone (the autopilot
+        // disengaged itself; below the drift threshold nothing re-engages).
+        world.entity_mut(ship).remove::<Autopilot>();
+        **world.entity_mut(ship).get_mut::<LinearVelocity>().unwrap() = Vec3::new(0.1, 0.0, 0.0);
+        run_pipeline(&mut world);
+        assert!(
+            world.entity(ship).get::<Autopilot>().is_none(),
+            "sub-threshold drift is accepted, not chased"
+        );
+    }
+
+    #[test]
+    fn a_hostile_in_detection_range_interrupts_the_patrol() {
+        let (mut world, ship) = patrol_world();
+        run_pipeline(&mut world);
+        assert!(world.entity(ship).get::<Autopilot>().is_some());
+
+        // A hostile pops inside detection range: Engage, and the passive
+        // maneuver is dropped so the combat actuators own the ship.
+        world.spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            Transform::from_translation(Vec3::new(300.0, 0.0, 0.0)),
+        ));
+        run_pipeline(&mut world);
+
+        assert_eq!(
+            *world.entity(ship).get::<AIBehaviorState>().unwrap(),
+            AIBehaviorState::Engage
+        );
+        assert!(
+            world.entity(ship).get::<Autopilot>().is_none(),
+            "engaging drops the passive-state autopilot"
+        );
+    }
+
+    #[test]
+    fn a_hostile_beyond_detection_range_leaves_the_patrol_flying() {
+        // Settle onto the patrol first: ships spawn in the default Engage
+        // state, and a combat state holds on ANY acquired target - only the
+        // passive states gate on detection range.
+        let (mut world, ship) = patrol_world();
+        run_pipeline(&mut world);
+
+        // Acquired (inside the 2000 m scan) but outside detection range.
+        world.spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            Transform::from_translation(Vec3::new(1500.0, 0.0, 0.0)),
+        ));
+        run_pipeline(&mut world);
+
+        assert!(
+            world.entity(ship).get::<AITarget>().unwrap().is_some(),
+            "the hostile is acquired"
+        );
+        assert_eq!(
+            *world.entity(ship).get::<AIBehaviorState>().unwrap(),
+            AIBehaviorState::Patrol,
+            "but too far to abort the patrol for"
+        );
+    }
+
+    #[test]
+    fn an_engaged_autopilot_owns_the_engines() {
+        // While the flight computer flies a passive maneuver the AI thrust
+        // system must not touch the throttles - not even to zero them.
+        let (mut world, ship) = patrol_world();
+        world
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+        let thruster = world
+            .spawn((
+                ThrusterSectionMarker,
+                ThrusterSectionInput(0.7),
+                GlobalTransform::IDENTITY,
+                ChildOf(ship),
+            ))
+            .id();
+
+        world.run_system_once(on_thruster_input).unwrap();
+        assert_eq!(
+            **world
+                .entity(thruster)
+                .get::<ThrusterSectionInput>()
+                .unwrap(),
+            0.7,
+            "an engaged autopilot owns the throttles"
+        );
+
+        // Without a maneuver the passive state cuts the burn, as before.
+        world.entity_mut(ship).remove::<Autopilot>();
+        world.entity_mut(ship).insert(AIBehaviorState::Patrol);
+        world.run_system_once(on_thruster_input).unwrap();
+        assert_eq!(
+            **world
+                .entity(thruster)
+                .get::<ThrusterSectionInput>()
+                .unwrap(),
+            0.0,
+            "no autopilot: the passive state zeroes the throttles"
         );
     }
 }
@@ -1909,6 +2405,146 @@ mod standoff_physics_tests {
             min_distance > 100.0,
             "the ship must never dive far inside the envelope \
              (closest approach {min_distance} m)"
+        );
+    }
+}
+
+#[cfg(test)]
+mod patrol_physics_tests {
+    // The full patrol loop on the physics harness: no hostile -> Patrol ->
+    // GotoPos engaged -> the real autopilot swings the hull and burns the
+    // real thruster -> the ship physically reaches its first waypoint and
+    // turns onto the next leg. Pins the task's acceptance: an AI ship
+    // placed in a scenario flies its route before combat starts
+    // (task 20260709-225730).
+    use super::*;
+    use crate::{
+        integrity::test_support::{settle, unfinished_integrity_physics_app},
+        sections::{
+            controller_section::{
+                sync_controller_section_forces, update_controller_section_rotation_input,
+            },
+            thruster_section::thruster_impulse_system,
+        },
+    };
+
+    #[test]
+    fn a_patrol_ship_flies_its_first_leg_and_turns_onto_the_next() {
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(PDControllerPlugin);
+        // The real flight layer: autopilot_system flies what
+        // update_passive_flight engages.
+        app.add_plugins(NovaFlightPlugin);
+        app.configure_sets(
+            FixedUpdate,
+            (
+                super::super::SpaceshipInputSystems,
+                NovaFlightSystems,
+                PDControllerSystems::Sync,
+                SpaceshipSectionSystems,
+            )
+                .chain(),
+        );
+        app.add_systems(
+            FixedUpdate,
+            (
+                update_ai_target,
+                update_behavior_state,
+                update_passive_flight,
+            )
+                .chain()
+                .in_set(super::super::SpaceshipInputSystems),
+        );
+        app.add_systems(
+            FixedUpdate,
+            update_controller_section_rotation_input
+                .after(NovaFlightSystems)
+                .before(PDControllerSystems::Sync),
+        );
+        app.add_systems(
+            FixedUpdate,
+            (sync_controller_section_forces, thruster_impulse_system)
+                .in_set(SpaceshipSectionSystems),
+        );
+        app.finish();
+
+        let first = Vec3::new(0.0, 0.0, -300.0);
+        let second = Vec3::new(0.0, 0.0, 300.0);
+        let ship = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                AISpaceshipMarker,
+                AIPatrolRoute::new(vec![first, second]),
+            ))
+            .id();
+        app.world_mut().spawn((
+            ChildOf(ship),
+            Name::new("hull"),
+            Transform::from_xyz(0.0, 0.0, -1.0),
+            Collider::cuboid(1.0, 1.0, 1.0),
+            ColliderDensity(1.0),
+        ));
+        app.world_mut().spawn((
+            ChildOf(ship),
+            Name::new("thruster"),
+            ThrusterSectionMarker,
+            ThrusterSectionMagnitude(1.0),
+            ThrusterSectionInput(0.0),
+            Transform::from_xyz(0.0, 0.0, 1.0),
+            Collider::cuboid(1.0, 1.0, 1.0),
+            ColliderDensity(1.0),
+        ));
+        app.world_mut().spawn((
+            ChildOf(ship),
+            Name::new("controller"),
+            ControllerSectionMarker,
+            ControllerSectionRotationInput::default(),
+            PDController {
+                frequency: 4.0,
+                damping_ratio: 4.0,
+                max_torque: 40.0,
+            },
+            PDControllerTarget(ship),
+            Transform::from_xyz(0.0, 0.0, 0.0),
+            Collider::cuboid(1.0, 1.0, 1.0),
+            ColliderDensity(1.0),
+        ));
+
+        settle(&mut app);
+
+        // No hostile anywhere: the routed ship must patrol, not idle.
+        app.update();
+        assert_eq!(
+            *app.world().get::<AIBehaviorState>(ship).unwrap(),
+            AIBehaviorState::Patrol
+        );
+
+        // Fly until the route turns onto the second leg (arrival at the
+        // first waypoint), with a generous budget for align + burn + brake.
+        let mut turned_at = None;
+        for tick in 0..4800 {
+            app.update();
+            if app.world().get::<AIPatrolRoute>(ship).unwrap().current == 1 {
+                turned_at = Some(tick);
+                break;
+            }
+        }
+        assert!(
+            turned_at.is_some(),
+            "the ship must physically reach its first waypoint and turn \
+             onto the next leg within the budget"
+        );
+
+        // Still on the routine, and already flying the second leg.
+        assert_eq!(
+            *app.world().get::<AIBehaviorState>(ship).unwrap(),
+            AIBehaviorState::Patrol
+        );
+        assert_eq!(
+            app.world().get::<Autopilot>(ship).map(|ap| ap.action),
+            Some(AutopilotAction::GotoPos { position: second }),
         );
     }
 }

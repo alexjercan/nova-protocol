@@ -145,6 +145,9 @@ fn update_flight_status_text(
                 .get(target)
                 .ok()
                 .map(|t| t.translation().distance(ship_transform.translation())),
+            AutopilotAction::GotoPos { position } => {
+                Some(position.distance(ship_transform.translation()))
+            }
             AutopilotAction::Stop => None,
         });
 
@@ -165,11 +168,13 @@ fn drive_destination_anchor(
             continue;
         };
 
-        let destination = q_ship.get(**ship).ok().and_then(|ap| match ap.action {
-            AutopilotAction::Goto { target } => Some(target),
+        **anchor = q_ship.get(**ship).ok().and_then(|ap| match ap.action {
+            AutopilotAction::Goto { target } => Some(ScreenIndicatorAnchorKind::Entity(target)),
+            AutopilotAction::GotoPos { position } => {
+                Some(ScreenIndicatorAnchorKind::Point(position))
+            }
             AutopilotAction::Stop => None,
         });
-        **anchor = destination.map(ScreenIndicatorAnchorKind::Entity);
     }
 }
 

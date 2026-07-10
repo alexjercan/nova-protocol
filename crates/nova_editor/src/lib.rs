@@ -178,7 +178,7 @@ fn test_scenario(
     }
 
     let spaceship = SpaceshipConfig {
-        controller: SpaceshipController::AI(AIControllerConfig {}),
+        controller: SpaceshipController::AI(AIControllerConfig::default()),
         sections: vec![
             SpaceshipSectionConfig {
                 id: "controller".to_string(),
