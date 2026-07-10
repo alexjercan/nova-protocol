@@ -309,6 +309,16 @@ const CAMERA_SMOOTHING: f32 = 0.15;
 /// spool-down eases it home even after the key is released.
 const BURN_PUSH_DISTANCE: f32 = 3.0;
 
+/// Survey dolly while parked in orbit (task 20260710-222518): the camera
+/// distance grows to this multiple of the planned ring radius, so the
+/// orbited body, the ring and the surrounding area read as a whole
+/// instead of the hull filling the screen. Playtest knob.
+const SURVEY_RING_FACTOR: f32 = 1.4;
+
+/// Cap on the survey dolly distance, world units, so a giant well cannot
+/// push the camera out to where the scene is specks. Playtest knob.
+const SURVEY_MAX_DISTANCE: f32 = 250.0;
+
 /// Each control mode's camera rig: `(offset, focus_offset)`. One source of
 /// truth for the mode-switch system and the per-frame burn push, so the push
 /// composes onto the mode's base instead of fighting it.
@@ -324,20 +334,51 @@ fn mode_camera_rig(mode: &SpaceshipCameraControlMode) -> (Vec3, Vec3) {
     }
 }
 
-/// Applies the whole camera rig, every frame: `offset = mode rig + spooled
-/// main-drive heat * BURN_PUSH_DISTANCE`, the mode's focus offset, and the
-/// gameplay smoothing. Per-frame ownership (not on mode change) is load-
-/// bearing: player death removes `ChaseCamera` and respawn re-inserts a
-/// default (smoothing 0.0), so anything applied only on `mode.is_changed()`
-/// is silently lost after the first life. Heat is the hottest live
-/// forward-mounted thruster - the flight layer's main-drive definition - so
-/// autopilot burns push too, and spool-down eases the camera home. In
-/// FreeLook/Turret the offset lives in the mouse-rig frame, so the push is a
-/// dolly-out rather than a hull-frame lean; acceptable juice either way.
+/// The survey dolly scale for the current autopilot state: while parked
+/// in a PLANNED orbit the mode offset stretches so the camera distance
+/// reaches `plan.radius * SURVEY_RING_FACTOR` (capped, never closer than
+/// the mode's own rig) - the ring radius IS the area to visualize, so
+/// the dolly adapts to the orbit scale. 1.0 (no dolly) everywhere else,
+/// including the plan-less first orbit tick. Pure for unit testing.
+fn survey_scale(action: Option<&AutopilotAction>, base_len: f32) -> f32 {
+    let Some(AutopilotAction::Orbit {
+        plan: Some(plan), ..
+    }) = action
+    else {
+        return 1.0;
+    };
+    if base_len <= f32::EPSILON {
+        return 1.0;
+    }
+    // min-then-max, not clamp: f32::clamp panics when min > max, and both
+    // bounds are playtest knobs - a knob turn (or a future rig longer than
+    // the cap) must degrade to "no dolly", not a per-frame panic.
+    (plan.radius * SURVEY_RING_FACTOR)
+        .min(SURVEY_MAX_DISTANCE)
+        .max(base_len)
+        / base_len
+}
+
+/// Applies the whole camera rig, every frame: `offset = mode rig * survey
+/// dolly + spooled main-drive heat * BURN_PUSH_DISTANCE`, the mode's focus
+/// offset, and the gameplay smoothing. Per-frame ownership (not on mode
+/// change) is load-bearing: player death removes `ChaseCamera` and respawn
+/// re-inserts a default (smoothing 0.0), so anything applied only on
+/// `mode.is_changed()` is silently lost after the first life. Heat is the
+/// hottest live forward-mounted thruster - the flight layer's main-drive
+/// definition - so autopilot burns push too, and spool-down eases the
+/// camera home. In FreeLook/Turret the offset lives in the mouse-rig
+/// frame, so the push is a dolly-out rather than a hull-frame lean;
+/// acceptable juice either way. The survey dolly (engaged ORBIT) applies
+/// in Normal and FreeLook but NOT Turret - a fight while orbiting should
+/// not be fought from survey range - and rides the same per-frame
+/// smoothing as everything else, so engage and breakout ease exactly like
+/// a mode switch instead of snapping.
 fn update_camera_rig(
     mode: Res<SpaceshipCameraControlMode>,
     camera: Single<&mut ChaseCamera, With<SpaceshipCameraController>>,
     spaceship: Single<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    q_autopilot: Query<&Autopilot>,
     q_thruster: Query<
         (&ThrusterSectionInput, &Transform, &ChildOf),
         (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>),
@@ -360,7 +401,16 @@ fn update_camera_rig(
     // Max heat, not a sum: the push reads "engines are lit", and one small
     // engine at full burn is lit; authority-weighted push is a playtest knob.
     let (base_offset, focus_offset) = mode_camera_rig(&mode);
-    camera.offset = base_offset + Vec3::new(0.0, 0.0, -BURN_PUSH_DISTANCE * heat.clamp(0.0, 1.0));
+    let scale = if matches!(*mode, SpaceshipCameraControlMode::Turret) {
+        1.0
+    } else {
+        survey_scale(
+            q_autopilot.get(ship).ok().map(|a| &a.action),
+            base_offset.length(),
+        )
+    };
+    camera.offset =
+        base_offset * scale + Vec3::new(0.0, 0.0, -BURN_PUSH_DISTANCE * heat.clamp(0.0, 1.0));
     camera.focus_offset = focus_offset;
     camera.smoothing = CAMERA_SMOOTHING;
 }
@@ -598,6 +648,105 @@ mod tests {
             .get_mut::<ThrusterSectionInput>(thruster)
             .unwrap()
             .0 = 0.0;
+        app.update();
+        assert_eq!(app.world().get::<ChaseCamera>(camera).unwrap().offset, base);
+    }
+
+    #[test]
+    fn survey_scale_stretches_to_the_ring_and_stays_home_otherwise() {
+        let orbit = |radius: f32| AutopilotAction::Orbit {
+            well: Entity::PLACEHOLDER,
+            plan: Some(OrbitPlan {
+                radius,
+                normal: Vec3::Y,
+            }),
+        };
+        let base = 20.0f32;
+
+        // The dolly reaches ring * factor...
+        let scale = survey_scale(Some(&orbit(100.0)), base);
+        assert!((scale * base - 100.0 * SURVEY_RING_FACTOR).abs() < 1e-3);
+        // ...capped for giant wells...
+        let capped = survey_scale(Some(&orbit(1000.0)), base);
+        assert!((capped * base - SURVEY_MAX_DISTANCE).abs() < 1e-3);
+        // ...and never dollies IN on a tiny ring.
+        assert_eq!(survey_scale(Some(&orbit(5.0)), base), 1.0);
+
+        // No dolly without a planned orbit: manual flight, other verbs,
+        // the plan-less first orbit tick.
+        assert_eq!(survey_scale(None, base), 1.0);
+        assert_eq!(survey_scale(Some(&AutopilotAction::Stop), base), 1.0);
+        assert_eq!(
+            survey_scale(
+                Some(&AutopilotAction::Orbit {
+                    well: Entity::PLACEHOLDER,
+                    plan: None,
+                }),
+                base,
+            ),
+            1.0
+        );
+    }
+
+    /// The survey dolly stretches the rig while parked in a planned orbit
+    /// and comes home on breakout, riding the same per-frame rig path as
+    /// the burn push; Turret keeps its combat rig even while orbiting.
+    #[test]
+    fn orbit_survey_dolly_applies_and_releases_with_the_autopilot() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(ChaseCameraPlugin);
+        app.init_resource::<SpaceshipCameraControlMode>();
+        app.add_systems(Update, update_camera_rig);
+
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::default(),
+            ))
+            .id();
+        let camera = app.world_mut().spawn(SpaceshipCameraController).id();
+        let (base, _) = mode_camera_rig(&SpaceshipCameraControlMode::Normal);
+
+        // Parked in a 100u orbit: the offset stretches along its own
+        // direction to ring * factor.
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Orbit {
+                well: Entity::PLACEHOLDER,
+                plan: Some(OrbitPlan {
+                    radius: 100.0,
+                    normal: Vec3::Y,
+                }),
+            }));
+        app.update();
+        let offset = app.world().get::<ChaseCamera>(camera).unwrap().offset;
+        assert!(
+            (offset.length() - 100.0 * SURVEY_RING_FACTOR).abs() < 1e-3,
+            "survey distance, got {}",
+            offset.length()
+        );
+        assert!(
+            offset.normalize().dot(base.normalize()) > 0.999,
+            "the dolly stretches the rig, it does not reframe it"
+        );
+
+        // Combat while orbiting: Turret keeps its own rig.
+        *app.world_mut().resource_mut::<SpaceshipCameraControlMode>() =
+            SpaceshipCameraControlMode::Turret;
+        app.update();
+        let (turret_base, _) = mode_camera_rig(&SpaceshipCameraControlMode::Turret);
+        assert_eq!(
+            app.world().get::<ChaseCamera>(camera).unwrap().offset,
+            turret_base
+        );
+        *app.world_mut().resource_mut::<SpaceshipCameraControlMode>() =
+            SpaceshipCameraControlMode::Normal;
+
+        // Breakout: the rig comes home through the same per-frame path.
+        app.world_mut().entity_mut(ship).remove::<Autopilot>();
         app.update();
         assert_eq!(app.world().get::<ChaseCamera>(camera).unwrap().offset, base);
     }
