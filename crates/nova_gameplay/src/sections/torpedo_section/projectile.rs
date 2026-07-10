@@ -65,7 +65,12 @@ pub(super) fn torpedo_detonate_system(
             &TorpedoBlast,
             &TorpedoSectionPartOf,
         ),
-        With<TorpedoProjectileMarker>,
+        // A shot-down torpedo must not detonate in the one-tick gap before
+        // despawn_shot_down_torpedoes removes it (see TorpedoShotDownMarker).
+        (
+            With<TorpedoProjectileMarker>,
+            Without<super::TorpedoShotDownMarker>,
+        ),
     >,
 ) {
     for (torpedo, torpedo_transform, torpedo_target_position, arming, blast, part_of) in &q_torpedo
