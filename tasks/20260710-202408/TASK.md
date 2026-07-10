@@ -67,7 +67,7 @@ current behavior for everything unsized.
 
 ## Resolution
 
-Implemented per the Steps with no deviations: BodyRadius component
+Implemented per the Steps (one review amendment, R1.1 below): BodyRadius component
 (authored on asteroids from the same config.radius as LockSignature),
 max(BodyRadius, GravityWell::body_radius) resolution in the GOTO arm,
 effective standoff threaded through the whole arrival leg (the pure
@@ -83,5 +83,17 @@ inward - pre-existing release behavior, not this task's geometry, and
 exactly what 20260710-195954 (park into ORBIT) exists to fix. Recorded in
 docs/2026-07-10-surface-relative-standoff.md Known limits.
 
-Checks: flight 55, input::ai 73, hud 55, nova_scenario 9, cargo check
+Review round 1: APPROVE with 2 MINOR + 2 NIT fixed in-round (max-
+preference test added - flight is 56; published surface distance clamped
+at zero; q_wells comment names its second consumer; the ribbon-endpoint
+NIT is a filed follow-up). GotoPos-unchanged coverage is the pre-existing
+goto_pos_arrives_at_standoff_and_disengages test.
+
+Landing note: the round-1 fixes were nearly lost - a `grep -c` with zero
+matches exits nonzero and silently broke the `&&` chain before the commit,
+so the squash merged the pre-fix tree and `sprout rm` deleted the worktree
+with the fixes uncommitted. Re-applied on master as a follow-up commit;
+lesson recorded in the retro.
+
+Checks: flight 56, input::ai 73, hud 55, nova_scenario 9, cargo check
 --workspace --examples clean. Full suite and clippy left to CI per policy.

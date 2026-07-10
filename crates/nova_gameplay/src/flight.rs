@@ -188,6 +188,8 @@ pub struct ManeuverTelemetry {
     /// minus the target's resolved radius ([`BodyRadius`] /
     /// `GravityWell::body_radius`, zero for unsized targets and GotoPos),
     /// so the readout never says "50" while hovering over a mountain.
+    /// Clamped at zero - at or inside the surface reads 0, never a
+    /// negative number on the chip.
     pub distance: f32,
     /// Speed along the line to the goal, u/s (negative = opening).
     pub closing_speed: f32,
@@ -1127,7 +1129,9 @@ fn autopilot_system(
     // pulls on. Without<SpaceshipRootMarker> is a design statement, not an
     // aliasing need: a ship is never an orbit target, even if someone bolts
     // a GravityWell onto one - ORBIT would treat it as "well gone" and
-    // disengage.
+    // disengage. The GOTO arm reads it too (arrival gravity budget +
+    // target radius), inheriting the same statement: a ship target never
+    // contributes a well radius - ships stay center-relative.
     q_wells: Query<(&Position, &GravityWell), Without<SpaceshipRootMarker>>,
 ) {
     let dt = time.delta_secs();
@@ -1279,7 +1283,7 @@ fn autopilot_system(
                     ManeuverTelemetry {
                         goal,
                         goal_entity: None,
-                        distance: distance - target_radius.max(0.0),
+                        distance: (distance - target_radius.max(0.0)).max(0.0),
                         closing_speed,
                         brake_accel: 0.0,
                         flip_point: None,
@@ -1337,7 +1341,7 @@ fn autopilot_system(
                     ManeuverTelemetry {
                         goal,
                         goal_entity: None,
-                        distance: distance - target_radius.max(0.0),
+                        distance: (distance - target_radius.max(0.0)).max(0.0),
                         closing_speed,
                         brake_accel,
                         flip_point: flip
@@ -3394,6 +3398,44 @@ mod tests {
             "should park near {park}u from the center, got {distance}"
         );
         assert!(speed < 0.5, "should arrive at rest, got {speed}");
+    }
+
+    #[test]
+    fn goto_radius_resolution_prefers_the_larger_source() {
+        // A target carrying BOTH an authored BodyRadius and a well whose
+        // body_radius disagrees: the arrival must budget the larger of
+        // the two (conservative if they ever drift apart).
+        let mut app = flight_app();
+        let (ship, _, _) = spawn_ship(&mut app);
+        let center = Vec3::new(0.0, 0.0, -300.0);
+        let gravity = GravitySettings::default();
+        let target = app
+            .world_mut()
+            .spawn((
+                Transform::from_translation(center),
+                GlobalTransform::from(Transform::from_translation(center)),
+                Position(center),
+                BodyRadius(20.0),
+                crate::gravity::GravityWell::from_surface_gravity(3.0, 40.0, &gravity),
+            ))
+            .id();
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Goto { target }));
+
+        app.update();
+        let telemetry = app
+            .world()
+            .get::<ManeuverTelemetry>(ship)
+            .expect("engaged GOTO publishes telemetry");
+        let center_distance = (center - app.world().get::<Position>(ship).unwrap().0).length();
+        assert!(
+            (telemetry.distance - (center_distance - 40.0)).abs() < 1.0,
+            "the larger well radius wins over BodyRadius(20): got {} for center distance \
+             {center_distance}",
+            telemetry.distance
+        );
     }
 
     /// Reproduction attempt for the in-game report "autopilot rotates but
