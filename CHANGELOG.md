@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-07-10
+
+### Fixed
+
+- @alexjercan release-flow: install the `x86_64-apple-darwin` std for the pinned nightly toolchain, fixing the macOS universal binary build (E0463 in the x86 half)
+
+### Changed
+
+- @alexjercan CI: one `--features debug` feature set across clippy, tests and the examples smoke step, so the tree builds once instead of rebuilding Bevy per feature flip; cache also saves on failed runs
+- @alexjercan CI: the windowed examples smoke test is a separate non-blocking step (with full backtraces and a wider failure log tail) while a runner-only taffy panic is investigated (task 20260710-143138); `cargo test --workspace` remains the blocking gate
+
 ## [0.4.0] - 2026-07-10
 
 ### Added
@@ -115,7 +126,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - @alexjercan basic spaceship sections added
 - @alexjercan editor and simulation scenes added
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.4.0...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/alexjercan/nova-protocol/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/alexjercan/nova-protocol/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/alexjercan/nova-protocol/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/alexjercan/nova-protocol/compare/v0.2.1...v0.3.0
