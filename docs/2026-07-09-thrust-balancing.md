@@ -107,9 +107,17 @@ inputs are chosen:
   matches the user's "differential throttle" framing. Recruiting off-axis
   thrusters for pure counter-torque (which would let a *single* main drive be
   balanced against a shifted COM) is a further follow-up, not this task.
+  UPDATE 2026-07-10: that follow-up shipped - see
+  `docs/2026-07-10-off-axis-counter-torque.md` (task 20260709-224518); the
+  allocation now spans all live engines with a bounded-drift penalty on
+  off-axis force.
 - **Full-throttle asymmetric burns still pull.** No headroom, no balance - held
   only by the PD within its cap, exactly as before. Easing off the stick frees
   the drive to fly straight. Diegetic and documented.
+  UPDATE 2026-07-10: narrowed - a recruited off-axis engine's trim budget is
+  its own throttle box, not the firing set's headroom, so a full-stick burn is
+  now held straight whenever a usable off-axis engine survives. Only a ship
+  with none left still pulls (`docs/2026-07-10-off-axis-counter-torque.md`).
 - **AI ships** (`input/ai.rs`) are a separate control path and are untouched, as
   with the rest of the flight-layer work.
 

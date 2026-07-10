@@ -61,6 +61,21 @@ const BALANCE_ITERS: usize = 40;
 /// ([`project_onto_demand`]) - enough to pin the multiplier to f32 precision.
 const BALANCE_PROJECT_ITERS: usize = 40;
 
+/// Weight of the squared net off-axis force (perpendicular to the burn)
+/// against the squared net torque in the balance objective
+/// ([`balance_throttles`]). This is the "bounded lateral drift" trade decided
+/// with the user (task 20260709-224518): recruiting an off-axis thruster for
+/// counter-torque adds a sideways force the maneuver did not ask for, so the
+/// allocator pays for it - softly, not with a hard zero constraint, because a
+/// hard zero needs an opposing pair and gives no help to a ship whose damage
+/// left it exactly one usable lateral. The weight has units of lever-arm
+/// squared: an off-axis engine with lever arm `r` about the COM nulls all but
+/// `w / (r^2 + w)` of the torque it is recruited against, so at 0.05 a
+/// one-unit lever leaves ~5% residual (well inside the PD's hold) while an
+/// engine mounted nearly through the COM - huge force for no torque - is
+/// correctly not worth firing.
+const LATERAL_PENALTY: f32 = 0.05;
+
 /// The pilot's manual input, on the ship root. Written by the player input
 /// layer; consumed by [`manual_burn_system`] when no autopilot is engaged.
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
@@ -450,45 +465,79 @@ fn burn_input(impulse: f32, authority: f32) -> f32 {
     (impulse / authority).clamp(0.0, 1.0)
 }
 
-/// One engine's linear contribution to the thrust-balance problem, both per
-/// unit of input (`0..1`): `forward` is the thrust it adds along the burn
-/// direction (>= 0 for an engine inside the firing cone), `torque` is the
-/// torque it exerts about the ship's center of mass
-/// (`(engine_pos - com) x thrust`). Given in any single consistent frame -
-/// the balance constraint (net torque = 0) is frame-invariant.
+/// One engine's linear contribution to the thrust-balance problem, all per
+/// unit of input (`0..1`). `primary` marks the firing set - the engines
+/// inside the burn's alignment cone that the demand is budgeted against;
+/// everything else is a counter-torque candidate the allocator may recruit.
+/// `forward` is the thrust the engine adds along the burn direction: real for
+/// primary engines (they carry the demand equality), and zero by convention
+/// for recruits - a recruit is fired for its `torque` alone, so its ENTIRE
+/// thrust vector goes into `lateral`, the force the maneuver did not ask for.
+/// Billing the whole recruit force to the penalty (rather than crediting its
+/// along-burn component to the equality) keeps a saturated demand feasible -
+/// at full stick the equality has zero slack, and a recruit whose drift-tilted
+/// thrust fights the burn by epsilon would otherwise be projected straight
+/// back to zero - and makes a recruited retro honestly pay for the thrust it
+/// cancels instead of the mains silently over-throttling. `torque` is
+/// `(engine_pos - com) x thrust`. Given in any single consistent frame - the
+/// balance objective (null torque, minimal off-axis force) is
+/// frame-invariant.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct BalanceEngine {
     forward: f32,
+    lateral: Vec3,
     torque: Vec3,
+    primary: bool,
 }
 
-/// Differential throttle: per-engine inputs (each `0..1`) that deliver `demand`
+/// Wrench allocation: per-engine inputs (each `0..1`) that deliver `demand`
 /// units of thrust along the burn direction while routing the resultant force
-/// as close to *through* the center of mass as the engine set allows.
+/// as close to *through* the center of mass as the whole live engine set
+/// allows - recruiting off-axis engines (laterals, retros) purely for their
+/// counter-torque when the firing set cannot balance itself.
 ///
-/// Solves the tiny convex QP `min ||sum torque_i u_i||^2` subject to
-/// `sum forward_i u_i = demand` and `0 <= u_i <= 1` by projected gradient: the
-/// firing set is a few engines, so a handful of steps converge. The equality is
-/// the maneuver's demand (deliver the thrust the pilot/autopilot asked for); the
-/// objective nulls the net torque within whatever throttle headroom that
-/// demand leaves. When there is no headroom - a lone off-center engine, or a
-/// full-throttle demand - the demand wins and the residual torque is left for
-/// the PD controller, exactly the pre-balance behavior. The uniform throttle
-/// `demand / sum(forward)` is always a feasible starting point, so a balanced
-/// (symmetric) drive returns it unchanged. Pure for unit testing.
+/// Solves the tiny convex QP
+/// `min ||sum torque_i u_i||^2 + LATERAL_PENALTY * ||sum lateral_i u_i||^2`
+/// subject to `sum forward_i u_i = demand` and `0 <= u_i <= 1` by projected
+/// gradient: a ship has a handful of engines, so a handful of steps converge.
+/// The equality is the maneuver's demand (deliver the thrust the
+/// pilot/autopilot asked for); the objective nulls the net torque while
+/// keeping bounded the sideways force that nulling costs (see
+/// [`LATERAL_PENALTY`]). The seed is the uniform throttle over the firing set
+/// (`demand / sum(primary forward)`, off-axis engines at zero) - always
+/// feasible, and a stationary point whenever the net torque is already null,
+/// so a balanced (symmetric) drive returns unchanged and idle off-axis
+/// engines are never lit gratuitously. When nothing can help - a lone
+/// off-center engine with no off-axis thruster left - the demand wins and the
+/// residual torque is left for the PD controller, exactly the pre-allocation
+/// behavior. Pure for unit testing.
 fn balance_throttles(engines: &[BalanceEngine], demand: f32) -> Vec<f32> {
     let n = engines.len();
     if n == 0 {
         return Vec::new();
     }
-    let total_forward: f32 = engines.iter().map(|e| e.forward.max(0.0)).sum();
-    if total_forward <= 1e-6 {
+    let primary_forward: f32 = engines
+        .iter()
+        .filter(|e| e.primary)
+        .map(|e| e.forward.max(0.0))
+        .sum();
+    if primary_forward <= 1e-6 {
         return vec![0.0; n];
     }
-    // Clamp the demand into what the set can actually deliver, then seed at the
-    // uniform throttle: sum forward_i * (demand/total) = demand, each in [0,1].
-    let demand = demand.clamp(0.0, total_forward);
-    let mut u = vec![demand / total_forward; n];
+    // Clamp the demand into what the firing set can deliver, then seed at its
+    // uniform throttle: sum_primary forward_i * (demand/total) = demand, each
+    // in [0,1], every off-axis engine dark.
+    let demand = demand.clamp(0.0, primary_forward);
+    let mut u: Vec<f32> = engines
+        .iter()
+        .map(|e| {
+            if e.primary {
+                demand / primary_forward
+            } else {
+                0.0
+            }
+        })
+        .collect();
 
     // A single engine has no redistribution freedom - throttle scales its
     // magnitude, not its line of action - so the uniform seed (which for n = 1
@@ -497,14 +546,15 @@ fn balance_throttles(engines: &[BalanceEngine], demand: f32) -> Vec<f32> {
         return u;
     }
 
-    // Gradient of ||sum T_i u_i||^2 is 2 M^T M u; its Lipschitz constant is
-    // 2 * lambda_max(M^T M) <= 2 * sum||T_i||^2. A conservative (larger) bound
-    // just means smaller, still-convergent steps. No torque at all -> the
-    // uniform seed is already optimal.
+    // Gradient of ||T u||^2 + w ||L u||^2 is 2 (T^T T + w L^T L) u; its
+    // Lipschitz constant is bounded by 2 * (sum||T_i||^2 + w sum||L_i||^2).
+    // A conservative (larger) bound just means smaller, still-convergent
+    // steps. No torque or lateral at all -> the uniform seed is already
+    // optimal.
     let lipschitz = 2.0
         * engines
             .iter()
-            .map(|e| e.torque.length_squared())
+            .map(|e| e.torque.length_squared() + LATERAL_PENALTY * e.lateral.length_squared())
             .sum::<f32>();
     if lipschitz <= 1e-12 {
         return u;
@@ -513,8 +563,11 @@ fn balance_throttles(engines: &[BalanceEngine], demand: f32) -> Vec<f32> {
 
     for _ in 0..BALANCE_ITERS {
         let net_torque: Vec3 = engines.iter().zip(&u).map(|(e, &ui)| e.torque * ui).sum();
+        let net_lateral: Vec3 = engines.iter().zip(&u).map(|(e, &ui)| e.lateral * ui).sum();
         for (e, ui) in engines.iter().zip(u.iter_mut()) {
-            *ui -= step * 2.0 * e.torque.dot(net_torque);
+            *ui -= step
+                * 2.0
+                * (e.torque.dot(net_torque) + LATERAL_PENALTY * e.lateral.dot(net_lateral));
         }
         project_onto_demand(&mut u, engines, demand);
     }
@@ -523,21 +576,25 @@ fn balance_throttles(engines: &[BalanceEngine], demand: f32) -> Vec<f32> {
 
 /// Euclidean projection of `u` onto `{ sum forward_i u_i = demand } ∩ [0,1]^n`,
 /// the balancer's feasible set. The projection has the form
-/// `u_i <- clamp(u_i + mu * forward_i, 0, 1)` for a single multiplier `mu`; the
-/// mapped sum is monotone in `mu`, so a bisection pins it to the demand. Pure.
+/// `u_i <- clamp(u_i + mu * forward_i, 0, 1)` for a single multiplier `mu`.
+/// Zero-forward engines (the off-axis recruits) are untouched by `mu` - the
+/// equality is the firing set's contract alone. The math also survives signed
+/// coefficients: each engine's mapped contribution
+/// `f_i * clamp(u_i + mu * f_i)` is nondecreasing in `mu` (slope `f_i^2`
+/// where unclamped), so the mapped sum is monotone and a bisection pins it to
+/// the demand. Pure.
 fn project_onto_demand(u: &mut [f32], engines: &[BalanceEngine], demand: f32) {
     let mapped_sum = |mu: f32| -> f32 {
         engines
             .iter()
             .zip(u.iter())
             .map(|(e, &ui)| {
-                let w = e.forward.max(0.0);
+                let w = e.forward;
                 w * (ui + mu * w).clamp(0.0, 1.0)
             })
             .sum::<f32>()
     };
-    // Bracket the multiplier: lo drives every clamp to 0 (sum 0 <= demand), hi
-    // drives them to 1 (sum = total_forward >= demand). Expand until bracketed.
+    // Bracket the multiplier, expanding until the demand is enclosed.
     let mut lo = -1.0f32;
     let mut hi = 1.0f32;
     while mapped_sum(lo) > demand && lo > -1e6 {
@@ -556,8 +613,7 @@ fn project_onto_demand(u: &mut [f32], engines: &[BalanceEngine], demand: f32) {
     }
     let mu = 0.5 * (lo + hi);
     for (e, ui) in engines.iter().zip(u.iter_mut()) {
-        let w = e.forward.max(0.0);
-        *ui = (*ui + mu * w).clamp(0.0, 1.0);
+        *ui = (*ui + mu * e.forward).clamp(0.0, 1.0);
     }
 }
 
@@ -612,9 +668,12 @@ pub(crate) fn flight_status_line(
 /// group handles what it already points at. Disengages (removes
 /// [`Autopilot`]) when the goal is reached, the target is gone, the ship has
 /// no engines, or the flight computer (live controller section) is lost.
-/// Off-center engine torque is balanced at the source by differential throttle
-/// ([`balance_throttles`], using each engine's lever arm about the live COM),
-/// with the PD holding whatever residual the throttle headroom cannot null.
+/// Off-center engine torque is balanced at the source by the wrench allocation
+/// ([`balance_throttles`], using each engine's lever arm about the live COM):
+/// differential throttle within the firing set when it has headroom,
+/// recruiting off-axis engines (laterals, retros) for pure counter-torque when
+/// it does not - at the price of a bounded sideways drift the arrival control
+/// corrects. The PD holds whatever residual the allocation cannot null.
 fn autopilot_system(
     time: Res<Time>,
     settings: Res<FlightSettings>,
@@ -691,10 +750,11 @@ fn autopilot_system(
         // Every live engine as (world thrust direction, magnitude), plus how
         // hot the hottest one runs (for the settle check). A section's local
         // Transform is its fixed attitude on the hull; engines do not gimbal.
-        // Off-center engine torque is balanced below by differential throttle
-        // (per-engine lever arms about the live COM); whatever the throttle
-        // headroom cannot null - a lone off-center engine, or a full-throttle
-        // demand with no spare thrust - the PD still holds within its cap.
+        // Off-center engine torque is balanced below by the wrench allocation
+        // (per-engine lever arms about the live COM, off-axis engines
+        // recruited for counter-torque when the firing set cannot balance
+        // itself); whatever the allocation cannot null the PD still holds
+        // within its cap.
         let mut engines: Vec<(Vec3, f32)> = Vec::new();
         let mut hottest_input = 0.0f32;
         for (_, input, magnitude, transform, &ChildOf(parent)) in &q_thruster {
@@ -774,19 +834,23 @@ fn autopilot_system(
         let error_speed = error.length();
         let error_dir = (error_speed > 1e-3).then(|| error / error_speed);
 
-        // The firing set: every live engine currently inside the alignment
-        // cone of the needed burn (lit engines keep a slightly looser gate -
-        // hysteresis via their own spooled input - so the plume does not
-        // flicker at the boundary). Each is collected with the coefficients the
-        // balancer needs - forward thrust and lever-arm torque about the live
-        // COM, both per unit input - so the shared burn demand can be split
-        // into a torque-nulling differential throttle. The COM is body-local;
-        // lift it to world with rotation + translation (never render scale).
+        // The allocation set: EVERY live engine, with the coefficients the
+        // balancer needs per unit input - signed thrust along the burn, force
+        // perpendicular to it, and lever-arm torque about the live COM. The
+        // engines inside the alignment cone of the needed burn are the
+        // *primary* set (lit engines keep a slightly looser gate - hysteresis
+        // via their own spooled input - so the plume does not flicker at the
+        // boundary): they define the deliverable authority and receive the
+        // demand. Everything else - laterals, retros - is a counter-torque
+        // candidate the balancer may recruit when the primary set cannot
+        // balance itself (the single damage-shifted main drive). The COM is
+        // body-local; lift it to world with rotation + translation (never
+        // render scale).
         let com_world = com
             .map(|c| rotation.mul_vec3(c.0) + position.0)
             .unwrap_or(position.0);
         let mut firing_authority = 0.0f32;
-        let mut firing: Vec<(Entity, BalanceEngine)> = Vec::new();
+        let mut allocation: Vec<(Entity, BalanceEngine)> = Vec::new();
         if let Some(error_dir) = error_dir {
             for (thruster, input, magnitude, transform, &ChildOf(parent)) in &q_thruster {
                 if parent != ship {
@@ -801,21 +865,36 @@ fn autopilot_system(
                     settings.align_cos
                 };
                 let aligned = dir.dot(error_dir);
-                if aligned >= gate {
+                let primary = aligned >= gate;
+                if primary {
                     firing_authority += **magnitude;
-                    // World point of the engine (direct child of the root), the
-                    // same point the impulse system pushes from, so its lever
-                    // arm about com_world matches the torque physics applies.
-                    let pos_world = position.0 + rotation.mul_vec3(transform.translation);
-                    let torque = (pos_world - com_world).cross(dir * **magnitude);
-                    firing.push((
-                        thruster,
-                        BalanceEngine {
-                            forward: **magnitude * aligned.max(0.0),
-                            torque,
-                        },
-                    ));
                 }
+                // World point of the engine (direct child of the root), the
+                // same point the impulse system pushes from, so its lever
+                // arm about com_world matches the torque physics applies.
+                let pos_world = position.0 + rotation.mul_vec3(transform.translation);
+                let torque = (pos_world - com_world).cross(dir * **magnitude);
+                // A recruit's whole thrust vector is off-plan force (see
+                // BalanceEngine); a primary engine contributes its aligned
+                // share to the demand and only the perpendicular rest to the
+                // penalty.
+                let (forward, lateral) = if primary {
+                    (
+                        **magnitude * aligned,
+                        (dir - aligned * error_dir) * **magnitude,
+                    )
+                } else {
+                    (0.0, dir * **magnitude)
+                };
+                allocation.push((
+                    thruster,
+                    BalanceEngine {
+                        forward,
+                        lateral,
+                        torque,
+                        primary,
+                    },
+                ));
             }
         }
 
@@ -838,10 +917,10 @@ fn autopilot_system(
         }
 
         // Rotate the cheapest group onto the error (only for corrections worth
-        // turning for), then split the shared burn demand across the firing set
-        // as a torque-nulling differential throttle. While settling (done,
-        // engines still winding down) command zero to every engine.
-        let mut throttles: Vec<f32> = vec![0.0; firing.len()];
+        // turning for), then allocate the shared burn demand across the whole
+        // live engine set as a torque-nulling throttle vector. While settling
+        // (done, engines still winding down) command zero to every engine.
+        let mut throttles: Vec<f32> = vec![0.0; allocation.len()];
         let mut burning = false;
         if let (Some(error_dir), false) = (error_dir, done) {
             if !fine {
@@ -883,11 +962,12 @@ fn autopilot_system(
             }
             // The shared demand this tick: the impulse the maneuver wants,
             // capped by the firing set's authority (burn_input * authority =
-            // min(impulse, authority)). balance_throttles splits it to null the
-            // net torque about the COM within that demand's headroom.
+            // min(impulse, authority)). balance_throttles delivers it through
+            // the firing set and nulls the net torque about the COM,
+            // recruiting off-axis engines when the firing set cannot.
             let demand =
                 firing_authority * burn_input(error_speed * mass.value(), firing_authority);
-            let coeffs: Vec<BalanceEngine> = firing.iter().map(|(_, e)| *e).collect();
+            let coeffs: Vec<BalanceEngine> = allocation.iter().map(|(_, e)| *e).collect();
             throttles = balance_throttles(&coeffs, demand);
             burning = throttles.iter().any(|&u| u > 0.0);
         }
@@ -898,13 +978,13 @@ fn autopilot_system(
             AutopilotPhase::Align
         };
 
-        // Spool every engine: each firing engine toward its balanced throttle,
-        // everything else (and everything while settling) toward zero.
+        // Spool every engine toward its allocated throttle (zero for engines
+        // the allocation left dark, and for everything while settling).
         for (thruster, mut input, _, _, &ChildOf(parent)) in &mut q_thruster {
             if parent != ship {
                 continue;
             }
-            let target = firing
+            let target = allocation
                 .iter()
                 .position(|(e, _)| *e == thruster)
                 .map(|i| throttles[i])
@@ -952,12 +1032,14 @@ fn on_autopilot_removed_cool_engines(
 }
 
 /// Manual main-drive burn for intent-carrying ships with no autopilot
-/// engaged: split the analog burn across the live forward thrusters as a
-/// torque-nulling differential throttle, so an off-center or damage-shifted
-/// drive still pushes the resultant force through the COM - within the throttle
-/// headroom the burn leaves. A full-stick burn on an asymmetric hull has no
-/// headroom and still pulls, held only by the PD as before; easing off the
-/// stick frees the drive to fly straight.
+/// engaged: allocate the analog burn over the live unbound engine set as a
+/// torque-nulling throttle vector, so an off-center or damage-shifted drive
+/// still pushes the resultant force through the COM. The forward set delivers
+/// the demand via differential throttle when it has headroom; when it does
+/// not (the single damage-shifted main drive), the allocator recruits an
+/// off-axis engine for pure counter-torque, trading a bounded sideways drift
+/// for a straight heading. Only when nothing can help - no headroom and no
+/// off-axis engine left - does the ship still pull, held by the PD as before.
 fn manual_burn_system(
     time: Res<Time>,
     settings: Res<FlightSettings>,
@@ -986,49 +1068,64 @@ fn manual_burn_system(
     for (ship, intent, com) in &q_ship {
         let burn = intent.burn.clamp(0.0, 1.0);
 
-        // The main-drive set (engines facing the hull's forward -Z; retro and
-        // laterals keep their own keys), each with its balance coefficients in
-        // the ship-local frame. The balance constraint (net torque = 0) is
-        // frame-invariant, and ComputedCenterOfMass is already body-local, so
-        // no world lift is needed - lever arms are taken straight from the
-        // section transforms about the local COM.
+        // The allocation set: every live unbound engine (bound thrusters keep
+        // their own keys), with its balance coefficients in the ship-local
+        // frame. The engines facing the hull's forward -Z are the *primary*
+        // set the burn is budgeted against; the rest - laterals, retros - are
+        // counter-torque candidates. The balance objective is frame-invariant,
+        // and ComputedCenterOfMass is already body-local, so no world lift is
+        // needed - lever arms are taken straight from the section transforms
+        // about the local COM.
         let com_local = com.map(|c| c.0).unwrap_or(Vec3::ZERO);
-        let mut firing: Vec<(Entity, BalanceEngine)> = Vec::new();
+        let mut allocation: Vec<(Entity, BalanceEngine)> = Vec::new();
         for (thruster, _, magnitude, transform, &ChildOf(parent)) in &q_thruster {
             if parent != ship {
                 continue;
             }
             let local_dir = transform.rotation.mul_vec3(Vec3::NEG_Z).normalize();
-            if !is_forward_aligned(local_dir, Vec3::NEG_Z) {
-                continue;
-            }
+            let aligned = local_dir.dot(Vec3::NEG_Z);
+            let primary = is_forward_aligned(local_dir, Vec3::NEG_Z);
             let torque = (transform.translation - com_local).cross(local_dir * **magnitude);
-            firing.push((
+            // Same convention as the autopilot: recruits bill their whole
+            // thrust to the off-axis penalty (see BalanceEngine).
+            let (forward, lateral) = if primary {
+                (
+                    **magnitude * aligned,
+                    (local_dir - aligned * Vec3::NEG_Z) * **magnitude,
+                )
+            } else {
+                (0.0, local_dir * **magnitude)
+            };
+            allocation.push((
                 thruster,
                 BalanceEngine {
-                    forward: **magnitude * local_dir.dot(Vec3::NEG_Z).max(0.0),
+                    forward,
+                    lateral,
                     torque,
+                    primary,
                 },
             ));
         }
 
-        // Deliver `burn` of the set's forward thrust, balanced. The uniform
-        // throttle `burn` is a feasible split, so a centered drive spools
-        // exactly as before; an off-center one is trimmed toward straight
-        // flight while the burn leaves headroom to trim with.
-        let demand: f32 = burn * firing.iter().map(|(_, e)| e.forward).sum::<f32>();
-        let coeffs: Vec<BalanceEngine> = firing.iter().map(|(_, e)| *e).collect();
+        // Deliver `burn` of the main-drive set's forward thrust, balanced. The
+        // uniform throttle `burn` over that set is a feasible split, so a
+        // centered drive spools exactly as before; an off-center one is
+        // trimmed toward straight flight, recruiting an off-axis engine when
+        // the set cannot trim itself.
+        let demand: f32 = burn
+            * allocation
+                .iter()
+                .filter(|(_, e)| e.primary)
+                .map(|(_, e)| e.forward)
+                .sum::<f32>();
+        let coeffs: Vec<BalanceEngine> = allocation.iter().map(|(_, e)| *e).collect();
         let throttles = balance_throttles(&coeffs, demand);
 
-        for (thruster, mut input, _, transform, &ChildOf(parent)) in &mut q_thruster {
+        for (thruster, mut input, _, _, &ChildOf(parent)) in &mut q_thruster {
             if parent != ship {
                 continue;
             }
-            let local_dir = transform.rotation.mul_vec3(Vec3::NEG_Z).normalize();
-            if !is_forward_aligned(local_dir, Vec3::NEG_Z) {
-                continue;
-            }
-            let target = firing
+            let target = allocation
                 .iter()
                 .position(|(e, _)| *e == thruster)
                 .map(|i| throttles[i])
@@ -1256,6 +1353,183 @@ mod tests {
         );
     }
 
+    /// A damage-shifted hull with a single main drive: the ballast block far
+    /// off the centerline stands in for the surviving half of a ship that
+    /// lost a side section, so the COM sits well off the lone drive's thrust
+    /// line and a burn torques the hull past what the PD can hold. With
+    /// `with_lateral` a single sideways thruster survives aft of the COM -
+    /// the counter-torque candidate. Returns the ship and the lateral.
+    fn spawn_damage_shifted_single_drive(app: &mut App, with_lateral: bool) -> (Entity, Entity) {
+        let ship = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                SpaceshipRootMarker,
+                FlightIntent::default(),
+            ))
+            .id();
+        app.world_mut().spawn((
+            ChildOf(ship),
+            Name::new("hull"),
+            Transform::from_xyz(0.0, 0.0, -1.0),
+            Collider::cuboid(1.0, 1.0, 1.0),
+            ColliderDensity(1.0),
+        ));
+        // The ballast: surviving structure whose mass drags the COM to +X.
+        app.world_mut().spawn((
+            ChildOf(ship),
+            Name::new("ballast"),
+            Transform::from_xyz(6.0, 0.0, 0.0),
+            Collider::cuboid(1.0, 1.0, 1.0),
+            ColliderDensity(1.0),
+        ));
+        app.world_mut().spawn((
+            ChildOf(ship),
+            Name::new("main drive"),
+            ThrusterSectionMarker,
+            ThrusterSectionMagnitude(2.0),
+            ThrusterSectionInput(0.0),
+            Transform::from_xyz(0.0, 0.0, 1.0),
+            Collider::cuboid(1.0, 1.0, 1.0),
+            ColliderDensity(1.0),
+        ));
+        app.world_mut().spawn((
+            ChildOf(ship),
+            Name::new("controller"),
+            ControllerSectionMarker,
+            ControllerSectionRotationInput::default(),
+            PDController {
+                frequency: 4.0,
+                damping_ratio: 4.0,
+                max_torque: 40.0, // the shipped torque budget
+            },
+            PDControllerTarget(ship),
+            Transform::from_xyz(0.0, 0.0, 0.0),
+            Collider::cuboid(1.0, 1.0, 1.0),
+            ColliderDensity(1.0),
+        ));
+        let lateral = app
+            .world_mut()
+            .spawn((
+                ChildOf(ship),
+                Name::new("lateral"),
+                ThrusterSectionMarker,
+                ThrusterSectionMagnitude(2.0),
+                ThrusterSectionInput(0.0),
+                // Aft of the COM, thrusting +X (local -Z rotated -90 deg
+                // about Y): its torque about the COM opposes the main
+                // drive's, so it is the recruitable counter-torque.
+                Transform::from_xyz(0.0, 0.0, 3.0)
+                    .with_rotation(Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2)),
+                Collider::cuboid(1.0, 1.0, 1.0),
+                ColliderDensity(1.0),
+            ))
+            .id();
+        if !with_lateral {
+            app.world_mut().entity_mut(lateral).despawn();
+        }
+        (ship, lateral)
+    }
+
+    /// The off-axis counter-torque task (20260709-224518): a single main
+    /// drive on a damage-shifted hull cannot balance itself by differential
+    /// throttle (there is nothing in the firing set to trim against), but the
+    /// allocator recruits the surviving lateral purely for its counter-torque
+    /// and the ship holds its heading within the centered-drive tolerance -
+    /// even at full stick, because the recruit's trim budget is its own
+    /// throttle, not the main drive's headroom. Without the lateral the same
+    /// hull pulls, exactly the pre-allocation floor.
+    #[test]
+    fn single_drive_on_a_shifted_hull_recruits_a_lateral_to_hold_heading() {
+        let burn_outcome = |with_lateral: bool| -> (f32, f32) {
+            let mut app = flight_app();
+            let (ship, lateral) = spawn_damage_shifted_single_drive(&mut app, with_lateral);
+            settle(&mut app);
+            app.world_mut().get_mut::<FlightIntent>(ship).unwrap().burn = 1.0;
+            for _ in 0..120 {
+                app.update();
+            }
+            let drift = app
+                .world()
+                .get::<Rotation>(ship)
+                .unwrap()
+                .0
+                .angle_between(Quat::IDENTITY);
+            let recruit = if with_lateral {
+                **app.world().get::<ThrusterSectionInput>(lateral).unwrap()
+            } else {
+                0.0
+            };
+            (drift, recruit)
+        };
+
+        let (held, recruit) = burn_outcome(true);
+        assert!(
+            held < 0.15,
+            "the recruited lateral must hold the heading ({held} rad drift)"
+        );
+        assert!(
+            recruit > 0.2,
+            "the lateral must actually be firing for counter-torque \
+             (input {recruit})"
+        );
+        let (pulled, _) = burn_outcome(false);
+        assert!(
+            pulled > 0.4,
+            "without a lateral to recruit the shifted hull must still pull \
+             ({pulled} rad drift)"
+        );
+    }
+
+    /// The same recruitment through the autopilot path: a STOP burn on the
+    /// damage-shifted single-drive hull lights the lateral (it is outside the
+    /// firing cone, recruited by the wrench allocation in the world frame),
+    /// and the maneuver still converges to rest - the recruit's sideways
+    /// force is the decided bounded drift, and chasing it down is exactly
+    /// what the autopilot's velocity-error rule does. Heading straightness
+    /// under a fixed burn is pinned by the manual-path test above; here the
+    /// hull deliberately turns to kill the drift, so rest is the invariant.
+    #[test]
+    fn autopilot_burn_recruits_a_lateral_on_a_shifted_hull() {
+        let mut app = flight_app();
+        let (ship, lateral) = spawn_damage_shifted_single_drive(&mut app, true);
+        settle(&mut app);
+        // Moving backward (+Z): STOP's velocity error points -Z, straight
+        // along the main drive - no rotation needed, the burn starts at once.
+        // Enough speed that the deceleration takes long enough for the
+        // spooled inputs to be observable mid-burn.
+        app.world_mut().get_mut::<LinearVelocity>(ship).unwrap().0 = Vec3::new(0.0, 0.0, 20.0);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+        // Sample DURING the burn - the autopilot stops the ship and winds the
+        // engines down, so an after-the-fact reading would see only zeros.
+        let mut recruit = 0.0f32;
+        let mut frames = 0;
+        while app.world().get::<Autopilot>(ship).is_some() && frames < 1500 {
+            app.update();
+            frames += 1;
+            recruit = recruit.max(**app.world().get::<ThrusterSectionInput>(lateral).unwrap());
+        }
+        assert!(
+            recruit > 0.2,
+            "the autopilot must recruit the lateral for counter-torque \
+             (peak input {recruit})"
+        );
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "STOP must converge to rest despite the recruit's bounded drift \
+             (speed {} after {frames} frames)",
+            velocity_of(&app, ship).length()
+        );
+        assert!(
+            velocity_of(&app, ship).length() < 0.5,
+            "the ship must actually be at rest ({:?})",
+            velocity_of(&app, ship)
+        );
+    }
+
     #[test]
     fn slew_rotation_caps_the_step_and_reaches_the_target() {
         let target = Quat::from_rotation_y(std::f32::consts::PI);
@@ -1334,6 +1608,28 @@ mod tests {
         assert_eq!(burn_input(-1.0, 1.0), 0.0);
     }
 
+    /// A firing-set engine perfectly on the burn axis: full forward per unit
+    /// input, no perpendicular force, only its lever-arm torque.
+    fn main_engine(forward: f32, torque: Vec3) -> BalanceEngine {
+        BalanceEngine {
+            forward,
+            lateral: Vec3::ZERO,
+            torque,
+            primary: true,
+        }
+    }
+
+    /// An engine perpendicular to the burn axis: zero forward, all of its
+    /// thrust is off-axis force, recruitable only for its torque.
+    fn lateral_engine(lateral: Vec3, torque: Vec3) -> BalanceEngine {
+        BalanceEngine {
+            forward: 0.0,
+            lateral,
+            torque,
+            primary: false,
+        }
+    }
+
     #[test]
     fn balance_throttles_splits_demand_to_null_torque() {
         // Two forward engines (weight 1 each) with opposing but unequal lever
@@ -1342,14 +1638,8 @@ mod tests {
         // runs A hotter than B so 0.5*uA - 1.5*uB = 0 while uA + uB = 1, i.e.
         // uA = 0.75, uB = 0.25 (hand-computed).
         let engines = [
-            BalanceEngine {
-                forward: 1.0,
-                torque: Vec3::new(0.0, 0.5, 0.0),
-            },
-            BalanceEngine {
-                forward: 1.0,
-                torque: Vec3::new(0.0, -1.5, 0.0),
-            },
+            main_engine(1.0, Vec3::new(0.0, 0.5, 0.0)),
+            main_engine(1.0, Vec3::new(0.0, -1.5, 0.0)),
         ];
         let u = balance_throttles(&engines, 1.0);
         assert!((u[0] - 0.75).abs() < 1e-2, "uA = {}", u[0]);
@@ -1367,14 +1657,8 @@ mod tests {
         // balancer must return the shared throttle it started from unchanged
         // (demand 2.0 of total forward 4.0 -> 0.5 each).
         let engines = [
-            BalanceEngine {
-                forward: 2.0,
-                torque: Vec3::new(0.0, 0.0, 1.0),
-            },
-            BalanceEngine {
-                forward: 2.0,
-                torque: Vec3::new(0.0, 0.0, -1.0),
-            },
+            main_engine(2.0, Vec3::new(0.0, 0.0, 1.0)),
+            main_engine(2.0, Vec3::new(0.0, 0.0, -1.0)),
         ];
         let u = balance_throttles(&engines, 2.0);
         assert!(
@@ -1388,23 +1672,14 @@ mod tests {
         // A lone off-center engine cannot null its own torque - throttle scales
         // the magnitude, not the line of action - so it just delivers the
         // demand and leaves the torque to the PD.
-        let lone = [BalanceEngine {
-            forward: 1.0,
-            torque: Vec3::new(0.0, 2.0, 0.0),
-        }];
+        let lone = [main_engine(1.0, Vec3::new(0.0, 2.0, 0.0))];
         assert!((balance_throttles(&lone, 0.5)[0] - 0.5).abs() < 1e-3);
 
         // A full-throttle demand pins every engine at 1.0: no headroom to trim,
         // so the residual torque is left to the PD (the pre-balance behavior).
         let full = [
-            BalanceEngine {
-                forward: 1.0,
-                torque: Vec3::new(0.0, 0.5, 0.0),
-            },
-            BalanceEngine {
-                forward: 1.0,
-                torque: Vec3::new(0.0, -1.5, 0.0),
-            },
+            main_engine(1.0, Vec3::new(0.0, 0.5, 0.0)),
+            main_engine(1.0, Vec3::new(0.0, -1.5, 0.0)),
         ];
         let u = balance_throttles(&full, 2.0);
         assert!(
@@ -1415,6 +1690,86 @@ mod tests {
         // Degenerate inputs stay safe.
         assert!(balance_throttles(&[], 1.0).is_empty());
         assert_eq!(balance_throttles(&lone, 0.0)[0], 0.0);
+    }
+
+    #[test]
+    fn balance_throttles_recruits_an_off_axis_engine_for_counter_torque() {
+        // A lone main drive off the COM (torque -1 per unit about Y) and one
+        // lateral whose lever arm gives +2 per unit. The demand pins the main
+        // at 0.5 (only it has forward thrust); the lateral is recruited
+        // purely for counter-torque. Hand-computed optimum of
+        // (2 uL - 0.5)^2 + LATERAL_PENALTY * uL^2:
+        // uL = 2 * 0.5 / (4 + 0.05) = 0.2469...
+        let engines = [
+            main_engine(1.0, Vec3::new(0.0, -1.0, 0.0)),
+            lateral_engine(Vec3::X, Vec3::new(0.0, 2.0, 0.0)),
+        ];
+        let u = balance_throttles(&engines, 0.5);
+        assert!(
+            (u[0] - 0.5).abs() < 1e-3,
+            "main must hold the demand: {u:?}"
+        );
+        assert!((u[1] - 0.2469).abs() < 1e-2, "lateral recruit: {u:?}");
+        // The recruit nulls all but the lateral-penalty residual of the
+        // torque - a couple of percent, well inside the PD's hold.
+        let torque: Vec3 = engines.iter().zip(&u).map(|(e, &x)| e.torque * x).sum();
+        assert!(torque.length() < 0.02, "net torque = {torque}");
+        // The price is a bounded sideways force, honestly reported.
+        let lateral: Vec3 = engines.iter().zip(&u).map(|(e, &x)| e.lateral * x).sum();
+        assert!((lateral.x - u[1]).abs() < 1e-3, "lateral force = {lateral}");
+    }
+
+    #[test]
+    fn balance_throttles_leaves_off_axis_engines_dark_on_a_balanced_ship() {
+        // A symmetric twin drive nulls its own torque at the uniform seed, so
+        // the objective's gradient is zero and the idle lateral must never be
+        // recruited - no gratuitous sideways burn on a healthy ship.
+        let engines = [
+            main_engine(1.0, Vec3::new(0.0, 1.0, 0.0)),
+            main_engine(1.0, Vec3::new(0.0, -1.0, 0.0)),
+            lateral_engine(Vec3::X, Vec3::new(0.0, 3.0, 0.0)),
+        ];
+        let u = balance_throttles(&engines, 1.0);
+        assert!(
+            (u[0] - 0.5).abs() < 1e-3 && (u[1] - 0.5).abs() < 1e-3,
+            "{u:?}"
+        );
+        assert_eq!(u[2], 0.0, "idle lateral must stay dark: {u:?}");
+    }
+
+    #[test]
+    fn balance_throttles_counter_torques_even_at_full_throttle() {
+        // Differential throttle needs forward headroom; a recruited lateral
+        // does not - its trim budget is its own throttle box. A full-stick
+        // demand pins the lone main at 1.0 and the lateral still nulls the
+        // torque (uL = 2 / (4 + 0.05) = 0.4938...).
+        let engines = [
+            main_engine(1.0, Vec3::new(0.0, -1.0, 0.0)),
+            lateral_engine(Vec3::X, Vec3::new(0.0, 2.0, 0.0)),
+        ];
+        let u = balance_throttles(&engines, 1.0);
+        assert!((u[0] - 1.0).abs() < 1e-3, "{u:?}");
+        assert!((u[1] - 0.4938).abs() < 1e-2, "{u:?}");
+    }
+
+    #[test]
+    fn balance_throttles_skips_a_lateral_mounted_through_the_com() {
+        // An off-axis engine with a tiny lever arm buys almost no torque for
+        // its sideways force, so the penalty keeps it (nearly) dark and the
+        // torque residual goes to the PD instead of the hull drifting.
+        let engines = [
+            main_engine(1.0, Vec3::new(0.0, -1.0, 0.0)),
+            lateral_engine(Vec3::X, Vec3::new(0.0, 0.05, 0.0)),
+        ];
+        let u = balance_throttles(&engines, 0.5);
+        // Optimum uL = 0.05 * 0.5 / (0.05^2 + 0.05) = 0.476 nulls only ~5% of
+        // the torque; what matters is the sideways force stays bounded while
+        // most of the residual is left to the PD.
+        let torque: Vec3 = engines.iter().zip(&u).map(|(e, &x)| e.torque * x).sum();
+        assert!(
+            torque.length() > 0.45,
+            "a useless lever must not be trusted with the torque: {u:?}"
+        );
     }
 
     #[test]

@@ -1,8 +1,8 @@
 # Balance a single off-center main drive with off-axis counter-torque thrusters
 
-- STATUS: OPEN
+- STATUS: IN_PROGRESS
 - PRIORITY: 40
-- TAGS: v0.4.0,handling,physics
+- TAGS: v0.4.0, handling, physics
 
 Follow-up to the thrust-balancing task (20260709-155920,
 docs/2026-07-09-thrust-balancing.md). That task balances torque by differential
@@ -20,17 +20,34 @@ ALL live engines against a desired wrench, not just the forward set.
 
 ## Steps
 
-- [ ] Decide the trade with the user: a counter-torque burn adds a sideways net
+- [x] Decide the trade with the user: a counter-torque burn adds a sideways net
       force the maneuver did not ask for (unless paired symmetrically), so the
       allocation must weigh straightness vs. unwanted translation. Confirm
       whether to constrain net perpendicular force to zero (needs an opposing
       pair) or allow a bounded lateral drift.
-- [ ] Generalize `balance_throttles` (or add a sibling) to a wrench-space
+      DECIDED (2026-07-10, with the user): bounded lateral drift - a soft
+      penalty on net perpendicular force in the objective, not a hard zero
+      constraint. Rationale: a hard zero needs an opposing pair and gives no
+      help to a ship with a single surviving lateral, which is exactly the
+      damage case this task exists for; the small drift is honest physics and
+      the autopilot's arrival control corrects it over time.
+- [x] Generalize `balance_throttles` (or add a sibling) to a wrench-space
       allocation: choose u_i in [0,1] over all live engines to match the desired
       force along the burn AND null torque about the live COM, minimizing
       off-axis force. Reuse the projected-gradient structure.
-- [ ] Physics test: a single main drive on a damage-shifted hull holds its
+      DONE: `balance_throttles` generalized in place - `BalanceEngine` gained
+      `lateral` (penalized off-axis force per unit input) and `primary` (the
+      firing set); recruits enter the demand equality with forward = 0 and
+      their whole thrust vector in the penalty (see
+      docs/2026-07-10-off-axis-counter-torque.md for why). Both
+      `autopilot_system` and `manual_burn_system` now allocate over all live
+      engines.
+- [x] Physics test: a single main drive on a damage-shifted hull holds its
       heading under burn by recruiting a lateral, within the centered tolerance.
+      DONE: `single_drive_on_a_shifted_hull_recruits_a_lateral_to_hold_heading`
+      (manual path, full stick, with a pulls-without-the-lateral control) and
+      `autopilot_burn_recruits_a_lateral_on_a_shifted_hull` (autopilot STOP
+      recruits and converges to rest), plus four solver unit tests.
 
 ## Notes
 
