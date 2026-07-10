@@ -1,7 +1,7 @@
 # Multi-target tracking + subtarget cycle HUD
 
 - STATUS: OPEN
-- PRIORITY: 75
+- PRIORITY: 65
 - TAGS: v0.5.0, hud, spike
 
 Spike: docs/spikes/20260708-165647-weapons-hud.md

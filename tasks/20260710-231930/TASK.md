@@ -1,9 +1,8 @@
 # Bullets twitch badly at high spaceship velocity
 
 - STATUS: OPEN
-- PRIORITY: 55
-- TAGS: v0.5.0,rendering,physics,bug
-
+- PRIORITY: 85
+- TAGS: v0.5.0, rendering, physics, bug
 
 ## Goal
 

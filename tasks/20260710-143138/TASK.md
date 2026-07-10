@@ -1,8 +1,8 @@
 # CI: examples smoke test panics in taffy on GitHub runners only - diagnose and re-enable as blocking
 
 - STATUS: OPEN
-- PRIORITY: 10
-- TAGS: ci,testing,bug
+- PRIORITY: 20
+- TAGS: ci, testing, bug
 
 The `examples_smoke` test step in `.github/workflows/ci.yaml` is currently
 `continue-on-error: true` because `03_scenario` deterministically panics on

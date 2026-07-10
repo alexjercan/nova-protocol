@@ -1,9 +1,8 @@
 # Turret crosshair (orange square) twitches while tracking
 
 - STATUS: OPEN
-- PRIORITY: 50
-- TAGS: v0.5.0,turret,bug
-
+- PRIORITY: 80
+- TAGS: v0.5.0, turret, bug
 
 ## Goal
 

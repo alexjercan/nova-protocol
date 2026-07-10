@@ -1,9 +1,8 @@
 # Holo ribbon should terminate at the arrival park point, not the target center
 
 - STATUS: OPEN
-- PRIORITY: 15
-- TAGS: v0.5.0,hud,polish
-
+- PRIORITY: 25
+- TAGS: v0.5.0, hud, polish
 
 ## Goal
 

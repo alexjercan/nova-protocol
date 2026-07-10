@@ -1,8 +1,8 @@
 # release-flow: build-macOS fails - x86_64-apple-darwin std missing (E0463 can't find crate for core)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 5
-- TAGS: ci,release,bug
+- TAGS: ci, release, bug
 
 The v0.4.0 release (run 29088287339) uploaded linux, web and windows
 assets, but `build-macOS` failed after ~60 min in the "Build release for
@@ -40,3 +40,7 @@ runs `rustup target add x86_64-apple-darwin` against the active toolchain
 first. Verify with a `workflow_dispatch` run (version input form
 `v1.2.3`) or the v0.4.1 release; close once a macOS dmg lands on a
 release.
+
+2026-07-11: verified and closed - the v0.4.1 release run (29093443058)
+succeeded and nova-protocol_v0.4.1_macOS.dmg is attached to the release,
+so the rustup target add fix works.

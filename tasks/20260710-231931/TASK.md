@@ -1,9 +1,8 @@
 # Spaceship rendering is twitchy at high velocity
 
 - STATUS: OPEN
-- PRIORITY: 60
-- TAGS: v0.5.0,rendering,physics,bug
-
+- PRIORITY: 90
+- TAGS: v0.5.0, rendering, physics, bug
 
 ## Goal
 
