@@ -163,6 +163,9 @@ fn setup_hud_flight_status(
     commands.spawn((autopilot_destination_hud(
         AutopilotDestinationHudConfig::new(spaceship, assets.target_sprite.clone()),
     ),));
+    commands.spawn((orbit_available_hud(OrbitAvailableHudConfig {
+        ship: spaceship,
+    }),));
 }
 
 fn remove_hud_flight_status(
@@ -170,6 +173,7 @@ fn remove_hud_flight_status(
     mut commands: Commands,
     q_hud: Query<(Entity, &FlightStatusHudTargetEntity), With<FlightStatusHudMarker>>,
     q_destination: Query<Entity, With<AutopilotDestinationHudMarker>>,
+    q_orbit_cue: Query<Entity, With<OrbitAvailableHudMarker>>,
 ) {
     let entity = remove.entity;
     debug!("remove_hud_flight_status: entity {:?}", entity);
@@ -180,6 +184,9 @@ fn remove_hud_flight_status(
         }
     }
     for hud_entity in &q_destination {
+        commands.entity(hud_entity).despawn();
+    }
+    for hud_entity in &q_orbit_cue {
         commands.entity(hud_entity).despawn();
     }
 }

@@ -26,6 +26,7 @@ impl Plugin for SpaceshipPlayerInputPlugin {
         app.add_observer(on_flight_burn_input_completed);
         app.add_observer(on_autopilot_stop_input);
         app.add_observer(on_autopilot_goto_input);
+        app.add_observer(on_autopilot_orbit_input);
         app.add_observer(on_autopilot_off_input);
 
         app.add_input_context::<ThrusterInputMarker>();
@@ -281,6 +282,12 @@ struct AutopilotStopInput;
 #[action_output(bool)]
 struct AutopilotGotoInput;
 
+/// Engage the ORBIT maneuver around the ship's dominant gravity well;
+/// pressing it again while orbiting disengages. A no-op outside every SOI.
+#[derive(InputAction)]
+#[action_output(bool)]
+struct AutopilotOrbitInput;
+
 /// Plain autopilot off.
 #[derive(InputAction)]
 #[action_output(bool)]
@@ -335,6 +342,18 @@ fn on_player_added_spawn_flight_input(
                         ..default()
                     },
                     bindings![KeyCode::KeyG, GamepadButton::North],
+                ),
+                (
+                    Name::new("Input: Autopilot Orbit"),
+                    Action::<AutopilotOrbitInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    // Not South: the scenario-advance confirm (loader.rs)
+                    // lives there, and a pad press must never both skip the
+                    // scenario and toggle a parking maneuver.
+                    bindings![KeyCode::KeyO, GamepadButton::DPadDown],
                 ),
                 (
                     Name::new("Input: Autopilot Off"),
@@ -474,6 +493,45 @@ fn on_autopilot_goto_input(
     commands
         .entity(entity)
         .insert(Autopilot::engage(AutopilotAction::Goto { target }));
+}
+
+fn on_autopilot_orbit_input(
+    _: On<Start<AutopilotOrbitInput>>,
+    mut commands: Commands,
+    ship: Single<(Entity, Option<&Autopilot>, Option<&DominantWell>), With<PlayerSpaceshipMarker>>,
+) {
+    let (entity, autopilot, dominant) = ship.into_inner();
+
+    // Already orbiting? O toggles the parking off.
+    if let Some(Autopilot {
+        action: AutopilotAction::Orbit { .. },
+        ..
+    }) = autopilot
+    {
+        debug!("on_autopilot_orbit_input: disengaging ORBIT");
+        commands.entity(entity).remove::<Autopilot>();
+        return;
+    }
+
+    // Parking needs a well; outside every SOI this is a no-op (the status
+    // line shows no GRAV state, which is the v1 hint).
+    let Some(well) = dominant else {
+        debug!("on_autopilot_orbit_input: no dominant well, nothing to orbit");
+        return;
+    };
+
+    debug!(
+        "on_autopilot_orbit_input: engaging ORBIT around {:?}",
+        **well
+    );
+    commands.entity(entity).insert(Autopilot::engage(
+        // The plan (ring + plane) is computed by the autopilot on its first
+        // engaged tick - the input layer only names the well.
+        AutopilotAction::Orbit {
+            well: **well,
+            plan: None,
+        },
+    ));
 }
 
 fn on_autopilot_off_input(

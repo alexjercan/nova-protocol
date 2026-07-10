@@ -42,7 +42,7 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         Autopilot, AutopilotAction, AutopilotPhase, FlightIntent, FlightSettings, NovaFlightPlugin,
-        NovaFlightSystems,
+        NovaFlightSystems, OrbitPlan,
     };
 }
 
@@ -127,6 +127,31 @@ pub enum AutopilotAction {
         /// The destination, world coordinates.
         position: Vec3,
     },
+    /// Circularize and station-keep inside `well`'s gravity well (spike
+    /// docs/spikes/20260709-193147-gravity-wells-orbital-mechanics.md).
+    /// The first engaged tick is the Plan phase: [`autopilot_system`] picks
+    /// the target ring (current radius clamped into the stable band) and
+    /// the orbit plane (from r x v, ship-up fallback) and stores them here;
+    /// the plan then stays sticky - a per-tick replan would chase its own
+    /// drift. Never self-completes: the computer holds the orbit with
+    /// micro-burns until breakout, Z, or a capability loss.
+    Orbit {
+        /// The well being orbited (the ship's dominant well at engage time).
+        well: Entity,
+        /// The sticky insertion plan; `None` until the first engaged tick.
+        plan: Option<OrbitPlan>,
+    },
+}
+
+/// The ORBIT verb's sticky plan, computed once when the maneuver engages.
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+pub struct OrbitPlan {
+    /// Target ring radius, world units - the current radius clamped into
+    /// the stable band ([`orbit_target_radius`]).
+    pub radius: f32,
+    /// Orbit plane unit normal; travel direction on the ring is
+    /// `normal x radial`.
+    pub normal: Vec3,
 }
 
 /// Which part of the maneuver the ship is in, for the HUD readout.
@@ -137,6 +162,9 @@ pub enum AutopilotPhase {
     Align,
     /// Aligned and burning.
     Burn,
+    /// ORBIT only: on the planned ring within tolerance, station-keeping
+    /// with micro-burns against integrator drift and fade-band error.
+    Hold,
 }
 
 /// All flight tunables in one reflected resource, for the inspector and a
@@ -203,6 +231,23 @@ pub struct FlightSettings {
     /// below [`FlightSettings::align_cos`], so the plume does not flicker
     /// on/off right at the gate boundary.
     pub align_hysteresis: f32,
+    /// ORBIT enters its Hold phase when the velocity error drops to this,
+    /// u/s. Kept above [`FlightSettings::attitude_deadband`] so Hold still
+    /// covers the micro-burn regime (drift is corrected, the label reads
+    /// HOLD).
+    pub orbit_hold_enter: f32,
+    /// ORBIT leaves Hold (back to Align/Burn) only when the velocity error
+    /// grows past this, u/s - hysteresis so the HUD phase does not flicker
+    /// at the tolerance boundary.
+    pub orbit_hold_exit: f32,
+    /// The planned ring never sits closer to the body than
+    /// `clearance * (body_radius + surface_margin)` - engaging ORBIT while
+    /// skimming the surface plans an orbit with room to breathe.
+    pub orbit_clearance_factor: f32,
+    /// The planned ring never sits beyond `safety * fade_start` of the SOI:
+    /// orbits are only trusted in the unfaded core (spike decision 3), and
+    /// the safety margin keeps station-keeping off the fade band's edge.
+    pub orbit_band_safety: f32,
 }
 
 impl Default for FlightSettings {
@@ -231,6 +276,13 @@ impl Default for FlightSettings {
             // with attitude swings is what everybody notices.
             attitude_deadband: 0.4,
             align_hysteresis: 0.03,
+            // Enter Hold at twice the attitude deadband: inside it the
+            // computer is trimming crumbs, which is exactly what
+            // station-keeping looks like.
+            orbit_hold_enter: 0.8,
+            orbit_hold_exit: 1.2,
+            orbit_clearance_factor: 1.5,
+            orbit_band_safety: 0.9,
         }
     }
 }
@@ -249,13 +301,20 @@ impl Plugin for NovaFlightPlugin {
     fn build(&self, app: &mut App) {
         debug!("NovaFlightPlugin: build");
 
+        // The ORBIT verb reads the gravity tunables; init here too so the
+        // flight layer stands alone (the AI physics tests build it without
+        // NovaGravityPlugin). init_resource is idempotent, so the gravity
+        // plugin owning the same resource is fine.
+        app.init_resource::<GravitySettings>();
+
         app.init_resource::<FlightSettings>()
             // Register the whole reflected tree, not just the resource root.
             .register_type::<FlightSettings>()
             .register_type::<FlightIntent>()
             .register_type::<Autopilot>()
             .register_type::<AutopilotAction>()
-            .register_type::<AutopilotPhase>();
+            .register_type::<AutopilotPhase>()
+            .register_type::<OrbitPlan>();
 
         app.add_observer(insert_flight_control);
         app.add_observer(on_autopilot_removed_cool_engines);
@@ -318,6 +377,105 @@ fn goto_desired_velocity(
     }
     let speed = arrival_speed_limit(remaining, accel, margin, lead_time).max(min_approach.max(0.0));
     (to_target / distance) * speed
+}
+
+/// The ORBIT plan's plane normal. The natural plane is the one the ship is
+/// already moving in (`r x v`, the angular-momentum direction), so the
+/// insertion keeps whatever tangential motion exists. When the velocity is
+/// near-zero or near-radial that cross product is degenerate noise; the
+/// fallback orbits "flat" relative to the pilot's own horizon: the ship's up
+/// axis, rejected onto the radial so the normal stays perpendicular to
+/// `r_vec`, with world axes as last resorts. Pure for unit testing.
+pub(crate) fn orbit_plane_normal(r_vec: Vec3, velocity: Vec3, ship_up: Vec3) -> Vec3 {
+    let momentum = r_vec.cross(velocity);
+    // Trust the momentum plane only when the tangential component is real:
+    // |r x v| = |r||v| sin(angle), so this gate is sin(angle) > 0.1 with a
+    // floor on the speed itself.
+    if velocity.length() > 0.25 && momentum.length() > 0.1 * r_vec.length() * velocity.length() {
+        if let Some(normal) = momentum.try_normalize() {
+            return normal;
+        }
+    }
+    let Some(r_hat) = r_vec.try_normalize() else {
+        // On top of the well center (never happens outside tests): any
+        // plane is as good as any other.
+        return Vec3::Y;
+    };
+    for candidate in [ship_up, Vec3::Y, Vec3::X] {
+        let rejected = candidate - r_hat * candidate.dot(r_hat);
+        if let Some(normal) = rejected.try_normalize() {
+            return normal;
+        }
+    }
+    Vec3::Y
+}
+
+/// The ORBIT plan's target ring radius: the current radius, clamped into
+/// the stable band of the well - no closer than
+/// `orbit_clearance_factor * (body_radius + surface_margin)` (room to
+/// breathe over the surface clamp), no farther than
+/// `orbit_band_safety * fade_start` (orbits are only trusted in the unfaded
+/// core, spike decision 3). `None` when the well has no stable band at all
+/// (clearance past the trusted core) - such a well is unorbitable and the
+/// verb refuses to plan. Pure for unit testing.
+pub(crate) fn orbit_target_radius(
+    current_radius: f32,
+    well: &GravityWell,
+    gravity: &GravitySettings,
+    settings: &FlightSettings,
+) -> Option<f32> {
+    let min =
+        settings.orbit_clearance_factor.max(1.0) * (well.body_radius + gravity.surface_margin);
+    let fade_start = well.soi_radius * (1.0 - gravity.fade_fraction.clamp(0.0, 1.0));
+    let max = settings.orbit_band_safety.clamp(0.0, 1.0) * fade_start;
+    // No stable band (the clearance already sits past the trusted core):
+    // the well is unorbitable - a ring out there would be a permanently
+    // powered fake orbit with no gravity assisting. The verb refuses to
+    // plan rather than flying an incoherent circle.
+    if min > max {
+        return None;
+    }
+    Some(current_radius.clamp(min, max))
+}
+
+/// The velocity the ORBIT verb wants right now: tangential circular-orbit
+/// speed on the planned ring, plus a bounded arrival-curve correction toward
+/// the nearest ring point (which folds radial and out-of-plane error into
+/// one term). On the ring the correction vanishes and this degenerates to
+/// pure tangential v_circ - gravity does the rest. Travel direction is
+/// `normal x radial`, which matches the ship's existing motion when the
+/// plan's normal came from `r x v`. Pure for unit testing.
+pub(crate) fn orbit_desired_velocity(
+    r_vec: Vec3,
+    plan: &OrbitPlan,
+    mu: f32,
+    accel: f32,
+    margin: f32,
+    lead_time: f32,
+) -> Vec3 {
+    let tangential = plan.normal.cross(orbit_ring_radial(r_vec, plan));
+    let to_ring = orbit_ring_offset(r_vec, plan);
+    let correction = match to_ring.try_normalize() {
+        Some(dir) => dir * arrival_speed_limit(to_ring.length(), accel, margin, lead_time),
+        None => Vec3::ZERO,
+    };
+
+    tangential * crate::gravity::circular_orbit_speed(mu, plan.radius) + correction
+}
+
+/// Radial unit direction from the well center to the ship, projected into
+/// the plan's orbit plane; when the ship sits on the plane axis itself, any
+/// in-plane direction serves.
+fn orbit_ring_radial(r_vec: Vec3, plan: &OrbitPlan) -> Vec3 {
+    (r_vec - plan.normal * r_vec.dot(plan.normal))
+        .try_normalize()
+        .unwrap_or_else(|| plan.normal.any_orthonormal_vector())
+}
+
+/// Vector from the ship to the nearest point of the planned ring - the
+/// combined radial and out-of-plane error the ORBIT correction burns down.
+pub(crate) fn orbit_ring_offset(r_vec: Vec3, plan: &OrbitPlan) -> Vec3 {
+    orbit_ring_radial(r_vec, plan) * plan.radius - r_vec
 }
 
 /// Rotate `current` toward `target` by at most `max_step` radians. The PD's
@@ -635,17 +793,33 @@ pub(crate) fn is_forward_aligned(thrust_dir: Vec3, forward: Vec3) -> bool {
 /// One line of HUD truth about the flight layer, shared with the HUD module
 /// so the formatting is unit-testable. `goto_distance` is the current
 /// distance to the GOTO target, when known.
+/// The gravity context the HUD feeds the status line: the ship's dominant
+/// well and its current distance from it.
+pub(crate) struct GravStatus<'a> {
+    /// The well's display name (its `Name`, or a generic fallback).
+    pub name: &'a str,
+    /// Current distance from the well center, world units.
+    pub radius: f32,
+}
+
 pub(crate) fn flight_status_line(
     speed: f32,
     autopilot: Option<&Autopilot>,
     goto_distance: Option<f32>,
+    grav: Option<GravStatus>,
 ) -> String {
     let phase = |p: AutopilotPhase| match p {
         AutopilotPhase::Align => "ALIGN",
         AutopilotPhase::Burn => "BURN",
+        AutopilotPhase::Hold => "HOLD",
     };
     match autopilot {
-        None => format!("MAN     {speed:5.1} u/s"),
+        // Coasting inside a well is worth a word: a curving trajectory must
+        // never read as a bug (spike decision 7).
+        None => match grav {
+            Some(g) => format!("MAN     {speed:5.1} u/s | GRAV {}", g.name),
+            None => format!("MAN     {speed:5.1} u/s"),
+        },
         Some(ap) => match (ap.action, goto_distance) {
             (AutopilotAction::Stop, _) => {
                 format!("AP STOP - {} | {speed:5.1} u/s", phase(ap.phase))
@@ -656,6 +830,14 @@ pub(crate) fn flight_status_line(
             (AutopilotAction::Goto { .. } | AutopilotAction::GotoPos { .. }, None) => {
                 format!("AP GOTO - {} | {speed:5.1} u/s", phase(ap.phase))
             }
+            (AutopilotAction::Orbit { .. }, _) => match grav {
+                Some(g) => format!(
+                    "AP ORBIT - {} | r {:4.0} | {speed:5.1} u/s",
+                    phase(ap.phase),
+                    g.radius
+                ),
+                None => format!("AP ORBIT - {} | {speed:5.1} u/s", phase(ap.phase)),
+            },
         },
     }
 }
@@ -677,6 +859,7 @@ pub(crate) fn flight_status_line(
 fn autopilot_system(
     time: Res<Time>,
     settings: Res<FlightSettings>,
+    gravity_settings: Res<GravitySettings>,
     mut commands: Commands,
     mut q_ship: Query<
         (
@@ -727,6 +910,13 @@ fn autopilot_system(
         With<ControllerSectionMarker>,
     >,
     q_target: Query<&GlobalTransform>,
+    // ORBIT's well lookup: avian Position (the force system's frame), not
+    // GlobalTransform, so the ring the computer flies is the ring gravity
+    // pulls on. Without<SpaceshipRootMarker> is a design statement, not an
+    // aliasing need: a ship is never an orbit target, even if someone bolts
+    // a GravityWell onto one - ORBIT would treat it as "well gone" and
+    // disengage.
+    q_wells: Query<(&Position, &GravityWell), Without<SpaceshipRootMarker>>,
 ) {
     let dt = time.delta_secs();
 
@@ -774,59 +964,119 @@ fn autopilot_system(
         }
         let groups = cluster_thrusters(&engines, FORWARD_ALIGNMENT_COS);
 
-        // The goal, as a desired velocity right now. For GOTO the arrival
-        // curve is planned with the group the computer would actually brake
-        // with: its authority sets the deceleration, its rotation distance
-        // sets the lead (a retro-equipped ship brakes late and flat; a
-        // main-drive-only ship budgets its 180).
-        let goal_position = match autopilot.action {
-            AutopilotAction::Stop => None,
+        // The arrival curve is planned with the group the computer would
+        // actually brake with: its authority sets the deceleration, its
+        // rotation distance sets the lead (a retro-equipped ship brakes late
+        // and flat; a main-drive-only ship budgets its 180). Shared by GOTO
+        // and ORBIT's ring correction.
+        let braking_plan = |brake_dir: Vec3, brake_speed: f32| -> (f32, f32) {
+            let brake = choose_group(
+                &groups,
+                brake_dir,
+                brake_speed,
+                mass.value(),
+                dt,
+                turn_rate,
+                settings.rotation_bias,
+            );
+            let (brake_authority, brake_angle) = brake
+                .map(|g| (g.authority, g.world_dir.angle_between(brake_dir)))
+                .unwrap_or((0.0, 0.0));
+            let accel = if dt > 0.0 && mass.value() > 0.0 {
+                (brake_authority / mass.value()) / dt
+            } else {
+                0.0
+            };
+            let lead = brake_angle / turn_rate.max(1e-3) + settings.arrival_spool_pad;
+            (accel, lead)
+        };
+
+        // ORBIT plans once, on its first engaged tick: target ring from the
+        // current radius clamped into the stable band, plane from r x v with
+        // the ship-up fallback. The plan then stays sticky - replanning
+        // every tick would chase the drift the plan exists to correct.
+        if let AutopilotAction::Orbit { well, plan: None } = autopilot.action {
+            let Ok((well_position, well_data)) = q_wells.get(well) else {
+                debug!("autopilot_system: ORBIT well {well:?} is gone, disengaging");
+                commands.entity(ship).remove::<Autopilot>();
+                continue;
+            };
+            let r_vec = position.0 - well_position.0;
+            let Some(radius) =
+                orbit_target_radius(r_vec.length(), well_data, &gravity_settings, &settings)
+            else {
+                debug!("autopilot_system: well {well:?} has no stable band, disengaging ORBIT");
+                commands.entity(ship).remove::<Autopilot>();
+                continue;
+            };
+            let plan = OrbitPlan {
+                radius,
+                normal: orbit_plane_normal(r_vec, **velocity, rotation.mul_vec3(Vec3::Y)),
+            };
+            autopilot.action = AutopilotAction::Orbit {
+                well,
+                plan: Some(plan),
+            };
+        }
+
+        // The arrival leg shared by GOTO and GotoPos: fly at the goal, come
+        // to rest at the standoff.
+        let arrival_desired = |goal: Vec3| -> Vec3 {
+            let to_target = goal - position.0;
+            if to_target.length() <= settings.arrival_standoff {
+                Vec3::ZERO
+            } else {
+                let brake_dir = -to_target.normalize();
+                let brake_speed = velocity.length().max(settings.min_approach_speed);
+                let (accel, lead) = braking_plan(brake_dir, brake_speed);
+                goto_desired_velocity(
+                    to_target,
+                    settings.arrival_standoff,
+                    accel,
+                    settings.decel_margin,
+                    lead,
+                    settings.min_approach_speed,
+                )
+            }
+        };
+
+        // The goal, as a desired velocity right now.
+        let desired = match autopilot.action {
+            AutopilotAction::Stop => Vec3::ZERO,
             AutopilotAction::Goto { target } => {
                 let Ok(target_transform) = q_target.get(target) else {
                     debug!("autopilot_system: GOTO target {target:?} is gone, disengaging");
                     commands.entity(ship).remove::<Autopilot>();
                     continue;
                 };
-                Some(target_transform.translation())
+                arrival_desired(target_transform.translation())
             }
-            AutopilotAction::GotoPos { position } => Some(position),
-        };
-        let desired = match goal_position {
-            None => Vec3::ZERO,
-            Some(goal) => {
-                let to_target = goal - position.0;
-                if to_target.length() <= settings.arrival_standoff {
-                    Vec3::ZERO
-                } else {
-                    let brake_dir = -to_target.normalize();
-                    let brake_speed = velocity.length().max(settings.min_approach_speed);
-                    let brake = choose_group(
-                        &groups,
-                        brake_dir,
-                        brake_speed,
-                        mass.value(),
-                        dt,
-                        turn_rate,
-                        settings.rotation_bias,
-                    );
-                    let (brake_authority, brake_angle) = brake
-                        .map(|g| (g.authority, g.world_dir.angle_between(brake_dir)))
-                        .unwrap_or((0.0, 0.0));
-                    let accel = if dt > 0.0 && mass.value() > 0.0 {
-                        (brake_authority / mass.value()) / dt
-                    } else {
-                        0.0
-                    };
-                    let lead = brake_angle / turn_rate.max(1e-3) + settings.arrival_spool_pad;
-                    goto_desired_velocity(
-                        to_target,
-                        settings.arrival_standoff,
-                        accel,
-                        settings.decel_margin,
-                        lead,
-                        settings.min_approach_speed,
-                    )
-                }
+            AutopilotAction::GotoPos { position } => arrival_desired(position),
+            AutopilotAction::Orbit { well, plan } => {
+                let Ok((well_position, well_data)) = q_wells.get(well) else {
+                    debug!("autopilot_system: ORBIT well {well:?} is gone, disengaging");
+                    commands.entity(ship).remove::<Autopilot>();
+                    continue;
+                };
+                // Unreachable by construction: the plan block above either
+                // filled the plan this tick or disengaged. The skip is
+                // defensive only.
+                let Some(plan) = plan else { continue };
+                let r_vec = position.0 - well_position.0;
+                let to_ring = orbit_ring_offset(r_vec, &plan);
+                let brake_dir = -to_ring
+                    .try_normalize()
+                    .unwrap_or_else(|| -r_vec.normalize_or(Vec3::X));
+                let brake_speed = velocity.length().max(settings.min_approach_speed);
+                let (accel, lead) = braking_plan(brake_dir, brake_speed);
+                orbit_desired_velocity(
+                    r_vec,
+                    &plan,
+                    well_data.mu,
+                    accel,
+                    settings.decel_margin,
+                    lead,
+                )
             }
         };
 
@@ -907,8 +1157,11 @@ fn autopilot_system(
         // Done: the goal wants rest here and the ship is at rest - exactly,
         // or within the deadband with no engine on the residual. Release
         // only once the engines have wound down: a still-hot, spooling-down
-        // drive would push the ship off again.
-        let done = desired == Vec3::ZERO
+        // drive would push the ship off again. ORBIT never completes: an
+        // orbit is not a destination, the computer station-keeps until
+        // breakout, Z, or a capability loss.
+        let done = !matches!(autopilot.action, AutopilotAction::Orbit { .. })
+            && desired == Vec3::ZERO
             && (error_speed <= settings.stop_speed_epsilon || (fine && firing_authority <= 0.0));
         if done && hottest_input <= 0.05 {
             debug!("autopilot_system: ship {ship:?} maneuver complete, disengaging");
@@ -972,10 +1225,28 @@ fn autopilot_system(
             burning = throttles.iter().any(|&u| u > 0.0);
         }
 
-        autopilot.phase = if burning {
-            AutopilotPhase::Burn
-        } else {
-            AutopilotPhase::Align
+        autopilot.phase = match autopilot.action {
+            // ORBIT reports Hold once the velocity error is inside the hold
+            // tolerance, with hysteresis so the label does not flicker at
+            // the boundary. Micro-burns still fire inside Hold (the
+            // attitude deadband, not the hold gate, decides burning) - that
+            // IS station-keeping.
+            AutopilotAction::Orbit { .. } => {
+                let holding = if autopilot.phase == AutopilotPhase::Hold {
+                    error_speed <= settings.orbit_hold_exit
+                } else {
+                    error_speed <= settings.orbit_hold_enter
+                };
+                if holding {
+                    AutopilotPhase::Hold
+                } else if burning {
+                    AutopilotPhase::Burn
+                } else {
+                    AutopilotPhase::Align
+                }
+            }
+            _ if burning => AutopilotPhase::Burn,
+            _ => AutopilotPhase::Align,
         };
 
         // Spool every engine toward its allocated throttle (zero for engines
@@ -1796,13 +2067,16 @@ mod tests {
 
     #[test]
     fn flight_status_line_formats_manual_and_each_maneuver() {
-        assert_eq!(flight_status_line(12.34, None, None), "MAN      12.3 u/s");
+        assert_eq!(
+            flight_status_line(12.34, None, None, None),
+            "MAN      12.3 u/s"
+        );
         let stop = Autopilot {
             action: AutopilotAction::Stop,
             phase: AutopilotPhase::Align,
         };
         assert_eq!(
-            flight_status_line(12.34, Some(&stop), None),
+            flight_status_line(12.34, Some(&stop), None, None),
             "AP STOP - ALIGN |  12.3 u/s"
         );
         let goto = Autopilot {
@@ -1812,8 +2086,44 @@ mod tests {
             phase: AutopilotPhase::Burn,
         };
         assert_eq!(
-            flight_status_line(5.0, Some(&goto), Some(320.4)),
+            flight_status_line(5.0, Some(&goto), Some(320.4), None),
             "AP GOTO - BURN |   5.0 u/s |   320m"
+        );
+    }
+
+    #[test]
+    fn flight_status_line_shows_the_well_and_the_orbit_phases() {
+        let grav = || {
+            Some(GravStatus {
+                name: "Gravity Rock",
+                radius: 52.4,
+            })
+        };
+        // Coasting inside a well: the curve on the trajectory gets a name.
+        assert_eq!(
+            flight_status_line(12.34, None, None, grav()),
+            "MAN      12.3 u/s | GRAV Gravity Rock"
+        );
+        let orbit = |phase| Autopilot {
+            action: AutopilotAction::Orbit {
+                well: Entity::PLACEHOLDER,
+                plan: None,
+            },
+            phase,
+        };
+        assert_eq!(
+            flight_status_line(4.9, Some(&orbit(AutopilotPhase::Burn)), None, grav()),
+            "AP ORBIT - BURN | r   52 |   4.9 u/s"
+        );
+        assert_eq!(
+            flight_status_line(4.9, Some(&orbit(AutopilotPhase::Hold)), None, grav()),
+            "AP ORBIT - HOLD | r   52 |   4.9 u/s"
+        );
+        // The well can die a flush before the handle clears: no radius, no
+        // panic, the line degrades gracefully.
+        assert_eq!(
+            flight_status_line(4.9, Some(&orbit(AutopilotPhase::Align)), None, None),
+            "AP ORBIT - ALIGN |   4.9 u/s"
         );
     }
 
@@ -1853,8 +2163,24 @@ mod tests {
     };
 
     fn flight_app() -> App {
+        let mut app = unfinished_flight_app();
+        app.finish();
+        app
+    }
+
+    /// The flight harness plus the real gravity layer, for the ORBIT tests:
+    /// wells actually pull, ship roots opt in through the plugin's observer.
+    fn orbit_app() -> App {
+        let mut app = unfinished_flight_app();
+        app.add_plugins(crate::gravity::NovaGravityPlugin);
+        app.finish();
+        app
+    }
+
+    fn unfinished_flight_app() -> App {
         let mut app = unfinished_integrity_physics_app();
         app.init_resource::<FlightSettings>();
+        app.init_resource::<GravitySettings>();
         app.add_plugins(PDControllerPlugin);
         app.configure_sets(
             FixedUpdate,
@@ -1881,7 +2207,6 @@ mod tests {
             (sync_controller_section_forces, thruster_impulse_system)
                 .in_set(SpaceshipSectionSystems),
         );
-        app.finish();
         app
     }
 
@@ -1978,6 +2303,10 @@ mod tests {
         **app.world().get::<LinearVelocity>(ship).unwrap()
     }
 
+    fn position_of(app: &App, ship: Entity) -> Vec3 {
+        **app.world().get::<Position>(ship).unwrap()
+    }
+
     fn run(app: &mut App, frames: usize) {
         for _ in 0..frames {
             app.update();
@@ -2005,6 +2334,242 @@ mod tests {
         assert!(
             app.world().get::<Autopilot>(ship).is_none(),
             "a completed maneuver disengages"
+        );
+    }
+
+    // --- ORBIT: pure plan helpers -----------------------------------------
+
+    #[test]
+    fn orbit_plane_normal_follows_momentum_and_falls_back_to_the_horizon() {
+        let r = Vec3::new(50.0, 0.0, 0.0);
+        // Real tangential motion: the plane is the one the ship already
+        // moves in (r x v points +Y for -Z travel at +X).
+        let n = orbit_plane_normal(r, Vec3::new(0.0, 0.0, -5.0), Vec3::Y);
+        assert!((n - Vec3::Y).length() < 1e-5, "got {n}");
+        // Near-rest and pure-radial velocities are degenerate: fall back to
+        // the pilot's horizon (ship up, rejected onto the radial).
+        for v in [Vec3::ZERO, Vec3::new(-5.0, 0.0, 0.0)] {
+            let n = orbit_plane_normal(r, v, Vec3::Z);
+            assert!((n - Vec3::Z).length() < 1e-5, "up fallback, got {n}");
+        }
+        // Ship up parallel to the radial: world axes take over; the result
+        // must still be a unit normal perpendicular to r.
+        let n = orbit_plane_normal(r, Vec3::ZERO, Vec3::X);
+        assert!((n.length() - 1.0).abs() < 1e-5);
+        assert!(n.dot(r).abs() < 1e-4, "normal must be perpendicular to r");
+    }
+
+    #[test]
+    fn orbit_target_radius_clamps_into_the_stable_band() {
+        let flight = FlightSettings::default();
+        let gravity = GravitySettings::default();
+        let well = GravityWell::from_surface_gravity(3.0, 20.0, &gravity);
+        // Band for the sanity rock: [1.5 * 21, 0.9 * 0.85 * 160] = [31.5, 122.4].
+        assert_eq!(
+            orbit_target_radius(50.0, &well, &gravity, &flight),
+            Some(50.0)
+        );
+        assert_eq!(
+            orbit_target_radius(10.0, &well, &gravity, &flight),
+            Some(31.5)
+        );
+        let band_max = flight.orbit_band_safety * (well.soi_radius * (1.0 - gravity.fade_fraction));
+        assert_eq!(
+            orbit_target_radius(150.0, &well, &gravity, &flight),
+            Some(band_max)
+        );
+        // A well with no stable band (clearance past the trusted core) is
+        // unorbitable: a ring out there would be a powered fake orbit with
+        // zero gravity assisting.
+        let tiny = GravityWell {
+            mu: 100.0,
+            body_radius: 10.0,
+            soi_radius: 12.0,
+        };
+        assert_eq!(orbit_target_radius(5.0, &tiny, &gravity, &flight), None);
+        assert_eq!(orbit_target_radius(100.0, &tiny, &gravity, &flight), None);
+    }
+
+    #[test]
+    fn orbit_desired_velocity_is_pure_tangential_v_circ_on_the_ring() {
+        let plan = OrbitPlan {
+            radius: 50.0,
+            normal: Vec3::Y,
+        };
+        let mu = 1200.0;
+        // On the ring: no correction, pure tangential circular speed.
+        let on_ring = orbit_desired_velocity(Vec3::new(50.0, 0.0, 0.0), &plan, mu, 20.0, 0.85, 0.5);
+        let v_circ = crate::gravity::circular_orbit_speed(mu, 50.0);
+        assert!(
+            (on_ring - Vec3::new(0.0, 0.0, -v_circ)).length() < 1e-4,
+            "got {on_ring}"
+        );
+        // Inside the ring: the correction pushes outward (+X here).
+        let inside = orbit_desired_velocity(Vec3::new(40.0, 0.0, 0.0), &plan, mu, 20.0, 0.85, 0.5);
+        assert!(inside.x > 0.1, "outward correction expected, got {inside}");
+        // Off-plane: the correction pulls back toward the plane (-Y here).
+        let above = orbit_desired_velocity(Vec3::new(50.0, 10.0, 0.0), &plan, mu, 20.0, 0.85, 0.5);
+        assert!(above.y < -0.1, "plane correction expected, got {above}");
+    }
+
+    // --- ORBIT: physics-level ----------------------------------------------
+
+    /// The spike's sanity rock, on rails at the origin, pulling for real.
+    fn spawn_orbit_well(app: &mut App) -> Entity {
+        app.world_mut()
+            .spawn((
+                RigidBody::Static,
+                Transform::default(),
+                crate::gravity::GravityWell::from_surface_gravity(
+                    3.0,
+                    20.0,
+                    &GravitySettings::default(),
+                ),
+            ))
+            .id()
+    }
+
+    #[test]
+    fn orbit_engages_from_near_rest_and_holds_the_ring_for_a_lap() {
+        let mut app = orbit_app();
+        let well = spawn_orbit_well(&mut app);
+        let (ship, _, _) = spawn_ship(&mut app);
+        // Park near-rest at r = 50, inside the stable band: the whole
+        // insertion - plan, align, burn to tangential v_circ, hold - is the
+        // computer's job.
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Transform::from_xyz(50.0, 0.0, 0.0));
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Orbit {
+                well,
+                plan: None,
+            }));
+
+        // Insertion window, then a full ~64s lap under observation.
+        run(&mut app, 900);
+        let plan_radius = match app.world().get::<Autopilot>(ship) {
+            Some(Autopilot {
+                action:
+                    AutopilotAction::Orbit {
+                        plan: Some(plan), ..
+                    },
+                ..
+            }) => plan.radius,
+            other => panic!("ORBIT should stay engaged with a plan, got {other:?}"),
+        };
+        assert!(
+            (plan_radius - 50.0).abs() < 1.0,
+            "r = 50 is inside the band, the plan should keep it, got {plan_radius}"
+        );
+
+        let (mut r_min, mut r_max) = (f32::MAX, f32::MIN);
+        let mut held = false;
+        for _ in 0..4200 {
+            app.update();
+            let r = position_of(&app, ship).length();
+            r_min = r_min.min(r);
+            r_max = r_max.max(r);
+            if app.world().get::<Autopilot>(ship).map(|ap| ap.phase) == Some(AutopilotPhase::Hold) {
+                held = true;
+            }
+        }
+
+        assert!(
+            r_min > 0.8 * plan_radius && r_max < 1.25 * plan_radius,
+            "orbit drifted out of the band: min {r_min}, max {r_max}, plan {plan_radius}"
+        );
+        assert!(held, "station-keeping should reach the Hold phase");
+        let speed = velocity_of(&app, ship).length();
+        let v_circ = crate::gravity::circular_orbit_speed(1200.0, plan_radius);
+        assert!(
+            (speed - v_circ).abs() < 0.35 * v_circ,
+            "orbital speed should sit near v_circ {v_circ}, got {speed}"
+        );
+        assert!(
+            app.world().get::<Autopilot>(ship).is_some(),
+            "an orbit is not a destination: ORBIT never self-completes"
+        );
+    }
+
+    #[test]
+    fn orbit_disengages_when_the_well_dies() {
+        let mut app = orbit_app();
+        let well = spawn_orbit_well(&mut app);
+        let (ship, _, _) = spawn_ship(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Transform::from_xyz(50.0, 0.0, 0.0));
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Orbit {
+                well,
+                plan: None,
+            }));
+        run(&mut app, 60);
+        assert!(app.world().get::<Autopilot>(ship).is_some());
+
+        app.world_mut().entity_mut(well).despawn();
+        run(&mut app, 2);
+
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "a dead well disengages ORBIT, like a vanished GOTO target"
+        );
+    }
+
+    #[test]
+    fn orbit_inherits_the_capability_coupling() {
+        // Dead engines: the computer cannot circularize, ORBIT disengages -
+        // same rule as STOP/GOTO.
+        let mut app = orbit_app();
+        let well = spawn_orbit_well(&mut app);
+        let (ship, thruster, _) = spawn_ship(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Transform::from_xyz(50.0, 0.0, 0.0));
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Orbit {
+                well,
+                plan: None,
+            }));
+        run(&mut app, 30);
+        app.world_mut()
+            .entity_mut(thruster)
+            .insert(SectionInactiveMarker);
+        run(&mut app, 2);
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "no live engines, no ORBIT"
+        );
+
+        // Dead flight computer: same, one level earlier.
+        let mut app = orbit_app();
+        let well = spawn_orbit_well(&mut app);
+        let (ship, _, controller) = spawn_ship(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Transform::from_xyz(50.0, 0.0, 0.0));
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Orbit {
+                well,
+                plan: None,
+            }));
+        run(&mut app, 30);
+        app.world_mut()
+            .entity_mut(controller)
+            .insert(SectionInactiveMarker);
+        run(&mut app, 2);
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "no live flight computer, no ORBIT"
         );
     }
 

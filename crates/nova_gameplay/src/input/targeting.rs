@@ -230,6 +230,7 @@ fn update_spaceship_target_input(
             Entity,
             &GlobalTransform,
             &RigidBody,
+            Option<&GravityWell>,
             Option<&TorpedoProjectileMarker>,
             Option<&TorpedoTargetChosen>,
             Option<&Allegiance>,
@@ -262,11 +263,13 @@ fn update_spaceship_target_input(
     let candidates: Vec<(Entity, Vec3, bool)> = q_candidates
         .iter()
         .filter_map(
-            |(entity, transform, rigid_body, is_torpedo, torpedo_committed, allegiance)| {
+            |(entity, transform, rigid_body, well, is_torpedo, torpedo_committed, allegiance)| {
                 // Only physical, movable bodies are lockable. This skips static sensor
                 // volumes such as scenario trigger areas (`RigidBody::Static`), which
-                // are invisible and must never be locked.
-                if !matches!(rigid_body, RigidBody::Dynamic) {
+                // are invisible and must never be locked. Gravity-well sources are the
+                // exception: they sit on rails (Static since the gravity task), but they
+                // are big, visible rocks the player GOTOs and orbits - lockable.
+                if !matches!(rigid_body, RigidBody::Dynamic) && well.is_none() {
                     return None;
                 }
                 // Never lock the player's own ship.
@@ -727,6 +730,34 @@ mod tests {
             .unwrap();
 
         assert_eq!(**world.resource::<SpaceshipPlayerTargetLock>(), Some(aimed));
+    }
+
+    #[test]
+    fn a_static_gravity_well_source_is_lockable_but_a_static_sensor_is_not() {
+        // Well sources went on rails (RigidBody::Static) in the gravity
+        // task, which silently dropped them from the lockable set - the
+        // 2026-07-10 playtest could not GOTO the Gravity Rock. A static
+        // body with a GravityWell is a big visible rock, lockable; a bare
+        // static body (scenario trigger volume) stays unlockable.
+        let mut world = World::new();
+        spawn_acquisition_rig(&mut world);
+        world.spawn((
+            RigidBody::Static,
+            GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -200.0)),
+        ));
+        let rock = world
+            .spawn((
+                RigidBody::Static,
+                GravityWell::from_surface_gravity(3.0, 20.0, &GravitySettings::default()),
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -300.0)),
+            ))
+            .id();
+
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+
+        assert_eq!(**world.resource::<SpaceshipPlayerTargetLock>(), Some(rock));
     }
 
     #[test]
