@@ -46,12 +46,17 @@ pub mod prelude {
     };
 }
 
-/// The authored geometric radius of a scenario object, world units: the
-/// surface the GOTO arrival standoff measures from (task 20260710-202408).
-/// Unsized targets fall back to zero (center-relative, the pre-existing
-/// behavior, fine for ships and debris). Well bodies are also covered by
-/// [`GravityWell::body_radius`](crate::gravity::GravityWell); the arrival
-/// takes the larger of the two when both exist.
+/// The geometric radius of a scenario object, world units: the surface
+/// the GOTO arrival standoff measures from and the orbit band's clearance
+/// floor clears (tasks 20260710-202408 and the 2026-07-10 "stops too
+/// close" playtest). Derived from the actual generated collider where one
+/// exists (asteroids: the noise-displaced mesh's outermost vertex, which
+/// can reach well past the nominal designation radius) rather than
+/// authored by hand. Unsized targets fall back to zero (center-relative,
+/// the pre-existing behavior, fine for ships and debris). Well bodies are
+/// also covered by [`GravityWell::body_radius`](crate::gravity::GravityWell)
+/// (the nominal physics radius); the arrival and the band take the larger
+/// of the two when both exist.
 #[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
 #[reflect(Component)]
 pub struct BodyRadius(pub f32);
@@ -1210,6 +1215,24 @@ fn autopilot_system(
             (accel, lead)
         };
 
+        // The well's GEOMETRIC radius for orbit-band math: the physics
+        // body_radius is the nominal designation radius, but a generated
+        // body's collider (noise-displaced mesh) can reach well past it -
+        // the derived [`BodyRadius`] on the well entity carries that true
+        // extent. The band's clearance floor must clear the real rock,
+        // not the designation sphere.
+        let band_well = |well_entity: Entity, well_data: &GravityWell| -> GravityWell {
+            let mut well = well_data.clone();
+            well.body_radius = well.body_radius.max(
+                q_target
+                    .get(well_entity)
+                    .ok()
+                    .and_then(|(_, r)| r.map(|r| **r))
+                    .unwrap_or(0.0),
+            );
+            well
+        };
+
         // ORBIT plans once, on its first engaged tick: target ring from the
         // current radius clamped into the stable band, plane from r x v with
         // the ship-up fallback. The plan then stays sticky - replanning
@@ -1221,9 +1244,12 @@ fn autopilot_system(
                 continue;
             };
             let r_vec = position.0 - well_position.0;
-            let Some(radius) =
-                orbit_target_radius(r_vec.length(), well_data, &gravity_settings, &settings)
-            else {
+            let Some(radius) = orbit_target_radius(
+                r_vec.length(),
+                &band_well(well, well_data),
+                &gravity_settings,
+                &settings,
+            ) else {
                 debug!("autopilot_system: well {well:?} has no stable band, disengaging ORBIT");
                 commands.entity(ship).remove::<Autopilot>();
                 continue;
@@ -1574,18 +1600,47 @@ fn autopilot_system(
             // of handing back a ship that immediately starts falling (task
             // 20260710-195954): the one-key parking flow becomes zero-key
             // when the computer was already told where to go. engage()
-            // resets the phase; the ORBIT plan block picks the ring from
-            // the arrival radius next tick. Breakout semantics (any flight
-            // input, Z) are ORBIT's own, unchanged. Everything else -
-            // GotoPos, well-less targets, STOP - releases as before.
+            // resets the phase. The ring is planned HERE, from the leg's
+            // intent - the park point, standoff above the (geometric)
+            // surface - never from wherever terminal creep dragged the
+            // ship: a plan-from-current-radius could ring at the band
+            // bottom, and the insertion from a crept position has been
+            // seen to graze the rock. max with the current radius so a
+            // ship that settled slightly outside the park point is not
+            // corrected inward. Breakout semantics (any flight input, Z)
+            // are ORBIT's own, unchanged. Everything else - GotoPos,
+            // well-less targets, STOP, a bandless well - releases as
+            // before.
             if let AutopilotAction::Goto { target } = autopilot.action {
-                if goto_arrived && q_wells.contains(target) {
-                    debug!("autopilot_system: ship {ship:?} arrived, parking into ORBIT");
-                    *autopilot = Autopilot::engage(AutopilotAction::Orbit {
-                        well: target,
-                        plan: None,
-                    });
-                    continue;
+                if goto_arrived {
+                    if let Ok((well_position, well_data)) = q_wells.get(target) {
+                        let well = band_well(target, well_data);
+                        let r_vec = position.0 - well_position.0;
+                        let park = well.body_radius + settings.arrival_standoff;
+                        if let Some(radius) = orbit_target_radius(
+                            park.max(r_vec.length()),
+                            &well,
+                            &gravity_settings,
+                            &settings,
+                        ) {
+                            debug!(
+                                "autopilot_system: ship {ship:?} arrived, parking into \
+                                 ORBIT at ring {radius}"
+                            );
+                            *autopilot = Autopilot::engage(AutopilotAction::Orbit {
+                                well: target,
+                                plan: Some(OrbitPlan {
+                                    radius,
+                                    normal: orbit_plane_normal(
+                                        r_vec,
+                                        **velocity,
+                                        rotation.mul_vec3(Vec3::Y),
+                                    ),
+                                }),
+                            });
+                            continue;
+                        }
+                    }
                 }
             }
             debug!("autopilot_system: ship {ship:?} maneuver complete, disengaging");
@@ -3464,6 +3519,59 @@ mod tests {
             "should park near {park}u from the center, got {distance}"
         );
         assert!(speed < 0.5, "should arrive at rest, got {speed}");
+    }
+
+    #[test]
+    fn handoff_ring_clears_the_geometric_radius() {
+        // A well whose real collider (BodyRadius 70) reaches far past its
+        // nominal physics radius (40): the parking handoff must ring at
+        // the GEOMETRIC park radius (70 + 50 = 120), not clamp the crept
+        // position against a band floored on the nominal sphere - that
+        // ring could sit inside the actual rock.
+        let mut app = orbit_app();
+        let gravity = GravitySettings::default();
+        let well = app
+            .world_mut()
+            .spawn((
+                RigidBody::Static,
+                Transform::default(),
+                crate::gravity::GravityWell::from_surface_gravity(5.0, 40.0, &gravity),
+                BodyRadius(70.0),
+            ))
+            .id();
+        let (ship, _, _) = spawn_ship(&mut app);
+        // At rest inside the park envelope: surface distance 115 - 70 =
+        // 45 <= the 50u standoff, so the leg is immediately done and the
+        // handoff fires.
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Transform::from_xyz(0.0, 0.0, 115.0));
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Goto { target: well }));
+
+        let mut plan_radius = None;
+        for _ in 0..600 {
+            app.update();
+            match app.world().get::<Autopilot>(ship) {
+                Some(autopilot) => {
+                    if let AutopilotAction::Orbit {
+                        plan: Some(plan), ..
+                    } = autopilot.action
+                    {
+                        plan_radius = Some(plan.radius);
+                        break;
+                    }
+                }
+                None => panic!("a GOTO at a well body must park, not release"),
+            }
+        }
+        let radius = plan_radius.expect("handoff in budget");
+        assert!(
+            (radius - 120.0).abs() < 2.0,
+            "ring at the geometric park radius, got {radius}"
+        );
     }
 
     #[test]

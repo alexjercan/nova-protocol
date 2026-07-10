@@ -44,8 +44,10 @@ pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
         // rocks only lock up close, big bodies from afar (well sources
         // are range-free in the targeting gate anyway).
         LockSignature(config.radius),
-        // The GOTO standoff measures from the surface, not the center.
-        BodyRadius(config.radius),
+        // BodyRadius (the surface the GOTO standoff and the orbit band
+        // measure from) is NOT authored here: the noise-displaced mesh
+        // reaches past the nominal radius, so insert_asteroid_collider
+        // derives it from the generated collider's outermost vertex.
     )
 }
 
@@ -194,6 +196,19 @@ fn insert_asteroid_collider(
         .build();
     let collider = Collider::trimesh_from_mesh(&mesh).unwrap_or(Collider::sphere(1.0));
 
+    // The true geometric radius, from the collider volume itself: the
+    // noise displaces the unit sphere's vertices OUTWARD (PlanetHeight is
+    // non-negative), so the rock's real edge sits past the nominal radius
+    // - sometimes far past. Everything that measures from the surface
+    // (GOTO standoff, orbit clearance) reads this derived BodyRadius, not
+    // the designation radius (2026-07-10 playtest: "still stops too
+    // close"). The child mesh is unit-scale, scaled by `radius` on its
+    // Transform, so the world extent is radius * the outermost vertex.
+    let unit_extent = mesh_max_vertex_radius(&mesh).max(1.0);
+    commands
+        .entity(entity)
+        .insert(BodyRadius(**radius * unit_extent));
+
     commands.entity(entity).insert((children![(
         Transform::from_scale(Vec3::splat(**radius)),
         AsteroidRenderMesh(mesh.clone()),
@@ -203,6 +218,20 @@ fn insert_asteroid_collider(
         // ExplodableEntity so the asteroid enters nova's explode pipeline on destruction.
         ExplodableEntity,
     )],));
+}
+
+/// The outermost vertex distance of a mesh, in its local space: the
+/// radius of the smallest origin-centered sphere containing the collider
+/// volume. Zero for a mesh without positions. Pure for unit testing.
+fn mesh_max_vertex_radius(mesh: &Mesh) -> f32 {
+    use bevy::render::mesh::VertexAttributeValues;
+    match mesh.attribute(Mesh::ATTRIBUTE_POSITION) {
+        Some(VertexAttributeValues::Float32x3(positions)) => positions
+            .iter()
+            .map(|p| Vec3::from_array(*p).length())
+            .fold(0.0, f32::max),
+        _ => 0.0,
+    }
 }
 
 fn insert_asteroid_render(
@@ -525,6 +554,48 @@ mod tests {
         app.init_resource::<GravitySettings>();
         app.add_observer(insert_asteroid_gravity_well);
         app
+    }
+
+    #[test]
+    fn body_radius_derives_from_the_generated_collider() {
+        // The noise-displaced mesh reaches past the nominal radius, so
+        // the geometric BodyRadius is derived from the actual collider
+        // volume (outermost vertex), never authored (2026-07-10 playtest:
+        // GOTO "still stops too close" when measured from the nominal
+        // sphere).
+        let mut app = App::new();
+        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.add_observer(insert_asteroid_collider);
+        // Let the entropy plugin spawn the global rng before the
+        // asteroid observer needs it.
+        app.update();
+
+        let asteroid = spawn_asteroid(&mut app, 20.0, None);
+        app.update();
+
+        let derived = app
+            .world()
+            .get::<BodyRadius>(asteroid)
+            .map(|r| **r)
+            .expect("the collider observer derives BodyRadius");
+        assert!(
+            derived >= 20.0,
+            "the noise only displaces outward, got {derived}"
+        );
+        assert!(
+            derived < 20.0 * 7.0,
+            "sanity: bounded by the max noise elevation, got {derived}"
+        );
+    }
+
+    #[test]
+    fn mesh_max_vertex_radius_finds_the_outermost_vertex() {
+        let mesh = TriangleMeshBuilder::new_octahedron(1).build();
+        let max = mesh_max_vertex_radius(&mesh);
+        assert!(
+            (max - 1.0).abs() < 1e-4,
+            "unit octahedron sphere, got {max}"
+        );
     }
 
     /// Spawn an asteroid the way the scenario does: the base bundle's
