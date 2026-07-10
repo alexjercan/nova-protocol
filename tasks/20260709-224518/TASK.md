@@ -1,6 +1,6 @@
 # Balance a single off-center main drive with off-axis counter-torque thrusters
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.4.0, handling, physics
 
