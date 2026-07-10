@@ -75,9 +75,16 @@ fn harnessed_examples_reach_playing_without_panic() {
     }
 }
 
-/// The last few KB of output, so a failure message is useful without dumping the
-/// whole (very chatty) debug log.
+/// The last chunk of output, so a failure message is useful without dumping the
+/// whole (very chatty) debug log. Sized to keep a full RUST_BACKTRACE=full
+/// panic backtrace (CI runs the smoke step with it, ~30 KB) plus the lines
+/// leading up to it; 2 KB proved too small and cut exactly the frames that
+/// mattered.
 fn tail(s: &str) -> String {
-    let start = s.len().saturating_sub(2000);
+    let start = s.len().saturating_sub(48_000);
+    // Don't split a UTF-8 code point (log output can contain non-ASCII).
+    let start = (start..s.len())
+        .find(|&i| s.is_char_boundary(i))
+        .unwrap_or(0);
     s[start..].to_string()
 }
