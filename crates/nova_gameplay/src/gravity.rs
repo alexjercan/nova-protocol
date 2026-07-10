@@ -108,9 +108,12 @@ pub struct DominantWell(pub Entity);
 #[reflect(Resource)]
 pub struct GravitySettings {
     /// Surface gravity a designated body gets when the scenario does not
-    /// author one, u/s^2 at the body's nominal radius. 3.0 on a 20u rock
-    /// gives mu = 1200: v_circ ~ 4.9 u/s at r = 50u with a ~64s lap -
-    /// visible motion at parkable speeds, well under combat velocities.
+    /// author one, u/s^2 at the body's nominal radius. 6.0 on a 20u rock
+    /// gives mu = 2400: v_circ ~ 6.9 u/s at r = 50u with a ~45s lap.
+    /// Doubled from 3.0 after the 2026-07-10 playtest ("a bit weak...
+    /// I would like it to be stronger so you actually feel it") - the
+    /// arrival solver budgets the pull since 20260710-193500, so a
+    /// stronger well costs an earlier flip, not a crash.
     pub default_surface_gravity: f32,
     /// Bodies below this nominal radius (world units) get no well by default;
     /// the 1-3u field rocks stay flat space. A scenario can still author a
@@ -144,19 +147,23 @@ pub struct GravitySettings {
     /// tests' minimal ship accelerates at ~21 u/s^2 (magnitude 1.0 impulse
     /// per 1/64s tick over mass 3), and shipped builds are the same order.
     /// Keep this well under the weakest flyable build when retuning.
+    /// Raised 5.0 -> 10.0 with the 2026-07-10 strength retune (still
+    /// under half the reference ship's authority; the gravity-aware
+    /// arrival degrades to an explicit no-stopping-plan state rather
+    /// than crashing if a build ever dips below it).
     pub max_surface_gravity: f32,
 }
 
 impl Default for GravitySettings {
     fn default() -> Self {
         Self {
-            default_surface_gravity: 3.0,
+            default_surface_gravity: 6.0,
             min_well_radius: 5.0,
             soi_factor: 8.0,
             fade_fraction: 0.15,
             surface_margin: 1.0,
             switch_hysteresis: 1.1,
-            max_surface_gravity: 5.0,
+            max_surface_gravity: 10.0,
         }
     }
 }
