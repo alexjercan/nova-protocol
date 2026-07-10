@@ -1,6 +1,6 @@
 # AI engagement flight: standoff orbit/strafe envelope
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 72
 - TAGS: v0.4.0,ai,spike,handling
 
