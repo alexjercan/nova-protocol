@@ -31,6 +31,39 @@ minimum-standoff clamp against well bodies (crash guard independent of the
 solver). The ManeuverTelemetry seam means any fix automatically corrects
 the FLIP marker and ETA too.
 
+## Steps
+
+- [ ] Thread a `gravity_along: f32` parameter through the pure arrival
+  helpers in crates/nova_gameplay/src/flight.rs: `arrival_speed_limit`
+  solves the modified quadratic `v*lead + g*lead^2/2 + (v + g*lead)^2 /
+  (2*(a*margin - g)) = d` (closed form; returns 0 when `a*margin <= g`),
+  and `goto_desired_velocity`, `goto_flip_point`, `arrival_eta`,
+  `stop_rest_distance` gain the matching lead-window and effective-brake
+  terms. `g = 0` must reduce every formula to the current behavior.
+- [ ] Unit tests for the helpers: g=0 equals the old closed forms; g>0
+  lowers the allowed speed and pushes the flip point out; `a*margin <= g`
+  yields no plan (speed 0 / None); the flip identity (braking from
+  v_allowed at a_eff over the remaining distance lands at the standoff)
+  holds with gravity.
+- [ ] In `autopilot_system`, compute `g_along` once per arrival leg:
+  add `Option<&DominantWell>` to the ship query, evaluate `well_accel` at
+  the GOAL position (spike: worst-point bound), project on the closing
+  direction, clamp at >= 0. Feed it through `arrival_desired` (GOTO and
+  GotoPos) and the STOP telemetry branch.
+- [ ] Report the effective (gravity-reduced) `brake_accel` in
+  ManeuverTelemetry so the FLIP marker, decel chip and ETA self-correct;
+  on `a_eff <= 0` publish telemetry with `flip_point`/`eta` = None and
+  `debug!` once instead of disengaging.
+- [ ] Integration test (app-level, like the existing autopilot tests):
+  GOTO a well body from outside the SOI at speed; assert the ship never
+  penetrates `body_radius` and comes to rest within a tolerance of the
+  standoff. A control run in flat space must keep today's arrival frames.
+- [ ] Run the input::ai test module (autopilot_system signature changes -
+  standing lesson) plus flight, hud and `cargo check --workspace
+  --examples`.
+- [ ] Docs: docs/2026-07-10-gravity-aware-arrival.md (what changed, the
+  formula, the degradation path); close TASK.md with the resolution.
+
 ## Notes
 
 - Spike first when picked up (/spike, then /plan): the interaction between
