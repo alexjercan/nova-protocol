@@ -15,7 +15,7 @@ use bevy::{
 };
 use bevy_common_systems::prelude::*;
 
-use crate::gravity::prelude::*;
+use crate::{flight::prelude::*, gravity::prelude::*};
 
 pub mod prelude {
     pub use super::{
@@ -37,7 +37,7 @@ pub enum VelocityHudSource {
 }
 
 /// The widget's colors, so the two sources never read as one quantity.
-#[derive(Component, Debug, Clone, Copy, Reflect)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Reflect)]
 pub struct VelocityHudPalette {
     /// The orbiting cone.
     pub indicator: Color,
@@ -62,6 +62,26 @@ impl VelocityHudPalette {
         indicator: Color::srgba(1.0, 0.9, 0.2, 1.0),
         sphere: Color::srgba(1.0, 0.8, 0.1, 0.15),
     };
+
+    /// The velocity widget while the autopilot flies: the flight
+    /// computer's nav-cyan family (NAV_CYAN's rgb), so an engaged ship
+    /// reads as computer-flown from the sphere alone (task
+    /// 20260710-234115). Values are a starting point for the by-eye pass.
+    pub const ENGAGED: Self = Self {
+        indicator: Color::srgba(0.3, 0.9, 1.0, 1.0),
+        sphere: Color::srgba(0.3, 0.9, 1.0, 0.2),
+    };
+}
+
+/// The palette the velocity widget should wear right now. Pure so the
+/// engaged/manual decision is unit-testable apart from the material
+/// plumbing.
+pub(crate) fn desired_velocity_palette(engaged: bool) -> VelocityHudPalette {
+    if engaged {
+        VelocityHudPalette::ENGAGED
+    } else {
+        VelocityHudPalette::default()
+    }
 }
 
 #[derive(Component, Debug, Clone, Reflect)]
@@ -154,6 +174,7 @@ impl Plugin for VelocityHudPlugin {
             (
                 update_velocity_hud_input,
                 sync_orbit_state,
+                sync_engaged_palette,
                 direction_shader_update_system,
             )
                 .in_set(super::NovaHudSystems),
@@ -324,6 +345,63 @@ fn direction_shader_update_system(
         };
 
         material.extension.magnitude_input = magnitude;
+    }
+}
+
+/// Tint the velocity widget by who is flying: nav-cyan while the
+/// target's [`Autopilot`] is engaged, the default white/blue in manual.
+/// The palette component is the seam - materials are only touched on a
+/// state flip (a per-frame write would re-upload the assets), and the
+/// spawn-time palette converges on the first run, so a ship that spawns
+/// already engaged wears the right colors from frame one. Gravity-source
+/// widgets report the world, not control, and are never tinted.
+fn sync_engaged_palette(
+    q_autopilot: Query<(), With<Autopilot>>,
+    mut q_hud: Query<
+        (
+            &mut VelocityHudPalette,
+            &VelocityHudSource,
+            &VelocityHudTargetEntity,
+            Option<&Children>,
+        ),
+        With<VelocityHudMarker>,
+    >,
+    q_indicator: Query<
+        &MeshMaterial3d<ExtendedMaterial<StandardMaterial, DirectionMagnitudeMaterial>>,
+        With<VelocityHudIndicatorMarker>,
+    >,
+    q_sphere: Query<
+        &MeshMaterial3d<ExtendedMaterial<StandardMaterial, DirectionSphereMaterial>>,
+        With<VelocityHudSphereMarker>,
+    >,
+    mut indicator_materials: ResMut<
+        Assets<ExtendedMaterial<StandardMaterial, DirectionMagnitudeMaterial>>,
+    >,
+    mut sphere_materials: ResMut<
+        Assets<ExtendedMaterial<StandardMaterial, DirectionSphereMaterial>>,
+    >,
+) {
+    for (mut palette, &source, target, children) in &mut q_hud {
+        if source != VelocityHudSource::Velocity {
+            continue;
+        }
+        let desired = desired_velocity_palette(q_autopilot.get(**target).is_ok());
+        if *palette == desired {
+            continue;
+        }
+        *palette = desired;
+        for &child in children.into_iter().flatten() {
+            if let Ok(material) = q_indicator.get(child) {
+                if let Some(mut material) = indicator_materials.get_mut(&**material) {
+                    material.base.base_color = desired.indicator;
+                }
+            }
+            if let Ok(material) = q_sphere.get(child) {
+                if let Some(mut material) = sphere_materials.get_mut(&**material) {
+                    material.base.base_color = desired.sphere;
+                }
+            }
+        }
     }
 }
 
@@ -553,6 +631,139 @@ mod tests {
         assert_eq!(
             *world.entity(widget).get::<Visibility>().unwrap(),
             Visibility::Hidden
+        );
+    }
+
+    fn palette_world() -> World {
+        let mut world = World::new();
+        world
+            .init_resource::<Assets<ExtendedMaterial<StandardMaterial, DirectionMagnitudeMaterial>>>();
+        world
+            .init_resource::<Assets<ExtendedMaterial<StandardMaterial, DirectionSphereMaterial>>>();
+        world
+    }
+
+    fn palette_of(world: &World, widget: Entity) -> VelocityHudPalette {
+        *world.entity(widget).get::<VelocityHudPalette>().unwrap()
+    }
+
+    #[test]
+    fn desired_velocity_palette_picks_by_engagement() {
+        assert_eq!(desired_velocity_palette(true), VelocityHudPalette::ENGAGED);
+        assert_eq!(
+            desired_velocity_palette(false),
+            VelocityHudPalette::default()
+        );
+    }
+
+    #[test]
+    fn velocity_palette_follows_the_autopilot() {
+        let mut world = palette_world();
+        // The ship spawns already engaged: the widget must converge on
+        // the first run, not wait for a state flip.
+        let ship = world
+            .spawn((
+                LinearVelocity(Vec3::ZERO),
+                Autopilot::engage(AutopilotAction::Stop),
+            ))
+            .id();
+        let widget = spawn_widget(&mut world, ship, VelocityHudSource::Velocity);
+        assert_eq!(palette_of(&world, widget), VelocityHudPalette::default());
+
+        world.run_system_once(sync_engaged_palette).unwrap();
+        assert_eq!(palette_of(&world, widget), VelocityHudPalette::ENGAGED);
+
+        // Disengage: back to the manual white/blue.
+        world.entity_mut(ship).remove::<Autopilot>();
+        world.run_system_once(sync_engaged_palette).unwrap();
+        assert_eq!(palette_of(&world, widget), VelocityHudPalette::default());
+    }
+
+    #[test]
+    fn engaging_rewrites_the_child_materials() {
+        let mut world = palette_world();
+        let ship = world.spawn(LinearVelocity(Vec3::ZERO)).id();
+        let widget = spawn_widget(&mut world, ship, VelocityHudSource::Velocity);
+
+        // Hand-build the children the On<Add> observers would attach in
+        // the real app, with live material assets.
+        let indicator_handle = world
+            .resource_mut::<Assets<ExtendedMaterial<StandardMaterial, DirectionMagnitudeMaterial>>>(
+            )
+            .add(ExtendedMaterial {
+                base: StandardMaterial {
+                    base_color: VelocityHudPalette::default().indicator,
+                    ..default()
+                },
+                extension: DirectionMagnitudeMaterial::default(),
+            });
+        let sphere_handle = world
+            .resource_mut::<Assets<ExtendedMaterial<StandardMaterial, DirectionSphereMaterial>>>()
+            .add(ExtendedMaterial {
+                base: StandardMaterial {
+                    base_color: VelocityHudPalette::default().sphere,
+                    ..default()
+                },
+                extension: DirectionSphereMaterial::default(),
+            });
+        world.spawn((
+            VelocityHudIndicatorMarker,
+            MeshMaterial3d(indicator_handle.clone()),
+            ChildOf(widget),
+        ));
+        world.spawn((
+            VelocityHudSphereMarker,
+            MeshMaterial3d(sphere_handle.clone()),
+            ChildOf(widget),
+        ));
+
+        world
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+        world.run_system_once(sync_engaged_palette).unwrap();
+
+        let indicator_color = world
+            .resource::<Assets<ExtendedMaterial<StandardMaterial, DirectionMagnitudeMaterial>>>()
+            .get(&indicator_handle)
+            .unwrap()
+            .base
+            .base_color;
+        assert_eq!(indicator_color, VelocityHudPalette::ENGAGED.indicator);
+        let sphere_color = world
+            .resource::<Assets<ExtendedMaterial<StandardMaterial, DirectionSphereMaterial>>>()
+            .get(&sphere_handle)
+            .unwrap()
+            .base
+            .base_color;
+        assert_eq!(sphere_color, VelocityHudPalette::ENGAGED.sphere);
+    }
+
+    #[test]
+    fn gravity_palette_never_tints() {
+        let mut world = palette_world();
+        let ship = world
+            .spawn((
+                LinearVelocity(Vec3::ZERO),
+                Autopilot::engage(AutopilotAction::Stop),
+            ))
+            .id();
+        let widget = world
+            .spawn((
+                velocity_hud(VelocityHudConfig {
+                    target: ship,
+                    source: VelocityHudSource::Gravity,
+                    palette: VelocityHudPalette::GRAVITY,
+                    ..default()
+                }),
+                DirectionalSphereOrbitInput(Vec3::ZERO),
+            ))
+            .id();
+
+        world.run_system_once(sync_engaged_palette).unwrap();
+        assert_eq!(
+            palette_of(&world, widget),
+            VelocityHudPalette::GRAVITY,
+            "the gravity indicator reports the world, not who is flying"
         );
     }
 
