@@ -44,6 +44,8 @@ pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
         // rocks only lock up close, big bodies from afar (well sources
         // are range-free in the targeting gate anyway).
         LockSignature(config.radius),
+        // The GOTO standoff measures from the surface, not the center.
+        BodyRadius(config.radius),
     )
 }
 

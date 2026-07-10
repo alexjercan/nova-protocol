@@ -41,10 +41,20 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        Autopilot, AutopilotAction, AutopilotPhase, FlightIntent, FlightSettings,
+        Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, FlightIntent, FlightSettings,
         ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
     };
 }
+
+/// The authored geometric radius of a scenario object, world units: the
+/// surface the GOTO arrival standoff measures from (task 20260710-202408).
+/// Unsized targets fall back to zero (center-relative, the pre-existing
+/// behavior, fine for ships and debris). Well bodies are also covered by
+/// [`GravityWell::body_radius`](crate::gravity::GravityWell); the arrival
+/// takes the larger of the two when both exist.
+#[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
+#[reflect(Component)]
+pub struct BodyRadius(pub f32);
 
 /// A thruster counts as part of the main drive when its thrust direction
 /// aligns with the ship's forward axis at least this much (cosine). Everything
@@ -174,7 +184,10 @@ pub struct ManeuverTelemetry {
     /// `goal` snapshot - a moving target would otherwise slide the
     /// caption off its marker.
     pub goal_entity: Option<Entity>,
-    /// Distance to the goal center, world units.
+    /// Distance to the goal SURFACE, world units: the center distance
+    /// minus the target's resolved radius ([`BodyRadius`] /
+    /// `GravityWell::body_radius`, zero for unsized targets and GotoPos),
+    /// so the readout never says "50" while hovering over a mountain.
     pub distance: f32,
     /// Speed along the line to the goal, u/s (negative = opening).
     pub closing_speed: f32,
@@ -366,7 +379,8 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<AutopilotAction>()
             .register_type::<AutopilotPhase>()
             .register_type::<OrbitPlan>()
-            .register_type::<ManeuverTelemetry>();
+            .register_type::<ManeuverTelemetry>()
+            .register_type::<BodyRadius>();
 
         app.add_observer(insert_flight_control);
         app.add_observer(on_autopilot_removed_cool_engines);
@@ -1107,7 +1121,7 @@ fn autopilot_system(
         (&mut ControllerSectionRotationInput, &ChildOf),
         With<ControllerSectionMarker>,
     >,
-    q_target: Query<&GlobalTransform>,
+    q_target: Query<(&GlobalTransform, Option<&BodyRadius>)>,
     // ORBIT's well lookup: avian Position (the force system's frame), not
     // GlobalTransform, so the ring the computer flies is the ring gravity
     // pulls on. Without<SpaceshipRootMarker> is a design statement, not an
@@ -1250,18 +1264,22 @@ fn autopilot_system(
         };
 
         // The arrival leg shared by GOTO and GotoPos: fly at the goal, come
-        // to rest at the standoff.
-        let arrival_desired = |goal: Vec3| -> (Vec3, ManeuverTelemetry) {
+        // to rest at the standoff - measured from the target's SURFACE
+        // (`target_radius`, zero for unsized targets and GotoPos), so a big
+        // body is given its size instead of being treated as a point (task
+        // 20260710-202408). Published distances are surface-relative too.
+        let arrival_desired = |goal: Vec3, target_radius: f32| -> (Vec3, ManeuverTelemetry) {
+            let standoff = settings.arrival_standoff + target_radius.max(0.0);
             let to_target = goal - position.0;
             let distance = to_target.length();
             let closing_speed = velocity.dot(to_target.normalize_or_zero());
-            if distance <= settings.arrival_standoff {
+            if distance <= standoff {
                 (
                     Vec3::ZERO,
                     ManeuverTelemetry {
                         goal,
                         goal_entity: None,
-                        distance,
+                        distance: distance - target_radius.max(0.0),
                         closing_speed,
                         brake_accel: 0.0,
                         flip_point: None,
@@ -1274,8 +1292,7 @@ fn autopilot_system(
                 let brake_dir = -closing_dir;
                 let brake_speed = velocity.length().max(settings.min_approach_speed);
                 let (accel, lead) = braking_plan(brake_dir, brake_speed);
-                let gravity =
-                    gravity_along(goal - closing_dir * settings.arrival_standoff, closing_dir);
+                let gravity = gravity_along(goal - closing_dir * standoff, closing_dir);
                 // The published deceleration is the effective one, so any
                 // instrument reading it sees the plan the computer actually
                 // flies (the field is currently write-only in the HUD).
@@ -1296,7 +1313,7 @@ fn autopilot_system(
                     closing_speed,
                     accel * settings.decel_margin,
                     lead,
-                    settings.arrival_standoff,
+                    standoff,
                     gravity,
                 );
                 let eta = arrival_eta(
@@ -1304,13 +1321,13 @@ fn autopilot_system(
                     closing_speed,
                     accel * settings.decel_margin,
                     lead,
-                    settings.arrival_standoff,
+                    standoff,
                     gravity,
                 );
                 (
                     goto_desired_velocity(
                         to_target,
-                        settings.arrival_standoff,
+                        standoff,
                         accel,
                         settings.decel_margin,
                         lead,
@@ -1320,7 +1337,7 @@ fn autopilot_system(
                     ManeuverTelemetry {
                         goal,
                         goal_entity: None,
-                        distance,
+                        distance: distance - target_radius.max(0.0),
                         closing_speed,
                         brake_accel,
                         flip_point: flip
@@ -1385,18 +1402,29 @@ fn autopilot_system(
                 Vec3::ZERO
             }
             AutopilotAction::Goto { target } => {
-                let Ok(target_transform) = q_target.get(target) else {
+                let Ok((target_transform, body_radius)) = q_target.get(target) else {
                     debug!("autopilot_system: GOTO target {target:?} is gone, disengaging");
                     commands.entity(ship).remove::<Autopilot>();
                     continue;
                 };
-                let (desired, mut numbers) = arrival_desired(target_transform.translation());
+                // The target's size, from whichever source it carries:
+                // the authored BodyRadius and/or the well's body_radius.
+                // Max is conservative if they ever disagree; unsized
+                // targets stay at zero (center-relative, unchanged).
+                let target_radius = body_radius.map_or(0.0, |r| **r).max(
+                    q_wells
+                        .get(target)
+                        .map_or(0.0, |(_, well)| well.body_radius),
+                );
+                let (desired, mut numbers) =
+                    arrival_desired(target_transform.translation(), target_radius);
                 numbers.goal_entity = Some(target);
                 telemetry = Some(numbers);
                 desired
             }
             AutopilotAction::GotoPos { position } => {
-                let (desired, numbers) = arrival_desired(position);
+                // A bare position has no size: center-relative, as before.
+                let (desired, numbers) = arrival_desired(position, 0.0);
                 telemetry = Some(numbers);
                 desired
             }
@@ -3291,12 +3319,79 @@ mod tests {
             "the hull must never dip below the surface, got {min_distance}"
         );
 
+        // The standoff measures from the SURFACE (task 20260710-202408):
+        // the well's body_radius joins the arrival budget, so the ship
+        // parks near standoff + body_radius from the center.
         let standoff = app.world().resource::<FlightSettings>().arrival_standoff;
+        let park = standoff + body_radius;
         let distance = app.world().get::<Position>(ship).unwrap().0.length();
         let speed = velocity_of(&app, ship).length();
+        // Lower bound mirrors the flat-space tests' accepted terminal
+        // creep (the release fires at near-rest while the pull keeps
+        // dragging the parked ship inward); the hard floor is the
+        // never-below-surface assert above. Task 20260710-195954 (park
+        // into ORBIT) owns the real post-arrival answer inside a well.
         assert!(
-            distance <= standoff + 6.0 && distance > body_radius + gravity.surface_margin,
-            "should park near the {standoff}u standoff, got {distance}"
+            distance <= park + 6.0 && distance >= park - 45.0,
+            "should park near {park}u from the center ({standoff}u above the surface), \
+             got {distance}"
+        );
+        assert!(speed < 0.5, "should arrive at rest, got {speed}");
+    }
+
+    #[test]
+    fn goto_standoff_is_surface_relative_for_sized_targets() {
+        // A big rock WITHOUT a well: the authored BodyRadius alone must
+        // push the park point out, and the published telemetry distance
+        // must read to the surface, not the center (the chip should never
+        // say "50" while hovering over a mountain).
+        let mut app = flight_app();
+        let (ship, _, _) = spawn_ship(&mut app);
+        let center = Vec3::new(0.0, 0.0, -300.0);
+        let target = app
+            .world_mut()
+            .spawn((
+                Transform::from_translation(center),
+                GlobalTransform::from(Transform::from_translation(center)),
+                BodyRadius(30.0),
+            ))
+            .id();
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Goto { target }));
+
+        // Mid-leg the telemetry distance is surface-relative: center
+        // distance minus the radius.
+        app.update();
+        let telemetry = app
+            .world()
+            .get::<ManeuverTelemetry>(ship)
+            .expect("engaged GOTO publishes telemetry");
+        let center_distance = (center - app.world().get::<Position>(ship).unwrap().0).length();
+        assert!(
+            (telemetry.distance - (center_distance - 30.0)).abs() < 1.0,
+            "telemetry reads to the surface: got {} for center distance {center_distance}",
+            telemetry.distance
+        );
+
+        let mut released = false;
+        for _ in 0..4800 {
+            app.update();
+            if app.world().get::<Autopilot>(ship).is_none() {
+                released = true;
+                break;
+            }
+        }
+        assert!(released, "GOTO must complete and disengage in budget");
+
+        let standoff = app.world().resource::<FlightSettings>().arrival_standoff;
+        let park = standoff + 30.0;
+        let distance = (center - app.world().get::<Position>(ship).unwrap().0).length();
+        let speed = velocity_of(&app, ship).length();
+        assert!(
+            distance <= park + 6.0 && distance >= park - 45.0,
+            "should park near {park}u from the center, got {distance}"
         );
         assert!(speed < 0.5, "should arrive at rest, got {speed}");
     }
