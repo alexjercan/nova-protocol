@@ -134,6 +134,17 @@ fn setup_hud_velocity(
         radius: 5.0,
         sharpness: 20.0,
         target: spaceship,
+        ..default()
+    }),));
+    // The gravity indicator: same widget, yellow, pointing down the
+    // dominant well's pull, hidden in flat space. Nested slightly outside
+    // the velocity sphere so the two shells never z-fight.
+    commands.spawn((velocity_hud(VelocityHudConfig {
+        radius: 5.6,
+        sharpness: 20.0,
+        target: spaceship,
+        source: VelocityHudSource::Gravity,
+        palette: VelocityHudPalette::GRAVITY,
     }),));
 }
 
@@ -198,7 +209,6 @@ fn remove_hud_flight_status(
     q_ring: Query<Entity, With<OrbitRingMarker>>,
     q_ribbon: Query<Entity, With<TrajectoryRibbonSegment>>,
     q_gate: Query<Entity, With<FlipGateMarker>>,
-    q_shell: Query<Entity, With<SoiShellRing>>,
 ) {
     let entity = remove.entity;
     debug!("remove_hud_flight_status: entity {:?}", entity);
@@ -223,7 +233,7 @@ fn remove_hud_flight_status(
     for hud_entity in &q_ring {
         commands.entity(hud_entity).despawn();
     }
-    for hud_entity in q_ribbon.iter().chain(&q_gate).chain(&q_shell) {
+    for hud_entity in q_ribbon.iter().chain(&q_gate) {
         commands.entity(hud_entity).despawn();
     }
 }

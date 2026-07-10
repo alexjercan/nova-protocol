@@ -102,5 +102,6 @@ fn setup_hud(
         radius: 5.0,
         sharpness: 20.0,
         target: entity,
+        ..default()
     }),));
 }

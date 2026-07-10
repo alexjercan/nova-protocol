@@ -11,17 +11,15 @@
 //!   replace it - the instrument must not out-promise the autopilot.
 //! - **Flip gate**: a ring at the flip point, perpendicular to the path,
 //!   sized to fly through.
-//! - **SOI shell**: three orthogonal great-circle rings at a well's SOI
-//!   radius, shown in normal play while inside the SOI or on approach.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use super::NAV_CYAN;
-use crate::{flight::prelude::*, gravity::prelude::*, input::prelude::*};
+use crate::{flight::prelude::*, input::prelude::*};
 
 pub mod prelude {
-    pub use super::{FlipGateMarker, HoloInstrumentsPlugin, SoiShellRing, TrajectoryRibbonSegment};
+    pub use super::{FlipGateMarker, HoloInstrumentsPlugin, TrajectoryRibbonSegment};
 }
 
 /// Ribbon segment tube radius, world units.
@@ -32,14 +30,6 @@ const GATE_RADIUS: f32 = 4.0;
 
 /// Flip gate tube thickness, world units.
 const GATE_MINOR_RADIUS: f32 = 0.12;
-
-/// SOI shell tube thickness, world units.
-const SHELL_MINOR_RADIUS: f32 = 0.25;
-
-/// The shell appears when the ship is within this factor of a well's SOI
-/// radius (and while inside it). A display concern, not a physics tunable;
-/// promote to settings if playtests want a knob.
-const SHELL_APPROACH_FACTOR: f32 = 1.5;
 
 /// One segment of the trajectory ribbon. Public for tests and future
 /// consumers.
@@ -58,20 +48,8 @@ pub struct FlipGateMarker {
     pub ship: Entity,
 }
 
-/// One great-circle ring of a well's SOI shell.
-#[derive(Component, Debug, Clone, Reflect)]
-pub struct SoiShellRing {
-    /// The well whose SOI this ring renders.
-    pub well: Entity,
-    /// The SOI radius the mesh was built at, to detect resizes.
-    pub radius: f32,
-    /// Which of the three great circles this is (identity is data, not
-    /// float equality on the written-back rotation).
-    pub index: usize,
-}
-
 /// Shared meshes/material for every holo element (the ribbon, the gate,
-/// the shell, and the orbit ring in maneuver_instruments), created lazily
+/// and the orbit ring in maneuver_instruments), created lazily
 /// so the systems stay plain `Assets<_>` consumers and run headless in
 /// tests. A Resource, not a per-system Local: one material keeps the
 /// family batchable.
@@ -79,7 +57,7 @@ pub struct SoiShellRing {
 pub(crate) struct HoloAssets {
     /// Unit cylinder (radius RIBBON_RADIUS, height 1) for ribbon segments.
     segment_mesh: Option<Handle<Mesh>>,
-    /// The flip gate's torus (constant radius, unlike the shell's).
+    /// The flip gate's torus (constant radius).
     gate_mesh: Option<Handle<Mesh>>,
     material: Option<Handle<StandardMaterial>>,
 }
@@ -129,12 +107,11 @@ impl Plugin for HoloInstrumentsPlugin {
         app.init_resource::<HoloAssets>();
 
         app.register_type::<TrajectoryRibbonSegment>()
-            .register_type::<FlipGateMarker>()
-            .register_type::<SoiShellRing>();
+            .register_type::<FlipGateMarker>();
 
         app.add_systems(
             Update,
-            (sync_trajectory_ribbon, sync_flip_gate, sync_soi_shell).in_set(super::NovaHudSystems),
+            (sync_trajectory_ribbon, sync_flip_gate).in_set(super::NovaHudSystems),
         );
     }
 }
@@ -256,88 +233,6 @@ fn sync_flip_gate(
     }
 }
 
-/// Own the SOI shell: three axis-aligned great-circle rings at the SOI of
-/// the relevant well - the dominant well while inside, else the nearest
-/// well the ship is approaching; nothing in flat space.
-fn sync_soi_shell(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut assets: ResMut<HoloAssets>,
-    q_ship: Query<(&Position, Option<&DominantWell>), With<PlayerSpaceshipMarker>>,
-    q_wells: Query<(Entity, &Position, &GravityWell)>,
-    mut q_ring: Query<(Entity, &SoiShellRing, &mut Transform)>,
-) {
-    let shown = q_ship.iter().next().and_then(|(position, dominant)| {
-        // Inside an SOI the dominant well owns the shell.
-        if let Some(well) = dominant {
-            let (entity, well_position, well_data) = q_wells.get(**well).ok()?;
-            return Some((entity, **well_position, well_data.soi_radius));
-        }
-        // Otherwise the nearest well being approached, if any.
-        q_wells
-            .iter()
-            .filter_map(|(entity, well_position, well_data)| {
-                let r = position.distance(**well_position);
-                (r < SHELL_APPROACH_FACTOR * well_data.soi_radius).then_some((
-                    entity,
-                    **well_position,
-                    well_data.soi_radius,
-                    r,
-                ))
-            })
-            .min_by(|a, b| a.3.total_cmp(&b.3))
-            .map(|(entity, well_position, radius, _)| (entity, well_position, radius))
-    });
-
-    let Some((well, center, radius)) = shown else {
-        for (entity, _, _) in &q_ring {
-            commands.entity(entity).despawn();
-        }
-        return;
-    };
-
-    // Three great circles: torus normals along Y, X and Z.
-    let orientations = [
-        Quat::IDENTITY,
-        Quat::from_rotation_arc(Vec3::Y, Vec3::X),
-        Quat::from_rotation_arc(Vec3::Y, Vec3::Z),
-    ];
-    let mut present = [false; 3];
-    for (entity, ring, mut transform) in &mut q_ring {
-        let stale = ring.well != well || (ring.radius - radius).abs() > f32::EPSILON;
-        if stale || ring.index >= 3 || present[ring.index] {
-            commands.entity(entity).despawn();
-            continue;
-        }
-        present[ring.index] = true;
-        if transform.translation != center {
-            transform.translation = center;
-        }
-    }
-    for (index, _) in present
-        .iter()
-        .enumerate()
-        .filter(|(_, in_place)| !**in_place)
-    {
-        commands.spawn((
-            Name::new("SoiShellRing"),
-            SoiShellRing {
-                well,
-                radius,
-                index,
-            },
-            Mesh3d(meshes.add(Torus::new(
-                radius - SHELL_MINOR_RADIUS,
-                radius + SHELL_MINOR_RADIUS,
-            ))),
-            MeshMaterial3d(assets.material(&mut materials)),
-            Transform::from_translation(center).with_rotation(orientations[index]),
-            Visibility::Visible,
-        ));
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
@@ -439,55 +334,5 @@ mod tests {
             0,
             "braking retires the gate"
         );
-    }
-
-    #[test]
-    fn soi_shell_shows_inside_and_on_approach_only() {
-        let mut world = holo_world();
-        let gravity = GravitySettings::default();
-        let well = world
-            .spawn((
-                Position(Vec3::ZERO),
-                GravityWell::from_surface_gravity(3.0, 20.0, &gravity),
-            ))
-            .id();
-        // SOI 160; park on approach at 200 (< 1.5 * 160), outside the SOI.
-        let ship = world
-            .spawn((
-                PlayerSpaceshipMarker,
-                SpaceshipRootMarker,
-                Position(Vec3::new(200.0, 0.0, 0.0)),
-            ))
-            .id();
-
-        world.run_system_once(sync_soi_shell).unwrap();
-        let rings: Vec<_> = world
-            .query::<(&SoiShellRing, &Transform)>()
-            .iter(&world)
-            .collect();
-        assert_eq!(rings.len(), 3, "a wire globe is three rings");
-        assert!(rings.iter().all(|(ring, _)| ring.well == well));
-        assert!(rings
-            .iter()
-            .all(|(_, transform)| transform.translation == Vec3::ZERO));
-
-        // Inside the SOI the dominant well owns the shell.
-        world
-            .entity_mut(ship)
-            .insert((Position(Vec3::new(50.0, 0.0, 0.0)), DominantWell(well)));
-        world.run_system_once(sync_soi_shell).unwrap();
-        assert_eq!(
-            world.query::<&SoiShellRing>().iter(&world).count(),
-            3,
-            "still three rings, no duplicates"
-        );
-
-        // Far out in flat space: the shell retires.
-        world.entity_mut(ship).remove::<DominantWell>();
-        world
-            .entity_mut(ship)
-            .insert(Position(Vec3::new(500.0, 0.0, 0.0)));
-        world.run_system_once(sync_soi_shell).unwrap();
-        assert_eq!(world.query::<&SoiShellRing>().iter(&world).count(), 0);
     }
 }

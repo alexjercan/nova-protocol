@@ -1,3 +1,11 @@
+//! The directional-HUD widget family around the ship: an orbiting cone +
+//! shaded sphere driven by a world vector. Two sources ship today - the
+//! original velocity readout (white/blue) and the gravity indicator
+//! (yellow, pointing down the dominant well's pull, hidden in flat
+//! space; task 20260710-201514, replacing the SOI shell the user cut).
+//! The module keeps its historical name to avoid churn; a rename to
+//! direction_hud is fair game in a cleanup pass.
+
 use avian3d::prelude::*;
 use bevy::{
     pbr::{ExtendedMaterial, MaterialExtension},
@@ -7,10 +15,52 @@ use bevy::{
 };
 use bevy_common_systems::prelude::*;
 
+use crate::gravity::prelude::*;
+
 pub mod prelude {
     pub use super::{
         velocity_hud, VelocityHudConfig, VelocityHudIndicatorMarker, VelocityHudMarker,
-        VelocityHudPlugin, VelocityHudTargetEntity,
+        VelocityHudPalette, VelocityHudPlugin, VelocityHudSource, VelocityHudTargetEntity,
+    };
+}
+
+/// What the widget's vector means - which world quantity feeds the cone
+/// direction and the sphere shading.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
+pub enum VelocityHudSource {
+    /// The target's linear velocity (the original readout).
+    #[default]
+    Velocity,
+    /// The pull of the target's dominant gravity well; the widget hides
+    /// itself in flat space.
+    Gravity,
+}
+
+/// The widget's colors, so the two sources never read as one quantity.
+#[derive(Component, Debug, Clone, Copy, Reflect)]
+pub struct VelocityHudPalette {
+    /// The orbiting cone.
+    pub indicator: Color,
+    /// The shaded sphere's base tint.
+    pub sphere: Color,
+}
+
+impl Default for VelocityHudPalette {
+    fn default() -> Self {
+        // The original velocity colors.
+        Self {
+            indicator: Color::srgba(1.0, 1.0, 1.0, 1.0),
+            sphere: Color::srgba(0.0, 0.5, 1.0, 0.2),
+        }
+    }
+}
+
+impl VelocityHudPalette {
+    /// Gravity yellow (user request 2026-07-10): same shader, different
+    /// color, so pull and velocity never read as the same thing.
+    pub const GRAVITY: Self = Self {
+        indicator: Color::srgba(1.0, 0.9, 0.2, 1.0),
+        sphere: Color::srgba(1.0, 0.8, 0.1, 0.15),
     };
 }
 
@@ -28,6 +78,8 @@ pub struct VelocityHudConfig {
     pub radius: f32,
     pub sharpness: f32,
     pub target: Entity,
+    pub source: VelocityHudSource,
+    pub palette: VelocityHudPalette,
 }
 
 impl Default for VelocityHudConfig {
@@ -36,6 +88,8 @@ impl Default for VelocityHudConfig {
             radius: 5.0,
             sharpness: 10.0,
             target: Entity::PLACEHOLDER,
+            source: VelocityHudSource::default(),
+            palette: VelocityHudPalette::default(),
         }
     }
 }
@@ -43,17 +97,26 @@ impl Default for VelocityHudConfig {
 pub fn velocity_hud(config: VelocityHudConfig) -> impl Bundle {
     debug!("velocity_hud: config {:?}", config);
 
+    // The gravity variant starts hidden until the feeder proves the ship
+    // is in a well, so a spawn in flat space never flashes the widget.
+    let visibility = match config.source {
+        VelocityHudSource::Velocity => Visibility::Visible,
+        VelocityHudSource::Gravity => Visibility::Hidden,
+    };
+
     (
         Name::new("VelocityHUD"),
         VelocityHudMarker,
         VelocityHudTargetEntity(config.target),
         VelocityHudSharpness(config.sharpness),
+        config.source,
+        config.palette,
         DirectionalSphereOrbit {
             radius: config.radius,
             ..default()
         },
         Transform::default(),
-        Visibility::Visible,
+        visibility,
     )
 }
 
@@ -77,6 +140,12 @@ impl Plugin for VelocityHudPlugin {
             ExtendedMaterial<StandardMaterial, DirectionSphereMaterial>,
         >::default());
 
+        // The gravity variant reads the gravity tunables; init here too
+        // so the widget stands alone (idempotent with NovaGravityPlugin).
+        app.init_resource::<GravitySettings>();
+        app.register_type::<VelocityHudSource>();
+        app.register_type::<VelocityHudPalette>();
+
         app.add_observer(insert_velocity_hud_indicator_system);
         app.add_observer(insert_velocity_hud_sphere_system);
 
@@ -92,24 +161,70 @@ impl Plugin for VelocityHudPlugin {
     }
 }
 
+/// The gravity indicator's shader magnitude: the felt pull normalized by
+/// the strength cap, so a surface-strength well reads full scale. Pure
+/// for unit testing.
+pub(crate) fn gravity_indicator_magnitude(accel: f32, max_surface_gravity: f32) -> f32 {
+    (accel / max_surface_gravity.max(1e-3)).clamp(0.0, 1.0)
+}
+
+/// The widget's world vector for this frame: the source quantity's
+/// direction, plus whether the widget should show at all (the gravity
+/// variant hides in flat space).
+fn source_vector(
+    source: VelocityHudSource,
+    target: Entity,
+    q_velocity: &Query<&LinearVelocity>,
+    q_ship: &Query<(&Position, Option<&DominantWell>)>,
+    q_wells: &Query<&Position, With<GravityWell>>,
+) -> Option<Vec3> {
+    match source {
+        VelocityHudSource::Velocity => q_velocity
+            .get(target)
+            .ok()
+            .map(|velocity| velocity.normalize_or_zero()),
+        VelocityHudSource::Gravity => {
+            let (position, dominant) = q_ship.get(target).ok()?;
+            let well_position = q_wells.get(**dominant?).ok()?;
+            (**well_position - **position).try_normalize()
+        }
+    }
+}
+
 fn update_velocity_hud_input(
     mut q_hud: Query<
-        (&mut DirectionalSphereOrbitInput, &VelocityHudTargetEntity),
+        (
+            &mut DirectionalSphereOrbitInput,
+            &mut Visibility,
+            &VelocityHudSource,
+            &VelocityHudTargetEntity,
+        ),
         With<VelocityHudMarker>,
     >,
-    q_target: Query<&LinearVelocity>,
+    q_velocity: Query<&LinearVelocity>,
+    q_ship: Query<(&Position, Option<&DominantWell>)>,
+    q_wells: Query<&Position, With<GravityWell>>,
 ) {
-    for (mut hud_input, target) in q_hud.iter_mut() {
-        let Ok(velocity) = q_target.get(**target) else {
-            error!(
-                "update_velocity_hud_input: entity {:?} not found in q_target",
+    for (mut hud_input, mut visibility, &source, target) in q_hud.iter_mut() {
+        match source_vector(source, **target, &q_velocity, &q_ship, &q_wells) {
+            Some(dir) => {
+                **hud_input = dir;
+                // Only the gravity variant toggles itself; the velocity
+                // readout is always on and never wrote Visibility before.
+                if source == VelocityHudSource::Gravity && *visibility != Visibility::Inherited {
+                    *visibility = Visibility::Inherited;
+                }
+            }
+            None if source == VelocityHudSource::Gravity => {
+                if *visibility != Visibility::Hidden {
+                    *visibility = Visibility::Hidden;
+                }
+            }
+            None => error!(
+                "update_velocity_hud_input: entity {:?} not found in q_velocity",
                 target
-            );
-            continue;
-        };
-
-        let dir = velocity.0.normalize_or_zero();
-        **hud_input = dir;
+            ),
+        }
     }
 }
 
@@ -144,8 +259,11 @@ fn sync_orbit_state(
 }
 
 fn direction_shader_update_system(
+    gravity_settings: Res<GravitySettings>,
     q_target: Query<&LinearVelocity>,
-    q_hud: Query<(Entity, &VelocityHudTargetEntity), With<VelocityHudMarker>>,
+    q_ship: Query<(&Position, Option<&DominantWell>)>,
+    q_wells: Query<(&Position, &GravityWell)>,
+    q_hud: Query<(Entity, &VelocityHudSource, &VelocityHudTargetEntity), With<VelocityHudMarker>>,
     q_render: Query<(
         &MeshMaterial3d<ExtendedMaterial<StandardMaterial, DirectionMagnitudeMaterial>>,
         &ChildOf,
@@ -153,7 +271,7 @@ fn direction_shader_update_system(
     mut materials: ResMut<Assets<ExtendedMaterial<StandardMaterial, DirectionMagnitudeMaterial>>>,
 ) {
     for (material, &ChildOf(parent)) in &q_render {
-        let Ok((_, target)) = q_hud.get(parent) else {
+        let Ok((_, &source, target)) = q_hud.get(parent) else {
             error!(
                 "direction_shader_update_system: parent entity {:?} not found in q_hud",
                 parent
@@ -161,14 +279,41 @@ fn direction_shader_update_system(
             continue;
         };
 
-        let Ok(velocity) = q_target.get(**target) else {
-            error!(
-                "direction_shader_update_system: entity {:?} not found in q_target",
-                target
-            );
-            continue;
+        let magnitude = match source {
+            VelocityHudSource::Velocity => {
+                let Ok(velocity) = q_target.get(**target) else {
+                    error!(
+                        "direction_shader_update_system: entity {:?} not found in q_target",
+                        target
+                    );
+                    continue;
+                };
+                velocity.length() / 100.0
+            }
+            VelocityHudSource::Gravity => {
+                // The felt pull at the ship, normalized by the cap. A
+                // hidden widget (flat space) keeps its last value; the
+                // root Visibility already hides it.
+                let felt = q_ship.get(**target).ok().and_then(|(position, dominant)| {
+                    let (well_position, well) = q_wells.get(**dominant?).ok()?;
+                    let r = position.distance(**well_position);
+                    Some(well_accel(
+                        well.mu,
+                        r,
+                        well.body_radius,
+                        well.soi_radius,
+                        gravity_settings.fade_fraction,
+                        gravity_settings.surface_margin,
+                    ))
+                });
+                match felt {
+                    Some(accel) => {
+                        gravity_indicator_magnitude(accel, gravity_settings.max_surface_gravity)
+                    }
+                    None => continue,
+                }
+            }
         };
-        let magnitude = velocity.length() / 100.0;
 
         let Some(mut material) = materials.get_mut(&**material) else {
             error!(
@@ -189,10 +334,12 @@ fn insert_velocity_hud_indicator_system(
     mut direction_materials: ResMut<
         Assets<ExtendedMaterial<StandardMaterial, DirectionMagnitudeMaterial>>,
     >,
+    q_hud: Query<&VelocityHudPalette, With<VelocityHudMarker>>,
 ) {
     let entity = add.entity;
     trace!("insert_velocity_hud_indicator_system: entity {:?}", entity);
 
+    let palette = q_hud.get(entity).copied().unwrap_or_default();
     commands.entity(entity).with_child((
         Name::new("VelocityHUD Indicator"),
         VelocityHudIndicatorMarker,
@@ -201,7 +348,7 @@ fn insert_velocity_hud_indicator_system(
         MeshMaterial3d(
             direction_materials.add(ExtendedMaterial {
                 base: StandardMaterial {
-                    base_color: Color::srgba(1.0, 1.0, 1.0, 1.0),
+                    base_color: palette.indicator,
                     perceptual_roughness: 1.0,
                     metallic: 0.0,
                     ..default()
@@ -256,12 +403,19 @@ fn insert_velocity_hud_sphere_system(
     mut direction_materials: ResMut<
         Assets<ExtendedMaterial<StandardMaterial, DirectionSphereMaterial>>,
     >,
-    q_hud: Query<(&DirectionalSphereOrbit, &VelocityHudSharpness), With<VelocityHudMarker>>,
+    q_hud: Query<
+        (
+            &DirectionalSphereOrbit,
+            &VelocityHudSharpness,
+            &VelocityHudPalette,
+        ),
+        With<VelocityHudMarker>,
+    >,
 ) {
     let entity = add.entity;
     trace!("insert_velocity_hud_sphere_system: entity {:?}", entity);
 
-    let Ok((orbit, sharpness)) = q_hud.get(entity) else {
+    let Ok((orbit, sharpness, palette)) = q_hud.get(entity) else {
         error!(
             "insert_velocity_hud_sphere_system: entity {:?} not found in q_hud",
             entity
@@ -280,7 +434,7 @@ fn insert_velocity_hud_sphere_system(
         MeshMaterial3d(
             direction_materials.add(ExtendedMaterial {
                 base: StandardMaterial {
-                    base_color: Color::srgba(0.0, 0.5, 1.0, 0.2),
+                    base_color: palette.sphere,
                     perceptual_roughness: 1.0,
                     metallic: 0.0,
                     alpha_mode: AlphaMode::Blend,
@@ -325,5 +479,99 @@ impl DirectionSphereMaterial {
 impl MaterialExtension for DirectionSphereMaterial {
     fn fragment_shader() -> ShaderRef {
         "shaders/directional_sphere.wgsl".into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::ecs::system::RunSystemOnce;
+
+    use super::*;
+
+    #[test]
+    fn gravity_indicator_magnitude_normalizes_by_the_cap() {
+        assert_eq!(gravity_indicator_magnitude(2.5, 5.0), 0.5);
+        assert_eq!(gravity_indicator_magnitude(10.0, 5.0), 1.0, "clamped");
+        assert_eq!(gravity_indicator_magnitude(0.0, 5.0), 0.0);
+        // A degenerate cap must not divide by zero.
+        assert_eq!(gravity_indicator_magnitude(1.0, 0.0), 1.0);
+    }
+
+    fn spawn_widget(world: &mut World, target: Entity, source: VelocityHudSource) -> Entity {
+        world
+            .spawn((
+                velocity_hud(VelocityHudConfig {
+                    target,
+                    source,
+                    ..default()
+                }),
+                // Provided by the bcs orbit plugin in the real app.
+                DirectionalSphereOrbitInput(Vec3::ZERO),
+            ))
+            .id()
+    }
+
+    #[test]
+    fn gravity_widget_points_down_the_well_and_hides_in_flat_space() {
+        let mut world = World::new();
+        let gravity = GravitySettings::default();
+        let well = world
+            .spawn((
+                Position(Vec3::ZERO),
+                GravityWell::from_surface_gravity(3.0, 20.0, &gravity),
+            ))
+            .id();
+        let ship = world
+            .spawn((Position(Vec3::new(50.0, 0.0, 0.0)), DominantWell(well)))
+            .id();
+        let widget = spawn_widget(&mut world, ship, VelocityHudSource::Gravity);
+
+        // Spawns hidden until the feeder proves the ship is in a well.
+        assert_eq!(
+            *world.entity(widget).get::<Visibility>().unwrap(),
+            Visibility::Hidden
+        );
+
+        world.run_system_once(update_velocity_hud_input).unwrap();
+        let input = world
+            .entity(widget)
+            .get::<DirectionalSphereOrbitInput>()
+            .unwrap();
+        assert!(
+            (**input - Vec3::NEG_X).length() < 1e-5,
+            "the indicator points down the pull, got {:?}",
+            **input
+        );
+        assert_eq!(
+            *world.entity(widget).get::<Visibility>().unwrap(),
+            Visibility::Inherited
+        );
+
+        // Flat space: the widget hides instead of pointing at nothing.
+        world.entity_mut(ship).remove::<DominantWell>();
+        world.run_system_once(update_velocity_hud_input).unwrap();
+        assert_eq!(
+            *world.entity(widget).get::<Visibility>().unwrap(),
+            Visibility::Hidden
+        );
+    }
+
+    #[test]
+    fn velocity_widget_behavior_is_unchanged() {
+        let mut world = World::new();
+        let ship = world.spawn(LinearVelocity(Vec3::new(0.0, 0.0, -8.0))).id();
+        let widget = spawn_widget(&mut world, ship, VelocityHudSource::Velocity);
+
+        world.run_system_once(update_velocity_hud_input).unwrap();
+        let input = world
+            .entity(widget)
+            .get::<DirectionalSphereOrbitInput>()
+            .unwrap();
+        assert!((**input - Vec3::NEG_Z).length() < 1e-5);
+        assert_eq!(
+            *world.entity(widget).get::<Visibility>().unwrap(),
+            Visibility::Visible,
+            "the velocity readout never toggles itself"
+        );
     }
 }
