@@ -1,6 +1,6 @@
 # AI patrol and idle flight states
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: v0.4.0,ai,spike,handling
 
