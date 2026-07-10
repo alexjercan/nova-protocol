@@ -1,8 +1,8 @@
 # AI self-preservation: retreat on low integrity
 
 - STATUS: OPEN
-- PRIORITY: 62
-- TAGS: v0.4.0,ai,spike,health
+- PRIORITY: 0
+- TAGS: v0.5.0,ai,spike,health
 
 
 Spike: docs/spikes/20260709-225508-ai-combat-behaviors.md (wave 3)

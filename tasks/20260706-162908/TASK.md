@@ -1,8 +1,8 @@
 # Re-enable particle effects on wasm
 
 - STATUS: OPEN
-- PRIORITY: 10
-- TAGS: v0.4.0,chore,wasm,blocked
+- PRIORITY: 0
+- TAGS: v0.5.0,chore,wasm,blocked
 
 From the TODO sweep (task 20260525-132954). Particle effects are disabled on wasm
 because hanabi was not working there. Re-enable once a wasm-compatible path exists.
