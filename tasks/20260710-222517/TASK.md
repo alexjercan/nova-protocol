@@ -1,6 +1,6 @@
 # Smooth the camera when autopilot hands back to manual (no snap)
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.5.0,camera,ux,bug
 
@@ -15,29 +15,29 @@ autopilot-to-manual handback the same smoothing.
 
 ## Steps
 
-- [ ] Add a `CameraHandbackBlend { from: Quat, elapsed: f32 }` component
+- [x] Add a `CameraHandbackBlend { from: Quat, elapsed: f32 }` component
   in crates/nova_gameplay/src/camera_controller.rs with a
   `HANDBACK_BLEND_SECONDS` constant (~0.45, playtest knob) and a pure
   eased-slerp helper (`handback_anchor_rot(from, to, elapsed)` with a
   smoothstep ease; unit-tested).
-- [ ] In `on_autopilot_disengaged`, capture the active rig's CURRENT
+- [x] In `on_autopilot_disengaged`, capture the active rig's CURRENT
   `PointRotationOutput` (what the camera was looking along) BEFORE the
   re-seed, and insert the blend component on the camera controller
   entity. The re-seed itself stays instant - the PD's no-lurch contract
   is untouched; only the camera's view of the discontinuity is smoothed.
-- [ ] In `update_chase_camera_input`, when a blend is present: tick
+- [x] In `update_chase_camera_input`, when a blend is present: tick
   `elapsed` with `Time`, set `anchor_rot =
   handback_anchor_rot(blend.from, live rig output, elapsed)`, remove the
   component when done. Mouse input during the blend keeps moving the
   live output; the blend converges to wherever the player is looking.
-- [ ] Tests: pure helper (t=0 -> from, t>=duration -> to, monotonic ease);
+- [x] Tests: pure helper (t=0 -> from, t>=duration -> to, monotonic ease);
   app-level through the real observer + input system: disengage keeps
   anchor_rot continuous (pre-disengage rig direction, NOT the hull quat)
   on the first frame, and force-expiring the blend lands anchor_rot on
   the live rig output with the component removed.
-- [ ] Run camera_controller + flight tests and `cargo check --workspace
+- [x] Run camera_controller + flight tests and `cargo check --workspace
   --examples`.
-- [ ] Docs: docs/2026-07-10-camera-handback-blend.md; close TASK.md.
+- [x] Docs: docs/2026-07-10-camera-handback-blend.md; close TASK.md.
 
 ## Notes
 
@@ -50,3 +50,15 @@ autopilot-to-manual handback the same smoothing.
 - Covers every disengage path: Z, any flight input, capability loss, GOTO
   completion at a well-less target (well targets now park into ORBIT and
   keep the autopilot).
+
+## Resolution
+
+Implemented per the Steps: the ship-side instant re-seed is untouched
+(no-lurch contract), the camera bridges the discontinuity with an eased
+slerp on anchor_rot (its only consumer is the chase camera - verified),
+gated on the normal rig being the active one. One test-writing lesson:
+Quat::angle_between reads ~7e-4 rad for effectively-equal quats (acos
+amplification), so the assertions use 2e-3 epsilons with a comment.
+
+Checks: camera_controller 9, gameplay lib 344, cargo check --workspace
+--examples clean. Full suite and clippy left to CI per policy.
