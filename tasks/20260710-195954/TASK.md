@@ -15,6 +15,32 @@ the destination entity carries a GravityWell, hand off to
 one-key parking flow becomes zero-key when you already told the computer
 where to go.
 
+## Steps
+
+- [ ] In `autopilot_system`'s done branch (flight.rs ~1560, `done &&
+  hottest_input <= 0.05`): when the action is `Goto { target }` and
+  `q_wells.contains(target)`, replace the autopilot in place with
+  `Autopilot::engage(AutopilotAction::Orbit { well: target, plan: None })`
+  (engage resets the phase to Align; the ORBIT plan block fills the plan
+  from the arrival radius next tick) instead of removing the component.
+  Everything else - GotoPos, unsized/well-less targets, STOP - releases
+  exactly as before.
+- [ ] Verify the telemetry handoff needs no code: the Orbit arm publishes
+  no ManeuverTelemetry, so the existing `None if has_telemetry` branch
+  clears the GOTO numbers on the first orbit tick.
+- [ ] Rework the well integration test
+  (goto_into_a_well_stops_at_the_standoff_instead_of_crashing): the leg no
+  longer disengages at a well body - run until the action becomes Orbit,
+  keep the never-below-surface floor over the whole run, then run on and
+  assert the ship stays engaged (ORBIT never completes) and above the
+  surface. The sized-target test (BodyRadius, no well) keeps asserting
+  release - the contrast case.
+- [ ] Run flight, input::ai, hud tests and `cargo check --workspace
+  --examples`.
+- [ ] Docs: docs/2026-07-10-goto-parks-into-orbit.md (handoff rule,
+  breakout semantics unchanged, no-toggle default per the user request);
+  close TASK.md.
+
 ## Notes
 
 - /plan owns the steps. The seam is small: the `done` branch in
