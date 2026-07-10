@@ -113,6 +113,11 @@ game plugins were supplied) the editor `NovaEditorPlugin` from `nova_editor`, pl
   docs/retros/20260710-174646-keybind-hints.md).
 - Document meaningful changes in `docs/` per the global reflection guideline: what
   changed and why, difficulties, and lessons.
+- When changing one side of a guard, band, or inequality (clearance floors,
+  hysteresis pairs, arrival margins), recompute the OTHER side with realistic
+  in-game magnitudes before shipping - a floor raised past an unmoved ceiling
+  shipped a playtest-visible "no stable band" regression once (see
+  docs/retros/2026-07-10-collider-derived-radius-hotfixes.md).
 - Landing hygiene: before `sprout rm` or a squash-merge, verify the worktree is
   clean (`git -C <worktree> status --porcelain` empty) and the branch tip is the
   commit you just made. Never gate a `git commit` behind a grep in an `&&` chain -
