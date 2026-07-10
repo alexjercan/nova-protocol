@@ -4,6 +4,7 @@ use crate::prelude::*;
 
 pub mod component_lock;
 pub mod flight_status;
+pub mod holo_instruments;
 pub mod keybind_hints;
 pub mod maneuver_instruments;
 pub mod screen_indicator;
@@ -13,10 +14,10 @@ pub mod velocity;
 
 pub mod prelude {
     pub use super::{
-        component_lock::prelude::*, flight_status::prelude::*, keybind_hints::prelude::*,
-        maneuver_instruments::prelude::*, screen_indicator::prelude::*, torpedo_target::prelude::*,
-        turret_lead::prelude::*, velocity::prelude::*, NovaHudAssets, NovaHudPlugin,
-        NovaHudSystems,
+        component_lock::prelude::*, flight_status::prelude::*, holo_instruments::prelude::*,
+        keybind_hints::prelude::*, maneuver_instruments::prelude::*, screen_indicator::prelude::*,
+        torpedo_target::prelude::*, turret_lead::prelude::*, velocity::prelude::*, NovaHudAssets,
+        NovaHudPlugin, NovaHudSystems,
     };
 }
 
@@ -46,6 +47,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(flight_status::FlightStatusHudPlugin);
         app.add_plugins(maneuver_instruments::ManeuverInstrumentsPlugin);
         app.add_plugins(keybind_hints::KeybindHintsPlugin);
+        app.add_plugins(holo_instruments::HoloInstrumentsPlugin);
         // The health and objectives HUDs are now the generic bevy_common_systems widgets.
         app.add_plugins(HealthDisplayPlugin);
         app.add_plugins(ObjectivesPlugin);
@@ -194,6 +196,9 @@ fn remove_hud_flight_status(
     q_cues: Query<Entity, With<VerbCuesHudMarker>>,
     q_instruments: Query<Entity, With<ManeuverInstrumentsHudMarker>>,
     q_ring: Query<Entity, With<OrbitRingMarker>>,
+    q_ribbon: Query<Entity, With<TrajectoryRibbonSegment>>,
+    q_gate: Query<Entity, With<FlipGateMarker>>,
+    q_shell: Query<Entity, With<SoiShellRing>>,
 ) {
     let entity = remove.entity;
     debug!("remove_hud_flight_status: entity {:?}", entity);
@@ -216,6 +221,9 @@ fn remove_hud_flight_status(
         commands.entity(hud_entity).despawn();
     }
     for hud_entity in &q_ring {
+        commands.entity(hud_entity).despawn();
+    }
+    for hud_entity in q_ribbon.iter().chain(&q_gate).chain(&q_shell) {
         commands.entity(hud_entity).despawn();
     }
 }

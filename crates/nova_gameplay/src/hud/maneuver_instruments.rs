@@ -16,7 +16,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use super::{screen_indicator::prelude::*, NAV_CYAN};
+use super::{holo_instruments::HoloAssets, screen_indicator::prelude::*, NAV_CYAN};
 use crate::{
     flight::{orbit_ring_point, prelude::*},
     gravity::prelude::*,
@@ -137,6 +137,10 @@ pub struct ManeuverInstrumentsPlugin;
 impl Plugin for ManeuverInstrumentsPlugin {
     fn build(&self, app: &mut App) {
         debug!("ManeuverInstrumentsPlugin: build");
+
+        // Shared with the holo-instruments family (one material batches
+        // the whole set); idempotent with HoloInstrumentsPlugin's init.
+        app.init_resource::<HoloAssets>();
 
         app.register_type::<OrbitRingMarker>();
 
@@ -279,6 +283,7 @@ fn sync_orbit_ring(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut assets: ResMut<HoloAssets>,
     q_ship: Query<(Entity, &Autopilot), With<PlayerSpaceshipMarker>>,
     q_well: Query<&Position, With<GravityWell>>,
     mut q_ring: Query<(Entity, &OrbitRingMarker, &mut Transform)>,
@@ -326,12 +331,7 @@ fn sync_orbit_ring(
                         plan.radius - RING_MINOR_RADIUS,
                         plan.radius + RING_MINOR_RADIUS,
                     ))),
-                    MeshMaterial3d(materials.add(StandardMaterial {
-                        base_color: NAV_CYAN,
-                        alpha_mode: AlphaMode::Blend,
-                        unlit: true,
-                        ..default()
-                    })),
+                    MeshMaterial3d(assets.material(&mut materials)),
                     Transform::from_translation(well_position).with_rotation(rotation),
                     Visibility::Visible,
                 ));
@@ -443,6 +443,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<Assets<Mesh>>();
         world.init_resource::<Assets<StandardMaterial>>();
+        world.init_resource::<HoloAssets>();
 
         let gravity = GravitySettings::default();
         let well = world

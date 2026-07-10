@@ -154,7 +154,8 @@ pub struct OrbitPlan {
     pub normal: Vec3,
 }
 
-/// Live numbers for an engaged GOTO/GotoPos leg, published on the ship by
+/// Live numbers for an engaged translation leg (GOTO/GotoPos toward a
+/// goal, STOP toward its predicted rest point), published on the ship by
 /// [`autopilot_system`] every tick and removed when the leg ends (verb
 /// switch clears it in-system; disengage clears it via
 /// `remove_maneuver_telemetry`). This is the physics-side seam the HUD
@@ -476,6 +477,20 @@ pub(crate) fn arrival_eta(
         }
         None => Some(2.0 * remaining / closing_speed),
     }
+}
+
+/// How far an engaged STOP travels before resting: the un-braked lead
+/// window plus the brake ramp - the same terms as the GOTO flip. `None`
+/// when there is no brake authority (the ship cannot stop). Pure for unit
+/// testing.
+pub(crate) fn stop_rest_distance(speed: f32, brake_accel: f32, lead_time: f32) -> Option<f32> {
+    if speed <= f32::EPSILON {
+        return Some(0.0);
+    }
+    if brake_accel <= 0.0 {
+        return None;
+    }
+    Some(speed * lead_time.max(0.0) + speed * speed / (2.0 * brake_accel))
 }
 
 /// The ORBIT plan's plane normal. The natural plane is the one the ship is
@@ -1190,12 +1205,51 @@ fn autopilot_system(
             }
         };
 
-        // The goal, as a desired velocity right now. GOTO legs also publish
-        // their live numbers as [`ManeuverTelemetry`] for the HUD
-        // instruments; the other verbs clear it.
+        // The goal, as a desired velocity right now. GOTO and STOP legs
+        // also publish their live numbers as [`ManeuverTelemetry`] for the
+        // HUD instruments; ORBIT (and a settled STOP) clears it.
         let mut telemetry: Option<ManeuverTelemetry> = None;
         let desired = match autopilot.action {
-            AutopilotAction::Stop => Vec3::ZERO,
+            AutopilotAction::Stop => {
+                // STOP has a spatial goal too: the predicted rest point.
+                // Publish it so the instruments (readout chip, trajectory
+                // ribbon) cover the braking leg; near rest there is no leg
+                // left and the telemetry clears. Hysteresis on the gate:
+                // a ship hovering at the threshold (gravity re-accelerating
+                // it, engines still winding down) must not strobe the
+                // instruments, so a leg starts at twice the epsilon and
+                // holds until the epsilon itself.
+                let speed = velocity.length();
+                let publish = if has_telemetry {
+                    speed > settings.stop_speed_epsilon
+                } else {
+                    speed > 2.0 * settings.stop_speed_epsilon
+                };
+                if publish {
+                    let brake_dir = -velocity.normalize();
+                    // The plan's group choice floors the speed at
+                    // min_approach_speed (a lead planned for a crawling
+                    // ship is meaningless); the rest distance itself uses
+                    // the raw speed - slight overestimate at low speed,
+                    // documented asymmetry.
+                    let (accel, lead) =
+                        braking_plan(brake_dir, speed.max(settings.min_approach_speed));
+                    let brake_accel = accel * settings.decel_margin;
+                    if let Some(rest) = stop_rest_distance(speed, brake_accel, lead) {
+                        telemetry = Some(ManeuverTelemetry {
+                            goal: position.0 + velocity.normalize() * rest,
+                            goal_entity: None,
+                            distance: rest,
+                            closing_speed: speed,
+                            brake_accel,
+                            flip_point: None,
+                            seconds_to_flip: None,
+                            eta: Some(lead + speed / brake_accel.max(1e-3)),
+                        });
+                    }
+                }
+                Vec3::ZERO
+            }
             AutopilotAction::Goto { target } => {
                 let Ok(target_transform) = q_target.get(target) else {
                     debug!("autopilot_system: GOTO target {target:?} is gone, disengaging");
@@ -1241,8 +1295,9 @@ fn autopilot_system(
         };
 
         // Keep the published telemetry in step with the engaged verb: GOTO
-        // legs update it every tick, the other verbs clear a stale one
-        // (disengage clears via remove_maneuver_telemetry).
+        // and moving STOP legs update it every tick; ORBIT and a settled
+        // STOP clear a stale one (disengage clears via
+        // remove_maneuver_telemetry).
         match telemetry {
             Some(numbers) => {
                 commands.entity(ship).try_insert(numbers);
@@ -2780,6 +2835,50 @@ mod tests {
     }
 
     #[test]
+    fn stop_rest_distance_covers_lead_and_brake_ramp() {
+        // 12 u/s, 10 u/s^2, 2s lead: 24u un-braked + 7.2u ramp.
+        let rest = stop_rest_distance(12.0, 10.0, 2.0).expect("can stop");
+        assert!((rest - 31.2).abs() < 1e-3, "got {rest}");
+        assert_eq!(stop_rest_distance(0.0, 10.0, 2.0), Some(0.0));
+        assert_eq!(
+            stop_rest_distance(12.0, 0.0, 2.0),
+            None,
+            "no brake authority, no rest"
+        );
+    }
+
+    #[test]
+    fn stop_publishes_its_rest_point_and_settling_clears_it() {
+        let mut app = flight_app();
+        let (ship, _, _) = spawn_ship(&mut app);
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::new(6.0, 0.0, 0.0)));
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+        run(&mut app, 5);
+
+        let telemetry = app
+            .world()
+            .get::<ManeuverTelemetry>(ship)
+            .expect("a moving STOP publishes telemetry");
+        // The rest point lies ahead along the velocity.
+        assert!(
+            (telemetry.goal - position_of(&app, ship)).dot(Vec3::X) > 0.0,
+            "rest point ahead of the drift"
+        );
+        assert!(telemetry.eta.expect("eta while braking") > 0.0);
+
+        // The maneuver completes: velocity nulled, autopilot gone, and the
+        // telemetry with it (observer path).
+        run(&mut app, 900);
+        assert!(app.world().get::<Autopilot>(ship).is_none());
+        assert!(app.world().get::<ManeuverTelemetry>(ship).is_none());
+    }
+
+    #[test]
     fn goto_publishes_telemetry_and_disengaging_clears_it() {
         let mut app = flight_app();
         let (ship, _, _) = spawn_ship(&mut app);
@@ -2813,15 +2912,19 @@ mod tests {
         assert!(telemetry.eta.expect("eta while closing") > 0.0);
 
         // Switching verbs (insert-overwrite: OnRemove does NOT fire, the
-        // in-system Has branch must carry it) clears the numbers too.
+        // in-system path must carry it) republishes for the new leg: a
+        // moving ship on STOP reports its predicted rest point, with no
+        // flip (the retrograde alignment is inside the lead window).
         app.world_mut()
             .entity_mut(ship)
             .insert(Autopilot::engage(AutopilotAction::Stop));
         run(&mut app, 2);
-        assert!(
-            app.world().get::<ManeuverTelemetry>(ship).is_none(),
-            "a verb switch ends the leg and its telemetry"
-        );
+        let stop_telemetry = app
+            .world()
+            .get::<ManeuverTelemetry>(ship)
+            .expect("a moving STOP leg publishes its rest point");
+        assert_ne!(stop_telemetry.goal, goal, "the goal is now the rest point");
+        assert_eq!(stop_telemetry.flip_point, None);
 
         // Breakout clears the numbers with the maneuver.
         app.world_mut()
