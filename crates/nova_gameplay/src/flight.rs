@@ -178,8 +178,12 @@ pub struct ManeuverTelemetry {
     pub distance: f32,
     /// Speed along the line to the goal, u/s (negative = opening).
     pub closing_speed: f32,
-    /// The deceleration the arrival plan brakes with (margin applied),
-    /// u/s^2. Zero inside the standoff.
+    /// The EFFECTIVE deceleration the arrival plan brakes with, u/s^2:
+    /// margin applied, then reduced by the well pull toward the goal
+    /// (spike docs/spikes/20260710-204802). Zero inside the standoff, and
+    /// zero outside it when the pull meets or exceeds the brake authority
+    /// (the degraded no-stopping-plan state; `flip_point` and `eta` are
+    /// `None` there). No HUD instrument reads this yet.
     pub brake_accel: f32,
     /// Where on the path the flip-and-burn starts, world coordinates;
     /// `None` once braking has begun (or the estimate is meaningless at
@@ -392,24 +396,47 @@ fn insert_flight_control(add: On<Add, PlayerSpaceshipMarker>, mut commands: Comm
 
 /// The fastest speed the ship may still carry `distance` short of its goal
 /// and still be able to stop there, budgeting `lead_time` seconds of
-/// un-braked travel for the flip: the `v` solving
-/// `v * lead_time + v^2 / (2 * a * margin) = distance`. With zero lead this
-/// is the classic `sqrt(2 * a * margin * d)` arrival rule. Zero at (or past)
-/// the goal. Pure for unit testing.
-fn arrival_speed_limit(distance: f32, accel: f32, margin: f32, lead_time: f32) -> f32 {
+/// un-braked travel for the flip and a well pull of `gravity_along` toward
+/// the goal (spike docs/spikes/20260710-204802): the `v` solving
+/// `v*lead + g*lead^2/2 + (v + g*lead)^2 / (2*(a*margin - g)) = distance`.
+/// Gravity keeps accelerating through the lead window (`g*lead` of speed,
+/// `g*lead^2/2` of distance) and fights the brake afterwards (effective
+/// deceleration `a*margin - g`). With `g = 0` this is the previous rule
+/// exactly; with the pull at or above the brake authority no stopping plan
+/// exists and the limit is zero. Zero at (or past) the goal. Pure for unit
+/// testing.
+fn arrival_speed_limit(
+    distance: f32,
+    accel: f32,
+    margin: f32,
+    lead_time: f32,
+    gravity_along: f32,
+) -> f32 {
     let braking = accel.max(0.0) * margin.clamp(0.0, 1.0);
+    let g = gravity_along.max(0.0);
+    let effective = braking - g;
     let distance = distance.max(0.0);
-    if braking <= 0.0 || distance <= 0.0 {
+    if effective <= 0.0 || distance <= 0.0 {
         return 0.0;
     }
     let lead = lead_time.max(0.0);
-    braking * ((lead * lead + 2.0 * distance / braking).sqrt() - lead)
+    // Substituting u = v + g*lead (the speed when the brake lights) turns
+    // the rule into u^2 / (2*effective) + u*lead = distance + g*lead^2/2.
+    let rhs = distance + 0.5 * g * lead * lead;
+    let u =
+        -effective * lead + (effective * effective * lead * lead + 2.0 * effective * rhs).sqrt();
+    (u - g * lead).max(0.0)
 }
 
 /// The velocity a GOTO wants right now: toward the target, at the arrival
 /// rule's speed for the remaining distance (minus the standoff), floored at
 /// `min_approach` so the ship actually crosses the boundary instead of
-/// approaching it asymptotically. Zero once inside the standoff. Pure for
+/// approaching it asymptotically. Zero once inside the standoff, and zero -
+/// without the floor - when `gravity_along` eats the whole brake authority:
+/// a ship that cannot stop must not be nursed inward at approach speed.
+/// (In the last few units before the standoff the arrival limit can dip
+/// below the floor even under a survivable pull; the floor still applies
+/// there - that boundary-crossing creep is what it exists for.) Pure for
 /// unit testing.
 fn goto_desired_velocity(
     to_target: Vec3,
@@ -418,37 +445,50 @@ fn goto_desired_velocity(
     margin: f32,
     lead_time: f32,
     min_approach: f32,
+    gravity_along: f32,
 ) -> Vec3 {
     let distance = to_target.length();
     let remaining = distance - standoff;
     if remaining <= 0.0 || distance <= f32::EPSILON {
         return Vec3::ZERO;
     }
-    let speed = arrival_speed_limit(remaining, accel, margin, lead_time).max(min_approach.max(0.0));
+    if accel.max(0.0) * margin.clamp(0.0, 1.0) <= gravity_along.max(0.0) {
+        return Vec3::ZERO;
+    }
+    let speed = arrival_speed_limit(remaining, accel, margin, lead_time, gravity_along)
+        .max(min_approach.max(0.0));
     (to_target / distance) * speed
 }
 
 /// Where the flip-and-burn starts for the current state of a GOTO leg.
 /// Mirrors the arrival rule the autopilot actually flies
-/// ([`arrival_speed_limit`]): braking from `closing_speed` at
-/// `brake_accel` covers `v^2 / (2a)`, and the flip rotation + spool
-/// budget adds `v * lead` of un-braked travel, so the flip sits that far
-/// outside the standoff. Returns `(distance from the goal center, coast
-/// seconds until the ship gets there)`, or `None` when braking has
-/// already begun or the closing speed is too small for the coast estimate
-/// to mean anything. Pure for unit testing.
+/// ([`arrival_speed_limit`]): with a well pull of `gravity_along` toward
+/// the goal, the lead window covers `v*lead + g*lead^2/2` and the brake
+/// ramp `(v + g*lead)^2 / (2*(brake_accel - g))`, so the flip sits that
+/// far outside the standoff. Returns `(distance from the goal center,
+/// coast seconds until the ship gets there)`, or `None` when braking has
+/// already begun, the closing speed is too small for the coast estimate
+/// to mean anything, or the pull eats the whole brake authority (no
+/// stopping plan exists). The coast estimate uses the current closing
+/// speed; gravity's coast-phase gain is absorbed by per-tick replanning.
+/// Pure for unit testing.
 pub(crate) fn goto_flip_point(
     distance: f32,
     closing_speed: f32,
     brake_accel: f32,
     lead_time: f32,
     standoff: f32,
+    gravity_along: f32,
 ) -> Option<(f32, f32)> {
-    if closing_speed < 0.5 || brake_accel <= 0.0 {
+    let g = gravity_along.max(0.0);
+    let effective = brake_accel - g;
+    if closing_speed < 0.5 || effective <= 0.0 {
         return None;
     }
-    let brake_distance = closing_speed * closing_speed / (2.0 * brake_accel);
-    let flip_from_goal = standoff + closing_speed * lead_time.max(0.0) + brake_distance;
+    let lead = lead_time.max(0.0);
+    let brake_entry_speed = closing_speed + g * lead;
+    let brake_distance = brake_entry_speed * brake_entry_speed / (2.0 * effective);
+    let flip_from_goal = standoff + closing_speed * lead + 0.5 * g * lead * lead + brake_distance;
     let coast = distance - flip_from_goal;
     if coast <= 0.0 {
         return None;
@@ -459,38 +499,70 @@ pub(crate) fn goto_flip_point(
 /// Rough arrival estimate for a GOTO leg: coast to the flip point plus the
 /// brake ramp (`v / a`); once braking, twice the remaining distance over
 /// the closing speed (the mean of a linear ramp to zero). `None` when the
-/// closing speed is too small to estimate. Pure for unit testing.
+/// closing speed is too small to estimate, or when `gravity_along` eats
+/// the whole brake authority - an unstoppable leg has no honest arrival
+/// time, and a blank chip beats a confident lie. Pure for unit testing.
 pub(crate) fn arrival_eta(
     distance: f32,
     closing_speed: f32,
     brake_accel: f32,
     lead_time: f32,
     standoff: f32,
+    gravity_along: f32,
 ) -> Option<f32> {
     if closing_speed < 0.5 {
         return None;
     }
+    let g = gravity_along.max(0.0);
+    if brake_accel - g <= 0.0 {
+        return None;
+    }
     let remaining = (distance - standoff).max(0.0);
-    match goto_flip_point(distance, closing_speed, brake_accel, lead_time, standoff) {
+    match goto_flip_point(
+        distance,
+        closing_speed,
+        brake_accel,
+        lead_time,
+        standoff,
+        gravity_along,
+    ) {
         Some((_, coast)) => {
-            Some(coast + lead_time.max(0.0) + closing_speed / brake_accel.max(1e-3))
+            // The brake ramp runs from the lead-window exit speed down to
+            // rest at the gravity-reduced deceleration.
+            let lead = lead_time.max(0.0);
+            let brake_entry_speed = closing_speed + g * lead;
+            Some(coast + lead + brake_entry_speed / (brake_accel - g).max(1e-3))
         }
         None => Some(2.0 * remaining / closing_speed),
     }
 }
 
 /// How far an engaged STOP travels before resting: the un-braked lead
-/// window plus the brake ramp - the same terms as the GOTO flip. `None`
-/// when there is no brake authority (the ship cannot stop). Pure for unit
-/// testing.
-pub(crate) fn stop_rest_distance(speed: f32, brake_accel: f32, lead_time: f32) -> Option<f32> {
+/// window plus the brake ramp - the same terms as the GOTO flip, with the
+/// same `gravity_along` budget (pull along the velocity, so a STOP falling
+/// into a well predicts its true rest point). `None` when the remaining
+/// brake authority cannot stop the ship. Pure for unit testing.
+pub(crate) fn stop_rest_distance(
+    speed: f32,
+    brake_accel: f32,
+    lead_time: f32,
+    gravity_along: f32,
+) -> Option<f32> {
     if speed <= f32::EPSILON {
         return Some(0.0);
     }
-    if brake_accel <= 0.0 {
+    let g = gravity_along.max(0.0);
+    let effective = brake_accel - g;
+    if effective <= 0.0 {
         return None;
     }
-    Some(speed * lead_time.max(0.0) + speed * speed / (2.0 * brake_accel))
+    let lead = lead_time.max(0.0);
+    let brake_entry_speed = speed + g * lead;
+    Some(
+        speed * lead
+            + 0.5 * g * lead * lead
+            + brake_entry_speed * brake_entry_speed / (2.0 * effective),
+    )
 }
 
 /// The ORBIT plan's plane normal. The natural plane is the one the ship is
@@ -570,7 +642,12 @@ pub(crate) fn orbit_desired_velocity(
     let tangential = plan.normal.cross(orbit_ring_radial(r_vec, plan));
     let to_ring = orbit_ring_offset(r_vec, plan);
     let correction = match to_ring.try_normalize() {
-        Some(dir) => dir * arrival_speed_limit(to_ring.length(), accel, margin, lead_time),
+        // No gravity budget here (deliberate, unchanged from before the
+        // arrival helpers learned it): during capture the correction does
+        // fight residual gravity, but the ring sits in the stable band
+        // above the fade, the nudge is bounded, and the hold loop
+        // re-issues it every tick - v_circ balances the well once carried.
+        Some(dir) => dir * arrival_speed_limit(to_ring.length(), accel, margin, lead_time, 0.0),
         None => Vec3::ZERO,
     };
 
@@ -991,7 +1068,7 @@ fn autopilot_system(
             &ComputedMass,
             &ComputedAngularInertia,
             Option<&ComputedCenterOfMass>,
-            Has<ManeuverTelemetry>,
+            Option<&ManeuverTelemetry>,
         ),
         With<SpaceshipRootMarker>,
     >,
@@ -1041,9 +1118,10 @@ fn autopilot_system(
 ) {
     let dt = time.delta_secs();
 
-    for (ship, mut autopilot, position, rotation, velocity, mass, inertia, com, has_telemetry) in
+    for (ship, mut autopilot, position, rotation, velocity, mass, inertia, com, prev_telemetry) in
         &mut q_ship
     {
+        let has_telemetry = prev_telemetry.is_some();
         // No flight computer, no autopilot - the ship is adrift on manual.
         // The turn-rate budget derives from the strongest live computer (see
         // ship_turn_rate).
@@ -1142,6 +1220,35 @@ fn autopilot_system(
             };
         }
 
+        // The total well pull fighting a leg that rests at `rest_point`
+        // while closing along `closing_dir`, in u/s^2: the sum of every
+        // well's positive along-track component (overlapping SOIs add up;
+        // a pull that helps braking is ignored, never banked). Evaluated
+        // at the rest point - the worst point of a monotonic inward leg
+        // (spike docs/spikes/20260710-204802). Scanning every well (they
+        // are few) instead of the ship's DominantWell matters: the flip is
+        // usually planned from OUTSIDE the SOI, where the ship has no
+        // DominantWell yet but the goal is already deep in one.
+        let gravity_along = |rest_point: Vec3, closing_dir: Vec3| -> f32 {
+            q_wells
+                .iter()
+                .map(|(well_position, well)| {
+                    let offset = well_position.0 - rest_point;
+                    let pull = well_accel(
+                        well.mu,
+                        offset.length(),
+                        well.body_radius,
+                        well.soi_radius,
+                        gravity_settings.fade_fraction,
+                        gravity_settings.surface_margin,
+                    );
+                    (offset.normalize_or_zero() * pull)
+                        .dot(closing_dir)
+                        .max(0.0)
+                })
+                .sum()
+        };
+
         // The arrival leg shared by GOTO and GotoPos: fly at the goal, come
         // to rest at the standoff.
         let arrival_desired = |goal: Vec3| -> (Vec3, ManeuverTelemetry) {
@@ -1163,23 +1270,42 @@ fn autopilot_system(
                     },
                 )
             } else {
-                let brake_dir = -to_target.normalize();
+                let closing_dir = to_target.normalize();
+                let brake_dir = -closing_dir;
                 let brake_speed = velocity.length().max(settings.min_approach_speed);
                 let (accel, lead) = braking_plan(brake_dir, brake_speed);
-                let brake_accel = accel * settings.decel_margin;
+                let gravity =
+                    gravity_along(goal - closing_dir * settings.arrival_standoff, closing_dir);
+                // The published deceleration is the effective one, so any
+                // instrument reading it sees the plan the computer actually
+                // flies (the field is currently write-only in the HUD).
+                // Zero means the pull exceeds the brake authority: no
+                // stopping plan (flip/eta are None and the desired velocity
+                // is zero - brake flat out).
+                let brake_accel = (accel * settings.decel_margin - gravity).max(0.0);
+                if brake_accel <= 0.0 && prev_telemetry.is_none_or(|t| t.brake_accel > 0.0) {
+                    // Once per degradation entry, not per tick: the
+                    // previous published plan still had brake authority.
+                    debug!(
+                        "autopilot_system: well pull {gravity} exceeds brake authority \
+                         on the arrival leg of {ship:?}; no stopping plan"
+                    );
+                }
                 let flip = goto_flip_point(
                     distance,
                     closing_speed,
-                    brake_accel,
+                    accel * settings.decel_margin,
                     lead,
                     settings.arrival_standoff,
+                    gravity,
                 );
                 let eta = arrival_eta(
                     distance,
                     closing_speed,
-                    brake_accel,
+                    accel * settings.decel_margin,
                     lead,
                     settings.arrival_standoff,
+                    gravity,
                 );
                 (
                     goto_desired_velocity(
@@ -1189,6 +1315,7 @@ fn autopilot_system(
                         settings.decel_margin,
                         lead,
                         settings.min_approach_speed,
+                        gravity,
                     ),
                     ManeuverTelemetry {
                         goal,
@@ -1234,17 +1361,24 @@ fn autopilot_system(
                     // documented asymmetry.
                     let (accel, lead) =
                         braking_plan(brake_dir, speed.max(settings.min_approach_speed));
-                    let brake_accel = accel * settings.decel_margin;
-                    if let Some(rest) = stop_rest_distance(speed, brake_accel, lead) {
+                    // STOP's pull budget is evaluated at the ship, not the
+                    // (yet-unknown) rest point - honest enough for a
+                    // telemetry-only prediction, and the leg replans every
+                    // tick anyway.
+                    let gravity = gravity_along(position.0, velocity.normalize());
+                    let effective = (accel * settings.decel_margin - gravity).max(0.0);
+                    if let Some(rest) =
+                        stop_rest_distance(speed, accel * settings.decel_margin, lead, gravity)
+                    {
                         telemetry = Some(ManeuverTelemetry {
                             goal: position.0 + velocity.normalize() * rest,
                             goal_entity: None,
                             distance: rest,
                             closing_speed: speed,
-                            brake_accel,
+                            brake_accel: effective,
                             flip_point: None,
                             seconds_to_flip: None,
-                            eta: Some(lead + speed / brake_accel.max(1e-3)),
+                            eta: Some(lead + (speed + gravity * lead) / effective.max(1e-3)),
                         });
                     }
                 }
@@ -1648,23 +1782,25 @@ mod tests {
 
     #[test]
     fn arrival_speed_limit_is_zero_at_the_goal_and_grows_with_distance() {
-        assert_eq!(arrival_speed_limit(0.0, 20.0, 0.85, 0.0), 0.0);
-        assert_eq!(arrival_speed_limit(-5.0, 20.0, 0.85, 0.0), 0.0);
-        let near = arrival_speed_limit(10.0, 20.0, 0.85, 0.0);
-        let far = arrival_speed_limit(100.0, 20.0, 0.85, 0.0);
+        assert_eq!(arrival_speed_limit(0.0, 20.0, 0.85, 0.0, 0.0), 0.0);
+        assert_eq!(arrival_speed_limit(-5.0, 20.0, 0.85, 0.0, 0.0), 0.0);
+        let near = arrival_speed_limit(10.0, 20.0, 0.85, 0.0, 0.0);
+        let far = arrival_speed_limit(100.0, 20.0, 0.85, 0.0, 0.0);
         assert!(near > 0.0 && far > near, "limit must grow with distance");
         // The margin slows the plan down.
         assert!(
-            arrival_speed_limit(100.0, 20.0, 0.5, 0.0) < arrival_speed_limit(100.0, 20.0, 1.0, 0.0)
+            arrival_speed_limit(100.0, 20.0, 0.5, 0.0, 0.0)
+                < arrival_speed_limit(100.0, 20.0, 1.0, 0.0, 0.0)
         );
         // v = sqrt(2 a d) exactly at margin 1 with no flip lead.
         assert!(
-            (arrival_speed_limit(100.0, 20.0, 1.0, 0.0) - (2.0f32 * 20.0 * 100.0).sqrt()).abs()
+            (arrival_speed_limit(100.0, 20.0, 1.0, 0.0, 0.0) - (2.0f32 * 20.0 * 100.0).sqrt())
+                .abs()
                 < 1e-4
         );
         // A flip lead budgets un-braked travel, so the allowed speed drops...
-        let with_lead = arrival_speed_limit(100.0, 20.0, 1.0, 1.5);
-        assert!(with_lead < arrival_speed_limit(100.0, 20.0, 1.0, 0.0));
+        let with_lead = arrival_speed_limit(100.0, 20.0, 1.0, 1.5, 0.0);
+        assert!(with_lead < arrival_speed_limit(100.0, 20.0, 1.0, 0.0, 0.0));
         // ...and satisfies v * lead + v^2 / (2a) = d.
         let stopping = with_lead * 1.5 + with_lead * with_lead / (2.0 * 20.0);
         assert!((stopping - 100.0).abs() < 1e-3, "got {stopping}");
@@ -1673,22 +1809,22 @@ mod tests {
     #[test]
     fn goto_desired_velocity_points_at_the_target_and_rests_inside_standoff() {
         let desired =
-            goto_desired_velocity(Vec3::new(0.0, 0.0, -300.0), 50.0, 20.0, 0.85, 1.5, 1.5);
+            goto_desired_velocity(Vec3::new(0.0, 0.0, -300.0), 50.0, 20.0, 0.85, 1.5, 1.5, 0.0);
         assert!(desired.z < 0.0 && desired.x == 0.0 && desired.y == 0.0);
-        assert!((desired.length() - arrival_speed_limit(250.0, 20.0, 0.85, 1.5)).abs() < 1e-4);
+        assert!((desired.length() - arrival_speed_limit(250.0, 20.0, 0.85, 1.5, 0.0)).abs() < 1e-4);
         // Inside the standoff the goal is rest.
         assert_eq!(
-            goto_desired_velocity(Vec3::new(0.0, 0.0, -40.0), 50.0, 20.0, 0.85, 1.5, 1.5),
+            goto_desired_velocity(Vec3::new(0.0, 0.0, -40.0), 50.0, 20.0, 0.85, 1.5, 1.5, 0.0),
             Vec3::ZERO
         );
         // Just outside the boundary the floor keeps a closing speed, so the
         // ship crosses instead of stalling on the asymptote.
         let creeping =
-            goto_desired_velocity(Vec3::new(0.0, 0.0, -50.01), 50.0, 20.0, 0.85, 1.5, 1.5);
+            goto_desired_velocity(Vec3::new(0.0, 0.0, -50.01), 50.0, 20.0, 0.85, 1.5, 1.5, 0.0);
         assert!((creeping.length() - 1.5).abs() < 1e-3);
         // Degenerate zero offset is safe.
         assert_eq!(
-            goto_desired_velocity(Vec3::ZERO, 50.0, 20.0, 0.85, 1.5, 1.5),
+            goto_desired_velocity(Vec3::ZERO, 50.0, 20.0, 0.85, 1.5, 1.5, 0.0),
             Vec3::ZERO
         );
     }
@@ -2811,40 +2947,123 @@ mod tests {
         // goal, and 300 - 81.2 = 218.8u of coast at 12 u/s. This mirrors
         // arrival_speed_limit's v*lead + v^2/(2a) exactly - the marker
         // must sit where the ship actually flips.
-        let flip = goto_flip_point(300.0, 12.0, 10.0, 2.0, 50.0).expect("flip ahead");
+        let flip = goto_flip_point(300.0, 12.0, 10.0, 2.0, 50.0, 0.0).expect("flip ahead");
         assert!((flip.0 - 81.2).abs() < 1e-3, "got {}", flip.0);
         assert!((flip.1 - 218.8 / 12.0).abs() < 1e-3, "got {}", flip.1);
 
         // Already inside the flip distance: braking has begun, no flip.
-        assert_eq!(goto_flip_point(80.0, 12.0, 10.0, 2.0, 50.0), None);
+        assert_eq!(goto_flip_point(80.0, 12.0, 10.0, 2.0, 50.0, 0.0), None);
         // Near-zero closing speed or no brake authority: no estimate.
-        assert_eq!(goto_flip_point(300.0, 0.1, 10.0, 2.0, 50.0), None);
-        assert_eq!(goto_flip_point(300.0, 12.0, 0.0, 2.0, 50.0), None);
+        assert_eq!(goto_flip_point(300.0, 0.1, 10.0, 2.0, 50.0, 0.0), None);
+        assert_eq!(goto_flip_point(300.0, 12.0, 0.0, 2.0, 50.0, 0.0), None);
     }
 
     #[test]
     fn arrival_eta_covers_coast_and_brake_regimes() {
         // Coasting: coast + lead + the brake ramp (12/10 = 1.2s).
-        let eta = arrival_eta(300.0, 12.0, 10.0, 2.0, 50.0).expect("eta");
+        let eta = arrival_eta(300.0, 12.0, 10.0, 2.0, 50.0, 0.0).expect("eta");
         assert!((eta - (218.8 / 12.0 + 2.0 + 1.2)).abs() < 1e-3, "got {eta}");
         // Braking: twice the remaining distance over the closing speed.
-        let braking = arrival_eta(55.0, 12.0, 10.0, 2.0, 50.0).expect("eta");
+        let braking = arrival_eta(55.0, 12.0, 10.0, 2.0, 50.0, 0.0).expect("eta");
         assert!((braking - 2.0 * 5.0 / 12.0).abs() < 1e-3, "got {braking}");
         // No closing speed, no estimate.
-        assert_eq!(arrival_eta(300.0, 0.1, 10.0, 2.0, 50.0), None);
+        assert_eq!(arrival_eta(300.0, 0.1, 10.0, 2.0, 50.0, 0.0), None);
     }
 
     #[test]
     fn stop_rest_distance_covers_lead_and_brake_ramp() {
         // 12 u/s, 10 u/s^2, 2s lead: 24u un-braked + 7.2u ramp.
-        let rest = stop_rest_distance(12.0, 10.0, 2.0).expect("can stop");
+        let rest = stop_rest_distance(12.0, 10.0, 2.0, 0.0).expect("can stop");
         assert!((rest - 31.2).abs() < 1e-3, "got {rest}");
-        assert_eq!(stop_rest_distance(0.0, 10.0, 2.0), Some(0.0));
+        assert_eq!(stop_rest_distance(0.0, 10.0, 2.0, 0.0), Some(0.0));
         assert_eq!(
-            stop_rest_distance(12.0, 0.0, 2.0),
+            stop_rest_distance(12.0, 0.0, 2.0, 0.0),
             None,
             "no brake authority, no rest"
         );
+    }
+
+    // --- Gravity-aware arrival (spike docs/spikes/20260710-204802) ---------
+
+    #[test]
+    fn arrival_speed_limit_budgets_the_well_pull() {
+        // A pull toward the goal lowers the allowed speed...
+        let flat = arrival_speed_limit(100.0, 20.0, 1.0, 1.5, 0.0);
+        let pulled = arrival_speed_limit(100.0, 20.0, 1.0, 1.5, 4.0);
+        assert!(pulled < flat, "{pulled} !< {flat}");
+
+        // ...and the limit is exactly the v whose lead window + brake ramp
+        // covers the distance under gravity: v*lead + g*lead^2/2 +
+        // (v + g*lead)^2 / (2*(a*margin - g)) = d.
+        let (d, a, lead, g) = (100.0f32, 20.0f32, 1.5f32, 4.0f32);
+        let v = arrival_speed_limit(d, a, 1.0, lead, g);
+        let u = v + g * lead;
+        let covered = v * lead + 0.5 * g * lead * lead + u * u / (2.0 * (a - g));
+        assert!((covered - d).abs() < 1e-3, "covered {covered} of {d}");
+
+        // Pull at or above the brake authority: no stopping plan.
+        assert_eq!(arrival_speed_limit(100.0, 20.0, 1.0, 1.5, 20.0), 0.0);
+        assert_eq!(arrival_speed_limit(100.0, 20.0, 1.0, 1.5, 25.0), 0.0);
+    }
+
+    #[test]
+    fn goto_desired_velocity_refuses_to_creep_into_an_unstoppable_well() {
+        // With the pull eating the whole brake authority the desired
+        // velocity is zero WITHOUT the min_approach floor - the floor
+        // would nurse the ship inward on a leg it can never stop.
+        assert_eq!(
+            goto_desired_velocity(
+                Vec3::new(0.0, 0.0, -300.0),
+                50.0,
+                20.0,
+                0.85,
+                1.5,
+                1.5,
+                17.0
+            ),
+            Vec3::ZERO
+        );
+        // A survivable pull still flies the leg, just slower.
+        let flat =
+            goto_desired_velocity(Vec3::new(0.0, 0.0, -300.0), 50.0, 20.0, 0.85, 1.5, 1.5, 0.0);
+        let pulled =
+            goto_desired_velocity(Vec3::new(0.0, 0.0, -300.0), 50.0, 20.0, 0.85, 1.5, 1.5, 4.0);
+        assert!(pulled.length() < flat.length());
+        assert!(pulled.length() > 0.0);
+    }
+
+    #[test]
+    fn gravity_pushes_the_flip_point_out_and_the_rest_point_deeper() {
+        // The flip must trigger earlier when the well fights the brake:
+        // lead window gains g*lead^2/2 of drift and g*lead of speed, and
+        // the ramp runs at the reduced deceleration.
+        let flat = goto_flip_point(300.0, 12.0, 10.0, 2.0, 50.0, 0.0).expect("flip");
+        let pulled = goto_flip_point(300.0, 12.0, 10.0, 2.0, 50.0, 3.0).expect("flip");
+        // g=3: lead exit speed 18, ramp 18^2/(2*7) = 23.14, lead drift
+        // 24 + 6 = 30 -> flip at 50 + 30 + 23.14 = 103.14.
+        assert!((pulled.0 - 103.142_86).abs() < 1e-3, "got {}", pulled.0);
+        assert!(pulled.0 > flat.0);
+        // Pull >= brake authority: no plan.
+        assert_eq!(goto_flip_point(300.0, 12.0, 10.0, 2.0, 50.0, 10.0), None);
+
+        // The same terms lengthen a STOP's predicted rest.
+        let rest_flat = stop_rest_distance(12.0, 10.0, 2.0, 0.0).expect("rest");
+        let rest_pulled = stop_rest_distance(12.0, 10.0, 2.0, 3.0).expect("rest");
+        assert!(
+            (rest_pulled - (24.0 + 6.0 + 23.142_857)).abs() < 1e-3,
+            "got {rest_pulled}"
+        );
+        assert!(rest_pulled > rest_flat);
+        assert_eq!(stop_rest_distance(12.0, 10.0, 2.0, 10.0), None);
+
+        // And the ETA brakes from the lead exit speed at the reduced rate.
+        let eta = arrival_eta(300.0, 12.0, 10.0, 2.0, 50.0, 3.0).expect("eta");
+        let coast = (300.0 - 103.142_86) / 12.0;
+        assert!((eta - (coast + 2.0 + 18.0 / 7.0)).abs() < 1e-3, "got {eta}");
+        // An unstoppable leg has no honest arrival time: None, never the
+        // braking-regime fallback (R1.1 - the instruments must go blank).
+        assert_eq!(arrival_eta(300.0, 12.0, 10.0, 2.0, 50.0, 10.0), None);
+        assert_eq!(arrival_eta(55.0, 12.0, 10.0, 2.0, 50.0, 10.0), None);
     }
 
     #[test]
@@ -3018,6 +3237,66 @@ mod tests {
         assert!(
             distance <= standoff + 6.0 && distance >= standoff - 45.0,
             "should arrive near the {standoff}u standoff, got {distance}"
+        );
+        assert!(speed < 0.5, "should arrive at rest, got {speed}");
+    }
+
+    #[test]
+    fn goto_into_a_well_stops_at_the_standoff_instead_of_crashing() {
+        // The playtest crash (task 20260710-193500): GOTO a well body from
+        // outside the SOI at speed. A gravity-blind plan flips on the
+        // vacuum curve, the well keeps feeding speed through the descent,
+        // and the ship punches through the standoff into the surface. The
+        // gravity-aware plan must keep the hull outside the body the whole
+        // way and still park at the standoff.
+        let mut app = orbit_app();
+        let gravity = GravitySettings::default();
+        // The strongest well the guardrail allows: surface pull 5 u/s^2 on
+        // a 40u body (mu = 8000, SOI 320u).
+        let well = app
+            .world_mut()
+            .spawn((
+                RigidBody::Static,
+                Transform::default(),
+                crate::gravity::GravityWell::from_surface_gravity(5.0, 40.0, &gravity),
+            ))
+            .id();
+        let (ship, _, _) = spawn_ship(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Transform::from_xyz(0.0, 0.0, 500.0));
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::new(0.0, 0.0, -25.0)));
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Goto { target: well }));
+
+        let body_radius = 40.0;
+        let mut min_distance = f32::MAX;
+        let mut released = false;
+        for _ in 0..6000 {
+            app.update();
+            let distance = app.world().get::<Position>(ship).unwrap().0.length();
+            min_distance = min_distance.min(distance);
+            if app.world().get::<Autopilot>(ship).is_none() {
+                released = true;
+                break;
+            }
+        }
+        assert!(released, "GOTO must complete and disengage in budget");
+        assert!(
+            min_distance > body_radius + gravity.surface_margin,
+            "the hull must never dip below the surface, got {min_distance}"
+        );
+
+        let standoff = app.world().resource::<FlightSettings>().arrival_standoff;
+        let distance = app.world().get::<Position>(ship).unwrap().0.length();
+        let speed = velocity_of(&app, ship).length();
+        assert!(
+            distance <= standoff + 6.0 && distance > body_radius + gravity.surface_margin,
+            "should park near the {standoff}u standoff, got {distance}"
         );
         assert!(speed < 0.5, "should arrive at rest, got {speed}");
     }
