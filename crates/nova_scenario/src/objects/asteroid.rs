@@ -136,28 +136,37 @@ fn despawn_asteroid_husk(mut commands: Commands, q_husk: Query<Entity, With<Aste
 /// Designate qualifying asteroids as gravity wells (spike
 /// docs/spikes/20260709-193147-gravity-wells-orbital-mechanics.md): an
 /// authored [`AsteroidSurfaceGravity`] always makes a well at that strength;
-/// otherwise big rocks (radius at or above
+/// otherwise big rocks (nominal radius at or above
 /// [`GravitySettings::min_well_radius`]) get a default-strength well and the
 /// small field rocks stay flat space. Strength and SOI derive through
 /// [`GravityWell::from_surface_gravity`], which also applies the escapability
-/// cap. The well goes on the asteroid root - which never carries
-/// `GravityAffected`, so wells stay one-way and the field cannot clump -
-/// and the source is put on rails (`RigidBody::Static`, overriding the base
-/// scenario bundle's Dynamic): a well that rams, blasts, or recoil could
-/// shove around would drag its SOI and every orbit in it along (spike
-/// option B, "bodies on rails"). Small well-less rocks stay dynamic.
+/// cap - from the GEOMETRIC [`BodyRadius`] the collider observer derives,
+/// not the nominal designation radius: the noise mesh reaches several
+/// times past the nominal sphere, and a well whose SOI/fade were sized on
+/// the nominal radius cannot contain an orbit band above the real surface
+/// (the 2026-07-10 "no stable band" regression). Triggering on
+/// `On<Add, BodyRadius>` is what sequences this after the collider
+/// derivation; qualification stays keyed on the nominal radius (the
+/// designation intent, seed-independent). The well goes on the asteroid
+/// root - which never carries `GravityAffected`, so wells stay one-way
+/// and the field cannot clump - and the source is put on rails
+/// (`RigidBody::Static`, overriding the base scenario bundle's Dynamic):
+/// a well that rams, blasts, or recoil could shove around would drag its
+/// SOI and every orbit in it along (spike option B, "bodies on rails").
+/// Small well-less rocks stay dynamic.
 fn insert_asteroid_gravity_well(
-    add: On<Add, AsteroidMarker>,
+    add: On<Add, BodyRadius>,
     mut commands: Commands,
     settings: Res<GravitySettings>,
-    q_asteroid: Query<(&AsteroidRadius, &AsteroidSurfaceGravity), With<AsteroidMarker>>,
+    q_asteroid: Query<
+        (&AsteroidRadius, &BodyRadius, &AsteroidSurfaceGravity),
+        With<AsteroidMarker>,
+    >,
 ) {
     let entity = add.entity;
-    let Ok((radius, authored)) = q_asteroid.get(entity) else {
-        error!(
-            "insert_asteroid_gravity_well: entity {:?} not found in q_asteroid",
-            entity
-        );
+    // BodyRadius on non-asteroid entities is legitimate (any sized
+    // scenario object); only designated rocks become wells.
+    let Ok((radius, body_radius, authored)) = q_asteroid.get(entity) else {
         return;
     };
 
@@ -168,7 +177,7 @@ fn insert_asteroid_gravity_well(
     };
 
     commands.entity(entity).insert((
-        GravityWell::from_surface_gravity(surface_gravity, **radius, &settings),
+        GravityWell::from_surface_gravity(surface_gravity, **body_radius, &settings),
         RigidBody::Static,
     ));
 }
@@ -589,6 +598,58 @@ mod tests {
     }
 
     #[test]
+    fn the_well_derives_from_the_geometric_radius() {
+        // The full observer chain: the collider observer derives
+        // BodyRadius from the mesh, and the well observer (triggered by
+        // that insert) sizes the well on the GEOMETRIC radius - a well
+        // sized on the nominal sphere cannot contain an orbit band above
+        // the real surface (2026-07-10 "no stable band" regression).
+        let mut app = App::new();
+        app.init_resource::<GravitySettings>();
+        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.add_observer(insert_asteroid_collider);
+        app.add_observer(insert_asteroid_gravity_well);
+        app.update();
+
+        let settings = GravitySettings::default();
+        let asteroid = spawn_asteroid_underived(&mut app, 20.0, Some(6.0));
+        app.update();
+
+        let derived = app
+            .world()
+            .get::<BodyRadius>(asteroid)
+            .map(|r| **r)
+            .expect("derived BodyRadius");
+        let well = app
+            .world()
+            .get::<GravityWell>(asteroid)
+            .expect("designated rock well");
+        assert_eq!(well.body_radius, derived);
+        assert_eq!(well.soi_radius, settings.soi_factor * derived);
+        assert_eq!(well.mu, 6.0 * derived * derived);
+    }
+
+    /// The raw scenario bundle without the test stand-in BodyRadius, for
+    /// tests that run the real collider derivation.
+    fn spawn_asteroid_underived(
+        app: &mut App,
+        radius: f32,
+        surface_gravity: Option<f32>,
+    ) -> Entity {
+        app.world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                asteroid_scenario_object(AsteroidConfig {
+                    radius,
+                    texture: Handle::default(),
+                    health: 100.0,
+                    surface_gravity,
+                }),
+            ))
+            .id()
+    }
+
+    #[test]
     fn mesh_max_vertex_radius_finds_the_outermost_vertex() {
         let mesh = TriangleMeshBuilder::new_octahedron(1).build();
         let max = mesh_max_vertex_radius(&mesh);
@@ -610,6 +671,10 @@ mod tests {
                     health: 100.0,
                     surface_gravity,
                 }),
+                // In the real pipeline the collider observer derives this
+                // from the generated mesh; the well tests stand in with a
+                // unit extent so mu/SOI expectations stay exact.
+                BodyRadius(radius),
             ))
             .id()
     }

@@ -18,12 +18,19 @@ the designation radius, sometimes far past.
   (`mesh_max_vertex_radius`, floored at 1.0 so a degenerate mesh never
   shrinks the radius). Nothing about the edge is hardcoded anymore; a
   lumpier noise profile automatically widens the standoff.
-- The GravityWell keeps deriving mu/SOI from the NOMINAL radius: physics
-  stays deterministic across seeds, tests stay exact, and the designation
-  radius remains the tuning knob. Geometry (where surfaces are) and
-  physics (how hard the well pulls) are deliberately separate readings;
-  the arrival and the orbit band take `max(BodyRadius,
-  GravityWell::body_radius)`.
+- The GravityWell derives from the GEOMETRIC radius too (superseding the
+  first cut of this change, which kept the well nominal for seed
+  determinism): with the real surface several times the nominal sphere, a
+  nominal-sized SOI cannot contain an orbit band above the geometric
+  clearance floor - the O-key ORBIT immediately hit "no stable band" in
+  playtest. The well observer now triggers on `On<Add, BodyRadius>` (which
+  sequences it after the collider derivation) and sizes mu/SOI on the
+  derived radius; only the WELL-QUALIFICATION rule (min_well_radius) stays
+  keyed on the nominal designation radius. Physics now varies with the
+  mesh seed - accepted: surface gravity is still the authored/capped
+  knob, and it now means gravity at the REAL surface. The arrival and the
+  band still take `max(BodyRadius, GravityWell::body_radius)` as a safety
+  net for bare wells.
 - The ORBIT band's clearance floor now clears the GEOMETRIC surface: the
   plan block and the parking handoff clamp the ring against a well whose
   `body_radius` is raised to the derived BodyRadius (the `band_well`
@@ -40,8 +47,10 @@ the designation radius, sometimes far past.
 ## Verification
 
 - nova_scenario: `body_radius_derives_from_the_generated_collider`
-  (derived >= nominal, sanity-bounded) and the pure
-  `mesh_max_vertex_radius` unit test; 11 tests green.
+  (derived >= nominal, sanity-bounded), the pure `mesh_max_vertex_radius`
+  unit test, and `the_well_derives_from_the_geometric_radius` (full
+  observer chain: well.body_radius == derived BodyRadius, SOI and mu
+  scale with it); 12 tests green.
 - flight: `handoff_ring_clears_the_geometric_radius` (well nominal 40 +
   BodyRadius 70 -> ring at 120, not a nominal-band clamp of the crept
   position); the full well arc test unchanged and green; flight 57,
