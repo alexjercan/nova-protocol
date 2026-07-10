@@ -58,7 +58,11 @@ impl Plugin for SpaceshipTargetingPlugin {
 
 /// Maximum distance at which the aim-assist will lock a target. Bodies further
 /// than this from the ship are ignored, so distant clutter never steals the lock.
-const TARGETING_MAX_RANGE: f32 = 2000.0;
+/// Long by design: the lock is also the designator for GOTO autopilot legs and
+/// torpedo launches, and a destination should be designatable from across the
+/// play area (user report 20260710) - the angular cone pick already keeps the
+/// selection deliberate at range.
+const TARGETING_MAX_RANGE: f32 = 20_000.0;
 
 /// Half-angle (degrees) of the lock-on cone around the aim direction. Any lockable
 /// body whose bearing from the ship falls within this angle of where the player is
@@ -585,6 +589,22 @@ mod tests {
             .into_iter(),
         );
         assert_eq!(picked, None, "a body beyond max range must not be locked");
+    }
+
+    #[test]
+    fn pick_target_locks_distant_bodies_for_designation() {
+        // The lock doubles as the GOTO/torpedo designator, so a body far
+        // down-range (well past the old 2 km limit) must still lock when
+        // aimed at (user report 20260710).
+        let asteroid = Entity::from_raw_u32(1).unwrap();
+        let picked = pick_target(
+            Vec3::ZERO,
+            Vec3::NEG_Z,
+            TARGETING_MAX_RANGE,
+            cone_cos(18.0),
+            [(asteroid, Vec3::new(0.0, 0.0, -15_000.0))].into_iter(),
+        );
+        assert_eq!(picked, Some(asteroid), "distant designation must lock");
     }
 
     #[test]

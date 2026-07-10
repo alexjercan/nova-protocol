@@ -86,8 +86,10 @@ enum AITargetKind {
     Torpedo,
 }
 
-/// Acquisition range (m) of AI target selection, matching the player's
-/// TARGETING_MAX_RANGE.
+/// Acquisition range (m) of AI target selection. Deliberately shorter than
+/// the player's TARGETING_MAX_RANGE (20 km): the player's lock doubles as a
+/// long-range designator for GOTO legs and torpedo launches, while AI
+/// sensors only need to find things worth fighting.
 const AI_TARGET_MAX_RANGE: f32 = 2000.0;
 /// Switch hysteresis: the current target's distance is discounted by this
 /// factor, so a rival has to be meaningfully closer (not a frame-noise
