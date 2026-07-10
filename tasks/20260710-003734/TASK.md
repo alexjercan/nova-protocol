@@ -1,6 +1,6 @@
 # Shot-down torpedo dies: destroyed body section kills the torpedo root without full blast
 
-- STATUS: CLOSED
+- STATUS: IN_PROGRESS
 - PRIORITY: 74
 - TAGS: v0.4.0,torpedo,bug,ai
 
@@ -59,3 +59,20 @@ the HealthZeroMarker stage, before the integrity destroy pipeline spawns
 its section debris, so a shot-down torpedo currently vanishes without
 much visual fanfare. If playtest wants a kill flash, that is a juice
 follow-up.
+
+## Reopened (20260710): live-game panic
+
+User hit a panic in the running game: `Entity despawned ... 1202v4` from
+`insert<IntegrityDisabledMarker>` inside avian's collision-event flush.
+Root cause: the shoot-down observer despawns the torpedo root (and with it
+the dying section) in the SAME command flush where the integrity pipeline
+has already queued inserts for that section - those commands then target a
+despawned entity and panic.
+
+Fix: two-step kill. The observer only INSERTS `TorpedoShotDownMarker` on
+the root (inserting on a live entity is always safe); a
+`despawn_shot_down_torpedoes` system does the actual despawn on the next
+schedule pass, after the integrity commands have landed; and
+`torpedo_detonate_system` excludes marked roots so the warhead cannot fire
+in the one-tick gap. Tests updated to drive the marker + despawn pipeline,
+plus a regression asserting a marked torpedo does not detonate.

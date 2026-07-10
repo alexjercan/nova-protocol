@@ -289,6 +289,7 @@ impl Plugin for TorpedoSectionPlugin {
         // A torpedo whose body is shot dead must die as a whole: without
         // this the collider-less root keeps flying, armed, and still
         // detonates (user report 20260710, task 20260710-003734).
+        app.register_type::<TorpedoShotDownMarker>();
         app.add_observer(on_torpedo_body_destroyed);
 
         app.add_systems(
@@ -297,6 +298,7 @@ impl Plugin for TorpedoSectionPlugin {
                 update_spawner_fire_state,
                 shoot_spawn_projectile,
                 (
+                    despawn_shot_down_torpedoes,
                     update_target_position,
                     update_torpedo_arming,
                     torpedo_detonate_system,
@@ -311,15 +313,29 @@ impl Plugin for TorpedoSectionPlugin {
     }
 }
 
-/// Kill the whole torpedo when any of its body sections dies.
+/// A torpedo whose body was shot dead, awaiting removal.
+///
+/// The kill is deliberately TWO-STEP: the observer that detects the dead
+/// body section only inserts this marker (inserting on a live entity is
+/// always safe), and [`despawn_shot_down_torpedoes`] removes the torpedo on
+/// the next schedule pass. Despawning directly inside the observer raced
+/// the integrity pipeline: its already-queued commands for the dying
+/// section (e.g. `IntegrityDisabledMarker`) then hit a despawned entity and
+/// panicked mid collision-event flush (live-game crash, 20260710).
+/// [`torpedo_detonate_system`] excludes marked roots, so the warhead cannot
+/// fire in the gap.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct TorpedoShotDownMarker;
+
+/// Mark the whole torpedo as killed when any of its body sections dies.
 ///
 /// The torpedo root is collider-less: bullets kill its CHILD sections
 /// (controller/thruster, 1 HP each) through the normal health pipeline, but
 /// nothing told the root - the husk kept flying and its proximity fuze
 /// still fired. On ordnance every section is vital, so one dead section
-/// despawns the root (and with it the rest of the body). Deliberately NO
-/// `blast_damage` here: defeating the warhead is the point of shooting a
-/// torpedo down - a shot-down torpedo dies quietly, only a detonation
+/// kills the torpedo. Deliberately NO `blast_damage` on this path:
+/// defeating the warhead is the point of shooting a torpedo down - a
+/// shot-down torpedo dies quietly, only a detonation
 /// (torpedo_detonate_system) explodes.
 fn on_torpedo_body_destroyed(
     add: On<Add, HealthZeroMarker>,
@@ -334,9 +350,22 @@ fn on_torpedo_body_destroyed(
     let Ok(root) = q_torpedo.get(*parent) else {
         return;
     };
-    // try_despawn: both body sections can die in the same blast/burst and
-    // each triggers this observer; the second despawn must be a no-op.
-    commands.entity(root).try_despawn();
+    // try_insert: both body sections can die in the same burst, and the
+    // root itself may already be despawning for another reason.
+    commands.entity(root).try_insert(TorpedoShotDownMarker);
+}
+
+/// Remove shot-down torpedoes, one schedule pass after the marker landed -
+/// by then every command the integrity pipeline queued for the dying
+/// section has been applied to a still-live entity (see
+/// [`TorpedoShotDownMarker`] for the crash this ordering prevents).
+fn despawn_shot_down_torpedoes(
+    q_torpedo: Query<Entity, (With<TorpedoProjectileMarker>, With<TorpedoShotDownMarker>)>,
+    mut commands: Commands,
+) {
+    for torpedo in &q_torpedo {
+        commands.entity(torpedo).try_despawn();
+    }
 }
 
 fn insert_torpedo_section(
@@ -994,7 +1023,12 @@ mod tests {
             .spawn((SectionMarker, Health::new(1.0), ChildOf(root)))
             .id();
 
+        app.add_systems(Update, despawn_shot_down_torpedoes);
         app.world_mut().entity_mut(body).insert(HealthZeroMarker);
+        assert!(
+            app.world().get::<TorpedoShotDownMarker>(root).is_some(),
+            "the observer marks the root immediately (and safely)"
+        );
         app.update();
 
         assert!(
@@ -1012,6 +1046,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(HealthPlugin);
         app.add_observer(on_torpedo_body_destroyed);
+        app.add_systems(Update, despawn_shot_down_torpedoes);
         let root = app
             .world_mut()
             .spawn((TorpedoProjectileMarker, Transform::default()))
@@ -1060,6 +1095,75 @@ mod tests {
 
         assert!(app.world().entities().contains(ship));
         assert!(app.world().entities().contains(section));
+    }
+
+    #[test]
+    fn the_kill_does_not_race_commands_queued_for_the_dying_section() {
+        // Live-game crash regression (20260710): commands queued for the
+        // dying section in the same flush as the zero-health marker (the
+        // integrity pipeline's IntegrityDisabledMarker insert) must land on
+        // a still-live entity. A same-flush insert on the section after the
+        // observer ran must NOT panic - the despawn happens a pass later.
+        let mut app = App::new();
+        app.add_observer(on_torpedo_body_destroyed);
+        app.add_systems(Update, despawn_shot_down_torpedoes);
+        let root = app
+            .world_mut()
+            .spawn((TorpedoProjectileMarker, Transform::default()))
+            .id();
+        let body = app
+            .world_mut()
+            .spawn((SectionMarker, Health::new(1.0), ChildOf(root)))
+            .id();
+
+        // Same-flush sequence: zero-health marker (observer runs, marks the
+        // root), then another insert on the dying section - the integrity
+        // pipeline's pattern.
+        app.world_mut()
+            .entity_mut(body)
+            .insert(HealthZeroMarker)
+            .insert(SectionInactiveMarker);
+
+        app.update();
+        assert!(!app.world().entities().contains(root));
+    }
+
+    #[test]
+    fn a_shot_down_torpedo_cannot_detonate_in_the_removal_gap() {
+        // Armed, on its target, but marked shot down: the fuze must stay
+        // quiet for the tick between the marker and the despawn.
+        let mut app = App::new();
+        app.add_systems(Update, torpedo_detonate_system);
+        let mut arming = TorpedoArming::new(0.0, 0.0, Vec3::ZERO);
+        arming.tick(1.0, Vec3::ZERO);
+        let torpedo = app
+            .world_mut()
+            .spawn((
+                TorpedoProjectileMarker,
+                TorpedoShotDownMarker,
+                Transform::default(),
+                TorpedoTargetPosition(Vec3::ZERO),
+                arming,
+                TorpedoBlast {
+                    radius: 10.0,
+                    damage: 5.0,
+                },
+                TorpedoSectionPartOf(Entity::PLACEHOLDER),
+            ))
+            .id();
+
+        app.update();
+
+        assert!(
+            app.world().entities().contains(torpedo),
+            "the fuze must not fire on a shot-down torpedo"
+        );
+        let blasts = app
+            .world_mut()
+            .query_filtered::<Entity, With<BlastDamageMarker>>()
+            .iter(app.world())
+            .count();
+        assert_eq!(blasts, 0);
     }
 
     // -- torpedo allegiance (task 20260708-203708) --
