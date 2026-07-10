@@ -118,6 +118,10 @@ game plugins were supplied) the editor `NovaEditorPlugin` from `nova_editor`, pl
   in-game magnitudes before shipping - a floor raised past an unmoved ceiling
   shipped a playtest-visible "no stable band" regression once (see
   docs/retros/2026-07-10-collider-derived-radius-hotfixes.md).
+- Worktrees come ONLY from the sprout skill: do not create git worktrees on your
+  own (no EnterWorktree, no raw `git worktree add`). Work directly in the main
+  checkout unless a skill that uses sprout (/sprout, /work, /flow) is driving the
+  task - then `sprout new` is the one way in and `sprout rm` the one way out.
 - Landing hygiene: before `sprout rm` or a squash-merge, verify the worktree is
   clean (`git -C <worktree> status --porcelain` empty) and the branch tip is the
   commit you just made. Never gate a `git commit` behind a grep in an `&&` chain -
