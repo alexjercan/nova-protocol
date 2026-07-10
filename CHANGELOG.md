@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- @alexjercan reinterpret the stacked skybox cubemap into a 6 layer array at load time (via `.meta` loader settings) instead of on camera spawn: the renderer eagerly uploads loaded images, and the raw 24576 px tall form exceeds the 16384 texture limit of smaller GPUs (CI's llvmpipe), which killed the app with a render validation error depending on frame timing
 - @alexjercan make blast damage reach every body overlapping the blast instead of only one
 - @alexjercan ships, asteroids and torpedoes interpolate their transforms between fixed physics ticks, fixing the camera twitch the new chase smoothing exposed
 - @alexjercan the chase camera anchors on the ship's live center of mass instead of the root origin, so a ship that lost its front sections no longer appears to tumble around an empty point in space
