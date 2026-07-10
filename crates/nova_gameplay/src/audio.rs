@@ -317,6 +317,15 @@ fn on_destroyed_play_explosion(
 
 /// Impact cue whenever damage is applied. Throttled because a single blast deals
 /// damage to many colliders in one frame.
+///
+/// Propagation caveat: `HealthApplyDamage` auto-propagates up `ChildOf`
+/// (section -> ship root), and ship death depends on that bubbling, so it must
+/// not be stopped here - but a global observer fires once per hop, which would
+/// double the cue whenever the section and root land in different area cells.
+/// Reacting only to the original target keeps one hit = one cue, and the
+/// original target is also the better cue position: the actual hit location,
+/// not the ship root's origin. Any future damage-cue observer needs this same
+/// guard.
 fn on_damage_play_impact(
     damage: On<HealthApplyDamage>,
     bank: Option<Res<SoundBank<NovaSfx>>>,
@@ -326,6 +335,9 @@ fn on_damage_play_impact(
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
+    if damage.entity != damage.original_event_target() {
+        return;
+    }
     let Some(bank) = bank else { return };
     let Ok(source) = q_transform.get(damage.entity) else {
         return;
@@ -601,6 +613,61 @@ mod tests {
             GlobalTransform::from(Transform::from_translation(pos)),
         ));
         assert_eq!(listener_position(&state.get(&world).unwrap()), Some(pos));
+    }
+
+    /// Count of `PlaySfx` triggers observed, standing in for "sounds played".
+    #[derive(Resource, Default)]
+    struct PlayedSfx(usize);
+
+    #[test]
+    fn a_propagated_hit_on_a_straddling_hierarchy_plays_one_impact() {
+        // The audio side of the PR #54 regression (and PR #53 F3):
+        // `HealthApplyDamage` auto-propagates child -> parent, and with the
+        // parent one area cell away the per-cell throttle cannot collapse the
+        // hops, so one hit played two impact sounds. The original-target guard
+        // must keep it at exactly one.
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.init_resource::<SfxThrottle>();
+        app.init_resource::<PlayedSfx>();
+        let bank = SoundBank::load(app.world().resource::<AssetServer>(), NOVA_SFX_FILES);
+        app.insert_resource(bank);
+        app.add_observer(on_damage_play_impact);
+        app.add_observer(|_: On<PlaySfx>, mut played: ResMut<PlayedSfx>| played.0 += 1);
+
+        let parent = app
+            .world_mut()
+            .spawn(GlobalTransform::from(Transform::from_translation(
+                Vec3::new(SFX_AREA_CELL * 4.0, 0.0, 0.0),
+            )))
+            .id();
+        let child = app
+            .world_mut()
+            .spawn((GlobalTransform::default(), ChildOf(parent)))
+            .id();
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: child,
+            source: None,
+            amount: 10.0,
+        });
+        // The observer plays via `Commands`, so the queued `PlaySfx` triggers
+        // only fire on the next flush.
+        app.world_mut().flush();
+
+        assert_eq!(
+            app.world().resource::<PlayedSfx>().0,
+            1,
+            "one hit must play exactly one impact sound"
+        );
+        // The cue is keyed (and positioned) at the hit location's cell, not the
+        // parent's.
+        let throttle = app.world().resource::<SfxThrottle>();
+        assert!(throttle
+            .last
+            .contains_key(&ThrottleKey::Impact(area_cell(Vec3::ZERO))));
+        assert_eq!(throttle.last.len(), 1);
     }
 
     #[test]

@@ -500,6 +500,15 @@ fn emit_juice(
 }
 
 /// Impact juice whenever damage is applied to a living target.
+///
+/// Propagation caveat: `HealthApplyDamage` auto-propagates up `ChildOf`
+/// (section -> ship root), and ship death depends on that bubbling, so it must
+/// not be stopped here - but a global observer fires once per hop, which would
+/// double the kick/flash whenever the section and root land in different area
+/// cells (2x trauma plus a phantom ring at the ship root's origin). Reacting
+/// only to the original target keeps one hit = one cue, and the original
+/// target is also the better cue position: the actual hit location. Any future
+/// damage-cue observer needs this same guard (mirrors `audio.rs`).
 fn on_damage_juice(
     damage: On<HealthApplyDamage>,
     settings: Res<JuiceSettings>,
@@ -510,6 +519,9 @@ fn on_damage_juice(
     mut fx: ResMut<ActiveJuiceFx>,
     mut q_shake_input: Query<&mut CameraShakeInput, With<SfxListenerMarker>>,
 ) {
+    if damage.entity != damage.original_event_target() {
+        return;
+    }
     if !settings.master_enabled {
         return;
     }
@@ -854,6 +866,37 @@ mod tests {
         let expected = JuiceSettings::default().shake.hit_trauma;
         assert!((trauma_of(&app, sink) - expected).abs() < 1e-6);
         assert_eq!(flash_count(&app), 1);
+    }
+
+    #[test]
+    fn a_propagated_hit_on_a_straddling_hierarchy_fires_one_cue() {
+        // The PR #54 regression: `HealthApplyDamage` auto-propagates child ->
+        // parent, and with the parent one area cell away the per-cell throttle
+        // cannot collapse the hops - one hit read as two cues (flashes = 2,
+        // trauma = 2x the tuned impulse, plus a phantom ring at the parent's
+        // origin). The original-target guard must keep it at exactly one.
+        let mut app = juice_test_app();
+        let sink = spawn_shake_sink(&mut app);
+        let parent = spawn_at(&mut app, Vec3::new(JUICE_AREA_CELL * 4.0, 0.0, 0.0));
+        let child = spawn_at(&mut app, Vec3::ZERO);
+        app.world_mut().entity_mut(child).insert(ChildOf(parent));
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: child,
+            source: None,
+            amount: 10.0,
+        });
+
+        let expected = JuiceSettings::default().shake.hit_trauma;
+        assert!(
+            (trauma_of(&app, sink) - expected).abs() < 1e-6,
+            "one hit must add exactly one trauma impulse, got {}",
+            trauma_of(&app, sink)
+        );
+        let flashes = &app.world().resource::<ActiveJuiceFx>().flashes;
+        assert_eq!(flashes.len(), 1, "one hit must queue exactly one flash");
+        // And the cue sits at the hit location, not the parent's origin.
+        assert_eq!(flashes[0].pos, Vec3::ZERO);
     }
 
     #[test]
