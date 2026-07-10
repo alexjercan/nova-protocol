@@ -40,6 +40,10 @@ pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
         AsteroidRadius(config.radius),
         AsteroidHealth(config.health),
         AsteroidSurfaceGravity(config.surface_gravity),
+        // The lock scanner sees a rock in proportion to its size: field
+        // rocks only lock up close, big bodies from afar (well sources
+        // are range-free in the targeting gate anyway).
+        LockSignature(config.radius),
     )
 }
 
@@ -551,6 +555,16 @@ mod tests {
         assert!(
             app.world().get::<GravityWell>(small).is_none(),
             "field rocks below the radius threshold stay flat space"
+        );
+
+        // The lock scanner sees every rock in proportion to its size.
+        assert_eq!(
+            app.world().get::<LockSignature>(big).map(|s| **s),
+            Some(20.0)
+        );
+        assert_eq!(
+            app.world().get::<LockSignature>(small).map(|s| **s),
+            Some(2.0)
         );
 
         // Well sources go on rails so nothing can shove an SOI around;

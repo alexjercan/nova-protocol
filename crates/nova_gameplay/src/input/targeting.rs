@@ -14,9 +14,56 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        ComponentLockMode, SpaceshipPlayerComponentLock, SpaceshipPlayerLockFocus,
+        ComponentLockMode, LockSignature, SpaceshipPlayerComponentLock, SpaceshipPlayerLockFocus,
         SpaceshipPlayerTargetLock, SpaceshipTargetingPlugin, SpaceshipTargetingSystems,
+        TargetingSettings,
     };
+}
+
+/// How strongly the lock scanner "sees" a body, a radius-like magnitude in
+/// world units (user request 2026-07-10: think of the lock as a scanner
+/// wave - small objects return no signature at range). A candidate without
+/// this component and without an intrinsic class (well body, ship,
+/// committed torpedo) is only lockable point-blank
+/// ([`TargetingSettings::unsigned_lock_range`]); with it, lock range scales
+/// as `signature * signature_range_per_unit`. The scenario layer authors it
+/// on asteroids from their radius.
+#[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
+#[reflect(Component)]
+pub struct LockSignature(pub f32);
+
+/// Lock-acquisition tunables, reflected for the inspector.
+#[derive(Resource, Clone, Debug, Reflect)]
+#[reflect(Resource)]
+pub struct TargetingSettings {
+    /// Lock range per unit of [`LockSignature`], world units. At 30, a 2u
+    /// field rock is lockable within 60u - close enough to matter, far
+    /// enough not to steal mid-fight locks.
+    pub signature_range_per_unit: f32,
+    /// Lock range for bodies with no signature and no intrinsic class -
+    /// battle debris, loose fragments. Point-blank by design.
+    pub unsigned_lock_range: f32,
+    /// The incumbent lock stays lockable this factor beyond its gate, so
+    /// a body at its boundary cannot strobe the lock (and reset the focus
+    /// dwell) as the ship drifts. Fresh acquisition still uses the plain
+    /// gate.
+    pub range_hysteresis: f32,
+    /// Lock range for committed torpedoes. Small object, hot drive: far
+    /// more visible than its size but not across the map. Covers every
+    /// real point-defense engagement (AI launch range 1000u, heat
+    /// fallback 550u) with margin; a playtest knob.
+    pub torpedo_lock_range: f32,
+}
+
+impl Default for TargetingSettings {
+    fn default() -> Self {
+        Self {
+            signature_range_per_unit: 30.0,
+            unsigned_lock_range: 15.0,
+            range_hysteresis: 1.15,
+            torpedo_lock_range: 2500.0,
+        }
+    }
 }
 
 /// The player's current target lock. `None` means no lock (reticle hidden,
@@ -37,6 +84,10 @@ impl Plugin for SpaceshipTargetingPlugin {
     fn build(&self, app: &mut App) {
         debug!("SpaceshipTargetingPlugin: build");
 
+        app.init_resource::<TargetingSettings>();
+        app.register_type::<TargetingSettings>();
+        app.register_type::<LockSignature>();
+
         app.insert_resource(SpaceshipPlayerTargetLock::default());
         app.insert_resource(SpaceshipPlayerLockFocus::default());
         app.insert_resource(SpaceshipPlayerComponentLock::default());
@@ -56,12 +107,12 @@ impl Plugin for SpaceshipTargetingPlugin {
     }
 }
 
-/// Maximum distance at which the aim-assist will lock a target. Bodies further
-/// than this from the ship are ignored, so distant clutter never steals the lock.
-/// Long by design: the lock is also the designator for GOTO autopilot legs and
-/// torpedo launches, and a destination should be designatable from across the
-/// play area (user report 20260710) - the angular cone pick already keeps the
-/// selection deliberate at range.
+/// Maximum distance at which the aim-assist will lock a target - the
+/// ceiling for the intrinsic classes (well bodies, ships), which stay
+/// designatable from across the play area for GOTO legs (user report
+/// 20260710). Everything else is gated far shorter by the signature model
+/// (the later 20260710 report: long-range locks should only see large
+/// objects), see [`LockSignature`] and [`TargetingSettings`].
 const TARGETING_MAX_RANGE: f32 = 20_000.0;
 
 /// Half-angle (degrees) of the lock-on cone around the aim direction. Any lockable
@@ -231,12 +282,15 @@ fn update_spaceship_target_input(
             &GlobalTransform,
             &RigidBody,
             Option<&GravityWell>,
+            Option<&LockSignature>,
+            Has<SpaceshipRootMarker>,
             Option<&TorpedoProjectileMarker>,
             Option<&TorpedoTargetChosen>,
             Option<&Allegiance>,
         ),
         Without<TurretBulletProjectileMarker>,
     >,
+    settings: Res<TargetingSettings>,
     spaceship: Single<
         (
             &Transform,
@@ -263,7 +317,17 @@ fn update_spaceship_target_input(
     let candidates: Vec<(Entity, Vec3, bool)> = q_candidates
         .iter()
         .filter_map(
-            |(entity, transform, rigid_body, well, is_torpedo, torpedo_committed, allegiance)| {
+            |(
+                entity,
+                transform,
+                rigid_body,
+                well,
+                signature,
+                is_ship,
+                is_torpedo,
+                torpedo_committed,
+                allegiance,
+            )| {
                 // Only physical, movable bodies are lockable. This skips static sensor
                 // volumes such as scenario trigger areas (`RigidBody::Static`), which
                 // are invisible and must never be locked. Gravity-well sources are the
@@ -284,10 +348,41 @@ fn update_spaceship_target_input(
                 if is_torpedo.is_some() && torpedo_committed.is_none() {
                     return None;
                 }
+                // The scanner-wave gate: how far away this body can be
+                // locked from. Well bodies and ships (ships deferred to
+                // the sensor task 20260710-195953) return a signature at
+                // any range; committed torpedoes are small but hot
+                // (point defense needs them at combat range, not across
+                // the map); everything else is gated by its authored
+                // LockSignature - floored at the debris range, so an
+                // authored signature can never make a body stealthier
+                // than none - and unsigned bodies, debris, only
+                // point-blank. Gated here, at collection, so the cone
+                // pick and the heat-signature fallback both inherit it.
+                let mut max_range = if well.is_some() || is_ship {
+                    TARGETING_MAX_RANGE
+                } else if is_torpedo.is_some() {
+                    settings.torpedo_lock_range
+                } else {
+                    signature.map_or(settings.unsigned_lock_range, |signature| {
+                        (settings.signature_range_per_unit * **signature)
+                            .max(settings.unsigned_lock_range)
+                    })
+                };
+                // The incumbent lock holds a little beyond its gate, so a
+                // body at the boundary cannot strobe the lock and reset
+                // the focus dwell as the ship drifts.
+                if **res_target == Some(entity) {
+                    max_range *= settings.range_hysteresis.max(1.0);
+                }
+                let position = transform.translation();
+                if position.distance_squared(origin) > max_range * max_range {
+                    return None;
+                }
                 // Hostility comes from the relation model, so an enemy's
                 // torpedo is auto-acquirable while the player's own is not.
                 let is_hostile = relation(ship_allegiance, allegiance) == Relation::Hostile;
-                Some((entity, transform.translation(), is_hostile))
+                Some((entity, position, is_hostile))
             },
         )
         .collect();
@@ -629,6 +724,7 @@ mod tests {
         // (18 degree half-angle).
         let mut world = World::new();
         world.insert_resource(SpaceshipPlayerTargetLock(None));
+        world.init_resource::<TargetingSettings>();
         world.spawn((
             SpaceshipCameraInputMarker,
             SpaceshipCameraTurretInputMarker,
@@ -695,6 +791,7 @@ mod tests {
     /// Spawn the camera-input rig + player the acquisition system needs.
     fn spawn_acquisition_rig(world: &mut World) {
         world.insert_resource(SpaceshipPlayerTargetLock(None));
+        world.init_resource::<TargetingSettings>();
         world.spawn((
             SpaceshipCameraInputMarker,
             SpaceshipCameraTurretInputMarker,
@@ -721,6 +818,9 @@ mod tests {
         let aimed = world
             .spawn((
                 RigidBody::Dynamic,
+                // Signed so the scanner sees it at 300u (bare bodies are
+                // debris and gate out - see unsigned_debris test).
+                LockSignature(20.0),
                 GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -300.0)),
             ))
             .id();
@@ -730,6 +830,216 @@ mod tests {
             .unwrap();
 
         assert_eq!(**world.resource::<SpaceshipPlayerTargetLock>(), Some(aimed));
+    }
+
+    #[test]
+    fn small_signatures_only_lock_up_close() {
+        // A signed 2u rock (lock range 60u at the default 30/unit) dead
+        // ahead: invisible to the scanner at 200u, lockable at 40u.
+        let mut world = World::new();
+        spawn_acquisition_rig(&mut world);
+        let rock = world
+            .spawn((
+                RigidBody::Dynamic,
+                LockSignature(2.0),
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -200.0)),
+            ))
+            .id();
+
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            None,
+            "a small rock returns no signature at range"
+        );
+
+        world
+            .entity_mut(rock)
+            .insert(GlobalTransform::from_translation(Vec3::new(
+                0.0, 0.0, -40.0,
+            )));
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(rock),
+            "close enough, the scanner sees it"
+        );
+    }
+
+    #[test]
+    fn unsigned_debris_is_point_blank_only() {
+        // A bare dynamic body (battle debris) dead ahead: never lockable
+        // at 50u, only inside the unsigned point-blank range.
+        let mut world = World::new();
+        spawn_acquisition_rig(&mut world);
+        let debris = world
+            .spawn((
+                RigidBody::Dynamic,
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -50.0)),
+            ))
+            .id();
+
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            None,
+            "debris must not steal mid-fight locks"
+        );
+
+        world
+            .entity_mut(debris)
+            .insert(GlobalTransform::from_translation(Vec3::new(
+                0.0, 0.0, -10.0,
+            )));
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(debris),
+            "point-blank debris is still designatable"
+        );
+    }
+
+    #[test]
+    fn ships_and_well_bodies_keep_their_long_range_lock() {
+        // The full-range classes: a well body across the field and a ship.
+        for components in 0..2 {
+            let mut world = World::new();
+            spawn_acquisition_rig(&mut world);
+            let far = GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -5000.0));
+            let target = match components {
+                0 => world
+                    .spawn((
+                        RigidBody::Static,
+                        GravityWell::from_surface_gravity(3.0, 20.0, &GravitySettings::default()),
+                        far,
+                    ))
+                    .id(),
+                _ => world
+                    .spawn((SpaceshipRootMarker, RigidBody::Dynamic, far))
+                    .id(),
+            };
+
+            world
+                .run_system_once(update_spaceship_target_input)
+                .unwrap();
+            assert_eq!(
+                **world.resource::<SpaceshipPlayerTargetLock>(),
+                Some(target),
+                "full-range class {components} must lock at range"
+            );
+        }
+    }
+
+    #[test]
+    fn committed_torpedoes_lock_at_combat_range_not_across_the_map() {
+        // Small but hot: well beyond every real point-defense engagement,
+        // but not the full designator range - the scanner fiction holds.
+        let mut world = World::new();
+        spawn_acquisition_rig(&mut world);
+        let torpedo = world
+            .spawn((
+                TorpedoProjectileMarker,
+                TorpedoTargetChosen,
+                RigidBody::Dynamic,
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -2000.0)),
+            ))
+            .id();
+
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(torpedo),
+            "point defense locks torpedoes at combat range"
+        );
+
+        world
+            .entity_mut(torpedo)
+            .insert(GlobalTransform::from_translation(Vec3::new(
+                0.0, 0.0, -5000.0,
+            )));
+        world.insert_resource(SpaceshipPlayerTargetLock(None));
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            None,
+            "a torpedo is not visible across the map"
+        );
+    }
+
+    #[test]
+    fn the_lock_holds_a_little_past_its_gate_but_fresh_locks_do_not() {
+        // A signed 2u rock gates at 60u. Fresh acquisition at 65u: refused.
+        let mut world = World::new();
+        spawn_acquisition_rig(&mut world);
+        let rock = world
+            .spawn((
+                RigidBody::Dynamic,
+                LockSignature(2.0),
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -65.0)),
+            ))
+            .id();
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(**world.resource::<SpaceshipPlayerTargetLock>(), None);
+
+        // Locked inside the gate, then drifting to 65u (inside 1.15x):
+        // the incumbent holds - no strobing, the focus dwell survives.
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(rock)));
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(rock),
+            "the incumbent holds inside the hysteresis band"
+        );
+
+        // Truly out (past 1.15x): released.
+        world
+            .entity_mut(rock)
+            .insert(GlobalTransform::from_translation(Vec3::new(
+                0.0, 0.0, -80.0,
+            )));
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(**world.resource::<SpaceshipPlayerTargetLock>(), None);
+    }
+
+    #[test]
+    fn an_authored_signature_never_gates_below_the_debris_floor() {
+        // LockSignature(0.0) would gate at zero range; the floor keeps it
+        // at least as visible as unsigned debris.
+        let mut world = World::new();
+        spawn_acquisition_rig(&mut world);
+        let speck = world
+            .spawn((
+                RigidBody::Dynamic,
+                LockSignature(0.0),
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -10.0)),
+            ))
+            .id();
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(speck),
+            "a zero signature still locks at the debris floor"
+        );
     }
 
     #[test]
