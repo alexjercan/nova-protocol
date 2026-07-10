@@ -732,6 +732,44 @@ mod tests {
     }
 
     #[test]
+    fn the_detonation_blast_inherits_the_torpedo_owner() {
+        // The blast entity must stay attributable to the ship that fired
+        // the torpedo: bcs puts the blast collider into
+        // HealthApplyDamage.source, and the AI threat model resolves it to
+        // a shooter through ProjectileOwner (task 20260709-225731).
+        let mut app = App::new();
+        app.add_systems(Update, torpedo_detonate_system);
+
+        let owner = app.world_mut().spawn_empty().id();
+        let part_of = app.world_mut().spawn_empty().id();
+        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO);
+        arming.tick(1.0, Vec3::ZERO); // arm via time
+
+        app.world_mut().spawn((
+            TorpedoProjectileMarker,
+            ProjectileOwner(owner),
+            Transform::from_translation(Vec3::ZERO),
+            TorpedoTargetPosition(Vec3::ZERO),
+            arming,
+            TorpedoBlast {
+                radius: 30.0,
+                damage: 100.0,
+            },
+            TorpedoSectionPartOf(part_of),
+        ));
+
+        app.update();
+
+        let mut q_blast = app
+            .world_mut()
+            .query_filtered::<&ProjectileOwner, With<BlastDamageMarker>>();
+        let blast_owner = q_blast
+            .single(app.world())
+            .expect("the detonation spawned exactly one owned blast");
+        assert_eq!(**blast_owner, owner);
+    }
+
+    #[test]
     fn torpedo_survives_target_loss_and_freezes_position() {
         // Regression: when the target dies mid-flight the torpedo must not vanish.
         // It should keep its last known target position and drop the dead link.

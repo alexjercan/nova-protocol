@@ -5,8 +5,8 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        AIBehaviorState, AIFireCadence, AIPatrolRoute, AIPointDefenseTarget, AISpaceshipMarker,
-        AITarget, SpaceshipAIInputPlugin,
+        AIBehaviorState, AIEvade, AIFireCadence, AIPatrolRoute, AIPointDefenseTarget,
+        AISpaceshipMarker, AITarget, AIThreat, SpaceshipAIInputPlugin,
     };
 }
 
@@ -21,6 +21,14 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.register_type::<AIFireCadence>();
         app.register_type::<AIPointDefenseTarget>();
         app.register_type::<AIPatrolRoute>();
+        app.register_type::<AIThreat>();
+        app.register_type::<AIEvade>();
+
+        // Threat sensing is an observer, not a system: HealthApplyDamage is
+        // an entity event that propagates to the ship root, and reacting at
+        // trigger time is what lets the source entity (the projectile) be
+        // resolved before its despawn command applies.
+        app.add_observer(on_damage_track_threat);
 
         app.add_systems(
             Update,
@@ -55,7 +63,9 @@ impl Plugin for SpaceshipAIInputPlugin {
     AIBehaviorState,
     AITarget,
     AIPointDefenseTarget,
-    AIFireCadence
+    AIFireCadence,
+    AIThreat,
+    AIEvade
 )]
 pub struct AISpaceshipMarker;
 
@@ -87,12 +97,16 @@ const AI_TARGET_HYSTERESIS_DISCOUNT: f32 = 0.8;
 /// Choose the best target from `candidates`: highest priority tier first
 /// ([`AITargetKind`] order), nearest within the tier, with the current
 /// target's distance discounted by [`AI_TARGET_HYSTERESIS_DISCOUNT`] so the
-/// pick does not flip-flop between two comparably distant hostiles. Out of
+/// pick does not flip-flop between two comparably distant hostiles, and the
+/// ship that recently damaged me discounted by
+/// [`AI_THREAT_ATTACKER_DISCOUNT`] so whoever is shooting me steals the
+/// pick from comparably distant bystanders (the discounts stack). Out of
 /// [`AI_TARGET_MAX_RANGE`] (or with no candidates) the pick is `None`.
 /// Pure for unit testing.
 fn pick_ai_target(
     own_anchor: Vec3,
     current: Option<Entity>,
+    attacker: Option<Entity>,
     candidates: impl Iterator<Item = (Entity, Vec3, AITargetKind)>,
 ) -> Option<Entity> {
     candidates
@@ -103,6 +117,9 @@ fn pick_ai_target(
             }
             if current == Some(entity) {
                 distance *= AI_TARGET_HYSTERESIS_DISCOUNT;
+            }
+            if attacker == Some(entity) {
+                distance *= AI_THREAT_ATTACKER_DISCOUNT;
             }
             Some((entity, kind, distance))
         })
@@ -133,12 +150,13 @@ fn update_ai_target(
             &Transform,
             Option<&ComputedCenterOfMass>,
             &Allegiance,
+            &AIThreat,
             &mut AITarget,
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
 ) {
-    for (ship, transform, com, own_allegiance, mut target) in &mut q_spaceship {
+    for (ship, transform, com, own_allegiance, threat, mut target) in &mut q_spaceship {
         let own_anchor = live_structure_anchor(transform, com);
         let candidates = q_candidates.iter().filter_map(
             |(entity, c_transform, c_com, allegiance, is_ship, is_torpedo, committed)| {
@@ -166,7 +184,7 @@ fn update_ai_target(
             },
         );
 
-        let next = pick_ai_target(own_anchor, **target, candidates);
+        let next = pick_ai_target(own_anchor, **target, threat.recent_attacker(), candidates);
         // Change-detection hygiene: only write on a real change. A dead or
         // out-of-range target clears here (the pick simply no longer finds
         // it), so consumers never chase a stale entity.
@@ -261,16 +279,205 @@ fn update_point_defense_target(
     }
 }
 
+/// How long (s) a hostile hit stays "recent" for the threat model: within
+/// this window the ship counts as under fire and the attacker biases target
+/// selection.
+const AI_THREAT_DAMAGE_MEMORY_SECS: f32 = 3.0;
+/// Range (m) inside which a hostile holding its nose on me counts as a
+/// threat even before a shot lands. Kept near the guns' effective range
+/// (450 m): a nose on me further out cannot hurt me yet.
+const AI_THREAT_AIM_RANGE: f32 = 500.0;
+/// Aim cone (cos) for the aiming-at-me signal: the hostile's hull forward
+/// against the bearing to my anchor. A cheap proxy - turrets can aim off
+/// the hull axis - accepted per the spike; true incoming-projectile
+/// detection is the follow-up if evasion feels blind.
+const AI_THREAT_AIM_COS: f32 = 0.95;
+/// How long (s) one evade cycle lasts before decaying back to Engage.
+/// Three jink legs at [`AI_JINK_INTERVAL_SECS`]. Playtest note: Evade has
+/// no speed budget (the jink bypasses the standoff envelope's brake
+/// regime), so back-to-back cycles can build speed that Engage re-entry
+/// then brakes off; if evasion reads as careening, cap the cycle count or
+/// shorten this.
+const AI_EVADE_SECS: f32 = 3.6;
+/// Refractory period (s) after an evade cycle before a threat can trigger
+/// the next one. Without it a hostile that keeps its nose on the ship would
+/// re-trigger Evade every frame and the standoff orbit would never be seen;
+/// with it a fight reads as jink bursts with engage windows between them.
+const AI_EVADE_COOLDOWN_SECS: f32 = 1.5;
+/// Length (s) of one jink leg: long enough for the hull to swing onto the
+/// leg's heading (torque-budget slew) and burn, short enough to read as
+/// jinking. Playtest knob, paired with AI_EVADE_SECS.
+const AI_JINK_INTERVAL_SECS: f32 = 1.2;
+/// Thrust gate (dot) while evading: looser than [`AI_THRUST_ALIGNMENT`] so
+/// lateral bursts fire while the hull is still swinging onto the jink leg -
+/// waiting for a tight alignment would spend most of each leg coasting.
+const AI_EVADE_THRUST_ALIGNMENT: f32 = 0.75;
+/// Distance discount for the ship that recently damaged me: whoever is
+/// shooting me steals the pick from comparably distant hostiles
+/// (recently-damaged-me threat scoring, deferred from 20260709-225727).
+const AI_THREAT_ATTACKER_DISCOUNT: f32 = 0.5;
+
+/// The ship's under-fire memory: how recently a hostile hit landed and who
+/// fired it. Written by [`on_damage_track_threat`], ticked by
+/// [`update_behavior_state`]; drives the Engage -> Evade transition and the
+/// attacker bias in [`pick_ai_target`]. Required by [`AISpaceshipMarker`].
+#[derive(Component, Debug, Clone, Reflect)]
+#[reflect(Component)]
+pub struct AIThreat {
+    /// Time left in the recent-damage memory; finished = not under fire.
+    damage_memory: Timer,
+    /// The ship root behind the remembered damage (a hit's source resolved
+    /// through [`ProjectileOwner`]). May be despawned by read time; the
+    /// picker simply no longer finds it, while the memory still evades.
+    attacker: Option<Entity>,
+}
+
+impl Default for AIThreat {
+    fn default() -> Self {
+        // Starts expired: a freshly spawned ship has not been shot yet.
+        let mut damage_memory = Timer::from_seconds(AI_THREAT_DAMAGE_MEMORY_SECS, TimerMode::Once);
+        damage_memory.tick(damage_memory.duration());
+        Self {
+            damage_memory,
+            attacker: None,
+        }
+    }
+}
+
+impl AIThreat {
+    /// Remember a hostile hit: restart the memory window and note the
+    /// attacker. An unattributed hit (no resolvable owner) keeps the
+    /// previous attacker - the shooter most likely has not changed.
+    fn record(&mut self, attacker: Option<Entity>) {
+        self.damage_memory.reset();
+        self.attacker = attacker.or(self.attacker);
+    }
+
+    /// Whether a hostile hit landed within the memory window.
+    fn recently_damaged(&self) -> bool {
+        !self.damage_memory.is_finished()
+    }
+
+    /// The remembered attacker, while the memory window is open.
+    fn recent_attacker(&self) -> Option<Entity> {
+        self.recently_damaged().then_some(self.attacker).flatten()
+    }
+}
+
+/// The evade cycle's clocks: how long the current cycle has left, the
+/// refractory period before the next one, and the jink-leg cadence within a
+/// cycle. Managed by [`update_behavior_state`]; the rotation and thrust
+/// systems read [`Self::leg`] to fly the current jink. Required by
+/// [`AISpaceshipMarker`].
+#[derive(Component, Debug, Clone, Reflect)]
+#[reflect(Component)]
+pub struct AIEvade {
+    /// Time left in the current evade cycle. Reset on entering Evade;
+    /// ticks only while evading; expiry decays the state back to Engage.
+    duration: Timer,
+    /// Refractory period after an evade cycle. Reset on leaving Evade;
+    /// starts elapsed so a fresh ship's first threat evades immediately.
+    cooldown: Timer,
+    /// Cadence of the jink pattern: each completion turns onto the next leg.
+    jink: Timer,
+    /// The jink pattern leg currently being flown (see
+    /// [`ai_evade_direction`]). Advances monotonically, wrapping.
+    leg: u32,
+}
+
+impl Default for AIEvade {
+    fn default() -> Self {
+        let mut cooldown = Timer::from_seconds(AI_EVADE_COOLDOWN_SECS, TimerMode::Once);
+        cooldown.tick(cooldown.duration());
+        Self {
+            duration: Timer::from_seconds(AI_EVADE_SECS, TimerMode::Once),
+            cooldown,
+            jink: Timer::from_seconds(AI_JINK_INTERVAL_SECS, TimerMode::Repeating),
+            leg: 0,
+        }
+    }
+}
+
+/// Resolve a damage source (the hitting collider bcs puts in
+/// `HealthApplyDamage.source`) to the attacking ship root and the
+/// allegiance governing the hit, walking `ChildOf` ancestors: a turret
+/// bullet carries [`ProjectileOwner`] on the collider itself, a torpedo
+/// warhead on its projectile root, a detonation blast on the blast entity.
+/// With no owner anywhere (a ram), the attacker is the source's own ship
+/// root, if it has one.
+fn resolve_damage_attacker(
+    source: Entity,
+    q_owner: &Query<&ProjectileOwner>,
+    q_allegiance: &Query<&Allegiance>,
+    q_parent: &Query<&ChildOf>,
+    q_ship_root: &Query<(), With<SpaceshipRootMarker>>,
+) -> (Option<Entity>, Option<Allegiance>) {
+    let mut allegiance = None;
+    let mut entity = source;
+    loop {
+        if let Ok(&ProjectileOwner(owner)) = q_owner.get(entity) {
+            // The projectile copies the shooter's allegiance at launch, so
+            // the hit stays classifiable even if the owner died mid-flight.
+            let allegiance = allegiance.or_else(|| q_allegiance.get(entity).ok().copied());
+            return (Some(owner), allegiance);
+        }
+        if allegiance.is_none() {
+            allegiance = q_allegiance.get(entity).ok().copied();
+        }
+        let Ok(&ChildOf(parent)) = q_parent.get(entity) else {
+            // Topmost ancestor, no owner anywhere: a direct body-to-body
+            // hit. A ship root is its own attacker; anything else
+            // (asteroid, debris) has nobody to blame.
+            let attacker = q_ship_root.get(entity).is_ok().then_some(entity);
+            return (attacker, allegiance);
+        };
+        entity = parent;
+    }
+}
+
+/// Record hostile hits into the damaged ship's [`AIThreat`].
+///
+/// `HealthApplyDamage` propagates from the hit section up through `ChildOf`
+/// to the ship root (bcs), so this fires once the event reaches an entity
+/// carrying `AIThreat` - the AI root. Only hits whose resolved allegiance is
+/// hostile count: the ship's own torpedo blast catching it (blast damage
+/// deliberately affects the owner) must not spook it into evading itself.
+fn on_damage_track_threat(
+    damage: On<HealthApplyDamage>,
+    mut q_ship: Query<(&Allegiance, &mut AIThreat), With<AISpaceshipMarker>>,
+    q_owner: Query<&ProjectileOwner>,
+    q_allegiance: Query<&Allegiance>,
+    q_parent: Query<&ChildOf>,
+    q_ship_root: Query<(), With<SpaceshipRootMarker>>,
+) {
+    // A zero amount is a hit on a corpse (bcs zeroes absorbed damage), not
+    // fire worth reacting to.
+    if damage.amount <= 0.0 {
+        return;
+    }
+    let Ok((own_allegiance, mut threat)) = q_ship.get_mut(damage.entity) else {
+        return;
+    };
+    let Some(source) = damage.source else {
+        return;
+    };
+    let (attacker, attacker_allegiance) =
+        resolve_damage_attacker(source, &q_owner, &q_allegiance, &q_parent, &q_ship_root);
+    if relation(Some(own_allegiance), attacker_allegiance.as_ref()) != Relation::Hostile {
+        return;
+    }
+    threat.record(attacker);
+}
+
 /// What an AI ship is currently doing - the state skeleton of the AI combat
 /// arc (docs/spikes/20260709-225508-ai-combat-behaviors.md). One state per
 /// ship root, driven by [`update_behavior_state`]; every AI system gates its
 /// behavior on it.
 ///
-/// `Engage`, `Patrol` and `Idle` have real behavior today. The others exist
-/// so their tasks slot into a stable enum instead of reshaping it:
-/// - `Evade`: under-fire jinking, task 20260709-225731 (stubs to `Engage`).
-/// - `Retreat`: low-integrity disengage, task 20260709-225734 (stubs to
-///   `Engage`).
+/// `Engage`, `Patrol`, `Idle` and `Evade` have real behavior today.
+/// `Retreat` exists so its task slots into a stable enum instead of
+/// reshaping it: low-integrity disengage, task 20260709-225734 (stubs to
+/// `Engage`).
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 pub enum AIBehaviorState {
@@ -284,7 +491,9 @@ pub enum AIBehaviorState {
     /// machine existed.
     #[default]
     Engage,
-    /// Under-fire evasion (20260709-225731); stubs to `Engage` until then.
+    /// Under-fire jinking (20260709-225731): timed maneuvers off the
+    /// pursuit vector while the guns keep fighting, decaying back to
+    /// `Engage`.
     Evade,
     /// Low-integrity disengage (20260709-225734); stubs to `Engage` until
     /// then.
@@ -293,8 +502,9 @@ pub enum AIBehaviorState {
 
 impl AIBehaviorState {
     /// Whether this state runs the engage-style chase/aim/fire pipeline.
-    /// `Evade` and `Retreat` deliberately stub to Engage behavior until
-    /// their tasks land (see the variant docs).
+    /// `Evade` fights it too - the jink only swaps the flight direction,
+    /// the guns stay on target. `Retreat` deliberately stubs to Engage
+    /// behavior until its task lands (see the variant docs).
     fn engages(&self) -> bool {
         matches!(self, Self::Engage | Self::Evade | Self::Retreat)
     }
@@ -358,12 +568,16 @@ const AI_ENGAGE_RANGE: f32 = 800.0;
 /// none acquired every state falls back to its passive routine (`Patrol`
 /// with a route, `Idle` without) - and a hostile inside [`AI_ENGAGE_RANGE`]
 /// pulls the passive states into `Engage`. One merely acquired further out
-/// does not abort the routine (detection range, task 20260709-225730). Pure
-/// for unit testing.
+/// does not abort the routine (detection range, task 20260709-225730) -
+/// unless it is shooting: a recent hostile hit interrupts the routine at
+/// any acquired distance. Under threat, `Engage` breaks into `Evade` (gated
+/// by the refractory cooldown), which decays back to `Engage` when its
+/// cycle expires. Pure for unit testing.
 fn next_behavior_state(
     current: AIBehaviorState,
     hostile_distance: Option<f32>,
     has_route: bool,
+    threat: ThreatSignals,
 ) -> AIBehaviorState {
     let passive = if has_route {
         AIBehaviorState::Patrol
@@ -374,39 +588,119 @@ fn next_behavior_state(
         return passive;
     };
     match current {
-        AIBehaviorState::Idle | AIBehaviorState::Patrol if distance <= AI_ENGAGE_RANGE => {
+        AIBehaviorState::Idle | AIBehaviorState::Patrol
+            if distance <= AI_ENGAGE_RANGE || threat.recently_damaged =>
+        {
             AIBehaviorState::Engage
         }
         AIBehaviorState::Idle | AIBehaviorState::Patrol => passive,
-        // Combat states hold; their exit triggers are their tasks' scope.
+        AIBehaviorState::Engage if threat.threatened() && threat.evade_ready => {
+            AIBehaviorState::Evade
+        }
+        AIBehaviorState::Evade if threat.evade_expired => AIBehaviorState::Engage,
+        // The remaining combat states hold; their exit triggers are their
+        // tasks' scope.
         state => state,
     }
 }
 
-/// Drive each AI ship's [`AIBehaviorState`] from its [`AITarget`]. Runs
-/// after acquisition and before the behavior systems in the same frame so a
+/// The threat model's inputs to [`next_behavior_state`], gathered by
+/// [`update_behavior_state`]. A struct (not bools in the signature) so the
+/// call sites stay readable and the pure tests name what they assert.
+#[derive(Debug, Clone, Copy, Default)]
+struct ThreatSignals {
+    /// A hostile hit landed within the memory window ([`AIThreat`]).
+    recently_damaged: bool,
+    /// The current target is inside [`AI_THREAT_AIM_RANGE`] holding its
+    /// nose on me ([`AI_THREAT_AIM_COS`]).
+    aimed_at: bool,
+    /// The evade cooldown has elapsed ([`AIEvade`]).
+    evade_ready: bool,
+    /// The running evade cycle has expired ([`AIEvade`]).
+    evade_expired: bool,
+}
+
+impl ThreatSignals {
+    /// The threat model proper: under fire, or under a hostile's guns.
+    fn threatened(&self) -> bool {
+        self.recently_damaged || self.aimed_at
+    }
+}
+
+/// Drive each AI ship's [`AIBehaviorState`] from its [`AITarget`] and the
+/// threat model ([`AIThreat`] + the aiming-at-me signal). Runs after
+/// acquisition and before the behavior systems in the same frame so a
 /// transition takes effect immediately (no one-frame stale-state window).
+/// Also owns the threat/evade clocks: the damage memory and evade cooldown
+/// tick every frame, the evade cycle and jink cadence only while evading,
+/// and the Evade edges arm them (cycle + jink on entry, cooldown on exit).
 fn update_behavior_state(
+    time: Res<Time>,
     mut q_spaceship: Query<
         (
             &Transform,
             Option<&ComputedCenterOfMass>,
             &mut AIBehaviorState,
             &AITarget,
+            &mut AIThreat,
+            &mut AIEvade,
             Has<AIPatrolRoute>,
         ),
         With<AISpaceshipMarker>,
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {
-    for (transform, com, mut state, target, has_route) in &mut q_spaceship {
+    for (transform, com, mut state, target, mut threat, mut evade, has_route) in &mut q_spaceship {
+        threat.damage_memory.tick(time.delta());
+        evade.cooldown.tick(time.delta());
+        if *state == AIBehaviorState::Evade {
+            evade.duration.tick(time.delta());
+            if evade.jink.tick(time.delta()).just_finished() {
+                evade.leg = evade.leg.wrapping_add(1);
+            }
+        }
+
         // The detection distance runs anchor to anchor - the same
         // live-structure vector the behavior systems fly and shoot along.
-        let hostile_distance = ai_target_anchor(**target, &q_target)
-            .map(|anchor| anchor.distance(live_structure_anchor(transform, com)));
-        let next = next_behavior_state(*state, hostile_distance, has_route);
+        let own_anchor = live_structure_anchor(transform, com);
+        let target_info = (**target).and_then(|target| q_target.get(target).ok());
+        let hostile_distance = target_info.map(|(t_transform, t_com)| {
+            live_structure_anchor(t_transform, t_com).distance(own_anchor)
+        });
+        // Aiming-at-me: the hostile's hull forward held on my anchor inside
+        // aim range. The hull axis is a cheap proxy for its guns (see
+        // AI_THREAT_AIM_COS). Anchor to anchor, like every other AI vector.
+        let aimed_at =
+            target_info
+                .zip(hostile_distance)
+                .is_some_and(|((t_transform, t_com), distance)| {
+                    distance <= AI_THREAT_AIM_RANGE
+                        && (own_anchor - live_structure_anchor(t_transform, t_com))
+                            .try_normalize()
+                            .is_some_and(|bearing| {
+                                t_transform.forward().dot(bearing) > AI_THREAT_AIM_COS
+                            })
+                });
+        let signals = ThreatSignals {
+            recently_damaged: threat.recently_damaged(),
+            aimed_at,
+            evade_ready: evade.cooldown.is_finished(),
+            evade_expired: evade.duration.is_finished(),
+        };
+
+        let next = next_behavior_state(*state, hostile_distance, has_route, signals);
         // Change-detection hygiene: only write on a real transition.
         if *state != next {
+            // The Evade edges arm the clocks: a fresh cycle + jink cadence
+            // on entry, the refractory cooldown on ANY exit (expiry, target
+            // loss, a future retreat).
+            if next == AIBehaviorState::Evade {
+                evade.duration.reset();
+                evade.jink.reset();
+            }
+            if *state == AIBehaviorState::Evade {
+                evade.cooldown.reset();
+            }
             *state = next;
         }
     }
@@ -588,6 +882,36 @@ fn ai_desired_direction(to_target: Vec3, velocity: Vec3) -> Vec3 {
     }
 }
 
+/// The direction an evading ship flies on jink pattern leg `leg`: a box
+/// weave off the pursuit vector. Each leg is mostly lateral (the four
+/// tangent quadrants around the line of sight in turn) with a small
+/// alternating along-LOS bias, so consecutive legs swing the heading hard
+/// off the pursuit vector AND vary the closure rate - the "timed jink"
+/// the task asks for. Deterministic by design: unit-testable, and one
+/// archetype does not need unpredictability yet (playtest knob). Falls
+/// back to zero on a degenerate line of sight. Pure for unit testing.
+fn ai_evade_direction(to_target: Vec3, leg: u32) -> Vec3 {
+    let Some(los) = to_target.try_normalize() else {
+        return Vec3::ZERO;
+    };
+    // The same stable tangent basis as the standoff orbit, with the X
+    // fallback covering a dead-polar line of sight.
+    let tangent = los
+        .cross(Vec3::Y)
+        .try_normalize()
+        .unwrap_or_else(|| los.cross(Vec3::X).normalize());
+    // Perpendicular to both, unit length (los and tangent are orthonormal).
+    let bitangent = los.cross(tangent);
+    let lateral = match leg % 4 {
+        0 => tangent,
+        1 => bitangent,
+        2 => -tangent,
+        _ => -bitangent,
+    };
+    let along = if leg % 2 == 0 { 0.25 } else { -0.25 };
+    (lateral + los * along).normalize()
+}
+
 /// The live-structure anchor of a target entity, or `None` without one (or
 /// when it despawned this frame). The shared aim/chase point of every AI
 /// behavior system, for both the primary and the point-defense target.
@@ -622,12 +946,13 @@ fn update_controller_target_rotation_torque(
             Option<&ComputedCenterOfMass>,
             &AIBehaviorState,
             &AITarget,
+            &AIEvade,
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {
-    for (entity, transform, velocity, inertia, com, state, target) in &q_spaceship {
+    for (entity, transform, velocity, inertia, com, state, target, evade) in &q_spaceship {
         // A non-engaging state (Idle/Patrol) holds its helm: the command
         // freezes exactly like a dead helm, so re-engaging resumes from
         // where the hull actually points. No target freezes it the same way.
@@ -644,7 +969,13 @@ fn update_controller_target_rotation_torque(
         // root origin goes as stale as the target's once sections die.
         let own_anchor = live_structure_anchor(transform, com);
         let to_target = target_anchor - own_anchor;
-        let desired_direction = ai_desired_direction(to_target, **velocity);
+        // Evade swaps the standoff envelope for the jink weave; the guns
+        // stay on target regardless (turret aim is hull-independent).
+        let desired_direction = if *state == AIBehaviorState::Evade {
+            ai_evade_direction(to_target, evade.leg)
+        } else {
+            ai_desired_direction(to_target, **velocity)
+        };
 
         // Slew the command at the hull's torque-budget turn rate instead of
         // rewriting it every frame: a distant setpoint drives the PD into
@@ -700,13 +1031,14 @@ fn on_thruster_input(
             Option<&ComputedCenterOfMass>,
             &AIBehaviorState,
             &AITarget,
+            &AIEvade,
             Has<Autopilot>,
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {
-    for (entity, transform, velocity, com, state, target, has_autopilot) in &q_spaceship {
+    for (entity, transform, velocity, com, state, target, evade, has_autopilot) in &q_spaceship {
         // While a passive-state maneuver is engaged the flight computer
         // owns the engines: writing here - even an explicit 0.0 - would
         // fight the autopilot's spooled inputs every frame.
@@ -720,15 +1052,27 @@ fn on_thruster_input(
             Some(target_anchor) if state.engages() => {
                 // Same live-structure vector as the rotation system, so the
                 // thrust gate and the rotation command agree on where
-                // "toward the target" is.
+                // "toward the target" is - including the jink swap, and with
+                // a looser gate while evading so the lateral burst fires
+                // mid-swing instead of waiting out the slew.
                 let to_target = target_anchor - live_structure_anchor(transform, com);
-                let desired_direction = ai_desired_direction(to_target, **velocity);
+                let (desired_direction, gate) = if *state == AIBehaviorState::Evade {
+                    (
+                        ai_evade_direction(to_target, evade.leg),
+                        AI_EVADE_THRUST_ALIGNMENT,
+                    )
+                } else {
+                    (
+                        ai_desired_direction(to_target, **velocity),
+                        AI_THRUST_ALIGNMENT,
+                    )
+                };
 
                 // Thrust only when the ship is pointing roughly toward the
                 // desired direction.
                 let forward = transform.forward();
                 let alignment = forward.dot(desired_direction);
-                if alignment > AI_THRUST_ALIGNMENT {
+                if alignment > gate {
                     1.0
                 } else {
                     0.0
@@ -928,6 +1272,15 @@ mod behavior_state_tests {
 
     use super::*;
 
+    /// No threat, evade ready: the baseline signals of a ship that has
+    /// never been shot.
+    fn calm() -> ThreatSignals {
+        ThreatSignals {
+            evade_ready: true,
+            ..default()
+        }
+    }
+
     #[test]
     fn transitions_need_a_hostile_to_fight() {
         use AIBehaviorState::*;
@@ -936,12 +1289,12 @@ mod behavior_state_tests {
         // without a patrol assignment, Patrol with one.
         for state in [Idle, Patrol, Engage, Evade, Retreat] {
             assert_eq!(
-                next_behavior_state(state, None, false),
+                next_behavior_state(state, None, false, calm()),
                 Idle,
                 "from {state:?}"
             );
             assert_eq!(
-                next_behavior_state(state, None, true),
+                next_behavior_state(state, None, true, calm()),
                 Patrol,
                 "from {state:?}"
             );
@@ -949,11 +1302,11 @@ mod behavior_state_tests {
         // Hostile inside detection range: passive states engage, combat
         // states hold (their exit triggers belong to their own tasks).
         let near = Some(AI_ENGAGE_RANGE * 0.5);
-        assert_eq!(next_behavior_state(Idle, near, false), Engage);
-        assert_eq!(next_behavior_state(Patrol, near, true), Engage);
-        assert_eq!(next_behavior_state(Engage, near, false), Engage);
-        assert_eq!(next_behavior_state(Evade, near, false), Evade);
-        assert_eq!(next_behavior_state(Retreat, near, false), Retreat);
+        assert_eq!(next_behavior_state(Idle, near, false, calm()), Engage);
+        assert_eq!(next_behavior_state(Patrol, near, true, calm()), Engage);
+        assert_eq!(next_behavior_state(Engage, near, false, calm()), Engage);
+        assert_eq!(next_behavior_state(Evade, near, false, calm()), Evade);
+        assert_eq!(next_behavior_state(Retreat, near, false, calm()), Retreat);
     }
 
     #[test]
@@ -963,11 +1316,81 @@ mod behavior_state_tests {
         // Acquired (inside the 2000 m scan) but outside the 800 m detection
         // range: the passive states keep their routine...
         let far = Some(AI_ENGAGE_RANGE * 1.5);
-        assert_eq!(next_behavior_state(Patrol, far, true), Patrol);
-        assert_eq!(next_behavior_state(Idle, far, false), Idle);
+        assert_eq!(next_behavior_state(Patrol, far, true, calm()), Patrol);
+        assert_eq!(next_behavior_state(Idle, far, false, calm()), Idle);
         // ...while a combat state already on that target keeps fighting -
         // the detection range gates entry, not pursuit.
-        assert_eq!(next_behavior_state(Engage, far, false), Engage);
+        assert_eq!(next_behavior_state(Engage, far, false, calm()), Engage);
+    }
+
+    #[test]
+    fn threats_break_engage_into_evade_when_the_cooldown_allows() {
+        use AIBehaviorState::*;
+
+        let near = Some(AI_ENGAGE_RANGE * 0.5);
+        // Either threat signal breaks Engage into Evade...
+        let shot = ThreatSignals {
+            recently_damaged: true,
+            ..calm()
+        };
+        assert_eq!(next_behavior_state(Engage, near, false, shot), Evade);
+        let aimed = ThreatSignals {
+            aimed_at: true,
+            ..calm()
+        };
+        assert_eq!(next_behavior_state(Engage, near, false, aimed), Evade);
+        // ...but not during the refractory cooldown: threats between evade
+        // cycles are fought through, or the standoff orbit never shows.
+        let refractory = ThreatSignals {
+            recently_damaged: true,
+            aimed_at: true,
+            evade_ready: false,
+            ..default()
+        };
+        assert_eq!(next_behavior_state(Engage, near, false, refractory), Engage);
+    }
+
+    #[test]
+    fn evade_holds_until_its_cycle_expires_then_reengages() {
+        use AIBehaviorState::*;
+
+        let near = Some(AI_ENGAGE_RANGE * 0.5);
+        // Mid-cycle, even with the threat gone: the jink is timed, not
+        // signal-chasing.
+        assert_eq!(next_behavior_state(Evade, near, false, calm()), Evade);
+        // Expiry decays back to Engage even under an ongoing threat - the
+        // cooldown (armed on exit) is what spaces the cycles.
+        let expired_under_fire = ThreatSignals {
+            recently_damaged: true,
+            evade_expired: true,
+            ..calm()
+        };
+        assert_eq!(
+            next_behavior_state(Evade, near, false, expired_under_fire),
+            Engage
+        );
+    }
+
+    #[test]
+    fn getting_shot_interrupts_the_routine_beyond_detection_range() {
+        use AIBehaviorState::*;
+
+        // Acquired but outside detection range: a passive ship normally
+        // keeps its routine (test above) - but not while taking fire.
+        let far = Some(AI_ENGAGE_RANGE * 1.5);
+        let shot = ThreatSignals {
+            recently_damaged: true,
+            ..calm()
+        };
+        assert_eq!(next_behavior_state(Patrol, far, true, shot), Engage);
+        assert_eq!(next_behavior_state(Idle, far, false, shot), Engage);
+        // Merely being aimed at from out there does not: the aim signal is
+        // range-gated well inside detection range anyway.
+        let aimed = ThreatSignals {
+            aimed_at: true,
+            ..calm()
+        };
+        assert_eq!(next_behavior_state(Patrol, far, true, aimed), Patrol);
     }
 
     #[test]
@@ -987,6 +1410,7 @@ mod behavior_state_tests {
         // Drive the real acquisition -> transition pipeline: no hostile in
         // range means no target means Idle; a hostile appearing re-engages.
         let mut world = World::new();
+        world.init_resource::<Time>();
         let ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
 
         world.run_system_once(update_ai_target).unwrap();
@@ -1099,6 +1523,7 @@ mod patrol_idle_tests {
     fn patrol_world() -> (World, Entity) {
         let mut world = World::new();
         world.init_resource::<FlightSettings>();
+        world.init_resource::<Time>();
         let ship = world
             .spawn((
                 AISpaceshipMarker,
@@ -1221,6 +1646,7 @@ mod patrol_idle_tests {
         // engage/complete every frame).
         let mut world = World::new();
         world.init_resource::<FlightSettings>();
+        world.init_resource::<Time>();
         let ship = world
             .spawn((
                 AISpaceshipMarker,
@@ -1243,6 +1669,7 @@ mod patrol_idle_tests {
         // No route, no hostile: Idle. Drifting engages a STOP burn...
         let mut world = World::new();
         world.init_resource::<FlightSettings>();
+        world.init_resource::<Time>();
         let ship = world
             .spawn((
                 AISpaceshipMarker,
@@ -1718,6 +2145,7 @@ mod target_selection_tests {
         let picked = pick_ai_target(
             Vec3::ZERO,
             None,
+            None,
             [
                 (far, Vec3::new(0.0, 0.0, -500.0), AITargetKind::Ship),
                 (near, Vec3::new(0.0, 0.0, -100.0), AITargetKind::Ship),
@@ -1735,6 +2163,7 @@ mod target_selection_tests {
         let torpedo = entity(2);
         let picked = pick_ai_target(
             Vec3::ZERO,
+            None,
             None,
             [
                 (torpedo, Vec3::new(0.0, 0.0, -50.0), AITargetKind::Torpedo),
@@ -1754,6 +2183,7 @@ mod target_selection_tests {
         let held = pick_ai_target(
             Vec3::ZERO,
             Some(current),
+            None,
             [
                 (current, Vec3::new(0.0, 0.0, -1000.0), AITargetKind::Ship),
                 (rival, Vec3::new(0.0, 0.0, -900.0), AITargetKind::Ship),
@@ -1766,6 +2196,7 @@ mod target_selection_tests {
         let stolen = pick_ai_target(
             Vec3::ZERO,
             Some(current),
+            None,
             [
                 (current, Vec3::new(0.0, 0.0, -1000.0), AITargetKind::Ship),
                 (rival, Vec3::new(0.0, 0.0, -500.0), AITargetKind::Ship),
@@ -1781,16 +2212,50 @@ mod target_selection_tests {
             pick_ai_target(
                 Vec3::ZERO,
                 None,
+                None,
                 [(entity(1), Vec3::new(0.0, 0.0, -2500.0), AITargetKind::Ship)].into_iter(),
             ),
             None,
             "beyond acquisition range"
         );
         assert_eq!(
-            pick_ai_target(Vec3::ZERO, None, std::iter::empty()),
+            pick_ai_target(Vec3::ZERO, None, None, std::iter::empty()),
             None,
             "no candidates"
         );
+    }
+
+    #[test]
+    fn the_recent_attacker_steals_the_pick_from_a_comparable_bystander() {
+        // Recently-damaged-me threat scoring (deferred from 225727): the
+        // ship shooting me outranks a somewhat closer bystander...
+        let attacker = entity(1);
+        let bystander = entity(2);
+        let picked = pick_ai_target(
+            Vec3::ZERO,
+            None,
+            Some(attacker),
+            [
+                (attacker, Vec3::new(0.0, 0.0, -1000.0), AITargetKind::Ship),
+                (bystander, Vec3::new(0.0, 0.0, -700.0), AITargetKind::Ship),
+            ]
+            .into_iter(),
+        );
+        assert_eq!(picked, Some(attacker), "the shooter draws the aggro");
+
+        // ...but the bias is a discount, not a tier: a bystander well
+        // inside the discounted distance still wins.
+        let picked = pick_ai_target(
+            Vec3::ZERO,
+            None,
+            Some(attacker),
+            [
+                (attacker, Vec3::new(0.0, 0.0, -1000.0), AITargetKind::Ship),
+                (bystander, Vec3::new(0.0, 0.0, -300.0), AITargetKind::Ship),
+            ]
+            .into_iter(),
+        );
+        assert_eq!(picked, Some(bystander), "a far closer threat still wins");
     }
 
     // -- the acquisition system over the relation model --
@@ -2214,6 +2679,402 @@ mod point_defense_tests {
             Some(Vec3::new(0.0, 0.0, -150.0)),
             "point defense applies in every behavior state"
         );
+    }
+}
+
+#[cfg(test)]
+mod threat_tests {
+    // Damage attribution into the threat memory: bcs populates
+    // HealthApplyDamage.source with the hitting collider, and the observer
+    // resolves it to the firing ship root through ProjectileOwner
+    // (task 20260709-225731, wiring deferred from 225727).
+    use super::*;
+
+    fn threat_world() -> (World, Entity) {
+        let mut world = World::new();
+        world.add_observer(on_damage_track_threat);
+        let ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        (world, ship)
+    }
+
+    fn hit(world: &mut World, ship: Entity, source: Entity) {
+        world.trigger(HealthApplyDamage {
+            entity: ship,
+            source: Some(source),
+            amount: 10.0,
+        });
+    }
+
+    fn recent_attacker(world: &World, ship: Entity) -> Option<Entity> {
+        world
+            .entity(ship)
+            .get::<AIThreat>()
+            .unwrap()
+            .recent_attacker()
+    }
+
+    #[test]
+    fn a_bullet_hit_records_its_owner_as_the_attacker() {
+        // Turret bullet: root and collider are one entity, the owner sits
+        // right on the source.
+        let (mut world, ship) = threat_world();
+        let player = world
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+        let bullet = world
+            .spawn((ProjectileOwner(player), Allegiance::Player))
+            .id();
+
+        hit(&mut world, ship, bullet);
+
+        assert_eq!(recent_attacker(&world, ship), Some(player));
+    }
+
+    #[test]
+    fn a_warhead_section_resolves_through_its_projectile_root() {
+        // Torpedo contact damage: the source is the warhead child section;
+        // the owner (and copied allegiance) live on the projectile root.
+        let (mut world, ship) = threat_world();
+        let player = world
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+        let torpedo = world
+            .spawn((
+                TorpedoProjectileMarker,
+                ProjectileOwner(player),
+                Allegiance::Player,
+            ))
+            .id();
+        let warhead = world.spawn(ChildOf(torpedo)).id();
+
+        hit(&mut world, ship, warhead);
+
+        assert_eq!(recent_attacker(&world, ship), Some(player));
+    }
+
+    #[test]
+    fn a_hit_on_a_section_propagates_to_the_root_threat() {
+        // The production path: bcs triggers the event on the HIT SECTION
+        // and it propagates through ChildOf to the root. The observer must
+        // catch it at the root hop (R1.1).
+        let (mut world, ship) = threat_world();
+        let section = world.spawn(ChildOf(ship)).id();
+        let player = world
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+        let bullet = world
+            .spawn((ProjectileOwner(player), Allegiance::Player))
+            .id();
+
+        hit(&mut world, section, bullet);
+
+        assert_eq!(
+            recent_attacker(&world, ship),
+            Some(player),
+            "a section hit must reach the root's threat memory"
+        );
+    }
+
+    #[test]
+    fn a_self_blast_is_not_a_threat() {
+        // Blast damage deliberately reaches the owner (see ProjectileHooks):
+        // a ship caught in its own torpedo's blast must not spook itself.
+        let (mut world, ship) = threat_world();
+        let blast = world.spawn((ProjectileOwner(ship), Allegiance::Enemy)).id();
+
+        hit(&mut world, ship, blast);
+
+        assert_eq!(recent_attacker(&world, ship), None);
+        assert!(
+            !world
+                .entity(ship)
+                .get::<AIThreat>()
+                .unwrap()
+                .recently_damaged(),
+            "an own-relation hit must not open the threat window"
+        );
+    }
+
+    #[test]
+    fn a_hostile_ram_blames_the_rammer() {
+        // No ProjectileOwner anywhere up the chain: a body-to-body hit. The
+        // source's own ship root is the attacker.
+        let (mut world, ship) = threat_world();
+        let rammer = world
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+        let rammer_section = world.spawn(ChildOf(rammer)).id();
+
+        hit(&mut world, ship, rammer_section);
+
+        assert_eq!(recent_attacker(&world, ship), Some(rammer));
+    }
+
+    #[test]
+    fn the_memory_decays_and_unattributed_hits_keep_the_shooter() {
+        let attacker = Entity::from_raw_u32(7).unwrap();
+        let mut threat = AIThreat::default();
+        assert!(!threat.recently_damaged(), "spawns with no memory");
+
+        threat.record(Some(attacker));
+        assert_eq!(threat.recent_attacker(), Some(attacker));
+
+        // A later hit that could not be attributed keeps the known shooter:
+        // the most likely source has not changed.
+        threat.record(None);
+        assert_eq!(threat.recent_attacker(), Some(attacker));
+
+        threat
+            .damage_memory
+            .tick(core::time::Duration::from_secs_f32(
+                AI_THREAT_DAMAGE_MEMORY_SECS + 0.01,
+            ));
+        assert_eq!(threat.recent_attacker(), None, "the window closed");
+    }
+}
+
+#[cfg(test)]
+mod evade_tests {
+    // The evade cycle through the real acquisition -> transition pipeline,
+    // with real time (the manual-duration harness the rotation tests use).
+    use core::time::Duration;
+
+    use bevy::{ecs::system::RunSystemOnce, time::TimeUpdateStrategy};
+
+    use super::*;
+
+    fn evade_app() -> (App, Entity, Entity) {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            1.0 / 60.0,
+        )));
+        app.add_observer(on_damage_track_threat);
+        app.add_systems(Update, (update_ai_target, update_behavior_state).chain());
+
+        // Inside engage range, NOT aiming at the ship (default forward -Z,
+        // the ship is at -X of the player): only the damage signal fires.
+        let player = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::from_translation(Vec3::new(300.0, 0.0, 0.0)),
+            ))
+            .id();
+        let ship = app
+            .world_mut()
+            .spawn((AISpaceshipMarker, Transform::default()))
+            .id();
+        (app, ship, player)
+    }
+
+    fn state_of(app: &App, ship: Entity) -> AIBehaviorState {
+        *app.world().get::<AIBehaviorState>(ship).unwrap()
+    }
+
+    #[test]
+    fn a_hit_breaks_engage_into_evade_and_the_cycle_decays_back() {
+        let (mut app, ship, player) = evade_app();
+
+        // Settle into Engage on the acquired hostile.
+        app.update();
+        app.update();
+        assert_eq!(state_of(&app, ship), AIBehaviorState::Engage);
+
+        // A hostile bullet lands.
+        let bullet = app
+            .world_mut()
+            .spawn((ProjectileOwner(player), Allegiance::Player))
+            .id();
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: ship,
+            source: Some(bullet),
+            amount: 10.0,
+        });
+
+        app.update();
+        assert_eq!(
+            state_of(&app, ship),
+            AIBehaviorState::Evade,
+            "getting shot breaks Engage into Evade"
+        );
+
+        // Mid-cycle the state holds...
+        for _ in 0..60 {
+            app.update();
+        }
+        assert_eq!(state_of(&app, ship), AIBehaviorState::Evade);
+
+        // ...and past AI_EVADE_SECS the cycle decays back to Engage (the
+        // damage memory is shorter than the cycle, and the player is not
+        // aiming, so nothing re-triggers).
+        for _ in 0..((AI_EVADE_SECS * 60.0) as usize + 30) {
+            app.update();
+        }
+        assert_eq!(
+            state_of(&app, ship),
+            AIBehaviorState::Engage,
+            "the jink is timed: it decays back to Engage"
+        );
+    }
+
+    #[test]
+    fn a_hostile_holding_its_nose_on_me_triggers_evade_without_a_hit() {
+        // The second cheap signal: inside aim range with the hostile's hull
+        // forward on my anchor. Driven through the real systems with a
+        // zero-delta Time - entry does not need elapsed time.
+        let mut world = World::new();
+        world.init_resource::<Time>();
+        let ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        world.spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            Transform::from_translation(Vec3::new(300.0, 0.0, 0.0)).looking_at(Vec3::ZERO, Vec3::Y),
+        ));
+
+        world.run_system_once(update_ai_target).unwrap();
+        world.run_system_once(update_behavior_state).unwrap();
+
+        assert_eq!(
+            *world.entity(ship).get::<AIBehaviorState>().unwrap(),
+            AIBehaviorState::Evade,
+            "a hostile's guns on me inside aim range is a threat"
+        );
+    }
+
+    #[test]
+    fn beyond_aim_range_a_pointed_nose_is_not_a_threat() {
+        // Same geometry outside AI_THREAT_AIM_RANGE (still inside engage
+        // range): the nose cannot hurt me yet, so the ship keeps engaging.
+        let mut world = World::new();
+        world.init_resource::<Time>();
+        let ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        world.spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            Transform::from_translation(Vec3::new(AI_THREAT_AIM_RANGE + 100.0, 0.0, 0.0))
+                .looking_at(Vec3::ZERO, Vec3::Y),
+        ));
+
+        world.run_system_once(update_ai_target).unwrap();
+        world.run_system_once(update_behavior_state).unwrap();
+
+        assert_eq!(
+            *world.entity(ship).get::<AIBehaviorState>().unwrap(),
+            AIBehaviorState::Engage
+        );
+    }
+
+    #[test]
+    fn an_evading_ship_burns_along_the_jink_not_the_pursuit_vector() {
+        // Target dead ahead at -Z, far outside the standoff band: Engage
+        // would burn straight at it. Evade must not - the jink leg points
+        // well off the line of sight.
+        let mut world = World::new();
+        let target = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::from_translation(Vec3::new(0.0, 0.0, -1000.0)),
+            ))
+            .id();
+        let ship = world
+            .spawn((
+                AISpaceshipMarker,
+                AIBehaviorState::Evade,
+                AITarget(Some(target)),
+                Transform::default(),
+                LinearVelocity(Vec3::ZERO),
+            ))
+            .id();
+        let thruster = world
+            .spawn((
+                ThrusterSectionMarker,
+                ThrusterSectionInput(0.0),
+                GlobalTransform::IDENTITY,
+                ChildOf(ship),
+            ))
+            .id();
+
+        // Facing the target (the pursuit vector): an engaging ship would
+        // burn, an evading one must hold - the jink points elsewhere.
+        world.run_system_once(on_thruster_input).unwrap();
+        assert_eq!(
+            **world
+                .entity(thruster)
+                .get::<ThrusterSectionInput>()
+                .unwrap(),
+            0.0,
+            "facing the target, the jink gate must not open"
+        );
+
+        // Swing the hull onto the jink leg: the lateral burst fires.
+        let jink = ai_evade_direction(Vec3::new(0.0, 0.0, -1000.0), 0);
+        world
+            .entity_mut(ship)
+            .get_mut::<Transform>()
+            .unwrap()
+            .look_to(jink, Vec3::Y);
+        world.run_system_once(on_thruster_input).unwrap();
+        assert_eq!(
+            **world
+                .entity(thruster)
+                .get::<ThrusterSectionInput>()
+                .unwrap(),
+            1.0,
+            "aligned with the jink leg, the burst fires"
+        );
+    }
+}
+
+#[cfg(test)]
+mod jink_tests {
+    use super::*;
+
+    const LOS_TARGET: Vec3 = Vec3::new(0.0, 0.0, -400.0);
+
+    #[test]
+    fn every_leg_stays_off_the_pursuit_vector() {
+        let los = LOS_TARGET.normalize();
+        for leg in 0..8 {
+            let direction = ai_evade_direction(LOS_TARGET, leg);
+            assert!(
+                direction.dot(los).abs() < 0.5,
+                "leg {leg} hugs the pursuit vector: {direction:?}"
+            );
+            assert!(
+                (direction.length() - 1.0).abs() < 1e-3,
+                "leg {leg} is not a unit direction"
+            );
+        }
+    }
+
+    #[test]
+    fn consecutive_legs_swing_the_heading_hard() {
+        for leg in 0..8 {
+            let a = ai_evade_direction(LOS_TARGET, leg);
+            let b = ai_evade_direction(LOS_TARGET, leg + 1);
+            assert!(
+                a.dot(b) < 0.5,
+                "legs {leg} and {} barely differ: {a:?} vs {b:?}",
+                leg + 1
+            );
+        }
+    }
+
+    #[test]
+    fn the_pattern_wraps_and_survives_degenerate_geometry() {
+        assert_eq!(
+            ai_evade_direction(LOS_TARGET, 0),
+            ai_evade_direction(LOS_TARGET, 4),
+            "the box weave is a 4-leg loop"
+        );
+        // A polar line of sight uses the X-fallback tangent basis.
+        let polar = ai_evade_direction(Vec3::new(0.0, 300.0, 0.0), 1);
+        assert!(polar.is_finite() && polar.length() > 0.9);
+        // A degenerate (zero) line of sight yields no direction at all.
+        assert_eq!(ai_evade_direction(Vec3::ZERO, 0), Vec3::ZERO);
     }
 }
 

@@ -64,6 +64,7 @@ pub(super) fn torpedo_detonate_system(
             &TorpedoArming,
             &TorpedoBlast,
             &TorpedoSectionPartOf,
+            Option<&ProjectileOwner>,
         ),
         // A shot-down torpedo must not detonate in the one-tick gap before
         // despawn_shot_down_torpedoes removes it (see TorpedoShotDownMarker).
@@ -73,7 +74,8 @@ pub(super) fn torpedo_detonate_system(
         ),
     >,
 ) {
-    for (torpedo, torpedo_transform, torpedo_target_position, arming, blast, part_of) in &q_torpedo
+    for (torpedo, torpedo_transform, torpedo_target_position, arming, blast, part_of, owner) in
+        &q_torpedo
     {
         // Do not detonate until the torpedo has armed (cleared the muzzle), so a
         // shot at a nearby target does not blow up on spawn.
@@ -88,7 +90,7 @@ pub(super) fn torpedo_detonate_system(
         // Proximity fuze: fire within half the blast radius of the target.
         if distance < blast.radius * 0.5 {
             commands.entity(torpedo).despawn();
-            commands.spawn((
+            let mut blast_entity = commands.spawn((
                 blast_damage(BlastDamageConfig {
                     radius: blast.radius,
                     max_damage: blast.damage,
@@ -97,6 +99,14 @@ pub(super) fn torpedo_detonate_system(
                 part_of.clone(),
                 TempEntity(0.1),
             ));
+            // The blast inherits the torpedo's owner so the damage it deals
+            // stays attributable to the ship that fired the torpedo: bcs
+            // populates HealthApplyDamage.source with the blast collider,
+            // and the AI threat model resolves that source to a shooter
+            // through ProjectileOwner (task 20260709-225731).
+            if let Some(&owner) = owner {
+                blast_entity.insert(owner);
+            }
         }
     }
 }
