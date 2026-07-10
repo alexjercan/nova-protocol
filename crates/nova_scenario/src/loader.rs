@@ -159,10 +159,13 @@ fn on_load_scenario(
     **current_scenario = Some(scenario.clone());
     debug!("on_load_scenario: scenario {:?}", scenario.name);
 
-    // Setup Scenario Camera
+    // Setup Scenario Camera. `SfxListenerMarker` makes this the explicit
+    // SFX/juice listener (attenuation, camera shake, flash facing); the editor
+    // camera deliberately never carries it.
     commands.spawn((
         ScenarioScopedMarker,
         ScenarioCameraMarker,
+        SfxListenerMarker,
         Name::new("Scenario Camera"),
         Camera3d::default(),
         PostProcessingCamera,

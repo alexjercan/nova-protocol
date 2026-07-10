@@ -22,7 +22,7 @@ pub mod prelude {
     pub use bevy_common_systems::prelude::*;
 
     pub use super::{
-        audio::{NovaAudioPlugin, NovaSfx, NOVA_SFX_FILES},
+        audio::{NovaAudioPlugin, NovaSfx, SfxListenerMarker, NOVA_SFX_FILES},
         camera_controller::prelude::*,
         flight::prelude::*,
         hud::prelude::*,

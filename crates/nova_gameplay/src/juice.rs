@@ -22,7 +22,8 @@
 //! in shared, gltf-instanced children, so an overlay ring is chosen over recoloring
 //! their materials (a true per-section emissive flash is a possible follow-up).
 //!
-//! Both effects are **distance-attenuated** from the gameplay camera (the trauma
+//! Both effects are **distance-attenuated** from the gameplay camera (the one
+//! carrying `SfxListenerMarker`, shared with the audio layer; the trauma
 //! impulse and the ring alpha both scale with the falloff) and **per-area-cell
 //! throttled**, mirroring `audio.rs`: a blast that damages a dozen colliders of
 //! one ship in a single frame collapses to one kick and one flash, and a distant
@@ -312,9 +313,10 @@ fn distance_falloff(distance: f32, near: f32, far: f32) -> f32 {
 }
 
 /// The gameplay camera's world position (the attenuation listener), or `None` if no
-/// camera exists yet (early startup). Takes the first `Camera3d`, matching the
-/// audio layer's listener.
-fn listener_position(q_camera: &Query<&GlobalTransform, With<Camera3d>>) -> Option<Vec3> {
+/// listener exists yet (early startup, or the editor). Keys off
+/// [`SfxListenerMarker`], the same explicit listener the audio layer uses, so shake
+/// and flash attenuation can never diverge from the sound attenuation.
+fn listener_position(q_camera: &Query<&GlobalTransform, With<SfxListenerMarker>>) -> Option<Vec3> {
     q_camera.iter().next().map(|t| t.translation())
 }
 
@@ -399,13 +401,15 @@ fn prune_juice_throttle(time: Res<Time>, mut throttle: ResMut<JuiceThrottle>) {
     throttle.prune(time.elapsed_secs(), JUICE_THROTTLE_PRUNE_WINDOW);
 }
 
-/// Attach a [`CameraShake`] (configured from settings) to any gameplay `Camera3d`
-/// that lacks one. Runs every frame but no-ops once the camera has the component;
-/// this handles the camera being (re)spawned or swapped (Nova toggles the camera's
-/// controller between WASD and chase, but the entity persists).
+/// Attach a [`CameraShake`] (configured from settings) to the marked gameplay
+/// camera when it lacks one. Runs every frame but no-ops once the camera has the
+/// component; this handles the camera being (re)spawned or swapped (Nova toggles
+/// the camera's controller between WASD and chase, but the entity persists).
+/// Scoped to [`SfxListenerMarker`] rather than any `Camera3d`, so the editor
+/// camera (or a future minimap camera) never grows a shake.
 fn ensure_camera_shake(
     settings: Res<JuiceSettings>,
-    q_camera: Query<Entity, (With<Camera3d>, Without<CameraShake>)>,
+    q_camera: Query<Entity, (With<SfxListenerMarker>, Without<CameraShake>)>,
     mut commands: Commands,
 ) {
     for camera in &q_camera {
@@ -433,9 +437,11 @@ fn sync_camera_shake_config(settings: Res<JuiceSettings>, mut q_shake: Query<&mu
     }
 }
 
-/// Shared reaction to a juice event at `pos`: add attenuated trauma to the camera(s)
-/// and queue a flash, each gated by its own enable toggle and throttle. Called by
-/// both observers so impact and destruction share one code path.
+/// Shared reaction to a juice event at `pos`: add attenuated trauma to the marked
+/// gameplay camera and queue a flash, each gated by its own enable toggle and
+/// throttle. Called by both observers so impact and destruction share one code
+/// path. The shake-input query is scoped to [`SfxListenerMarker`] so trauma lands
+/// only on the listener camera, never on some other `CameraShakeInput` holder.
 #[allow(clippy::too_many_arguments)]
 fn emit_juice(
     pos: Vec3,
@@ -445,7 +451,7 @@ fn emit_juice(
     listener: Option<Vec3>,
     throttle: &mut JuiceThrottle,
     fx: &mut ActiveJuiceFx,
-    q_shake_input: &mut Query<&mut CameraShakeInput>,
+    q_shake_input: &mut Query<&mut CameraShakeInput, With<SfxListenerMarker>>,
 ) {
     let falloff = listener.map_or(1.0, |l| {
         distance_falloff(
@@ -499,10 +505,10 @@ fn on_damage_juice(
     settings: Res<JuiceSettings>,
     time: Res<Time>,
     q_transform: Query<&GlobalTransform>,
-    q_camera: Query<&GlobalTransform, With<Camera3d>>,
+    q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
     mut throttle: ResMut<JuiceThrottle>,
     mut fx: ResMut<ActiveJuiceFx>,
-    mut q_shake_input: Query<&mut CameraShakeInput>,
+    mut q_shake_input: Query<&mut CameraShakeInput, With<SfxListenerMarker>>,
 ) {
     if !settings.master_enabled {
         return;
@@ -529,10 +535,10 @@ fn on_destroy_juice(
     settings: Res<JuiceSettings>,
     time: Res<Time>,
     q_transform: Query<&GlobalTransform>,
-    q_camera: Query<&GlobalTransform, With<Camera3d>>,
+    q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
     mut throttle: ResMut<JuiceThrottle>,
     mut fx: ResMut<ActiveJuiceFx>,
-    mut q_shake_input: Query<&mut CameraShakeInput>,
+    mut q_shake_input: Query<&mut CameraShakeInput, With<SfxListenerMarker>>,
 ) {
     if !settings.master_enabled {
         return;
@@ -558,7 +564,7 @@ fn on_destroy_juice(
 fn draw_juice_flashes(
     time: Res<Time>,
     settings: Res<JuiceSettings>,
-    q_camera: Query<&GlobalTransform, With<Camera3d>>,
+    q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
     mut fx: ResMut<ActiveJuiceFx>,
     mut gizmos: Gizmos,
 ) {
@@ -757,10 +763,13 @@ mod tests {
         app
     }
 
-    /// Spawn an entity carrying only a `CameraShakeInput`, standing in for the
-    /// gameplay camera's shake sink.
+    /// Spawn an entity carrying a `CameraShakeInput` plus the listener marker,
+    /// standing in for the gameplay camera's shake sink (trauma is scoped to the
+    /// marked camera, so an unmarked input would receive nothing).
     fn spawn_shake_sink(app: &mut App) -> Entity {
-        app.world_mut().spawn(CameraShakeInput::default()).id()
+        app.world_mut()
+            .spawn((SfxListenerMarker, CameraShakeInput::default()))
+            .id()
     }
 
     /// Spawn a positioned target the observers can read a world position from.
@@ -770,10 +779,11 @@ mod tests {
             .id()
     }
 
-    /// Spawn a gameplay camera (the attenuation listener) at `pos`.
+    /// Spawn a gameplay camera (the marked attenuation listener) at `pos`.
     fn spawn_camera_at(app: &mut App, pos: Vec3) {
         app.world_mut().spawn((
             Camera3d::default(),
+            SfxListenerMarker,
             GlobalTransform::from(Transform::from_translation(pos)),
         ));
     }
@@ -906,6 +916,71 @@ mod tests {
         // A far event must not consume throttle state either, so a near event in
         // the same cell right after still fires.
         assert!(app.world().resource::<JuiceThrottle>().last.is_empty());
+    }
+
+    #[test]
+    fn trauma_lands_only_on_the_marked_listener() {
+        let mut app = juice_test_app();
+        let marked = spawn_shake_sink(&mut app);
+        // An unmarked shake input (e.g. some other camera with a CameraShake)
+        // must receive no trauma from gameplay juice.
+        let unmarked = app.world_mut().spawn(CameraShakeInput::default()).id();
+        let target = spawn_at(&mut app, Vec3::ZERO);
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: target,
+            source: None,
+            amount: 10.0,
+        });
+
+        let expected = JuiceSettings::default().shake.hit_trauma;
+        assert!((trauma_of(&app, marked) - expected).abs() < 1e-6);
+        assert_eq!(trauma_of(&app, unmarked), 0.0);
+    }
+
+    #[test]
+    fn attenuation_listens_from_the_marked_camera_not_any_camera3d() {
+        let mut app = juice_test_app();
+        let sink = spawn_shake_sink(&mut app);
+        let target = spawn_at(&mut app, Vec3::ZERO);
+        let far = JuiceSettings::default().far_distance;
+        // The marked listener is out of range; an unmarked Camera3d sits right on
+        // the event. Under the old "first Camera3d" rule the unmarked one could
+        // win and the event would fire at full strength.
+        spawn_camera_at(&mut app, Vec3::new(far + 50.0, 0.0, 0.0));
+        app.world_mut().spawn((
+            Camera3d::default(),
+            GlobalTransform::from(Transform::from_translation(Vec3::ZERO)),
+        ));
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: target,
+            source: None,
+            amount: 10.0,
+        });
+
+        assert_eq!(trauma_of(&app, sink), 0.0);
+        assert_eq!(flash_count(&app), 0);
+    }
+
+    #[test]
+    fn camera_shake_attaches_only_to_the_marked_camera() {
+        let mut app = App::new();
+        app.init_resource::<JuiceSettings>();
+        app.add_systems(Update, ensure_camera_shake);
+        let marked = app
+            .world_mut()
+            .spawn((Camera3d::default(), SfxListenerMarker))
+            .id();
+        let unmarked = app.world_mut().spawn(Camera3d::default()).id();
+
+        app.update();
+
+        assert!(app.world().get::<CameraShake>(marked).is_some());
+        assert!(
+            app.world().get::<CameraShake>(unmarked).is_none(),
+            "an unmarked Camera3d (editor/minimap) must not grow a CameraShake"
+        );
     }
 
     #[test]

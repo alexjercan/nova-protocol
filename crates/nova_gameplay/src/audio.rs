@@ -18,7 +18,8 @@
 //! entity whose volume tracks how hard the ship is thrusting.
 //!
 //! The four one-shots are **distance-attenuated**: their volume is scaled by how
-//! far the event is from the listener (the gameplay camera), so a distant
+//! far the event is from the listener (the camera carrying
+//! [`SfxListenerMarker`], i.e. the gameplay camera), so a distant
 //! explosion is quieter than one next to you. This is a volume-only rolloff for
 //! the cinematic feel, not true spatialization - stereo panning would need bevy
 //! spatial audio (`SpatialListener` + `spatial: true`) and is a future step. The
@@ -208,9 +209,28 @@ fn play_positional(
     commands.play_sfx_volume(bank.get(key), volume);
 }
 
-/// The listener position for distance attenuation: the gameplay camera's world
-/// translation, or `None` if no camera exists yet (early startup).
-fn listener_position(q_camera: &Query<&GlobalTransform, With<Camera3d>>) -> Option<Vec3> {
+/// Marks the camera that acts as the SFX/juice listener: distance attenuation
+/// for the one-shot cues, camera-shake trauma, and the flash-ring facing all key
+/// off this entity. Exactly one camera should carry it at a time - the gameplay
+/// (scenario) camera, tagged where it is spawned. "First `Camera3d`" was the old
+/// signal, but ECS query order is unspecified, so a second camera (minimap,
+/// render-to-texture, a leftover editor camera) could flip the listener frame to
+/// frame; the explicit marker makes it stable. The editor camera deliberately
+/// does not carry it: no gameplay cues fire in the editor, and the shake
+/// component should never attach there.
+///
+/// (Checked at introduction time: the editor -> scenario transition never has
+/// two `Camera3d` alive at once - the editor camera is `DespawnOnExit(Editor)`,
+/// applied before `OnEnter(Scenario)` spawns the scenario camera - so the old
+/// assumption was latent, not a live bug.)
+#[derive(Component, Debug, Clone, Reflect)]
+#[reflect(Component)]
+pub struct SfxListenerMarker;
+
+/// The listener position for distance attenuation: the marked gameplay camera's
+/// world translation, or `None` if no listener exists yet (early startup, or the
+/// editor).
+fn listener_position(q_camera: &Query<&GlobalTransform, With<SfxListenerMarker>>) -> Option<Vec3> {
     q_camera.iter().next().map(|t| t.translation())
 }
 
@@ -229,6 +249,7 @@ impl Plugin for NovaAudioPlugin {
         }
 
         app.init_resource::<SfxThrottle>();
+        app.register_type::<SfxListenerMarker>();
 
         app.add_observer(on_destroyed_play_explosion);
         app.add_observer(on_damage_play_impact);
@@ -267,7 +288,7 @@ fn on_destroyed_play_explosion(
     bank: Option<Res<SoundBank<NovaSfx>>>,
     time: Res<Time>,
     q_transform: Query<&GlobalTransform>,
-    q_camera: Query<&GlobalTransform, With<Camera3d>>,
+    q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
@@ -301,7 +322,7 @@ fn on_damage_play_impact(
     bank: Option<Res<SoundBank<NovaSfx>>>,
     time: Res<Time>,
     q_transform: Query<&GlobalTransform>,
-    q_camera: Query<&GlobalTransform, With<Camera3d>>,
+    q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
@@ -333,7 +354,7 @@ fn on_turret_fire_play_sfx(
     bank: Option<Res<SoundBank<NovaSfx>>>,
     time: Res<Time>,
     q_projectile: Query<(&Transform, &TurretSectionPartOf)>,
-    q_camera: Query<&GlobalTransform, With<Camera3d>>,
+    q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
@@ -366,7 +387,7 @@ fn on_torpedo_launch_play_sfx(
     add: On<Add, TorpedoProjectileMarker>,
     bank: Option<Res<SoundBank<NovaSfx>>>,
     q_transform: Query<&Transform>,
-    q_camera: Query<&GlobalTransform, With<Camera3d>>,
+    q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
     mut commands: Commands,
 ) {
     let Some(bank) = bank else { return };
@@ -552,6 +573,34 @@ mod tests {
                 "attenuation out of range at {d}: {v}"
             );
         }
+    }
+
+    #[test]
+    fn listener_position_uses_the_marked_camera_not_any_camera3d() {
+        use bevy::ecs::system::SystemState;
+
+        let mut world = World::new();
+        // An unmarked Camera3d must not be the listener...
+        world.spawn((
+            Camera3d::default(),
+            GlobalTransform::from(Transform::from_translation(Vec3::new(5.0, 0.0, 0.0))),
+        ));
+        let mut state: SystemState<Query<&GlobalTransform, With<SfxListenerMarker>>> =
+            SystemState::new(&mut world);
+        assert_eq!(
+            listener_position(&state.get(&world).unwrap()),
+            None,
+            "no marked listener -> None (graceful full-volume fallback)"
+        );
+
+        // ...only the camera carrying the marker is.
+        let pos = Vec3::new(0.0, 3.0, -7.0);
+        world.spawn((
+            Camera3d::default(),
+            SfxListenerMarker,
+            GlobalTransform::from(Transform::from_translation(pos)),
+        ));
+        assert_eq!(listener_position(&state.get(&world).unwrap()), Some(pos));
     }
 
     #[test]
