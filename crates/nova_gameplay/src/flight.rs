@@ -1357,6 +1357,9 @@ fn autopilot_system(
         // also publish their live numbers as [`ManeuverTelemetry`] for the
         // HUD instruments; ORBIT (and a settled STOP) clears it.
         let mut telemetry: Option<ManeuverTelemetry> = None;
+        // Set by the Goto arm when the ship is inside the park envelope;
+        // gates the ORBIT handoff in the done branch.
+        let mut goto_arrived = false;
         let desired = match autopilot.action {
             AutopilotAction::Stop => {
                 // STOP has a spatial goal too: the predicted rest point.
@@ -1422,6 +1425,15 @@ fn autopilot_system(
                 );
                 let (desired, mut numbers) =
                     arrival_desired(target_transform.translation(), target_radius);
+                // Arrived means INSIDE the park envelope, not merely
+                // "wants zero velocity": the degraded no-stopping-plan
+                // state also zeroes the desired velocity arbitrarily far
+                // out, and a done-at-apex there must release (as it
+                // always did), never park into an orbit whose ring
+                // correction assumes it starts near the ring. The
+                // published distance is surface-relative, so the
+                // envelope test is against the bare standoff.
+                goto_arrived = numbers.distance <= settings.arrival_standoff;
                 numbers.goal_entity = Some(target);
                 telemetry = Some(numbers);
                 desired
@@ -1558,6 +1570,24 @@ fn autopilot_system(
             && desired == Vec3::ZERO
             && (error_speed <= settings.stop_speed_epsilon || (fine && firing_authority <= 0.0));
         if done && hottest_input <= 0.05 {
+            // A GOTO that arrived at a well body parks into orbit instead
+            // of handing back a ship that immediately starts falling (task
+            // 20260710-195954): the one-key parking flow becomes zero-key
+            // when the computer was already told where to go. engage()
+            // resets the phase; the ORBIT plan block picks the ring from
+            // the arrival radius next tick. Breakout semantics (any flight
+            // input, Z) are ORBIT's own, unchanged. Everything else -
+            // GotoPos, well-less targets, STOP - releases as before.
+            if let AutopilotAction::Goto { target } = autopilot.action {
+                if goto_arrived && q_wells.contains(target) {
+                    debug!("autopilot_system: ship {ship:?} arrived, parking into ORBIT");
+                    *autopilot = Autopilot::engage(AutopilotAction::Orbit {
+                        well: target,
+                        plan: None,
+                    });
+                    continue;
+                }
+            }
             debug!("autopilot_system: ship {ship:?} maneuver complete, disengaging");
             commands.entity(ship).remove::<Autopilot>();
             continue;
@@ -3307,40 +3337,76 @@ mod tests {
 
         let body_radius = 40.0;
         let mut min_distance = f32::MAX;
-        let mut released = false;
+        let mut parked = false;
         for _ in 0..6000 {
             app.update();
             let distance = app.world().get::<Position>(ship).unwrap().0.length();
             min_distance = min_distance.min(distance);
-            if app.world().get::<Autopilot>(ship).is_none() {
-                released = true;
-                break;
+            match app.world().get::<Autopilot>(ship) {
+                // A GOTO at a well body hands off to ORBIT (task
+                // 20260710-195954) instead of releasing.
+                Some(autopilot) if matches!(autopilot.action, AutopilotAction::Orbit { .. }) => {
+                    parked = true;
+                    break;
+                }
+                Some(_) => {}
+                None => panic!("a GOTO at a well body must park, not release"),
             }
         }
-        assert!(released, "GOTO must complete and disengage in budget");
+        assert!(parked, "GOTO must arrive and hand off to ORBIT in budget");
+        // The done gate structurally guarantees near-rest at the handoff
+        // instant; assert it to keep the old arrival-curve check.
+        let handoff_speed = velocity_of(&app, ship).length();
+        assert!(
+            handoff_speed < 0.5,
+            "the handoff happens at near-rest, got {handoff_speed}"
+        );
         assert!(
             min_distance > body_radius + gravity.surface_margin,
             "the hull must never dip below the surface, got {min_distance}"
         );
-
-        // The standoff measures from the SURFACE (task 20260710-202408):
-        // the well's body_radius joins the arrival budget, so the ship
-        // parks near standoff + body_radius from the center.
+        // The handoff happens at the surface-relative park point (task
+        // 20260710-202408): standoff + body_radius from the center, with
+        // the flat-space tests' terminal-creep lower bound.
         let standoff = app.world().resource::<FlightSettings>().arrival_standoff;
         let park = standoff + body_radius;
         let distance = app.world().get::<Position>(ship).unwrap().0.length();
-        let speed = velocity_of(&app, ship).length();
-        // Lower bound mirrors the flat-space tests' accepted terminal
-        // creep (the release fires at near-rest while the pull keeps
-        // dragging the parked ship inward); the hard floor is the
-        // never-below-surface assert above. Task 20260710-195954 (park
-        // into ORBIT) owns the real post-arrival answer inside a well.
         assert!(
             distance <= park + 6.0 && distance >= park - 45.0,
-            "should park near {park}u from the center ({standoff}u above the surface), \
-             got {distance}"
+            "should hand off near {park}u from the center ({standoff}u above the \
+             surface), got {distance}"
         );
-        assert!(speed < 0.5, "should arrive at rest, got {speed}");
+
+        // ORBIT never completes: the computer station-keeps. Run on and
+        // require the ship to stay engaged and above the surface while
+        // the insertion pulls it onto the ring.
+        for _ in 0..1200 {
+            app.update();
+            let distance = app.world().get::<Position>(ship).unwrap().0.length();
+            assert!(
+                distance > body_radius + gravity.surface_margin,
+                "the parked orbit must keep the hull above the surface, got {distance}"
+            );
+        }
+        let autopilot = app
+            .world()
+            .get::<Autopilot>(ship)
+            .expect("ORBIT station-keeps; it never completes");
+        let AutopilotAction::Orbit {
+            plan: Some(plan), ..
+        } = autopilot.action
+        else {
+            panic!("the parked autopilot flies a planned orbit");
+        };
+        // The insertion actually holds: after the settle window the ship
+        // is on (or tight around) the planned ring, not slowly decaying
+        // past it.
+        let radius = app.world().get::<Position>(ship).unwrap().0.length();
+        assert!(
+            (radius - plan.radius).abs() < 15.0,
+            "the ship should ride the {}u ring, got {radius}",
+            plan.radius
+        );
     }
 
     #[test]

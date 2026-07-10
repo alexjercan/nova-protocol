@@ -1,6 +1,6 @@
 # GOTO a gravity-well body parks into ORBIT on arrival
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.5.0, autopilot, gravity, ux
 
@@ -17,7 +17,7 @@ where to go.
 
 ## Steps
 
-- [ ] In `autopilot_system`'s done branch (flight.rs ~1560, `done &&
+- [x] In `autopilot_system`'s done branch (flight.rs ~1560, `done &&
   hottest_input <= 0.05`): when the action is `Goto { target }` and
   `q_wells.contains(target)`, replace the autopilot in place with
   `Autopilot::engage(AutopilotAction::Orbit { well: target, plan: None })`
@@ -25,19 +25,19 @@ where to go.
   from the arrival radius next tick) instead of removing the component.
   Everything else - GotoPos, unsized/well-less targets, STOP - releases
   exactly as before.
-- [ ] Verify the telemetry handoff needs no code: the Orbit arm publishes
+- [x] Verify the telemetry handoff needs no code: the Orbit arm publishes
   no ManeuverTelemetry, so the existing `None if has_telemetry` branch
   clears the GOTO numbers on the first orbit tick.
-- [ ] Rework the well integration test
+- [x] Rework the well integration test
   (goto_into_a_well_stops_at_the_standoff_instead_of_crashing): the leg no
   longer disengages at a well body - run until the action becomes Orbit,
   keep the never-below-surface floor over the whole run, then run on and
   assert the ship stays engaged (ORBIT never completes) and above the
   surface. The sized-target test (BodyRadius, no well) keeps asserting
   release - the contrast case.
-- [ ] Run flight, input::ai, hud tests and `cargo check --workspace
+- [x] Run flight, input::ai, hud tests and `cargo check --workspace
   --examples`.
-- [ ] Docs: docs/2026-07-10-goto-parks-into-orbit.md (handoff rule,
+- [x] Docs: docs/2026-07-10-goto-parks-into-orbit.md (handoff rule,
   breakout semantics unchanged, no-toggle default per the user request);
   close TASK.md.
 
@@ -57,3 +57,21 @@ where to go.
   whichever is picked up second should re-read the first.
 - Consider a settings toggle only if playtests dislike the automatism;
   default on per the user request.
+
+## Resolution
+
+Implemented per the Steps, no deviations: one in-place engage() in the
+done branch, gated on the action being Goto and the target being in
+q_wells. The telemetry handoff indeed needed no code (verified: the Orbit
+arm publishes nothing and the None-with-has_telemetry branch clears). The
+well integration test now covers the whole arc - arrival, handoff at the
+surface-relative park point, 1200 frames of engaged station-keeping above
+the surface with a filled OrbitPlan; the sized-target test remains the
+release contrast case.
+
+Difficulties: none - the seam was exactly where the task notes said, and
+the two prior arrival tasks (gravity budget, surface-relative standoff)
+had already put the park point inside the stable band.
+
+Checks: flight 56, input::ai 73, hud 55, cargo check --workspace
+--examples clean. Full suite and clippy left to CI per policy.
