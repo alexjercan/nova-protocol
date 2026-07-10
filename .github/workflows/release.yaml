@@ -55,7 +55,12 @@ jobs:
           toolchain: stable
           targets: x86_64-apple-darwin
       - name: Build release for x86 Apple
+        # The dtolnay step above installs the x86 target for STABLE, but
+        # rust-toolchain.toml pins nightly, which rustup auto-installs with
+        # host (arm64) std only - so the cross build died with E0463 (can't
+        # find crate for core/std). Add the target to the active toolchain.
         run: |
+          rustup target add x86_64-apple-darwin
           SDKROOT=$(xcrun -sdk macosx --show-sdk-path) cargo build --profile dist --target=x86_64-apple-darwin
       - name: Create Universal Binary
         run: |

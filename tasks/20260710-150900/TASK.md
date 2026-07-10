@@ -31,7 +31,12 @@ only in the x86 step), which matches the runner's native arch having std
 by default.
 
 Not release-blocking per 2026-07-10 decision: macOS/Windows artifacts are
-nice-to-have right now. Fix alongside the next release (v0.4.1) or
-whenever the workflow is next touched, and verify with a
-`workflow_dispatch` run (version input form `v1.2.3`) instead of a new
-tag.
+nice-to-have right now.
+
+2026-07-10: fix applied to `.github/workflows/release.yaml` - the dtolnay
+step installs the x86 target for stable, but rust-toolchain.toml pins
+nightly (auto-installed with host arm64 std only), so the build step now
+runs `rustup target add x86_64-apple-darwin` against the active toolchain
+first. Verify with a `workflow_dispatch` run (version input form
+`v1.2.3`) or the v0.4.1 release; close once a macOS dmg lands on a
+release.
