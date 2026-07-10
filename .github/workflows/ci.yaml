@@ -19,8 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     # examples_smoke launches real gameplay subprocesses with no internal
     # timeout; under lavapipe a wedged example would otherwise hang the runner
-    # up to GitHub's 6h cap. Fail fast instead - a clean run is well under this.
-    timeout-minutes: 30
+    # up to GitHub's 6h cap. Fail fast instead - a warm-cache run is well
+    # under this; the budget exists for cold-cache runs, which pay one full
+    # build of the tree on 2 cores.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -46,27 +48,38 @@ jobs:
       - name: Install Rust nightly toolchain
         run: rustup toolchain install nightly --profile minimal -c rustfmt -c clippy
 
+      # cache-on-failure matters here: while the smoke test was flaky every
+      # run failed, the cache never saved, and every run paid a ~25 min cold
+      # build - which is what blew the job timeout.
       - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
 
       # The suite documented in AGENTS.md ("Build, run, test"), run as CI is now
       # the source of truth for it.
       - name: Formatting
         run: cargo fmt --check
 
+      # One clippy pass, workspace-wide, with the debug feature on. `debug`
+      # fans out to every crate's debug feature (nova_debug has none - it IS
+      # the debug tooling - and cargo is fine with that), so this lints the
+      # debug-gated code too. A second default-features pass would only add
+      # coverage of `cfg(not(feature = "debug"))` branches (one trivial one
+      # exists) and costs a near-full second check build on 2 cores.
       - name: Clippy
-        run: cargo clippy --workspace --all-targets
+        run: cargo clippy --workspace --all-targets --features debug
 
-      # The `debug` feature is defined on the root `nova-protocol` package and
-      # fans out to every crate's debug feature, so linting the root package
-      # with it enabled covers all the debug-gated tooling in one pass.
-      - name: Clippy (debug feature)
-        run: cargo clippy --all-targets --features debug
-
-      # `cargo test --workspace` runs every crate's tests. No DISPLAY is set,
-      # so tests/examples_smoke.rs skips itself loudly; this step is the pure
+      # Every crate's tests, with the same feature set the smoke examples use.
+      # That feature match is the whole point: `debug` flips bevy/track_location,
+      # so testing with default features and then running examples with
+      # `--features debug` rebuilds Bevy and everything downstream a second
+      # time - the other half of what blew the job timeout. This step also
+      # builds the example binaries (cargo test builds examples), so the smoke
+      # step below reuses them as-is. No DISPLAY is set here, so
+      # tests/examples_smoke.rs skips itself loudly; this is the pure
       # unit/integration gate.
       - name: Tests
-        run: cargo test --workspace
+        run: cargo test --workspace --features debug
 
       # The windowed examples smoke test: spawns each harnessed example under
       # BCS_AUTOPILOT/Xvfb (lavapipe renders) and asserts it reaches gameplay
@@ -80,4 +93,7 @@ jobs:
         continue-on-error: true
         env:
           RUST_BACKTRACE: full
-        run: xvfb-run --auto-servernum cargo test -p nova-protocol --test examples_smoke
+        # --features debug here too: the test binary links the nova-protocol
+        # lib, and building it with default features would flip
+        # bevy/track_location back off and rebuild Bevy inside this step.
+        run: xvfb-run --auto-servernum cargo test -p nova-protocol --test examples_smoke --features debug
