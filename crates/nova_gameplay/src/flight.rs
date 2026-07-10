@@ -41,8 +41,8 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        Autopilot, AutopilotAction, AutopilotPhase, FlightIntent, FlightSettings, NovaFlightPlugin,
-        NovaFlightSystems, OrbitPlan,
+        Autopilot, AutopilotAction, AutopilotPhase, FlightIntent, FlightSettings,
+        ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
     };
 }
 
@@ -152,6 +152,52 @@ pub struct OrbitPlan {
     /// Orbit plane unit normal; travel direction on the ring is
     /// `normal x radial`.
     pub normal: Vec3,
+}
+
+/// Live numbers for an engaged GOTO/GotoPos leg, published on the ship by
+/// [`autopilot_system`] every tick and removed when the leg ends (verb
+/// switch clears it in-system; disengage clears it via
+/// `remove_maneuver_telemetry`). This is the physics-side seam the HUD
+/// instruments read (task 20260709-103454) - the arrival-rule internals
+/// (brake authority, rotation lead) stay in the autopilot, the readouts
+/// stay dumb.
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+#[reflect(Component)]
+pub struct ManeuverTelemetry {
+    /// The leg's destination, world coordinates (the tracked entity's
+    /// current position for GOTO).
+    pub goal: Vec3,
+    /// The tracked destination entity for GOTO legs (`None` for GotoPos),
+    /// so the HUD can anchor the readout to the same interpolated
+    /// transform as the destination marker instead of the fixed-tick
+    /// `goal` snapshot - a moving target would otherwise slide the
+    /// caption off its marker.
+    pub goal_entity: Option<Entity>,
+    /// Distance to the goal center, world units.
+    pub distance: f32,
+    /// Speed along the line to the goal, u/s (negative = opening).
+    pub closing_speed: f32,
+    /// The deceleration the arrival plan brakes with (margin applied),
+    /// u/s^2. Zero inside the standoff.
+    pub brake_accel: f32,
+    /// Where on the path the flip-and-burn starts, world coordinates;
+    /// `None` once braking has begun (or the estimate is meaningless at
+    /// near-zero closing speed). Under heavy lateral drift the estimate
+    /// runs optimistic: the flip math uses the along-track speed while
+    /// the controller spends authority killing the lateral first.
+    pub flip_point: Option<Vec3>,
+    /// Coast time until the flip point, seconds.
+    pub seconds_to_flip: Option<f32>,
+    /// Rough time to arrival, seconds: coast to the flip plus the brake
+    /// ramp. An estimate for the instruments, not a promise.
+    pub eta: Option<f32>,
+}
+
+/// Disengaging ends the leg: drop its published numbers with it.
+fn remove_maneuver_telemetry(remove: On<Remove, Autopilot>, mut commands: Commands) {
+    if let Ok(mut ship) = commands.get_entity(remove.entity) {
+        ship.remove::<ManeuverTelemetry>();
+    }
 }
 
 /// Which part of the maneuver the ship is in, for the HUD readout.
@@ -314,10 +360,12 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<Autopilot>()
             .register_type::<AutopilotAction>()
             .register_type::<AutopilotPhase>()
-            .register_type::<OrbitPlan>();
+            .register_type::<OrbitPlan>()
+            .register_type::<ManeuverTelemetry>();
 
         app.add_observer(insert_flight_control);
         app.add_observer(on_autopilot_removed_cool_engines);
+        app.add_observer(remove_maneuver_telemetry);
 
         app.configure_sets(
             FixedUpdate,
@@ -377,6 +425,57 @@ fn goto_desired_velocity(
     }
     let speed = arrival_speed_limit(remaining, accel, margin, lead_time).max(min_approach.max(0.0));
     (to_target / distance) * speed
+}
+
+/// Where the flip-and-burn starts for the current state of a GOTO leg.
+/// Mirrors the arrival rule the autopilot actually flies
+/// ([`arrival_speed_limit`]): braking from `closing_speed` at
+/// `brake_accel` covers `v^2 / (2a)`, and the flip rotation + spool
+/// budget adds `v * lead` of un-braked travel, so the flip sits that far
+/// outside the standoff. Returns `(distance from the goal center, coast
+/// seconds until the ship gets there)`, or `None` when braking has
+/// already begun or the closing speed is too small for the coast estimate
+/// to mean anything. Pure for unit testing.
+pub(crate) fn goto_flip_point(
+    distance: f32,
+    closing_speed: f32,
+    brake_accel: f32,
+    lead_time: f32,
+    standoff: f32,
+) -> Option<(f32, f32)> {
+    if closing_speed < 0.5 || brake_accel <= 0.0 {
+        return None;
+    }
+    let brake_distance = closing_speed * closing_speed / (2.0 * brake_accel);
+    let flip_from_goal = standoff + closing_speed * lead_time.max(0.0) + brake_distance;
+    let coast = distance - flip_from_goal;
+    if coast <= 0.0 {
+        return None;
+    }
+    Some((flip_from_goal, coast / closing_speed))
+}
+
+/// Rough arrival estimate for a GOTO leg: coast to the flip point plus the
+/// brake ramp (`v / a`); once braking, twice the remaining distance over
+/// the closing speed (the mean of a linear ramp to zero). `None` when the
+/// closing speed is too small to estimate. Pure for unit testing.
+pub(crate) fn arrival_eta(
+    distance: f32,
+    closing_speed: f32,
+    brake_accel: f32,
+    lead_time: f32,
+    standoff: f32,
+) -> Option<f32> {
+    if closing_speed < 0.5 {
+        return None;
+    }
+    let remaining = (distance - standoff).max(0.0);
+    match goto_flip_point(distance, closing_speed, brake_accel, lead_time, standoff) {
+        Some((_, coast)) => {
+            Some(coast + lead_time.max(0.0) + closing_speed / brake_accel.max(1e-3))
+        }
+        None => Some(2.0 * remaining / closing_speed),
+    }
 }
 
 /// The ORBIT plan's plane normal. The natural plane is the one the ship is
@@ -476,6 +575,12 @@ fn orbit_ring_radial(r_vec: Vec3, plan: &OrbitPlan) -> Vec3 {
 /// combined radial and out-of-plane error the ORBIT correction burns down.
 pub(crate) fn orbit_ring_offset(r_vec: Vec3, plan: &OrbitPlan) -> Vec3 {
     orbit_ring_radial(r_vec, plan) * plan.radius - r_vec
+}
+
+/// The planned ring's point nearest the ship, as an offset from the well
+/// center - where the HUD anchors the orbit chip.
+pub(crate) fn orbit_ring_point(r_vec: Vec3, plan: &OrbitPlan) -> Vec3 {
+    orbit_ring_radial(r_vec, plan) * plan.radius
 }
 
 /// Rotate `current` toward `target` by at most `max_step` radians. The PD's
@@ -871,6 +976,7 @@ fn autopilot_system(
             &ComputedMass,
             &ComputedAngularInertia,
             Option<&ComputedCenterOfMass>,
+            Has<ManeuverTelemetry>,
         ),
         With<SpaceshipRootMarker>,
     >,
@@ -920,7 +1026,9 @@ fn autopilot_system(
 ) {
     let dt = time.delta_secs();
 
-    for (ship, mut autopilot, position, rotation, velocity, mass, inertia, com) in &mut q_ship {
+    for (ship, mut autopilot, position, rotation, velocity, mass, inertia, com, has_telemetry) in
+        &mut q_ship
+    {
         // No flight computer, no autopilot - the ship is adrift on manual.
         // The turn-rate budget derives from the strongest live computer (see
         // ship_turn_rate).
@@ -1021,26 +1129,71 @@ fn autopilot_system(
 
         // The arrival leg shared by GOTO and GotoPos: fly at the goal, come
         // to rest at the standoff.
-        let arrival_desired = |goal: Vec3| -> Vec3 {
+        let arrival_desired = |goal: Vec3| -> (Vec3, ManeuverTelemetry) {
             let to_target = goal - position.0;
-            if to_target.length() <= settings.arrival_standoff {
-                Vec3::ZERO
+            let distance = to_target.length();
+            let closing_speed = velocity.dot(to_target.normalize_or_zero());
+            if distance <= settings.arrival_standoff {
+                (
+                    Vec3::ZERO,
+                    ManeuverTelemetry {
+                        goal,
+                        goal_entity: None,
+                        distance,
+                        closing_speed,
+                        brake_accel: 0.0,
+                        flip_point: None,
+                        seconds_to_flip: None,
+                        eta: None,
+                    },
+                )
             } else {
                 let brake_dir = -to_target.normalize();
                 let brake_speed = velocity.length().max(settings.min_approach_speed);
                 let (accel, lead) = braking_plan(brake_dir, brake_speed);
-                goto_desired_velocity(
-                    to_target,
-                    settings.arrival_standoff,
-                    accel,
-                    settings.decel_margin,
+                let brake_accel = accel * settings.decel_margin;
+                let flip = goto_flip_point(
+                    distance,
+                    closing_speed,
+                    brake_accel,
                     lead,
-                    settings.min_approach_speed,
+                    settings.arrival_standoff,
+                );
+                let eta = arrival_eta(
+                    distance,
+                    closing_speed,
+                    brake_accel,
+                    lead,
+                    settings.arrival_standoff,
+                );
+                (
+                    goto_desired_velocity(
+                        to_target,
+                        settings.arrival_standoff,
+                        accel,
+                        settings.decel_margin,
+                        lead,
+                        settings.min_approach_speed,
+                    ),
+                    ManeuverTelemetry {
+                        goal,
+                        goal_entity: None,
+                        distance,
+                        closing_speed,
+                        brake_accel,
+                        flip_point: flip
+                            .map(|(from_goal, _)| goal - to_target.normalize() * from_goal),
+                        seconds_to_flip: flip.map(|(_, seconds)| seconds),
+                        eta,
+                    },
                 )
             }
         };
 
-        // The goal, as a desired velocity right now.
+        // The goal, as a desired velocity right now. GOTO legs also publish
+        // their live numbers as [`ManeuverTelemetry`] for the HUD
+        // instruments; the other verbs clear it.
+        let mut telemetry: Option<ManeuverTelemetry> = None;
         let desired = match autopilot.action {
             AutopilotAction::Stop => Vec3::ZERO,
             AutopilotAction::Goto { target } => {
@@ -1049,9 +1202,16 @@ fn autopilot_system(
                     commands.entity(ship).remove::<Autopilot>();
                     continue;
                 };
-                arrival_desired(target_transform.translation())
+                let (desired, mut numbers) = arrival_desired(target_transform.translation());
+                numbers.goal_entity = Some(target);
+                telemetry = Some(numbers);
+                desired
             }
-            AutopilotAction::GotoPos { position } => arrival_desired(position),
+            AutopilotAction::GotoPos { position } => {
+                let (desired, numbers) = arrival_desired(position);
+                telemetry = Some(numbers);
+                desired
+            }
             AutopilotAction::Orbit { well, plan } => {
                 let Ok((well_position, well_data)) = q_wells.get(well) else {
                     debug!("autopilot_system: ORBIT well {well:?} is gone, disengaging");
@@ -1079,6 +1239,19 @@ fn autopilot_system(
                 )
             }
         };
+
+        // Keep the published telemetry in step with the engaged verb: GOTO
+        // legs update it every tick, the other verbs clear a stale one
+        // (disengage clears via remove_maneuver_telemetry).
+        match telemetry {
+            Some(numbers) => {
+                commands.entity(ship).try_insert(numbers);
+            }
+            None if has_telemetry => {
+                commands.entity(ship).remove::<ManeuverTelemetry>();
+            }
+            None => {}
+        }
 
         let error = desired - **velocity;
         let error_speed = error.length();
@@ -2192,6 +2365,7 @@ mod tests {
                 .chain(),
         );
         app.add_observer(on_autopilot_removed_cool_engines);
+        app.add_observer(remove_maneuver_telemetry);
         app.add_systems(
             FixedUpdate,
             (
@@ -2570,6 +2744,98 @@ mod tests {
         assert!(
             app.world().get::<Autopilot>(ship).is_none(),
             "no live flight computer, no ORBIT"
+        );
+    }
+
+    // --- Maneuver telemetry -------------------------------------------------
+
+    #[test]
+    fn goto_flip_point_matches_the_arrival_rule_lead_included() {
+        // 12 u/s at 10 u/s^2 brakes in 7.2u; a 2s rotation lead coasts
+        // another 24u un-braked; standoff 50 -> flip at 81.2 from the
+        // goal, and 300 - 81.2 = 218.8u of coast at 12 u/s. This mirrors
+        // arrival_speed_limit's v*lead + v^2/(2a) exactly - the marker
+        // must sit where the ship actually flips.
+        let flip = goto_flip_point(300.0, 12.0, 10.0, 2.0, 50.0).expect("flip ahead");
+        assert!((flip.0 - 81.2).abs() < 1e-3, "got {}", flip.0);
+        assert!((flip.1 - 218.8 / 12.0).abs() < 1e-3, "got {}", flip.1);
+
+        // Already inside the flip distance: braking has begun, no flip.
+        assert_eq!(goto_flip_point(80.0, 12.0, 10.0, 2.0, 50.0), None);
+        // Near-zero closing speed or no brake authority: no estimate.
+        assert_eq!(goto_flip_point(300.0, 0.1, 10.0, 2.0, 50.0), None);
+        assert_eq!(goto_flip_point(300.0, 12.0, 0.0, 2.0, 50.0), None);
+    }
+
+    #[test]
+    fn arrival_eta_covers_coast_and_brake_regimes() {
+        // Coasting: coast + lead + the brake ramp (12/10 = 1.2s).
+        let eta = arrival_eta(300.0, 12.0, 10.0, 2.0, 50.0).expect("eta");
+        assert!((eta - (218.8 / 12.0 + 2.0 + 1.2)).abs() < 1e-3, "got {eta}");
+        // Braking: twice the remaining distance over the closing speed.
+        let braking = arrival_eta(55.0, 12.0, 10.0, 2.0, 50.0).expect("eta");
+        assert!((braking - 2.0 * 5.0 / 12.0).abs() < 1e-3, "got {braking}");
+        // No closing speed, no estimate.
+        assert_eq!(arrival_eta(300.0, 0.1, 10.0, 2.0, 50.0), None);
+    }
+
+    #[test]
+    fn goto_publishes_telemetry_and_disengaging_clears_it() {
+        let mut app = flight_app();
+        let (ship, _, _) = spawn_ship(&mut app);
+        settle(&mut app);
+        let goal = Vec3::new(0.0, 0.0, -300.0);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::GotoPos {
+                position: goal,
+            }));
+
+        // Sample early in the burn, while the flip (which now includes the
+        // rotation lead, so it comes sooner) is still ahead.
+        run(&mut app, 120);
+        let telemetry = app
+            .world()
+            .get::<ManeuverTelemetry>(ship)
+            .expect("an engaged GOTO publishes telemetry");
+        assert_eq!(telemetry.goal, goal);
+        assert_eq!(telemetry.goal_entity, None, "GotoPos tracks no entity");
+        assert!(telemetry.closing_speed > 0.5, "the ship closes on the goal");
+        let flip = telemetry.flip_point.expect("flip ahead while coasting");
+        // The flip point sits on the segment between ship and goal.
+        let ship_position = position_of(&app, ship);
+        let along = (flip - ship_position).dot(goal - ship_position);
+        assert!(along > 0.0, "flip is ahead of the ship");
+        assert!(
+            flip.distance(goal) < ship_position.distance(goal),
+            "flip is short of the goal"
+        );
+        assert!(telemetry.eta.expect("eta while closing") > 0.0);
+
+        // Switching verbs (insert-overwrite: OnRemove does NOT fire, the
+        // in-system Has branch must carry it) clears the numbers too.
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+        run(&mut app, 2);
+        assert!(
+            app.world().get::<ManeuverTelemetry>(ship).is_none(),
+            "a verb switch ends the leg and its telemetry"
+        );
+
+        // Breakout clears the numbers with the maneuver.
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::GotoPos {
+                position: goal,
+            }));
+        run(&mut app, 60);
+        assert!(app.world().get::<ManeuverTelemetry>(ship).is_some());
+        app.world_mut().entity_mut(ship).remove::<Autopilot>();
+        run(&mut app, 2);
+        assert!(
+            app.world().get::<ManeuverTelemetry>(ship).is_none(),
+            "telemetry dies with the leg"
         );
     }
 

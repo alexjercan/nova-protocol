@@ -4,6 +4,7 @@ use crate::prelude::*;
 
 pub mod component_lock;
 pub mod flight_status;
+pub mod maneuver_instruments;
 pub mod screen_indicator;
 pub mod torpedo_target;
 pub mod turret_lead;
@@ -11,14 +12,19 @@ pub mod velocity;
 
 pub mod prelude {
     pub use super::{
-        component_lock::prelude::*, flight_status::prelude::*, screen_indicator::prelude::*,
-        torpedo_target::prelude::*, turret_lead::prelude::*, velocity::prelude::*, NovaHudAssets,
-        NovaHudPlugin, NovaHudSystems,
+        component_lock::prelude::*, flight_status::prelude::*, maneuver_instruments::prelude::*,
+        screen_indicator::prelude::*, torpedo_target::prelude::*, turret_lead::prelude::*,
+        velocity::prelude::*, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
     };
 }
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NovaHudSystems;
+
+/// Nav cyan, the family color of every flight-computer projection (the
+/// destination marker tint, the orbit cue, the maneuver chips, the holo
+/// ring).
+pub(crate) const NAV_CYAN: Color = Color::srgba(0.3, 0.9, 1.0, 0.9);
 
 #[derive(Resource, Clone, Default, Debug)]
 pub struct NovaHudAssets {
@@ -36,6 +42,7 @@ impl Plugin for NovaHudPlugin {
 
         app.add_plugins(velocity::VelocityHudPlugin);
         app.add_plugins(flight_status::FlightStatusHudPlugin);
+        app.add_plugins(maneuver_instruments::ManeuverInstrumentsPlugin);
         // The health and objectives HUDs are now the generic bevy_common_systems widgets.
         app.add_plugins(HealthDisplayPlugin);
         app.add_plugins(ObjectivesPlugin);
@@ -166,6 +173,9 @@ fn setup_hud_flight_status(
     commands.spawn((orbit_available_hud(OrbitAvailableHudConfig {
         ship: spaceship,
     }),));
+    commands.spawn((maneuver_instruments_hud(ManeuverInstrumentsHudConfig {
+        ship: spaceship,
+    }),));
 }
 
 fn remove_hud_flight_status(
@@ -174,6 +184,8 @@ fn remove_hud_flight_status(
     q_hud: Query<(Entity, &FlightStatusHudTargetEntity), With<FlightStatusHudMarker>>,
     q_destination: Query<Entity, With<AutopilotDestinationHudMarker>>,
     q_orbit_cue: Query<Entity, With<OrbitAvailableHudMarker>>,
+    q_instruments: Query<Entity, With<ManeuverInstrumentsHudMarker>>,
+    q_ring: Query<Entity, With<OrbitRingMarker>>,
 ) {
     let entity = remove.entity;
     debug!("remove_hud_flight_status: entity {:?}", entity);
@@ -187,6 +199,12 @@ fn remove_hud_flight_status(
         commands.entity(hud_entity).despawn();
     }
     for hud_entity in &q_orbit_cue {
+        commands.entity(hud_entity).despawn();
+    }
+    for hud_entity in &q_instruments {
+        commands.entity(hud_entity).despawn();
+    }
+    for hud_entity in &q_ring {
         commands.entity(hud_entity).despawn();
     }
 }

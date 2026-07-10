@@ -6,7 +6,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use super::screen_indicator::prelude::*;
+use super::{screen_indicator::prelude::*, NAV_CYAN};
 use crate::{
     flight::{prelude::*, GravStatus},
     gravity::prelude::*,
@@ -109,8 +109,7 @@ pub fn autopilot_destination_hud(config: AutopilotDestinationHudConfig) -> impl 
             }),
             // Reuse the target sprite, tinted toward "nav" cyan so it never
             // reads as a weapons lock.
-            ImageNode::new(config.marker_sprite.clone())
-                .with_color(Color::srgba(0.3, 0.9, 1.0, 0.9)),
+            ImageNode::new(config.marker_sprite.clone()).with_color(NAV_CYAN),
         )],
     )
 }
@@ -255,7 +254,7 @@ pub fn orbit_available_hud(config: OrbitAvailableHudConfig) -> impl Bundle {
             }),
             Text::new("[O] ORBIT"),
             TextFont::from_font_size(12.0),
-            TextColor(Color::srgba(0.3, 0.9, 1.0, 0.9)),
+            TextColor(NAV_CYAN),
         )],
     )
 }
