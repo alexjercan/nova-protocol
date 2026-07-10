@@ -21,7 +21,6 @@ use crate::{
     flight::{orbit_ring_point, prelude::*},
     gravity::prelude::*,
     input::prelude::*,
-    sections::prelude::*,
 };
 
 pub mod prelude {
@@ -351,6 +350,7 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
+    use crate::sections::prelude::*;
 
     fn spawn_instruments(world: &mut World, ship: Entity) -> (Entity, Entity, Entity) {
         let layer = world
