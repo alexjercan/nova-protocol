@@ -113,6 +113,12 @@ game plugins were supplied) the editor `NovaEditorPlugin` from `nova_editor`, pl
   docs/retros/20260710-174646-keybind-hints.md).
 - Document meaningful changes in `docs/` per the global reflection guideline: what
   changed and why, difficulties, and lessons.
+- Landing hygiene: before `sprout rm` or a squash-merge, verify the worktree is
+  clean (`git -C <worktree> status --porcelain` empty) and the branch tip is the
+  commit you just made. Never gate a `git commit` behind a grep in an `&&` chain -
+  `grep -c`/`grep -q` exit nonzero on zero matches and silently skip the rest
+  (this deleted a worktree with uncommitted review fixes once - see
+  docs/retros/20260710-202408-surface-relative-standoff.md).
 
 ## Deeper docs
 
