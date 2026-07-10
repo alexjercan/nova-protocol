@@ -31,12 +31,14 @@ jobs:
       # LAUNCHES the harnessed examples (they use DefaultPlugins and open a real
       # window), so we also need a Vulkan loader plus mesa's software rasterizer
       # (lavapipe) to render with no GPU, and Xvfb to give winit an X display.
+      # winit's X11 backend also dlopens libxkbcommon-x11.so.0 at runtime (the
+      # -dev package only ships libxkbcommon.so), hence libxkbcommon-x11-0.
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
             libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev \
-            libvulkan1 mesa-vulkan-drivers xvfb
+            libxkbcommon-x11-0 libvulkan1 mesa-vulkan-drivers xvfb
 
       # rust-toolchain.toml pins nightly with rustfmt + clippy; install it
       # explicitly so a toolchain problem surfaces here instead of being folded
