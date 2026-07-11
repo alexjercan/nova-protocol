@@ -111,7 +111,11 @@ retros.
   `Position`/`Rotation`; render-rate consumers read eased
   `Transform`/`GlobalTransform`, all poses in one computation from one
   frame. Full rule and fix record:
-  docs/spikes/20260711-103527-twitching-family-two-clocks.md.
+  docs/spikes/20260711-103527-twitching-family-two-clocks.md. The
+  raw-clock spawn pattern lives in the shared `local_pose_in_root`
+  (sections/mod.rs) since 20260711-114640; freshly spawned interpolated
+  bodies also seed their easing `start` (20260711-121839) so the first
+  rendered frame sits on the render clock.
 - `degenerate-inertia-frames` (x1): avian's eigen sort gives even an
   axis-aligned symmetric ship a cyclic-permutation local frame; frame
   composition code must be tested with both frames non-identity.
