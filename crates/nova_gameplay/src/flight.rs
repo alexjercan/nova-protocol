@@ -4243,4 +4243,235 @@ mod tests {
         assert!(speed < 0.5, "STOP should reach rest, got {speed}");
         assert!(app.world().get::<Autopilot>(ship).is_none());
     }
+
+    // --- SPIKE DIAGNOSTIC (20260711-125227): GOTO wobble trace ------------
+    //
+    // Production runs `update_controller_section_rotation_input` in the
+    // Update schedule (controller_section.rs), while the autopilot writes
+    // the command and the PD consumes `PDControllerInput` in FixedUpdate.
+    // The flight test harness instead runs the copy in FixedUpdate, chained
+    // right after the autopilot - a same-tick handoff production does not
+    // have. This diagnostic runs the SAME GotoPos leg under both wirings
+    // and traces hull spin, the command staleness the PD actually sees
+    // (sampled inside FixedUpdate after PDControllerSystems::Sync), and PD
+    // torque, to measure whether the cross-clock handoff is the wobble.
+
+    #[derive(Resource, Default)]
+    struct DiagTrace {
+        // per fixed tick: (stale_angle_rad, pd_torque_len)
+        ticks: Vec<(f32, f32)>,
+    }
+
+    fn diag_probe(
+        mut trace: ResMut<DiagTrace>,
+        q_controller: Query<
+            (
+                &PDControllerInput,
+                &ControllerSectionRotationInput,
+                &PDControllerOutput,
+            ),
+            With<ControllerSectionMarker>,
+        >,
+    ) {
+        for (pd_input, command, output) in &q_controller {
+            trace
+                .ticks
+                .push((pd_input.angle_between(**command), output.length()));
+        }
+    }
+
+    fn diag_app(prod_wiring: bool) -> App {
+        let mut app = unfinished_integrity_physics_app();
+        app.init_resource::<FlightSettings>();
+        app.init_resource::<GravitySettings>();
+        app.init_resource::<DiagTrace>();
+        app.add_plugins(PDControllerPlugin);
+        app.configure_sets(
+            FixedUpdate,
+            (
+                NovaFlightSystems,
+                PDControllerSystems::Sync,
+                SpaceshipSectionSystems,
+            )
+                .chain(),
+        );
+        app.add_observer(on_autopilot_removed_cool_engines);
+        app.add_observer(remove_maneuver_telemetry);
+        if prod_wiring {
+            // Shipped schedules: command copy on the render clock.
+            app.add_systems(
+                FixedUpdate,
+                (autopilot_system, manual_burn_system)
+                    .chain()
+                    .in_set(NovaFlightSystems),
+            );
+            app.add_systems(Update, update_controller_section_rotation_input);
+        } else {
+            // Test-harness schedules: same-tick handoff.
+            app.add_systems(
+                FixedUpdate,
+                (
+                    autopilot_system,
+                    manual_burn_system,
+                    update_controller_section_rotation_input,
+                )
+                    .chain()
+                    .in_set(NovaFlightSystems),
+            );
+        }
+        app.add_systems(
+            FixedUpdate,
+            (
+                sync_controller_section_forces,
+                thruster_impulse_system,
+                diag_probe,
+            )
+                .in_set(SpaceshipSectionSystems),
+        );
+        app.finish();
+        app
+    }
+
+    /// Shipped 5-section player geometry (same as
+    /// `hold_reverse_decel_from_300_keeps_the_hull_steady`).
+    fn diag_ship(app: &mut App) -> (Entity, Entity) {
+        let ship = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                TransformInterpolation,
+                SpaceshipRootMarker,
+                FlightIntent::default(),
+            ))
+            .id();
+        let section = |app: &mut App, name: &str, z: f32| {
+            app.world_mut()
+                .spawn((
+                    ChildOf(ship),
+                    Name::new(name.to_string()),
+                    Transform::from_xyz(0.0, 0.0, z),
+                    Collider::cuboid(1.0, 1.0, 1.0),
+                    ColliderDensity(1.0),
+                ))
+                .id()
+        };
+        let controller = section(app, "controller", 0.0);
+        app.world_mut().entity_mut(controller).insert((
+            ControllerSectionMarker,
+            ControllerSectionRotationInput::default(),
+            PDController {
+                frequency: 4.0,
+                damping_ratio: 4.0,
+                max_torque: 40.0,
+            },
+            PDControllerTarget(ship),
+        ));
+        section(app, "hull_front", 1.0);
+        section(app, "hull_back", -1.0);
+        let thruster = section(app, "thruster", 2.0);
+        app.world_mut().entity_mut(thruster).insert((
+            ThrusterSectionMarker,
+            ThrusterSectionMagnitude(1.0),
+            ThrusterSectionInput(0.0),
+        ));
+        section(app, "turret_mass", -2.0);
+        settle(app);
+        (ship, controller)
+    }
+
+    #[test]
+    #[ignore = "spike diagnostic, not a regression"]
+    fn goto_wobble_diagnostic() {
+        for (label, prod_wiring, deadband) in [
+            ("TEST (FixedUpdate copy)", false, 0.4f32),
+            ("PROD (Update copy)", true, 0.4),
+            ("PROD deadband=0.6", true, 0.6),
+            ("PROD deadband=0.75", true, 0.75),
+        ] {
+            let mut app = diag_app(prod_wiring);
+            app.world_mut()
+                .resource_mut::<FlightSettings>()
+                .attitude_deadband = deadband;
+            let (ship, controller) = diag_ship(&mut app);
+            app.world_mut()
+                .entity_mut(ship)
+                .insert(Autopilot::engage(AutopilotAction::GotoPos {
+                    // 30 deg off the nose so the leg includes a real
+                    // align turn, then accel, flip, brake, arrive.
+                    position: Vec3::new(300.0, 0.0, -600.0),
+                }));
+
+            let goal = Vec3::new(300.0, 0.0, -600.0);
+            let standoff = app.world().resource::<FlightSettings>().arrival_standoff;
+            let line_dir = goal.normalize();
+            let mut frames_to_done = None;
+            let mut max_lateral = 0.0f32;
+            // (frame, spin, speed, dist_to_standoff, cmd_vs_hull)
+            let mut samples: Vec<(usize, f32, f32, f32, f32)> = Vec::new();
+            for frame in 0..4000 {
+                app.update();
+                let spin = app.world().get::<AngularVelocity>(ship).unwrap().length();
+                let pos = position_of(&app, ship);
+                let speed = velocity_of(&app, ship).length();
+                let remaining = (goal - pos).length() - standoff;
+                let lateral = (pos - line_dir * pos.dot(line_dir)).length();
+                max_lateral = max_lateral.max(lateral);
+                let cmd = app
+                    .world()
+                    .get::<ControllerSectionRotationInput>(controller)
+                    .unwrap()
+                    .0;
+                let hull = app.world().get::<Rotation>(ship).unwrap().0;
+                let cmd_err = cmd.angle_between(hull);
+                samples.push((frame, spin, speed, remaining, cmd_err));
+                if app.world().get::<Autopilot>(ship).is_none() {
+                    frames_to_done = Some(frame);
+                    break;
+                }
+            }
+            let release_speed = velocity_of(&app, ship).length();
+            let release_spin = app.world().get::<AngularVelocity>(ship).unwrap().length();
+
+            // Phase segmentation: align+accel until the flip command starts
+            // (cmd_vs_hull jumps past 0.5), flip+brake until remaining < 15,
+            // terminal after that.
+            let flip_start = samples
+                .iter()
+                .position(|&(_, _, _, _, c)| c > 0.5)
+                .unwrap_or(samples.len());
+            let term_start = samples
+                .iter()
+                .position(|&(_, _, _, r, _)| r < 15.0)
+                .unwrap_or(samples.len());
+            let stats = |range: &[(usize, f32, f32, f32, f32)]| -> (f32, f32) {
+                let n = range.len().max(1) as f32;
+                let max = range.iter().map(|&(_, s, ..)| s).fold(0.0f32, f32::max);
+                let rms = (range.iter().map(|&(_, s, ..)| s * s).sum::<f32>() / n).sqrt();
+                (max, rms)
+            };
+            let (accel_max, accel_rms) = stats(&samples[..flip_start.min(samples.len())]);
+            let (mid_max, mid_rms) =
+                stats(&samples[flip_start.min(samples.len())..term_start.min(samples.len())]);
+            let (term_max, term_rms) = stats(&samples[term_start.min(samples.len())..]);
+
+            let trace = app.world().resource::<DiagTrace>();
+            let n = trace.ticks.len().max(1) as f32;
+            let mean_stale = trace.ticks.iter().map(|(a, _)| a).sum::<f32>() / n;
+            let max_stale = trace.ticks.iter().map(|(a, _)| *a).fold(0.0f32, f32::max);
+            let mean_torque = trace.ticks.iter().map(|(_, t)| t).sum::<f32>() / n;
+            println!(
+                "[{label}] SUMMARY done={frames_to_done:?} \
+                 accel(max/rms)={accel_max:.4}/{accel_rms:.4} \
+                 flip+brake(max/rms)={mid_max:.4}/{mid_rms:.4} \
+                 terminal(max/rms)={term_max:.4}/{term_rms:.4} \
+                 terminal_frames={} \
+                 release(speed/spin)={release_speed:.3}/{release_spin:.3} \
+                 max_lateral={max_lateral:.2} \
+                 pd_stale mean={mean_stale:.5} max={max_stale:.5} \
+                 mean_torque={mean_torque:.3}",
+                samples.len().saturating_sub(term_start),
+            );
+        }
+    }
 }
