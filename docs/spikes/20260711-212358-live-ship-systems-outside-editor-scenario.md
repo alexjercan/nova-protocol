@@ -193,4 +193,18 @@ these land (the last task's notes carry the reminder).
 
 ## Fix record
 
-(appended by implementing tasks as they land)
+- 20260711-212519 (landed 953939d): spaceship set gating moved to
+  nova_scenario, run_if scenario_is_live (CurrentScenario.is_some());
+  editor preview inert via the never-a-live-scenario invariant (tested).
+  Review APPROVE r1. See tasks/20260711-212519/TASK.md.
+- 20260711-212521 (landed 24a161b): AIOrbitDirective + passive
+  AIBehaviorState::Orbit + AutopilotAction::Orbit wiring, config surface
+  AIControllerConfig.orbit; retarget-aware, combat overrides, calm
+  resumes. Review APPROVE r2. See tasks/20260711-212521/TASK.md.
+- 20260711-212504: menu orbiter flipped to the AI orbit directive; all
+  ballistic seeding deleted from nova_menu; verified live (thruster flame
+  visible, ship circling, fixed camera). Closes the originating task
+  20260711-185440. See tasks/20260711-212504/TASK.md.
+- Deferred by design: spike Options 2 (scenario event action commanding an
+  orbit) and 3 (autonomous orbiting when passive) - both are later writers
+  of the same AIOrbitDirective / Orbit state.

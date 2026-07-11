@@ -25,17 +25,20 @@ pub(crate) fn register_scenario(
 }
 
 /// The main menu's living backdrop (task 20260711-180455): a big planetoid
-/// with a real gravity well, a scatter of rocks, and one passive ship that
-/// nova_menu puts on a ballistic circular orbit around the planetoid. No
+/// with a real gravity well, a scatter of rocks, and one AI ship flying a
+/// thruster-driven orbit around the planetoid (orbit directive, task
+/// 20260711-212504). No
 /// player, no objectives, no areas - the scene exists to be looked at.
 pub fn menu_ambience(game_assets: &super::GameAssets, sections: &GameSections) -> ScenarioConfig {
     let mut rng = rand::rng();
 
     let mut objects = Vec::new();
 
-    // The stage: a 20u planetoid at the origin at the retuned default well
-    // strength (see asteroid_field's gravity rock; mu = 6 * 20^2 = 2400, so a
-    // 50u orbit circles at ~6.9 u/s - a lazy ~45s lap).
+    // The stage: a nominally-20u planetoid at the origin with an authored
+    // surface gravity of 6 u/s^2. The nominal numbers are only the inputs:
+    // the runtime well derives mu and SOI from the GEOMETRIC collider
+    // radius (observed ~80-91u across seeds; insert_asteroid_gravity_well),
+    // so the real mu lands well above the nominal 6 * 20^2 = 2400.
     objects.push(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: "menu_planetoid".to_string(),
@@ -85,17 +88,16 @@ pub fn menu_ambience(game_assets: &super::GameAssets, sections: &GameSections) -
         });
     }
 
-    // The actor: a passive ship. It spawns comfortably outside the planetoid's
-    // geometric surface (the noise mesh reaches several times past the nominal
-    // 20u); nova_menu then re-stages it onto the actual orbit radius derived
-    // from the well's runtime body_radius and seeds its tangential velocity
-    // (the spawn path has no velocity field, and with controller None nothing
-    // drives the thrusters). WARNING: the spaceship input/section sets ARE
-    // live in MainMenu - this scenario is a loaded scenario like any other
-    // (scenario_is_live gating, nova_scenario) - so keep ambience ships off
-    // SpaceshipController::Player, and know that a controller section's PD
-    // attitude hold runs here (it holds the spawn attitude; torque only, the
-    // ballistic orbit is unaffected).
+    // The actor: an AI ship directed to orbit the planetoid on its own
+    // thrusters (task 20260711-212504) - the ORBIT autopilot plans its ring
+    // from the well's runtime geometry, so no staging math lives here or in
+    // nova_menu. It spawns comfortably outside the planetoid's geometric
+    // surface (the noise mesh reaches several times past the nominal 20u)
+    // and inside its SOI, and flies itself in from there. WARNING: the
+    // spaceship input/section sets ARE live in MainMenu - this scenario is
+    // a loaded scenario like any other (scenario_is_live gating,
+    // nova_scenario) - so keep ambience ships off
+    // SpaceshipController::Player.
     objects.push(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: "menu_orbiter".to_string(),
@@ -104,7 +106,10 @@ pub fn menu_ambience(game_assets: &super::GameAssets, sections: &GameSections) -
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            controller: SpaceshipController::None,
+            controller: SpaceshipController::AI(AIControllerConfig {
+                orbit: Some("menu_planetoid".to_string()),
+                ..Default::default()
+            }),
             sections: vec![
                 SpaceshipSectionConfig {
                     id: "controller".to_string(),
@@ -536,5 +541,103 @@ pub fn asteroid_next(game_assets: &super::GameAssets, _sections: &GameSections) 
         description: "The next scenario after the asteroid field.".to_string(),
         cubemap: game_assets.cubemap.clone(),
         events,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::ecs::system::RunSystemOnce;
+
+    use super::*;
+
+    /// A GameAssets with default handles - fine for config-shape tests,
+    /// which never resolve the assets.
+    fn dummy_assets() -> crate::GameAssets {
+        crate::GameAssets {
+            cubemap: Handle::default(),
+            asteroid_texture: Handle::default(),
+            hull_01: Handle::default(),
+            turret_yaw_01: Handle::default(),
+            turret_pitch_01: Handle::default(),
+            turret_barrel_01: Handle::default(),
+            torpedo_bay_01: Handle::default(),
+            fps_icon: Handle::default(),
+            target_sprite: Handle::default(),
+        }
+    }
+
+    /// The real section registry, built by the production register_sections
+    /// system against the dummy assets.
+    fn real_sections() -> GameSections {
+        let mut world = World::new();
+        world.insert_resource(dummy_assets());
+        world
+            .run_system_once(crate::sections::register_sections)
+            .unwrap();
+        world.remove_resource::<GameSections>().unwrap()
+    }
+
+    /// The menu backdrop's contract (task 20260711-212504): the orbiter is
+    /// an AI ship directed to orbit the planetoid on its own thrusters -
+    /// controller + thruster sections aboard, directive pointing at an
+    /// object that actually exists in the same scenario and carries an
+    /// authored surface gravity (so it gets a well at spawn).
+    #[test]
+    fn menu_orbiter_is_an_ai_ship_directed_at_the_planetoid() {
+        let assets = dummy_assets();
+        let scenario = menu_ambience(&assets, &real_sections());
+
+        let spawns: Vec<_> = scenario
+            .events
+            .iter()
+            .flat_map(|event| event.actions.iter())
+            .filter_map(|action| match action {
+                EventActionConfig::SpawnScenarioObject(object) => Some(object),
+                _ => None,
+            })
+            .collect();
+
+        let orbiter = spawns
+            .iter()
+            .find(|object| object.base.id == "menu_orbiter")
+            .expect("the backdrop spawns the orbiter");
+        let ScenarioObjectKind::Spaceship(ship) = &orbiter.kind else {
+            panic!("the orbiter is a spaceship");
+        };
+        let SpaceshipController::AI(ai) = &ship.controller else {
+            panic!("the orbiter is AI-controlled, got {:?}", ship.controller);
+        };
+        assert_eq!(
+            ai.orbit.as_deref(),
+            Some("menu_planetoid"),
+            "the directive targets the planetoid"
+        );
+        let has = |kind: fn(&SectionKind) -> bool| {
+            ship.sections
+                .iter()
+                .any(|section| kind(&section.config.kind))
+        };
+        assert!(
+            has(|kind| matches!(kind, SectionKind::Controller(_))),
+            "a controller section flies the autopilot's attitude commands"
+        );
+        assert!(
+            has(|kind| matches!(kind, SectionKind::Thruster(_))),
+            "a thruster section provides the burn"
+        );
+
+        // The directive's target exists and gets a gravity well at spawn
+        // (authored surface gravity), so the ORBIT autopilot can engage.
+        let planetoid = spawns
+            .iter()
+            .find(|object| object.base.id == "menu_planetoid")
+            .expect("the backdrop spawns the planetoid the directive names");
+        let ScenarioObjectKind::Asteroid(rock) = &planetoid.kind else {
+            panic!("the planetoid is an asteroid body");
+        };
+        assert!(
+            rock.surface_gravity.is_some(),
+            "authored surface gravity is what spawns the planetoid's well"
+        );
     }
 }

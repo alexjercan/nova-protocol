@@ -1,8 +1,19 @@
 # Enable thruster-driven ships outside editor Scenario state (menu AI orbit)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 41
 - TAGS: v0.5.0,ai,scenario,input,spike
+
+Outcome (2026-07-11): DELIVERED across the three spike-seeded tasks.
+20260711-212519 re-scoped the spaceship set gating to scenario-liveness
+(scenario_is_live, nova_scenario), 20260711-212521 built the AI orbit
+directive (config -> AIOrbitDirective -> AIBehaviorState::Orbit ->
+AutopilotAction::Orbit), and 20260711-212504 flipped the menu orbiter to a
+thruster-flown AI orbit and deleted the ballistic seeding - verified live
+(flame visible, ship circling, camera steady). Options 2 (event actions)
+and 3 (autonomous orbiting) remain deliberate non-goals, layerable on the
+same directive component later. Full record: the spike doc's fix record
+and each task's close record.
 
 Goal (sharpened per user direction 2026-07-11, moved into v0.5.0): the
 menu ambience ship should fly its orbit with real thrusters instead of the

@@ -3,8 +3,10 @@
 //! `NovaMenuPlugin` owns [`GameStates::MainMenu`]: a small panel anchored to the
 //! bottom-right of the screen with the game title and New Game / Sandbox /
 //! Settings / Exit buttons, drawn over a live ambient scene - the
-//! `menu_ambience` scenario (nova_assets), where a passive ship circles a
-//! planetoid's gravity well on a ballistic orbit the menu seeds, watched by a
+//! `menu_ambience` scenario (nova_assets), where an AI ship flies a real
+//! thruster-driven orbit around a planetoid's gravity well (its
+//! AIControllerConfig orbit directive engages the ORBIT autopilot; task
+//! 20260711-212504), watched by a
 //! fixed cinematic camera with the status bar hidden. The buttons write
 //! [`GameMode`] and hand off to [`GameStates::Playing`]; the editor
 //! (`nova_editor`) only comes up in `Sandbox` mode, and the menu's own
@@ -16,7 +18,7 @@
 //!
 //! Design rationale: docs/spikes/20260711-180500-main-menu.md.
 
-use avian3d::prelude::{LinearVelocity, Physics, PhysicsTime};
+use avian3d::prelude::{Physics, PhysicsTime};
 use bevy::{
     picking::hover::Hovered,
     prelude::*,
@@ -39,18 +41,18 @@ const NEW_GAME_SCENARIO_ID: &str = "asteroid_field";
 
 /// The backdrop scenario (nova_assets registers it; task 20260711-180455).
 const MENU_AMBIENCE_SCENARIO_ID: &str = "menu_ambience";
-/// EntityId of the ship the menu puts on a ballistic orbit.
-const MENU_ORBITER_ID: &str = "menu_orbiter";
-/// EntityId of the planetoid whose well anchors the orbit and the camera
-/// framing. Selected by id (not "any well") so a second big rock in the
-/// backdrop cannot silently retarget the camera or the orbit seed.
+/// EntityId of the planetoid whose well anchors the camera framing (the
+/// orbit itself is the AI orbiter's business, nova_assets). Selected by id
+/// (not "any well") so a second big rock in the backdrop cannot silently
+/// retarget the camera.
 const MENU_PLANETOID_ID: &str = "menu_planetoid";
-/// Clearance above the well's GEOMETRIC body radius for the orbit. The
-/// planetoid's noise mesh reaches several times past its nominal 20u, and the
-/// well's mu/SOI derive from that real radius at runtime (see
-/// insert_asteroid_gravity_well) - orbiting a hardcoded radius put the ship
-/// inside the collider, whose penetration impulse flung it and whose impact
-/// damage destroyed the planetoid (observed: well vanished within a second).
+/// Estimated orbit clearance above the well's GEOMETRIC body radius, used
+/// only to frame the camera far enough out to keep the ring in shot. The
+/// planetoid's noise mesh reaches several times past its nominal 20u and
+/// the well's mu/SOI derive from that real radius at runtime (see
+/// insert_asteroid_gravity_well), so the framing math starts from
+/// body_radius, not the nominal size. The AI's actual ring radius is the
+/// autopilot's own plan (stable band); this constant only shapes the shot.
 const ORBIT_CLEARANCE: f32 = 40.0;
 
 // Same palette as the editor sidebar (nova_editor keeps its constants private;
@@ -83,7 +85,7 @@ impl Plugin for NovaMenuPlugin {
         );
         app.add_systems(
             Update,
-            (stage_menu_camera, seed_orbiter_velocity).run_if(in_state(GameStates::MainMenu)),
+            stage_menu_camera.run_if(in_state(GameStates::MainMenu)),
         );
         // Button hover/press feedback serves both the main menu panel and the
         // pause overlay; the query only matches MenuButton, so running it
@@ -335,63 +337,6 @@ fn stage_menu_camera(
             Transform::from_translation(pose).looking_at(well_transform.translation, Vec3::Y);
         camera.is_active = true;
     }
-}
-
-/// Marks the orbiter once its orbit velocity has been seeded.
-#[derive(Component)]
-struct OrbitSeeded;
-
-/// Put the ambience ship on a ballistic circular orbit around the planetoid's
-/// gravity well. The scenario spawn path has no velocity field, and the
-/// orbiter has `SpaceshipController::None`, so nothing drives its thrusters
-/// (the spaceship input/section sets themselves ARE live in MainMenu since
-/// the scenario_is_live gating, nova_scenario), so the orbit is pure physics:
-/// re-stage the ship onto the runtime orbit radius (body_radius +
-/// ORBIT_CLEARANCE, along its spawn direction from the well), give it
-/// tangential v_circ from the well's real mu, and gravity does the rest.
-/// Polls until both the ship and the well exist, then never matches again.
-fn seed_orbiter_velocity(
-    mut commands: Commands,
-    // Without<GravityWell> keeps the two Transform accesses disjoint (the
-    // planetoid carries both an EntityId and the well).
-    mut orbiters: Query<
-        (Entity, &mut Transform, &EntityId),
-        (Without<OrbitSeeded>, Without<GravityWell>),
-    >,
-    wells: Query<(&Transform, &GravityWell, &EntityId)>,
-) {
-    let Some((entity, mut ship_transform, _)) = orbiters
-        .iter_mut()
-        .find(|(_, _, id)| id.0 == MENU_ORBITER_ID)
-    else {
-        return;
-    };
-    let Some((well_transform, well, _)) = wells.iter().find(|(_, _, id)| id.0 == MENU_PLANETOID_ID)
-    else {
-        return;
-    };
-
-    let well_pos = well_transform.translation;
-    let radial = (ship_transform.translation - well_pos)
-        .with_y(0.0)
-        .normalize_or(Vec3::X);
-    let r_orbit = well.body_radius + ORBIT_CLEARANCE;
-    ship_transform.translation = well_pos + radial * r_orbit;
-
-    let velocity = orbit_insertion_velocity(well_pos, well.mu, ship_transform.translation);
-    commands
-        .entity(entity)
-        .insert((LinearVelocity(velocity), OrbitSeeded));
-}
-
-/// Tangential velocity for a circular orbit of a well with parameter `mu` at
-/// `well_pos`, as seen from `ship_pos`: horizontal orbit plane (tangent =
-/// Y x radial), speed from the shared `circular_orbit_speed` helper. Zero for
-/// degenerate geometry (ship at the well center or directly above it).
-fn orbit_insertion_velocity(well_pos: Vec3, mu: f32, ship_pos: Vec3) -> Vec3 {
-    let radial = ship_pos - well_pos;
-    let tangent = Vec3::Y.cross(radial).normalize_or_zero();
-    tangent * circular_orbit_speed(mu, radial.length())
 }
 
 /// The menu is a cinematic shot: drive the HUD level to None while it is up
@@ -902,28 +847,6 @@ mod tests {
         );
     }
 
-    /// The seeded orbit velocity is tangential (perpendicular to the radial)
-    /// with the shared v_circ magnitude, and degenerates to zero safely.
-    #[test]
-    fn orbit_insertion_velocity_is_tangential_v_circ() {
-        let well_pos = Vec3::new(10.0, 0.0, -5.0);
-        let mu = 2400.0;
-        let ship_pos = well_pos + Vec3::new(50.0, 0.0, 0.0);
-
-        let v = orbit_insertion_velocity(well_pos, mu, ship_pos);
-
-        let radial = ship_pos - well_pos;
-        assert!((v.length() - circular_orbit_speed(mu, 50.0)).abs() < 1e-4);
-        assert!(v.dot(radial).abs() < 1e-4, "velocity must be tangential");
-        // Degenerate: ship at the well center, or directly above it (radial
-        // parallel to Y, so the horizontal tangent is undefined).
-        assert_eq!(orbit_insertion_velocity(well_pos, mu, well_pos), Vec3::ZERO);
-        assert_eq!(
-            orbit_insertion_velocity(well_pos, mu, well_pos + Vec3::Y * 50.0),
-            Vec3::ZERO
-        );
-    }
-
     /// Review R1.3: exercise the REAL New Game button, not just the handler fn.
     /// Builds the actual menu UI headless, finds the button by Name, and clicks
     /// it - so dropping the observe(on_new_game) wiring from setup_menu_ui fails
@@ -1014,53 +937,5 @@ mod tests {
             "pose must derive from the well's runtime geometry, got {staged:?}"
         );
         assert!(app.world().get::<Camera>(cam).unwrap().is_active);
-    }
-
-    /// Review R1.1: the orbit seeding that carried dev bugs 2 and 3 (hardcoded
-    /// radius inside the collider). The orbiter must be re-staged onto
-    /// body_radius + ORBIT_CLEARANCE with a tangential v_circ velocity, seeded
-    /// exactly once.
-    #[test]
-    fn orbiter_is_restaged_and_seeded_once() {
-        let mut app = app();
-        app.insert_resource(dummy_scenarios());
-        app.world_mut()
-            .resource_mut::<NextState<GameStates>>()
-            .set(GameStates::MainMenu);
-        app.update();
-
-        spawn_planetoid_well(&mut app);
-        let ship = app
-            .world_mut()
-            .spawn((
-                Transform::from_xyz(140.0, 0.0, 0.0),
-                EntityId::new(MENU_ORBITER_ID),
-            ))
-            .id();
-
-        app.update();
-        app.update();
-
-        let pos = app.world().get::<Transform>(ship).unwrap().translation;
-        assert!(
-            (pos - Vec3::new(120.0, 0.0, 0.0)).length() < 1e-3,
-            "orbiter must sit at body_radius + clearance, got {pos:?}"
-        );
-        let vel = app.world().get::<LinearVelocity>(ship).unwrap().0;
-        let expected = orbit_insertion_velocity(Vec3::ZERO, 2400.0, pos);
-        assert!(
-            (vel - expected).length() < 1e-3,
-            "tangential v_circ, got {vel:?}"
-        );
-        assert!(app.world().get::<OrbitSeeded>(ship).is_some());
-
-        // Seeded exactly once: moving the ship afterwards must not re-stage it.
-        app.world_mut()
-            .get_mut::<Transform>(ship)
-            .unwrap()
-            .translation = Vec3::new(500.0, 0.0, 0.0);
-        app.update();
-        let moved = app.world().get::<Transform>(ship).unwrap().translation;
-        assert_eq!(moved, Vec3::new(500.0, 0.0, 0.0));
     }
 }
