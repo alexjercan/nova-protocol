@@ -36,3 +36,11 @@ not allow the camera to move the pivot too far away".
   user retune round after landing; make the caps easy to tweak.
 - The camera anchor/ordering wiring was just reworked in 20260710-231928;
   this task is about the RIG VALUES (offset magnitudes), not scheduling.
+- From the 20260711-121701 investigation: the "wobble while decelerating"
+  has NO physical mechanism (the hull is dead steady in a 300 u/s
+  hold-reverse trace, max spin 0.0023 rad/s), so the remaining suspect is
+  this rig: during deceleration the speed-based zoom CONTRACTS every
+  frame while the smoothed camera chases a decelerating anchor. While
+  capping the radius, also check the zoom mapping's rate of change during
+  decel (a slew/smoothing on the zoom target may be needed so braking
+  does not read as hull instability).

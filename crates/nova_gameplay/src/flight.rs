@@ -2732,6 +2732,101 @@ mod tests {
         (ship, thruster)
     }
 
+    /// Regression for task 20260711-121701: the shipped 5-section player
+    /// geometry (all sections on the z axis, unit masses, single rear drive
+    /// at z = +2, PD at the shipped 4/4/40) holding the reverse direction
+    /// from 300 u/s - the exact "wobbles when decelerating" playtest
+    /// scenario. The diagnostic trace measured the hull DEAD STEADY here
+    /// (max spin 0.0023 rad/s through flip + full 22 s burn), ruling out a
+    /// physical mechanism; this pins that so any future speed-coupled
+    /// torque regression (the 20260711-103527 family) fails loudly.
+    #[test]
+    fn hold_reverse_decel_from_300_keeps_the_hull_steady() {
+        let mut app = flight_app();
+        let ship = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                TransformInterpolation,
+                SpaceshipRootMarker,
+                FlightIntent::default(),
+            ))
+            .id();
+        let section = |app: &mut App, name: &str, z: f32| {
+            app.world_mut()
+                .spawn((
+                    ChildOf(ship),
+                    Name::new(name.to_string()),
+                    Transform::from_xyz(0.0, 0.0, z),
+                    Collider::cuboid(1.0, 1.0, 1.0),
+                    ColliderDensity(1.0),
+                ))
+                .id()
+        };
+        let controller = section(&mut app, "controller", 0.0);
+        app.world_mut().entity_mut(controller).insert((
+            ControllerSectionMarker,
+            ControllerSectionRotationInput::default(),
+            PDController {
+                frequency: 4.0,
+                damping_ratio: 4.0,
+                max_torque: 40.0,
+            },
+            PDControllerTarget(ship),
+        ));
+        section(&mut app, "hull_front", 1.0);
+        section(&mut app, "hull_back", -1.0);
+        let thruster = section(&mut app, "thruster", 2.0);
+        app.world_mut().entity_mut(thruster).insert((
+            ThrusterSectionMarker,
+            ThrusterSectionMagnitude(1.0),
+            ThrusterSectionInput(0.0),
+        ));
+        section(&mut app, "turret_mass", -2.0);
+        settle(&mut app);
+
+        // Phase 1: cruising nose-first at 300 u/s, the player flips the
+        // command to retrograde (mouse still afterwards: command constant).
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::NEG_Z * 300.0));
+        app.world_mut()
+            .get_mut::<ControllerSectionRotationInput>(controller)
+            .unwrap()
+            .0 = Quat::from_rotation_y(std::f32::consts::PI);
+
+        run(&mut app, 240);
+        // Delivery guard: the flip must actually have happened, or the
+        // steady-burn bound below is vacuous.
+        assert!(
+            forward_of(&app, ship).dot(Vec3::Z) > 0.999,
+            "the command flip must complete before the burn phase"
+        );
+
+        // Phase 2: hold full reverse burn until (near) rest.
+        app.world_mut().get_mut::<FlightIntent>(ship).unwrap().burn = 1.0;
+        let mut max_spin_burn = 0.0f32;
+        for _ in 0..3600 {
+            app.update();
+            let spin = app.world().get::<AngularVelocity>(ship).unwrap().length();
+            max_spin_burn = max_spin_burn.max(spin);
+            if velocity_of(&app, ship).length() < 1.0 {
+                break;
+            }
+        }
+        // Delivery guard: the burn must have delivered the deceleration.
+        let speed = velocity_of(&app, ship).length();
+        assert!(
+            speed < 1.0,
+            "the reverse burn must bring 300 u/s to rest, got {speed}"
+        );
+        assert!(
+            max_spin_burn < 0.05,
+            "the hull must stay steady while decelerating, max spin {max_spin_burn} rad/s"
+        );
+    }
+
     /// The impulse system must push from the raw physics pose, not the render
     /// pose (task 20260711-103527). In FixedUpdate, `GlobalTransform` is the
     /// PREVIOUS frame's propagation - since the interpolation opt-in
