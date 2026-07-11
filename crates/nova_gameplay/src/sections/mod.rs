@@ -47,6 +47,33 @@ pub fn live_structure_anchor(
     }
 }
 
+/// The pose of `descendant` in `root`'s local frame, composed from the local
+/// mount `Transform`s along the `ChildOf` chain (render scale deliberately
+/// ignored, matching the raw-pose convention of the flight layer). `None`
+/// when the walk leaves the tree before reaching `root`.
+///
+/// This is the raw-clock spawn pattern shared by the weapon sections: a
+/// FixedUpdate spawner composes the mount chain onto the root's avian
+/// `Position`/`Rotation` instead of sampling `GlobalTransform`, which inside
+/// FixedUpdate still holds the previous frame's EASED render pose (task
+/// 20260710-231930 for turrets, 20260711-114640 for torpedoes).
+pub(crate) fn local_pose_in_root(
+    descendant: Entity,
+    root: Entity,
+    q_chain: &Query<(&Transform, &ChildOf)>,
+) -> Option<(Vec3, Quat)> {
+    let mut position = Vec3::ZERO;
+    let mut rotation = Quat::IDENTITY;
+    let mut entity = descendant;
+    while entity != root {
+        let (transform, &ChildOf(parent)) = q_chain.get(entity).ok()?;
+        position = transform.translation + transform.rotation * position;
+        rotation = transform.rotation * rotation;
+        entity = parent;
+    }
+    Some((position, rotation))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

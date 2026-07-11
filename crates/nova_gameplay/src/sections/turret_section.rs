@@ -9,6 +9,7 @@ use bevy_common_systems::prelude::*;
 use bevy_hanabi::prelude::*;
 use bevy_transform_interpolation::{RotationEasingState, TranslationEasingState};
 
+use super::local_pose_in_root;
 use crate::prelude::*;
 
 pub mod prelude {
@@ -782,27 +783,6 @@ fn sync_turret_rotator_pitch_system(
 /// authored turret; without it a zero-ish fire interval would spawn
 /// unboundedly inside one tick.
 const MAX_SHOTS_PER_TICK: u32 = 8;
-
-/// The pose of `descendant` in `root`'s local frame, composed from the local
-/// mount `Transform`s along the `ChildOf` chain (render scale deliberately
-/// ignored, matching the raw-pose convention of the flight layer). `None`
-/// when the walk leaves the tree before reaching `root`.
-fn local_pose_in_root(
-    descendant: Entity,
-    root: Entity,
-    q_chain: &Query<(&Transform, &ChildOf)>,
-) -> Option<(Vec3, Quat)> {
-    let mut position = Vec3::ZERO;
-    let mut rotation = Quat::IDENTITY;
-    let mut entity = descendant;
-    while entity != root {
-        let (transform, &ChildOf(parent)) = q_chain.get(entity).ok()?;
-        position = transform.translation + transform.rotation * position;
-        rotation = transform.rotation * rotation;
-        entity = parent;
-    }
-    Some((position, rotation))
-}
 
 fn shoot_spawn_projectile(
     mut commands: Commands,

@@ -2,7 +2,9 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 use bevy_hanabi::prelude::*;
+use bevy_transform_interpolation::{RotationEasingState, TranslationEasingState};
 
+use super::local_pose_in_root;
 use crate::prelude::*;
 
 /// In-flight torpedo behavior: target tracking, arming, detonation, and PN
@@ -301,22 +303,32 @@ impl Plugin for TorpedoSectionPlugin {
         app.register_type::<TorpedoShotDownMarker>();
         app.add_observer(on_torpedo_body_destroyed);
 
+        // The launch chain runs on the FIXED clock: the spawn writes physics
+        // state (a new body with position + velocity), so its pose sampling
+        // and its fire timing must tick with physics (task 20260711-114640;
+        // rule of thumb in docs/spikes/20260711-103527). Everything below
+        // it stays on the render clock deliberately - guidance, steering
+        // sync and thrust levels are control INPUTS (consumed by the
+        // FixedUpdate PD/impulse systems on their own clock), and the
+        // fuze/arming reads are gameplay thresholds, not force writers.
+        app.add_systems(
+            FixedUpdate,
+            (update_spawner_fire_state, shoot_spawn_projectile)
+                .chain()
+                .in_set(super::SpaceshipSectionSystems),
+        );
         app.add_systems(
             Update,
             (
-                update_spawner_fire_state,
-                shoot_spawn_projectile,
-                (
-                    despawn_shot_down_torpedoes,
-                    update_target_position,
-                    update_torpedo_arming,
-                    torpedo_detonate_system,
-                    torpedo_pn_guidance,
-                    torpedo_sync_system,
-                    torpedo_thrust_system,
-                )
-                    .chain(),
+                despawn_shot_down_torpedoes,
+                update_target_position,
+                update_torpedo_arming,
+                torpedo_detonate_system,
+                torpedo_pn_guidance,
+                torpedo_sync_system,
+                torpedo_thrust_system,
             )
+                .chain()
                 .in_set(super::SpaceshipSectionSystems),
         );
     }
@@ -444,6 +456,8 @@ fn shoot_spawn_projectile(
     mut commands: Commands,
     q_spaceship: Query<
         (
+            &Position,
+            &Rotation,
             &LinearVelocity,
             &AngularVelocity,
             &ComputedCenterOfMass,
@@ -462,16 +476,16 @@ fn shoot_spawn_projectile(
         (With<TorpedoSectionMarker>, Without<SectionInactiveMarker>),
     >,
     mut q_spawner: Query<&mut TorpedoSectionSpawnerFireState, With<TorpedoSectionSpawnerMarker>>,
-    // We are using TransformHelper here because we need to compute the global transform; And it
-    // should be fine, since it will not be called frequently.
-    transform_helper: TransformHelper,
+    q_chain: Query<(&Transform, &ChildOf)>,
 ) {
     for (section, spawner, ChildOf(spaceship), config, input) in &q_section {
         if !**input {
             continue;
         }
 
-        let Ok((lin_vel, ang_vel, center, allegiance)) = q_spaceship.get(*spaceship) else {
+        let Ok((position, rotation, lin_vel, ang_vel, center, allegiance)) =
+            q_spaceship.get(*spaceship)
+        else {
             error!(
                 "shoot_spawn_projectile: entity {:?} not found in q_spaceship",
                 spaceship
@@ -491,38 +505,46 @@ fn shoot_spawn_projectile(
             continue;
         }
 
-        let Ok(spawner_transform) = transform_helper.compute_global_transform(**spawner) else {
+        // Bay pose on the RAW physics clock: the root's avian pose composed
+        // with the local mount chain (section -> spawner). This system runs
+        // in FixedUpdate, where `GlobalTransform` still holds the previous
+        // frame's EASED render pose - the old Update-schedule spawn sampled
+        // that eased pose with raw velocities, so at speed the launch point
+        // trailed the raw bay by up to a tick of ship motion (the turret's
+        // two-clocks mix at single-shot severity, task 20260711-114640).
+        let Some((bay_local_pos, bay_local_rot)) =
+            local_pose_in_root(**spawner, *spaceship, &q_chain)
+        else {
             error!(
-                "shoot_spawn_projectile: entity {:?} global transform not found",
-                **spawner
+                "shoot_spawn_projectile: spawner {:?} is not a descendant of ship {:?}",
+                **spawner, spaceship
             );
             continue;
         };
+        let projectile_rotation = rotation.0 * bay_local_rot;
+        let projectile_position = position.0 + rotation.mul_vec3(bay_local_pos);
+        // The spawner launches along its +Y (the bay's "up", as authored).
+        let spawner_direction = projectile_rotation * Vec3::Y;
 
-        let spawner_direction = spawner_transform.up();
-        let projectile_position = spawner_transform.translation();
-        let projectile_rotation = spawner_transform.rotation();
-
-        // Inherit the full motion of the muzzle, not just the ship's linear velocity: a muzzle
-        // offset from the center of mass of a rotating ship also swings tangentially. avian's
-        // `ComputedCenterOfMass` is body-local, so lift it to world space with the ship's
-        // global transform before taking the point velocity.
-        let Ok(ship_transform) = transform_helper.compute_global_transform(*spaceship) else {
-            error!(
-                "shoot_spawn_projectile: entity {:?} global transform not found",
-                spaceship
-            );
-            continue;
-        };
-        let center_of_mass = ship_transform.transform_point(**center);
+        // Inherit the full motion of the bay, not just the ship's linear
+        // velocity: a bay offset from the center of mass of a rotating ship
+        // also swings tangentially. avian's `ComputedCenterOfMass` is
+        // body-local; lift it with the same raw pose as everything else.
+        let center_of_mass = position.0 + rotation.mul_vec3(**center);
         let inertia_vel =
             rigid_body_point_velocity(**lin_vel, **ang_vel, center_of_mass, projectile_position);
 
         let spawner_exit_velocity = spawner_direction * config.spawner_speed;
         let linear_velocity = spawner_exit_velocity + inertia_vel;
 
+        // Spawn AT the bay, no nudge: the old `+ exit * 0.01` was a static
+        // stand-in for sub-tick lead. A torpedo is a single guided launch -
+        // there is no stream whose spacing could expose tick quantization,
+        // and PN guidance absorbs the sub-tick residual - so launch timing
+        // stays tick-quantized on purpose (contrast the turret's exact
+        // sub-tick lead, which a 100 rounds/s stream does need).
         let projectile_transform = Transform {
-            translation: projectile_position + spawner_exit_velocity * 0.01,
+            translation: projectile_position,
             rotation: projectile_rotation,
             ..default()
         };
@@ -535,7 +557,23 @@ fn shoot_spawn_projectile(
             RigidBody::Dynamic,
             // Fast mover watched by the smoothed chase camera: interpolate
             // between fixed ticks like turret bullets do, or it stair-steps.
-            TransformInterpolation,
+            // The easing seed makes the FIRST rendered frame sit at the
+            // rendered bay too: a body spawned mid-tick misses FixedFirst,
+            // so without a seeded `start` the spawn frame would show the
+            // raw pose while the world renders eased - one frame of
+            // launch pop (same mechanism and fix as turret bullets, task
+            // 20260711-121839).
+            (
+                TransformInterpolation,
+                TranslationEasingState {
+                    start: Some(projectile_position),
+                    end: None,
+                },
+                RotationEasingState {
+                    start: Some(projectile_rotation),
+                    end: None,
+                },
+            ),
             LinearVelocity(linear_velocity),
             TorpedoSectionPartOf(section),
             TorpedoSectionSpawnerEntity(**spawner),
@@ -1223,31 +1261,47 @@ mod tests {
         use bevy::ecs::system::RunSystemOnce;
 
         let mut world = World::new();
-        let spawner = world
-            .spawn((TorpedoSectionSpawnerMarker, Transform::default(), {
-                // Pre-expired so the very first run fires.
-                let mut timer = Timer::from_seconds(0.1, TimerMode::Once);
-                timer.tick(std::time::Duration::from_secs(1));
-                TorpedoSectionSpawnerFireState(timer)
-            }))
-            .id();
         let ship = world
             .spawn((
                 SpaceshipRootMarker,
                 Allegiance::Player,
                 Transform::default(),
+                // The raw-clock spawn composes the bay from the ship's avian
+                // pose (task 20260711-114640), so the rig carries it.
+                Position(Vec3::ZERO),
+                Rotation::default(),
                 LinearVelocity(Vec3::ZERO),
                 AngularVelocity(Vec3::ZERO),
                 ComputedCenterOfMass(Vec3::ZERO),
             ))
             .id();
-        world.spawn((
-            TorpedoSectionMarker,
-            ChildOf(ship),
-            TorpedoSectionSpawnerEntity(spawner),
-            TorpedoSectionConfigHelper(TorpedoSectionConfig::default()),
-            TorpedoSectionInput(true),
-        ));
+        let section = world
+            .spawn((
+                TorpedoSectionMarker,
+                ChildOf(ship),
+                Transform::default(),
+                TorpedoSectionConfigHelper(TorpedoSectionConfig::default()),
+                TorpedoSectionInput(true),
+            ))
+            .id();
+        // The spawner sits in the ship's mount chain (section -> spawner),
+        // as insert_torpedo_section builds it.
+        let spawner = world
+            .spawn((
+                TorpedoSectionSpawnerMarker,
+                ChildOf(section),
+                Transform::default(),
+                {
+                    // Pre-expired so the very first run fires.
+                    let mut timer = Timer::from_seconds(0.1, TimerMode::Once);
+                    timer.tick(std::time::Duration::from_secs(1));
+                    TorpedoSectionSpawnerFireState(timer)
+                },
+            ))
+            .id();
+        world
+            .entity_mut(section)
+            .insert(TorpedoSectionSpawnerEntity(spawner));
 
         world.run_system_once(shoot_spawn_projectile).unwrap();
 
@@ -1257,5 +1311,156 @@ mod tests {
             .next()
             .expect("a torpedo spawned");
         assert_eq!(allegiance, Some(&Allegiance::Player));
+    }
+
+    /// A torpedo must launch FROM its bay on both clocks, at any ship
+    /// velocity (task 20260711-114640, the turret raw-clock fix's
+    /// follow-up). The old spawn ran in Update from TransformHelper's
+    /// EASED pose with raw velocities: at speed the spawn point trailed
+    /// the raw bay by up to a tick of ship motion, cross-contaminating the
+    /// launch (the same two-clocks mix as turret bullets, single-shot
+    /// severity). On the raw clock the spawn Position must sit ON the bay
+    /// composed from the ship's raw Position/Rotation (plus at most two
+    /// ticks of exit travel along the launch direction), and - via the
+    /// interpolation easing seed - the first RENDERED Transform must sit
+    /// on the bay composed from the ship's eased Transform. The rig runs
+    /// the REAL plugin, ship velocity perpendicular to the launch
+    /// direction, damping zeroed so the only relative motion is the exit
+    /// velocity, and a tilted spawner rotation so the frame composition
+    /// is non-trivial.
+    #[test]
+    fn torpedo_launches_from_the_bay_on_both_clocks_at_speed() {
+        use std::collections::HashSet;
+
+        use crate::{
+            integrity::test_support::{settle, unfinished_integrity_physics_app_with},
+            sections::projectile_hooks::ProjectileHooks,
+        };
+
+        let mut app = unfinished_integrity_physics_app_with(
+            PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
+        );
+        app.add_plugins(TorpedoSectionPlugin { render: false });
+        app.finish();
+
+        let spawn_rotation = Quat::from_rotation_x(0.3);
+        let section_local = Vec3::new(0.0, 1.0, 0.0);
+        let spawn_offset = Vec3::new(0.0, 0.0, -1.0);
+        let spawner_speed = 30.0;
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                RigidBody::Dynamic,
+                Transform::default(),
+                TransformInterpolation,
+                Collider::cuboid(1.0, 1.0, 1.0),
+                ColliderDensity(1.0),
+            ))
+            .id();
+        let section = app
+            .world_mut()
+            .spawn((
+                TorpedoSectionMarker,
+                ChildOf(ship),
+                Transform::from_translation(section_local),
+                TorpedoSectionConfigHelper(TorpedoSectionConfig {
+                    spawn_offset,
+                    spawn_rotation,
+                    spawner_speed,
+                    // ~2 launches/second against 60 fps frames: several
+                    // launches sample different easing phases.
+                    fire_rate: 2.0,
+                    // Zero damping: the only relative motion between bay
+                    // and torpedo is the exit velocity, so the geometry
+                    // bounds below are exact.
+                    linear_damping: 0.0,
+                    ..default()
+                }),
+                TorpedoSectionInput(false),
+            ))
+            .id();
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::X * 150.0));
+        app.world_mut()
+            .get_mut::<TorpedoSectionInput>(section)
+            .unwrap()
+            .0 = true;
+
+        // Bay locals composed once (the chain never changes): the spawner
+        // sits at section + spawn_offset, its frame is spawn_rotation, and
+        // its +Y is the exit direction.
+        let bay_local_pos = section_local + spawn_offset;
+        let dt = 1.0 / 64.0;
+
+        let mut seen: HashSet<Entity> = HashSet::new();
+        let mut launches = 0usize;
+        let mut max_raw_cross = 0.0f32;
+        let mut max_render_cross = 0.0f32;
+        for _ in 0..180 {
+            app.update();
+            let ship_raw_pos = app.world().get::<Position>(ship).unwrap().0;
+            let ship_raw_rot = app.world().get::<Rotation>(ship).unwrap().0;
+            let ship_tf = *app.world().get::<Transform>(ship).unwrap();
+            let raw_bay = ship_raw_pos + ship_raw_rot * bay_local_pos;
+            let eased_bay = ship_tf.translation + ship_tf.rotation * bay_local_pos;
+            let exit_dir = (ship_raw_rot * spawn_rotation) * Vec3::Y;
+
+            let torpedoes: Vec<(Entity, Vec3, Vec3)> = app
+                .world_mut()
+                .query_filtered::<(Entity, &Position, &Transform), With<TorpedoProjectileMarker>>()
+                .iter(app.world())
+                .map(|(e, p, t)| (e, p.0, t.translation))
+                .collect();
+            for (torpedo, raw, rendered) in torpedoes {
+                if !seen.insert(torpedo) {
+                    continue;
+                }
+                launches += 1;
+
+                // Raw clock: on the bay, plus at most two ticks of exit
+                // travel strictly along the launch direction.
+                let offset = raw - raw_bay;
+                let along = offset.dot(exit_dir);
+                let cross = (offset - along * exit_dir).length();
+                max_raw_cross = max_raw_cross.max(cross);
+                assert!(
+                    along > -0.05 && along < 2.0 * spawner_speed * dt + 0.05,
+                    "raw launch must sit within two ticks of exit travel \
+                     ahead of the bay: along {along}"
+                );
+
+                // Render clock: the first rendered frame is attached to the
+                // RENDERED bay (easing seed), again only ever ahead of it
+                // along the launch direction.
+                let render_offset = rendered - eased_bay;
+                let render_along = render_offset.dot(exit_dir);
+                let render_cross = (render_offset - render_along * exit_dir).length();
+                max_render_cross = max_render_cross.max(render_cross);
+                assert!(
+                    render_along > -0.05 && render_along < 2.0 * spawner_speed * dt + 0.05,
+                    "first rendered frame must sit within two ticks of exit \
+                     travel ahead of the rendered bay: along {render_along}"
+                );
+            }
+        }
+
+        // Delivery guards: several real launches at real speed, or the
+        // bounds above never bit.
+        assert!(launches >= 2, "expected repeated launches, got {launches}");
+        let speed = app.world().get::<LinearVelocity>(ship).unwrap().length();
+        assert!(speed > 100.0, "the ship must still be at speed ({speed})");
+        assert!(
+            max_raw_cross < 0.05,
+            "the raw spawn must sit ON the raw bay's launch line at any ship \
+             velocity: max cross-offset {max_raw_cross}"
+        );
+        assert!(
+            max_render_cross < 0.05,
+            "the first rendered frame must sit ON the rendered bay's launch \
+             line: max cross-offset {max_render_cross}"
+        );
     }
 }
