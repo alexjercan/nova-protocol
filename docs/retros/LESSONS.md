@@ -13,11 +13,12 @@ retros.
   theorizing a mechanism; the trace has beaten the hypothesis list every
   time it has been tried. 20260709-125640, 20260711-103527,
   20260710-231930, 20260711-121701, 20260711-125225.
-- `fail-first-regression-ab` (x6, PROMOTED 2026-07-11 -> work skill): a
+- `fail-first-regression-ab` (x7, PROMOTED 2026-07-11 -> work skill): a
   bug-fix regression is proven by failing it against the pre-fix
   behavior and recording the numbers. 20260711-103527 (7.1 rad/s -> 0),
   20260710-231931 (4.26 -> 0), 20260710-231930, 20260710-231928
-  (54 px -> sub-pixel), 20260710-231929, 20260711-121711 (20 u drift).
+  (54 px -> sub-pixel), 20260710-231929, 20260711-121711 (20 u drift),
+  20260711-121839 (2.09 u -> 0).
 - `delivery-guards-on-null-assertions` (x4, PROMOTED 2026-07-11 ->
   review skill): "nothing happens" tests need proof the stimulus fired.
   20260710-231931 (R1.1 MAJOR), 20260710-231930, 20260711-121701,
@@ -75,6 +76,16 @@ retros.
 - `tatr-same-second-collision` (x1, documented 2026-07-11 -> tatr skill
   gotchas): consecutive `tatr new` calls in one second silently share an
   ID; sleep between calls. Filed from the 2026-07-11 session.
+- `reuse-production-helpers-in-tests` (x1): a test composing an expected
+  value along a hierarchy should call the production composition helper
+  (private is fine from the test module) instead of re-deriving inline;
+  the inline version shipped a 0.148 u phantom offset. 20260711-121839.
+- `constant-offset-is-rig-math` (x1): an error invariant across the
+  interpolation alpha implicates the test rig's math, not the timing
+  under test - timing artifacts scale with alpha. 20260711-121839.
+- `ab-toggle-via-vcs-not-sed` (x1): toggle a fix off for A/B against the
+  committed pre-fix state (stash/checkout), not by sed-editing source; a
+  substitution restored two fields with one value. 20260711-121839.
 
 ## Domain lessons (nova-protocol specific)
 
