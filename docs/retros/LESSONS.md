@@ -126,7 +126,11 @@ retros.
   raw-clock spawn pattern lives in the shared `local_pose_in_root`
   (sections/mod.rs) since 20260711-114640; freshly spawned interpolated
   bodies also seed their easing `start` (20260711-121839) so the first
-  rendered frame sits on the render clock.
+  rendered frame sits on the render clock. Generalizes beyond transforms:
+  a consumer of state written in PostUpdate (e.g. the screen-indicator
+  widget's arrow visibility) must slot after its producer, not in the
+  default Update HUD set - a label mirrored the arrow one frame late.
+  20260711-174840.
 - `degenerate-inertia-frames` (x1): avian's eigen sort gives even an
   axis-aligned symmetric ship a cyclic-permutation local frame; frame
   composition code must be tested with both frames non-identity.
