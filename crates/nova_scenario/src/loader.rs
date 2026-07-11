@@ -9,8 +9,9 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        CurrentScenario, GameScenarios, LoadScenario, ScenarioConfig, ScenarioEventConfig,
-        ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin, ScenarioScopedMarker, UnloadScenario,
+        scenario_is_live, CurrentScenario, GameScenarios, LoadScenario, ScenarioConfig,
+        ScenarioEventConfig, ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin,
+        ScenarioScopedMarker, UnloadScenario,
     };
 }
 
@@ -98,11 +99,24 @@ pub struct CurrentScenario(pub Option<ScenarioConfig>);
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct ScenarioScopedMarker;
 
+/// Run condition: a scenario is currently loaded. This is what gates the
+/// spaceship input/section system sets (below), so ships fly, fire and hum
+/// exactly while a simulation is live - a gameplay scenario, the main menu's
+/// ambience backdrop, an example - and stay dead otherwise. The editor's
+/// build-mode preview relies on this: its preview sections carry live input
+/// bindings, but the Editor state never has a scenario loaded, so nothing
+/// acts on them.
+pub fn scenario_is_live(current: Res<CurrentScenario>) -> bool {
+    current.is_some()
+}
+
 pub struct ScenarioLoaderPlugin;
 
 impl Plugin for ScenarioLoaderPlugin {
     fn build(&self, app: &mut App) {
         debug!("ScenarioLoaderPlugin: build");
+
+        configure_scenario_gating(app);
 
         app.add_observer(on_player_spaceship_spawned);
         app.add_observer(on_player_spaceship_destroyed);
@@ -118,6 +132,29 @@ impl Plugin for ScenarioLoaderPlugin {
         app.add_observer(on_next_input);
         app.add_observer(unload_scenario);
     }
+}
+
+/// Ships act only while a scenario is live: gate the spaceship input/section
+/// sets on [`scenario_is_live`]. Owned here rather than by the editor (which
+/// used to gate these on its private Scenario state): scenario-liveness is
+/// the gate's real meaning, and it holds for every consumer - editor sandbox,
+/// menu ambience, examples. Composes by AND with nova_gameplay's pause
+/// gating (run conditions from separate configure_sets calls compose).
+/// Factored out so the tests below exercise the production wiring, same as
+/// nova_gameplay's configure_pause_gating.
+pub(crate) fn configure_scenario_gating(app: &mut App) {
+    app.configure_sets(
+        Update,
+        (SpaceshipInputSystems, SpaceshipSectionSystems).run_if(scenario_is_live),
+    );
+    app.configure_sets(
+        FixedUpdate,
+        SpaceshipSectionSystems.run_if(scenario_is_live),
+    );
+    // Deliberately NOT gated: the PostUpdate instance of
+    // SpaceshipSectionSystems (the turret aim chain). It was never gated by
+    // the old editor-state gate either (parity), and it is read-only pose
+    // math feeding cosmetics/HUD - gating it is a separate decision.
 }
 
 /// Tear down the currently-loaded scenario: clear the event world and despawn every
@@ -390,5 +427,100 @@ mod tests {
         assert_eq!(loaded.scenario_id, "empty");
         assert_eq!(loaded.handler_count, 0);
         assert_eq!(loaded.object_count, 0);
+    }
+
+    /// Ticks counted per gated set, so each probe proves its own schedule's
+    /// gate (task 20260711-212519).
+    #[derive(Resource, Default)]
+    struct Ticks {
+        input: u32,
+        sections: u32,
+        sections_fixed: u32,
+    }
+
+    /// A minimal app with the PRODUCTION gating wiring
+    /// (configure_scenario_gating) and one probe system in each gated set.
+    fn gated_app() -> App {
+        let mut app = App::new();
+        app.init_resource::<CurrentScenario>();
+        app.init_resource::<Ticks>();
+        configure_scenario_gating(&mut app);
+        app.add_systems(
+            Update,
+            (|mut t: ResMut<Ticks>| t.input += 1).in_set(SpaceshipInputSystems),
+        );
+        app.add_systems(
+            Update,
+            (|mut t: ResMut<Ticks>| t.sections += 1).in_set(SpaceshipSectionSystems),
+        );
+        app.add_systems(
+            FixedUpdate,
+            (|mut t: ResMut<Ticks>| t.sections_fixed += 1).in_set(SpaceshipSectionSystems),
+        );
+        app
+    }
+
+    /// One Update pass plus one manual FixedUpdate pass (headless apps have
+    /// no time accumulation to drive FixedUpdate on its own).
+    fn step(app: &mut App) {
+        app.update();
+        app.world_mut().run_schedule(FixedUpdate);
+    }
+
+    fn ticks(app: &App) -> (u32, u32, u32) {
+        let t = app.world().resource::<Ticks>();
+        (t.input, t.sections, t.sections_fixed)
+    }
+
+    /// The spaceship sets run exactly while a scenario is live. The live
+    /// phase in the middle is the delivery guard for the two frozen phases:
+    /// the same probes demonstrably CAN run in this app.
+    #[test]
+    fn spaceship_sets_run_only_while_a_scenario_is_live() {
+        let mut app = gated_app();
+
+        step(&mut app);
+        assert_eq!(ticks(&app), (0, 0, 0), "no scenario: all sets frozen");
+
+        app.world_mut()
+            .resource_mut::<CurrentScenario>()
+            .replace(scenario_with("live", vec![]));
+        step(&mut app);
+        assert_eq!(ticks(&app), (1, 1, 1), "live scenario: all sets run");
+
+        app.world_mut().resource_mut::<CurrentScenario>().take();
+        step(&mut app);
+        assert_eq!(ticks(&app), (1, 1, 1), "unloaded again: all sets frozen");
+    }
+
+    /// The same gate driven through the real load/unload observers, so the
+    /// whole delivery chain is covered: LoadScenario -> CurrentScenario ->
+    /// sets run; UnloadScenario -> sets freeze.
+    #[test]
+    fn load_and_unload_scenario_drive_the_gate() {
+        let mut app = gated_app();
+        app.init_resource::<NovaEventWorld>();
+        app.add_observer(on_load_scenario);
+        app.add_observer(unload_scenario);
+
+        step(&mut app);
+        assert_eq!(ticks(&app), (0, 0, 0), "nothing loaded yet");
+
+        app.world_mut()
+            .trigger(LoadScenario(scenario_with("ambience", vec![])));
+        assert!(
+            app.world().resource::<CurrentScenario>().is_some(),
+            "LoadScenario must set CurrentScenario"
+        );
+        step(&mut app);
+        assert_eq!(ticks(&app), (1, 1, 1), "loaded: sets run");
+
+        app.world_mut().trigger(UnloadScenario);
+        assert!(
+            app.world().resource::<CurrentScenario>().is_none(),
+            "UnloadScenario must clear CurrentScenario"
+        );
+        step(&mut app);
+        assert_eq!(ticks(&app), (1, 1, 1), "unloaded: sets frozen again");
     }
 }

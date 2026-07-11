@@ -89,9 +89,13 @@ pub fn menu_ambience(game_assets: &super::GameAssets, sections: &GameSections) -
     // geometric surface (the noise mesh reaches several times past the nominal
     // 20u); nova_menu then re-stages it onto the actual orbit radius derived
     // from the well's runtime body_radius and seeds its tangential velocity
-    // (the spawn path has no velocity field, and the menu cannot fly it through
-    // thrusters: the editor gates the spaceship input/section sets on its
-    // Scenario state, which MainMenu never enters).
+    // (the spawn path has no velocity field, and with controller None nothing
+    // drives the thrusters). WARNING: the spaceship input/section sets ARE
+    // live in MainMenu - this scenario is a loaded scenario like any other
+    // (scenario_is_live gating, nova_scenario) - so keep ambience ships off
+    // SpaceshipController::Player, and know that a controller section's PD
+    // attitude hold runs here (it holds the spawn attitude; torque only, the
+    // ballistic orbit is unaffected).
     objects.push(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: "menu_orbiter".to_string(),

@@ -265,11 +265,11 @@ impl Plugin for NovaAudioPlugin {
         // The thruster hum polls `ThrusterSectionInput`, so it must be gated to
         // the running simulation exactly like the thruster physics/shader. Joining
         // `SpaceshipSectionSystems` inherits whatever run condition consumers of
-        // that input use - crucially the editor's `run_if(ExampleStates::Scenario)`
-        // - so the hum stays silent while building in the editor. A plain scenario
-        // leaves the set ungated, so it runs every frame there. (The one-shot cues
-        // need no gating: they fire on spawn/damage/destroy events that only occur
-        // inside this same gated set.)
+        // that input use - crucially nova_scenario's `run_if(scenario_is_live)`
+        // - so the hum stays silent while building in the editor (no scenario is
+        // loaded there) and plays wherever one is live, the main menu's ambience
+        // backdrop included. (The one-shot cues need no gating: they fire on
+        // spawn/damage/destroy events that only occur inside this same gated set.)
         app.add_systems(
             Update,
             (ensure_thruster_loop, update_thruster_loop_volume)

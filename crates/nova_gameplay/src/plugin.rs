@@ -129,7 +129,7 @@ impl Plugin for NovaGameplayPlugin {
 
 /// While the pause overlay is up nothing may fly or fire: gate the spaceship
 /// sets on Unpaused. Run conditions from separate configure_sets calls
-/// compose (AND), so this stacks with the editor's Scenario-state gate. The
+/// compose (AND), so this stacks with nova_scenario's scenario_is_live gate. The
 /// clocks are also paused (nova_menu), but input actions do not consume
 /// time - without this gate a held trigger would still spawn projectiles
 /// into the frozen world. Factored out so the test below exercises the

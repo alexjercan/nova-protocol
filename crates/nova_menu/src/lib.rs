@@ -342,9 +342,10 @@ fn stage_menu_camera(
 struct OrbitSeeded;
 
 /// Put the ambience ship on a ballistic circular orbit around the planetoid's
-/// gravity well. The scenario spawn path has no velocity field, and thruster
-/// flight is unavailable in MainMenu (the editor gates the spaceship
-/// input/section sets on its own Scenario state), so the orbit is pure physics:
+/// gravity well. The scenario spawn path has no velocity field, and the
+/// orbiter has `SpaceshipController::None`, so nothing drives its thrusters
+/// (the spaceship input/section sets themselves ARE live in MainMenu since
+/// the scenario_is_live gating, nova_scenario), so the orbit is pure physics:
 /// re-stage the ship onto the runtime orbit radius (body_radius +
 /// ORBIT_CLEARANCE, along its spawn direction from the well), give it
 /// tangential v_circ from the well's real mu, and gravity does the rest.

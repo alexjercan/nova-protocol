@@ -45,12 +45,12 @@ fn editor_plugin(app: &mut App) {
 
     // The editor is the Sandbox game. When the main menu fronts the app it hands
     // off to Playing with GameMode set: Sandbox enters the editor, NewGame goes
-    // straight to the Scenario state - the spaceship input/section system sets
-    // below are gated on ExampleStates::Scenario, so a menu-loaded scenario is
-    // only flyable from inside it (review R1.1). The menu owns the NewGame
-    // scenario load; setup_scenario below stays Sandbox-only so the two do not
-    // both fire. GameMode defaults to Sandbox (NovaGameplayPlugin), so menu-less
-    // apps behave as before.
+    // straight to the Scenario state. The menu owns the NewGame scenario load;
+    // setup_scenario below stays Sandbox-only so the two do not both fire.
+    // GameMode defaults to Sandbox (NovaGameplayPlugin), so menu-less apps
+    // behave as before. (The spaceship input/section sets are gated on
+    // scenario-liveness by nova_scenario, not on these states - see the note
+    // at the end of this function.)
     app.add_systems(
         OnEnter(GameStates::Playing),
         (
@@ -134,18 +134,11 @@ fn editor_plugin(app: &mut App) {
             .run_if(in_state(ExampleStates::Scenario).and_then(resource_equals(GameMode::Sandbox))),
     );
 
-    app.configure_sets(
-        Update,
-        SpaceshipInputSystems.run_if(in_state(ExampleStates::Scenario)),
-    );
-    app.configure_sets(
-        FixedUpdate,
-        SpaceshipSectionSystems.run_if(in_state(ExampleStates::Scenario)),
-    );
-    app.configure_sets(
-        Update,
-        SpaceshipSectionSystems.run_if(in_state(ExampleStates::Scenario)),
-    );
+    // The spaceship input/section system sets are deliberately NOT gated
+    // here anymore: nova_scenario's ScenarioLoaderPlugin gates them on
+    // scenario-liveness (task 20260711-212519). The editor's build-mode
+    // preview stays inert because the Editor state never has a scenario
+    // loaded - initial entry loads nothing and F1 triggers UnloadScenario.
 }
 
 fn setup_scenario(
@@ -1202,9 +1195,10 @@ mod tests {
     }
 
     /// Regression for review R1.1: in NewGame mode the editor must still enter
-    /// its Scenario state (the spaceship input/section system sets are gated on
-    /// it, so without this the menu-loaded scenario is unflyable), while leaving
-    /// the scenario load itself to the menu.
+    /// its Scenario state (cursor grab and the F1/despawn furniture key on it),
+    /// while leaving the scenario load itself to the menu. (Flyability itself
+    /// is no longer tied to this state: the spaceship sets are gated on
+    /// scenario-liveness by nova_scenario, task 20260711-212519.)
     #[test]
     fn new_game_enters_scenario_state_without_loading_the_editor_scenario() {
         let mut app = app();
@@ -1319,6 +1313,66 @@ mod tests {
             queued,
             Some(ExampleStates::Editor),
             "the same press must work in Sandbox (delivery guard)"
+        );
+    }
+
+    /// The scenario-liveness gate (nova_scenario, task 20260711-212519)
+    /// keeps the editor's build-mode preview inert only if the Editor state
+    /// never has a live scenario. This exercises the one route that enters
+    /// Editor FROM a live scenario - F1 - and asserts the same press
+    /// unloads it, with the editor firing no scenario load of its own
+    /// anywhere on the route. (Initial Sandbox entry loading nothing is
+    /// covered by sandbox_heads_to_editor_state plus setup_scenario's
+    /// Sandbox-and-Scenario-only wiring.)
+    #[test]
+    fn editor_state_never_keeps_a_scenario_live() {
+        #[derive(Resource, Default)]
+        struct Unloads(usize);
+
+        let mut app = app();
+        app.init_resource::<Unloads>();
+        app.add_observer(|_: On<UnloadScenario>, mut unloads: ResMut<Unloads>| {
+            unloads.0 += 1;
+        });
+
+        // Enter Playing via NewGame (Editor's OnEnter scene setup needs
+        // GameAssets headless), then flip to Sandbox so F1 is armed - the
+        // gate reads the resource at press time.
+        app.insert_resource(GameMode::NewGame);
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::Playing);
+        app.update();
+        app.update();
+        assert_eq!(
+            *app.world().resource::<State<ExampleStates>>().get(),
+            ExampleStates::Scenario
+        );
+        assert_eq!(app.world().resource::<Unloads>().0, 0);
+
+        app.insert_resource(GameMode::Sandbox);
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::F1);
+        app.update();
+        let queued = match app.world().resource::<NextState<ExampleStates>>() {
+            NextState::Pending(s) => Some(s.clone()),
+            _ => None,
+        };
+        assert_eq!(
+            queued,
+            Some(ExampleStates::Editor),
+            "delivery guard: the press was seen and Editor is queued"
+        );
+        assert_eq!(
+            app.world().resource::<Unloads>().0,
+            1,
+            "the same press must unload the scenario"
+        );
+        assert_eq!(
+            app.world().resource::<EditorScenarioLoads>().0,
+            0,
+            "the editor fired no scenario load of its own on this route"
         );
     }
 
