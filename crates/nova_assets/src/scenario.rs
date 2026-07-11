@@ -17,7 +17,138 @@ pub(crate) fn register_scenario(
             "asteroid_next".to_string(),
             asteroid_next(&game_assets, &sections),
         ),
+        (
+            "menu_ambience".to_string(),
+            menu_ambience(&game_assets, &sections),
+        ),
     ])));
+}
+
+/// The main menu's living backdrop (task 20260711-180455): a big planetoid
+/// with a real gravity well, a scatter of rocks, and one passive ship that
+/// nova_menu puts on a ballistic circular orbit around the planetoid. No
+/// player, no objectives, no areas - the scene exists to be looked at.
+pub fn menu_ambience(game_assets: &super::GameAssets, sections: &GameSections) -> ScenarioConfig {
+    let mut rng = rand::rng();
+
+    let mut objects = Vec::new();
+
+    // The stage: a 20u planetoid at the origin at the retuned default well
+    // strength (see asteroid_field's gravity rock; mu = 6 * 20^2 = 2400, so a
+    // 50u orbit circles at ~6.9 u/s - a lazy ~45s lap).
+    objects.push(ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: "menu_planetoid".to_string(),
+            name: "Menu Planetoid".to_string(),
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+            radius: 20.0,
+            texture: game_assets.asteroid_texture.clone(),
+            health: 2000.0,
+            surface_gravity: Some(6.0),
+        }),
+    });
+
+    // A loose ring of small rocks for depth, kept strictly out of harm's way:
+    // the planetoid's GEOMETRIC radius runs several times its nominal 20u
+    // (observed ~80-91u across seeds), and rocks that spawn inside that mesh
+    // get penetration-resolved with impulses whose collision damage destroyed
+    // the planetoid (and its gravity well) within a second - twice, in two
+    // different ring layouts. So the ring starts past any plausible geometric
+    // radius AND sits below the orbit plane (the orbiter circles at y=0 at
+    // roughly body_radius + 40), keeping it clear of the orbit across collider
+    // seeds (worst-case clearance is on the order of 10u, not unbounded - if
+    // the planetoid's nominal radius grows, regrow this ring floor with it).
+    for i in 0..14 {
+        let angle = rng.random_range(0.0..std::f32::consts::TAU);
+        let dist = rng.random_range(170.0..240.0);
+        let pos = Vec3::new(
+            angle.cos() * dist,
+            rng.random_range(-70.0..-30.0),
+            angle.sin() * dist,
+        );
+        objects.push(ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: format!("menu_rock_{}", i),
+                name: format!("Menu Rock {}", i),
+                position: pos,
+                rotation: Quat::IDENTITY,
+            },
+            kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                radius: rng.random_range(1.0..3.0),
+                texture: game_assets.asteroid_texture.clone(),
+                health: 100.0,
+                surface_gravity: None,
+            }),
+        });
+    }
+
+    // The actor: a passive ship. It spawns comfortably outside the planetoid's
+    // geometric surface (the noise mesh reaches several times past the nominal
+    // 20u); nova_menu then re-stages it onto the actual orbit radius derived
+    // from the well's runtime body_radius and seeds its tangential velocity
+    // (the spawn path has no velocity field, and the menu cannot fly it through
+    // thrusters: the editor gates the spaceship input/section sets on its
+    // Scenario state, which MainMenu never enters).
+    objects.push(ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: "menu_orbiter".to_string(),
+            name: "Menu Orbiter".to_string(),
+            position: Vec3::new(140.0, 0.0, 0.0),
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            controller: SpaceshipController::None,
+            sections: vec![
+                SpaceshipSectionConfig {
+                    id: "controller".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                    config: sections
+                        .get_section("basic_controller_section")
+                        .unwrap()
+                        .clone(),
+                },
+                SpaceshipSectionConfig {
+                    id: "hull_front".to_string(),
+                    position: Vec3::new(0.0, 0.0, 1.0),
+                    rotation: Quat::IDENTITY,
+                    config: sections
+                        .get_section("reinforced_hull_section")
+                        .unwrap()
+                        .clone(),
+                },
+                SpaceshipSectionConfig {
+                    id: "thruster".to_string(),
+                    position: Vec3::new(0.0, 0.0, 2.0),
+                    rotation: Quat::IDENTITY,
+                    config: sections
+                        .get_section("basic_thruster_section")
+                        .unwrap()
+                        .clone(),
+                },
+            ],
+        }),
+    });
+
+    let events = vec![ScenarioEventConfig {
+        name: EventConfig::OnStart,
+        filters: vec![],
+        actions: objects
+            .into_iter()
+            .map(EventActionConfig::SpawnScenarioObject)
+            .collect::<_>(),
+    }];
+
+    ScenarioConfig {
+        id: "menu_ambience".to_string(),
+        name: "Menu Ambience".to_string(),
+        description: "The main menu's living backdrop.".to_string(),
+        cubemap: game_assets.cubemap.clone(),
+        events,
+    }
 }
 
 pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) -> ScenarioConfig {

@@ -4471,8 +4471,10 @@ version = "0.4.1"
 name = "nova_menu"
 version = "0.4.1"
 dependencies = [
+ "avian3d",
  "bevy",
  "nova_assets",
+ "nova_events",
  "nova_gameplay",
  "nova_scenario",
 ]

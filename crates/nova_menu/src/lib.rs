@@ -2,7 +2,10 @@
 //!
 //! `NovaMenuPlugin` owns [`GameStates::MainMenu`]: a small panel anchored to the
 //! bottom-right of the screen with the game title and New Game / Sandbox /
-//! Settings / Exit buttons, drawn over a skybox camera. The buttons write
+//! Settings / Exit buttons, drawn over a live ambient scene - the
+//! `menu_ambience` scenario (nova_assets), where a passive ship circles a
+//! planetoid's gravity well on a ballistic orbit the menu seeds, watched by a
+//! fixed cinematic camera with the status bar hidden. The buttons write
 //! [`GameMode`] and hand off to [`GameStates::Playing`]; the editor
 //! (`nova_editor`) only comes up in `Sandbox` mode, and the menu's own
 //! `OnEnter(Playing)` system loads the New Game scenario in `NewGame` mode.
@@ -13,13 +16,14 @@
 //!
 //! Design rationale: docs/spikes/20260711-180500-main-menu.md.
 
+use avian3d::prelude::LinearVelocity;
 use bevy::{
     picking::hover::Hovered,
     prelude::*,
     ui::Pressed,
     ui_widgets::{observe, Activate, Button},
 };
-use nova_assets::prelude::*;
+use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
@@ -31,6 +35,22 @@ pub mod prelude {
 /// `nova_assets` and already contains a canned player ship, so the menu needs no
 /// content of its own. Task 20260711-180506 swaps in a designed starter scenario.
 const NEW_GAME_SCENARIO_ID: &str = "asteroid_field";
+
+/// The backdrop scenario (nova_assets registers it; task 20260711-180455).
+const MENU_AMBIENCE_SCENARIO_ID: &str = "menu_ambience";
+/// EntityId of the ship the menu puts on a ballistic orbit.
+const MENU_ORBITER_ID: &str = "menu_orbiter";
+/// EntityId of the planetoid whose well anchors the orbit and the camera
+/// framing. Selected by id (not "any well") so a second big rock in the
+/// backdrop cannot silently retarget the camera or the orbit seed.
+const MENU_PLANETOID_ID: &str = "menu_planetoid";
+/// Clearance above the well's GEOMETRIC body radius for the orbit. The
+/// planetoid's noise mesh reaches several times past its nominal 20u, and the
+/// well's mu/SOI derive from that real radius at runtime (see
+/// insert_asteroid_gravity_well) - orbiting a hardcoded radius put the ship
+/// inside the collider, whose penetration impulse flung it and whose impact
+/// damage destroyed the planetoid (observed: well vanished within a second).
+const ORBIT_CLEARANCE: f32 = 40.0;
 
 // Same palette as the editor sidebar (nova_editor keeps its constants private;
 // the duplication is two colors, not worth a shared UI crate yet).
@@ -46,11 +66,25 @@ impl Plugin for NovaMenuPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             OnEnter(GameStates::MainMenu),
-            (setup_menu_camera, setup_menu_ui),
+            (load_menu_ambience, setup_menu_ui, hide_status_bar),
+        );
+        // Uniform backdrop teardown: EVERY exit from the menu unloads the
+        // ambience scenario, so future exits (e.g. the pause menu's Back path,
+        // task 20260711-185156) cannot leak a simulating backdrop. OnExit runs
+        // before OnEnter(Playing), so New Game's LoadScenario still lands after
+        // this unload.
+        app.add_systems(
+            OnExit(GameStates::MainMenu),
+            (show_status_bar, unload_menu_ambience),
         );
         app.add_systems(
             Update,
-            update_button_colors.run_if(in_state(GameStates::MainMenu)),
+            (
+                update_button_colors,
+                stage_menu_camera,
+                seed_orbiter_velocity,
+            )
+                .run_if(in_state(GameStates::MainMenu)),
         );
         app.add_systems(
             OnEnter(GameStates::Playing),
@@ -67,24 +101,123 @@ struct MenuButton;
 #[derive(Component)]
 struct SettingsPanel;
 
-/// A camera so the menu is not drawn over a void: skybox + post-processing,
-/// mirroring the scenario camera (nova_scenario loader) minus the audio listener
-/// and any controller - the menu camera does not move.
-///
-/// Task 20260711-180455 replaces this with a live ambient scenario; keep the spawn
-/// isolated in this system so the swap stays local.
-fn setup_menu_camera(mut commands: Commands, game_assets: Res<GameAssets>) {
-    commands.spawn((
-        DespawnOnExit(GameStates::MainMenu),
-        Name::new("Menu Camera"),
-        Camera3d::default(),
-        PostProcessingCamera,
-        Transform::from_xyz(0.0, 5.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
-        SkyboxConfig {
-            cubemap: game_assets.cubemap.clone(),
-            brightness: 1000.0,
-        },
-    ));
+/// The living backdrop: load the ambient scenario behind the menu. The loader
+/// brings its own camera + skybox and tears down whatever was loaded before;
+/// the uniform OnExit(MainMenu) teardown (unload_menu_ambience) tears this
+/// down again on the way out, whatever the exit path.
+fn load_menu_ambience(mut commands: Commands, scenarios: Res<GameScenarios>) {
+    let scenario = scenarios
+        .get(MENU_AMBIENCE_SCENARIO_ID)
+        .unwrap_or_else(|| panic!("Scenario '{MENU_AMBIENCE_SCENARIO_ID}' not found"))
+        .clone();
+    commands.trigger(LoadScenario(scenario));
+}
+
+/// Turn the loader's flyable camera into a fixed cinematic viewpoint: strip the
+/// WASD controller (the user must not be able to fly the menu backdrop), then
+/// hold the framing pose every frame. The pose is written only AFTER the
+/// controller is gone: the controller drives Transform from its own state each
+/// frame, so a pose written in the same frame the removal is queued gets
+/// overwritten before the removal applies (observed: camera stuck at the
+/// loader's default inside the planetoid). The camera spawns a frame after
+/// LoadScenario, so an OnEnter hook would miss it - this polls instead.
+fn stage_menu_camera(
+    mut commands: Commands,
+    mut controlled: Query<(Entity, &mut Camera), (With<Camera3d>, With<WASDCameraController>)>,
+    mut staged: Query<
+        (&mut Transform, &mut Camera),
+        (With<Camera3d>, Without<WASDCameraController>),
+    >,
+    wells: Query<(&Transform, &GravityWell, &EntityId), Without<Camera3d>>,
+) {
+    // Blank the frame while the controller is still attached: the loader
+    // spawns the camera inside the planetoid's geometric radius, and staging
+    // takes effect one frame later, so an active camera would flash the
+    // inside of the rock on every menu entry.
+    for (entity, mut camera) in &mut controlled {
+        camera.is_active = false;
+        commands.entity(entity).remove::<WASDCameraController>();
+    }
+    // Frame the planetoid + orbit from ITS well's real geometry (the body
+    // radius is only known at runtime; see ORBIT_CLEARANCE).
+    let Some((well_transform, well, _)) = wells.iter().find(|(_, _, id)| id.0 == MENU_PLANETOID_ID)
+    else {
+        return;
+    };
+    let r_orbit = well.body_radius + ORBIT_CLEARANCE;
+    let pose = well_transform.translation + Vec3::new(0.0, r_orbit * 0.75, r_orbit * 2.5);
+    for (mut transform, mut camera) in &mut staged {
+        *transform =
+            Transform::from_translation(pose).looking_at(well_transform.translation, Vec3::Y);
+        camera.is_active = true;
+    }
+}
+
+/// Marks the orbiter once its orbit velocity has been seeded.
+#[derive(Component)]
+struct OrbitSeeded;
+
+/// Put the ambience ship on a ballistic circular orbit around the planetoid's
+/// gravity well. The scenario spawn path has no velocity field, and thruster
+/// flight is unavailable in MainMenu (the editor gates the spaceship
+/// input/section sets on its own Scenario state), so the orbit is pure physics:
+/// re-stage the ship onto the runtime orbit radius (body_radius +
+/// ORBIT_CLEARANCE, along its spawn direction from the well), give it
+/// tangential v_circ from the well's real mu, and gravity does the rest.
+/// Polls until both the ship and the well exist, then never matches again.
+fn seed_orbiter_velocity(
+    mut commands: Commands,
+    // Without<GravityWell> keeps the two Transform accesses disjoint (the
+    // planetoid carries both an EntityId and the well).
+    mut orbiters: Query<
+        (Entity, &mut Transform, &EntityId),
+        (Without<OrbitSeeded>, Without<GravityWell>),
+    >,
+    wells: Query<(&Transform, &GravityWell, &EntityId)>,
+) {
+    let Some((entity, mut ship_transform, _)) = orbiters
+        .iter_mut()
+        .find(|(_, _, id)| id.0 == MENU_ORBITER_ID)
+    else {
+        return;
+    };
+    let Some((well_transform, well, _)) = wells.iter().find(|(_, _, id)| id.0 == MENU_PLANETOID_ID)
+    else {
+        return;
+    };
+
+    let well_pos = well_transform.translation;
+    let radial = (ship_transform.translation - well_pos)
+        .with_y(0.0)
+        .normalize_or(Vec3::X);
+    let r_orbit = well.body_radius + ORBIT_CLEARANCE;
+    ship_transform.translation = well_pos + radial * r_orbit;
+
+    let velocity = orbit_insertion_velocity(well_pos, well.mu, ship_transform.translation);
+    commands
+        .entity(entity)
+        .insert((LinearVelocity(velocity), OrbitSeeded));
+}
+
+/// Tangential velocity for a circular orbit of a well with parameter `mu` at
+/// `well_pos`, as seen from `ship_pos`: horizontal orbit plane (tangent =
+/// Y x radial), speed from the shared `circular_orbit_speed` helper. Zero for
+/// degenerate geometry (ship at the well center or directly above it).
+fn orbit_insertion_velocity(well_pos: Vec3, mu: f32, ship_pos: Vec3) -> Vec3 {
+    let radial = ship_pos - well_pos;
+    let tangent = Vec3::Y.cross(radial).normalize_or_zero();
+    tangent * circular_orbit_speed(mu, radial.length())
+}
+
+/// The menu is a cinematic shot: hide the fps/version status bar while it is
+/// up. Task 20260711-180501 (HudVisibility ALL/MINIMAL/NONE) is the long-term
+/// mechanism and should absorb this when it lands.
+fn hide_status_bar(mut bar: Single<&mut Visibility, With<StatusBarRootMarker>>) {
+    **bar = Visibility::Hidden;
+}
+
+fn show_status_bar(mut bar: Single<&mut Visibility, With<StatusBarRootMarker>>) {
+    **bar = Visibility::Inherited;
 }
 
 /// The menu panel: title on top, buttons below, anchored bottom-right per the
@@ -227,6 +360,13 @@ fn on_sandbox(
     state.set(GameStates::Playing);
 }
 
+/// Tear the backdrop down whenever the menu is left, no matter through which
+/// button or future path. The editor does not unload scenarios on entry, and
+/// a forgotten unload would leave the ambience simulating behind the game.
+fn unload_menu_ambience(mut commands: Commands) {
+    commands.trigger(UnloadScenario);
+}
+
 fn on_settings(_activate: On<Activate>, mut panel: Single<&mut Visibility, With<SettingsPanel>>) {
     **panel = match **panel {
         Visibility::Hidden => Visibility::Visible,
@@ -314,8 +454,10 @@ mod tests {
     use super::*;
 
     /// A headless app with just enough for the menu's non-UI wiring: states, the
-    /// mode resource, and the plugin itself. The `OnEnter(MainMenu)` UI systems
-    /// never run because the tests transition Loading -> Playing directly.
+    /// mode resource, and the plugin itself. Tests that enter MainMenu also run
+    /// the OnEnter systems (setup_menu_ui spawns plain components; the status
+    /// bar Single skips when no bar exists), so insert `dummy_scenarios()`
+    /// first - load_menu_ambience reads GameScenarios.
     fn app() -> App {
         let mut app = App::new();
         app.add_plugins(StatesPlugin);
@@ -337,17 +479,34 @@ mod tests {
         );
     }
 
-    fn dummy_scenarios() -> GameScenarios {
-        GameScenarios(bevy::platform::collections::HashMap::from([(
-            NEW_GAME_SCENARIO_ID.to_string(),
+    fn dummy_scenario(id: &str) -> (String, ScenarioConfig) {
+        (
+            id.to_string(),
             ScenarioConfig {
-                id: NEW_GAME_SCENARIO_ID.to_string(),
+                id: id.to_string(),
                 name: "Test".to_string(),
                 description: "Test".to_string(),
                 cubemap: Handle::default(),
                 events: vec![],
             },
-        )]))
+        )
+    }
+
+    fn dummy_scenarios() -> GameScenarios {
+        GameScenarios(bevy::platform::collections::HashMap::from([
+            dummy_scenario(NEW_GAME_SCENARIO_ID),
+            dummy_scenario(MENU_AMBIENCE_SCENARIO_ID),
+        ]))
+    }
+
+    #[derive(Resource, Default)]
+    struct Unloaded(bool);
+
+    fn observe_unload_scenario(app: &mut App) {
+        app.init_resource::<Unloaded>();
+        app.add_observer(|_: On<UnloadScenario>, mut unloaded: ResMut<Unloaded>| {
+            unloaded.0 = true;
+        });
     }
 
     #[test]
@@ -378,9 +537,17 @@ mod tests {
     fn sandbox_button_sets_mode_and_loads_no_scenario() {
         let mut app = app();
         app.insert_resource(dummy_scenarios());
-        observe_load_scenario(&mut app);
         let button = app.world_mut().spawn(observe(on_sandbox)).id();
+        // Enter the menu first (the real path), so leaving it exercises the
+        // uniform OnExit teardown.
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::MainMenu);
         app.update();
+        // Observers registered after entry, so the menu's own ambience load
+        // does not count against the "loads nothing" assertion below.
+        observe_load_scenario(&mut app);
+        observe_unload_scenario(&mut app);
 
         app.world_mut().trigger(Activate { entity: button });
         app.update();
@@ -390,8 +557,53 @@ mod tests {
             *app.world().resource::<State<GameStates>>().get(),
             GameStates::Playing
         );
-        // The editor owns the Sandbox path; the menu must not load anything.
+        // The editor owns the Sandbox path; the menu must not load anything,
+        // and it must tear the ambience backdrop down (the editor does not).
         assert_eq!(app.world().resource::<LoadedScenario>().0, None);
+        assert!(app.world().resource::<Unloaded>().0);
+    }
+
+    /// Entering MainMenu loads the ambience backdrop through the real
+    /// OnEnter systems (task 20260711-180455).
+    #[test]
+    fn entering_main_menu_loads_the_ambience_scenario() {
+        let mut app = app();
+        app.insert_resource(dummy_scenarios());
+        observe_load_scenario(&mut app);
+        app.update();
+
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::MainMenu);
+        app.update();
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<LoadedScenario>().0.as_deref(),
+            Some(MENU_AMBIENCE_SCENARIO_ID)
+        );
+    }
+
+    /// The seeded orbit velocity is tangential (perpendicular to the radial)
+    /// with the shared v_circ magnitude, and degenerates to zero safely.
+    #[test]
+    fn orbit_insertion_velocity_is_tangential_v_circ() {
+        let well_pos = Vec3::new(10.0, 0.0, -5.0);
+        let mu = 2400.0;
+        let ship_pos = well_pos + Vec3::new(50.0, 0.0, 0.0);
+
+        let v = orbit_insertion_velocity(well_pos, mu, ship_pos);
+
+        let radial = ship_pos - well_pos;
+        assert!((v.length() - circular_orbit_speed(mu, 50.0)).abs() < 1e-4);
+        assert!(v.dot(radial).abs() < 1e-4, "velocity must be tangential");
+        // Degenerate: ship at the well center, or directly above it (radial
+        // parallel to Y, so the horizontal tangent is undefined).
+        assert_eq!(orbit_insertion_velocity(well_pos, mu, well_pos), Vec3::ZERO);
+        assert_eq!(
+            orbit_insertion_velocity(well_pos, mu, well_pos + Vec3::Y * 50.0),
+            Vec3::ZERO
+        );
     }
 
     /// Review R1.3: exercise the REAL New Game button, not just the handler fn.
@@ -430,5 +642,107 @@ mod tests {
             app.world().resource::<LoadedScenario>().0.as_deref(),
             Some(NEW_GAME_SCENARIO_ID)
         );
+    }
+
+    fn spawn_planetoid_well(app: &mut App) {
+        app.world_mut().spawn((
+            Transform::from_xyz(0.0, 0.0, 0.0),
+            GravityWell {
+                mu: 2400.0,
+                body_radius: 80.0,
+                soi_radius: 600.0,
+            },
+            EntityId::new(MENU_PLANETOID_ID),
+        ));
+    }
+
+    /// Review R1.1: the camera staging that carried dev bug 1 (pose written in
+    /// the same frame as the controller removal gets overwritten by the
+    /// controller). Frame 1 must deactivate + strip the controller; frame 2
+    /// must stage the runtime-derived pose and reactivate.
+    #[test]
+    fn menu_camera_is_staged_from_the_wells_geometry() {
+        let mut app = app();
+        app.insert_resource(dummy_scenarios());
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::MainMenu);
+        app.update();
+
+        let cam = app
+            .world_mut()
+            .spawn((
+                Camera3d::default(),
+                WASDCameraController,
+                Transform::from_xyz(0.0, 10.0, 20.0),
+            ))
+            .id();
+        spawn_planetoid_well(&mut app);
+
+        app.update();
+        assert!(
+            !app.world().get::<Camera>(cam).unwrap().is_active,
+            "camera must be blanked while the controller is still attached"
+        );
+        app.update();
+        assert!(
+            app.world().get::<WASDCameraController>(cam).is_none(),
+            "controller must be stripped"
+        );
+        // r_orbit = body_radius 80 + clearance 40 = 120 -> pose (0, 90, 300).
+        let staged = app.world().get::<Transform>(cam).unwrap().translation;
+        assert!(
+            (staged - Vec3::new(0.0, 90.0, 300.0)).length() < 1e-3,
+            "pose must derive from the well's runtime geometry, got {staged:?}"
+        );
+        assert!(app.world().get::<Camera>(cam).unwrap().is_active);
+    }
+
+    /// Review R1.1: the orbit seeding that carried dev bugs 2 and 3 (hardcoded
+    /// radius inside the collider). The orbiter must be re-staged onto
+    /// body_radius + ORBIT_CLEARANCE with a tangential v_circ velocity, seeded
+    /// exactly once.
+    #[test]
+    fn orbiter_is_restaged_and_seeded_once() {
+        let mut app = app();
+        app.insert_resource(dummy_scenarios());
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::MainMenu);
+        app.update();
+
+        spawn_planetoid_well(&mut app);
+        let ship = app
+            .world_mut()
+            .spawn((
+                Transform::from_xyz(140.0, 0.0, 0.0),
+                EntityId::new(MENU_ORBITER_ID),
+            ))
+            .id();
+
+        app.update();
+        app.update();
+
+        let pos = app.world().get::<Transform>(ship).unwrap().translation;
+        assert!(
+            (pos - Vec3::new(120.0, 0.0, 0.0)).length() < 1e-3,
+            "orbiter must sit at body_radius + clearance, got {pos:?}"
+        );
+        let vel = app.world().get::<LinearVelocity>(ship).unwrap().0;
+        let expected = orbit_insertion_velocity(Vec3::ZERO, 2400.0, pos);
+        assert!(
+            (vel - expected).length() < 1e-3,
+            "tangential v_circ, got {vel:?}"
+        );
+        assert!(app.world().get::<OrbitSeeded>(ship).is_some());
+
+        // Seeded exactly once: moving the ship afterwards must not re-stage it.
+        app.world_mut()
+            .get_mut::<Transform>(ship)
+            .unwrap()
+            .translation = Vec3::new(500.0, 0.0, 0.0);
+        app.update();
+        let moved = app.world().get::<Transform>(ship).unwrap().translation;
+        assert_eq!(moved, Vec3::new(500.0, 0.0, 0.0));
     }
 }

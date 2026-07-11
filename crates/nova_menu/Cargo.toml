@@ -5,8 +5,10 @@ edition = { workspace = true }
 description = "Main menu scene for the Nova Protocol game"
 
 [dependencies]
+avian3d = { version = "0.7" }
 bevy = { version = "0.19.0" }
 nova_assets = { path = "../nova_assets" }
+nova_events = { path = "../nova_events" }
 nova_gameplay = { path = "../nova_gameplay" }
 nova_scenario = { path = "../nova_scenario" }
 
