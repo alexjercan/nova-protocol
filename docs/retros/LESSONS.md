@@ -142,12 +142,17 @@ retros.
   (autopilot verbs, weapon intents, cycles, camera look, scenario next)
   kept mutating the world; enumerate systems + observers + hooks before
   claiming a global gate covers "input". 20260711-185156 (R1.1 MAJOR).
-- `would-it-fail-without-it` (x3): a verification that cannot fail with
+- `would-it-fail-without-it` (x4): a verification that cannot fail with
   the mechanism deleted proves nothing - 20260711-180426 (harness pass
   threshold also passed pre-fix), 20260711-180455 (pixel-identical
   screenshots false-positived a broken scene), 20260711-185156 (frozen-
   ship e2e could not prove the input gate; a claimed unit test did not
   exist). Ask the question before ticking any verification step.
+  Vacuous-by-copying variant: a new test copied from a neighboring test
+  inherited its vacuousness (no-churn assert where a re-engage is
+  bit-identical without the mutating system in the loop; sentinel
+  mutation is the fix) - apply the question to copied test shapes too.
+  20260711-212521 (R1.1 MAJOR).
 - `out-of-context-review-pass` (positive pattern, x5, fourth catch: the
   ungated-observers MAJOR above): for a substantial
   branch reviewed in the implementer's own session, a fresh-context agent
@@ -157,7 +162,10 @@ retros.
   missing regression tests on the two bug-carrying systems and the
   OnExit-teardown generalization. 20260711-180455. Fifth: found stale
   invariant prose in crates the diff never touched and the one real
-  behavioral delta (PD hold in MainMenu). 20260711-212519.
+  behavioral delta (PD hold in MainMenu). 20260711-212519. Sixth (x6):
+  caught a vacuous test MAJOR and also RULED OUT a suspected stuck-state
+  by tracing completion semantics - the pass verifies non-issues, not
+  just finds issues. 20260711-212521.
 - `authored-vs-derived-values` (x1): content authored against a system
   that derives its own runtime geometry/parameters (collider-derived body
   radius, well mu/SOI) must be placed using the runtime values, not the
