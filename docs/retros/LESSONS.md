@@ -131,6 +131,16 @@ retros.
   axis-aligned symmetric ship a cyclic-permutation local frame; frame
   composition code must be tested with both frames non-identity.
   20260709-125640.
+- `assert-each-gesture-step` (x1): tests guarding modal/chorded input
+  must assert the affected state after EVERY step of the gesture (press
+  modifier, gesture, release), not count events at the end - an
+  event-count e2e test passed coincidentally while bare CTRL misfired
+  the cycle. 20260711-173237 (bug shipped by 20260708-165705).
+- `modal-input-observer-dispatch` (x1): when bevy_enhanced_input's
+  condition DSL fights a modal gesture (Chord ignores the binding value;
+  the combiner + Start-on-Ongoing leak the unmodified gesture), dispatch
+  in an observer reading the modifier action's TriggerState instead of
+  stacking conditions. 20260711-173237.
 - `half-ticked-compound-steps` (x1): a plan step bundling two actions
   ("verify + update docs") got ticked when only the first half was done;
   tick only when every clause is done, or split the step first.
