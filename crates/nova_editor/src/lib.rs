@@ -123,7 +123,7 @@ fn editor_plugin(app: &mut App) {
     app.add_systems(
         Update,
         lock_on_left_click
-            .run_if(in_state(ExampleStates::Editor).and(in_state(PauseStates::Unpaused))),
+            .run_if(in_state(ExampleStates::Editor).and_then(in_state(PauseStates::Unpaused))),
     );
     app.add_systems(
         Update,
