@@ -15,19 +15,25 @@ use bevy::prelude::*;
 
 use crate::prelude::*;
 
-/// Square size (px) of one edge-arrow node.
-const ARROW_PX: f32 = 14.0;
+/// Square size (px) of one edge-arrow node. Sized to read at a glance
+/// from the screen edge (user feedback 20260711: the first cut's 14 px
+/// was too small).
+const ARROW_PX: f32 = 24.0;
 
 /// Chevron stroke length / thickness (px), and the stroke placement inside
 /// the arrow node (two bars rotated +-45 degrees meeting at the top-center
 /// apex, forming an up-pointing "^" - the orientation the widget's rotation
 /// expects).
-const STROKE_LEN_PX: f32 = 9.0;
-const STROKE_THICK_PX: f32 = 2.0;
+const STROKE_LEN_PX: f32 = 16.0;
+const STROKE_THICK_PX: f32 = 3.0;
 
 /// Inset (px) from the viewport edges the arrows clamp to. Slightly outside
-/// the keybind cluster and readout margins so edge arrows read as a frame.
-const EDGE_MARGIN_PX: f32 = 24.0;
+/// the keybind cluster and readout margins so edge arrows read as a frame,
+/// with room for the distance label under the arrow.
+const EDGE_MARGIN_PX: f32 = 30.0;
+
+/// Distance-label font size (px).
+const LABEL_FONT_PX: f32 = 10.0;
 
 /// Committed hostile torpedoes: full-presence threat red.
 const TORPEDO_COLOR: Color = Color::srgba(1.0, 0.2, 0.2, 0.95);
@@ -43,8 +49,8 @@ const LOCK_NEUTRAL_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 1.0);
 
 pub mod prelude {
     pub use super::{
-        edge_indicators_hud, EdgeIndicatorKind, EdgeIndicatorMarker, EdgeIndicatorTarget,
-        EdgeIndicatorsHudMarker, EdgeIndicatorsHudPlugin,
+        edge_indicators_hud, EdgeIndicatorKind, EdgeIndicatorLabelMarker, EdgeIndicatorMarker,
+        EdgeIndicatorTarget, EdgeIndicatorsHudMarker, EdgeIndicatorsHudPlugin,
     };
 }
 
@@ -55,6 +61,10 @@ pub struct EdgeIndicatorsHudMarker;
 /// Marker for one edge-indicator node.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct EdgeIndicatorMarker;
+
+/// Marker for the distance label under an edge arrow.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct EdgeIndicatorLabelMarker;
 
 /// The tracked entity this indicator points at.
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
@@ -101,7 +111,35 @@ fn edge_indicator(target: Entity, kind: EdgeIndicatorKind, color: Color) -> impl
                 margin_px: EDGE_MARGIN_PX,
             },
         }),
-        children![edge_arrow(color)],
+        children![
+            edge_arrow(color),
+            (
+                // Distance readout under the arrow; a SIBLING of the arrow
+                // node (the widget rotates the arrow), driven by
+                // update_edge_labels and visible only while the arrow is.
+                Name::new("EdgeIndicatorLabel"),
+                EdgeIndicatorLabelMarker,
+                Node {
+                    position_type: PositionType::Absolute,
+                    top: Val::Percent(100.0),
+                    left: Val::Percent(50.0),
+                    // Roughly center the short distance string under the
+                    // arrow; UI layout has no translate(-50%), so a fixed
+                    // half-width nudge stands in.
+                    margin: UiRect {
+                        left: Val::Px(-16.0),
+                        top: Val::Px(2.0),
+                        ..default()
+                    },
+                    ..default()
+                },
+                Text::new(""),
+                TextFont::from_font_size(LABEL_FONT_PX),
+                TextColor(color),
+                Pickable::IGNORE,
+                Visibility::Hidden,
+            ),
+        ],
     )
 }
 
@@ -158,6 +196,16 @@ impl Plugin for EdgeIndicatorsHudPlugin {
 
         app.register_type::<EdgeIndicatorKind>();
         app.add_systems(Update, sync_edge_indicators.in_set(super::NovaHudSystems));
+        // The label mirrors the arrow's visibility, which the widget writes
+        // in PostUpdate (ScreenIndicatorSystems) - mirroring from Update
+        // would lag it by a frame (review R1.1), so the driver runs right
+        // after the widget, still before UI layout consumes the text.
+        app.add_systems(
+            PostUpdate,
+            update_edge_labels
+                .after(ScreenIndicatorSystems)
+                .before(bevy::ui::UiSystems::Layout),
+        );
     }
 }
 
@@ -266,6 +314,64 @@ fn sync_edge_indicators(
     }
 }
 
+/// Fill each indicator's distance label and mirror the arrow's visibility
+/// onto it, so the label shows exactly while the arrow is clamped to an
+/// edge. The widget owns the ARROW's visibility (Inherited while clamped,
+/// Hidden on-screen); the label follows it, and its text is the straight-
+/// line distance from the player ship, `{:.0}m` like the lock readout.
+#[allow(clippy::type_complexity)]
+fn update_edge_labels(
+    q_player: Query<&GlobalTransform, With<PlayerSpaceshipMarker>>,
+    q_indicators: Query<(&EdgeIndicatorTarget, &Children), With<EdgeIndicatorMarker>>,
+    q_transform: Query<&GlobalTransform>,
+    q_arrow: Query<
+        &Visibility,
+        (
+            With<ScreenIndicatorArrowMarker>,
+            Without<EdgeIndicatorLabelMarker>,
+        ),
+    >,
+    mut q_label: Query<
+        (&mut Text, &mut Visibility),
+        (
+            With<EdgeIndicatorLabelMarker>,
+            Without<ScreenIndicatorArrowMarker>,
+        ),
+    >,
+) {
+    let Ok(player) = q_player.single() else {
+        return;
+    };
+
+    for (target, children) in &q_indicators {
+        let arrow_shown = children
+            .iter()
+            .filter_map(|child| q_arrow.get(child).ok())
+            .any(|visibility| *visibility != Visibility::Hidden);
+
+        for child in children.iter() {
+            let Ok((mut text, mut visibility)) = q_label.get_mut(child) else {
+                continue;
+            };
+            if !arrow_shown {
+                visibility.set_if_neq(Visibility::Hidden);
+                continue;
+            }
+            let next = q_transform
+                .get(**target)
+                .map(|transform| {
+                    let distance = transform.translation().distance(player.translation());
+                    format!("{distance:.0}m")
+                })
+                .unwrap_or_default();
+            if **text != next {
+                **text = next;
+            }
+            visibility.set_if_neq(Visibility::Inherited);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
@@ -277,9 +383,21 @@ mod tests {
     fn tracked_world() -> (World, Entity, Entity, Entity) {
         let mut world = World::new();
         world.spawn(edge_indicators_hud());
-        world.spawn(PlayerSpaceshipMarker);
-        let locked = world.spawn((SpaceshipRootMarker, Allegiance::Enemy)).id();
-        let other = world.spawn((SpaceshipRootMarker, Allegiance::Enemy)).id();
+        world.spawn((PlayerSpaceshipMarker, GlobalTransform::IDENTITY));
+        let locked = world
+            .spawn((
+                SpaceshipRootMarker,
+                Allegiance::Enemy,
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -500.0)),
+            ))
+            .id();
+        let other = world
+            .spawn((
+                SpaceshipRootMarker,
+                Allegiance::Enemy,
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, 1200.0)),
+            ))
+            .id();
         let enemy_torpedo = world
             .spawn((
                 TorpedoProjectileMarker,
@@ -396,11 +514,11 @@ mod tests {
     }
 
     #[test]
-    fn indicator_content_is_the_arrow_only() {
-        // The widget hides the arrow while the anchor is on-screen, so an
-        // indicator whose ONLY content is the arrow renders nothing extra
-        // on-screen. Guard the structure that property depends on: exactly
-        // one child, and it carries ScreenIndicatorArrowMarker.
+    fn indicator_content_renders_nothing_on_screen() {
+        // The widget hides the arrow while the anchor is on-screen and the
+        // label driver mirrors that, so an indicator whose content is
+        // exactly arrow + label renders nothing extra on-screen. Guard the
+        // structure that property depends on.
         let (mut world, locked, ..) = tracked_world();
         world.run_system_once(sync_edge_indicators).unwrap();
 
@@ -411,17 +529,83 @@ mod tests {
             .map(|(entity, _)| entity)
             .expect("lock indicator exists");
         let children: Vec<Entity> = world.entity(indicator).get::<Children>().unwrap().to_vec();
-        assert_eq!(children.len(), 1, "the arrow is the only content");
-        assert!(
-            world
-                .entity(children[0])
-                .contains::<ScreenIndicatorArrowMarker>(),
-            "the single child is the widget-driven arrow"
-        );
         assert_eq!(
-            *world.entity(children[0]).get::<Visibility>().unwrap(),
-            Visibility::Hidden,
-            "the arrow starts hidden; the widget shows it only when clamped"
+            children.len(),
+            2,
+            "arrow + distance label, nothing else that could show on-screen"
+        );
+        for child in children {
+            let is_arrow = world.entity(child).contains::<ScreenIndicatorArrowMarker>();
+            let is_label = world.entity(child).contains::<EdgeIndicatorLabelMarker>();
+            assert!(
+                is_arrow ^ is_label,
+                "every child is exactly one of arrow/label"
+            );
+            assert_eq!(
+                *world.entity(child).get::<Visibility>().unwrap(),
+                Visibility::Hidden,
+                "all content starts hidden; the widget/label driver reveal it \
+                 only while clamped"
+            );
+        }
+    }
+
+    #[test]
+    fn label_shows_distance_while_the_arrow_is_shown() {
+        let (mut world, locked, ..) = tracked_world();
+        world.run_system_once(sync_edge_indicators).unwrap();
+
+        let indicator = world
+            .query_filtered::<(Entity, &EdgeIndicatorTarget), With<EdgeIndicatorMarker>>()
+            .iter(&world)
+            .find(|(_, target)| ***target == locked)
+            .map(|(entity, _)| entity)
+            .expect("lock indicator exists");
+        let children: Vec<Entity> = world.entity(indicator).get::<Children>().unwrap().to_vec();
+        let arrow = children
+            .iter()
+            .copied()
+            .find(|&child| world.entity(child).contains::<ScreenIndicatorArrowMarker>())
+            .unwrap();
+        let label = children
+            .iter()
+            .copied()
+            .find(|&child| world.entity(child).contains::<EdgeIndicatorLabelMarker>())
+            .unwrap();
+
+        // Arrow hidden (target on-screen): label stays hidden.
+        world.run_system_once(update_edge_labels).unwrap();
+        assert_eq!(
+            *world.entity(label).get::<Visibility>().unwrap(),
+            Visibility::Hidden
+        );
+
+        // The widget clamps the arrow (Inherited): the label shows the
+        // player-to-target distance.
+        *world.entity_mut(arrow).get_mut::<Visibility>().unwrap() = Visibility::Inherited;
+        world.run_system_once(update_edge_labels).unwrap();
+        assert_eq!(
+            *world.entity(label).get::<Visibility>().unwrap(),
+            Visibility::Inherited
+        );
+        assert_eq!(world.entity(label).get::<Text>().unwrap().0, "500m");
+
+        // The target moves: the text follows (the value is live, not a
+        // spawn-time snapshot).
+        world
+            .entity_mut(locked)
+            .insert(GlobalTransform::from_translation(Vec3::new(
+                0.0, 0.0, -2400.0,
+            )));
+        world.run_system_once(update_edge_labels).unwrap();
+        assert_eq!(world.entity(label).get::<Text>().unwrap().0, "2400m");
+
+        // Back on-screen: the widget hides the arrow, the label follows.
+        *world.entity_mut(arrow).get_mut::<Visibility>().unwrap() = Visibility::Hidden;
+        world.run_system_once(update_edge_labels).unwrap();
+        assert_eq!(
+            *world.entity(label).get::<Visibility>().unwrap(),
+            Visibility::Hidden
         );
     }
 }
