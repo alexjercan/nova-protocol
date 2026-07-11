@@ -13,11 +13,18 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         turret_section, TurretBulletProjectileMarker, TurretSectionAimPoint,
-        TurretSectionBarrelMuzzleMarker, TurretSectionConfig, TurretSectionConfigHelper,
-        TurretSectionInput, TurretSectionMarker, TurretSectionMuzzleEntity, TurretSectionPlugin,
-        TurretSectionTargetInput, TurretSectionTargetVelocity,
+        TurretSectionAimSystems, TurretSectionBarrelMuzzleMarker, TurretSectionConfig,
+        TurretSectionConfigHelper, TurretSectionInput, TurretSectionMarker,
+        TurretSectionMuzzleEntity, TurretSectionPlugin, TurretSectionTargetInput,
+        TurretSectionTargetVelocity,
     };
 }
+
+/// System set for the PostUpdate aim chain (intercept solve + rotator
+/// targets), so HUD consumers can order same-frame readers after it (the
+/// turret lead pips do - task 20260710-231929).
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TurretSectionAimSystems;
 
 /// Configuration for a turret section of a spaceship.
 #[derive(Clone, Debug, Reflect)]
@@ -251,6 +258,12 @@ impl Plugin for TurretSectionPlugin {
             shoot_spawn_projectile.in_set(super::SpaceshipSectionSystems),
         );
 
+        // The aim chain runs EARLY in PostUpdate (before the HUD pips and
+        // the indicator projection consume it - task 20260710-231929) and
+        // composes fresh poses via TransformHelper instead of waiting for
+        // transform propagation: bevy_ui lays out before propagation, so a
+        // post-propagation aim point can only reach the screen one frame
+        // late.
         app.add_systems(
             PostUpdate,
             (
@@ -259,7 +272,7 @@ impl Plugin for TurretSectionPlugin {
                 update_turret_target_pitch_system,
             )
                 .chain()
-                .after(TransformSystems::Propagate)
+                .in_set(TurretSectionAimSystems)
                 .in_set(super::SpaceshipSectionSystems),
         );
     }
@@ -509,7 +522,10 @@ fn lead_intercept_point(
 /// dir*s*t = (target - muzzle) + (v_target - v_muzzle)*t. Solving in the
 /// world frame instead makes every shot drift off by the shooter's own
 /// motion (task 20260709-211701).
-fn update_turret_aim_point(
+// `pub(crate)` so the turret-lead pip regression can register the real aim
+// system with its production set constraints (the full TurretSectionPlugin
+// drags render-material plugins into headless tests).
+pub(crate) fn update_turret_aim_point(
     mut q_turret: Query<
         (
             &TurretSectionTargetInput,
@@ -521,14 +537,15 @@ fn update_turret_aim_point(
         ),
         With<TurretSectionMarker>,
     >,
-    q_muzzle: Query<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>,
+    // Fresh render-clock poses: this runs BEFORE this frame's transform
+    // propagation (see the registration comment), so GlobalTransform still
+    // holds last frame - TransformHelper composes the eased poses the frame
+    // will render with. The pip therefore marks the intercept as the player
+    // SEES it; the physical bullet spawns from the raw pose (sub-tick
+    // apart, see shoot_spawn_projectile).
+    transform_helper: TransformHelper,
     q_spaceship: Query<
-        (
-            &GlobalTransform,
-            &LinearVelocity,
-            &AngularVelocity,
-            &ComputedCenterOfMass,
-        ),
+        (&LinearVelocity, &AngularVelocity, &ComputedCenterOfMass),
         With<SpaceshipRootMarker>,
     >,
 ) {
@@ -545,17 +562,19 @@ fn update_turret_aim_point(
             **aim_point = None;
             continue;
         };
-        let Ok(muzzle_transform) = q_muzzle.get(*muzzle) else {
+        let Ok(muzzle_transform) = transform_helper.compute_global_transform(*muzzle) else {
             continue;
         };
         let muzzle_pos = muzzle_transform.translation();
 
         // The same muzzle point velocity the bullet will inherit on launch
-        // (same COM lift as shoot_spawn_projectile). A shooter without
+        // (same COM lift frame as the muzzle pose above). A shooter without
         // physics components (test rigs) inherits nothing.
         let shooter_velocity = q_spaceship
             .get(*spaceship)
-            .map(|(ship_transform, lin_vel, ang_vel, center)| {
+            .ok()
+            .zip(transform_helper.compute_global_transform(*spaceship).ok())
+            .map(|((lin_vel, ang_vel, center), ship_transform)| {
                 rigid_body_point_velocity(
                     **lin_vel,
                     **ang_vel,
@@ -581,19 +600,28 @@ fn update_turret_target_yaw_system(
     >,
     mut q_rotator_yaw_base: Query<
         (
+            Entity,
             &mut SmoothLookRotationTarget,
-            &GlobalTransform,
             &TurretSectionPartOf,
             &TurretSectionMuzzleEntity,
         ),
         With<TurretSectionRotatorYawBaseMarker>,
     >,
-    q_muzzle: Query<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>,
+    // Same fresh-pose composition as update_turret_aim_point: this chain
+    // runs before this frame's transform propagation.
+    transform_helper: TransformHelper,
 ) {
-    for (mut target, yaw_chain, TurretSectionPartOf(turret), TurretSectionMuzzleEntity(muzzle)) in
+    for (yaw_base, mut target, TurretSectionPartOf(turret), TurretSectionMuzzleEntity(muzzle)) in
         &mut q_rotator_yaw_base
     {
-        let Ok(muzzle_transform) = q_muzzle.get(*muzzle) else {
+        let Ok(yaw_chain) = transform_helper.compute_global_transform(yaw_base) else {
+            error!(
+                "update_turret_target_yaw_system: entity {:?} has no computable pose",
+                yaw_base
+            );
+            continue;
+        };
+        let Ok(muzzle_transform) = transform_helper.compute_global_transform(*muzzle) else {
             error!(
                 "update_turret_target_yaw_system: entity {:?} not found in q_muzzle",
                 *muzzle
@@ -648,19 +676,27 @@ fn update_turret_target_pitch_system(
     >,
     mut q_rotator_pitch_base: Query<
         (
+            Entity,
             &mut SmoothLookRotationTarget,
-            &GlobalTransform,
             &TurretSectionPartOf,
             &TurretSectionMuzzleEntity,
         ),
         With<TurretSectionRotatorPitchBaseMarker>,
     >,
-    q_muzzle: Query<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>,
+    // Same fresh-pose composition as update_turret_aim_point.
+    transform_helper: TransformHelper,
 ) {
-    for (mut target, pitch_chain, TurretSectionPartOf(turret), TurretSectionMuzzleEntity(muzzle)) in
+    for (pitch_base, mut target, TurretSectionPartOf(turret), TurretSectionMuzzleEntity(muzzle)) in
         &mut q_rotator_pitch_base
     {
-        let Ok(muzzle_transform) = q_muzzle.get(*muzzle) else {
+        let Ok(pitch_chain) = transform_helper.compute_global_transform(pitch_base) else {
+            error!(
+                "update_turret_target_pitch_system: entity {:?} has no computable pose",
+                pitch_base
+            );
+            continue;
+        };
+        let Ok(muzzle_transform) = transform_helper.compute_global_transform(*muzzle) else {
             error!(
                 "update_turret_target_pitch_system: entity {:?} not found in q_muzzle",
                 *muzzle
@@ -1486,7 +1522,7 @@ mod tests {
         let ship = world
             .spawn((
                 SpaceshipRootMarker,
-                GlobalTransform::IDENTITY,
+                Transform::IDENTITY,
                 LinearVelocity(ship_velocity),
                 AngularVelocity(Vec3::ZERO),
                 ComputedCenterOfMass(Vec3::ZERO),
@@ -1495,7 +1531,7 @@ mod tests {
         let muzzle = world
             .spawn((
                 TurretSectionBarrelMuzzleMarker,
-                GlobalTransform::from_translation(muzzle_pos),
+                Transform::from_translation(muzzle_pos),
             ))
             .id();
         let turret = world
@@ -1581,7 +1617,7 @@ mod tests {
         let mut world = World::new();
         let ship = world.spawn(SpaceshipRootMarker).id();
         let muzzle = world
-            .spawn((TurretSectionBarrelMuzzleMarker, GlobalTransform::IDENTITY))
+            .spawn((TurretSectionBarrelMuzzleMarker, Transform::IDENTITY))
             .id();
         let turret = world
             .spawn((

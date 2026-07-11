@@ -75,11 +75,16 @@ impl Plugin for TurretLeadPlugin {
     fn build(&self, app: &mut App) {
         debug!("TurretLeadPlugin: build");
 
+        // The pips consume THIS frame's intercept: after the PostUpdate aim
+        // chain publishes it, before the indicator projection places the
+        // nodes (task 20260710-231929 - in Update the pip was always one
+        // frame behind the solution, jittering against a moving target).
         app.add_systems(
-            Update,
+            PostUpdate,
             (sync_turret_pips, drive_pip_anchors)
                 .chain()
-                .in_set(super::NovaHudSystems),
+                .after(TurretSectionAimSystems)
+                .before(ScreenIndicatorSystems),
         );
     }
 }
@@ -286,5 +291,124 @@ mod tests {
             **world.entity(pip).get::<ScreenIndicatorAnchor>().unwrap(),
             None
         );
+    }
+
+    /// The pip must mark THIS frame's intercept (task 20260710-231929). The
+    /// aim chain publishes in PostUpdate; before the fix the pips consumed
+    /// it from Update - always one frame behind, so the crosshair jittered
+    /// against any moving target by one frame of intercept motion. The rig
+    /// uses the REAL TurretLeadPlugin wiring plus the aim system registered
+    /// under its production set, drives a target across the sky at 60 u/s,
+    /// and demands the pip anchor equal the same frame's freshly published
+    /// aim point, every frame.
+    #[test]
+    fn pip_anchor_carries_the_same_frame_intercept() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+
+        use crate::sections::turret_section::update_turret_aim_point;
+
+        #[derive(Component)]
+        struct SkyTarget;
+
+        fn move_target(time: Res<Time>, mut q_target: Query<&mut Transform, With<SkyTarget>>) {
+            for mut transform in &mut q_target {
+                transform.translation.x += 60.0 * time.delta_secs();
+            }
+        }
+
+        fn feed_target_input(
+            q_target: Query<&Transform, With<SkyTarget>>,
+            mut q_turret: Query<&mut TurretSectionTargetInput>,
+        ) {
+            let Ok(target) = q_target.single() else {
+                return;
+            };
+            for mut input in &mut q_turret {
+                **input = Some(target.translation);
+            }
+        }
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, TransformPlugin, TurretLeadPlugin));
+        app.add_plugins(crate::hud::screen_indicator::ScreenIndicatorPlugin);
+        // The aim system under its production set (the full section plugin
+        // drags render-material plugins into a headless test).
+        app.add_systems(
+            PostUpdate,
+            update_turret_aim_point.in_set(TurretSectionAimSystems),
+        );
+        app.add_systems(Update, (move_target, feed_target_input).chain());
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            1.0 / 60.0,
+        )));
+
+        app.world_mut()
+            .spawn(SkyTarget)
+            .insert(Transform::from_xyz(0.0, 0.0, -80.0));
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::IDENTITY,
+            ))
+            .id();
+        let turret = app
+            .world_mut()
+            .spawn((
+                TurretSectionMarker,
+                ChildOf(ship),
+                Transform::IDENTITY,
+                TurretSectionTargetInput(None),
+                TurretSectionTargetVelocity(Vec3::X * 60.0),
+                TurretSectionConfigHelper(TurretSectionConfig::default()),
+                TurretSectionAimPoint(None),
+            ))
+            .id();
+        let muzzle = app
+            .world_mut()
+            .spawn((
+                TurretSectionBarrelMuzzleMarker,
+                ChildOf(turret),
+                Transform::IDENTITY,
+            ))
+            .id();
+        app.world_mut()
+            .entity_mut(turret)
+            .insert(TurretSectionMuzzleEntity(muzzle));
+        app.world_mut()
+            .spawn((TurretLeadHudMarker, Node::default()));
+
+        // Warmup: the reconcile system spawns the pip via commands.
+        app.update();
+        app.update();
+
+        let mut previous_aim: Option<Vec3> = None;
+        for _ in 0..30 {
+            app.update();
+            let world = app.world_mut();
+            let aim: Vec3 = (**world.entity(turret).get::<TurretSectionAimPoint>().unwrap())
+                .expect("a fed target yields an aim point");
+            let (_, anchor) = world
+                .query_filtered::<(&TurretLeadPipMarker, &ScreenIndicatorAnchor), ()>()
+                .single(world)
+                .expect("the player turret has exactly one pip");
+            // Delivery guard: the intercept must MOVE frame to frame, or
+            // same-frame and one-frame-stale anchors are indistinguishable.
+            if let Some(previous) = previous_aim {
+                assert!(
+                    (aim - previous).length() > 0.1,
+                    "the moving target must move the intercept"
+                );
+            }
+            previous_aim = Some(aim);
+            assert_eq!(
+                **anchor,
+                Some(ScreenIndicatorAnchorKind::Point(aim)),
+                "the pip must carry the SAME frame's intercept"
+            );
+        }
     }
 }

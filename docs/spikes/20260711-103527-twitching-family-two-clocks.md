@@ -252,3 +252,18 @@ playtest checklist.
 - Regression: `indicator_projects_with_the_frames_final_camera_pose`
   (sub-pixel match against end-of-frame rendered poses every frame,
   A/B: the old Update schedule misses by 54 px in the same rig).
+
+### 20260710-231929: turret crosshair (landed)
+
+- The aim chain (intercept solve + rotator targets) moved early in
+  PostUpdate on TransformHelper-composed fresh poses under the new public
+  `TurretSectionAimSystems` set; the lead pips consume it SAME-frame
+  between the aim chain and the indicator projection. The user hypothesis
+  (solver oscillation) stayed falsified: the closed-form solve is
+  stateless, and the regression pins monotone intercept motion.
+- Regression: `pip_anchor_carries_the_same_frame_intercept` (pip anchor
+  equals the same frame's aim point on every frame against a 60 u/s
+  target; A/B: the old Update-schedule pips fail on the first frame).
+- Family code status: all four members + the impulse root are landed.
+  Remaining before the umbrella closes: combined verification + user
+  playtest.
