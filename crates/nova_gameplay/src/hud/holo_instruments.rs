@@ -3,9 +3,12 @@
 //! the expansion of the language the ORBIT ring piloted - thin unlit
 //! NAV_CYAN geometry the flight computer "projects" into space.
 //!
-//! - **Trajectory ribbon**: the engaged leg's path (ship -> flip -> goal,
-//!   or ship -> goal once braking) as thin cylinder segments, for GOTO and
-//!   STOP alike via [`ManeuverTelemetry`]. Deliberately the straight-line
+//! - **Trajectory ribbon**: the engaged leg's path (ship -> flip -> park
+//!   point, or ship -> park point once braking) as thin cylinder segments,
+//!   for GOTO and STOP alike via [`ManeuverTelemetry`]. The ribbon ends at
+//!   the park point, not the goal center - on a big body the center sits
+//!   radius + standoff past where the ship actually stops (task
+//!   20260710-214316). Deliberately the straight-line
 //!   plan the computer actually flies today; when the arrival solve
 //!   becomes gravity-aware (task 20260710-193500) a curved prediction can
 //!   replace it - the instrument must not out-promise the autopilot.
@@ -151,7 +154,10 @@ fn sync_trajectory_ribbon(
         if let Some(flip) = telemetry.flip_point {
             points.push(flip);
         }
-        points.push(telemetry.goal);
+        // The leg ends where the ship will rest, not at the target
+        // center - on a big body the center sits radius + standoff past
+        // the park point (task 20260710-214316).
+        points.push(telemetry.park_point);
         (ship, points)
     });
 
@@ -262,10 +268,17 @@ mod tests {
         world
     }
 
+    /// A 50u standoff on the ship->goal line (the ship sits at the
+    /// origin), the same shape the autopilot publishes.
+    fn park_point(goal: Vec3) -> Vec3 {
+        goal - goal.normalize_or_zero() * 50.0
+    }
+
     fn telemetry(goal: Vec3, flip: Option<Vec3>) -> ManeuverTelemetry {
         ManeuverTelemetry {
             goal,
             goal_entity: None,
+            park_point: park_point(goal),
             distance: goal.length(),
             closing_speed: 10.0,
             brake_accel: 10.0,
@@ -298,7 +311,7 @@ mod tests {
             .query::<&TrajectoryRibbonSegment>()
             .iter(&world)
             .count();
-        assert_eq!(count, 2, "ship -> flip -> goal is two segments");
+        assert_eq!(count, 2, "ship -> flip -> park point is two segments");
 
         // Braking: the flip vanishes, the ribbon collapses to one segment.
         world.entity_mut(ship).insert(telemetry(goal, None));
@@ -319,6 +332,41 @@ mod tests {
                 .iter(&world)
                 .count(),
             0
+        );
+    }
+
+    #[test]
+    fn ribbon_terminates_at_the_park_point_not_the_goal() {
+        // Task 20260710-214316: on a big body the goal center sits
+        // radius + standoff past where the ship actually parks; the last
+        // segment must stop at the published park point.
+        let mut world = holo_world();
+        let goal = Vec3::new(0.0, 0.0, -300.0);
+        let flip = Vec3::new(0.0, 0.0, -240.0);
+        spawn_ship(&mut world, telemetry(goal, Some(flip)));
+
+        world.run_system_once(sync_trajectory_ribbon).unwrap();
+        let mut last: Option<(usize, Transform)> = None;
+        for (segment, transform) in world
+            .query::<(&TrajectoryRibbonSegment, &Transform)>()
+            .iter(&world)
+        {
+            if last.is_none_or(|(index, _)| segment.index > index) {
+                last = Some((segment.index, *transform));
+            }
+        }
+        let (_, transform) = last.expect("the ribbon has segments");
+        // The far end of the Y-up unit cylinder segment.
+        let far_end =
+            transform.translation + transform.rotation.mul_vec3(Vec3::Y) * transform.scale.y * 0.5;
+        let park = park_point(goal);
+        assert!(
+            far_end.distance(park) < 1e-4,
+            "the ribbon ends at the park point {park}, got {far_end}"
+        );
+        assert!(
+            far_end.distance(goal) > 49.0,
+            "the ribbon must stop a standoff short of the target center"
         );
     }
 

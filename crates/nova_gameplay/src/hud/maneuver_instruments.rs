@@ -450,6 +450,7 @@ mod tests {
             .spawn(ManeuverTelemetry {
                 goal: Vec3::new(0.0, 0.0, -300.0),
                 goal_entity: None,
+                park_point: Vec3::new(0.0, 0.0, -250.0),
                 distance: 300.0,
                 closing_speed: 12.0,
                 brake_accel: 10.0,
@@ -494,6 +495,7 @@ mod tests {
             .spawn(ManeuverTelemetry {
                 goal: Vec3::new(0.0, 0.0, -100.0),
                 goal_entity: None,
+                park_point: Vec3::new(0.0, 0.0, -50.0),
                 distance: 100.0,
                 closing_speed: 12.0,
                 brake_accel: 10.0,

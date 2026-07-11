@@ -189,6 +189,16 @@ pub struct ManeuverTelemetry {
     /// `goal` snapshot - a moving target would otherwise slide the
     /// caption off its marker.
     pub goal_entity: Option<Entity>,
+    /// Where the leg comes to rest, world coordinates: `goal` pulled back
+    /// along the closing line by the effective standoff
+    /// ([`FlightSettings::arrival_standoff`] plus the resolved target
+    /// radius). At or inside the park envelope it degenerates to the
+    /// ship's own position - the computer will not fly back out, and the
+    /// instruments must not draw a leg it will not fly. Equals `goal` for
+    /// STOP (the predicted rest point IS the park point). The trajectory
+    /// ribbon terminates here, not at the goal center (task
+    /// 20260710-214316).
+    pub park_point: Vec3,
     /// Distance to the goal SURFACE, world units: the center distance
     /// minus the target's resolved radius ([`BodyRadius`] /
     /// `GravityWell::body_radius`, zero for unsized targets and GotoPos),
@@ -1271,13 +1281,23 @@ fn autopilot_system(
             let standoff = settings.arrival_standoff + target_radius.max(0.0);
             let to_target = goal - position.0;
             let distance = to_target.length();
-            let closing_speed = velocity.dot(to_target.normalize_or_zero());
+            // Zero only if the ship sits exactly on the goal center; the
+            // else branch below has distance > standoff > 0, so there the
+            // fallback never engages.
+            let closing_dir = to_target.normalize_or_zero();
+            let closing_speed = velocity.dot(closing_dir);
+            // Where the leg rests: the standoff boundary on the closing
+            // line. Capped at the ship's own distance so at or inside the
+            // envelope it degenerates to the ship position - the computer
+            // stops there, it never flies back out to the boundary.
+            let park_point = goal - closing_dir * standoff.min(distance);
             if distance <= standoff {
                 (
                     Vec3::ZERO,
                     ManeuverTelemetry {
                         goal,
                         goal_entity: None,
+                        park_point,
                         distance: (distance - target_radius.max(0.0)).max(0.0),
                         closing_speed,
                         brake_accel: 0.0,
@@ -1287,7 +1307,6 @@ fn autopilot_system(
                     },
                 )
             } else {
-                let closing_dir = to_target.normalize();
                 let brake_dir = -closing_dir;
                 let brake_speed = velocity.length().max(settings.min_approach_speed);
                 let (accel, lead) = braking_plan(brake_dir, brake_speed);
@@ -1336,11 +1355,11 @@ fn autopilot_system(
                     ManeuverTelemetry {
                         goal,
                         goal_entity: None,
+                        park_point,
                         distance: (distance - target_radius.max(0.0)).max(0.0),
                         closing_speed,
                         brake_accel,
-                        flip_point: flip
-                            .map(|(from_goal, _)| goal - to_target.normalize() * from_goal),
+                        flip_point: flip.map(|(from_goal, _)| goal - closing_dir * from_goal),
                         seconds_to_flip: flip.map(|(_, seconds)| seconds),
                         eta,
                     },
@@ -1389,9 +1408,13 @@ fn autopilot_system(
                     if let Some(rest) =
                         stop_rest_distance(speed, accel * settings.decel_margin, lead, gravity)
                     {
+                        let goal = position.0 + velocity.normalize() * rest;
                         telemetry = Some(ManeuverTelemetry {
-                            goal: position.0 + velocity.normalize() * rest,
+                            goal,
                             goal_entity: None,
+                            // A STOP has no standoff: the predicted rest
+                            // point IS the park point.
+                            park_point: goal,
                             distance: rest,
                             closing_speed: speed,
                             brake_accel: effective,
@@ -3445,6 +3468,21 @@ mod tests {
             "flip is short of the goal"
         );
         assert!(telemetry.eta.expect("eta while closing") > 0.0);
+        // The park point sits exactly one standoff short of the goal on
+        // the closing line (GotoPos has no target radius).
+        let standoff = app.world().resource::<FlightSettings>().arrival_standoff;
+        assert!(
+            (telemetry.park_point.distance(goal) - standoff).abs() < 1e-3,
+            "the park point is one standoff short of the goal, got {}",
+            telemetry.park_point.distance(goal)
+        );
+        assert!(
+            (goal - telemetry.park_point)
+                .normalize()
+                .dot((goal - ship_position).normalize())
+                > 0.999,
+            "the park point lies on the closing line"
+        );
 
         // Switching verbs (insert-overwrite: OnRemove does NOT fire, the
         // in-system path must carry it) republishes for the new leg: a
@@ -3460,6 +3498,10 @@ mod tests {
             .expect("a moving STOP leg publishes its rest point");
         assert_ne!(stop_telemetry.goal, goal, "the goal is now the rest point");
         assert_eq!(stop_telemetry.flip_point, None);
+        assert_eq!(
+            stop_telemetry.park_point, stop_telemetry.goal,
+            "a STOP has no standoff: the rest point is the park point"
+        );
 
         // Breakout clears the numbers with the maneuver.
         app.world_mut()
@@ -3701,18 +3743,45 @@ mod tests {
             "telemetry reads to the surface: got {} for center distance {center_distance}",
             telemetry.distance
         );
+        // The published park point budgets the radius too: standoff plus
+        // radius from the center, on the closing line (task 20260710-214316,
+        // the ribbon terminates here).
+        let standoff = app.world().resource::<FlightSettings>().arrival_standoff;
+        assert!(
+            (telemetry.park_point.distance(center) - (standoff + 30.0)).abs() < 1e-2,
+            "the park point sits standoff + radius from the center, got {}",
+            telemetry.park_point.distance(center)
+        );
 
         let mut released = false;
+        // Once inside the park envelope the park point degenerates to the
+        // ship itself: the computer stops where it is, it never plans a
+        // leg back out to the boundary - and the ribbon must not draw one.
+        let mut inside_sample: Option<(Vec3, Vec3)> = None;
         for _ in 0..4800 {
             app.update();
+            if let Some(numbers) = app.world().get::<ManeuverTelemetry>(ship) {
+                if inside_sample.is_none() && numbers.distance <= standoff {
+                    inside_sample = Some((
+                        numbers.park_point,
+                        app.world().get::<Position>(ship).unwrap().0,
+                    ));
+                }
+            }
             if app.world().get::<Autopilot>(ship).is_none() {
                 released = true;
                 break;
             }
         }
         assert!(released, "GOTO must complete and disengage in budget");
+        let (inside_park, inside_position) =
+            inside_sample.expect("the leg passes through the park envelope before release");
+        assert!(
+            inside_park.distance(inside_position) < 2.0,
+            "inside the envelope the park point pins to the ship, got {}u away",
+            inside_park.distance(inside_position)
+        );
 
-        let standoff = app.world().resource::<FlightSettings>().arrival_standoff;
         let park = standoff + 30.0;
         let distance = (center - app.world().get::<Position>(ship).unwrap().0).length();
         let speed = velocity_of(&app, ship).length();
