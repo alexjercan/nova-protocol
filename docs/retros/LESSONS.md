@@ -9,7 +9,7 @@ retros.
 
 ## Process lessons
 
-- `diagnostic-first` (x6): trace the exact reported scenario before
+- `diagnostic-first` (x7): trace the exact reported scenario before
   theorizing a mechanism; the trace has beaten the hypothesis list every
   time it has been tried. 20260709-125640, 20260711-103527,
   20260710-231930, 20260711-121701, 20260711-125225, 20260711-140241
@@ -120,11 +120,20 @@ retros.
   own delivery-proved verification - the menu's NewGame path shipped with
   all spaceship input sets disabled because only the Sandbox route was
   exercised (R1.1 BLOCKER). 20260711-180426.
-- `out-of-context-review-pass` (positive pattern, x1): for a substantial
+- `out-of-context-review-pass` (positive pattern, x2): for a substantial
   branch reviewed in the implementer's own session, a fresh-context agent
   review caught a MAJOR (BCS_SHOT force-advance vs the Loaded hook) that
   shared-session eyes missed; the review skill's re-derive rule caught the
-  BLOCKER the same round. 20260711-180426.
+  BLOCKER the same round. 20260711-180426. Second cycle: caught the
+  missing regression tests on the two bug-carrying systems and the
+  OnExit-teardown generalization. 20260711-180455.
+- `authored-vs-derived-values` (x1): content authored against a system
+  that derives its own runtime geometry/parameters (collider-derived body
+  radius, well mu/SOI) must be placed using the runtime values, not the
+  nominal constants - three scene bugs in one cycle (orbit inside the
+  collider, ring inside the mesh, camera inside the rock) from reasoning
+  with nominal sizes. Read the consumer's derivation before authoring.
+  20260711-180455.
 - `cross-cycle-warning-with-numbers` (positive pattern): when a landed
   cycle discovers a hazard for a QUEUED task, write the warning into
   that task's TASK.md with the measured numbers and an explicit
@@ -145,7 +154,10 @@ retros.
   a consumer of state written in PostUpdate (e.g. the screen-indicator
   widget's arrow visibility) must slot after its producer, not in the
   default Update HUD set - a label mirrored the arrow one frame late.
-  20260711-174840.
+  20260711-174840. Same-frame variant: a Transform write queued alongside
+  a controller-component removal gets overwritten by the controller
+  running later that frame; write only on frames where the producer is
+  already gone. 20260711-180455.
 - `degenerate-inertia-frames` (x1): avian's eigen sort gives even an
   axis-aligned symmetric ship a cyclic-permutation local frame; frame
   composition code must be tested with both frames non-identity.
