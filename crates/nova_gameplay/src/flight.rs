@@ -1070,7 +1070,12 @@ fn autopilot_system(
         (&mut ControllerSectionRotationInput, &ChildOf),
         With<ControllerSectionMarker>,
     >,
-    q_target: Query<(&GlobalTransform, Option<&BodyRadius>)>,
+    // GOTO's goal pose: prefer the target's raw avian Position (a physics
+    // body chased at closing speed must be read on the clock of the forces
+    // chasing it - in FixedUpdate, GlobalTransform is the previous frame's
+    // eased render pose, task 20260711-103527); the GlobalTransform fallback
+    // keeps static markers without a physics body navigable.
+    q_target: Query<(Option<&Position>, &GlobalTransform, Option<&BodyRadius>)>,
     // ORBIT's well lookup: avian Position (the force system's frame), not
     // GlobalTransform, so the ring the computer flies is the ring gravity
     // pulls on. Without<SpaceshipRootMarker> is a design statement, not an
@@ -1169,7 +1174,7 @@ fn autopilot_system(
                 q_target
                     .get(well_entity)
                     .ok()
-                    .and_then(|(_, r)| r.map(|r| **r))
+                    .and_then(|(_, _, r)| r.map(|r| **r))
                     .unwrap_or(0.0),
             );
             well
@@ -1377,7 +1382,8 @@ fn autopilot_system(
                 Vec3::ZERO
             }
             AutopilotAction::Goto { target } => {
-                let Ok((target_transform, body_radius)) = q_target.get(target) else {
+                let Ok((target_position, target_transform, body_radius)) = q_target.get(target)
+                else {
                     debug!("autopilot_system: GOTO target {target:?} is gone, disengaging");
                     commands.entity(ship).remove::<Autopilot>();
                     continue;
@@ -1391,8 +1397,10 @@ fn autopilot_system(
                         .get(target)
                         .map_or(0.0, |(_, well)| well.body_radius),
                 );
-                let (desired, mut numbers) =
-                    arrival_desired(target_transform.translation(), target_radius);
+                let goal_position = target_position
+                    .map(|p| p.0)
+                    .unwrap_or_else(|| target_transform.translation());
+                let (desired, mut numbers) = arrival_desired(goal_position, target_radius);
                 // Arrived means INSIDE the park envelope, not merely
                 // "wants zero velocity": the degraded no-stopping-plan
                 // state also zeroes the desired velocity arbitrarily far
@@ -1493,9 +1501,12 @@ fn autopilot_system(
                 if primary {
                     firing_authority += **magnitude;
                 }
-                // World point of the engine (direct child of the root), the
-                // same point the impulse system pushes from, so its lever
-                // arm about com_world matches the torque physics applies.
+                // World point of the engine (direct child of the root):
+                // raw root pose composed with the local mount, and
+                // thruster_impulse_system pushes from this SAME composition
+                // (task 20260711-103527) - the lever arm about com_world
+                // matches the torque physics applies by construction, never
+                // through a render-clock GlobalTransform.
                 let pos_world = position.0 + rotation.mul_vec3(transform.translation);
                 let torque = (pos_world - com_world).cross(dir * **magnitude);
                 // A recruit's whole thrust vector is off-plan force (see
@@ -2673,6 +2684,84 @@ mod tests {
         for _ in 0..frames {
             app.update();
         }
+    }
+
+    /// A bare hull for the impulse-frame tests: no FlightIntent (the manual
+    /// burn layer would zero hand-set throttles) and no controller (a PD
+    /// would damp away the very spin the test measures). The only torque
+    /// source left is the impulse system's application point.
+    fn spawn_uncontrolled_dumbbell_with_com_lateral(app: &mut App) -> (Entity, Entity) {
+        let ship = app
+            .world_mut()
+            // TransformInterpolation matches production ships
+            // (base_scenario_object): PostUpdate then propagates the EASED
+            // pose, so the stale GlobalTransform trails raw physics on every
+            // tick, not just on the 64-vs-60 Hz double-tick frames.
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                TransformInterpolation,
+            ))
+            .id();
+        for z in [-1.0, 1.0] {
+            app.world_mut().spawn((
+                ChildOf(ship),
+                Name::new("hull"),
+                Transform::from_xyz(0.0, 0.0, z),
+                Collider::cuboid(1.0, 1.0, 1.0),
+                ColliderDensity(1.0),
+            ));
+        }
+        // Unit sections at z = -1, 0, +1 put the COM at the origin, which is
+        // exactly the lateral engine's mount: its +X thrust line passes
+        // through the COM and the TRUE torque is zero by construction.
+        let thruster = app
+            .world_mut()
+            .spawn((
+                ChildOf(ship),
+                Name::new("com lateral thruster"),
+                ThrusterSectionMarker,
+                ThrusterSectionMagnitude(1.0),
+                ThrusterSectionInput(0.0),
+                Transform::from_xyz(0.0, 0.0, 0.0)
+                    .with_rotation(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)),
+                Collider::cuboid(1.0, 1.0, 1.0),
+                ColliderDensity(1.0),
+            ))
+            .id();
+        (ship, thruster)
+    }
+
+    /// The impulse system must push from the raw physics pose, not the render
+    /// pose (task 20260711-103527). In FixedUpdate, `GlobalTransform` is the
+    /// PREVIOUS frame's propagation - since the interpolation opt-in
+    /// (2026-07-09) an eased pose one to two ticks behind raw physics. A
+    /// lateral engine whose thrust line passes exactly through the COM adds
+    /// zero true torque, but pushed from a point ~`v * dt` behind a fast hull
+    /// it torques the ship every tick: the high-speed twitch/flip of the
+    /// 2026-07-10 playtest. At 150 u/s the stale point trails ~2.3 u, which
+    /// spun this rig past 1 rad/s within a handful of frames before the fix.
+    #[test]
+    fn high_speed_lateral_burn_through_the_com_adds_no_spin() {
+        let mut app = flight_app();
+        let (ship, thruster) = spawn_uncontrolled_dumbbell_with_com_lateral(&mut app);
+        settle(&mut app);
+
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::Z * 150.0));
+        app.world_mut()
+            .get_mut::<ThrusterSectionInput>(thruster)
+            .unwrap()
+            .0 = 1.0;
+
+        run(&mut app, 60);
+
+        let spin = app.world().get::<AngularVelocity>(ship).unwrap().length();
+        assert!(
+            spin < 0.05,
+            "a thrust line through the COM must not spin the hull, got {spin} rad/s"
+        );
     }
 
     #[test]

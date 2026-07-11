@@ -169,6 +169,9 @@ playtest checklist.
   the body's raw pose during the physics step - verify this holds for the
   thruster children (their query already reads avian `Rotation`), then
   prefer those components over recomposing from the root.
+  UPDATE (20260711-103527): verified, and they are NOT good enough -
+  `update_child_collider_position` runs before integration, so the child's
+  avian pose is one tick stale too. Compose from the root's raw pose.
 - Cross-repo: if PostUpdate ordering against the bcs chase-camera systems
   needs a public system set exported from bevy-common-systems, that change
   gets its own task and cycle in the bcs repo (precedent: residual-roll,
@@ -177,3 +180,24 @@ playtest checklist.
   physics would then integrate a pose that disagrees with every other body's
   raw state. Raw pose + raw velocity in FixedUpdate is the consistent choice;
   the muzzle flash stays on the render clock so visuals remain attached.
+
+## Fix record
+
+### 20260711-103527: thruster impulses (landed)
+
+- `thruster_impulse_system` now composes application point AND thrust
+  direction from the root's raw `Position`/`Rotation` (avian `Forces` item
+  accessors) and the engine's local mount Transform - the balancer's exact
+  lever-arm math. The GOTO goal pose in `autopilot_system` prefers the
+  target's raw `Position` with a GlobalTransform fallback for static
+  markers. Full audit table and diagnostic trace in
+  `tasks/20260711-103527/TASK.md`.
+- Mechanism refinement the diagnostic forced on the spike: the stale offset
+  is PARALLEL to a prograde/retrograde burn (torque-benign); the flip comes
+  from LATERAL thrust at speed (balancer recruits, drift correction), where
+  the offset is perpendicular - plus rotation staleness mid-flip. Severity
+  measured: a zero-true-torque lateral engine at 150 u/s spun the hull to
+  7.1 rad/s in 15 frames pre-fix; 0 rad/s post-fix.
+- Family status: with impulses on the raw clock, re-test 20260710-231931
+  (ship render twitch) - the hull attitude jitter under thrust at speed is
+  gone at the source.

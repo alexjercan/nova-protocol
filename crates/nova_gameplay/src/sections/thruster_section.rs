@@ -131,8 +131,7 @@ impl Plugin for ThrusterSectionPlugin {
 pub(crate) fn thruster_impulse_system(
     q_thruster: Query<
         (
-            &GlobalTransform,
-            &Rotation,
+            &Transform,
             &ChildOf,
             &ThrusterSectionMagnitude,
             &ThrusterSectionInput,
@@ -141,7 +140,7 @@ pub(crate) fn thruster_impulse_system(
     >,
     mut q_root: Query<Forces>,
 ) {
-    for (transform, rotation, &ChildOf(root), magnitude, input) in &q_thruster {
+    for (transform, &ChildOf(root), magnitude, input) in &q_thruster {
         let Ok(mut force) = q_root.get_mut(root) else {
             error!(
                 "thruster_impulse_system: entity {:?} not found in q_root",
@@ -150,9 +149,20 @@ pub(crate) fn thruster_impulse_system(
             continue;
         };
 
-        let thrust_direction = rotation.mul_vec3(Vec3::NEG_Z).normalize();
+        // Compose the burn from the ROOT's raw physics pose and the engine's
+        // local mount (sections are direct children of the root), the exact
+        // math of the balancer's lever arms in flight.rs. In FixedUpdate,
+        // `GlobalTransform` and the child collider's avian pose are at least
+        // one tick stale - at speed that trails the hull by `v * dt` and a
+        // COM-centered engine torques the ship it must not touch (task
+        // 20260711-103527).
+        let position = force.position().0;
+        let rotation = *force.rotation();
+        let thrust_direction = rotation
+            .mul_vec3(transform.rotation.mul_vec3(Vec3::NEG_Z))
+            .normalize();
         let thrust_force = thrust_direction * **magnitude * input.clamp(0.0, 1.0);
-        let world_point = transform.translation();
+        let world_point = position + rotation.mul_vec3(transform.translation);
 
         force.apply_linear_impulse_at_point(thrust_force, world_point);
     }
