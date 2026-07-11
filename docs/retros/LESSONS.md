@@ -13,12 +13,13 @@ retros.
   theorizing a mechanism; the trace has beaten the hypothesis list every
   time it has been tried. 20260709-125640, 20260711-103527,
   20260710-231930, 20260711-121701, 20260711-125225.
-- `fail-first-regression-ab` (x7, PROMOTED 2026-07-11 -> work skill): a
+- `fail-first-regression-ab` (x8, PROMOTED 2026-07-11 -> work skill): a
   bug-fix regression is proven by failing it against the pre-fix
   behavior and recording the numbers. 20260711-103527 (7.1 rad/s -> 0),
   20260710-231931 (4.26 -> 0), 20260710-231930, 20260710-231928
   (54 px -> sub-pixel), 20260710-231929, 20260711-121711 (20 u drift),
-  20260711-121839 (2.09 u -> 0).
+  20260711-121839 (2.09 u -> 0), 20260711-140234 (bit-for-bit unchanged
+  number falsified two placebo fixes).
 - `delivery-guards-on-null-assertions` (x4, PROMOTED 2026-07-11 ->
   review skill): "nothing happens" tests need proof the stimulus fired.
   20260710-231931 (R1.1 MAJOR), 20260710-231930, 20260711-121701,
@@ -41,10 +42,12 @@ retros.
   skill): commit the fix before A/B sabotage; file-level `git checkout`
   restores the branch base, not your uncommitted work. 20260710-231930
   (~250 lines lost and redone).
-- `production-faithful-rigs` (x2, PROMOTED 2026-07-11 -> work skill):
+- `production-faithful-rigs` (x3, PROMOTED 2026-07-11 -> work skill):
   clock/schedule test rigs must mirror production scheduling components;
   a clean trace on a non-faithful rig is not evidence. 20260711-103527,
-  20260710-231930.
+  20260710-231930, 20260711-140234 (arrival dynamics proved
+  wiring-dependent; the regression had to be re-wired to production
+  mid-cycle).
 - `presence-vs-behavior-tests` (x2): component-exists assertions stay
   green while the behavior regresses; assert the behavior.
   20260709-160753 (R1.2), applied in 20260710-231931.
@@ -86,6 +89,11 @@ retros.
 - `ab-toggle-via-vcs-not-sed` (x1): toggle a fix off for A/B against the
   committed pre-fix state (stash/checkout), not by sed-editing source; a
   substitution restored two fields with one value. 20260711-121839.
+- `confounded-knob-experiment` (x1): before concluding a knob-turning
+  A/B, grep every reader of the knob - a global setting with two readers
+  (crumb band + urgency denominator) attributed the whole effect to one
+  and cost two placebo fix variants; cross wiring x knob variants
+  instead of holding one factor fixed. 20260711-140234.
 
 ## Domain lessons (nova-protocol specific)
 
