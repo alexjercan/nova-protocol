@@ -1,7 +1,7 @@
 # Spike: client-side smoothing and deadbands on PD and camera outputs
 
 - STATUS: OPEN
-- PRIORITY: 40
+- PRIORITY: 52
 - TAGS: v0.5.0,spike,feel
 
 ## Goal
