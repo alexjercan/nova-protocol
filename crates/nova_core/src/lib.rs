@@ -13,6 +13,8 @@ pub use nova_events;
 pub use nova_gameplay;
 use nova_gameplay::prelude::*;
 pub use nova_info;
+pub use nova_menu;
+use nova_menu::prelude::*;
 pub use nova_scenario;
 use nova_scenario::prelude::*;
 
@@ -24,6 +26,7 @@ pub mod prelude {
     pub use nova_events::prelude::*;
     pub use nova_gameplay::prelude::*;
     pub use nova_info::prelude::*;
+    pub use nova_menu::prelude::*;
     pub use nova_scenario::prelude::*;
 
     pub use super::{editor_app, AppBuilder};
@@ -43,6 +46,7 @@ pub struct AppBuilder {
     app: App,
     use_default_plugins: bool,
     render: bool,
+    main_menu: Option<bool>,
 }
 
 impl Default for AppBuilder {
@@ -66,6 +70,7 @@ impl AppBuilder {
             app,
             use_default_plugins: true,
             render: true,
+            main_menu: None,
         }
     }
 
@@ -77,6 +82,16 @@ impl AppBuilder {
 
     pub fn with_rendering(mut self, render: bool) -> Self {
         self.render = render;
+        self
+    }
+
+    /// Override whether the app boots into the main menu.
+    ///
+    /// By default the menu comes up only for the default (editor) app: examples that
+    /// supply their own game plugins via [`with_game_plugins`](Self::with_game_plugins)
+    /// go straight `Loading -> Playing` as before, so they need no changes.
+    pub fn with_main_menu(mut self, main_menu: bool) -> Self {
+        self.main_menu = Some(main_menu);
         self
     }
 
@@ -103,16 +118,34 @@ impl AppBuilder {
             self.app.add_plugins(NovaEditorPlugin);
         }
 
+        // The main menu fronts the default app unless explicitly overridden; custom
+        // game plugins (the examples) skip it and keep the direct Loading -> Playing
+        // lifecycle.
+        let main_menu = self.main_menu.unwrap_or(self.use_default_plugins);
+        if main_menu {
+            self.app.add_plugins(NovaMenuPlugin);
+        }
+
         #[cfg(feature = "debug")]
         self.app.add_plugins(DebugPlugin);
 
-        // When we enter the Loaded state, switch to Playing state
-        // Setup the status UI when entering the Playing state
+        // When assets are loaded, hand off to the main menu (when it fronts the app)
+        // or straight to gameplay. The status UI comes up either way. Only advance
+        // when still in Loading: the screenshot harness (BCS_SHOT) force-sets
+        // Playing on the first frame, and this hook firing seconds later must not
+        // yank the app backwards into the menu (review R1.2).
         self.app.add_systems(
             OnEnter(GameAssetsStates::Loaded),
             (
-                |mut state: ResMut<NextState<GameStates>>| {
-                    state.set(GameStates::Playing);
+                move |state: Res<State<GameStates>>, mut next: ResMut<NextState<GameStates>>| {
+                    if *state.get() != GameStates::Loading {
+                        return;
+                    }
+                    next.set(if main_menu {
+                        GameStates::MainMenu
+                    } else {
+                        GameStates::Playing
+                    });
                 },
                 setup_status_ui,
             ),

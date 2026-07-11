@@ -95,10 +95,21 @@ fn editor_autopilot(world: &mut World, _elapsed: f32) {
         ui_widgets::Activate,
     };
 
-    // The editor lives inside GameStates::Playing (it switches its own inner state to Editor
-    // there); do nothing until the loader has reached it.
-    if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
-        return;
+    // The app now boots into the main menu; drive it the way a user would by
+    // clicking Sandbox (which is also the smoke coverage for the menu itself).
+    // Repeat clicks while the state transition is pending are idempotent.
+    match *world.resource::<State<GameStates>>().get() {
+        GameStates::MainMenu => {
+            if let Some(button) = button_by_name(world, "Sandbox Button") {
+                world.trigger(Activate { entity: button });
+                info!("editor autopilot: clicked Sandbox in the main menu");
+            }
+            return;
+        }
+        // The editor lives inside GameStates::Playing (it switches its own inner state to
+        // Editor there); do nothing until the loader has reached the menu or gameplay.
+        GameStates::Loading => return,
+        GameStates::Playing => {}
     }
 
     if !world.contains_resource::<EditorAutopilot>() {

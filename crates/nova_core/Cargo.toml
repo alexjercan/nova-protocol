@@ -12,6 +12,7 @@ nova_debug = { path = "../nova_debug", optional = true }
 nova_editor = { path = "../nova_editor" }
 nova_gameplay = { path = "../nova_gameplay" }
 nova_info = { path = "../nova_info" }
+nova_menu = { path = "../nova_menu" }
 nova_scenario = { path = "../nova_scenario" }
 nova_events = { path = "../nova_events" }
 
@@ -19,4 +20,4 @@ nova_events = { path = "../nova_events" }
 workspace = true
 
 [features]
-debug = ["nova_debug", "bevy/track_location", "nova_editor/debug", "nova_gameplay/debug", "nova_info/debug"]
+debug = ["nova_debug", "bevy/track_location", "nova_editor/debug", "nova_gameplay/debug", "nova_info/debug", "nova_menu/debug"]

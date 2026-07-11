@@ -34,18 +34,38 @@ pub mod prelude {
         plugin::{NovaGameplayPlugin, SpaceshipSystems},
         relations::prelude::*,
         sections::prelude::*,
-        GameStates,
+        GameMode, GameStates,
     };
 }
 
 /// Top-level game lifecycle state.
 ///
-/// `Loading` while assets load, `Playing` once the game is running. Lives here (the
-/// foundational gameplay crate) so both the thin wiring layer (`nova_core`) and the
-/// editor (`nova_editor`) can gate on it without depending on each other.
+/// `Loading` while assets load, `MainMenu` while the main menu (owned by `nova_menu`)
+/// is up, `Playing` once the game is running. Apps without the menu (examples that
+/// supply their own game plugins) go straight `Loading -> Playing`. Lives here (the
+/// foundational gameplay crate) so the wiring layer (`nova_core`), the editor
+/// (`nova_editor`) and the menu (`nova_menu`) can gate on it without depending on
+/// each other.
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
 pub enum GameStates {
     #[default]
     Loading,
+    MainMenu,
     Playing,
+}
+
+/// Which game the main menu handed off to when it set [`GameStates::Playing`].
+///
+/// `Sandbox` is the default so apps that skip the menu keep the pre-menu behavior
+/// (the editor comes up on entering `Playing`). Initialized by `NovaGameplayPlugin`;
+/// written by the menu buttons, read on `OnEnter(GameStates::Playing)` by the editor
+/// (enter only in `Sandbox`) and the menu's New Game loader (only in `NewGame`).
+#[derive(Resource, Clone, Copy, Eq, PartialEq, Debug, Hash, Default, Reflect)]
+#[reflect(Resource)]
+pub enum GameMode {
+    /// Ship editor plus its sandbox scenario (the default game).
+    #[default]
+    Sandbox,
+    /// Jump straight into a ready-to-play scenario.
+    NewGame,
 }

@@ -4407,6 +4407,7 @@ dependencies = [
  "nova_events",
  "nova_gameplay",
  "nova_info",
+ "nova_menu",
  "nova_scenario",
 ]
 
@@ -4465,6 +4466,16 @@ dependencies = [
 [[package]]
 name = "nova_info"
 version = "0.4.1"
+
+[[package]]
+name = "nova_menu"
+version = "0.4.1"
+dependencies = [
+ "bevy",
+ "nova_assets",
+ "nova_gameplay",
+ "nova_scenario",
+]
 
 [[package]]
 name = "nova_scenario"

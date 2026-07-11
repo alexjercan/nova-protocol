@@ -37,6 +37,11 @@ impl Plugin for NovaGameplayPlugin {
         app.add_plugins(PhysicsPickingPlugin);
         app.insert_resource(Gravity::ZERO);
 
+        // The mode the main menu hands off to Playing with; defaults to Sandbox so
+        // menu-less apps (all the examples) keep the pre-menu editor behavior.
+        app.init_resource::<crate::GameMode>();
+        app.register_type::<crate::GameMode>();
+
         // Random number generator
         app.add_plugins(EntropyPlugin::<WyRand>::default());
 

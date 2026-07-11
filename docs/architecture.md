@@ -9,9 +9,10 @@ real code lives under `crates/`.
 | Crate           | Responsibility |
 |-----------------|----------------|
 | `nova-protocol` (root) | `src/main.rs` = clap CLI + entrypoint. `src/lib.rs` re-exports `nova_core`. Examples live in `examples/`. |
-| `nova_core`     | Thin wiring: `AppBuilder` assembles every plugin (window/log/asset setup, status UI). No gameplay logic. Adds `NovaEditorPlugin` when no custom game plugins are supplied. |
-| `nova_editor`   | The spaceship **editor scene** (`NovaEditorPlugin`): section-picker UI, ship building/placement, transition to the scenario simulation. Sits above `nova_gameplay` + `nova_scenario`. |
-| `nova_gameplay` | Nova-specific gameplay. Submodules: `sections/`, `integrity/`, `input/` (player + ai), `hud/`, `camera_controller`, `plugin` (`NovaGameplayPlugin`). Also owns `GameStates` (top-level Loading/Playing lifecycle). |
+| `nova_core`     | Thin wiring: `AppBuilder` assembles every plugin (window/log/asset setup, status UI). No gameplay logic. Adds `NovaEditorPlugin` + `NovaMenuPlugin` when no custom game plugins are supplied. |
+| `nova_editor`   | The spaceship **editor scene** (`NovaEditorPlugin`): section-picker UI, ship building/placement, transition to the scenario simulation. Sits above `nova_gameplay` + `nova_scenario`. Comes up on entering `Playing` only in `GameMode::Sandbox`. |
+| `nova_menu`     | The **main menu** (`NovaMenuPlugin`): owns `GameStates::MainMenu` - bottom-right panel (New Game / Sandbox / Settings / Exit) over a skybox camera. Buttons write `GameMode` and hand off to `Playing`; New Game loads its scenario. See docs/spikes/20260711-180500-main-menu.md. |
+| `nova_gameplay` | Nova-specific gameplay. Submodules: `sections/`, `integrity/`, `input/` (player + ai), `hud/`, `camera_controller`, `plugin` (`NovaGameplayPlugin`). Also owns `GameStates` (top-level Loading/MainMenu/Playing lifecycle) and the `GameMode` resource. |
 | `nova_scenario` | Scenario/modding engine: `events`, `filters`, `actions`, `variables`, `world`, `loader`, and scenario `objects/`. See [scenario-system.md](scenario-system.md). |
 | `nova_events`   | Game event kinds and entity identity components (shared vocabulary between gameplay and scenario). |
 | `nova_assets`   | `bevy_asset_loader` setup. Loads glb/textures/shaders, then registers the built-in sections and scenarios. |
@@ -82,8 +83,9 @@ AppBuilder::new()                 // Bevy DefaultPlugins + window/log setup
 ```
 
 `build()` adds, in order: enhanced input, `GameAssetsPlugin`, `NovaGameplayPlugin`,
-`NovaScenarioPlugin`, the editor `NovaEditorPlugin` (only when no custom game plugins
-were supplied), and (only under `debug`) `DebugPlugin`. (Bevy `DefaultPlugins`,
+`NovaScenarioPlugin`, the editor `NovaEditorPlugin` and the menu `NovaMenuPlugin`
+(both only when no custom game plugins were supplied; `with_main_menu(bool)`
+overrides the menu default), and (only under `debug`) `DebugPlugin`. (Bevy `DefaultPlugins`,
 including UI widgets, are added by `AppBuilder::new()`; avian3d `PhysicsPlugins` comes
 in via `NovaGameplayPlugin`, see below.)
 
@@ -95,7 +97,12 @@ sections, hud, camera controller, integrity).
 
 Two independent state machines:
 
-- `GameStates { Loading, Playing }` - top-level app state (`nova_gameplay`).
+- `GameStates { Loading, MainMenu, Playing }` - top-level app state
+  (`nova_gameplay`). `MainMenu` only occurs when `NovaMenuPlugin` fronts the app
+  (the default editor app); examples with custom game plugins go straight
+  `Loading -> Playing`. The `GameMode` resource (`Sandbox` default | `NewGame`)
+  records what the menu handed off to: the editor enters only in `Sandbox`, the
+  menu loads the New Game scenario in `NewGame`.
 - `GameAssetsStates { Loading, Processing, Loaded }` - asset pipeline (`nova_assets`).
   Assets load in `Loading`, get post-processed in `Processing`, and gameplay/scenarios
   begin at `Loaded`. **Scenario setup hooks `OnEnter(GameAssetsStates::Loaded)`** -

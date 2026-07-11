@@ -43,11 +43,24 @@ fn editor_plugin(app: &mut App) {
     app.insert_resource(SectionChoice::None);
     app.insert_resource(PlayerSpaceshipConfig::default());
 
+    // The editor is the Sandbox game. When the main menu fronts the app it hands
+    // off to Playing with GameMode set: Sandbox enters the editor, NewGame goes
+    // straight to the Scenario state - the spaceship input/section system sets
+    // below are gated on ExampleStates::Scenario, so a menu-loaded scenario is
+    // only flyable from inside it (review R1.1). The menu owns the NewGame
+    // scenario load; setup_scenario below stays Sandbox-only so the two do not
+    // both fire. GameMode defaults to Sandbox (NovaGameplayPlugin), so menu-less
+    // apps behave as before.
     app.add_systems(
         OnEnter(GameStates::Playing),
-        (|mut game_state: ResMut<NextState<ExampleStates>>| {
-            game_state.set(ExampleStates::Editor);
-        },),
+        (
+            |mode: Res<GameMode>, mut game_state: ResMut<NextState<ExampleStates>>| {
+                game_state.set(match *mode {
+                    GameMode::Sandbox => ExampleStates::Editor,
+                    GameMode::NewGame => ExampleStates::Scenario,
+                });
+            },
+        ),
     );
 
     app.add_systems(
@@ -71,9 +84,14 @@ fn editor_plugin(app: &mut App) {
     );
     app.add_systems(
         OnEnter(ExampleStates::Scenario),
-        (setup_scenario, |mut selection: ResMut<SectionChoice>| {
-            *selection = SectionChoice::None;
-        }),
+        (
+            // Sandbox-only: in NewGame the menu already loaded its scenario and a
+            // second LoadScenario here would tear it straight back down.
+            setup_scenario.run_if(resource_equals(GameMode::Sandbox)),
+            |mut selection: ResMut<SectionChoice>| {
+                *selection = SectionChoice::None;
+            },
+        ),
     );
 
     app.add_observer(button_on_interaction::<Add, Pressed>)
@@ -178,8 +196,10 @@ fn test_scenario(
         });
     }
 
+    // Sandbox is for building and flying, not fighting: the other ship is a passive
+    // target, per the main-menu spike's sandbox scope (docs/spikes/20260711-180500).
     let spaceship = SpaceshipConfig {
-        controller: SpaceshipController::AI(AIControllerConfig::default()),
+        controller: SpaceshipController::None,
         sections: vec![
             SpaceshipSectionConfig {
                 id: "controller".to_string(),
@@ -1135,4 +1155,82 @@ fn button(text: &str) -> impl Bundle {
             TextShadow::default(),
         )],
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::state::app::StatesPlugin;
+
+    use super::*;
+
+    /// Counts LoadScenario triggers so the NewGame test can prove the editor
+    /// stayed out of the menu's scenario load (review R1.1).
+    #[derive(Resource, Default)]
+    struct EditorScenarioLoads(usize);
+
+    fn app() -> App {
+        let mut app = App::new();
+        app.add_plugins(StatesPlugin);
+        app.init_state::<GameStates>();
+        app.init_resource::<GameMode>();
+        // switch_scene_editor polls the keyboard while in the Scenario state.
+        app.init_resource::<ButtonInput<KeyCode>>();
+        editor_plugin(&mut app);
+        app.init_resource::<EditorScenarioLoads>();
+        app.add_observer(
+            |_: On<LoadScenario>, mut loads: ResMut<EditorScenarioLoads>| {
+                loads.0 += 1;
+            },
+        );
+        app
+    }
+
+    /// Regression for review R1.1: in NewGame mode the editor must still enter
+    /// its Scenario state (the spaceship input/section system sets are gated on
+    /// it, so without this the menu-loaded scenario is unflyable), while leaving
+    /// the scenario load itself to the menu.
+    #[test]
+    fn new_game_enters_scenario_state_without_loading_the_editor_scenario() {
+        let mut app = app();
+        app.insert_resource(GameMode::NewGame);
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::Playing);
+        app.update();
+        app.update();
+
+        // Delivery guard: the handoff actually reached the Scenario state.
+        assert_eq!(
+            *app.world().resource::<State<ExampleStates>>().get(),
+            ExampleStates::Scenario
+        );
+        // The editor did not fire its own sandbox scenario on top of the menu's.
+        assert_eq!(app.world().resource::<EditorScenarioLoads>().0, 0);
+    }
+
+    /// Sandbox mode heads for the editor scene, exactly as before the menu. The
+    /// full editor path (scene setup needs GameAssets) is covered end to end by
+    /// the 09_editor smoke run; this pins just the state routing.
+    #[test]
+    fn sandbox_heads_to_editor_state() {
+        let mut app = app();
+        app.insert_resource(GameMode::Sandbox);
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::Playing);
+        // A single transition step: entering Editor would run setup_editor_scene,
+        // which needs GameAssets, so only assert the queued target.
+        let queued = match app.world().resource::<NextState<ExampleStates>>() {
+            NextState::Pending(s) => Some(s.clone()),
+            _ => None,
+        };
+        assert_eq!(queued, None, "nothing queued before Playing is applied");
+        app.world_mut()
+            .run_schedule(bevy::state::state::StateTransition);
+        let queued = match app.world().resource::<NextState<ExampleStates>>() {
+            NextState::Pending(s) => Some(s.clone()),
+            _ => None,
+        };
+        assert_eq!(queued, Some(ExampleStates::Editor));
+    }
 }

@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- @alexjercan the game boots into a main menu (new `nova_menu` crate): a bottom-right "Nova Protocol" panel with New Game (loads the asteroid-field scenario with the canned player ship), Sandbox (the ship editor), Settings (placeholder) and Exit (hidden on wasm); examples with custom game plugins keep the direct Loading -> Playing flow, and `AppBuilder::with_main_menu(bool)` overrides the default
+
 ### Changed
+
+- @alexjercan the editor's play-test scenario ship is now a passive target instead of an AI combatant, matching the sandbox's build-and-fly scope
 
 - @alexjercan the velocity sphere tints to the flight computer's nav-cyan family while the autopilot flies and reverts to white/blue in manual, so engaged-vs-manual reads from the instrument itself; the gravity sphere stays yellow in both states
 - @alexjercan the bottom-left flight status text is replaced by diegetic readouts: a speed chip and an engaged-mode chip (verb + phase) anchored to the ship beside the velocity sphere, and an ORBIT radius spoke holo (well-to-ship line with the current radius riding it); the GRAV coasting cue is retired in favor of the gravity sphere and the keybind hint cluster re-docks to the freed corner; the ring's planned `r | v_circ` chip is retired as redundant with the new readouts

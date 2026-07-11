@@ -89,6 +89,7 @@ members = [
   "crates/nova_events",
   "crates/nova_gameplay",
   "crates/nova_info",
+  "crates/nova_menu",
   "crates/nova_scenario",
 ]
 resolver = "2"
