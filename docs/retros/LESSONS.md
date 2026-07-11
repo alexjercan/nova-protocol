@@ -14,17 +14,19 @@ retros.
   time it has been tried. 20260709-125640, 20260711-103527,
   20260710-231930, 20260711-121701, 20260711-125225, 20260711-140241
   (frame trace overturned the "dither" theory in one run).
-- `fail-first-regression-ab` (x8, PROMOTED 2026-07-11 -> work skill): a
+- `fail-first-regression-ab` (x9, PROMOTED 2026-07-11 -> work skill): a
   bug-fix regression is proven by failing it against the pre-fix
   behavior and recording the numbers. 20260711-103527 (7.1 rad/s -> 0),
   20260710-231931 (4.26 -> 0), 20260710-231930, 20260710-231928
   (54 px -> sub-pixel), 20260710-231929, 20260711-121711 (20 u drift),
   20260711-121839 (2.09 u -> 0), 20260711-140234 (bit-for-bit unchanged
-  number falsified two placebo fixes).
-- `delivery-guards-on-null-assertions` (x4, PROMOTED 2026-07-11 ->
+  number falsified two placebo fixes), 20260710-214316 (ribbon at
+  [0,0,-300] vs park [0,0,-250], the full 50u standoff).
+- `delivery-guards-on-null-assertions` (x5, PROMOTED 2026-07-11 ->
   review skill): "nothing happens" tests need proof the stimulus fired.
   20260710-231931 (R1.1 MAJOR), 20260710-231930, 20260711-121701,
-  20260711-121711.
+  20260711-121711, 20260710-214316 (expect-guard on the
+  inside-envelope sample).
 - `verify-first-plan-steps` (x3, PROMOTED 2026-07-11 -> plan skill):
   plan steps encoding mechanisms/formulas/orderings must cite the
   verifying file or be phrased verify-first. 20260710-231931 (torque
@@ -54,6 +56,11 @@ retros.
   20260709-160753 (R1.2), applied in 20260710-231931.
 - `sweep-then-delete` (x2): grep for consumers BEFORE deleting or
   slimming a symbol/readout. 20260711-000547, 20260711-125226.
+- `reread-after-insert` (x1): after inserting into an existing function
+  or test, re-read the whole function for bindings/assertions the
+  insertion duplicated or obsoleted; a mid-test insertion left the
+  pre-existing identical binding as a redundant shadow (R1.1).
+  20260710-214316.
 - `does-the-old-element-survive` (x2): when a design adds an element
   overlapping an existing one, the spike/plan must ask what happens to
   the old one. 20260711-000547, 20260711-125226.
