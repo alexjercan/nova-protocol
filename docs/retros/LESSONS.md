@@ -58,12 +58,16 @@ retros.
 - `presence-vs-behavior-tests` (x2): component-exists assertions stay
   green while the behavior regresses; assert the behavior.
   20260709-160753 (R1.2), applied in 20260710-231931.
-- `sweep-then-delete` (x3): grep for consumers BEFORE deleting or
+- `sweep-then-delete` (x4): grep for consumers BEFORE deleting or
   slimming a symbol/readout. 20260711-000547, 20260711-125226. Prose
   variant: comments/docs citing a retired invariant are consumers too -
   grep the workspace for the invariant's fingerprint, not just files the
   diff touches; two crates' comments described the opposite of reality
-  after the gate moved (R1.1, R1.2). 20260711-212519.
+  after the gate moved (R1.1, R1.2). 20260711-212519. Behavior-words
+  variant: sweep the deleted mechanism's DESCRIBING words ("ballistic",
+  "seeds"), not just its symbol names - a fn doc in the edited file and
+  a CHANGELOG Unreleased entry survived a clean symbol sweep.
+  20260711-212504.
 - `reread-after-insert` (x2): after inserting into an existing function
   or test, re-read the whole function for bindings/assertions the
   insertion duplicated or obsoleted; a mid-test insertion left the
@@ -228,9 +232,11 @@ retros.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-- `sweep-then-delete` is at x3 (now including the prose variant) -
-  candidate for the work skill: "when retiring/moving an invariant, grep
-  the workspace for code AND prose consumers before closing".
+- `sweep-then-delete` is at x4 and recurred even WITH the prose variant
+  freshly on record (same day) - promote to the work skill with the
+  concrete two-grep rule: "before closing a task that deletes or moves a
+  mechanism, grep the workspace (1) for its symbol names and (2) for its
+  describing words, covering comments, module docs and CHANGELOG".
 - `tatr-same-second-collision` is at x3 despite the tatr skill gotcha -
   candidate for a mechanical fix instead of a note: teach `tatr new` to
   disambiguate same-second IDs (suffix or sub-second component), or an
