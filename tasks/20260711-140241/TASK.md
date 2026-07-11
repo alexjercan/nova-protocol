@@ -1,8 +1,49 @@
 # Rotation command handoff crosses clocks: move the PD input copy to FixedUpdate and align the test harness
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 56
-- TAGS: v0.5.0,bug,physics,flight
+- TAGS: v0.5.0, bug, physics, flight
+
+## Steps
+
+- [x] Diagnose the same-tick limit cycle from the WARNING (prerequisite).
+      Traced frame-by-frame at the terminal phase: it is a BOUNDARY
+      BOUNCE, not re-aim chatter. The finishing burn of the doorstep
+      brake keeps demanding until the error reads zero, but the throttle
+      spool-down tail (~magnitude * input^2 / (2 * spool_down_rate * dt))
+      keeps delivering impulse after the demand drops - the ship burns
+      THROUGH zero (trace: +0.73 u/s killed to +0.08, then reversed to
+      -0.81), exits its own standoff backwards, and the re-entry error
+      (~2.3 u/s > band) re-aims the hull 180. Under the stale wiring the
+      identical overshoot happened to land at 0.58 (under the band,
+      inside the boundary) - the "accidental dither" was just which side
+      of the knife edge the overshoot fell on.
+- [x] Fix the cycle at its source: spool-tail cutoff in autopilot_system
+      - for legs at desired == 0, once the aligned engines' wind-down
+      tail alone covers the remaining error, the demand is zero (cut and
+      coast to rest). Same-tick arrival now releases at f=975 with
+      terminal spin ~0.1 (was: 700+ frames of hunting at 0.63).
+- [x] Move the copy to FixedUpdate in ControllerSectionPlugin, ordered
+      after(NovaFlightSystems).before(PDControllerSystems::Sync) - the
+      pair transitively pins the previously-unordered
+      NovaFlightSystems-vs-Sync relation. Update-schedule writers
+      (player, AI, torpedo guidance) keep their exact one-frame latency
+      (their command changes once per frame).
+- [x] Regression `autopilot_command_reaches_the_pd_on_the_same_tick` on
+      the REAL plugins (NovaFlightPlugin + ControllerSectionPlugin, not a
+      hand-wired copy): probe after PDControllerSystems::Sync asserts the
+      PD consumed this tick's command during an active slew, with
+      delivery guards (100+ ticks sampled, command actually slewing).
+      A/B: Update wiring fails at 0.048 rad (this rig; 0.22 during full
+      flips), same-tick reads 0.001 = the f32 angle_between noise floor
+      (bound 5e-3 documents why).
+- [x] Re-wire `goto_arrival_settles_without_hunting` to the harness
+      wiring (= new production semantics) and keep it green; delete the
+      spike diagnostic machinery (goto_wobble_diagnostic, diag_app,
+      DiagTrace, probe and the scratch trace; diag_ship stays - both
+      regressions use it). Suites: flight 60, torpedo 60, ai 86,
+      controller_section 4 - all green; fmt+check clean; full workspace
+      suite deferred to CI per user instruction.
 
 ## Goal
 
@@ -85,3 +126,36 @@ buys arrival stability that would otherwise need an explicit mechanism.
   (plan-skill lesson thread).
 - Cross-repo note: no bcs change needed; the copy system and the
   schedules involved are all nova-side.
+
+## Resolution
+
+What changed: (1) spool-tail cutoff in autopilot_system's burn demand -
+the root fix for the arrival boundary-bounce that the WARNING predicted
+the wiring move would unmask; (2) the command copy moved from Update to
+FixedUpdate in ControllerSectionPlugin with explicit ordering between
+the flight systems and the PD sync; (3) the same-tick staleness
+regression on the real plugins; (4) the arrival regression re-wired to
+the now-unified wiring; (5) spike diagnostic machinery deleted per
+convention.
+
+Evidence rig (record-the-rig rule): trace = flight harness wiring
+(same-tick copy), shipped 5-section geometry, GotoPos (300,0,-600),
+frame-by-frame velocity/spin/command/throttle at remaining < 10;
+staleness rig = MinimalPlugins + physics + PDControllerPlugin +
+NovaFlightPlugin + ControllerSectionPlugin{render:false} +
+thruster_impulse_system, probe after PDControllerSystems::Sync.
+
+The WARNING's "staleness is load-bearing damping" hypothesis resolved
+better than feared: the staleness was never damping anything - it just
+randomized which side of the settle band the doorstep overshoot landed
+on. Killing the overshoot at its source (the spool tail the demand
+ignored) made BOTH wirings quiet and the move safe. The falsification
+exit was not needed.
+
+Self-reflection: the frame-by-frame trace at the exact failing phase
+found in minutes what schedule-level reasoning had mislabeled
+("dither breaks the limit cycle" was directionally right but named the
+wrong mechanism - the cycle was positional, through the standoff
+boundary, not rotational through the re-aim gate). Also, asserting
+angles between near-identical f32 quaternions has a ~1e-3 noise floor;
+bounds must sit above it and the test should say why.

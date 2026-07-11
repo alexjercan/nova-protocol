@@ -99,9 +99,24 @@ impl Plugin for ControllerSectionPlugin {
 
         app.add_observer(insert_controller_section_target);
 
+        // The command copy into the bcs PDControllerInput runs on the FIXED
+        // clock, between the command writers and the PD (task
+        // 20260711-140241): its producer (the autopilot, NovaFlightSystems)
+        // and consumer (PDControllerSystems::Sync) both tick in FixedUpdate,
+        // and the old Update-schedule copy handed the PD a command 1-2
+        // ticks stale, varying with the 64 Hz-vs-render beat - up to
+        // 0.22 rad of phantom command error and ~20% wasted torque during
+        // autopilot slews. The `after`/`before` pair transitively pins
+        // NovaFlightSystems ahead of the PD sync, which the two sets'
+        // individual `.before(SpaceshipSectionSystems)` constraints never
+        // guaranteed. Update-schedule writers (player mouse, AI brain,
+        // torpedo guidance) are unaffected: their command changes once per
+        // frame and is picked up by the next tick exactly as before.
         app.add_systems(
-            Update,
-            update_controller_section_rotation_input.in_set(super::SpaceshipSectionSystems),
+            FixedUpdate,
+            update_controller_section_rotation_input
+                .after(crate::flight::NovaFlightSystems)
+                .before(PDControllerSystems::Sync),
         );
 
         app.add_systems(

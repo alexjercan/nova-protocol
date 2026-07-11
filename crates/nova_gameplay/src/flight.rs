@@ -1693,8 +1693,37 @@ fn autopilot_system(
             // min(impulse, authority)). balance_throttles delivers it through
             // the firing set and nulls the net torque about the COM,
             // recruiting off-axis engines when the firing set cannot.
-            let demand =
-                firing_authority * burn_input(error_speed * mass.value(), firing_authority);
+            //
+            // Spool-tail cutoff for legs ending at rest: a throttle commanded
+            // to zero still delivers ~magnitude * input^2 / (2 *
+            // spool_down_rate * dt) of impulse while it winds down, so a
+            // finishing burn that keeps demanding until the error reads zero
+            // integrates THROUGH zero - the ship exits its own standoff
+            // backwards, the re-entry error re-aims the hull, and the
+            // arrival bounces on the boundary in a limit cycle (task
+            // 20260711-140241's trace; the cycle was previously masked by
+            // the accidental dither of the cross-clock command handoff).
+            // Once the wind-down tail alone covers the remaining error, the
+            // correct demand is zero: cut and coast to rest.
+            let mut tail_dv = 0.0;
+            if desired == Vec3::ZERO && dt > 0.0 && mass.value() > 0.0 {
+                for (_, input, magnitude, transform, &ChildOf(parent)) in &q_thruster {
+                    if parent != ship {
+                        continue;
+                    }
+                    let dir = rotation
+                        .mul_vec3(transform.rotation.mul_vec3(Vec3::NEG_Z))
+                        .normalize();
+                    tail_dv += dir.dot(error_dir).max(0.0) * **magnitude * **input * **input
+                        / (2.0 * settings.spool_down_rate * dt)
+                        / mass.value();
+                }
+            }
+            let demand = if desired == Vec3::ZERO && error_speed <= tail_dv {
+                0.0
+            } else {
+                firing_authority * burn_input(error_speed * mass.value(), firing_authority)
+            };
             let coeffs: Vec<BalanceEngine> = allocation.iter().map(|(_, e)| *e).collect();
             throttles = balance_throttles(&coeffs, demand);
             burning = throttles.iter().any(|&u| u > 0.0);
@@ -4298,94 +4327,6 @@ mod tests {
         assert!(app.world().get::<Autopilot>(ship).is_none());
     }
 
-    // --- SPIKE DIAGNOSTIC (20260711-125227): GOTO wobble trace ------------
-    //
-    // Production runs `update_controller_section_rotation_input` in the
-    // Update schedule (controller_section.rs), while the autopilot writes
-    // the command and the PD consumes `PDControllerInput` in FixedUpdate.
-    // The flight test harness instead runs the copy in FixedUpdate, chained
-    // right after the autopilot - a same-tick handoff production does not
-    // have. This diagnostic runs the SAME GotoPos leg under both wirings
-    // and traces hull spin, the command staleness the PD actually sees
-    // (sampled inside FixedUpdate after PDControllerSystems::Sync), and PD
-    // torque, to measure whether the cross-clock handoff is the wobble.
-
-    #[derive(Resource, Default)]
-    struct DiagTrace {
-        // per fixed tick: (stale_angle_rad, pd_torque_len)
-        ticks: Vec<(f32, f32)>,
-    }
-
-    fn diag_probe(
-        mut trace: ResMut<DiagTrace>,
-        q_controller: Query<
-            (
-                &PDControllerInput,
-                &ControllerSectionRotationInput,
-                &PDControllerOutput,
-            ),
-            With<ControllerSectionMarker>,
-        >,
-    ) {
-        for (pd_input, command, output) in &q_controller {
-            trace
-                .ticks
-                .push((pd_input.angle_between(**command), output.length()));
-        }
-    }
-
-    fn diag_app(prod_wiring: bool) -> App {
-        let mut app = unfinished_integrity_physics_app();
-        app.init_resource::<FlightSettings>();
-        app.init_resource::<GravitySettings>();
-        app.init_resource::<DiagTrace>();
-        app.add_plugins(PDControllerPlugin);
-        app.configure_sets(
-            FixedUpdate,
-            (
-                NovaFlightSystems,
-                PDControllerSystems::Sync,
-                SpaceshipSectionSystems,
-            )
-                .chain(),
-        );
-        app.add_observer(on_autopilot_removed_cool_engines);
-        app.add_observer(remove_maneuver_telemetry);
-        if prod_wiring {
-            // Shipped schedules: command copy on the render clock.
-            app.add_systems(
-                FixedUpdate,
-                (autopilot_system, manual_burn_system)
-                    .chain()
-                    .in_set(NovaFlightSystems),
-            );
-            app.add_systems(Update, update_controller_section_rotation_input);
-        } else {
-            // Test-harness schedules: same-tick handoff.
-            app.add_systems(
-                FixedUpdate,
-                (
-                    autopilot_system,
-                    manual_burn_system,
-                    update_controller_section_rotation_input,
-                )
-                    .chain()
-                    .in_set(NovaFlightSystems),
-            );
-        }
-        app.add_systems(
-            FixedUpdate,
-            (
-                sync_controller_section_forces,
-                thruster_impulse_system,
-                diag_probe,
-            )
-                .in_set(SpaceshipSectionSystems),
-        );
-        app.finish();
-        app
-    }
-
     /// Shipped 5-section player geometry (same as
     /// `hold_reverse_decel_from_300_keeps_the_hull_steady`).
     fn diag_ship(app: &mut App) -> (Entity, Entity) {
@@ -4434,101 +4375,6 @@ mod tests {
         (ship, controller)
     }
 
-    #[test]
-    #[ignore = "spike diagnostic, not a regression"]
-    fn goto_wobble_diagnostic() {
-        for (label, prod_wiring, deadband) in [
-            ("TEST (FixedUpdate copy)", false, 0.4f32),
-            ("PROD (Update copy)", true, 0.4),
-            ("PROD deadband=0.6", true, 0.6),
-            ("PROD deadband=0.75", true, 0.75),
-        ] {
-            let mut app = diag_app(prod_wiring);
-            app.world_mut()
-                .resource_mut::<FlightSettings>()
-                .attitude_deadband = deadband;
-            let (ship, controller) = diag_ship(&mut app);
-            app.world_mut()
-                .entity_mut(ship)
-                .insert(Autopilot::engage(AutopilotAction::GotoPos {
-                    // 30 deg off the nose so the leg includes a real
-                    // align turn, then accel, flip, brake, arrive.
-                    position: Vec3::new(300.0, 0.0, -600.0),
-                }));
-
-            let goal = Vec3::new(300.0, 0.0, -600.0);
-            let standoff = app.world().resource::<FlightSettings>().arrival_standoff;
-            let line_dir = goal.normalize();
-            let mut frames_to_done = None;
-            let mut max_lateral = 0.0f32;
-            // (frame, spin, speed, dist_to_standoff, cmd_vs_hull)
-            let mut samples: Vec<(usize, f32, f32, f32, f32)> = Vec::new();
-            for frame in 0..4000 {
-                app.update();
-                let spin = app.world().get::<AngularVelocity>(ship).unwrap().length();
-                let pos = position_of(&app, ship);
-                let speed = velocity_of(&app, ship).length();
-                let remaining = (goal - pos).length() - standoff;
-                let lateral = (pos - line_dir * pos.dot(line_dir)).length();
-                max_lateral = max_lateral.max(lateral);
-                let cmd = app
-                    .world()
-                    .get::<ControllerSectionRotationInput>(controller)
-                    .unwrap()
-                    .0;
-                let hull = app.world().get::<Rotation>(ship).unwrap().0;
-                let cmd_err = cmd.angle_between(hull);
-                samples.push((frame, spin, speed, remaining, cmd_err));
-                if app.world().get::<Autopilot>(ship).is_none() {
-                    frames_to_done = Some(frame);
-                    break;
-                }
-            }
-            let release_speed = velocity_of(&app, ship).length();
-            let release_spin = app.world().get::<AngularVelocity>(ship).unwrap().length();
-
-            // Phase segmentation: align+accel until the flip command starts
-            // (cmd_vs_hull jumps past 0.5), flip+brake until remaining < 15,
-            // terminal after that.
-            let flip_start = samples
-                .iter()
-                .position(|&(_, _, _, _, c)| c > 0.5)
-                .unwrap_or(samples.len());
-            let term_start = samples
-                .iter()
-                .position(|&(_, _, _, r, _)| r < 15.0)
-                .unwrap_or(samples.len());
-            let stats = |range: &[(usize, f32, f32, f32, f32)]| -> (f32, f32) {
-                let n = range.len().max(1) as f32;
-                let max = range.iter().map(|&(_, s, ..)| s).fold(0.0f32, f32::max);
-                let rms = (range.iter().map(|&(_, s, ..)| s * s).sum::<f32>() / n).sqrt();
-                (max, rms)
-            };
-            let (accel_max, accel_rms) = stats(&samples[..flip_start.min(samples.len())]);
-            let (mid_max, mid_rms) =
-                stats(&samples[flip_start.min(samples.len())..term_start.min(samples.len())]);
-            let (term_max, term_rms) = stats(&samples[term_start.min(samples.len())..]);
-
-            let trace = app.world().resource::<DiagTrace>();
-            let n = trace.ticks.len().max(1) as f32;
-            let mean_stale = trace.ticks.iter().map(|(a, _)| a).sum::<f32>() / n;
-            let max_stale = trace.ticks.iter().map(|(a, _)| *a).fold(0.0f32, f32::max);
-            let mean_torque = trace.ticks.iter().map(|(_, t)| t).sum::<f32>() / n;
-            println!(
-                "[{label}] SUMMARY done={frames_to_done:?} \
-                 accel(max/rms)={accel_max:.4}/{accel_rms:.4} \
-                 flip+brake(max/rms)={mid_max:.4}/{mid_rms:.4} \
-                 terminal(max/rms)={term_max:.4}/{term_rms:.4} \
-                 terminal_frames={} \
-                 release(speed/spin)={release_speed:.3}/{release_spin:.3} \
-                 max_lateral={max_lateral:.2} \
-                 pd_stale mean={mean_stale:.5} max={max_stale:.5} \
-                 mean_torque={mean_torque:.3}",
-                samples.len().saturating_sub(term_start),
-            );
-        }
-    }
-
     /// A GOTO leg must ARRIVE quietly (task 20260711-140234). The feel
     /// spike (docs/spikes/20260711-140234-feel-filtering.md) traced the
     /// playtest "wobbles on GOTO" to a terminal attitude hunt: the
@@ -4542,19 +4388,19 @@ mod tests {
     /// 0.15 rad/s and the hull releases essentially still. A/B: the
     /// pre-fix config fails this at ~0.6 rad/s terminal spin.
     ///
-    /// The rig is PRODUCTION-wired on purpose: the rotation command copy
-    /// runs in Update (as ControllerSectionPlugin ships), not same-tick as
-    /// the rest of this module's harness. The arrival dynamics turned out
-    /// to be wiring-dependent - the same-tick handoff phase-locks the
-    /// re-aim/overshoot loop into a limit cycle that the shipped wiring's
-    /// one-frame staleness happens to break - so a same-tick rig would
-    /// test a game we do not ship. If a future change moves the shipped
-    /// copy to FixedUpdate (task 20260711-140241), this test failing is
-    /// the signal that the arrival hunt came back with it: fix the hunt
-    /// under the new wiring FIRST, then re-wire this rig to match.
+    /// Wiring history: the arrival dynamics are wiring-SENSITIVE. Under the
+    /// pre-20260711-140241 Update-schedule command copy, the doorstep
+    /// brake's spool-tail overshoot happened to land under the settle band
+    /// (accidental dither); the same-tick handoff phase-locked it into a
+    /// boundary-bounce limit cycle until the spool-tail cutoff in
+    /// autopilot_system removed the overshoot at its source. This rig runs
+    /// the harness wiring (same-tick copy), which matches production since
+    /// 20260711-140241 moved the shipped copy to FixedUpdate - so a hunt
+    /// reappearing under EITHER the cutoff regressing or the wiring
+    /// changing fails here.
     #[test]
     fn goto_arrival_settles_without_hunting() {
-        let mut app = diag_app(true);
+        let mut app = flight_app();
         let (ship, _controller) = diag_ship(&mut app);
         let goal = Vec3::new(300.0, 0.0, -600.0);
         app.world_mut()
@@ -4604,6 +4450,96 @@ mod tests {
         assert!(
             release_spin < 0.1,
             "the hull must release still, not mid-swing: {release_spin} rad/s"
+        );
+    }
+
+    /// The rotation command must reach the PD on the tick it was written
+    /// (task 20260711-140241). The copy from ControllerSectionRotationInput
+    /// into the bcs PDControllerInput used to run in the Update schedule
+    /// while both its producer (autopilot, FixedUpdate) and consumer (PD,
+    /// PDControllerSystems::Sync in FixedUpdate) tick on the fixed clock -
+    /// so the PD chased a command 1-2 ticks stale, varying with the
+    /// 64 Hz-vs-render beat, and fought up to 0.22 rad of phantom command
+    /// error during fast slews (~20% wasted torque). This rig runs the REAL
+    /// plugins (NovaFlightPlugin + ControllerSectionPlugin), so it pins the
+    /// SHIPPED wiring, not a hand-wired copy of it: a probe inside
+    /// FixedUpdate, after PDControllerSystems::Sync, asserts the PD
+    /// consumed exactly the command the autopilot wrote this tick, on
+    /// every tick of a leg with an active slew. A/B: the Update-schedule
+    /// copy fails at 0.22 rad.
+    #[test]
+    fn autopilot_command_reaches_the_pd_on_the_same_tick() {
+        #[derive(Resource, Default)]
+        struct StaleTrace {
+            max_angle: f32,
+            max_cmd_step: f32,
+            samples: usize,
+        }
+
+        fn stale_probe(
+            mut trace: ResMut<StaleTrace>,
+            mut prev: Local<Option<Quat>>,
+            q_controller: Query<
+                (&PDControllerInput, &ControllerSectionRotationInput),
+                With<ControllerSectionMarker>,
+            >,
+        ) {
+            for (pd_input, command) in &q_controller {
+                trace.max_angle = trace.max_angle.max(pd_input.angle_between(**command));
+                trace.samples += 1;
+                if let Some(prev) = *prev {
+                    trace.max_cmd_step = trace.max_cmd_step.max(command.angle_between(prev));
+                }
+                *prev = Some(**command);
+            }
+        }
+
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(PDControllerPlugin);
+        app.add_plugins(NovaFlightPlugin);
+        app.add_plugins(crate::prelude::ControllerSectionPlugin { render: false });
+        app.init_resource::<StaleTrace>();
+        // The thruster plugin carries render-material deps, so the impulse
+        // system is registered directly, as the flight harness does.
+        app.add_systems(
+            FixedUpdate,
+            thruster_impulse_system.in_set(SpaceshipSectionSystems),
+        );
+        app.add_systems(FixedUpdate, stale_probe.after(PDControllerSystems::Sync));
+        app.finish();
+
+        let (ship, _controller) = diag_ship(&mut app);
+        // 30 deg off the nose: the align phase slews the command every
+        // tick, which is exactly when staleness shows.
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::GotoPos {
+                position: Vec3::new(300.0, 0.0, -600.0),
+            }));
+        for _ in 0..120 {
+            app.update();
+        }
+
+        let trace = app.world().resource::<StaleTrace>();
+        // Delivery guards: the probe must have sampled real ticks and the
+        // command must actually have been slewing - a parked command is
+        // stale-proof by construction and would prove nothing.
+        assert!(trace.samples > 100, "probe sampled {} ticks", trace.samples);
+        assert!(
+            trace.max_cmd_step > 5e-3,
+            "the command must actually slew during the align phase \
+             (max step {})",
+            trace.max_cmd_step
+        );
+        // Bound sits above f32 Quat::angle_between noise (acos of a dot
+        // near 1.0 floors around 1e-3 for identical rotations) and an
+        // order of magnitude below the smallest stale-wiring reading
+        // (0.048 in this rig; 0.22 during a full flip).
+        assert!(
+            trace.max_angle < 5e-3,
+            "the PD must consume the command written THIS tick; max phantom \
+             error {} rad",
+            trace.max_angle
         );
     }
 }
