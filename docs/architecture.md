@@ -103,6 +103,10 @@ Two independent state machines:
   `Loading -> Playing`. The `GameMode` resource (`Sandbox` default | `NewGame`)
   records what the menu handed off to: the editor enters only in `Sandbox`, the
   menu loads the New Game scenario in `NewGame`.
+- `PauseStates { Unpaused, Paused }` - the ESC pause overlay (`nova_gameplay`
+  owns the enum and gates the spaceship system sets; `nova_menu` owns the
+  toggle, the overlay UI, and the clock freeze). Only meaningful inside
+  `Playing`; leaving Playing force-resets it.
 - `GameAssetsStates { Loading, Processing, Loaded }` - asset pipeline (`nova_assets`).
   Assets load in `Loading`, get post-processed in `Processing`, and gameplay/scenarios
   begin at `Loaded`. **Scenario setup hooks `OnEnter(GameAssetsStates::Loaded)`** -

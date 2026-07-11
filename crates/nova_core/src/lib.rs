@@ -102,6 +102,7 @@ impl AppBuilder {
         // added". Do not re-add it.
 
         self.app.init_state::<GameStates>();
+        self.app.init_state::<PauseStates>();
 
         self.app
             .add_plugins(bevy_enhanced_input::EnhancedInputPlugin);

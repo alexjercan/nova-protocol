@@ -655,7 +655,15 @@ fn on_flight_burn_input(
     fire: On<Fire<FlightBurnInput>>,
     mut commands: Commands,
     ship: Single<(Entity, &mut FlightIntent, Has<Autopilot>), With<PlayerSpaceshipMarker>>,
+    pause: Res<State<crate::PauseStates>>,
 ) {
+    // Observers bypass system-set gating; freeze intent changes while the
+    // pause overlay is up (review R1.1). Releases stay ungated so held keys
+    // clear cleanly during a pause.
+    if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+
     let (entity, mut intent, engaged) = ship.into_inner();
     intent.burn = fire.value;
     // Grabbing the throttle is a flight input: it takes the ship back.
@@ -677,7 +685,15 @@ fn on_autopilot_stop_input(
     _: On<Start<AutopilotStopInput>>,
     mut commands: Commands,
     ship: Single<(Entity, Option<&Autopilot>), With<PlayerSpaceshipMarker>>,
+    pause: Res<State<crate::PauseStates>>,
 ) {
+    // Observers bypass system-set gating; freeze intent changes while the
+    // pause overlay is up (review R1.1). Releases stay ungated so held keys
+    // clear cleanly during a pause.
+    if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+
     let (entity, autopilot) = ship.into_inner();
     match autopilot.map(|ap| ap.action) {
         // Toggle off an active STOP...
@@ -700,7 +716,15 @@ fn on_autopilot_goto_input(
     mut commands: Commands,
     res_target: Res<SpaceshipPlayerTargetLock>,
     ship: Single<(Entity, Option<&Autopilot>), With<PlayerSpaceshipMarker>>,
+    pause: Res<State<crate::PauseStates>>,
 ) {
+    // Observers bypass system-set gating; freeze intent changes while the
+    // pause overlay is up (review R1.1). Releases stay ungated so held keys
+    // clear cleanly during a pause.
+    if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+
     let (entity, autopilot) = ship.into_inner();
 
     // Already flying somewhere? G toggles the trip off.
@@ -731,7 +755,15 @@ fn on_autopilot_orbit_input(
     _: On<Start<AutopilotOrbitInput>>,
     mut commands: Commands,
     ship: Single<(Entity, Option<&Autopilot>, Option<&DominantWell>), With<PlayerSpaceshipMarker>>,
+    pause: Res<State<crate::PauseStates>>,
 ) {
+    // Observers bypass system-set gating; freeze intent changes while the
+    // pause overlay is up (review R1.1). Releases stay ungated so held keys
+    // clear cleanly during a pause.
+    if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+
     let (entity, autopilot, dominant) = ship.into_inner();
 
     // Already orbiting? O toggles the parking off.
@@ -770,7 +802,15 @@ fn on_autopilot_off_input(
     _: On<Start<AutopilotOffInput>>,
     mut commands: Commands,
     ship: Single<(Entity, Has<Autopilot>), With<PlayerSpaceshipMarker>>,
+    pause: Res<State<crate::PauseStates>>,
 ) {
+    // Observers bypass system-set gating; freeze intent changes while the
+    // pause overlay is up (review R1.1). Releases stay ungated so held keys
+    // clear cleanly during a pause.
+    if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+
     let (entity, engaged) = ship.into_inner();
     if engaged {
         debug!("on_autopilot_off_input: disengaging");
@@ -824,7 +864,15 @@ fn on_thruster_input(
     fire: On<Start<ThrusterInput>>,
     mut commands: Commands,
     mut q_input: Query<(&mut ThrusterSectionInput, Option<&ChildOf>), With<ThrusterInputMarker>>,
+    pause: Res<State<crate::PauseStates>>,
 ) {
+    // Observers bypass system-set gating; freeze intent changes while the
+    // pause overlay is up (review R1.1). Releases stay ungated so held keys
+    // clear cleanly during a pause.
+    if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+
     let entity = fire.event().context;
     trace!("on_thruster_input: entity {:?}", entity);
 
@@ -899,7 +947,15 @@ fn on_turret_input_binding(
 fn on_turret_input(
     fire: On<Start<TurretInput>>,
     mut q_input: Query<&mut TurretSectionInput, With<TurretInputMarker>>,
+    pause: Res<State<crate::PauseStates>>,
 ) {
+    // Observers bypass system-set gating; freeze intent changes while the
+    // pause overlay is up (review R1.1). Releases stay ungated so held keys
+    // clear cleanly during a pause.
+    if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+
     let entity = fire.event().context;
     trace!("on_turret_input: entity {:?}", entity);
 
@@ -965,7 +1021,15 @@ fn on_torpedo_input_binding(
 fn on_torpedo_input(
     fire: On<Start<TorpedoInput>>,
     mut q_input: Query<&mut TorpedoSectionInput, With<TorpedoInputMarker>>,
+    pause: Res<State<crate::PauseStates>>,
 ) {
+    // Observers bypass system-set gating; freeze intent changes while the
+    // pause overlay is up (review R1.1). Releases stay ungated so held keys
+    // clear cleanly during a pause.
+    if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+
     let entity = fire.event().context;
     trace!("on_torpedo_input: entity {:?}", entity);
 

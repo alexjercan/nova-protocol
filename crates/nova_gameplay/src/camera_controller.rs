@@ -659,7 +659,15 @@ fn on_rotation_input(
             With<SpaceshipRotationInputActiveMarker>,
         ),
     >,
+    pause: Res<State<crate::PauseStates>>,
 ) {
+    // Observers bypass system-set gating; freeze intent changes while the
+    // pause overlay is up (review R1.1). Releases stay ungated so held keys
+    // clear cleanly during a pause.
+    if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+
     for mut input in &mut q_input {
         **input = fire.value;
     }

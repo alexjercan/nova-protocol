@@ -765,7 +765,15 @@ fn on_component_cycle_next(
     focus: Res<SpaceshipPlayerLockFocus>,
     mut component: ResMut<SpaceshipPlayerComponentLock>,
     q_sections: Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>,
+    pause: Res<State<crate::PauseStates>>,
 ) {
+    // Observers bypass system-set gating; freeze intent changes while the
+    // pause overlay is up (review R1.1). Releases stay ungated so held keys
+    // clear cleanly during a pause.
+    if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+
     if cycle_modifier_held(&q_modifier) {
         step_target_lock(1, &time, &mut lock, &mut candidates);
     } else {
@@ -809,7 +817,15 @@ fn on_target_cycle_next(
     time: Res<Time>,
     mut lock: ResMut<SpaceshipPlayerTargetLock>,
     mut candidates: ResMut<SpaceshipPlayerTargetCandidates>,
+    pause: Res<State<crate::PauseStates>>,
 ) {
+    // Observers bypass system-set gating; freeze intent changes while the
+    // pause overlay is up (review R1.1). Releases stay ungated so held keys
+    // clear cleanly during a pause.
+    if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+
     step_target_lock(1, &time, &mut lock, &mut candidates);
 }
 
@@ -818,7 +834,15 @@ fn on_target_cycle_prev(
     time: Res<Time>,
     mut lock: ResMut<SpaceshipPlayerTargetLock>,
     mut candidates: ResMut<SpaceshipPlayerTargetCandidates>,
+    pause: Res<State<crate::PauseStates>>,
 ) {
+    // Observers bypass system-set gating; freeze intent changes while the
+    // pause overlay is up (review R1.1). Releases stay ungated so held keys
+    // clear cleanly during a pause.
+    if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+
     step_target_lock(-1, &time, &mut lock, &mut candidates);
 }
 
@@ -832,7 +856,15 @@ fn on_component_cycle_prev(
     focus: Res<SpaceshipPlayerLockFocus>,
     mut component: ResMut<SpaceshipPlayerComponentLock>,
     q_sections: Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>,
+    pause: Res<State<crate::PauseStates>>,
 ) {
+    // Observers bypass system-set gating; freeze intent changes while the
+    // pause overlay is up (review R1.1). Releases stay ungated so held keys
+    // clear cleanly during a pause.
+    if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+
     if cycle_modifier_held(&q_modifier) {
         step_target_lock(-1, &time, &mut lock, &mut candidates);
     } else {
@@ -1929,6 +1961,9 @@ mod tests {
 
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        // The cycle observers are pause-gated (task 20260711-185156).
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<crate::PauseStates>();
         app.add_input_context::<FlightInputMarker>();
         app.add_observer(on_component_cycle_next);
         app.add_observer(on_component_cycle_prev);

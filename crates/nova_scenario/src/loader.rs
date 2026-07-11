@@ -258,7 +258,18 @@ struct ScenarioInputMarker;
 #[action_output(bool)]
 struct NextScenarioInput;
 
-fn on_next_input(_: On<Start<NextScenarioInput>>, mut world: ResMut<super::world::NovaEventWorld>) {
+fn on_next_input(
+    _: On<Start<NextScenarioInput>>,
+    mut world: ResMut<super::world::NovaEventWorld>,
+    pause: Res<State<PauseStates>>,
+) {
+    // Observers bypass system-set gating; freeze intent changes while the
+    // pause overlay is up (review R1.1). Releases stay ungated so held keys
+    // clear cleanly during a pause.
+    if *pause.get() == PauseStates::Paused {
+        return;
+    }
+
     let Some(mut next_scenario) = world.next_scenario.clone() else {
         return;
     };

@@ -251,6 +251,12 @@ impl Plugin for NovaAudioPlugin {
         app.init_resource::<SfxThrottle>();
         app.register_type::<SfxListenerMarker>();
 
+        // Audio sinks do not follow Time<Virtual>: without this the thruster
+        // hum keeps roaring at its last volume behind the pause overlay
+        // (review R1.5).
+        app.add_systems(OnEnter(crate::PauseStates::Paused), pause_thruster_loops);
+        app.add_systems(OnExit(crate::PauseStates::Paused), resume_thruster_loops);
+
         app.add_observer(on_destroyed_play_explosion);
         app.add_observer(on_damage_play_impact);
         app.add_observer(on_turret_fire_play_sfx);
@@ -680,5 +686,19 @@ mod tests {
                 "NovaSfx::{key:?} is missing from NOVA_SFX_FILES"
             );
         }
+    }
+}
+
+/// Silence the engine loop while the pause overlay is up; one-shot SFX are
+/// naturally quiet then (no events fire in a frozen sim).
+fn pause_thruster_loops(q_sink: Query<&AudioSink, With<ThrusterLoopSfx>>) {
+    for sink in &q_sink {
+        sink.pause();
+    }
+}
+
+fn resume_thruster_loops(q_sink: Query<&AudioSink, With<ThrusterLoopSfx>>) {
+    for sink in &q_sink {
+        sink.play();
     }
 }

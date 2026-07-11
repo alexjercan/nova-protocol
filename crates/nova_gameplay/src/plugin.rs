@@ -42,6 +42,8 @@ impl Plugin for NovaGameplayPlugin {
         app.init_resource::<crate::GameMode>();
         app.register_type::<crate::GameMode>();
 
+        configure_pause_gating(app);
+
         // Random number generator
         app.add_plugins(EntropyPlugin::<WyRand>::default());
 
@@ -121,6 +123,74 @@ impl Plugin for NovaGameplayPlugin {
                 SpaceshipSystems::Last,
             )
                 .chain(),
+        );
+    }
+}
+
+/// While the pause overlay is up nothing may fly or fire: gate the spaceship
+/// sets on Unpaused. Run conditions from separate configure_sets calls
+/// compose (AND), so this stacks with the editor's Scenario-state gate. The
+/// clocks are also paused (nova_menu), but input actions do not consume
+/// time - without this gate a held trigger would still spawn projectiles
+/// into the frozen world. Factored out so the test below exercises the
+/// production wiring (review R1.3).
+pub(crate) fn configure_pause_gating(app: &mut App) {
+    app.configure_sets(
+        Update,
+        (SpaceshipInputSystems, SpaceshipSectionSystems)
+            .run_if(in_state(crate::PauseStates::Unpaused)),
+    );
+    app.configure_sets(
+        FixedUpdate,
+        SpaceshipSectionSystems.run_if(in_state(crate::PauseStates::Unpaused)),
+    );
+}
+
+#[cfg(test)]
+mod pause_gating_tests {
+    use bevy::state::app::StatesPlugin;
+
+    use super::*;
+
+    #[derive(Resource, Default)]
+    struct Ticks(u32);
+
+    /// Review R1.3: the production pause gating must actually stop systems in
+    /// the spaceship sets. Probe runs while Unpaused, freezes while Paused,
+    /// resumes after (delivery-guarded on both edges).
+    #[test]
+    fn spaceship_sets_freeze_while_paused() {
+        let mut app = App::new();
+        app.add_plugins(StatesPlugin);
+        app.init_state::<crate::PauseStates>();
+        app.init_resource::<Ticks>();
+        configure_pause_gating(&mut app);
+        app.add_systems(
+            Update,
+            (|mut ticks: ResMut<Ticks>| ticks.0 += 1).in_set(SpaceshipInputSystems),
+        );
+
+        app.update();
+        assert_eq!(app.world().resource::<Ticks>().0, 1, "runs while Unpaused");
+
+        app.world_mut()
+            .resource_mut::<NextState<crate::PauseStates>>()
+            .set(crate::PauseStates::Paused);
+        app.update();
+        app.update();
+        // StateTransition runs before Update, so the freeze takes effect the
+        // same frame the state is set.
+        assert_eq!(app.world().resource::<Ticks>().0, 1, "frozen while Paused");
+
+        app.world_mut()
+            .resource_mut::<NextState<crate::PauseStates>>()
+            .set(crate::PauseStates::Unpaused);
+        app.update();
+        app.update();
+        assert_eq!(
+            app.world().resource::<Ticks>().0,
+            3,
+            "resumes after unpause"
         );
     }
 }

@@ -63,6 +63,17 @@ fn editor_plugin(app: &mut App) {
         ),
     );
 
+    // Leaving Playing (the pause menu's Back to Main Menu) must tear the
+    // editor scene down: DespawnOnExit(ExampleStates::...) entities only
+    // despawn when the inner state actually changes, and a later Sandbox
+    // entry must start fresh in Editor, not resume a stale Scenario.
+    app.add_systems(
+        OnExit(GameStates::Playing),
+        |mut game_state: ResMut<NextState<ExampleStates>>| {
+            game_state.set(ExampleStates::Loading);
+        },
+    );
+
     app.add_systems(
         OnEnter(ExampleStates::Scenario),
         (
@@ -111,7 +122,8 @@ fn editor_plugin(app: &mut App) {
 
     app.add_systems(
         Update,
-        lock_on_left_click.run_if(in_state(ExampleStates::Editor)),
+        lock_on_left_click
+            .run_if(in_state(ExampleStates::Editor).and(in_state(PauseStates::Unpaused))),
     );
     app.add_systems(
         Update,
@@ -1206,6 +1218,37 @@ mod tests {
         );
         // The editor did not fire its own sandbox scenario on top of the menu's.
         assert_eq!(app.world().resource::<EditorScenarioLoads>().0, 0);
+    }
+
+    /// Leaving Playing (the pause menu's Back to Main Menu) resets the
+    /// editor's inner state so DespawnOnExit scene entities are torn down
+    /// and the next Sandbox entry starts fresh (task 20260711-185156).
+    #[test]
+    fn leaving_playing_resets_the_inner_state() {
+        let mut app = app();
+        // NewGame routes to Scenario, which applies safely headless (the
+        // editor's own scenario load is Sandbox-gated).
+        app.insert_resource(GameMode::NewGame);
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::Playing);
+        app.update();
+        app.update();
+        assert_eq!(
+            *app.world().resource::<State<ExampleStates>>().get(),
+            ExampleStates::Scenario
+        );
+
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::MainMenu);
+        app.update();
+        app.update();
+        assert_eq!(
+            *app.world().resource::<State<ExampleStates>>().get(),
+            ExampleStates::Loading,
+            "inner state must reset when Playing is left"
+        );
     }
 
     /// Sandbox mode heads for the editor scene, exactly as before the menu. The

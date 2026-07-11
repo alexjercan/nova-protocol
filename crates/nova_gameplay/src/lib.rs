@@ -34,7 +34,7 @@ pub mod prelude {
         plugin::{NovaGameplayPlugin, SpaceshipSystems},
         relations::prelude::*,
         sections::prelude::*,
-        GameMode, GameStates,
+        GameMode, GameStates, PauseStates,
     };
 }
 
@@ -52,6 +52,19 @@ pub enum GameStates {
     Loading,
     MainMenu,
     Playing,
+}
+
+/// Whether gameplay is frozen behind the pause overlay (task
+/// 20260711-185156). Owned UI-wise by `nova_menu` (ESC toggle + overlay);
+/// `nova_gameplay` gates the spaceship input/section system sets on
+/// `Unpaused`, and the clocks (`Time<Virtual>` + `Time<Physics>`) pause on
+/// entering `Paused`. Init'd by `AppBuilder` next to [`GameStates`]. Only
+/// meaningful inside `GameStates::Playing`; leaving Playing must reset it.
+#[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
+pub enum PauseStates {
+    #[default]
+    Unpaused,
+    Paused,
 }
 
 /// Which game the main menu handed off to when it set [`GameStates::Playing`].

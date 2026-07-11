@@ -16,12 +16,13 @@
 //!
 //! Design rationale: docs/spikes/20260711-180500-main-menu.md.
 
-use avian3d::prelude::LinearVelocity;
+use avian3d::prelude::{LinearVelocity, Physics, PhysicsTime};
 use bevy::{
     picking::hover::Hovered,
     prelude::*,
     ui::Pressed,
     ui_widgets::{observe, Activate, Button},
+    window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
@@ -82,18 +83,198 @@ impl Plugin for NovaMenuPlugin {
         );
         app.add_systems(
             Update,
-            (
-                update_button_colors,
-                stage_menu_camera,
-                seed_orbiter_velocity,
-            )
-                .run_if(in_state(GameStates::MainMenu)),
+            (stage_menu_camera, seed_orbiter_velocity).run_if(in_state(GameStates::MainMenu)),
         );
+        // Button hover/press feedback serves both the main menu panel and the
+        // pause overlay; the query only matches MenuButton, so running it
+        // unconditionally is a no-op elsewhere.
+        app.add_systems(Update, update_button_colors);
         app.add_systems(
             OnEnter(GameStates::Playing),
             start_new_game_scenario.run_if(resource_equals(GameMode::NewGame)),
         );
+
+        // The pause overlay (task 20260711-185156): ESC toggles it anywhere
+        // in Playing; entering Paused freezes both clocks and frees the
+        // cursor, leaving restores them. Update systems keep running while
+        // paused (Time<Virtual> pause zeroes deltas, it does not stop
+        // schedules), which is exactly what lets the overlay stay
+        // interactive.
+        app.add_systems(Update, toggle_pause.run_if(in_state(GameStates::Playing)));
+        app.add_systems(
+            OnEnter(PauseStates::Paused),
+            (pause_clocks, release_cursor, setup_pause_ui),
+        );
+        app.add_systems(
+            OnExit(PauseStates::Paused),
+            (unpause_clocks, restore_cursor),
+        );
+        // Leaving Playing while paused (Back to Main Menu) must not leave the
+        // game frozen for the next session of play.
+        app.add_systems(OnExit(GameStates::Playing), force_unpause);
     }
+}
+
+/// ESC toggles the pause overlay. Plain press-to-toggle; no existing Escape
+/// binding anywhere in the repo (checked 2026-07-11).
+fn toggle_pause(
+    keys: Res<ButtonInput<KeyCode>>,
+    current: Res<State<PauseStates>>,
+    mut next: ResMut<NextState<PauseStates>>,
+) {
+    if keys.just_pressed(KeyCode::Escape) {
+        next.set(match current.get() {
+            PauseStates::Unpaused => PauseStates::Paused,
+            PauseStates::Paused => PauseStates::Unpaused,
+        });
+    }
+}
+
+/// Freeze the simulation: virtual time (Update deltas + FixedUpdate
+/// accumulation, which physics follows) and avian's own physics clock, so
+/// nothing integrates regardless of which clock a system reads.
+fn pause_clocks(mut virtual_time: ResMut<Time<Virtual>>, mut physics_time: ResMut<Time<Physics>>) {
+    virtual_time.pause();
+    physics_time.pause();
+}
+
+/// Unconditional: the pause menu is currently the only clock-pauser in the
+/// app. A future cutscene/debug freeze that also pauses these clocks will be
+/// stomped here and needs a coordination story first (review R1.6).
+fn unpause_clocks(
+    mut virtual_time: ResMut<Time<Virtual>>,
+    mut physics_time: ResMut<Time<Physics>>,
+) {
+    virtual_time.unpause();
+    physics_time.unpause();
+}
+
+/// The scenario locks and hides the cursor (nova_editor's grab systems); the
+/// overlay needs it back to be clickable.
+fn release_cursor(mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>) {
+    cursor.grab_mode = CursorGrabMode::None;
+    cursor.visible = true;
+}
+
+/// Re-grab on resume, but only during scenario play: a live player ship is
+/// what distinguishes it (PlayerSpaceshipMarker is only inserted by the
+/// scenario spawn path; the editor's build-mode preview never carries it).
+/// Mirrors the cfg carve-out of setup_grab_cursor_scenario: debug builds
+/// never grab.
+fn restore_cursor(
+    mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
+    q_player: Query<(), With<PlayerSpaceshipMarker>>,
+    game_state: Res<State<GameStates>>,
+) {
+    // The Back path exits Paused and Playing in the same transition batch
+    // (GameStates applies first, it is init'd first): never re-grab when the
+    // destination is the menu (review R1.4).
+    if *game_state.get() != GameStates::Playing {
+        return;
+    }
+    if cfg!(not(feature = "debug")) && !q_player.is_empty() {
+        cursor.grab_mode = CursorGrabMode::Locked;
+        cursor.visible = false;
+    }
+}
+
+/// Safety net for the Back to Main Menu path (and any future exit from
+/// Playing while paused): reset the pause state and clocks.
+fn force_unpause(
+    mut next: ResMut<NextState<PauseStates>>,
+    mut virtual_time: ResMut<Time<Virtual>>,
+    mut physics_time: ResMut<Time<Physics>>,
+) {
+    next.set(PauseStates::Unpaused);
+    virtual_time.unpause();
+    physics_time.unpause();
+}
+
+/// The pause overlay: a dim full-screen layer with a centered panel.
+fn setup_pause_ui(mut commands: Commands) {
+    commands
+        .spawn((
+            DespawnOnExit(PauseStates::Paused),
+            Name::new("Pause Overlay"),
+            // A modal blocker, unlike the main menu root: the editor's
+            // buttons and section-picking live beneath this overlay and must
+            // not receive clicks through it (review R1.2).
+            Pickable {
+                should_block_lower: true,
+                is_hoverable: false,
+            },
+            Node {
+                width: percent(100),
+                height: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
+            // Above the HUD chrome.
+            GlobalZIndex(10),
+        ))
+        .with_children(|parent| {
+            parent
+                .spawn((
+                    Name::new("Pause Panel"),
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::Center,
+                        width: px(280),
+                        padding: UiRect::all(px(20)),
+                        ..default()
+                    },
+                    BackgroundColor(BACKGROUND_COLOR),
+                ))
+                .with_children(|parent| {
+                    parent.spawn((
+                        Name::new("Pause Title"),
+                        Text::new("Paused"),
+                        TextFont {
+                            font_size: FontSize::Px(24.0),
+                            ..default()
+                        },
+                        TextColor(TEXT_COLOR),
+                    ));
+                    parent.spawn((
+                        Name::new("Resume Button"),
+                        button("Resume"),
+                        observe(on_resume),
+                    ));
+                    parent.spawn((
+                        Name::new("Back To Menu Button"),
+                        button("Back to Main Menu"),
+                        observe(on_back_to_menu),
+                    ));
+                    // No process to quit on wasm; the browser tab owns the
+                    // lifecycle (same rule as the main menu's Exit).
+                    #[cfg(not(target_arch = "wasm32"))]
+                    parent.spawn((
+                        Name::new("Pause Exit Button"),
+                        button("Exit"),
+                        observe(on_exit),
+                    ));
+                });
+        });
+}
+
+fn on_resume(_activate: On<Activate>, mut next: ResMut<NextState<PauseStates>>) {
+    next.set(PauseStates::Unpaused);
+}
+
+/// Back out to the front door. Unpauses in the same transition batch (a
+/// force_unpause on OnExit(Playing) alone would apply one frame late,
+/// leaving the overlay over the menu for a frame - review R1.4); entering
+/// MainMenu loads the ambience backdrop (tearing the gameplay scenario down)
+/// and the editor resets its own inner state on OnExit(Playing).
+fn on_back_to_menu(
+    _activate: On<Activate>,
+    mut state: ResMut<NextState<GameStates>>,
+    mut pause: ResMut<NextState<PauseStates>>,
+) {
+    state.set(GameStates::MainMenu);
+    pause.set(PauseStates::Unpaused);
 }
 
 /// Marker for the menu's buttons, so the color feedback system only touches ours.
@@ -466,9 +647,44 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(StatesPlugin);
         app.init_state::<GameStates>();
+        app.init_state::<PauseStates>();
         app.init_resource::<GameMode>();
+        app.init_resource::<ButtonInput<KeyCode>>();
+        // Headless: no TimePlugin, so provide the clocks the pause systems
+        // touch.
+        app.insert_resource(Time::<Virtual>::default());
+        app.insert_resource(Time::<Physics>::default());
         app.add_plugins(NovaMenuPlugin);
         app
+    }
+
+    fn enter_playing(app: &mut App) {
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::Playing);
+        app.update();
+    }
+
+    fn press_escape(app: &mut App) {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::Escape);
+        app.update();
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        keys.release(KeyCode::Escape);
+        keys.clear();
+        app.update();
+    }
+
+    fn pause_state(app: &App) -> PauseStates {
+        app.world().resource::<State<PauseStates>>().get().clone()
+    }
+
+    fn clocks_paused(app: &App) -> (bool, bool) {
+        (
+            app.world().resource::<Time<Virtual>>().is_paused(),
+            app.world().resource::<Time<Physics>>().is_paused(),
+        )
     }
 
     #[derive(Resource, Default)]
@@ -593,6 +809,95 @@ mod tests {
         assert_eq!(
             *app.world().resource::<HudVisibility>(),
             HudVisibility::None
+        );
+    }
+
+    /// Delivery-guarded per press: ESC pauses, freezes both clocks, and a
+    /// second press resumes and unfreezes.
+    #[test]
+    fn escape_toggles_pause_and_both_clocks() {
+        let mut app = app();
+        app.insert_resource(dummy_scenarios());
+        enter_playing(&mut app);
+        assert_eq!(pause_state(&app), PauseStates::Unpaused);
+        assert_eq!(clocks_paused(&app), (false, false));
+
+        press_escape(&mut app);
+        assert_eq!(pause_state(&app), PauseStates::Paused);
+        assert_eq!(clocks_paused(&app), (true, true), "both clocks freeze");
+
+        press_escape(&mut app);
+        assert_eq!(pause_state(&app), PauseStates::Unpaused);
+        assert_eq!(clocks_paused(&app), (false, false), "both clocks resume");
+    }
+
+    /// The pause overlay spawns with its buttons and despawns on resume.
+    #[test]
+    fn pause_overlay_spawns_and_despawns() {
+        let mut app = app();
+        app.insert_resource(dummy_scenarios());
+        enter_playing(&mut app);
+        press_escape(&mut app);
+
+        let find = |app: &mut App, name: &str| {
+            let mut q = app.world_mut().query::<(Entity, &Name)>();
+            q.iter(app.world())
+                .find(|(_, n)| n.as_str() == name)
+                .map(|(e, _)| e)
+        };
+        assert!(find(&mut app, "Resume Button").is_some());
+        let back = find(&mut app, "Back To Menu Button").expect("back button exists");
+
+        // Resume via the real button, then the overlay must be gone.
+        let resume = find(&mut app, "Resume Button").unwrap();
+        app.world_mut().trigger(Activate { entity: resume });
+        app.update();
+        app.update();
+        assert_eq!(pause_state(&app), PauseStates::Unpaused);
+        assert!(
+            find(&mut app, "Pause Overlay").is_none(),
+            "overlay despawns"
+        );
+        // The back button entity died with the overlay.
+        assert!(app.world().get_entity(back).is_err());
+    }
+
+    /// Back to Main Menu from a paused game: lands in MainMenu, unpaused,
+    /// clocks running, and the ambience backdrop load fired (which is what
+    /// tears the gameplay scenario down).
+    #[test]
+    fn back_to_menu_unpauses_and_reloads_the_ambience() {
+        let mut app = app();
+        app.insert_resource(dummy_scenarios());
+        observe_load_scenario(&mut app);
+        enter_playing(&mut app);
+        press_escape(&mut app);
+        assert_eq!(
+            clocks_paused(&app),
+            (true, true),
+            "paused before backing out"
+        );
+
+        let back = {
+            let mut q = app.world_mut().query::<(Entity, &Name)>();
+            q.iter(app.world())
+                .find(|(_, n)| n.as_str() == "Back To Menu Button")
+                .map(|(e, _)| e)
+                .expect("back button exists")
+        };
+        app.world_mut().trigger(Activate { entity: back });
+        app.update();
+        app.update();
+
+        assert_eq!(
+            *app.world().resource::<State<GameStates>>().get(),
+            GameStates::MainMenu
+        );
+        assert_eq!(pause_state(&app), PauseStates::Unpaused);
+        assert_eq!(clocks_paused(&app), (false, false));
+        assert_eq!(
+            app.world().resource::<LoadedScenario>().0.as_deref(),
+            Some(MENU_AMBIENCE_SCENARIO_ID)
         );
     }
 
