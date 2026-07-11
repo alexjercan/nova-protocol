@@ -9,10 +9,11 @@ retros.
 
 ## Process lessons
 
-- `diagnostic-first` (x5): trace the exact reported scenario before
+- `diagnostic-first` (x6): trace the exact reported scenario before
   theorizing a mechanism; the trace has beaten the hypothesis list every
   time it has been tried. 20260709-125640, 20260711-103527,
-  20260710-231930, 20260711-121701, 20260711-125225.
+  20260710-231930, 20260711-121701, 20260711-125225, 20260711-140241
+  (frame trace overturned the "dither" theory in one run).
 - `fail-first-regression-ab` (x8, PROMOTED 2026-07-11 -> work skill): a
   bug-fix regression is proven by failing it against the pre-fix
   behavior and recording the numbers. 20260711-103527 (7.1 rad/s -> 0),
@@ -94,6 +95,15 @@ retros.
   (crumb band + urgency denominator) attributed the whole effect to one
   and cost two placebo fix variants; cross wiring x knob variants
   instead of holding one factor fixed. 20260711-140234.
+- `quat-angle-noise-floor` (x1): f32 Quat::angle_between of
+  near-identical rotations floors around 1e-3 rad (acos near dot=1);
+  angle assertions sit an order above it and say so, or compare
+  components. 20260711-140241.
+- `cross-cycle-warning-with-numbers` (positive pattern): when a landed
+  cycle discovers a hazard for a QUEUED task, write the warning into
+  that task's TASK.md with the measured numbers and an explicit
+  fallback exit - it turned a would-be shipped regression into a
+  planned diagnosis. 20260711-140234 -> 20260711-140241.
 
 ## Domain lessons (nova-protocol specific)
 
