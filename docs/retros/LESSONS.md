@@ -14,14 +14,16 @@ retros.
   time it has been tried. 20260709-125640, 20260711-103527,
   20260710-231930, 20260711-121701, 20260711-125225, 20260711-140241
   (frame trace overturned the "dither" theory in one run).
-- `fail-first-regression-ab` (x9, PROMOTED 2026-07-11 -> work skill): a
+- `fail-first-regression-ab` (x10, PROMOTED 2026-07-11 -> work skill): a
   bug-fix regression is proven by failing it against the pre-fix
   behavior and recording the numbers. 20260711-103527 (7.1 rad/s -> 0),
   20260710-231931 (4.26 -> 0), 20260710-231930, 20260710-231928
   (54 px -> sub-pixel), 20260710-231929, 20260711-121711 (20 u drift),
   20260711-121839 (2.09 u -> 0), 20260711-140234 (bit-for-bit unchanged
   number falsified two placebo fixes), 20260710-214316 (ribbon at
-  [0,0,-300] vs park [0,0,-250], the full 50u standoff).
+  [0,0,-300] vs park [0,0,-250], the full 50u standoff), 20260711-180426
+  (2.88 pre-fix drift vs 51.40 post-fix; the harness's naive >0.1 pass
+  threshold would have passed pre-fix - only the A/B exposed the placebo).
 - `delivery-guards-on-null-assertions` (x5, PROMOTED 2026-07-11 ->
   review skill): "nothing happens" tests need proof the stimulus fired.
   20260710-231931 (R1.1 MAJOR), 20260710-231930, 20260711-121701,
@@ -88,9 +90,10 @@ retros.
 - `spike-fix-record` (positive pattern, PROMOTED 2026-07-11 -> spike
   skill): multi-task spikes keep a living fix-record section as the
   family's single source of current state. 20260711-103527 family.
-- `tatr-same-second-collision` (x1, documented 2026-07-11 -> tatr skill
+- `tatr-same-second-collision` (x2, documented 2026-07-11 -> tatr skill
   gotchas): consecutive `tatr new` calls in one second silently share an
-  ID; sleep between calls. Filed from the 2026-07-11 session.
+  ID; sleep between calls. Filed from the 2026-07-11 session; hit again
+  in 20260711-180426 (five tatr new in one command -> one task).
 - `reuse-production-helpers-in-tests` (x1): a test composing an expected
   value along a hierarchy should call the production composition helper
   (private is fine from the test module) instead of re-deriving inline;
@@ -110,6 +113,18 @@ retros.
   near-identical rotations floors around 1e-3 rad (acos near dot=1);
   angle assertions sit an order above it and say so, or compare
   components. 20260711-140241.
+- `audit-state-gates-on-new-entry-path` (x1): a change that adds a new
+  route into an existing state (or a new mode-enum variant) must grep
+  configure_sets/run_if/in_state for that state across the workspace and
+  audit each hit against the new route, and each enum variant needs its
+  own delivery-proved verification - the menu's NewGame path shipped with
+  all spaceship input sets disabled because only the Sandbox route was
+  exercised (R1.1 BLOCKER). 20260711-180426.
+- `out-of-context-review-pass` (positive pattern, x1): for a substantial
+  branch reviewed in the implementer's own session, a fresh-context agent
+  review caught a MAJOR (BCS_SHOT force-advance vs the Loaded hook) that
+  shared-session eyes missed; the review skill's re-derive rule caught the
+  BLOCKER the same round. 20260711-180426.
 - `cross-cycle-warning-with-numbers` (positive pattern): when a landed
   cycle discovers a hazard for a QUEUED task, write the warning into
   that task's TASK.md with the measured numbers and an explicit
