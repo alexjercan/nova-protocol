@@ -743,15 +743,34 @@ fn step_component_lock(
     };
 }
 
+/// Whether the CTRL cycle-layer modifier currently fires, read from its
+/// action entity's state. The wheel/bracket gestures are routed HERE, in
+/// the observers, rather than via input conditions: a binding-level Chord
+/// ignores the binding's own value (pressing CTRL alone cycled the lock,
+/// bug 20260711-173237), and pairing it with an explicit Down still leaves
+/// the unmodified gesture Ongoing, which triggers Start.
+fn cycle_modifier_held(
+    q_modifier: &Query<&TriggerState, With<Action<TargetCycleModifierInput>>>,
+) -> bool {
+    q_modifier.iter().any(|&state| state == TriggerState::Fired)
+}
+
+#[allow(clippy::too_many_arguments)]
 fn on_component_cycle_next(
     _: On<Start<ComponentCycleNextInput>>,
     time: Res<Time>,
-    lock: Res<SpaceshipPlayerTargetLock>,
+    q_modifier: Query<&TriggerState, With<Action<TargetCycleModifierInput>>>,
+    mut lock: ResMut<SpaceshipPlayerTargetLock>,
+    mut candidates: ResMut<SpaceshipPlayerTargetCandidates>,
     focus: Res<SpaceshipPlayerLockFocus>,
     mut component: ResMut<SpaceshipPlayerComponentLock>,
     q_sections: Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>,
 ) {
-    step_component_lock(1, &time, &lock, &focus, &mut component, &q_sections);
+    if cycle_modifier_held(&q_modifier) {
+        step_target_lock(1, &time, &mut lock, &mut candidates);
+    } else {
+        step_component_lock(1, &time, &lock, &focus, &mut component, &q_sections);
+    }
 }
 
 /// Shared body of the target-cycle observers: step the ship lock through the
@@ -803,15 +822,22 @@ fn on_target_cycle_prev(
     step_target_lock(-1, &time, &mut lock, &mut candidates);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn on_component_cycle_prev(
     _: On<Start<ComponentCyclePrevInput>>,
     time: Res<Time>,
-    lock: Res<SpaceshipPlayerTargetLock>,
+    q_modifier: Query<&TriggerState, With<Action<TargetCycleModifierInput>>>,
+    mut lock: ResMut<SpaceshipPlayerTargetLock>,
+    mut candidates: ResMut<SpaceshipPlayerTargetCandidates>,
     focus: Res<SpaceshipPlayerLockFocus>,
     mut component: ResMut<SpaceshipPlayerComponentLock>,
     q_sections: Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>,
 ) {
-    step_component_lock(-1, &time, &lock, &focus, &mut component, &q_sections);
+    if cycle_modifier_held(&q_modifier) {
+        step_target_lock(-1, &time, &mut lock, &mut candidates);
+    } else {
+        step_component_lock(-1, &time, &lock, &focus, &mut component, &q_sections);
+    }
 }
 
 #[cfg(test)]
@@ -1878,6 +1904,200 @@ mod tests {
                 .pinned_until,
             None,
             "an empty cycle must not pin"
+        );
+    }
+
+    /// End-to-end through the REAL flight rig and EnhancedInputPlugin with
+    /// simulated devices: the wheel gesture is routed by the CTRL modifier -
+    /// plain scroll steps the component fine-lock, CTRL+scroll steps the
+    /// ship lock, and holding CTRL alone does NOTHING (bug 20260711-173237:
+    /// a binding-level Chord ignores the binding's value, so the bare
+    /// modifier press cycled the lock the moment CTRL went down).
+    #[test]
+    fn ctrl_routes_the_wheel_between_component_and_target_cycle() {
+        use bevy::input::{
+            gamepad::{
+                GamepadConnection, GamepadConnectionEvent, RawGamepadButtonChangedEvent,
+                RawGamepadEvent,
+            },
+            mouse::{MouseScrollUnit, MouseWheel},
+            touch::TouchPhase,
+            InputPlugin,
+        };
+
+        use crate::input::player::{flight_input_rig, FlightInputMarker};
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_input_context::<FlightInputMarker>();
+        app.add_observer(on_component_cycle_next);
+        app.add_observer(on_component_cycle_prev);
+        app.add_observer(on_target_cycle_next);
+        app.add_observer(on_target_cycle_prev);
+
+        // A focused lock with two sections, plus a second tracked candidate.
+        let locked = app.world_mut().spawn(SpaceshipRootMarker).id();
+        let section_a = app
+            .world_mut()
+            .spawn((
+                SectionMarker,
+                Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+                ChildOf(locked),
+            ))
+            .id();
+        let section_b = app
+            .world_mut()
+            .spawn((
+                SectionMarker,
+                Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                ChildOf(locked),
+            ))
+            .id();
+        let other = app.world_mut().spawn(SpaceshipRootMarker).id();
+        app.insert_resource(SpaceshipPlayerTargetLock(Some(locked)));
+        app.insert_resource(SpaceshipPlayerLockFocus {
+            target: Some(locked),
+            seconds: FOCUS_TIME,
+        });
+        app.insert_resource(SpaceshipPlayerComponentLock::default());
+        app.insert_resource(SpaceshipPlayerTargetCandidates {
+            entries: vec![locked, other],
+            pinned_until: None,
+        });
+
+        // The context registry finalizes in App::finish, so run the plugin
+        // lifecycle before spawning the rig, like the production app does.
+        app.finish();
+        app.cleanup();
+        app.update();
+        app.world_mut().spawn(flight_input_rig());
+        app.update();
+
+        let scroll_up = |app: &mut App| {
+            app.world_mut().write_message(MouseWheel {
+                unit: MouseScrollUnit::Line,
+                x: 0.0,
+                y: 1.0,
+                window: Entity::PLACEHOLDER,
+                // A mouse wheel always reports Moved (see bevy_input).
+                phase: TouchPhase::Moved,
+            });
+            app.update();
+            // Settle the impulse so the next scroll re-triggers Start.
+            app.update();
+        };
+
+        // Plain scroll: component cycle only (cycle order is by local z:
+        // section_a first), lock untouched.
+        scroll_up(&mut app);
+        assert_eq!(
+            app.world()
+                .resource::<SpaceshipPlayerComponentLock>()
+                .section,
+            Some(section_a),
+            "plain scroll steps the component fine-lock"
+        );
+        assert_eq!(
+            **app.world().resource::<SpaceshipPlayerTargetLock>(),
+            Some(locked),
+            "plain scroll must not touch the ship lock"
+        );
+
+        // Holding CTRL alone must change nothing (the reported bug). The
+        // delivery guard: the modifier action itself must be firing.
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::ControlLeft);
+        app.update();
+        app.update();
+        let modifier_fired = app
+            .world_mut()
+            .query_filtered::<&TriggerState, With<Action<TargetCycleModifierInput>>>()
+            .iter(app.world())
+            .any(|&state| state == TriggerState::Fired);
+        assert!(modifier_fired, "the CTRL modifier action must be firing");
+        assert_eq!(
+            **app.world().resource::<SpaceshipPlayerTargetLock>(),
+            Some(locked),
+            "CTRL alone must not cycle the ship lock"
+        );
+        assert_eq!(
+            app.world()
+                .resource::<SpaceshipPlayerTargetCandidates>()
+                .pinned_until,
+            None,
+            "CTRL alone must not pin"
+        );
+        assert_eq!(
+            app.world()
+                .resource::<SpaceshipPlayerComponentLock>()
+                .section,
+            Some(section_a),
+            "CTRL alone must not cycle components either"
+        );
+
+        // CTRL+scroll: the same gesture one level up - ship lock cycles and
+        // pins, the component selection stays put.
+        scroll_up(&mut app);
+        assert_eq!(
+            **app.world().resource::<SpaceshipPlayerTargetLock>(),
+            Some(other),
+            "CTRL+scroll cycles the ship lock"
+        );
+        assert!(
+            app.world()
+                .resource::<SpaceshipPlayerTargetCandidates>()
+                .pinned_until
+                .is_some(),
+            "the cycled lock is pinned"
+        );
+        assert_eq!(
+            app.world()
+                .resource::<SpaceshipPlayerComponentLock>()
+                .section,
+            Some(section_a),
+            "CTRL+scroll must not also cycle components"
+        );
+
+        // Releasing CTRL hands the wheel back to the component cycle - the
+        // lock stays where the cycle left it (the observers do not run the
+        // acquisition system here, so no re-pick interferes). The component
+        // step is a no-op because focus is on the OLD lock, which is the
+        // gate's job - the wheel routing itself must not move the ship lock.
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(KeyCode::ControlLeft);
+        app.update();
+        scroll_up(&mut app);
+        assert_eq!(
+            **app.world().resource::<SpaceshipPlayerTargetLock>(),
+            Some(other),
+            "plain scroll after release must not cycle targets"
+        );
+        let _ = section_b;
+
+        // The pad DPadUp binding cycles targets directly, no modifier held.
+        let pad = app.world_mut().spawn_empty().id();
+        app.world_mut().write_message(GamepadConnectionEvent::new(
+            pad,
+            GamepadConnection::Connected {
+                name: "test pad".into(),
+                vendor_id: None,
+                product_id: None,
+            },
+        ));
+        app.update();
+        app.world_mut()
+            .write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent {
+                gamepad: pad,
+                button: GamepadButton::DPadUp,
+                value: 1.0,
+            }));
+        app.update();
+        assert_eq!(
+            **app.world().resource::<SpaceshipPlayerTargetLock>(),
+            Some(locked),
+            "DPadUp cycles targets with no modifier (wraps back)"
         );
     }
 

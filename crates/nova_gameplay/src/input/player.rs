@@ -1,5 +1,5 @@
 use avian3d::prelude::*;
-use bevy::{ecs::spawn::SpawnWith, prelude::*};
+use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
@@ -442,7 +442,7 @@ fn update_torpedo_target_input(
 /// is engaged disengages it - mouse-look does not, so watching a maneuver
 /// never cancels it.
 #[derive(Component, Debug, Clone)]
-struct FlightInputMarker;
+pub(crate) struct FlightInputMarker;
 
 /// Analog main-drive burn (`0..1`).
 #[derive(InputAction)]
@@ -493,27 +493,34 @@ fn on_player_added_spawn_flight_input(
 /// fn (not inlined in the observer) so the input tests can spawn the REAL
 /// rig and drive it with simulated devices.
 ///
-/// SpawnWith instead of the actions! macro: the cycle actions reference
-/// the CTRL modifier action by Entity (Chord gates the chorded bindings,
-/// BlockBy suppresses the plain wheel while CTRL is held), and only a
-/// closure spawn can capture that id (see bevy_enhanced_input's Chord
-/// docs).
-fn flight_input_rig() -> impl Bundle {
+/// The CTRL layer (cycle the SHIP lock instead of components) is NOT
+/// expressed as input conditions: a binding-level Chord ignores the
+/// binding's own value and fired on the bare modifier (bug
+/// 20260711-173237), and pairing it with an explicit Down still yields
+/// Ongoing on the unmodified gesture, which triggers Start. Instead the
+/// modifier is a plain action whose state the cycle observers READ
+/// (input/targeting.rs dispatch): plain wheel/brackets step components,
+/// the same gesture with the modifier held steps the ship lock.
+pub(crate) fn flight_input_rig() -> impl Bundle {
     (
         Name::new("Input: Flight"),
         FlightInputMarker,
-        Actions::<FlightInputMarker>::spawn(SpawnWith(
-            |context: &mut ActionSpawner<FlightInputMarker>| {
-                context.spawn((
+        actions!(
+            FlightInputMarker[
+                (
                     Name::new("Input: Flight Burn"),
                     Action::<FlightBurnInput>::new(),
                     ActionSettings {
                         consume_input: false,
                         ..default()
                     },
-                    bindings![KeyCode::KeyW, KeyCode::Space, GamepadButton::RightTrigger],
-                ));
-                context.spawn((
+                    bindings![
+                        KeyCode::KeyW,
+                        KeyCode::Space,
+                        GamepadButton::RightTrigger
+                    ],
+                ),
+                (
                     Name::new("Input: Autopilot Stop"),
                     Action::<AutopilotStopInput>::new(),
                     ActionSettings {
@@ -521,8 +528,8 @@ fn flight_input_rig() -> impl Bundle {
                         ..default()
                     },
                     bindings![KeyCode::KeyX, GamepadButton::East],
-                ));
-                context.spawn((
+                ),
+                (
                     Name::new("Input: Autopilot Goto"),
                     Action::<AutopilotGotoInput>::new(),
                     ActionSettings {
@@ -530,8 +537,8 @@ fn flight_input_rig() -> impl Bundle {
                         ..default()
                     },
                     bindings![KeyCode::KeyG, GamepadButton::North],
-                ));
-                context.spawn((
+                ),
+                (
                     Name::new("Input: Autopilot Orbit"),
                     Action::<AutopilotOrbitInput>::new(),
                     ActionSettings {
@@ -542,8 +549,8 @@ fn flight_input_rig() -> impl Bundle {
                     // lives there, and a pad press must never both skip the
                     // scenario and toggle a parking maneuver.
                     bindings![KeyCode::KeyO, GamepadButton::DPadDown],
-                ));
-                context.spawn((
+                ),
+                (
                     Name::new("Input: Autopilot Off"),
                     Action::<AutopilotOffInput>::new(),
                     ActionSettings {
@@ -551,47 +558,43 @@ fn flight_input_rig() -> impl Bundle {
                         ..default()
                     },
                     bindings![KeyCode::KeyZ, GamepadButton::West],
-                ));
-                // The cycle modifier: spawned before its dependents so its
-                // state is evaluated before Chord/BlockBy read it.
-                let modifier = context
-                    .spawn((
-                        Name::new("Input: Target Cycle Modifier"),
-                        Action::<TargetCycleModifierInput>::new(),
-                        ActionSettings {
-                            consume_input: false,
-                            ..default()
-                        },
-                        bindings![KeyCode::ControlLeft, KeyCode::ControlRight],
-                    ))
-                    .id();
-                context.spawn((
+                ),
+                (
+                    // The cycle-layer modifier: never observed, only its
+                    // TriggerState is read by the cycle dispatch.
+                    Name::new("Input: Target Cycle Modifier"),
+                    Action::<TargetCycleModifierInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings![KeyCode::ControlLeft, KeyCode::ControlRight],
+                ),
+                (
                     Name::new("Input: Component Cycle Next"),
                     Action::<ComponentCycleNextInput>::new(),
                     ActionSettings {
                         consume_input: false,
                         ..default()
                     },
-                    // While CTRL is held the same gesture cycles the SHIP
-                    // lock instead, so the component action stands down.
-                    BlockBy::single(modifier),
                     // Scroll up = next: the wheel is an axis (y = vertical),
                     // so swizzle y into the action value and clamp away the
-                    // opposite direction so only up-scrolls actuate.
+                    // opposite direction so only up-scrolls actuate. With
+                    // the CTRL modifier held the observer routes this
+                    // gesture to the ship-lock cycle instead.
                     bindings![
                         KeyCode::BracketRight,
                         GamepadButton::DPadRight,
                         (Binding::mouse_wheel(), SwizzleAxis::YXZ, Clamp::pos()),
                     ],
-                ));
-                context.spawn((
+                ),
+                (
                     Name::new("Input: Component Cycle Prev"),
                     Action::<ComponentCyclePrevInput>::new(),
                     ActionSettings {
                         consume_input: false,
                         ..default()
                     },
-                    BlockBy::single(modifier),
                     // Scroll down = prev: negate the (swizzled) wheel axis so
                     // down-scrolls become positive, then clamp like above.
                     bindings![
@@ -604,50 +607,33 @@ fn flight_input_rig() -> impl Bundle {
                             Clamp::pos()
                         ),
                     ],
-                ));
-                // Ship-lock cycle: CTRL+wheel / CTRL+brackets (the Chord sits
-                // on those bindings, not the action, so the gamepad dpad
-                // works unmodified). Pad gets NEXT only: DPadDown is ORBIT
-                // and left/right are the component cycle, and a wrapping
-                // next reaches every candidate anyway.
-                context.spawn((
+                ),
+                (
+                    // Direct ship-lock cycle. Pad gets NEXT only: DPadDown
+                    // is ORBIT and left/right are the component cycle, and
+                    // a wrapping next reaches every candidate anyway.
+                    // CTRL+wheel/brackets arrive via the dispatch, not here.
                     Name::new("Input: Target Cycle Next"),
                     Action::<TargetCycleNextInput>::new(),
                     ActionSettings {
                         consume_input: false,
                         ..default()
                     },
-                    bindings![
-                        GamepadButton::DPadUp,
-                        (KeyCode::BracketRight, Chord::single(modifier)),
-                        (
-                            Binding::mouse_wheel(),
-                            SwizzleAxis::YXZ,
-                            Clamp::pos(),
-                            Chord::single(modifier)
-                        ),
-                    ],
-                ));
-                context.spawn((
+                    bindings![GamepadButton::DPadUp],
+                ),
+                (
+                    // No direct binding yet (a dedicated prev key can land
+                    // here); CTRL+scroll-down reaches it via the dispatch.
                     Name::new("Input: Target Cycle Prev"),
                     Action::<TargetCyclePrevInput>::new(),
                     ActionSettings {
                         consume_input: false,
                         ..default()
                     },
-                    bindings![
-                        (KeyCode::BracketLeft, Chord::single(modifier)),
-                        (
-                            Binding::mouse_wheel(),
-                            SwizzleAxis::YXZ,
-                            Negate::all(),
-                            Clamp::pos(),
-                            Chord::single(modifier)
-                        ),
-                    ],
-                ));
-            },
-        )),
+                    bindings![],
+                ),
+            ]
+        ),
     )
 }
 
@@ -1092,121 +1078,6 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
-
-    /// Fire counters for the wheel-cycle actions, bumped by test observers.
-    #[derive(Resource, Default, Clone, Copy)]
-    struct CycleFires {
-        component: u32,
-        target: u32,
-    }
-
-    /// The CTRL layer must be exclusive both ways: plain scroll cycles
-    /// components only, CTRL+scroll cycles targets only (the BlockBy on the
-    /// component actions is what suppresses the plain wheel binding while
-    /// the modifier fires - without it both actions would trigger, see the
-    /// task's plan note). Drives the REAL rig bundle through
-    /// EnhancedInputPlugin with simulated devices, not mocked actions.
-    #[test]
-    fn ctrl_scroll_cycles_targets_and_blocks_the_component_cycle() {
-        use bevy::input::{
-            mouse::{MouseScrollUnit, MouseWheel},
-            touch::TouchPhase,
-            InputPlugin,
-        };
-
-        let mut app = App::new();
-        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
-        app.add_input_context::<FlightInputMarker>();
-        app.init_resource::<CycleFires>();
-        app.add_observer(
-            |_: On<Start<ComponentCycleNextInput>>, mut fires: ResMut<CycleFires>| {
-                fires.component += 1;
-            },
-        );
-        app.add_observer(
-            |_: On<Start<TargetCycleNextInput>>, mut fires: ResMut<CycleFires>| {
-                fires.target += 1;
-            },
-        );
-        // The context registry finalizes in App::finish, so run the plugin
-        // lifecycle before spawning the rig, like the production app does.
-        app.finish();
-        app.cleanup();
-        app.update();
-        app.world_mut().spawn(flight_input_rig());
-        app.update();
-
-        let scroll_up = |app: &mut App| {
-            app.world_mut().write_message(MouseWheel {
-                unit: MouseScrollUnit::Line,
-                x: 0.0,
-                y: 1.0,
-                window: Entity::PLACEHOLDER,
-                // A mouse wheel always reports Moved (see bevy_input).
-                phase: TouchPhase::Moved,
-            });
-            app.update();
-            // Settle the impulse so the next scroll re-triggers Start.
-            app.update();
-        };
-
-        // Plain scroll: component cycle only.
-        scroll_up(&mut app);
-        let fires = *app.world().resource::<CycleFires>();
-        assert_eq!(fires.component, 1, "plain scroll cycles components");
-        assert_eq!(fires.target, 0, "plain scroll must not cycle targets");
-
-        // CTRL+scroll: target cycle only, component blocked.
-        app.world_mut()
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .press(KeyCode::ControlLeft);
-        app.update();
-        scroll_up(&mut app);
-        let fires = *app.world().resource::<CycleFires>();
-        assert_eq!(fires.target, 1, "CTRL+scroll cycles targets");
-        assert_eq!(
-            fires.component, 1,
-            "CTRL+scroll must not also cycle components"
-        );
-
-        // Releasing CTRL hands the wheel back to the component cycle.
-        app.world_mut()
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .release(KeyCode::ControlLeft);
-        app.update();
-        scroll_up(&mut app);
-        let fires = *app.world().resource::<CycleFires>();
-        assert_eq!(fires.component, 2);
-        assert_eq!(fires.target, 1);
-
-        // The pad DPadUp binding must fire WITHOUT Ctrl: the Chord sits on
-        // the wheel/bracket binding entities only, not the action (review
-        // R1.2 - an action-level Chord would silently gate the pad too).
-        use bevy::input::gamepad::{
-            GamepadConnection, GamepadConnectionEvent, RawGamepadButtonChangedEvent,
-            RawGamepadEvent,
-        };
-        let pad = app.world_mut().spawn_empty().id();
-        app.world_mut().write_message(GamepadConnectionEvent::new(
-            pad,
-            GamepadConnection::Connected {
-                name: "test pad".into(),
-                vendor_id: None,
-                product_id: None,
-            },
-        ));
-        app.update();
-        app.world_mut()
-            .write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent {
-                gamepad: pad,
-                button: GamepadButton::DPadUp,
-                value: 1.0,
-            }));
-        app.update();
-        let fires = *app.world().resource::<CycleFires>();
-        assert_eq!(fires.target, 2, "DPadUp cycles targets with no modifier");
-        assert_eq!(fires.component, 2, "DPadUp must not cycle components");
-    }
 
     /// A world with the flight rig's four autopilot actions bound as in
     /// the real rig, plus the resources the resolver reads.
