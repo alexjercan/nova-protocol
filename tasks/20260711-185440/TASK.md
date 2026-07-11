@@ -36,6 +36,13 @@ These compose: 3 gives ambient life everywhere, 2 gives scenario authors
 control, 1 is the config surface for both. Spike should pick the seam.
 
 Notes:
+- Spike DONE (2026-07-11): docs/spikes/20260711-212358-live-ship-systems-outside-editor-scenario.md
+  answered both halves. Direction: gate the spaceship sets on
+  scenario-liveness (CurrentScenario.is_some(), owned by nova_scenario);
+  AI orbit via config directive -> AIOrbitDirective -> passive
+  AIBehaviorState::Orbit -> AutopilotAction::Orbit. Seeded tasks
+  20260711-212519, 20260711-212521, 20260711-212504; this task closes when
+  they land.
 - Origin: brainstormed while building the menu ambience scene
   (20260711-180455), which could NOT use AI/autopilot orbiting because the
   editor gates all spaceship input/section system sets on its private
