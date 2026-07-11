@@ -4456,6 +4456,7 @@ dependencies = [
  "bevy_enhanced_input",
  "bevy_hanabi",
  "bevy_rand",
+ "bevy_transform_interpolation",
  "nova_events",
  "rand 0.10.2",
  "serde",

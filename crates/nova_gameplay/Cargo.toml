@@ -19,6 +19,12 @@ bevy_hanabi = { version = "0.19.0", default-features = false, features = ["2d", 
 serde = { version = "1.0.228" }
 bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", rev = "a35b74c460fb42879acd963bab45b7d88a9ba2cc" }
 bevy_rand = { version = "0.15.0", default-features = false, features = ["chacha20", "wyrand"] }
+# The interpolation crate behind avian's TransformInterpolation. Direct dep
+# only for the easing-state components (avian re-exports the markers but not
+# the states), which the turret spawn seeds so a bullet's first rendered
+# frame sits on the render clock (task 20260711-121839). Version must stay
+# in lockstep with the one avian3d resolves.
+bevy_transform_interpolation = { version = "0.5.0" }
 nova_events = { path = "../nova_events" }
 
 [target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]

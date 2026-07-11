@@ -7,6 +7,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 use bevy_hanabi::prelude::*;
+use bevy_transform_interpolation::{RotationEasingState, TranslationEasingState};
 
 use crate::prelude::*;
 
@@ -932,7 +933,30 @@ fn shoot_spawn_projectile(
                 BulletProjectileRenderMesh(config.projectile_render_mesh.clone()),
                 TempEntity(config.projectile_lifetime),
                 Visibility::Visible,
-                TransformInterpolation,
+                // Interpolation plus its render-clock seed (task
+                // 20260711-121839): a body spawned mid-tick misses
+                // FixedFirst, so its easing `start` stays None and the first
+                // rendered frame would show the RAW spawn pose (sub-tick
+                // lead offset and all) while the rest of the world renders
+                // EASED - one visible frame of muzzle pop, cross-stream
+                // error up to a tick of ship motion. Seeding `start` with
+                // the tick-start muzzle pose (no lead offset) puts the first
+                // frame at lerp(muzzle, raw_end, alpha): attached to the
+                // rendered barrel, and only ever ahead of it along the
+                // stream. FixedLast fills `end` with this tick's integrated
+                // raw pose as usual, and the teleport-reset guard keeps the
+                // seed because the written Transform equals `end` exactly.
+                (
+                    TransformInterpolation,
+                    TranslationEasingState {
+                        start: Some(muzzle_position),
+                        end: None,
+                    },
+                    RotationEasingState {
+                        start: Some(projectile_rotation),
+                        end: None,
+                    },
+                ),
             ));
             // The projectile COPIES the shooter's allegiance instead of
             // resolving through ProjectileOwner at read time: it stays
@@ -1970,6 +1994,117 @@ mod tests {
                 "stream must stay uniform and collinear at speed: delta {delta} vs {first_delta}"
             );
         }
+    }
+
+    /// A bullet's FIRST rendered frame must sit on the world's render clock
+    /// (task 20260711-121839). The spawn writes the RAW physics pose
+    /// (tick-start muzzle minus the sub-tick lead), and a body spawned
+    /// mid-tick misses FixedFirst, so its easing `start` is None and the
+    /// first frame used to render that raw pose while the ship rendered
+    /// EASED - one frame of muzzle pop, cross-stream error up to a full
+    /// tick of ship motion (~2.3 u at 150 u/s). With the easing seed the
+    /// first render is exactly `lerp(muzzle_tick_start, raw_end, alpha)`:
+    /// zero cross-stream offset from the rendered barrel, and along-stream
+    /// only ever FORWARD by at most one tick of muzzle-exit travel (a
+    /// mid-tick shot has already flown; it must never render BEHIND the
+    /// barrel, inside the turret). The raw physics stream is pinned
+    /// separately by `bullet_stream_stays_linear_at_high_ship_velocity`;
+    /// this test asserts the render clock, checking every bullet of a
+    /// 24 rounds/s stream so the 64 Hz-vs-60 fps beat sweeps the easing
+    /// alpha across its range.
+    #[test]
+    fn first_rendered_frame_attaches_the_bullet_to_the_eased_muzzle() {
+        use std::collections::HashSet;
+
+        use crate::{
+            integrity::test_support::{settle, unfinished_integrity_physics_app_with},
+            sections::projectile_hooks::ProjectileHooks,
+        };
+
+        let mut app = unfinished_integrity_physics_app_with(
+            PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
+        );
+        app.add_systems(FixedUpdate, shoot_spawn_projectile);
+        app.finish();
+
+        let (ship, turret) = spawn_stream_rig(&mut app, 24.0);
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::X * 150.0));
+        arm_turret(&mut app, turret);
+
+        // Rig locals (spawn_stream_rig): turret at (0, 1, 0), muzzle at
+        // (0, 0, -0.5) yawed 0.3. The ship never spins here, so the exit
+        // direction is constant in world space.
+        let muzzle_local_rot = Quat::from_rotation_y(0.3);
+        // Chain composition (local_pose_in_root): the muzzle's own rotation
+        // aims its frame (the exit direction), it does not displace its
+        // mount point.
+        let muzzle_local_pos = Vec3::new(0.0, 1.0, 0.0) + Vec3::new(0.0, 0.0, -0.5);
+        let exit_direction = muzzle_local_rot * Vec3::NEG_Z;
+        // One tick of muzzle-exit travel: the most a mid-tick shot may lead
+        // the barrel by on its first rendered frame.
+        let max_lead = 200.0 * 1.0 / 64.0 + 0.05;
+
+        let mut seen: HashSet<Entity> = HashSet::new();
+        let mut sampled = 0usize;
+        let mut max_cross = 0.0f32;
+        let mut min_alpha = f32::MAX;
+        for _ in 0..40 {
+            app.update();
+            // The ship's Transform is its EASED render pose this frame
+            // (TransformInterpolation); compose the rendered muzzle from it.
+            let ship_tf = *app.world().get::<Transform>(ship).unwrap();
+            let rendered_muzzle = ship_tf.translation + ship_tf.rotation * muzzle_local_pos;
+            let alpha = app.world().resource::<Time<Fixed>>().overstep_fraction();
+
+            let bullets: Vec<(Entity, Vec3)> = app
+                .world_mut()
+                .query_filtered::<(Entity, &Transform), With<TurretBulletProjectileMarker>>()
+                .iter(app.world())
+                .map(|(e, t)| (e, t.translation))
+                .collect();
+            for (bullet, rendered) in bullets {
+                if !seen.insert(bullet) {
+                    continue;
+                }
+                // This bullet's FIRST rendered frame.
+                sampled += 1;
+                min_alpha = min_alpha.min(alpha);
+                let offset = rendered - rendered_muzzle;
+                let along = offset.dot(exit_direction);
+                let cross = (offset - along * exit_direction).length();
+                max_cross = max_cross.max(cross);
+                assert!(
+                    along > -0.05,
+                    "a bullet must never first-render BEHIND the barrel: along {along}"
+                );
+                assert!(
+                    along < max_lead,
+                    "a bullet's first render may lead the barrel by at most one \
+                     tick of muzzle travel: along {along} vs {max_lead}"
+                );
+            }
+        }
+
+        // Delivery guards: a real stream was sampled, and the beat actually
+        // exercised frames where raw and eased poses diverge (small alpha is
+        // where the pre-fix pop is largest).
+        assert!(
+            sampled >= 10,
+            "expected a stream, sampled {sampled} first frames"
+        );
+        assert!(
+            min_alpha < 0.5,
+            "the beat must sample misaligned frames for the assertion to bite \
+             (min alpha {min_alpha})"
+        );
+        assert!(
+            max_cross < 0.02,
+            "first rendered frame must sit ON the rendered stream line: \
+             max cross-stream offset {max_cross}"
+        );
     }
 
     /// The shipped default fire rate (100 rounds/s) is faster than the 64 Hz
