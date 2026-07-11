@@ -31,6 +31,11 @@ This task closes LAST, as the family-level verification.
       crosshair stable; full check suite green.
 - [ ] Ask the user to re-run the playtest checklist at high velocity and
       capture any residual feel notes as new tasks.
+      INTERIM (user, 2026-07-11, mid-family): bullets confirmed good in
+      flight (one-frame spawn pop filed as 20260711-121839); stopping
+      with X confirmed sharper; residual decel wobble filed as
+      20260711-121701; camera zoom-out cap request filed as
+      20260711-121711. Final verdict still pending the full family.
 
 ## Notes
 
