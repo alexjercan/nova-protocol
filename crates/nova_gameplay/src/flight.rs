@@ -3618,10 +3618,12 @@ mod tests {
         );
         assert!(app.world().get::<Autopilot>(ship).is_none());
         // Mid-maneuver the slewed command keeps the hull steady (the old
-        // wobble hit 2+ rad/s DURING the burn); a residual endgame roll of
-        // ~1.5 rad/s can survive release because the bcs PD cannot damp a
-        // fast roll (known issue, filed as its own task). Guard against it
-        // getting worse until that lands.
+        // wobble hit 2+ rad/s DURING the burn), and since bcs's inertia
+        // frame composition fix (bcs task 20260711-091519, nova task
+        // 20260709-125640) the release parks the hull too - the old
+        // ~1.5 rad/s corkscrew came from the mangled tensor (avian's eigen
+        // sort hands even this axis-aligned ship a cyclic-permutation
+        // local frame, which the pre-fix order composed wrongly).
         run(&mut app, 300);
         let spin = app
             .world()
@@ -3629,7 +3631,7 @@ mod tests {
             .map(|w| w.length())
             .unwrap_or(f32::NAN);
         assert!(
-            spin < 2.0,
+            spin < 0.5,
             "post-release residual spin regressed: {spin} rad/s"
         );
     }

@@ -12,7 +12,7 @@ bevy-inspector-egui = { version = "0.37" }
 bevy_mod_debugdump = { version = "0.16" }
 nova_gameplay = { path = "../nova_gameplay", features = ["debug"] }
 nova_scenario = { path = "../nova_scenario" }
-bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", rev = "4c58835708feb888f3a1872e74d6ae5fd742dd0c", features = ["debug"] }
+bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", rev = "a35b74c460fb42879acd963bab45b7d88a9ba2cc", features = ["debug"] }
 
 [lints]
 workspace = true

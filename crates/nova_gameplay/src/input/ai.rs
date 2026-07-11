@@ -2315,15 +2315,15 @@ mod physics_tests {
             "the hull must hold its nose on the player (within ~5 degrees) \
              for a full second, worst aim cos {min_aim}"
         );
-        // The aim axes are quiet; what residual spin remains is pure ROLL
-        // about the nose, which the bcs PD cannot damp (open bug
-        // 20260709-125640, amplitude ~0.23 rad/s in this rig). Bound it so a
-        // regression in THIS path still trips, and tighten toward ~0 when
-        // the bcs fix lands.
+        // The aim axes are quiet and, since the bcs inertia-frame fix
+        // (20260709-125640), so is the roll: the residual spin in this rig
+        // measures ~5e-6 rad/s. The bound leaves ~4 orders of margin for
+        // solver noise while still tripping on any real roll-damping
+        // regression (the pre-fix amplitude was ~0.23 rad/s).
         assert!(
-            max_spin < 0.5,
-            "residual spin must stay within the known roll-damping bound \
-             (20260709-125640), got {max_spin} rad/s"
+            max_spin < 0.05,
+            "residual spin must stay damped (20260709-125640), \
+             got {max_spin} rad/s"
         );
     }
 }
