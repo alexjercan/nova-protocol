@@ -127,8 +127,19 @@ retros.
   any unrelated system can flip; and the contract is only real once a
   test registers a stand-in producer in the actual SystemSet.
   20260711-180501 (R1.1 MAJOR).
-- `out-of-context-review-pass` (positive pattern, x3, third catch:
-  the unordered-against-propagation MAJOR above): for a substantial
+- `set-gates-miss-observers` (x1): gating a SystemSet does not touch
+  observers - the pause gate froze the sets while all 14 input observers
+  (autopilot verbs, weapon intents, cycles, camera look, scenario next)
+  kept mutating the world; enumerate systems + observers + hooks before
+  claiming a global gate covers "input". 20260711-185156 (R1.1 MAJOR).
+- `would-it-fail-without-it` (x3): a verification that cannot fail with
+  the mechanism deleted proves nothing - 20260711-180426 (harness pass
+  threshold also passed pre-fix), 20260711-180455 (pixel-identical
+  screenshots false-positived a broken scene), 20260711-185156 (frozen-
+  ship e2e could not prove the input gate; a claimed unit test did not
+  exist). Ask the question before ticking any verification step.
+- `out-of-context-review-pass` (positive pattern, x4, fourth catch: the
+  ungated-observers MAJOR above): for a substantial
   branch reviewed in the implementer's own session, a fresh-context agent
   review caught a MAJOR (BCS_SHOT force-advance vs the Loaded hook) that
   shared-session eyes missed; the review skill's re-derive rule caught the
@@ -196,6 +207,10 @@ retros.
   two-clocks spike and tasks/20260711-103527's audit table.
 
 ## Pending promotions (3+ occurrences, user decides)
+
+- `would-it-fail-without-it` is at x3 across three consecutive cycles -
+  candidate for the work skill's verify step and the review skill's test
+  checklist ("every verification must be able to fail").
 
 - `one-cargo-test-filter` is at x2; the thrust-balancing retro already
   proposed promoting it to an AGENTS.md testing note on the third
