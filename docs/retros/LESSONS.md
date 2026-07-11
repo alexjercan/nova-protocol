@@ -27,12 +27,14 @@ retros.
   20260710-231931 (R1.1 MAJOR), 20260710-231930, 20260711-121701,
   20260711-121711, 20260710-214316 (expect-guard on the
   inside-envelope sample).
-- `verify-first-plan-steps` (x3, PROMOTED 2026-07-11 -> plan skill):
+- `verify-first-plan-steps` (x4, PROMOTED 2026-07-11 -> plan skill):
   plan steps encoding mechanisms/formulas/orderings must cite the
   verifying file or be phrased verify-first. 20260710-231931 (torque
   -blind burn), 20260710-231930 (wrong overshoot algebra),
   20260711-121701 (balancer chatter on a single-engine ship); related
-  ordering cases in 20260710-231928.
+  ordering cases in 20260710-231928; 20260708-165705 (plan assigned
+  DPadDown already bound to ORBIT - concrete key/button assignments must
+  quote the current binding table).
 - `landing-no-cd` (x3, PROMOTED 2026-07-11 -> flow skill): the
   squash-merge is its own command, no `cd`, `pwd` first, from the main
   checkout. 20260709-160753, diegetic-autopilot retro, 20260711-125225
@@ -56,11 +58,13 @@ retros.
   20260709-160753 (R1.2), applied in 20260710-231931.
 - `sweep-then-delete` (x2): grep for consumers BEFORE deleting or
   slimming a symbol/readout. 20260711-000547, 20260711-125226.
-- `reread-after-insert` (x1): after inserting into an existing function
+- `reread-after-insert` (x2): after inserting into an existing function
   or test, re-read the whole function for bindings/assertions the
   insertion duplicated or obsoleted; a mid-test insertion left the
   pre-existing identical binding as a redundant shadow (R1.1).
-  20260710-214316.
+  20260710-214316. Variant: when extending a resource, re-read consumer
+  modules' documented invariants - new hint fields broke keybind_hints'
+  "no rig, no keys, no hints" rule (R1.1). 20260708-165705.
 - `does-the-old-element-survive` (x2): when a design adds an element
   overlapping an existing one, the spike/plan must ask what happens to
   the old one. 20260711-000547, 20260711-125226.
@@ -127,6 +131,10 @@ retros.
   axis-aligned symmetric ship a cyclic-permutation local frame; frame
   composition code must be tested with both frames non-identity.
   20260709-125640.
+- `bei-app-finish-in-tests` (x1): bevy_enhanced_input finalizes its
+  context registry in `App::finish`; an input test must call
+  `app.finish()`/`app.cleanup()` before spawning an action rig or the
+  ContextInstances resource does not exist. 20260708-165705.
 - `global-transform-stale-in-fixedupdate` (family): `GlobalTransform`
   inside FixedUpdate is the previous frame's propagation (eased since
   2026-07-09); avian child-collider poses are one tick stale. See the
