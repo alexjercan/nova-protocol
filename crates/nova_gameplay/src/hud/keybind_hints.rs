@@ -129,11 +129,7 @@ impl Plugin for KeybindHintsPlugin {
 
         app.add_systems(
             Update,
-            (
-                update_hint_cluster,
-                (drive_orbit_cue, drive_goto_cue).before(ScreenIndicatorSystems),
-            )
-                .in_set(super::NovaHudSystems),
+            (update_hint_cluster, (drive_orbit_cue, drive_goto_cue)).in_set(super::NovaHudSystems),
         );
     }
 }

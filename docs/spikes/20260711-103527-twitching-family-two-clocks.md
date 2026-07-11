@@ -232,3 +232,23 @@ playtest checklist.
 - Regressions: `bullet_stream_stays_linear_at_high_ship_velocity`
   (uniform + collinear deltas at 150 u/s cross-travel, A/B-proven) and
   `fire_rate_above_the_tick_rate_keeps_its_true_cadence`.
+
+### 20260710-231928: HUD projection (landed)
+
+- `update_screen_indicators` moved from Update to the PostUpdate slot
+  `after(ChaseCameraSystems::Sync).before(UiSystems::Layout)`, composing
+  fresh camera + anchor poses via TransformHelper (bevy_ui runs layout
+  BEFORE transform propagation, so pre-propagation GlobalTransform reads
+  would be stale - the spike's planned "after Propagate" slot was
+  impossible).
+- Bonus finding: bcs leaves `ChaseCameraSystems::Sync` unordered against
+  `TransformSystems::Propagate` - a per-build coin flip that can render
+  EVERY frame with last frame's camera pose. Nova pins the order in its
+  camera controller plugin (additive configure_sets, no bcs change
+  needed); upstreaming to bcs is nice-to-have.
+- Ship-attached holo geometry (spoke line + chip midpoint, ribbon ship
+  end, flip gate direction) now reads the ship's eased root Transform -
+  the rendered pose - instead of raw avian Position.
+- Regression: `indicator_projects_with_the_frames_final_camera_pose`
+  (sub-pixel match against end-of-frame rendered poses every frame,
+  A/B: the old Update schedule misses by 54 px in the same rig).

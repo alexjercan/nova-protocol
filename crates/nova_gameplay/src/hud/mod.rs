@@ -57,12 +57,15 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(component_lock::ComponentLockHudPlugin);
 
         // Keep the generic HUD widgets inside nova's HUD ordering slot, as the local ones were.
+        // ScreenIndicatorSystems is NOT in this Update slot anymore: the
+        // projection runs in PostUpdate after the chase camera's final move
+        // (task 20260710-231928), and the Update-schedule driver systems
+        // precede it by schedule order alone.
         app.configure_sets(
             Update,
             (
                 HealthDisplayPluginSystems::Sync,
                 ObjectivesPluginSystems::Sync,
-                ScreenIndicatorSystems,
             )
                 .in_set(NovaHudSystems),
         );

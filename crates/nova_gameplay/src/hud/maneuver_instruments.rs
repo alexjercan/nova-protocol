@@ -160,12 +160,13 @@ impl Plugin for ManeuverInstrumentsPlugin {
         app.add_systems(
             Update,
             (
+                // Drivers run in Update; the projection consumes their
+                // anchors in PostUpdate by schedule order.
                 (
                     drive_destination_readout,
                     drive_flip_marker,
                     drive_radius_spoke_chip,
-                )
-                    .before(ScreenIndicatorSystems),
+                ),
                 sync_orbit_ring,
                 sync_radius_spoke,
             )
@@ -325,7 +326,12 @@ fn drive_radius_spoke_chip(
         (&mut ScreenIndicatorAnchor, &mut Text, &ChildOf),
         With<RadiusSpokeChipUIMarker>,
     >,
-    q_ship: Query<(&Position, &Autopilot)>,
+    // Ship pose on the RENDER clock (eased root Transform), not raw avian
+    // Position: the chip rides the midpoint of a line whose ship end the
+    // player SEES, and at speed the raw pose leads the rendered hull by up
+    // to a tick (task 20260710-231928). Wells are static, so their raw
+    // Position is identical either way.
+    q_ship: Query<(&Transform, &Autopilot)>,
     q_well: Query<&Position, With<GravityWell>>,
 ) {
     for (mut anchor, mut text, &ChildOf(parent)) in &mut q_ui {
@@ -333,12 +339,12 @@ fn drive_radius_spoke_chip(
             continue;
         };
 
-        let spoke = q_ship.get(**ship).ok().and_then(|(position, autopilot)| {
+        let spoke = q_ship.get(**ship).ok().and_then(|(transform, autopilot)| {
             let AutopilotAction::Orbit { well, .. } = autopilot.action else {
                 return None;
             };
             let well_position = q_well.get(well).ok()?;
-            Some((**well_position, **position))
+            Some((**well_position, transform.translation))
         });
 
         match spoke {
@@ -365,16 +371,21 @@ fn sync_radius_spoke(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut assets: ResMut<HoloAssets>,
-    q_ship: Query<(Entity, &Position, &Autopilot), With<PlayerSpaceshipMarker>>,
+    // The spoke's ship end must meet the RENDERED hull: eased root
+    // Transform, not raw Position (see drive_radius_spoke_chip).
+    q_ship: Query<
+        (Entity, &Transform, &Autopilot),
+        (With<PlayerSpaceshipMarker>, Without<RadiusSpokeMarker>),
+    >,
     q_well: Query<&Position, With<GravityWell>>,
     mut q_spoke: Query<(Entity, &RadiusSpokeMarker, &mut Transform)>,
 ) {
-    let engaged = q_ship.iter().find_map(|(ship, position, autopilot)| {
+    let engaged = q_ship.iter().find_map(|(ship, transform, autopilot)| {
         let AutopilotAction::Orbit { well, .. } = autopilot.action else {
             return None;
         };
         let well_position = q_well.get(well).ok()?;
-        Some((ship, **well_position, **position))
+        Some((ship, **well_position, transform.translation))
     });
 
     let Some((ship, well_position, ship_position)) = engaged else {
@@ -595,7 +606,7 @@ mod tests {
             .spawn((
                 PlayerSpaceshipMarker,
                 SpaceshipRootMarker,
-                Position(Vec3::new(60.0, 0.0, 0.0)),
+                Transform::from_xyz(60.0, 0.0, 0.0),
                 Autopilot::engage(AutopilotAction::Orbit { well, plan: None }),
             ))
             .id();
@@ -621,7 +632,7 @@ mod tests {
         // The ship spirals in: both ends of the spoke follow.
         world
             .entity_mut(ship)
-            .insert(Position(Vec3::new(0.0, 0.0, 40.0)));
+            .insert(Transform::from_xyz(0.0, 0.0, 40.0));
         world.run_system_once(sync_radius_spoke).unwrap();
         world.run_system_once(drive_radius_spoke_chip).unwrap();
         let (_, transform) = world

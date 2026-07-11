@@ -175,7 +175,6 @@ impl Plugin for FlightStatusHudPlugin {
         app.add_systems(
             Update,
             (drive_speed_chip, drive_mode_chip, drive_destination_anchor)
-                .before(ScreenIndicatorSystems)
                 .in_set(super::NovaHudSystems),
         );
     }

@@ -230,7 +230,7 @@ impl Plugin for TorpedoTargetHudPlugin {
         app.add_systems(
             Update,
             (
-                drive_reticle_anchor.before(ScreenIndicatorSystems),
+                drive_reticle_anchor,
                 update_reticle_relation_tint,
                 update_target_readout,
                 update_focus_meter,

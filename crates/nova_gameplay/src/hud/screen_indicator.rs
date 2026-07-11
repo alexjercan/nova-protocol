@@ -20,7 +20,8 @@
 //! [`ScreenIndicatorCamera`].
 
 use avian3d::prelude::*;
-use bevy::prelude::*;
+use bevy::{prelude::*, ui::UiSystems};
+use bevy_common_systems::prelude::ChaseCameraSystems;
 
 pub mod prelude {
     pub use super::{
@@ -160,7 +161,8 @@ pub fn screen_indicator_layer() -> impl Bundle {
 }
 
 /// System set for the indicator update, so consumers can order driver systems
-/// before it.
+/// before it. Lives in PostUpdate, between the chase camera's final move and
+/// UI layout; Update-schedule drivers precede it by schedule order.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ScreenIndicatorSystems;
 
@@ -173,8 +175,23 @@ impl Plugin for ScreenIndicatorPlugin {
     fn build(&self, app: &mut App) {
         debug!("ScreenIndicatorPlugin: build");
 
+        // Projection must sample the SAME camera pose the frame renders
+        // with. In Update the chase camera has not moved yet (bcs moves it
+        // in PostUpdate), so indicators lagged the world by one frame of
+        // camera motion - the HUD twitch of task 20260710-231928. The slot
+        // is: after the chase camera writes the camera Transform, before UI
+        // layout consumes the node positions (bevy_ui runs layout BEFORE
+        // transform propagation, so fresh poses are computed via
+        // TransformHelper inside the system rather than read from
+        // GlobalTransform).
+        app.configure_sets(
+            PostUpdate,
+            ScreenIndicatorSystems
+                .after(ChaseCameraSystems::Sync)
+                .before(UiSystems::Layout),
+        );
         app.add_systems(
-            Update,
+            PostUpdate,
             update_screen_indicators.in_set(ScreenIndicatorSystems),
         );
     }
@@ -355,7 +372,13 @@ fn update_screen_indicators(
         ),
         With<ScreenIndicatorMarker>,
     >,
-    q_transform: Query<&GlobalTransform>,
+    // This runs BEFORE this frame's transform propagation (UI layout comes
+    // first in PostUpdate), so `GlobalTransform` still holds last frame's
+    // poses. TransformHelper composes fresh `Transform`s instead: the
+    // camera pose the chase camera just wrote and the eased anchor poses
+    // the frame will render with. HUD-scale anchor counts make the
+    // per-entity hierarchy walk negligible.
+    transform_helper: TransformHelper,
     q_children: Query<&Children>,
     q_aabb: Query<&ColliderAabb>,
     q_nested: Query<(), With<ScreenIndicatorMarker>>,
@@ -366,7 +389,7 @@ fn update_screen_indicators(
             Without<ScreenIndicatorMarker>,
         ),
     >,
-    q_camera: Query<(&GlobalTransform, &Camera), With<ScreenIndicatorCamera>>,
+    q_camera: Query<(Entity, &Camera), With<ScreenIndicatorCamera>>,
 ) {
     // Without a projection camera every indicator hides, rather than freezing
     // at a stale position. More than one tagged camera is a consumer bug:
@@ -383,24 +406,29 @@ fn update_screen_indicators(
 
     for (entity, anchor, size_mode, offset, offscreen, mut node, mut visibility) in &mut q_indicator
     {
-        let Some((camera_transform, camera)) = camera else {
+        let Some((camera_entity, camera)) = camera else {
             visibility.set_if_neq(Visibility::Hidden);
             continue;
         };
+        let Ok(camera_transform) = transform_helper.compute_global_transform(camera_entity) else {
+            visibility.set_if_neq(Visibility::Hidden);
+            continue;
+        };
+        let camera_transform = &camera_transform;
         let Some(viewport) = camera.logical_viewport_size() else {
             visibility.set_if_neq(Visibility::Hidden);
             continue;
         };
 
         // Resolve the anchor to a world position; entity anchors follow their
-        // GlobalTransform and hide when the entity no longer resolves.
+        // freshly composed pose and hide when the entity no longer resolves.
         let Some(kind) = **anchor else {
             visibility.set_if_neq(Visibility::Hidden);
             continue;
         };
         let (anchor_pos, anchor_entity) = match kind {
             ScreenIndicatorAnchorKind::Entity(anchor_entity) => {
-                let Ok(transform) = q_transform.get(anchor_entity) else {
+                let Ok(transform) = transform_helper.compute_global_transform(anchor_entity) else {
                     visibility.set_if_neq(Visibility::Hidden);
                     continue;
                 };
@@ -690,7 +718,7 @@ mod tests {
     /// A camera whose computed values are filled in by hand, since no render
     /// backend runs in tests: 90 degree vertical FOV, 800x600 viewport,
     /// identity transform (at the origin looking down -Z).
-    fn test_camera() -> (GlobalTransform, Camera) {
+    fn test_camera() -> (Transform, Camera) {
         let camera = Camera {
             computed: ComputedCameraValues {
                 clip_from_view: Mat4::perspective_infinite_reverse_rh(
@@ -706,7 +734,7 @@ mod tests {
             },
             ..default()
         };
-        (GlobalTransform::IDENTITY, camera)
+        (Transform::IDENTITY, camera)
     }
 
     fn spawn_camera(world: &mut World) {
@@ -771,9 +799,7 @@ mod tests {
         let mut world = World::new();
         spawn_camera(&mut world);
         let target = world
-            .spawn(GlobalTransform::from_translation(Vec3::new(
-                0.0, 0.0, -10.0,
-            )))
+            .spawn(Transform::from_translation(Vec3::new(0.0, 0.0, -10.0)))
             .id();
         let indicator = world
             .spawn(screen_indicator(ScreenIndicatorConfig {
@@ -950,7 +976,7 @@ mod tests {
         // center on the 800 px viewport, so the node is 2x that wide.
         let target = world
             .spawn((
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -10.0)),
+                Transform::from_translation(Vec3::new(0.0, 0.0, -10.0)),
                 ColliderAabb::from_min_max(Vec3::new(-1.0, -1.0, -11.0), Vec3::new(1.0, 1.0, -9.0)),
             ))
             .id();
@@ -1012,6 +1038,144 @@ mod tests {
         assert_eq!(
             *world.entity(indicator).get::<Visibility>().unwrap(),
             Visibility::Hidden
+        );
+    }
+
+    /// The projection must place indicators with the SAME camera pose the
+    /// frame renders with (task 20260710-231928). Before the PostUpdate
+    /// move the system ran in Update, one chase-camera step early: every
+    /// frame the HUD was placed with LAST frame's camera while the world
+    /// rendered with this frame's, so anchored text jittered by one frame
+    /// of camera motion. A smoothed chase camera trailing a cruising ship
+    /// keeps the camera moving every frame; the node position must match a
+    /// projection recomputed from the END-of-frame (rendered) poses to
+    /// sub-pixel precision on every frame.
+    #[test]
+    fn indicator_projects_with_the_frames_final_camera_pose() {
+        use core::time::Duration;
+
+        use bevy::{time::TimeUpdateStrategy, transform::TransformSystems};
+        use bevy_common_systems::prelude::{ChaseCamera, ChaseCameraInput, ChaseCameraPlugin};
+
+        #[derive(Component)]
+        struct CruisingShip;
+
+        fn move_ship(time: Res<Time>, mut q_ship: Query<&mut Transform, With<CruisingShip>>) {
+            for mut transform in &mut q_ship {
+                transform.translation.x += 120.0 * time.delta_secs();
+            }
+        }
+
+        // Mirrors nova's update_chase_camera_input: the camera anchor is the
+        // ship pose read in Update.
+        fn drive_camera_input(
+            q_ship: Query<&Transform, With<CruisingShip>>,
+            mut q_input: Query<&mut ChaseCameraInput>,
+        ) {
+            let Ok(ship) = q_ship.single() else {
+                return;
+            };
+            for mut input in &mut q_input {
+                input.anchor_pos = ship.translation;
+            }
+        }
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, TransformPlugin, ChaseCameraPlugin));
+        app.add_plugins(ScreenIndicatorPlugin);
+        // Mirror the production pin from nova's camera controller: the
+        // chase move lands before propagation, so the rendered camera pose
+        // is this frame's.
+        app.configure_sets(
+            PostUpdate,
+            bevy_common_systems::prelude::ChaseCameraSystems::Sync
+                .before(TransformSystems::Propagate),
+        );
+        app.add_systems(Update, (move_ship, drive_camera_input).chain());
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            1.0 / 60.0,
+        )));
+
+        let ship = app
+            .world_mut()
+            .spawn((CruisingShip, Transform::default()))
+            .id();
+        let (_, camera) = test_camera();
+        let camera = app
+            .world_mut()
+            .spawn((
+                Transform::default(),
+                camera,
+                ScreenIndicatorCamera,
+                ChaseCamera {
+                    offset: Vec3::new(0.0, 0.0, 15.0),
+                    focus_offset: Vec3::ZERO,
+                    // Heavy smoothing keeps the camera trailing (and thus
+                    // MOVING) every frame - the regime where a stale camera
+                    // pose separates HUD from world.
+                    smoothing: 0.5,
+                },
+            ))
+            .id();
+        let indicator = app
+            .world_mut()
+            .spawn(screen_indicator(ScreenIndicatorConfig {
+                anchor: Some(ScreenIndicatorAnchorKind::Entity(ship)),
+                size: ScreenIndicatorSize::Fixed(Vec2::splat(32.0)),
+                ..default()
+            }))
+            .id();
+
+        let camera_start = app
+            .world()
+            .entity(camera)
+            .get::<Transform>()
+            .unwrap()
+            .translation;
+
+        // Warmup: the camera starts at the origin on top of the ship; let
+        // the chase state converge to a sane trailing pose first.
+        for _ in 0..3 {
+            app.update();
+        }
+
+        let mut max_error = 0.0f32;
+        for _ in 0..30 {
+            app.update();
+            // What this frame RENDERS with: the post-propagation poses.
+            let world = app.world_mut();
+            let camera_pose = *world.entity(camera).get::<GlobalTransform>().unwrap();
+            let ship_pose = *world.entity(ship).get::<GlobalTransform>().unwrap();
+            let camera_component = world.entity(camera).get::<Camera>().unwrap();
+            let expected = camera_component
+                .world_to_viewport(&camera_pose, ship_pose.translation())
+                .expect("ship projects on screen");
+            let (left, top, width, height) = node_rect(world, indicator);
+            let placed = Vec2::new(left + width / 2.0, top + height / 2.0);
+            max_error = max_error.max(placed.distance(expected));
+        }
+        // Delivery guards: the camera must genuinely trail (move) and the
+        // rig must have kept the indicator visible, or the sub-pixel bound
+        // is vacuous.
+        let camera_moved = app
+            .world()
+            .entity(camera)
+            .get::<Transform>()
+            .unwrap()
+            .translation
+            .distance(camera_start);
+        assert!(
+            camera_moved > 10.0,
+            "the chase camera must trail the cruising ship, moved {camera_moved}"
+        );
+        assert_eq!(
+            *app.world().entity(indicator).get::<Visibility>().unwrap(),
+            Visibility::Visible
+        );
+        assert!(
+            max_error < 0.5,
+            "indicator must sit on the rendered projection every frame, \
+             worst mismatch {max_error} px"
         );
     }
 }

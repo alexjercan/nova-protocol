@@ -1,5 +1,5 @@
 use avian3d::prelude::{ComputedCenterOfMass, Rotation};
-use bevy::prelude::*;
+use bevy::{prelude::*, transform::TransformSystems};
 use bevy_common_systems::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
@@ -51,6 +51,16 @@ impl Plugin for SpaceshipCameraControllerPlugin {
                 (sync_spaceship_control_mode, update_camera_rig).chain(),
             )
                 .in_set(NovaCameraSystems),
+        );
+
+        // bcs moves the camera Transform in PostUpdate but leaves its order
+        // against Bevy's transform propagation AMBIGUOUS - if propagation
+        // wins the race, the frame renders with LAST frame's camera pose (a
+        // per-build coin flip; task 20260710-231928). Pin it from nova via
+        // the exported set so the rendered camera is always this frame's.
+        app.configure_sets(
+            PostUpdate,
+            ChaseCameraSystems::Sync.before(TransformSystems::Propagate),
         );
     }
 }

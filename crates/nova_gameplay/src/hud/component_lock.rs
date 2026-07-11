@@ -89,8 +89,7 @@ impl Plugin for ComponentLockHudPlugin {
             Update,
             (sync_component_markers, highlight_selected_marker)
                 .chain()
-                .in_set(super::NovaHudSystems)
-                .before(ScreenIndicatorSystems),
+                .in_set(super::NovaHudSystems),
         );
     }
 }

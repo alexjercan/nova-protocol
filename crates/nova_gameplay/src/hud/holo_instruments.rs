@@ -12,7 +12,6 @@
 //! - **Flip gate**: a ring at the flip point, perpendicular to the path,
 //!   sized to fly through.
 
-use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use super::NAV_CYAN;
@@ -135,11 +134,20 @@ fn sync_trajectory_ribbon(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut assets: ResMut<HoloAssets>,
-    q_ship: Query<(Entity, &Position, &ManeuverTelemetry), With<PlayerSpaceshipMarker>>,
+    // The ribbon's ship end must meet the RENDERED hull: eased root
+    // Transform, not raw avian Position (task 20260710-231928). The other
+    // points are plan geometry, not rendered bodies.
+    q_ship: Query<
+        (Entity, &Transform, &ManeuverTelemetry),
+        (
+            With<PlayerSpaceshipMarker>,
+            Without<TrajectoryRibbonSegment>,
+        ),
+    >,
     mut q_segment: Query<(Entity, &TrajectoryRibbonSegment, &mut Transform)>,
 ) {
-    let leg = q_ship.iter().next().map(|(ship, position, telemetry)| {
-        let mut points = vec![**position];
+    let leg = q_ship.iter().next().map(|(ship, transform, telemetry)| {
+        let mut points = vec![transform.translation];
         if let Some(flip) = telemetry.flip_point {
             points.push(flip);
         }
@@ -188,15 +196,20 @@ fn sync_flip_gate(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut assets: ResMut<HoloAssets>,
-    q_ship: Query<(Entity, &Position, &ManeuverTelemetry), With<PlayerSpaceshipMarker>>,
+    // Same render-clock ship read as the ribbon (direction only, but the
+    // uniform pose family keeps the instruments coherent).
+    q_ship: Query<
+        (Entity, &Transform, &ManeuverTelemetry),
+        (With<PlayerSpaceshipMarker>, Without<FlipGateMarker>),
+    >,
     mut q_gate: Query<(Entity, &FlipGateMarker, &mut Transform)>,
 ) {
     let flip = q_ship
         .iter()
         .next()
-        .and_then(|(ship, position, telemetry)| {
+        .and_then(|(ship, transform, telemetry)| {
             let flip = telemetry.flip_point?;
-            let along = (telemetry.goal - **position).try_normalize()?;
+            let along = (telemetry.goal - transform.translation).try_normalize()?;
             Some((ship, flip, along))
         });
 
@@ -267,7 +280,7 @@ mod tests {
             .spawn((
                 PlayerSpaceshipMarker,
                 SpaceshipRootMarker,
-                Position(Vec3::ZERO),
+                Transform::default(),
                 telemetry_value,
             ))
             .id()

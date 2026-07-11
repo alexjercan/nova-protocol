@@ -79,8 +79,7 @@ impl Plugin for TurretLeadPlugin {
             Update,
             (sync_turret_pips, drive_pip_anchors)
                 .chain()
-                .in_set(super::NovaHudSystems)
-                .before(ScreenIndicatorSystems),
+                .in_set(super::NovaHudSystems),
         );
     }
 }
