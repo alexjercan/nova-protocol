@@ -120,7 +120,15 @@ retros.
   own delivery-proved verification - the menu's NewGame path shipped with
   all spaceship input sets disabled because only the Sandbox route was
   exercised (R1.1 BLOCKER). 20260711-180426.
-- `out-of-context-review-pass` (positive pattern, x2): for a substantial
+- `bound-scheduling-both-sides` (x1): a system inserted between a
+  producer and a downstream same-schedule reader (visibility propagation,
+  UI layout) needs BOTH .after(producer) and .before(downstream) - .after
+  alone leaves the downstream side to an arbitrary topo tie-break that
+  any unrelated system can flip; and the contract is only real once a
+  test registers a stand-in producer in the actual SystemSet.
+  20260711-180501 (R1.1 MAJOR).
+- `out-of-context-review-pass` (positive pattern, x3, third catch:
+  the unordered-against-propagation MAJOR above): for a substantial
   branch reviewed in the implementer's own session, a fresh-context agent
   review caught a MAJOR (BCS_SHOT force-advance vs the Loaded hook) that
   shared-session eyes missed; the review skill's re-derive rule caught the
@@ -157,7 +165,9 @@ retros.
   20260711-174840. Same-frame variant: a Transform write queued alongside
   a controller-component removal gets overwritten by the controller
   running later that frame; write only on frames where the producer is
-  already gone. 20260711-180455.
+  already gone. 20260711-180455. Downstream variant: ordering after the
+  producer is not enough when a same-schedule consumer reads the output
+  later - see bound-scheduling-both-sides. 20260711-180501.
 - `degenerate-inertia-frames` (x1): avian's eigen sort gives even an
   axis-aligned symmetric ship a cyclic-permutation local frame; frame
   composition code must be tested with both frames non-identity.
