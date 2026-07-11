@@ -127,7 +127,11 @@ fn editor_plugin(app: &mut App) {
     );
     app.add_systems(
         Update,
-        switch_scene_editor.run_if(in_state(ExampleStates::Scenario)),
+        // F1-to-editor is demo/sandbox furniture: campaigns (NewGame) must
+        // not offer an editor escape (task 20260711-203805); the pause menu
+        // is the sanctioned way out.
+        switch_scene_editor
+            .run_if(in_state(ExampleStates::Scenario).and_then(resource_equals(GameMode::Sandbox))),
     );
 
     app.configure_sets(
@@ -1248,6 +1252,73 @@ mod tests {
             *app.world().resource::<State<ExampleStates>>().get(),
             ExampleStates::Loading,
             "inner state must reset when Playing is left"
+        );
+    }
+
+    /// F1 back-to-editor is Sandbox-only (task 20260711-203805): in NewGame
+    /// the same press must do nothing. Delivery guard: the identical press in
+    /// Sandbox mode queues the Editor state and unloads the scenario, proving
+    /// the stimulus path works.
+    #[test]
+    fn f1_returns_to_editor_only_in_sandbox_mode() {
+        let make_app = app;
+        // NewGame: F1 must be inert.
+        let mut app = make_app();
+        app.insert_resource(GameMode::NewGame);
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::Playing);
+        app.update();
+        app.update();
+        assert_eq!(
+            *app.world().resource::<State<ExampleStates>>().get(),
+            ExampleStates::Scenario
+        );
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::F1);
+        app.update();
+        app.update();
+        assert_eq!(
+            *app.world().resource::<State<ExampleStates>>().get(),
+            ExampleStates::Scenario,
+            "F1 must not leave the scenario in NewGame"
+        );
+        assert_eq!(
+            app.world().resource::<EditorScenarioLoads>().0,
+            0,
+            "no editor scenario churn in NewGame"
+        );
+
+        // Sandbox: the same press flips to Editor. Enter Playing via NewGame
+        // (going through Editor would run setup_editor_scene, which needs
+        // GameAssets headless), then flip the mode - the gate reads the
+        // resource at press time. Assert the queued target without applying
+        // it, for the same reason.
+        let mut app = make_app();
+        app.insert_resource(GameMode::NewGame);
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::Playing);
+        app.update();
+        app.update();
+        assert_eq!(
+            *app.world().resource::<State<ExampleStates>>().get(),
+            ExampleStates::Scenario
+        );
+        app.insert_resource(GameMode::Sandbox);
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::F1);
+        app.update();
+        let queued = match app.world().resource::<NextState<ExampleStates>>() {
+            NextState::Pending(s) => Some(s.clone()),
+            _ => None,
+        };
+        assert_eq!(
+            queued,
+            Some(ExampleStates::Editor),
+            "the same press must work in Sandbox (delivery guard)"
         );
     }
 

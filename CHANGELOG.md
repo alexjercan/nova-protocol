@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- @alexjercan F1 no longer drops a New Game scenario into the ship editor; the back-to-editor key is sandbox-only (the pause menu is the way out of a campaign)
+
 ### Added
 
 - @alexjercan pause menu: ESC freezes the game (virtual + physics clocks, spaceship input gated off) behind a dimmed overlay with Resume / Back to Main Menu / Exit; Back returns to the main menu cleanly (scenario unloaded, editor scene torn down, cursor released while paused and re-grabbed on resume during scenario play)
