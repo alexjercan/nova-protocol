@@ -1,11 +1,23 @@
-# AI orbit behavior: config-driven AI behaviors / scenario AI commands
+# Enable thruster-driven ships outside editor Scenario state (menu AI orbit)
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: v0.6.0,ai,scenario,spike
+- PRIORITY: 41
+- TAGS: v0.5.0,ai,scenario,input,spike
 
-Goal: let designers make AI ships DO things beyond patrol/combat. User
-direction (2026-07-11), three candidate shapes to weigh in a spike:
+Goal (sharpened per user direction 2026-07-11, moved into v0.5.0): the
+menu ambience ship should fly its orbit with real thrusters instead of the
+current ballistic seeding. That is blocked by the editor gating ALL
+spaceship input/section system sets on its private ExampleStates::Scenario
+(crates/nova_editor/src/lib.rs configure_sets) - in MainMenu nothing can
+fire a thruster. The gating presumably exists so the editor's build-mode
+preview ship does not fly itself; a spike must first answer WHY it is
+there (git history, editor preview behavior) and how to scope it correctly
+(e.g. gate on "a live scenario is loaded" instead of the editor's private
+state, or opt ships in per-entity), then un-gate MainMenu safely without
+letting editor preview ships fly.
+
+Second half, the original AI-behavior direction - three candidate shapes
+to weigh in the same spike:
 
 1. Expand AIControllerConfig (today it only has `patrol: Vec<Vec3>`,
    crates/nova_scenario/src/objects/spaceship.rs) with behavior options,
