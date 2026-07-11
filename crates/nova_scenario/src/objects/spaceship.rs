@@ -31,6 +31,11 @@ pub struct AIControllerConfig {
     /// range (world coordinates). Empty = no patrol assignment: the ship
     /// station-keeps instead.
     pub patrol: Vec<Vec3>,
+    /// Scenario id of a gravity-well entity to orbit while nothing hostile
+    /// is in detection range. Takes precedence over `patrol` when both are
+    /// set (passive fallback: orbit > patrol > idle). None = no orbit
+    /// assignment.
+    pub orbit: Option<String>,
 }
 
 pub type SectionId = String;
@@ -163,6 +168,71 @@ fn insert_spaceship_sections(
                     .entity(entity)
                     .insert(AIPatrolRoute::new(config.patrol.clone()));
             }
+            if let Some(well) = &config.orbit {
+                commands.entity(entity).insert(AIOrbitDirective {
+                    well: EntityId::new(well.clone()),
+                });
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The AI controller config maps to the per-entity directive components
+    /// exactly: patrol -> AIPatrolRoute, orbit -> AIOrbitDirective, absent
+    /// fields insert nothing (task 20260711-212521).
+    #[test]
+    fn ai_config_maps_to_directive_components() {
+        let mut world = World::new();
+        world.add_observer(insert_spaceship_sections);
+
+        let spawn = |world: &mut World, config: AIControllerConfig| {
+            let entity = world
+                .spawn(spaceship_scenario_object(SpaceshipConfig {
+                    controller: SpaceshipController::AI(config),
+                    sections: vec![],
+                }))
+                .id();
+            world.flush();
+            entity
+        };
+
+        let orbiter = spawn(
+            &mut world,
+            AIControllerConfig {
+                orbit: Some("planetoid".to_string()),
+                ..default()
+            },
+        );
+        let directive = world.entity(orbiter).get::<AIOrbitDirective>().unwrap();
+        assert_eq!(*directive.well, "planetoid");
+        assert!(world.entity(orbiter).get::<AIPatrolRoute>().is_none());
+        assert!(world.entity(orbiter).contains::<AISpaceshipMarker>());
+
+        let patroller = spawn(
+            &mut world,
+            AIControllerConfig {
+                patrol: vec![Vec3::ZERO, Vec3::X],
+                ..default()
+            },
+        );
+        assert!(world.entity(patroller).get::<AIOrbitDirective>().is_none());
+        assert!(world.entity(patroller).get::<AIPatrolRoute>().is_some());
+
+        // Both set: both components are inserted - the patrol route is
+        // SHADOWED by the orbit's passive precedence (nova_gameplay), not
+        // dropped, per the config doc's contract.
+        let both = spawn(
+            &mut world,
+            AIControllerConfig {
+                patrol: vec![Vec3::ZERO, Vec3::X],
+                orbit: Some("planetoid".to_string()),
+            },
+        );
+        assert!(world.entity(both).get::<AIOrbitDirective>().is_some());
+        assert!(world.entity(both).get::<AIPatrolRoute>().is_some());
     }
 }

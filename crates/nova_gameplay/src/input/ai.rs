@@ -1,12 +1,14 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use nova_events::prelude::*;
 
 use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        AIBehaviorState, AIEvade, AIFireCadence, AIPatrolRoute, AIPointDefenseTarget,
-        AISpaceshipMarker, AITarget, AIThreat, AITorpedoBay, SpaceshipAIInputPlugin,
+        AIBehaviorState, AIEvade, AIFireCadence, AIOrbitDirective, AIPatrolRoute,
+        AIPointDefenseTarget, AISpaceshipMarker, AITarget, AIThreat, AITorpedoBay,
+        SpaceshipAIInputPlugin,
     };
 }
 
@@ -21,6 +23,7 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.register_type::<AIFireCadence>();
         app.register_type::<AIPointDefenseTarget>();
         app.register_type::<AIPatrolRoute>();
+        app.register_type::<AIOrbitDirective>();
         app.register_type::<AIThreat>();
         app.register_type::<AIEvade>();
         app.register_type::<AITorpedoBay>();
@@ -495,6 +498,10 @@ pub enum AIBehaviorState {
     /// Fly the ship's [`AIPatrolRoute`] waypoint loop through the GOTO
     /// autopilot (20260709-225730); no fire.
     Patrol,
+    /// Circle the [`AIOrbitDirective`]'s gravity well through the ORBIT
+    /// autopilot (20260711-212521); no fire. Passive like Patrol/Idle:
+    /// combat pulls the ship out and calm returns it.
+    Orbit,
     /// Chase and shoot the hostile - today's whole AI, and the default so
     /// an AI ship dropped into a fight behaves exactly as before the state
     /// machine existed.
@@ -516,6 +523,12 @@ impl AIBehaviorState {
     /// behavior until its task lands (see the variant docs).
     fn engages(&self) -> bool {
         matches!(self, Self::Engage | Self::Evade | Self::Retreat)
+    }
+
+    /// Whether this state runs a passive routine (no fire, autopilot-flown);
+    /// the calm fallback states of [`next_behavior_state`].
+    fn is_passive(&self) -> bool {
+        matches!(self, Self::Idle | Self::Patrol | Self::Orbit)
     }
 }
 
@@ -566,17 +579,33 @@ impl AIPatrolRoute {
     }
 }
 
-/// Hostile-detection range (m): a passive ship (Idle/Patrol) leaves its
-/// routine and engages only when the acquired target is inside this range.
+/// Directs an AI ship to orbit a gravity well while nothing hostile is close
+/// enough to fight. Present = the no-hostile fallback state becomes `Orbit`,
+/// taking precedence over `Patrol` ([`next_behavior_state`]). The well is
+/// named by its scenario [`EntityId`]; [`update_passive_flight`] resolves it
+/// and keeps the ORBIT autopilot engaged on it, mirroring how Patrol flies
+/// its GOTO legs. Spawn-configured (scenario config); an id that resolves to
+/// no live well behaves like Idle-without-a-STOP (the ship simply drifts)
+/// until the well appears.
+#[derive(Component, Debug, Clone, Reflect)]
+#[reflect(Component)]
+pub struct AIOrbitDirective {
+    /// Scenario id of the gravity-well entity to circle.
+    pub well: EntityId,
+}
+
+/// Hostile-detection range (m): a passive ship (Idle/Patrol/Orbit) leaves
+/// its routine and engages only when the acquired target is inside this range.
 /// Acquisition itself scans out to [`AI_TARGET_MAX_RANGE`], so a patrolling
 /// ship knows what is out there without aborting the patrol for it; combat
 /// states keep holding on any acquired target, as before.
 const AI_ENGAGE_RANGE: f32 = 800.0;
 
 /// The skeleton's transitions: combat states need a hostile to fight - with
-/// none acquired every state falls back to its passive routine (`Patrol`
-/// with a route, `Idle` without) - and a hostile inside [`AI_ENGAGE_RANGE`]
-/// pulls the passive states into `Engage`. One merely acquired further out
+/// none acquired every state falls back to its passive routine (`Orbit`
+/// with an orbit directive, else `Patrol` with a route, else `Idle`) - and
+/// a hostile inside [`AI_ENGAGE_RANGE`] pulls the passive states into
+/// `Engage`. One merely acquired further out
 /// does not abort the routine (detection range, task 20260709-225730) -
 /// unless it is shooting: a recent hostile hit interrupts the routine at
 /// any acquired distance. Under threat, `Engage` breaks into `Evade` (gated
@@ -585,10 +614,13 @@ const AI_ENGAGE_RANGE: f32 = 800.0;
 fn next_behavior_state(
     current: AIBehaviorState,
     hostile_distance: Option<f32>,
+    has_orbit: bool,
     has_route: bool,
     threat: ThreatSignals,
 ) -> AIBehaviorState {
-    let passive = if has_route {
+    let passive = if has_orbit {
+        AIBehaviorState::Orbit
+    } else if has_route {
         AIBehaviorState::Patrol
     } else {
         AIBehaviorState::Idle
@@ -597,12 +629,10 @@ fn next_behavior_state(
         return passive;
     };
     match current {
-        AIBehaviorState::Idle | AIBehaviorState::Patrol
-            if distance <= AI_ENGAGE_RANGE || threat.recently_damaged =>
-        {
+        state if state.is_passive() && (distance <= AI_ENGAGE_RANGE || threat.recently_damaged) => {
             AIBehaviorState::Engage
         }
-        AIBehaviorState::Idle | AIBehaviorState::Patrol => passive,
+        state if state.is_passive() => passive,
         AIBehaviorState::Engage if threat.threatened() && threat.evade_ready => {
             AIBehaviorState::Evade
         }
@@ -653,13 +683,16 @@ fn update_behavior_state(
             &AITarget,
             &mut AIThreat,
             &mut AIEvade,
+            Has<AIOrbitDirective>,
             Has<AIPatrolRoute>,
         ),
         With<AISpaceshipMarker>,
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {
-    for (transform, com, mut state, target, mut threat, mut evade, has_route) in &mut q_spaceship {
+    for (transform, com, mut state, target, mut threat, mut evade, has_orbit, has_route) in
+        &mut q_spaceship
+    {
         threat.damage_memory.tick(time.delta());
         evade.cooldown.tick(time.delta());
         if *state == AIBehaviorState::Evade {
@@ -697,7 +730,7 @@ fn update_behavior_state(
             evade_expired: evade.duration.is_finished(),
         };
 
-        let next = next_behavior_state(*state, hostile_distance, has_route, signals);
+        let next = next_behavior_state(*state, hostile_distance, has_orbit, has_route, signals);
         // Change-detection hygiene: only write on a real transition.
         if *state != next {
             // The Evade edges arm the clocks: a fresh cycle + jink cadence
@@ -729,16 +762,19 @@ const AI_IDLE_DRIFT_SPEED: f32 = 1.0;
 /// Fly the passive states through the real autopilot (flight.rs) instead of
 /// a parallel steering path: `Patrol` keeps a GOTO engaged toward the
 /// current [`AIPatrolRoute`] waypoint and turns onto the next leg on
-/// arrival; `Idle` engages a STOP burn while drifting faster than
+/// arrival; `Orbit` keeps an ORBIT engaged on its directive's well (the
+/// autopilot plans its own insertion on the first tick and never
+/// self-completes, so one engage holds the ring); `Idle` engages a STOP
+/// burn while drifting faster than
 /// [`AI_IDLE_DRIFT_SPEED`] (station keeping - the drift is arrested, not
 /// rewound). The engaging states drop the autopilot: the AI's own actuator
 /// systems own the helm and engines in combat, and a leftover passive
 /// maneuver would fight them. Runs right after the state transition so a
 /// flip takes effect the same frame.
 ///
-/// Idle lets an already-engaged maneuver finish before taking over, so a
-/// ship whose route is removed mid-leg (not a supported flow today) flies
-/// out its stale GOTO once before settling into station keeping.
+/// Idle and Orbit let an already-engaged maneuver finish before taking
+/// over, so a ship whose route is removed mid-leg (not a supported flow
+/// today) flies out its stale GOTO once before settling into its routine.
 fn update_passive_flight(
     settings: Res<FlightSettings>,
     mut commands: Commands,
@@ -749,12 +785,15 @@ fn update_passive_flight(
             &LinearVelocity,
             &AIBehaviorState,
             Option<&mut AIPatrolRoute>,
-            Has<Autopilot>,
+            Option<&AIOrbitDirective>,
+            Option<&Autopilot>,
         ),
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
+    q_wells: Query<(Entity, &EntityId), With<GravityWell>>,
 ) {
-    for (ship, transform, velocity, state, route, has_autopilot) in &mut q_spaceship {
+    for (ship, transform, velocity, state, route, orbit, autopilot) in &mut q_spaceship {
+        let has_autopilot = autopilot.is_some();
         match *state {
             AIBehaviorState::Patrol => {
                 // Patrol without a route cannot happen through the
@@ -790,6 +829,49 @@ fn update_passive_flight(
                         .entity(ship)
                         .insert(Autopilot::engage(AutopilotAction::GotoPos {
                             position: goal,
+                        }));
+                }
+            }
+            AIBehaviorState::Orbit => {
+                // Orbit without a directive cannot happen through the
+                // transition function; a hand-set state drifts, not panics.
+                let Some(directive) = orbit else {
+                    continue;
+                };
+                // A non-ORBIT maneuver (e.g. a stale patrol GOTO after a
+                // hot-inserted directive) flies out first, same as Idle's
+                // let-it-finish policy - and skips the well scan entirely.
+                let engaged_well = match autopilot.map(|autopilot| autopilot.action) {
+                    Some(AutopilotAction::Orbit { well, .. }) => Some(well),
+                    Some(_) => continue,
+                    None => None,
+                };
+                // The ORBIT autopilot self-plans on its first engaged tick
+                // and disengages itself if the well dies, so a bare engage
+                // is enough; re-resolve and retry every calm frame (also
+                // covers a well that spawns later than the ship).
+                let Some(well) = q_wells
+                    .iter()
+                    .find(|(_, id)| ***id == *directive.well)
+                    .map(|(entity, _)| entity)
+                else {
+                    debug_once!(
+                        "update_passive_flight: orbit directive well '{}' matches no live \
+                         GravityWell entity; ship {ship:?} drifts until it appears",
+                        *directive.well
+                    );
+                    continue;
+                };
+                // (Re)engage when nothing is engaged or the directive was
+                // retargeted to another well - the ORBIT analogue of the
+                // patrol arm's leg_changed (review R1.2); an autopilot
+                // already circling the right well is left alone.
+                if engaged_well != Some(well) {
+                    commands
+                        .entity(ship)
+                        .insert(Autopilot::engage(AutopilotAction::Orbit {
+                            well,
+                            plan: None,
                         }));
                 }
             }
@@ -1491,12 +1573,12 @@ mod behavior_state_tests {
         // without a patrol assignment, Patrol with one.
         for state in [Idle, Patrol, Engage, Evade, Retreat] {
             assert_eq!(
-                next_behavior_state(state, None, false, calm()),
+                next_behavior_state(state, None, false, false, calm()),
                 Idle,
                 "from {state:?}"
             );
             assert_eq!(
-                next_behavior_state(state, None, true, calm()),
+                next_behavior_state(state, None, false, true, calm()),
                 Patrol,
                 "from {state:?}"
             );
@@ -1504,11 +1586,26 @@ mod behavior_state_tests {
         // Hostile inside detection range: passive states engage, combat
         // states hold (their exit triggers belong to their own tasks).
         let near = Some(AI_ENGAGE_RANGE * 0.5);
-        assert_eq!(next_behavior_state(Idle, near, false, calm()), Engage);
-        assert_eq!(next_behavior_state(Patrol, near, true, calm()), Engage);
-        assert_eq!(next_behavior_state(Engage, near, false, calm()), Engage);
-        assert_eq!(next_behavior_state(Evade, near, false, calm()), Evade);
-        assert_eq!(next_behavior_state(Retreat, near, false, calm()), Retreat);
+        assert_eq!(
+            next_behavior_state(Idle, near, false, false, calm()),
+            Engage
+        );
+        assert_eq!(
+            next_behavior_state(Patrol, near, false, true, calm()),
+            Engage
+        );
+        assert_eq!(
+            next_behavior_state(Engage, near, false, false, calm()),
+            Engage
+        );
+        assert_eq!(
+            next_behavior_state(Evade, near, false, false, calm()),
+            Evade
+        );
+        assert_eq!(
+            next_behavior_state(Retreat, near, false, false, calm()),
+            Retreat
+        );
     }
 
     #[test]
@@ -1518,11 +1615,17 @@ mod behavior_state_tests {
         // Acquired (inside the 2000 m scan) but outside the 800 m detection
         // range: the passive states keep their routine...
         let far = Some(AI_ENGAGE_RANGE * 1.5);
-        assert_eq!(next_behavior_state(Patrol, far, true, calm()), Patrol);
-        assert_eq!(next_behavior_state(Idle, far, false, calm()), Idle);
+        assert_eq!(
+            next_behavior_state(Patrol, far, false, true, calm()),
+            Patrol
+        );
+        assert_eq!(next_behavior_state(Idle, far, false, false, calm()), Idle);
         // ...while a combat state already on that target keeps fighting -
         // the detection range gates entry, not pursuit.
-        assert_eq!(next_behavior_state(Engage, far, false, calm()), Engage);
+        assert_eq!(
+            next_behavior_state(Engage, far, false, false, calm()),
+            Engage
+        );
     }
 
     #[test]
@@ -1535,12 +1638,15 @@ mod behavior_state_tests {
             recently_damaged: true,
             ..calm()
         };
-        assert_eq!(next_behavior_state(Engage, near, false, shot), Evade);
+        assert_eq!(next_behavior_state(Engage, near, false, false, shot), Evade);
         let aimed = ThreatSignals {
             aimed_at: true,
             ..calm()
         };
-        assert_eq!(next_behavior_state(Engage, near, false, aimed), Evade);
+        assert_eq!(
+            next_behavior_state(Engage, near, false, false, aimed),
+            Evade
+        );
         // ...but not during the refractory cooldown: threats between evade
         // cycles are fought through, or the standoff orbit never shows.
         let refractory = ThreatSignals {
@@ -1549,7 +1655,10 @@ mod behavior_state_tests {
             evade_ready: false,
             ..default()
         };
-        assert_eq!(next_behavior_state(Engage, near, false, refractory), Engage);
+        assert_eq!(
+            next_behavior_state(Engage, near, false, false, refractory),
+            Engage
+        );
     }
 
     #[test]
@@ -1559,7 +1668,10 @@ mod behavior_state_tests {
         let near = Some(AI_ENGAGE_RANGE * 0.5);
         // Mid-cycle, even with the threat gone: the jink is timed, not
         // signal-chasing.
-        assert_eq!(next_behavior_state(Evade, near, false, calm()), Evade);
+        assert_eq!(
+            next_behavior_state(Evade, near, false, false, calm()),
+            Evade
+        );
         // Expiry decays back to Engage even under an ongoing threat - the
         // cooldown (armed on exit) is what spaces the cycles.
         let expired_under_fire = ThreatSignals {
@@ -1568,7 +1680,7 @@ mod behavior_state_tests {
             ..calm()
         };
         assert_eq!(
-            next_behavior_state(Evade, near, false, expired_under_fire),
+            next_behavior_state(Evade, near, false, false, expired_under_fire),
             Engage
         );
     }
@@ -1584,15 +1696,55 @@ mod behavior_state_tests {
             recently_damaged: true,
             ..calm()
         };
-        assert_eq!(next_behavior_state(Patrol, far, true, shot), Engage);
-        assert_eq!(next_behavior_state(Idle, far, false, shot), Engage);
+        assert_eq!(next_behavior_state(Patrol, far, false, true, shot), Engage);
+        assert_eq!(next_behavior_state(Idle, far, false, false, shot), Engage);
         // Merely being aimed at from out there does not: the aim signal is
         // range-gated well inside detection range anyway.
         let aimed = ThreatSignals {
             aimed_at: true,
             ..calm()
         };
-        assert_eq!(next_behavior_state(Patrol, far, true, aimed), Patrol);
+        assert_eq!(next_behavior_state(Patrol, far, false, true, aimed), Patrol);
+    }
+
+    #[test]
+    fn an_orbit_directive_wins_the_passive_fallback() {
+        use AIBehaviorState::*;
+
+        // Precedence orbit > patrol > idle, from every state with no
+        // hostile acquired.
+        for state in [Idle, Patrol, Orbit, Engage, Evade, Retreat] {
+            assert_eq!(
+                next_behavior_state(state, None, true, true, calm()),
+                Orbit,
+                "orbit beats patrol from {state:?}"
+            );
+            assert_eq!(
+                next_behavior_state(state, None, true, false, calm()),
+                Orbit,
+                "orbit without a route from {state:?}"
+            );
+        }
+        // A far-off acquired hostile does not abort the orbit...
+        let far = Some(AI_ENGAGE_RANGE * 1.5);
+        assert_eq!(next_behavior_state(Orbit, far, true, false, calm()), Orbit);
+        // ...one in detection range pulls it into combat, as does taking a
+        // hit from further out.
+        let near = Some(AI_ENGAGE_RANGE * 0.5);
+        assert_eq!(
+            next_behavior_state(Orbit, near, true, false, calm()),
+            Engage
+        );
+        let shot = ThreatSignals {
+            recently_damaged: true,
+            ..calm()
+        };
+        assert_eq!(next_behavior_state(Orbit, far, true, false, shot), Engage);
+        // And calm returns the fight to the ring.
+        assert_eq!(
+            next_behavior_state(Engage, None, true, false, calm()),
+            Orbit
+        );
     }
 
     #[test]
@@ -1827,16 +1979,20 @@ mod patrol_idle_tests {
     #[test]
     fn a_mid_leg_maneuver_is_left_alone() {
         // Re-running the pipeline mid-leg must not re-engage (churning the
-        // autopilot would reset its phase every frame).
+        // autopilot would reset its phase every frame). A re-engage is
+        // bit-identical to the first engage (autopilot_system never runs
+        // here), so plant a sentinel phase: churn resets it to Align, a
+        // left-alone maneuver keeps burning (hardened alongside review
+        // R1.1 of task 20260711-212521).
         let (mut world, ship) = patrol_world();
 
         run_pipeline(&mut world);
-        let engaged = *world.entity(ship).get::<Autopilot>().unwrap();
+        world.entity_mut(ship).get_mut::<Autopilot>().unwrap().phase = AutopilotPhase::Burn;
         run_pipeline(&mut world);
 
         assert_eq!(
-            *world.entity(ship).get::<Autopilot>().unwrap(),
-            engaged,
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.phase),
+            Some(AutopilotPhase::Burn),
             "an autopilot already flying the current leg is untouched"
         );
     }
@@ -1993,6 +2149,239 @@ mod patrol_idle_tests {
                 .unwrap(),
             0.0,
             "no autopilot: the passive state zeroes the throttles"
+        );
+    }
+}
+
+#[cfg(test)]
+mod orbit_directive_tests {
+    use bevy::ecs::system::RunSystemOnce;
+
+    use super::*;
+
+    const WELL_ID: &str = "planetoid";
+
+    /// Run the acquisition -> transition -> passive-flight pipeline once.
+    fn run_pipeline(world: &mut World) {
+        world.run_system_once(update_ai_target).unwrap();
+        world.run_system_once(update_behavior_state).unwrap();
+        world.run_system_once(update_passive_flight).unwrap();
+    }
+
+    /// A calm world with one orbit-directed AI ship; the well is spawned
+    /// separately so tests can omit or delay it.
+    fn orbit_world() -> (World, Entity) {
+        let mut world = World::new();
+        world.init_resource::<FlightSettings>();
+        world.init_resource::<Time>();
+        let ship = world
+            .spawn((
+                AISpaceshipMarker,
+                AIOrbitDirective {
+                    well: EntityId::new(WELL_ID),
+                },
+                Transform::default(),
+                LinearVelocity(Vec3::ZERO),
+            ))
+            .id();
+        (world, ship)
+    }
+
+    fn spawn_well(world: &mut World) -> Entity {
+        world
+            .spawn((
+                GravityWell {
+                    mu: 2400.0,
+                    body_radius: 20.0,
+                    soi_radius: 400.0,
+                },
+                EntityId::new(WELL_ID),
+                Transform::from_translation(Vec3::new(0.0, 0.0, -200.0)),
+            ))
+            .id()
+    }
+
+    #[test]
+    fn an_orbit_ship_engages_the_orbit_autopilot_on_its_well() {
+        let (mut world, ship) = orbit_world();
+        let well = spawn_well(&mut world);
+
+        run_pipeline(&mut world);
+
+        assert_eq!(
+            *world.entity(ship).get::<AIBehaviorState>().unwrap(),
+            AIBehaviorState::Orbit,
+            "a directed ship without a hostile orbits instead of idling"
+        );
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::Orbit { well, plan: None }),
+            "Orbit engages the ORBIT autopilot on the resolved well (the \
+             autopilot plans the ring itself on its first tick)"
+        );
+    }
+
+    #[test]
+    fn the_directive_beats_a_patrol_route() {
+        let (mut world, ship) = orbit_world();
+        spawn_well(&mut world);
+        world
+            .entity_mut(ship)
+            .insert(AIPatrolRoute::new(vec![Vec3::new(0.0, 0.0, -400.0)]));
+
+        run_pipeline(&mut world);
+
+        assert_eq!(
+            *world.entity(ship).get::<AIBehaviorState>().unwrap(),
+            AIBehaviorState::Orbit,
+            "passive precedence: orbit > patrol"
+        );
+        assert!(
+            matches!(
+                world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+                Some(AutopilotAction::Orbit { .. })
+            ),
+            "the ORBIT maneuver is engaged, not the patrol GOTO"
+        );
+    }
+
+    #[test]
+    fn an_unresolvable_well_id_drifts_without_panicking() {
+        // No well entity in the world: the state still becomes Orbit (the
+        // directive is present), but nothing is engaged - the ship drifts
+        // until the well appears (spawn-order tolerance)...
+        let (mut world, ship) = orbit_world();
+
+        run_pipeline(&mut world);
+        assert_eq!(
+            *world.entity(ship).get::<AIBehaviorState>().unwrap(),
+            AIBehaviorState::Orbit
+        );
+        assert!(
+            world.entity(ship).get::<Autopilot>().is_none(),
+            "no live well matches the id: nothing to engage"
+        );
+
+        // ...and the same pipeline engages once it does (delivery guard for
+        // the nothing-happens half above).
+        let well = spawn_well(&mut world);
+        run_pipeline(&mut world);
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::Orbit { well, plan: None }),
+            "a late-spawned well is picked up by the retry"
+        );
+    }
+
+    #[test]
+    fn a_mid_flight_orbit_is_left_alone() {
+        // Re-running the pipeline must not re-engage (churn would reset the
+        // autopilot's plan every frame). A re-engage produces a component
+        // bit-identical to the first (autopilot_system never runs here), so
+        // plant a sentinel plan the real autopilot would have computed: a
+        // churn resets it to None, a left-alone maneuver keeps it (R1.1).
+        let (mut world, ship) = orbit_world();
+        let well = spawn_well(&mut world);
+
+        run_pipeline(&mut world);
+        let sentinel = Some(OrbitPlan {
+            radius: 123.0,
+            normal: Vec3::Y,
+        });
+        world
+            .entity_mut(ship)
+            .get_mut::<Autopilot>()
+            .unwrap()
+            .action = AutopilotAction::Orbit {
+            well,
+            plan: sentinel,
+        };
+        run_pipeline(&mut world);
+
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::Orbit {
+                well,
+                plan: sentinel
+            }),
+            "an autopilot already circling the right well is untouched"
+        );
+    }
+
+    #[test]
+    fn a_retargeted_directive_re_engages_on_the_new_well() {
+        // Editing the directive's well while an ORBIT is engaged must take
+        // effect (review R1.2): ORBIT never self-completes, so waiting for
+        // the autopilot to clear would ignore the retarget forever.
+        let (mut world, ship) = orbit_world();
+        spawn_well(&mut world);
+        let other = world
+            .spawn((
+                GravityWell {
+                    mu: 2400.0,
+                    body_radius: 20.0,
+                    soi_radius: 400.0,
+                },
+                EntityId::new("moon"),
+                Transform::from_translation(Vec3::new(0.0, 0.0, 300.0)),
+            ))
+            .id();
+
+        run_pipeline(&mut world);
+        world
+            .entity_mut(ship)
+            .get_mut::<AIOrbitDirective>()
+            .unwrap()
+            .well = EntityId::new("moon");
+        run_pipeline(&mut world);
+
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::Orbit {
+                well: other,
+                plan: None
+            }),
+            "the retargeted directive re-engages on the new well"
+        );
+    }
+
+    #[test]
+    fn combat_interrupts_the_orbit_and_calm_resumes_it() {
+        let (mut world, ship) = orbit_world();
+        let well = spawn_well(&mut world);
+        run_pipeline(&mut world);
+        assert!(world.entity(ship).get::<Autopilot>().is_some());
+
+        // A hostile inside detection range: Engage, and the passive
+        // maneuver is dropped so the combat actuators own the ship.
+        let hostile = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::from_translation(Vec3::new(300.0, 0.0, 0.0)),
+            ))
+            .id();
+        run_pipeline(&mut world);
+        assert_eq!(
+            *world.entity(ship).get::<AIBehaviorState>().unwrap(),
+            AIBehaviorState::Engage
+        );
+        assert!(
+            world.entity(ship).get::<Autopilot>().is_none(),
+            "engaging drops the passive-state autopilot"
+        );
+
+        // The hostile gone, the ship returns to its ring.
+        world.despawn(hostile);
+        run_pipeline(&mut world);
+        assert_eq!(
+            *world.entity(ship).get::<AIBehaviorState>().unwrap(),
+            AIBehaviorState::Orbit
+        );
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::Orbit { well, plan: None }),
+            "calm re-engages the orbit"
         );
     }
 }
