@@ -58,8 +58,12 @@ retros.
 - `presence-vs-behavior-tests` (x2): component-exists assertions stay
   green while the behavior regresses; assert the behavior.
   20260709-160753 (R1.2), applied in 20260710-231931.
-- `sweep-then-delete` (x2): grep for consumers BEFORE deleting or
-  slimming a symbol/readout. 20260711-000547, 20260711-125226.
+- `sweep-then-delete` (x3): grep for consumers BEFORE deleting or
+  slimming a symbol/readout. 20260711-000547, 20260711-125226. Prose
+  variant: comments/docs citing a retired invariant are consumers too -
+  grep the workspace for the invariant's fingerprint, not just files the
+  diff touches; two crates' comments described the opposite of reality
+  after the gate moved (R1.1, R1.2). 20260711-212519.
 - `reread-after-insert` (x2): after inserting into an existing function
   or test, re-read the whole function for bindings/assertions the
   insertion duplicated or obsoleted; a mid-test insertion left the
@@ -90,10 +94,12 @@ retros.
 - `spike-fix-record` (positive pattern, PROMOTED 2026-07-11 -> spike
   skill): multi-task spikes keep a living fix-record section as the
   family's single source of current state. 20260711-103527 family.
-- `tatr-same-second-collision` (x2, documented 2026-07-11 -> tatr skill
+- `tatr-same-second-collision` (x3, documented 2026-07-11 -> tatr skill
   gotchas): consecutive `tatr new` calls in one second silently share an
   ID; sleep between calls. Filed from the 2026-07-11 session; hit again
-  in 20260711-180426 (five tatr new in one command -> one task).
+  in 20260711-180426 (five tatr new in one command -> one task) and AGAIN
+  in 20260711-212519's spike phase (three in one && chain) despite the
+  skill gotcha - the note does not fire when composing the command.
 - `reuse-production-helpers-in-tests` (x1): a test composing an expected
   value along a hierarchy should call the production composition helper
   (private is fine from the test module) instead of re-deriving inline;
@@ -113,13 +119,17 @@ retros.
   near-identical rotations floors around 1e-3 rad (acos near dot=1);
   angle assertions sit an order above it and say so, or compare
   components. 20260711-140241.
-- `audit-state-gates-on-new-entry-path` (x1): a change that adds a new
+- `audit-state-gates-on-new-entry-path` (x2): a change that adds a new
   route into an existing state (or a new mode-enum variant) must grep
   configure_sets/run_if/in_state for that state across the workspace and
   audit each hit against the new route, and each enum variant needs its
   own delivery-proved verification - the menu's NewGame path shipped with
   all spaceship input sets disabled because only the Sandbox route was
-  exercised (R1.1 BLOCKER). 20260711-180426.
+  exercised (R1.1 BLOCKER). 20260711-180426. Enumeration variant: a
+  gating change that ENABLES systems in a new context needs a written
+  what-newly-runs list per context, checked item by item - the menu
+  orbiter's PD attitude hold running in MainMenu went unnoticed until the
+  out-of-context review named it (R1.5). 20260711-212519.
 - `bound-scheduling-both-sides` (x1): a system inserted between a
   producer and a downstream same-schedule reader (visibility propagation,
   UI layout) needs BOTH .after(producer) and .before(downstream) - .after
@@ -138,14 +148,16 @@ retros.
   screenshots false-positived a broken scene), 20260711-185156 (frozen-
   ship e2e could not prove the input gate; a claimed unit test did not
   exist). Ask the question before ticking any verification step.
-- `out-of-context-review-pass` (positive pattern, x4, fourth catch: the
+- `out-of-context-review-pass` (positive pattern, x5, fourth catch: the
   ungated-observers MAJOR above): for a substantial
   branch reviewed in the implementer's own session, a fresh-context agent
   review caught a MAJOR (BCS_SHOT force-advance vs the Loaded hook) that
   shared-session eyes missed; the review skill's re-derive rule caught the
   BLOCKER the same round. 20260711-180426. Second cycle: caught the
   missing regression tests on the two bug-carrying systems and the
-  OnExit-teardown generalization. 20260711-180455.
+  OnExit-teardown generalization. 20260711-180455. Fifth: found stale
+  invariant prose in crates the diff never touched and the one real
+  behavioral delta (PD hold in MainMenu). 20260711-212519.
 - `authored-vs-derived-values` (x1): content authored against a system
   that derives its own runtime geometry/parameters (collider-derived body
   radius, well mu/SOI) must be placed using the runtime values, not the
@@ -207,6 +219,14 @@ retros.
   two-clocks spike and tasks/20260711-103527's audit table.
 
 ## Pending promotions (3+ occurrences, user decides)
+
+- `sweep-then-delete` is at x3 (now including the prose variant) -
+  candidate for the work skill: "when retiring/moving an invariant, grep
+  the workspace for code AND prose consumers before closing".
+- `tatr-same-second-collision` is at x3 despite the tatr skill gotcha -
+  candidate for a mechanical fix instead of a note: teach `tatr new` to
+  disambiguate same-second IDs (suffix or sub-second component), or an
+  AGENTS.md rule "never chain tatr new in one command".
 
 - `would-it-fail-without-it` is at x3 across three consecutive cycles -
   candidate for the work skill's verify step and the review skill's test
