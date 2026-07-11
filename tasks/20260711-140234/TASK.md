@@ -1,8 +1,48 @@
 # Quiet the GOTO arrival hunt: widen the settle deadband in the desired-velocity-zero regime
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 58
-- TAGS: v0.5.0,bug,physics,flight,feel
+- TAGS: v0.5.0, bug, physics, flight, feel
+
+## Steps
+
+- [x] Regression first (fail-first A/B): `goto_arrival_settles_without_hunting`
+      on the shipped 5-section rig flying GotoPos (300,0,-600) to
+      completion; terminal-phase (remaining < 15 u) max spin < 0.15 rad/s
+      and release spin < 0.1, with delivery guards (leg completes,
+      standoff actually crossed, a real flip happened). Pre-fix failure
+      measured at 0.5949 rad/s (bitwise match to the spike's PROD row).
+      RIG CORRECTION along the way: the regression is PRODUCTION-wired
+      (command copy in Update via diag_app(true)), not flight_app - see
+      the wiring-dependence finding below.
+- [x] `FlightSettings::settle_deadband` (default 0.75) added - but the
+      planned scoping was FALSIFIED twice and corrected:
+      1. Scoped to `desired == Vec3::ZERO`: terminal max spin unchanged
+         BIT-FOR-BIT (0.6727556 pre and post) - the hunt's onset is in
+         the brake tail where desired is still nonzero. Re-scoped BY LEG:
+         STOP/GOTO/GotoPos get the settle band, ORBIT keeps
+         attitude_deadband.
+      2. Band alone (urgency left on attitude_deadband): terminal 0.643 -
+         still failing. The spike's global-raise A/B was CONFOUNDED: it
+         moved the crumb band AND the urgency denominator together. With
+         BOTH keyed to the leg-scoped crumb_band the spike numbers
+         reproduce exactly (terminal 0.0973, release spin 0.047).
+- [x] Guard suite: two guards encoded the old arrival contract and were
+      updated to the settings-derived one (release residual bounded by
+      the settle band, not 0.5): autopilot_burn_recruits_a_lateral (the
+      recruit's LATERAL residual is now released, not hunted - the
+      shipped single-centered-drive ship keeps exact rest via the
+      aligned-authority argument) and goto_into_a_well_stops (ORBIT
+      handoff residual 0.705 <= band). Everything else unchanged: flight
+      module 59 green, ai module 86 green (fmt+check clean; full suite
+      deferred to CI per user instruction).
+- [x] Diagnostic kept `#[ignore]`d for 20260711-140241; spike Fix record
+      appended (including the falsifications and the NEW wiring-dependence
+      finding); a WARNING section added to 140241's task file - the
+      same-tick handoff it proposes REINTRODUCES the hunt (terminal 0.63
+      under same-tick vs 0.097 under shipped wiring on this very build),
+      so that task must fix the limit cycle first and is gated by this
+      regression.
 
 ## Goal
 
@@ -59,3 +99,32 @@ into the regression and delete the rest per the diagnostic convention.
 - Related but separate: the cross-clock command handoff (task
   20260711-140241) - the hunt exists under BOTH wirings, so these are
   independent fixes.
+
+## Resolution
+
+What changed: `FlightSettings::settle_deadband` (0.75, documented against
+the measured 0.45-0.6 u/s doorstep residual) applied BY LEG in
+autopilot_system - STOP/GOTO/GotoPos use it for both the crumb band and
+the urgency denominator, ORBIT keeps the tight attitude_deadband - plus
+the production-wired regression and two guard updates to the
+settings-derived arrival contract.
+
+Evidence rig (record-the-rig rule): diag_app(true) - the spike's
+harness with the command copy in the Update schedule, matching
+ControllerSectionPlugin's shipped wiring - flying the shipped 5-section
+geometry (PD 4/4/40, single rear drive) on GotoPos (300,0,-600) from
+rest; terminal window = remaining-to-standoff < 15 u; release state read
+at autopilot disengage.
+
+Falsified along the way (both recorded in Steps): the desired==0 scoping
+and the band-without-urgency variant. New finding: arrival dynamics are
+wiring-dependent (same-tick command handoff phase-locks the hunt);
+handed to 20260711-140241 as a blocking warning.
+
+Self-reflection: the spike's deadband experiment moved two coupled knobs
+with one setting and attributed the effect to one of them; the
+implementation caught it only because the regression was written
+fail-first and the scoped version left the number bit-for-bit unchanged
+- a strong argument for exact-number A/B oracles over "did it improve"
+assertions. The confound should have been caught in the spike by
+grepping every reader of the knob before concluding.

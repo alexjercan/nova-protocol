@@ -298,6 +298,23 @@ pub struct FlightSettings {
     /// this deadband the ship pirouettes after ever-smaller leftovers,
     /// twitching toward a perfection nobody can see.
     pub attitude_deadband: f32,
+    /// The crumb band for legs that END AT REST (STOP, GOTO, GotoPos; ORBIT
+    /// keeps [`FlightSettings::attitude_deadband`]). A translation leg's
+    /// endgame lives in sub-u/s errors - the brake tail, the boundary
+    /// creep, the ~0.45-0.6 u/s doorstep residual - and with only the tight
+    /// band the computer hunts them with visible attitude swings for
+    /// seconds at every arrival
+    /// (docs/spikes/20260711-140234-feel-filtering.md). This band must stay
+    /// above the doorstep residual. ORBIT deliberately keeps the tight band
+    /// (station-keeping's whole job is chasing small errors), which also
+    /// preserves orbit_hold_enter's documented 2x relationship. Rest
+    /// precision: an AXIAL residual (the shipped single-centered-drive
+    /// ship) keeps the drive's aligned authority, so STOP still brakes to
+    /// [`FlightSettings::stop_speed_epsilon`] exactly; a residual OFF the
+    /// drive axis (a damage-shifted hull's recruit drift) is released at
+    /// up to this band rather than hunted with attitude flips - that
+    /// bounded creep is the contract, and the price of not wobbling.
+    pub settle_deadband: f32,
     /// Once the engines are lit, keep burning until alignment falls this far
     /// below [`FlightSettings::align_cos`], so the plume does not flicker
     /// on/off right at the gate boundary.
@@ -346,6 +363,11 @@ impl Default for FlightSettings {
             // A 0.4 u/s drift is a slow creep nobody notices; chasing it
             // with attitude swings is what everybody notices.
             attitude_deadband: 0.4,
+            // Above the measured doorstep residual (0.45-0.6 u/s on the
+            // shipped rig): terminal spin drops from ~0.6 to under 0.1
+            // rad/s, release spin from 0.44 to ~0.05, path tracking
+            // unchanged (spike measurements at 0.6 and 0.75).
+            settle_deadband: 0.75,
             align_hysteresis: 0.03,
             // Enter Hold at twice the attitude deadband: inside it the
             // computer is trimming crumbs, which is exactly what
@@ -1536,8 +1558,23 @@ fn autopilot_system(
         // Within the deadband the leftover is a crumb: never re-aim the hull
         // for it - any engine already on the error finishes it, and a
         // residual only a rotation could remove is accepted. This is what
-        // stops the ship twitching after perfection.
-        let fine = error_speed <= settings.attitude_deadband;
+        // stops the ship twitching after perfection. Legs that END AT REST
+        // (STOP, GOTO, GotoPos) use the wider settle band: the endgame of a
+        // translation leg lives in sub-u/s errors - the brake tail, the
+        // boundary creep, the doorstep residual - and chasing those with
+        // attitude swings was the "wobbles on GOTO" playtest (task
+        // 20260711-140234). Scoping by LEG, not by desired == 0, is
+        // deliberate: the hunt's onset is in the brake tail where desired
+        // is still nonzero - the desired-zero scoping was tried and left
+        // the terminal spin bit-for-bit unchanged (spike
+        // docs/spikes/20260711-140234-feel-filtering.md, fix record). Only
+        // ORBIT keeps the tight band: station-keeping is the one regime
+        // whose job is chasing small errors forever.
+        let crumb_band = match autopilot.action {
+            AutopilotAction::Orbit { .. } => settings.attitude_deadband,
+            _ => settings.settle_deadband.max(settings.attitude_deadband),
+        };
+        let fine = error_speed <= crumb_band;
 
         // Done: the goal wants rest here and the ship is at rest - exactly,
         // or within the deadband with no engine on the residual. Release
@@ -1631,9 +1668,15 @@ fn autopilot_system(
                     // Turn gently when little burn remains: the ending turn is
                     // what the hull is still spinning with at release, and a
                     // slow final swing keeps that residual under
-                    // RELEASE_SPIN_EPSILON.
-                    let urgency =
-                        (error_speed / (settings.attitude_deadband * 8.0)).clamp(0.25, 1.0);
+                    // RELEASE_SPIN_EPSILON. Keyed to the same regime-scoped
+                    // crumb band as `fine`: on a rest leg the brake tail's
+                    // few-u/s corrections must swing the hull GENTLY or each
+                    // re-aim overshoots and seeds the next (the arrival hunt
+                    // cascade). The spike's deadband A/B moved this
+                    // denominator together with the band - keying only the
+                    // band left the terminal spin unchanged, which is how
+                    // the coupling was found (task 20260711-140234).
+                    let urgency = (error_speed / (crumb_band * 8.0)).clamp(0.25, 1.0);
                     let max_step = turn_rate * dt * urgency;
                     for (mut input, &ChildOf(parent)) in &mut q_rotation_input {
                         if parent == ship {
@@ -2228,9 +2271,17 @@ mod tests {
              (speed {} after {frames} frames)",
             velocity_of(&app, ship).length()
         );
+        // The recruit's sideways push leaves a LATERAL residual, and the
+        // settle band's contract (task 20260711-140234) is that sub-band
+        // crumbs off the drive axis are released, not hunted with attitude
+        // flips - so rest here means within the settle band, not the old
+        // 0.5. The shipped single-centered-drive ship keeps its exact rest:
+        // an axial residual keeps the drive's aligned authority, so release
+        // still waits for stop_speed_epsilon.
+        let settle_band = app.world().resource::<FlightSettings>().settle_deadband;
         assert!(
-            velocity_of(&app, ship).length() < 0.5,
-            "the ship must actually be at rest ({:?})",
+            velocity_of(&app, ship).length() < settle_band + 0.05,
+            "the ship must rest within the settle band ({:?})",
             velocity_of(&app, ship)
         );
     }
@@ -3528,12 +3579,15 @@ mod tests {
             }
         }
         assert!(parked, "GOTO must arrive and hand off to ORBIT in budget");
-        // The done gate structurally guarantees near-rest at the handoff
-        // instant; assert it to keep the old arrival-curve check.
+        // The done gate structurally guarantees the handoff residual is
+        // bounded by the settle band (task 20260711-140234: sub-band crumbs
+        // are accepted rather than hunted); assert that contract to keep
+        // the old arrival-curve check.
         let handoff_speed = velocity_of(&app, ship).length();
+        let settle_band = app.world().resource::<FlightSettings>().settle_deadband;
         assert!(
-            handoff_speed < 0.5,
-            "the handoff happens at near-rest, got {handoff_speed}"
+            handoff_speed < settle_band + 0.05,
+            "the handoff happens within the settle band ({settle_band}), got {handoff_speed}"
         );
         assert!(
             min_distance > body_radius + gravity.surface_margin,
@@ -4473,5 +4527,83 @@ mod tests {
                 samples.len().saturating_sub(term_start),
             );
         }
+    }
+
+    /// A GOTO leg must ARRIVE quietly (task 20260711-140234). The feel
+    /// spike (docs/spikes/20260711-140234-feel-filtering.md) traced the
+    /// playtest "wobbles on GOTO" to a terminal attitude hunt: the
+    /// endgame of a translation leg lives in sub-u/s velocity errors, and
+    /// with the tight crumb band (attitude_deadband 0.4) plus its 8x
+    /// urgency denominator the computer chased them with visible attitude
+    /// swings (~0.6 rad/s) for seconds at every arrival - while STOP,
+    /// whose error passes the band exactly once nose-on, settled
+    /// perfectly. With the settle band (and the urgency denominator it
+    /// carries) scoped to rest legs, the terminal phase stays under
+    /// 0.15 rad/s and the hull releases essentially still. A/B: the
+    /// pre-fix config fails this at ~0.6 rad/s terminal spin.
+    ///
+    /// The rig is PRODUCTION-wired on purpose: the rotation command copy
+    /// runs in Update (as ControllerSectionPlugin ships), not same-tick as
+    /// the rest of this module's harness. The arrival dynamics turned out
+    /// to be wiring-dependent - the same-tick handoff phase-locks the
+    /// re-aim/overshoot loop into a limit cycle that the shipped wiring's
+    /// one-frame staleness happens to break - so a same-tick rig would
+    /// test a game we do not ship. If a future change moves the shipped
+    /// copy to FixedUpdate (task 20260711-140241), this test failing is
+    /// the signal that the arrival hunt came back with it: fix the hunt
+    /// under the new wiring FIRST, then re-wire this rig to match.
+    #[test]
+    fn goto_arrival_settles_without_hunting() {
+        let mut app = diag_app(true);
+        let (ship, _controller) = diag_ship(&mut app);
+        let goal = Vec3::new(300.0, 0.0, -600.0);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::GotoPos {
+                position: goal,
+            }));
+        let standoff = app.world().resource::<FlightSettings>().arrival_standoff;
+
+        let mut max_spin_overall = 0.0f32;
+        let mut max_spin_terminal = 0.0f32;
+        let mut min_remaining = f32::MAX;
+        let mut done = false;
+        for _ in 0..4000 {
+            app.update();
+            let spin = app.world().get::<AngularVelocity>(ship).unwrap().length();
+            let remaining = (goal - position_of(&app, ship)).length() - standoff;
+            max_spin_overall = max_spin_overall.max(spin);
+            min_remaining = min_remaining.min(remaining);
+            if remaining < 15.0 {
+                max_spin_terminal = max_spin_terminal.max(spin);
+            }
+            if app.world().get::<Autopilot>(ship).is_none() {
+                done = true;
+                break;
+            }
+        }
+
+        // Delivery guards: the maneuver must actually have flown - a leg
+        // that never engages, never flips, or never reaches the envelope
+        // would pass the quiet-arrival bounds vacuously.
+        assert!(done, "the GotoPos leg must complete and release in budget");
+        assert!(
+            min_remaining < 1.0,
+            "the ship must actually reach the park envelope, got to {min_remaining}"
+        );
+        assert!(
+            max_spin_overall > 0.5,
+            "a real flip-and-burn must have happened (max spin {max_spin_overall})"
+        );
+
+        let release_spin = app.world().get::<AngularVelocity>(ship).unwrap().length();
+        assert!(
+            max_spin_terminal < 0.15,
+            "the arrival must not hunt: terminal max spin {max_spin_terminal} rad/s"
+        );
+        assert!(
+            release_spin < 0.1,
+            "the hull must release still, not mid-swing: {release_spin} rad/s"
+        );
     }
 }
