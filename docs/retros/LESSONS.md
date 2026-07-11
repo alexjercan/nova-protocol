@@ -131,6 +131,10 @@ retros.
   axis-aligned symmetric ship a cyclic-permutation local frame; frame
   composition code must be tested with both frames non-identity.
   20260709-125640.
+- `half-ticked-compound-steps` (x1): a plan step bundling two actions
+  ("verify + update docs") got ticked when only the first half was done;
+  tick only when every clause is done, or split the step first.
+  20260708-165704.
 - `bei-app-finish-in-tests` (x1): bevy_enhanced_input finalizes its
   context registry in `App::finish`; an input test must call
   `app.finish()`/`app.cleanup()` before spawning an action rig or the
