@@ -64,9 +64,12 @@ pub struct NovaMenuPlugin;
 
 impl Plugin for NovaMenuPlugin {
     fn build(&self, app: &mut App) {
+        // Owned by NovaHudPlugin in the assembled app; initialized here too so
+        // the menu plugin stands alone (tests, future slim apps).
+        app.init_resource::<HudVisibility>();
         app.add_systems(
             OnEnter(GameStates::MainMenu),
-            (load_menu_ambience, setup_menu_ui, hide_status_bar),
+            (load_menu_ambience, setup_menu_ui, hide_hud_chrome),
         );
         // Uniform backdrop teardown: EVERY exit from the menu unloads the
         // ambience scenario, so future exits (e.g. the pause menu's Back path,
@@ -75,7 +78,7 @@ impl Plugin for NovaMenuPlugin {
         // this unload.
         app.add_systems(
             OnExit(GameStates::MainMenu),
-            (show_status_bar, unload_menu_ambience),
+            (restore_hud_chrome, unload_menu_ambience),
         );
         app.add_systems(
             Update,
@@ -209,15 +212,16 @@ fn orbit_insertion_velocity(well_pos: Vec3, mu: f32, ship_pos: Vec3) -> Vec3 {
     tangent * circular_orbit_speed(mu, radial.length())
 }
 
-/// The menu is a cinematic shot: hide the fps/version status bar while it is
-/// up. Task 20260711-180501 (HudVisibility ALL/MINIMAL/NONE) is the long-term
-/// mechanism and should absorb this when it lands.
-fn hide_status_bar(mut bar: Single<&mut Visibility, With<StatusBarRootMarker>>) {
-    **bar = Visibility::Hidden;
+/// The menu is a cinematic shot: drive the HUD level to None while it is up
+/// (this is the mechanism from task 20260711-180501; it owns the status bar
+/// and every tagged HUD widget). Restoring to All on exit intentionally
+/// resets any mid-game cycle the player had going - simple beats sticky.
+fn hide_hud_chrome(mut level: ResMut<HudVisibility>) {
+    *level = HudVisibility::None;
 }
 
-fn show_status_bar(mut bar: Single<&mut Visibility, With<StatusBarRootMarker>>) {
-    **bar = Visibility::Inherited;
+fn restore_hud_chrome(mut level: ResMut<HudVisibility>) {
+    *level = HudVisibility::All;
 }
 
 /// The menu panel: title on top, buttons below, anchored bottom-right per the
@@ -455,9 +459,9 @@ mod tests {
 
     /// A headless app with just enough for the menu's non-UI wiring: states, the
     /// mode resource, and the plugin itself. Tests that enter MainMenu also run
-    /// the OnEnter systems (setup_menu_ui spawns plain components; the status
-    /// bar Single skips when no bar exists), so insert `dummy_scenarios()`
-    /// first - load_menu_ambience reads GameScenarios.
+    /// the OnEnter systems (setup_menu_ui spawns plain components; the HUD
+    /// level is a plain resource write), so insert `dummy_scenarios()` first -
+    /// load_menu_ambience reads GameScenarios.
     fn app() -> App {
         let mut app = App::new();
         app.add_plugins(StatesPlugin);
@@ -561,6 +565,8 @@ mod tests {
         // and it must tear the ambience backdrop down (the editor does not).
         assert_eq!(app.world().resource::<LoadedScenario>().0, None);
         assert!(app.world().resource::<Unloaded>().0);
+        // Leaving the menu restores the HUD level.
+        assert_eq!(*app.world().resource::<HudVisibility>(), HudVisibility::All);
     }
 
     /// Entering MainMenu loads the ambience backdrop through the real
@@ -581,6 +587,12 @@ mod tests {
         assert_eq!(
             app.world().resource::<LoadedScenario>().0.as_deref(),
             Some(MENU_AMBIENCE_SCENARIO_ID)
+        );
+        // The menu is a cinematic shot: entering drives the HUD level to None
+        // (the absorbed status-bar hide, task 20260711-180501).
+        assert_eq!(
+            *app.world().resource::<HudVisibility>(),
+            HudVisibility::None
         );
     }
 

@@ -185,6 +185,7 @@ fn sync_trajectory_ribbon(
     {
         commands.spawn((
             Name::new("TrajectoryRibbonSegment"),
+            crate::hud::HudTier::Instrument,
             TrajectoryRibbonSegment { ship, index },
             Mesh3d(assets.segment_mesh(&mut meshes)),
             MeshMaterial3d(assets.material(&mut materials)),
@@ -244,6 +245,7 @@ fn sync_flip_gate(
     if !found {
         commands.spawn((
             Name::new("FlipGateHolo"),
+            crate::hud::HudTier::Instrument,
             FlipGateMarker { ship },
             Mesh3d(assets.gate_mesh(&mut meshes)),
             MeshMaterial3d(assets.material(&mut materials)),

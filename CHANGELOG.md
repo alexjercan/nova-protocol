@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- @alexjercan HUD visibility levels: the grave/tilde key cycles ALL -> MINIMAL (flight and combat instruments only, chrome hidden) -> NONE (clean screen for cinematic shots); every HUD widget carries a tier, the main menu drives the level to NONE while it is up, and the keybind hint cluster documents the key
+
 - @alexjercan the main menu plays a live ambient scene behind the panel: a passive ship on a real ballistic orbit around a gravity-well planetoid, framed by a fixed cinematic camera (WASD controller stripped, fps/version status bar hidden while the menu is up)
 - @alexjercan the game boots into a main menu (new `nova_menu` crate): a bottom-right "Nova Protocol" panel with New Game (loads the asteroid-field scenario with the canned player ship), Sandbox (the ship editor), Settings (placeholder) and Exit (hidden on wasm); examples with custom game plugins keep the direct Loading -> Playing flow, and `AppBuilder::with_main_menu(bool)` overrides the default
 

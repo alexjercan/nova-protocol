@@ -220,7 +220,9 @@ fn assets_plugin() -> AssetPlugin {
 }
 
 fn setup_status_ui(mut commands: Commands, game_assets: Res<GameAssets>) {
-    commands.spawn((status_bar(StatusBarRootConfig::default()),));
+    // Chrome tier: the fps/version bar disappears at HudVisibility::Minimal
+    // and below (and in the main menu, which drives the level to None).
+    commands.spawn((HudTier::Chrome, status_bar(StatusBarRootConfig::default())));
 
     commands.spawn((status_bar_item(StatusBarItemConfig {
         icon: Some(game_assets.fps_icon.clone()),

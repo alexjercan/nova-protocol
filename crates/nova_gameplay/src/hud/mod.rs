@@ -19,13 +19,70 @@ pub mod prelude {
         component_lock::prelude::*, edge_indicators::prelude::*, flight_status::prelude::*,
         holo_instruments::prelude::*, keybind_hints::prelude::*, maneuver_instruments::prelude::*,
         screen_indicator::prelude::*, target_candidates::prelude::*, torpedo_target::prelude::*,
-        turret_lead::prelude::*, velocity::prelude::*, NovaHudAssets, NovaHudPlugin,
-        NovaHudSystems,
+        turret_lead::prelude::*, velocity::prelude::*, HudSelfDrivenVisibility, HudTier,
+        HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
     };
 }
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NovaHudSystems;
+
+/// Player-facing HUD visibility level, cycled with grave/tilde (task
+/// 20260711-180501): `All` shows everything, `Minimal` keeps the flight and
+/// combat instruments but drops the chrome, `None` clears the screen for
+/// cinematic shots. The menu (nova_menu) also drives this to `None` while the
+/// main menu is up.
+#[derive(Resource, Clone, Copy, PartialEq, Eq, Debug, Hash, Default, Reflect)]
+#[reflect(Resource)]
+pub enum HudVisibility {
+    #[default]
+    All,
+    Minimal,
+    None,
+}
+
+impl HudVisibility {
+    /// The cycle order behind the grave/tilde key.
+    pub fn next(self) -> Self {
+        match self {
+            HudVisibility::All => HudVisibility::Minimal,
+            HudVisibility::Minimal => HudVisibility::None,
+            HudVisibility::None => HudVisibility::All,
+        }
+    }
+
+    /// Whether a widget of `tier` is visible at this level.
+    pub fn shows(self, tier: HudTier) -> bool {
+        match (self, tier) {
+            (HudVisibility::All, _) => true,
+            (HudVisibility::Minimal, HudTier::Instrument) => true,
+            _ => false,
+        }
+    }
+}
+
+/// The visibility tier a HUD widget belongs to. Tag the widget's root where it
+/// spawns; screen-indicator nodes resolve their tier from the nearest tagged
+/// ancestor (or their own tag), so reconciled children (pips, brackets,
+/// arrows) inherit their module's tier automatically.
+/// Deliberately untagged: the juice gizmo flashes (juice.rs) are combat FX,
+/// not HUD, and stay visible at every level.
+#[derive(Component, Clone, Copy, PartialEq, Eq, Debug, Reflect)]
+#[reflect(Component)]
+pub enum HudTier {
+    /// Flight/combat instruments: visible at `All` and `Minimal`.
+    Instrument,
+    /// Learning aids and secondary overlays: visible only at `All`.
+    Chrome,
+}
+
+/// Opt-out for widgets that drive their own `Visibility` every frame (the
+/// gravity sphere hides itself in flat space): the level-change restore skips
+/// them so it cannot stomp their state for a frame; the Hidden enforcement
+/// still applies while their tier is off (review R1.2).
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+#[reflect(Component)]
+pub struct HudSelfDrivenVisibility;
 
 /// Nav cyan, the family color of every flight-computer projection (the
 /// destination marker tint, the orbit cue, the maneuver chips, the holo
@@ -45,6 +102,31 @@ impl Plugin for NovaHudPlugin {
         debug!("HudPlugin: build");
 
         app.init_resource::<NovaHudAssets>();
+
+        app.init_resource::<HudVisibility>();
+        app.register_type::<HudVisibility>();
+        app.register_type::<HudTier>();
+        // The cycle key is gameplay-only (the menu drives the resource
+        // itself); plain ButtonInput, same pattern as the debug F11 toggle.
+        app.add_systems(
+            Update,
+            cycle_hud_visibility.run_if(in_state(crate::GameStates::Playing)),
+        );
+        // Visibility enforcement runs AFTER the screen-indicator projection:
+        // the widget writes Visibility::Visible on its nodes every frame in
+        // PostUpdate (ignoring hidden ancestors), so a tier-hidden node must
+        // be overwritten downstream of that producer, not from Update.
+        // Bounded on both sides: after the indicator projection (whose
+        // Visible writes it must overrule) and before UI layout - which runs
+        // upstream of transform + visibility propagation - so the writes land
+        // in THIS frame's propagation deterministically instead of by
+        // schedule tie-break (review R1.1).
+        app.add_systems(
+            PostUpdate,
+            apply_hud_visibility
+                .after(ScreenIndicatorSystems)
+                .before(bevy::ui::UiSystems::Layout),
+        );
 
         app.add_plugins(velocity::VelocityHudPlugin);
         app.add_plugins(flight_status::FlightStatusHudPlugin);
@@ -103,6 +185,77 @@ impl Plugin for NovaHudPlugin {
     }
 }
 
+/// Cycle the HUD level on grave/tilde. Press-to-cycle, no hold gesture (the
+/// spike's call: three states are at most two presses away).
+fn cycle_hud_visibility(keys: Res<ButtonInput<KeyCode>>, mut level: ResMut<HudVisibility>) {
+    if keys.just_pressed(KeyCode::Backquote) {
+        let next = level.next();
+        info!("hud visibility: {:?} -> {:?}", *level, next);
+        *level = next;
+    }
+}
+
+/// Enforce the current [`HudVisibility`] level on every tagged widget.
+///
+/// Two passes:
+/// - Tagged roots (and tagged world-space instruments like ribbon segments):
+///   hidden while their tier is off, restored to `Inherited` once when the
+///   level changes back. Self-driving widgets (the gravity sphere) re-assert
+///   their own state every frame, so the one-shot restore cannot wedge them.
+/// - Screen-indicator nodes: their projection re-writes `Visibility::Visible`
+///   every frame in this same schedule, so the tier-hidden ones are
+///   overwritten here (after the projection) every frame; no restore branch
+///   is needed because the widget re-drives them. Tier resolves from the node
+///   or its nearest tagged ancestor; untagged trees are not HUD-managed.
+fn apply_hud_visibility(
+    level: Res<HudVisibility>,
+    mut q_roots: Query<
+        (&HudTier, &mut Visibility, Has<HudSelfDrivenVisibility>),
+        Without<ScreenIndicatorMarker>,
+    >,
+    mut q_indicators: Query<
+        (Entity, &mut Visibility, Option<&HudTier>),
+        With<ScreenIndicatorMarker>,
+    >,
+    q_parents: Query<&ChildOf>,
+    q_tiers: Query<&HudTier>,
+) {
+    let level_changed = level.is_changed();
+    for (tier, mut visibility, self_driven) in &mut q_roots {
+        if !level.shows(*tier) {
+            visibility.set_if_neq(Visibility::Hidden);
+        } else if level_changed && !self_driven {
+            visibility.set_if_neq(Visibility::Inherited);
+        }
+    }
+    for (entity, mut visibility, own_tier) in &mut q_indicators {
+        let tier = own_tier
+            .copied()
+            .or_else(|| ancestor_tier(entity, &q_parents, &q_tiers));
+        let Some(tier) = tier else {
+            continue;
+        };
+        if !level.shows(tier) {
+            visibility.set_if_neq(Visibility::Hidden);
+        }
+    }
+}
+
+/// The nearest ancestor's [`HudTier`], if any.
+fn ancestor_tier(
+    mut entity: Entity,
+    parents: &Query<&ChildOf>,
+    tiers: &Query<&HudTier>,
+) -> Option<HudTier> {
+    while let Ok(ChildOf(parent)) = parents.get(entity) {
+        if let Ok(tier) = tiers.get(*parent) {
+            return Some(*tier);
+        }
+        entity = *parent;
+    }
+    None
+}
+
 /// Tag the spaceship chase camera as the projection camera for screen
 /// indicators.
 fn add_screen_indicator_camera(
@@ -142,22 +295,31 @@ fn setup_hud_velocity(
         return;
     };
 
-    commands.spawn((velocity_hud(VelocityHudConfig {
-        radius: 5.0,
-        sharpness: 20.0,
-        target: spaceship,
-        ..default()
-    }),));
+    commands.spawn((
+        HudTier::Instrument,
+        velocity_hud(VelocityHudConfig {
+            radius: 5.0,
+            sharpness: 20.0,
+            target: spaceship,
+            ..default()
+        }),
+    ));
     // The gravity indicator: same widget, yellow, pointing down the
     // dominant well's pull, hidden in flat space. Nested slightly outside
     // the velocity sphere so the two shells never z-fight.
-    commands.spawn((velocity_hud(VelocityHudConfig {
-        radius: 5.6,
-        sharpness: 20.0,
-        target: spaceship,
-        source: VelocityHudSource::Gravity,
-        palette: VelocityHudPalette::GRAVITY,
-    }),));
+    commands.spawn((
+        HudTier::Instrument,
+        // Hides itself in flat space; the level-change restore must not
+        // overrule that (review R1.2).
+        HudSelfDrivenVisibility,
+        velocity_hud(VelocityHudConfig {
+            radius: 5.6,
+            sharpness: 20.0,
+            target: spaceship,
+            source: VelocityHudSource::Gravity,
+            palette: VelocityHudPalette::GRAVITY,
+        }),
+    ));
 }
 
 fn remove_hud_velocity(
@@ -193,20 +355,26 @@ fn setup_hud_flight_status(
         return;
     };
 
-    commands.spawn((flight_status_hud(FlightStatusHudConfig {
-        target: spaceship,
-    }),));
-    commands.spawn((autopilot_destination_hud(
-        AutopilotDestinationHudConfig::new(spaceship, assets.target_sprite.clone()),
-    ),));
-    commands.spawn((maneuver_instruments_hud(ManeuverInstrumentsHudConfig {
-        ship: spaceship,
-    }),));
+    commands.spawn((
+        HudTier::Instrument,
+        flight_status_hud(FlightStatusHudConfig { target: spaceship }),
+    ));
+    commands.spawn((
+        HudTier::Instrument,
+        autopilot_destination_hud(AutopilotDestinationHudConfig::new(
+            spaceship,
+            assets.target_sprite.clone(),
+        )),
+    ));
+    commands.spawn((
+        HudTier::Instrument,
+        maneuver_instruments_hud(ManeuverInstrumentsHudConfig { ship: spaceship }),
+    ));
     // The cluster and cues are global singletons, not ship-targeted
     // widgets: one player, one set (same guard as the flight input rig).
     if q_existing_cluster.is_empty() {
-        commands.spawn((keybind_hint_cluster_hud(),));
-        commands.spawn((verb_cues_hud(),));
+        commands.spawn((HudTier::Chrome, keybind_hint_cluster_hud()));
+        commands.spawn((HudTier::Chrome, verb_cues_hud()));
     }
 }
 
@@ -267,9 +435,12 @@ fn setup_hud_health(
         return;
     };
 
-    commands.spawn((health_display(HealthDisplayConfig {
-        target: Some(spaceship),
-    }),));
+    commands.spawn((
+        HudTier::Instrument,
+        health_display(HealthDisplayConfig {
+            target: Some(spaceship),
+        }),
+    ));
 }
 
 fn remove_hud_health(
@@ -305,7 +476,7 @@ fn setup_hud_objectives(
         return;
     };
 
-    commands.spawn((objectives_panel(ObjectivesPanelConfig {}),));
+    commands.spawn((HudTier::Chrome, objectives_panel(ObjectivesPanelConfig {})));
 }
 
 fn remove_hud_objectives(
@@ -337,7 +508,7 @@ fn setup_hud_turret_lead(
         return;
     };
 
-    commands.spawn(turret_lead_hud());
+    commands.spawn((HudTier::Instrument, turret_lead_hud()));
 }
 
 fn remove_hud_turret_lead(
@@ -369,7 +540,7 @@ fn setup_hud_component_lock(
         return;
     };
 
-    commands.spawn(component_lock_hud());
+    commands.spawn((HudTier::Chrome, component_lock_hud()));
 }
 
 fn remove_hud_component_lock(
@@ -401,7 +572,7 @@ fn setup_hud_target_candidates(
         return;
     };
 
-    commands.spawn(target_candidates_hud());
+    commands.spawn((HudTier::Chrome, target_candidates_hud()));
 }
 
 fn remove_hud_target_candidates(
@@ -433,7 +604,7 @@ fn setup_hud_edge_indicators(
         return;
     };
 
-    commands.spawn(edge_indicators_hud());
+    commands.spawn((HudTier::Chrome, edge_indicators_hud()));
 }
 
 fn remove_hud_edge_indicators(
@@ -466,9 +637,12 @@ fn setup_hud_torpedo_target(
         return;
     };
 
-    commands.spawn((torpedo_target_hud(TorpedoTargetHudConfig {
-        target_sprite: assets.target_sprite.clone(),
-    }),));
+    commands.spawn((
+        HudTier::Instrument,
+        torpedo_target_hud(TorpedoTargetHudConfig {
+            target_sprite: assets.target_sprite.clone(),
+        }),
+    ));
 }
 
 fn remove_hud_torpedo_target(
@@ -481,5 +655,189 @@ fn remove_hud_torpedo_target(
 
     for hud_entity in &q_hud {
         commands.entity(hud_entity).despawn();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::state::app::StatesPlugin;
+
+    use super::*;
+
+    /// A stand-in for the real projection: writes Visible on every indicator
+    /// node each frame, in the real ScreenIndicatorSystems set, so the tests
+    /// exercise the actual schedule contract (enforcement must win the same
+    /// frame, downstream of this producer). Review R1.3.
+    fn fake_widget_drive(mut q: Query<&mut Visibility, With<ScreenIndicatorMarker>>) {
+        for mut visibility in &mut q {
+            visibility.set_if_neq(Visibility::Visible);
+        }
+    }
+
+    /// Headless app with exactly the HudVisibility wiring the plugin
+    /// registers (the full NovaHudPlugin drags in assets/materials), plus the
+    /// stand-in widget driver inside ScreenIndicatorSystems.
+    fn app() -> App {
+        let mut app = App::new();
+        app.add_plugins(StatesPlugin);
+        app.init_state::<crate::GameStates>();
+        app.init_resource::<HudVisibility>();
+        app.init_resource::<ButtonInput<KeyCode>>();
+        app.add_systems(
+            Update,
+            cycle_hud_visibility.run_if(in_state(crate::GameStates::Playing)),
+        );
+        app.add_systems(PostUpdate, fake_widget_drive.in_set(ScreenIndicatorSystems));
+        // Same double-bounded registration as the plugin (review R1.1).
+        app.add_systems(
+            PostUpdate,
+            apply_hud_visibility
+                .after(ScreenIndicatorSystems)
+                .before(bevy::ui::UiSystems::Layout),
+        );
+        app.world_mut()
+            .resource_mut::<NextState<crate::GameStates>>()
+            .set(crate::GameStates::Playing);
+        app.update();
+        app
+    }
+
+    fn press_backquote(app: &mut App) {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::Backquote);
+        app.update();
+        // Headless apps have no InputPlugin frame-clear; do it by hand so the
+        // next press registers as a fresh just_pressed.
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        keys.release(KeyCode::Backquote);
+        keys.clear();
+        app.update();
+    }
+
+    fn level(app: &App) -> HudVisibility {
+        *app.world().resource::<HudVisibility>()
+    }
+
+    /// Delivery-guarded per step (LESSONS assert-each-gesture-step): the level
+    /// is asserted after every individual press, not just at the end.
+    #[test]
+    fn backquote_cycles_all_minimal_none_all() {
+        let mut app = app();
+        assert_eq!(level(&app), HudVisibility::All);
+        press_backquote(&mut app);
+        assert_eq!(level(&app), HudVisibility::Minimal);
+        press_backquote(&mut app);
+        assert_eq!(level(&app), HudVisibility::None);
+        press_backquote(&mut app);
+        assert_eq!(level(&app), HudVisibility::All);
+    }
+
+    #[test]
+    fn tiers_hide_and_restore_across_levels() {
+        let mut app = app();
+        let instrument = app
+            .world_mut()
+            .spawn((HudTier::Instrument, Visibility::Inherited))
+            .id();
+        let chrome = app
+            .world_mut()
+            .spawn((HudTier::Chrome, Visibility::Inherited))
+            .id();
+        let vis = |app: &App, e| *app.world().get::<Visibility>(e).unwrap();
+
+        app.update();
+        assert_eq!(vis(&app, instrument), Visibility::Inherited);
+        assert_eq!(vis(&app, chrome), Visibility::Inherited);
+
+        app.insert_resource(HudVisibility::Minimal);
+        app.update();
+        assert_eq!(vis(&app, instrument), Visibility::Inherited);
+        assert_eq!(vis(&app, chrome), Visibility::Hidden);
+
+        app.insert_resource(HudVisibility::None);
+        app.update();
+        assert_eq!(vis(&app, instrument), Visibility::Hidden);
+        assert_eq!(vis(&app, chrome), Visibility::Hidden);
+
+        app.insert_resource(HudVisibility::All);
+        app.update();
+        assert_eq!(vis(&app, instrument), Visibility::Inherited);
+        assert_eq!(vis(&app, chrome), Visibility::Inherited);
+    }
+
+    /// The screen-indicator projection writes Visibility::Visible on its nodes
+    /// every frame (ignoring hidden ancestors), so enforcement must overwrite
+    /// tier-hidden nodes every frame, resolving the tier from the nearest
+    /// tagged ancestor. This simulates the widget by re-writing Visible before
+    /// each update.
+    #[test]
+    fn indicator_nodes_are_overwritten_every_frame_via_ancestor_tier() {
+        let mut app = app();
+        let root = app.world_mut().spawn((HudTier::Chrome,)).id();
+        let node = app
+            .world_mut()
+            .spawn((ScreenIndicatorMarker, Visibility::Visible, ChildOf(root)))
+            .id();
+
+        app.insert_resource(HudVisibility::Minimal);
+        app.update();
+        assert_eq!(
+            *app.world().get::<Visibility>(node).unwrap(),
+            Visibility::Hidden
+        );
+
+        // The in-schedule stand-in re-drives the node to Visible inside
+        // ScreenIndicatorSystems every frame; enforcement must win the SAME
+        // frame, every frame, even though the level did not change. This is
+        // the executable form of the ordering contract (review R1.3): moving
+        // apply_hud_visibility before the set fails here.
+        app.update();
+        app.update();
+        assert_eq!(
+            *app.world().get::<Visibility>(node).unwrap(),
+            Visibility::Hidden
+        );
+
+        // Back at All the enforcement stands down and the widget owns it.
+        app.insert_resource(HudVisibility::All);
+        app.update();
+        assert_eq!(
+            *app.world().get::<Visibility>(node).unwrap(),
+            Visibility::Visible
+        );
+    }
+
+    /// Review R1.2: self-driving widgets opt out of the level-change restore
+    /// (their own Update driver holds the correct state), but the Hidden
+    /// enforcement still applies while their tier is off.
+    #[test]
+    fn self_driven_roots_skip_the_restore_but_not_the_hide() {
+        let mut app = app();
+        let sphere = app
+            .world_mut()
+            .spawn((
+                HudTier::Instrument,
+                HudSelfDrivenVisibility,
+                // Self-driven state: hidden (flat space).
+                Visibility::Hidden,
+            ))
+            .id();
+
+        app.insert_resource(HudVisibility::None);
+        app.update();
+        assert_eq!(
+            *app.world().get::<Visibility>(sphere).unwrap(),
+            Visibility::Hidden
+        );
+
+        // Restoring to All must NOT stomp the widget's own Hidden.
+        app.insert_resource(HudVisibility::All);
+        app.update();
+        assert_eq!(
+            *app.world().get::<Visibility>(sphere).unwrap(),
+            Visibility::Hidden,
+            "restore must skip self-driven widgets"
+        );
     }
 }

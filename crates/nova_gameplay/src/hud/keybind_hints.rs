@@ -40,6 +40,12 @@ pub struct KeybindHintClusterMarker;
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 struct KeybindHintRow(usize);
 
+/// The HUD-level cycle row (task 20260711-180501). Not a flight verb, so it
+/// carries its own marker, but it obeys the cluster's "no rig, no keys, no
+/// hints" rule: blank until the flight rig exists.
+#[derive(Component, Debug, Clone, Reflect)]
+struct HudLevelHintRow;
+
 /// The verb names, in cluster display order (top to bottom). The two cycle
 /// rows document the wheel gestures (task 20260708-165705): plain scroll
 /// steps the component fine-lock, CTRL+scroll steps the ship lock through
@@ -82,7 +88,25 @@ pub fn keybind_hint_cluster_hud() -> impl Bundle {
             ..default()
         },
         Pickable::IGNORE,
-        children![row(0), row(1), row(2), row(3), row(4), row(5)],
+        children![
+            row(0),
+            row(1),
+            row(2),
+            row(3),
+            row(4),
+            row(5),
+            // Discoverability row for the HUD level cycle, driven by
+            // update_hint_cluster (blank without a rig). It is chrome
+            // itself: at Minimal the whole cluster is hidden, which is
+            // exactly the point.
+            (
+                Name::new("HudLevelHintRow"),
+                HudLevelHintRow,
+                Text::new(""),
+                TextFont::from_font_size(12.0),
+                TextColor(DIM_COLOR),
+            ),
+        ],
     )
 }
 
@@ -154,10 +178,12 @@ fn update_hint_cluster(
     hints: Res<FlightVerbHints>,
     mut q_row: Query<(&KeybindHintRow, &mut Text, &mut TextColor)>,
     q_added: Query<(), Added<KeybindHintRow>>,
+    mut q_hud_row: Query<&mut Text, (With<HudLevelHintRow>, Without<KeybindHintRow>)>,
+    q_hud_added: Query<(), Added<HudLevelHintRow>>,
 ) {
     // Skip quiet frames, but never skip freshly spawned rows (a respawned
     // HUD may appear while the resource is unchanged).
-    if !hints.is_changed() && q_added.is_empty() {
+    if !hints.is_changed() && q_added.is_empty() && q_hud_added.is_empty() {
         return;
     }
     for (row, mut text, mut color) in &mut q_row {
@@ -172,6 +198,19 @@ fn update_hint_cluster(
             ROW_VERBS[(**row).min(ROW_VERBS.len() - 1)]
         );
         **color = if hint.available { NAV_CYAN } else { DIM_COLOR };
+    }
+    // The HUD-cycle row follows the same no-rig rule; an empty STOP key is
+    // the established "rig missing" signal (see cycle_label in
+    // input/player.rs).
+    let rig_exists = !hints.stop.key.is_empty();
+    for mut text in &mut q_hud_row {
+        if rig_exists {
+            if text.0 != "[`] HUD" {
+                **text = "[`] HUD".to_string();
+            }
+        } else {
+            text.clear();
+        }
     }
 }
 

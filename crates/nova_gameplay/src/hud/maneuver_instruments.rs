@@ -296,6 +296,7 @@ fn sync_orbit_ring(
             if !found {
                 commands.spawn((
                     Name::new("OrbitRingHolo"),
+                    crate::hud::HudTier::Instrument,
                     OrbitRingMarker {
                         ship,
                         radius: plan.radius,
@@ -409,6 +410,7 @@ fn sync_radius_spoke(
     if !found {
         commands.spawn((
             Name::new("RadiusSpokeHolo"),
+            crate::hud::HudTier::Instrument,
             RadiusSpokeMarker { ship },
             Mesh3d(assets.segment_mesh(&mut meshes)),
             MeshMaterial3d(assets.material(&mut materials)),
