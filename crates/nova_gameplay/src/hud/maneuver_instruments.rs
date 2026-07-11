@@ -205,10 +205,11 @@ fn drive_destination_readout(
                     Some(eta) => format!("ETA {eta:3.0}s | "),
                     None => String::new(),
                 };
-                **text = format!(
-                    "{eta}{:4.1} u/s | {:5.0}m",
-                    telemetry.closing_speed, telemetry.distance
-                );
+                // ETA and distance only: the ship's own speed chip already
+                // shows the velocity, and two speed readouts in one glance
+                // was playtest-flagged redundancy (task 20260711-125226,
+                // same call as the orbit ring chip removal).
+                **text = format!("{eta}{:5.0}m", telemetry.distance);
             }
             Err(_) => {
                 **anchor = None;
@@ -468,7 +469,7 @@ mod tests {
                 0.0, 0.0, -300.0
             )))
         );
-        assert_eq!(text_of(&world, readout), "ETA  18s | 12.0 u/s |   300m");
+        assert_eq!(text_of(&world, readout), "ETA  18s |   300m");
         assert_eq!(
             anchor_of(&world, flip),
             Some(ScreenIndicatorAnchorKind::Point(Vec3::new(

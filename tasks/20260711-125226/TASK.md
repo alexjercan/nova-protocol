@@ -1,6 +1,6 @@
 # Remove the redundant closing-speed readout from the destination caption
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 65
 - TAGS: v0.5.0,hud,cleanup
 
@@ -13,18 +13,15 @@ copy is redundant. Drop it.
 
 ## Steps
 
-- [ ] In `drive_destination_readout`
-      (crates/nova_gameplay/src/hud/maneuver_instruments.rs, the
-      `"{eta}{:4.1} u/s | {:5.0}m"` format around line 210): remove the
-      closing-speed segment, keeping ETA and distance.
-- [ ] Sweep-then-delete (orbit-ring-chip retro rule): grep for consumers
-      of `ManeuverTelemetry::closing_speed` before touching the FIELD -
-      only the caption format changes unless the field is caption-only;
-      if other consumers exist (autopilot planning does use closing
-      speeds internally), leave the telemetry field alone.
-- [ ] Update the maneuver_instruments caption tests that assert the old
-      format string.
-- [ ] check + fmt + affected tests.
+- [x] Removed the closing-speed segment from the destination caption
+      (drive_destination_readout); format is now `"ETA {n}s | {d}m"` with
+      the redundancy rationale commented at the site.
+- [x] Sweep-then-delete: `ManeuverTelemetry::closing_speed` has real
+      consumers (the flight planner's flip/brake math in flight.rs; the
+      torpedo HUD has its own separate closing_speed helper) - the FIELD
+      stays, only the caption changed.
+- [x] Caption test updated (`"ETA  18s |   300m"`).
+- [x] fmt + full lib suite 358/358.
 
 ## Notes
 
@@ -34,3 +31,8 @@ copy is redundant. Drop it.
   sweep-then-delete discipline).
 - The ship speed chip is the diegetic flight status one
   (hud/flight_status.rs) - unchanged.
+
+## Resolution
+
+One format string, one comment, one test string. Sweep confirmed the
+telemetry field is a planner input, not caption-only, so it stays.
