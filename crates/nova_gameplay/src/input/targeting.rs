@@ -15,8 +15,8 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         ComponentLockMode, LockSignature, SpaceshipPlayerComponentLock, SpaceshipPlayerLockFocus,
-        SpaceshipPlayerTargetLock, SpaceshipTargetingPlugin, SpaceshipTargetingSystems,
-        TargetingSettings,
+        SpaceshipPlayerTargetCandidates, SpaceshipPlayerTargetLock, SpaceshipTargetingPlugin,
+        SpaceshipTargetingSystems, TargetingSettings,
     };
 }
 
@@ -89,6 +89,7 @@ impl Plugin for SpaceshipTargetingPlugin {
         app.register_type::<LockSignature>();
 
         app.insert_resource(SpaceshipPlayerTargetLock::default());
+        app.insert_resource(SpaceshipPlayerTargetCandidates::default());
         app.insert_resource(SpaceshipPlayerLockFocus::default());
         app.insert_resource(SpaceshipPlayerComponentLock::default());
         app.add_systems(
@@ -104,6 +105,8 @@ impl Plugin for SpaceshipTargetingPlugin {
         );
         app.add_observer(on_component_cycle_next);
         app.add_observer(on_component_cycle_prev);
+        app.add_observer(on_target_cycle_next);
+        app.add_observer(on_target_cycle_prev);
     }
 }
 
@@ -197,6 +200,48 @@ pub(crate) struct ComponentCycleNextInput;
 #[derive(InputAction)]
 #[action_output(bool)]
 pub(crate) struct ComponentCyclePrevInput;
+
+/// Cycle the ship lock to the next tracked candidate (ranked order).
+#[derive(InputAction)]
+#[action_output(bool)]
+pub(crate) struct TargetCycleNextInput;
+
+/// Cycle the ship lock to the previous tracked candidate (ranked order).
+#[derive(InputAction)]
+#[action_output(bool)]
+pub(crate) struct TargetCyclePrevInput;
+
+/// Held modifier that layers the cycle gesture one level up: while it fires,
+/// the wheel (and brackets) cycle the SHIP lock instead of components (spike
+/// docs/spikes/20260711-163800-multi-target-cycle.md).
+#[derive(InputAction)]
+#[action_output(bool)]
+pub(crate) struct TargetCycleModifierInput;
+
+/// How many candidate ships the tracker keeps for the HUD list and the cycle
+/// input. A feel knob; more would clutter the HUD.
+const TARGET_CANDIDATE_COUNT: usize = 5;
+
+/// Seconds a cycle press pins the ship lock against the aim-driven picker.
+/// Longer than [`COMPONENT_PIN_WINDOW`]: re-aiming a whole ship is slower
+/// than re-snapping a section. A feel knob; tune in playtest.
+const TARGET_PIN_WINDOW: f32 = 4.0;
+
+/// The maintained multi-target set: the top lockable hostile ships, ranked
+/// by angle to the aim ray then distance (best first), rebuilt each frame by
+/// the acquisition pass. The candidate HUD renders it, the target-cycle
+/// input walks it, and the edge-indicator overlay points at its off-screen
+/// members (spike docs/spikes/20260711-163800-multi-target-cycle.md).
+#[derive(Resource, Debug, Clone, PartialEq, Default)]
+pub struct SpaceshipPlayerTargetCandidates {
+    /// Ranked candidate ship roots, best first - also the cycle order.
+    pub entries: Vec<Entity>,
+    /// While `Some`, a cycle press pinned the lock until this elapsed-time
+    /// deadline: the aim-driven picker must not overwrite it, and `entries`
+    /// keeps a stable order (membership still updates) so repeated presses
+    /// walk a list that is not reshuffling under the player.
+    pub pinned_until: Option<f32>,
+}
 
 /// Range (m) of the close-in "signature" auto-acquisition: with nothing in
 /// the aim cone, the nearest hostile inside this range locks by itself, as if
@@ -300,7 +345,9 @@ fn update_spaceship_target_input(
         ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
+    time: Res<Time>,
     mut res_target: ResMut<SpaceshipPlayerTargetLock>,
+    mut res_candidates: ResMut<SpaceshipPlayerTargetCandidates>,
 ) {
     let point_rotation = point_rotation.into_inner();
     let (ship_transform, ship_com, ship_entity, ship_allegiance) = spaceship.into_inner();
@@ -312,9 +359,9 @@ fn update_spaceship_target_input(
     let aim = (**point_rotation * Vec3::NEG_Z).normalize();
     let min_cos = TARGETING_CONE_HALF_ANGLE_DEG.to_radians().cos();
 
-    // Collected once because both pickers walk it: the cone pick first, then
-    // the signature fallback.
-    let candidates: Vec<(Entity, Vec3, bool)> = q_candidates
+    // Collected once because both pickers walk it (the cone pick first, then
+    // the signature fallback), and the multi-target tracker filters it.
+    let candidates: Vec<(Entity, Vec3, bool, bool)> = q_candidates
         .iter()
         .filter_map(
             |(
@@ -382,30 +429,135 @@ fn update_spaceship_target_input(
                 // Hostility comes from the relation model, so an enemy's
                 // torpedo is auto-acquirable while the player's own is not.
                 let is_hostile = relation(ship_allegiance, allegiance) == Relation::Hostile;
-                Some((entity, position, is_hostile))
+                Some((entity, position, is_hostile, is_ship))
             },
         )
         .collect();
 
-    // Aiming designates as always; with an empty cone the nearest hostile
-    // inside the signature range auto-acquires (the close-in heat-signature
-    // lock from the component-lock spike).
-    let cone_pick = pick_target(
+    // A cycle press pinned the lock: the aim-driven picker stands down while
+    // the window is open and the pinned target is still collectible (range
+    // gates above, with the incumbent hysteresis). Expiry or target loss
+    // hands the lock back to the picker.
+    let pinned = match res_candidates.pinned_until {
+        Some(until) => {
+            let holds = time.elapsed_secs() < until
+                && res_target
+                    .is_some_and(|target| candidates.iter().any(|&(entity, ..)| entity == target));
+            if !holds {
+                res_candidates.pinned_until = None;
+            }
+            holds
+        }
+        None => false,
+    };
+
+    if !pinned {
+        // Aiming designates as always; with an empty cone the nearest hostile
+        // inside the signature range auto-acquires (the close-in
+        // heat-signature lock from the component-lock spike).
+        let cone_pick = pick_target(
+            origin,
+            aim,
+            TARGETING_MAX_RANGE,
+            min_cos,
+            candidates
+                .iter()
+                .map(|&(entity, position, ..)| (entity, position)),
+        );
+        **res_target = cone_pick.or_else(|| {
+            pick_signature_target(
+                origin,
+                TARGETING_SIGNATURE_RANGE,
+                candidates
+                    .iter()
+                    .map(|&(entity, position, is_hostile, _)| (entity, position, is_hostile)),
+            )
+        });
+    }
+
+    // Maintain the multi-target set: hostile ships from the same range-gated
+    // collection, ranked toward the aim ray.
+    let ranked = rank_ship_candidates(
         origin,
         aim,
-        TARGETING_MAX_RANGE,
-        min_cos,
         candidates
             .iter()
-            .map(|&(entity, position, _)| (entity, position)),
+            .filter(|&&(_, _, is_hostile, is_ship)| is_hostile && is_ship)
+            .map(|&(entity, position, ..)| (entity, position)),
     );
-    **res_target = cone_pick.or_else(|| {
-        pick_signature_target(
-            origin,
-            TARGETING_SIGNATURE_RANGE,
-            candidates.iter().copied(),
-        )
+    let entries = maintain_candidates(&res_candidates.entries, &ranked, **res_target, pinned);
+    if res_candidates.entries != entries {
+        res_candidates.entries = entries;
+    }
+}
+
+/// Rank the lockable hostile ships for the multi-target set: nearest the aim
+/// ray first (largest cosine), distance as the tie-breaker. Not cone-gated -
+/// a hostile behind the player is still tracked (the edge-indicator overlay
+/// points at it); the cone only decides the aim PICK, not the SET.
+///
+/// Pure and camera/physics-free so the ranking rule can be unit-tested.
+fn rank_ship_candidates(
+    origin: Vec3,
+    aim: Vec3,
+    ships: impl Iterator<Item = (Entity, Vec3)>,
+) -> Vec<Entity> {
+    let mut scored: Vec<(Entity, f32, f32)> = ships
+        .filter_map(|(entity, position)| {
+            let to_ship = position - origin;
+            let distance = to_ship.length();
+            (distance > f32::EPSILON).then(|| (entity, to_ship.normalize().dot(aim), distance))
+        })
+        .collect();
+    scored.sort_by(|(_, cos_a, dist_a), (_, cos_b, dist_b)| {
+        cos_b.total_cmp(cos_a).then(dist_a.total_cmp(dist_b))
     });
+    scored.into_iter().map(|(entity, ..)| entity).collect()
+}
+
+/// Compose this frame's candidate entries from the ranked pool.
+///
+/// Unpinned: the top [`TARGET_CANDIDATE_COUNT`] by rank. Pinned: membership
+/// still updates (dead or out-of-range ships drop, newcomers append by rank)
+/// but survivors keep their relative order, so a cycle in progress walks a
+/// stable list (the spike's frozen-snapshot rule). Either way the current
+/// lock stays a member while it is still a ranked ship, even when it falls
+/// out of the top N - the reticle target must never vanish from its own list.
+fn maintain_candidates(
+    prev: &[Entity],
+    ranked: &[Entity],
+    lock: Option<Entity>,
+    pinned: bool,
+) -> Vec<Entity> {
+    let mut entries: Vec<Entity> = if pinned {
+        let mut kept: Vec<Entity> = prev
+            .iter()
+            .copied()
+            .filter(|entity| ranked.contains(entity))
+            .collect();
+        for &entity in ranked {
+            if kept.len() >= TARGET_CANDIDATE_COUNT {
+                break;
+            }
+            if !kept.contains(&entity) {
+                kept.push(entity);
+            }
+        }
+        kept
+    } else {
+        ranked
+            .iter()
+            .copied()
+            .take(TARGET_CANDIDATE_COUNT)
+            .collect()
+    };
+    if let Some(lock) = lock {
+        if ranked.contains(&lock) && !entries.contains(&lock) {
+            entries.pop();
+            entries.push(lock);
+        }
+    }
+    entries
 }
 
 /// Accumulate focus while the lock stays on one target; any change (new
@@ -602,6 +754,55 @@ fn on_component_cycle_next(
     step_component_lock(1, &time, &lock, &focus, &mut component, &q_sections);
 }
 
+/// Shared body of the target-cycle observers: step the ship lock through the
+/// tracked candidates in ranked order and pin it for [`TARGET_PIN_WINDOW`]
+/// seconds against the aim-driven picker. No focus gate - switching ships is
+/// the fast loop, unlike the component cycle. A lock outside the list (an
+/// asteroid, a torpedo) is simply not in the order: next starts at the best
+/// candidate, prev at the worst.
+fn step_target_lock(
+    direction: isize,
+    time: &Time,
+    lock: &mut SpaceshipPlayerTargetLock,
+    candidates: &mut SpaceshipPlayerTargetCandidates,
+) {
+    let len = candidates.entries.len() as isize;
+    if len == 0 {
+        return;
+    }
+    let index = lock.and_then(|target| {
+        candidates
+            .entries
+            .iter()
+            .position(|&entity| entity == target)
+    });
+    let next = match index {
+        Some(index) => (index as isize + direction).rem_euclid(len) as usize,
+        None if direction >= 0 => 0,
+        None => (len - 1) as usize,
+    };
+    **lock = Some(candidates.entries[next]);
+    candidates.pinned_until = Some(time.elapsed_secs() + TARGET_PIN_WINDOW);
+}
+
+fn on_target_cycle_next(
+    _: On<Start<TargetCycleNextInput>>,
+    time: Res<Time>,
+    mut lock: ResMut<SpaceshipPlayerTargetLock>,
+    mut candidates: ResMut<SpaceshipPlayerTargetCandidates>,
+) {
+    step_target_lock(1, &time, &mut lock, &mut candidates);
+}
+
+fn on_target_cycle_prev(
+    _: On<Start<TargetCyclePrevInput>>,
+    time: Res<Time>,
+    mut lock: ResMut<SpaceshipPlayerTargetLock>,
+    mut candidates: ResMut<SpaceshipPlayerTargetCandidates>,
+) {
+    step_target_lock(-1, &time, &mut lock, &mut candidates);
+}
+
 fn on_component_cycle_prev(
     _: On<Start<ComponentCyclePrevInput>>,
     time: Res<Time>,
@@ -723,7 +924,9 @@ mod tests {
         // ORIGIN bearing: it locks only if the cone originates at the anchor
         // (18 degree half-angle).
         let mut world = World::new();
+        world.insert_resource(Time::<()>::default());
         world.insert_resource(SpaceshipPlayerTargetLock(None));
+        world.insert_resource(SpaceshipPlayerTargetCandidates::default());
         world.init_resource::<TargetingSettings>();
         world.spawn((
             SpaceshipCameraInputMarker,
@@ -790,7 +993,9 @@ mod tests {
 
     /// Spawn the camera-input rig + player the acquisition system needs.
     fn spawn_acquisition_rig(world: &mut World) {
+        world.insert_resource(Time::<()>::default());
         world.insert_resource(SpaceshipPlayerTargetLock(None));
+        world.insert_resource(SpaceshipPlayerTargetCandidates::default());
         world.init_resource::<TargetingSettings>();
         world.spawn((
             SpaceshipCameraInputMarker,
@@ -1395,6 +1600,284 @@ mod tests {
             component.section,
             Some(on_ray),
             "the dead pin falls back to the ray-nearest section"
+        );
+    }
+
+    // -- multi-target candidate set + target cycle --
+
+    fn entity(raw: u32) -> Entity {
+        Entity::from_raw_u32(raw).unwrap()
+    }
+
+    #[test]
+    fn rank_orders_by_aim_angle_then_distance() {
+        let origin = Vec3::ZERO;
+        let aim = Vec3::NEG_Z;
+        let on_ray_far = entity(1);
+        let off_ray_near = entity(2);
+        let behind = entity(3);
+        let ranked = rank_ship_candidates(
+            origin,
+            aim,
+            [
+                (behind, Vec3::new(0.0, 0.0, 100.0)),
+                (off_ray_near, Vec3::new(30.0, 0.0, -50.0)),
+                (on_ray_far, Vec3::new(1.0, 0.0, -500.0)),
+            ]
+            .into_iter(),
+        );
+        assert_eq!(
+            ranked,
+            vec![on_ray_far, off_ray_near, behind],
+            "closest to the aim ray first; behind the ship ranks last but is still tracked"
+        );
+    }
+
+    #[test]
+    fn rank_breaks_angle_ties_by_distance() {
+        let near = entity(1);
+        let far = entity(2);
+        let ranked = rank_ship_candidates(
+            Vec3::ZERO,
+            Vec3::NEG_Z,
+            [
+                (far, Vec3::new(0.0, 0.0, -800.0)),
+                (near, Vec3::new(0.0, 0.0, -200.0)),
+            ]
+            .into_iter(),
+        );
+        assert_eq!(ranked, vec![near, far]);
+    }
+
+    #[test]
+    fn maintain_keeps_the_top_n_and_the_locked_ship() {
+        let ranked: Vec<Entity> = (1..=7).map(entity).collect();
+        // Unpinned, no lock: plain top N.
+        assert_eq!(
+            maintain_candidates(&[], &ranked, None, false),
+            ranked[..TARGET_CANDIDATE_COUNT].to_vec()
+        );
+        // The locked ship fell to rank 7: it replaces the worst entry.
+        let entries = maintain_candidates(&[], &ranked, Some(entity(7)), false);
+        assert_eq!(entries.len(), TARGET_CANDIDATE_COUNT);
+        assert_eq!(entries[..4], ranked[..4]);
+        assert_eq!(*entries.last().unwrap(), entity(7));
+        // A lock that is not a ranked ship (asteroid, torpedo) is not forced in.
+        assert_eq!(
+            maintain_candidates(&[], &ranked, Some(entity(99)), false),
+            ranked[..TARGET_CANDIDATE_COUNT].to_vec()
+        );
+    }
+
+    #[test]
+    fn maintain_is_order_stable_while_pinned() {
+        let a = entity(1);
+        let b = entity(2);
+        let c = entity(3);
+        let d = entity(4);
+        // The rank reshuffled (b overtook a) and c died; pinned keeps the
+        // survivors' order and appends the newcomer d at the tail.
+        let prev = [a, b, c];
+        let ranked = [b, a, d];
+        assert_eq!(
+            maintain_candidates(&prev, &ranked, Some(a), true),
+            vec![a, b, d]
+        );
+        // Unpinned, the same inputs re-rank freely.
+        assert_eq!(
+            maintain_candidates(&prev, &ranked, Some(a), false),
+            vec![b, a, d]
+        );
+    }
+
+    /// Player at the origin aiming down -Z with two hostile ships: one dead
+    /// ahead, one behind.
+    fn multi_target_world() -> (World, Entity, Entity) {
+        let mut world = World::new();
+        spawn_acquisition_rig(&mut world);
+        let ahead = world
+            .spawn((
+                SpaceshipRootMarker,
+                AISpaceshipMarker,
+                RigidBody::Dynamic,
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -400.0)),
+            ))
+            .id();
+        let behind = world
+            .spawn((
+                SpaceshipRootMarker,
+                AISpaceshipMarker,
+                RigidBody::Dynamic,
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, 400.0)),
+            ))
+            .id();
+        (world, ahead, behind)
+    }
+
+    #[test]
+    fn candidates_track_hostile_ships_only() {
+        let (mut world, ahead, behind) = multi_target_world();
+        // A neutral ship and a hostile committed torpedo: lockable, but not
+        // multi-target candidates.
+        world.spawn((
+            SpaceshipRootMarker,
+            Allegiance::Neutral,
+            RigidBody::Dynamic,
+            GlobalTransform::from_translation(Vec3::new(50.0, 0.0, -100.0)),
+        ));
+        world.spawn((
+            TorpedoProjectileMarker,
+            TorpedoTargetChosen,
+            Allegiance::Enemy,
+            RigidBody::Dynamic,
+            GlobalTransform::from_translation(Vec3::new(0.0, 10.0, -200.0)),
+        ));
+
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+
+        assert_eq!(
+            world.resource::<SpaceshipPlayerTargetCandidates>().entries,
+            vec![ahead, behind],
+            "hostile ships ranked aim-first; neutrals and torpedoes stay out"
+        );
+    }
+
+    #[test]
+    fn cycle_steps_the_candidates_wraps_and_pins() {
+        let (mut world, ahead, behind) = multi_target_world();
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(**world.resource::<SpaceshipPlayerTargetLock>(), Some(ahead));
+
+        let cycle = |world: &mut World, direction: isize| {
+            world
+                .run_system_once(
+                    move |time: Res<Time>,
+                          mut lock: ResMut<SpaceshipPlayerTargetLock>,
+                          mut candidates: ResMut<SpaceshipPlayerTargetCandidates>| {
+                        step_target_lock(direction, &time, &mut lock, &mut candidates);
+                    },
+                )
+                .unwrap();
+        };
+
+        cycle(&mut world, 1);
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(behind),
+            "next steps off the aim pick to the next candidate"
+        );
+        assert!(
+            world
+                .resource::<SpaceshipPlayerTargetCandidates>()
+                .pinned_until
+                .is_some(),
+            "a cycle press pins the lock"
+        );
+        cycle(&mut world, 1);
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(ahead),
+            "wraps around"
+        );
+        cycle(&mut world, -1);
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(behind)
+        );
+    }
+
+    #[test]
+    fn pinned_lock_holds_against_the_aim_pick_until_expiry() {
+        let (mut world, ahead, behind) = multi_target_world();
+        // Pin the lock on the ship BEHIND while aiming at the one ahead.
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(behind)));
+        world
+            .resource_mut::<SpaceshipPlayerTargetCandidates>()
+            .pinned_until = Some(TARGET_PIN_WINDOW);
+
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(behind),
+            "the pin holds against the cone pick"
+        );
+
+        // Past the deadline the picker takes back over.
+        world
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_secs_f32(TARGET_PIN_WINDOW + 0.5));
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(ahead),
+            "an expired pin hands the lock back to the aim pick"
+        );
+        assert_eq!(
+            world
+                .resource::<SpaceshipPlayerTargetCandidates>()
+                .pinned_until,
+            None
+        );
+    }
+
+    #[test]
+    fn pin_dies_with_its_target() {
+        let (mut world, ahead, behind) = multi_target_world();
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(behind)));
+        world
+            .resource_mut::<SpaceshipPlayerTargetCandidates>()
+            .pinned_until = Some(TARGET_PIN_WINDOW);
+
+        world.despawn(behind);
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(ahead),
+            "a dead pinned target releases the lock to the picker"
+        );
+        assert_eq!(
+            world
+                .resource::<SpaceshipPlayerTargetCandidates>()
+                .pinned_until,
+            None
+        );
+    }
+
+    #[test]
+    fn cycle_with_no_candidates_is_a_no_op() {
+        let mut world = World::new();
+        world.insert_resource(Time::<()>::default());
+        world.insert_resource(SpaceshipPlayerTargetLock(None));
+        world.insert_resource(SpaceshipPlayerTargetCandidates::default());
+
+        world
+            .run_system_once(
+                |time: Res<Time>,
+                 mut lock: ResMut<SpaceshipPlayerTargetLock>,
+                 mut candidates: ResMut<SpaceshipPlayerTargetCandidates>| {
+                    step_target_lock(1, &time, &mut lock, &mut candidates);
+                },
+            )
+            .unwrap();
+
+        assert_eq!(**world.resource::<SpaceshipPlayerTargetLock>(), None);
+        assert_eq!(
+            world
+                .resource::<SpaceshipPlayerTargetCandidates>()
+                .pinned_until,
+            None,
+            "an empty cycle must not pin"
         );
     }
 

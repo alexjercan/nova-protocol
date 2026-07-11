@@ -40,8 +40,11 @@ pub struct KeybindHintClusterMarker;
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 struct KeybindHintRow(usize);
 
-/// The verb names, in cluster display order (top to bottom).
-const ROW_VERBS: [&str; 4] = ["STOP", "GOTO", "ORBIT", "CANCEL"];
+/// The verb names, in cluster display order (top to bottom). The two cycle
+/// rows document the wheel gestures (task 20260708-165705): plain scroll
+/// steps the component fine-lock, CTRL+scroll steps the ship lock through
+/// the tracked candidates.
+const ROW_VERBS: [&str; 6] = ["STOP", "GOTO", "ORBIT", "CANCEL", "COMPONENT", "TARGET"];
 
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct VerbCuesHudMarker;
@@ -79,7 +82,7 @@ pub fn keybind_hint_cluster_hud() -> impl Bundle {
             ..default()
         },
         Pickable::IGNORE,
-        children![row(0), row(1), row(2), row(3)],
+        children![row(0), row(1), row(2), row(3), row(4), row(5)],
     )
 }
 
@@ -139,7 +142,9 @@ fn row_hint(hints: &FlightVerbHints, index: usize) -> &VerbHint {
         0 => &hints.stop,
         1 => &hints.goto,
         2 => &hints.orbit,
-        _ => &hints.cancel,
+        3 => &hints.cancel,
+        4 => &hints.component_cycle,
+        _ => &hints.target_cycle,
     }
 }
 
@@ -161,7 +166,11 @@ fn update_hint_cluster(
             text.clear();
             continue;
         }
-        **text = format!("[{}] {}", hint.key, ROW_VERBS[(**row).min(3)]);
+        **text = format!(
+            "[{}] {}",
+            hint.key,
+            ROW_VERBS[(**row).min(ROW_VERBS.len() - 1)]
+        );
         **color = if hint.available { NAV_CYAN } else { DIM_COLOR };
     }
 }
@@ -245,6 +254,16 @@ mod tests {
                 available: engaged,
                 anchor: None,
             },
+            component_cycle: VerbHint {
+                key: "SCROLL".into(),
+                available: false,
+                anchor: None,
+            },
+            target_cycle: VerbHint {
+                key: "CTRL+SCROLL".into(),
+                available: true,
+                anchor: None,
+            },
             engaged,
         }
     }
@@ -272,6 +291,10 @@ mod tests {
         assert_eq!(text(rows[2]), "[O] ORBIT");
         assert_eq!(text(rows[3]), "[Z] CANCEL");
         assert_eq!(color(rows[3]), DIM_COLOR, "nothing engaged");
+        assert_eq!(text(rows[4]), "[SCROLL] COMPONENT");
+        assert_eq!(color(rows[4]), DIM_COLOR, "no focus, component cycle dim");
+        assert_eq!(text(rows[5]), "[CTRL+SCROLL] TARGET");
+        assert_eq!(color(rows[5]), NAV_CYAN, "candidates tracked, cycle lit");
     }
 
     #[test]

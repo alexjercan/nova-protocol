@@ -1,9 +1,12 @@
 use avian3d::prelude::*;
-use bevy::prelude::*;
+use bevy::{ecs::spawn::SpawnWith, prelude::*};
 use bevy_common_systems::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
-use super::targeting::{ComponentCycleNextInput, ComponentCyclePrevInput};
+use super::targeting::{
+    ComponentCycleNextInput, ComponentCyclePrevInput, TargetCycleModifierInput,
+    TargetCycleNextInput, TargetCyclePrevInput,
+};
 use crate::prelude::*;
 
 pub mod prelude {
@@ -89,10 +92,26 @@ pub struct FlightVerbHints {
     pub goto: VerbHint,
     pub orbit: VerbHint,
     pub cancel: VerbHint,
+    /// Component fine-lock cycle (plain scroll). The key label is the fixed
+    /// string "SCROLL" - a wheel binding has no keyboard label to read.
+    pub component_cycle: VerbHint,
+    /// Ship-lock cycle through the candidate set (CTRL+scroll), fixed label
+    /// "CTRL+SCROLL" for the same reason.
+    pub target_cycle: VerbHint,
     /// Whether any maneuver is engaged right now - explicit, so consumers
     /// (the GOTO cue hides mid-maneuver) do not have to proxy it through
     /// another verb's availability.
     pub engaged: bool,
+}
+
+/// The fixed label of a wheel-gesture hint, empty while the flight rig is
+/// missing so the rows vanish with the other verbs' (review R1.1).
+fn cycle_label(label: &str, rig_exists: bool) -> String {
+    if rig_exists {
+        label.to_string()
+    } else {
+        String::new()
+    }
 }
 
 /// A short chip label for a keyboard binding: `KeyX` -> `X`,
@@ -115,6 +134,9 @@ fn keyboard_label(key: KeyCode) -> String {
 fn update_flight_verb_hints(
     mut hints: ResMut<FlightVerbHints>,
     lock: Res<SpaceshipPlayerTargetLock>,
+    focus: Res<SpaceshipPlayerLockFocus>,
+    candidates: Res<SpaceshipPlayerTargetCandidates>,
+    q_sections: Query<&ChildOf, With<SectionMarker>>,
     q_ship: Query<(Entity, Option<&Autopilot>, Option<&DominantWell>), With<PlayerSpaceshipMarker>>,
     q_computer: Query<
         &ChildOf,
@@ -180,6 +202,32 @@ fn update_flight_verb_hints(
             key: label(q_off.single().ok()),
             // Z always answers while engaged, even on a crippled ship.
             available: engaged,
+            anchor: None,
+        },
+        // The wheel gestures carry fixed labels (no keyboard key to read),
+        // gated on the rig existing to keep the "no rig, no keys, no hints"
+        // invariant (review R1.1). Component cycling needs the focus dwell
+        // complete and at least two attached sections to step between;
+        // target cycling needs a tracked candidate that is not already the
+        // lock.
+        component_cycle: VerbHint {
+            key: cycle_label("SCROLL", q_stop.single().is_ok()),
+            available: (**lock).is_some_and(|target| {
+                focus.focused_on(target)
+                    && q_sections
+                        .iter()
+                        .filter(|&&ChildOf(parent)| parent == target)
+                        .count()
+                        >= 2
+            }),
+            anchor: None,
+        },
+        target_cycle: VerbHint {
+            key: cycle_label("CTRL+SCROLL", q_stop.single().is_ok()),
+            available: candidates
+                .entries
+                .iter()
+                .any(|&candidate| Some(candidate) != **lock),
             anchor: None,
         },
         engaged,
@@ -438,25 +486,34 @@ fn on_player_added_spawn_flight_input(
         return;
     }
 
-    commands.spawn((
+    commands.spawn(flight_input_rig());
+}
+
+/// The flight rig bundle: all flight actions and their bindings. A named
+/// fn (not inlined in the observer) so the input tests can spawn the REAL
+/// rig and drive it with simulated devices.
+///
+/// SpawnWith instead of the actions! macro: the cycle actions reference
+/// the CTRL modifier action by Entity (Chord gates the chorded bindings,
+/// BlockBy suppresses the plain wheel while CTRL is held), and only a
+/// closure spawn can capture that id (see bevy_enhanced_input's Chord
+/// docs).
+fn flight_input_rig() -> impl Bundle {
+    (
         Name::new("Input: Flight"),
         FlightInputMarker,
-        actions!(
-            FlightInputMarker[
-                (
+        Actions::<FlightInputMarker>::spawn(SpawnWith(
+            |context: &mut ActionSpawner<FlightInputMarker>| {
+                context.spawn((
                     Name::new("Input: Flight Burn"),
                     Action::<FlightBurnInput>::new(),
                     ActionSettings {
                         consume_input: false,
                         ..default()
                     },
-                    bindings![
-                        KeyCode::KeyW,
-                        KeyCode::Space,
-                        GamepadButton::RightTrigger
-                    ],
-                ),
-                (
+                    bindings![KeyCode::KeyW, KeyCode::Space, GamepadButton::RightTrigger],
+                ));
+                context.spawn((
                     Name::new("Input: Autopilot Stop"),
                     Action::<AutopilotStopInput>::new(),
                     ActionSettings {
@@ -464,8 +521,8 @@ fn on_player_added_spawn_flight_input(
                         ..default()
                     },
                     bindings![KeyCode::KeyX, GamepadButton::East],
-                ),
-                (
+                ));
+                context.spawn((
                     Name::new("Input: Autopilot Goto"),
                     Action::<AutopilotGotoInput>::new(),
                     ActionSettings {
@@ -473,8 +530,8 @@ fn on_player_added_spawn_flight_input(
                         ..default()
                     },
                     bindings![KeyCode::KeyG, GamepadButton::North],
-                ),
-                (
+                ));
+                context.spawn((
                     Name::new("Input: Autopilot Orbit"),
                     Action::<AutopilotOrbitInput>::new(),
                     ActionSettings {
@@ -485,8 +542,8 @@ fn on_player_added_spawn_flight_input(
                     // lives there, and a pad press must never both skip the
                     // scenario and toggle a parking maneuver.
                     bindings![KeyCode::KeyO, GamepadButton::DPadDown],
-                ),
-                (
+                ));
+                context.spawn((
                     Name::new("Input: Autopilot Off"),
                     Action::<AutopilotOffInput>::new(),
                     ActionSettings {
@@ -494,14 +551,30 @@ fn on_player_added_spawn_flight_input(
                         ..default()
                     },
                     bindings![KeyCode::KeyZ, GamepadButton::West],
-                ),
-                (
+                ));
+                // The cycle modifier: spawned before its dependents so its
+                // state is evaluated before Chord/BlockBy read it.
+                let modifier = context
+                    .spawn((
+                        Name::new("Input: Target Cycle Modifier"),
+                        Action::<TargetCycleModifierInput>::new(),
+                        ActionSettings {
+                            consume_input: false,
+                            ..default()
+                        },
+                        bindings![KeyCode::ControlLeft, KeyCode::ControlRight],
+                    ))
+                    .id();
+                context.spawn((
                     Name::new("Input: Component Cycle Next"),
                     Action::<ComponentCycleNextInput>::new(),
                     ActionSettings {
                         consume_input: false,
                         ..default()
                     },
+                    // While CTRL is held the same gesture cycles the SHIP
+                    // lock instead, so the component action stands down.
+                    BlockBy::single(modifier),
                     // Scroll up = next: the wheel is an axis (y = vertical),
                     // so swizzle y into the action value and clamp away the
                     // opposite direction so only up-scrolls actuate.
@@ -510,14 +583,15 @@ fn on_player_added_spawn_flight_input(
                         GamepadButton::DPadRight,
                         (Binding::mouse_wheel(), SwizzleAxis::YXZ, Clamp::pos()),
                     ],
-                ),
-                (
+                ));
+                context.spawn((
                     Name::new("Input: Component Cycle Prev"),
                     Action::<ComponentCyclePrevInput>::new(),
                     ActionSettings {
                         consume_input: false,
                         ..default()
                     },
+                    BlockBy::single(modifier),
                     // Scroll down = prev: negate the (swizzled) wheel axis so
                     // down-scrolls become positive, then clamp like above.
                     bindings![
@@ -530,10 +604,51 @@ fn on_player_added_spawn_flight_input(
                             Clamp::pos()
                         ),
                     ],
-                ),
-            ]
-        ),
-    ));
+                ));
+                // Ship-lock cycle: CTRL+wheel / CTRL+brackets (the Chord sits
+                // on those bindings, not the action, so the gamepad dpad
+                // works unmodified). Pad gets NEXT only: DPadDown is ORBIT
+                // and left/right are the component cycle, and a wrapping
+                // next reaches every candidate anyway.
+                context.spawn((
+                    Name::new("Input: Target Cycle Next"),
+                    Action::<TargetCycleNextInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings![
+                        GamepadButton::DPadUp,
+                        (KeyCode::BracketRight, Chord::single(modifier)),
+                        (
+                            Binding::mouse_wheel(),
+                            SwizzleAxis::YXZ,
+                            Clamp::pos(),
+                            Chord::single(modifier)
+                        ),
+                    ],
+                ));
+                context.spawn((
+                    Name::new("Input: Target Cycle Prev"),
+                    Action::<TargetCyclePrevInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings![
+                        (KeyCode::BracketLeft, Chord::single(modifier)),
+                        (
+                            Binding::mouse_wheel(),
+                            SwizzleAxis::YXZ,
+                            Negate::all(),
+                            Clamp::pos(),
+                            Chord::single(modifier)
+                        ),
+                    ],
+                ));
+            },
+        )),
+    )
 }
 
 fn on_player_removed_despawn_flight_input(
@@ -978,12 +1093,129 @@ mod tests {
 
     use super::*;
 
+    /// Fire counters for the wheel-cycle actions, bumped by test observers.
+    #[derive(Resource, Default, Clone, Copy)]
+    struct CycleFires {
+        component: u32,
+        target: u32,
+    }
+
+    /// The CTRL layer must be exclusive both ways: plain scroll cycles
+    /// components only, CTRL+scroll cycles targets only (the BlockBy on the
+    /// component actions is what suppresses the plain wheel binding while
+    /// the modifier fires - without it both actions would trigger, see the
+    /// task's plan note). Drives the REAL rig bundle through
+    /// EnhancedInputPlugin with simulated devices, not mocked actions.
+    #[test]
+    fn ctrl_scroll_cycles_targets_and_blocks_the_component_cycle() {
+        use bevy::input::{
+            mouse::{MouseScrollUnit, MouseWheel},
+            touch::TouchPhase,
+            InputPlugin,
+        };
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_input_context::<FlightInputMarker>();
+        app.init_resource::<CycleFires>();
+        app.add_observer(
+            |_: On<Start<ComponentCycleNextInput>>, mut fires: ResMut<CycleFires>| {
+                fires.component += 1;
+            },
+        );
+        app.add_observer(
+            |_: On<Start<TargetCycleNextInput>>, mut fires: ResMut<CycleFires>| {
+                fires.target += 1;
+            },
+        );
+        // The context registry finalizes in App::finish, so run the plugin
+        // lifecycle before spawning the rig, like the production app does.
+        app.finish();
+        app.cleanup();
+        app.update();
+        app.world_mut().spawn(flight_input_rig());
+        app.update();
+
+        let scroll_up = |app: &mut App| {
+            app.world_mut().write_message(MouseWheel {
+                unit: MouseScrollUnit::Line,
+                x: 0.0,
+                y: 1.0,
+                window: Entity::PLACEHOLDER,
+                // A mouse wheel always reports Moved (see bevy_input).
+                phase: TouchPhase::Moved,
+            });
+            app.update();
+            // Settle the impulse so the next scroll re-triggers Start.
+            app.update();
+        };
+
+        // Plain scroll: component cycle only.
+        scroll_up(&mut app);
+        let fires = *app.world().resource::<CycleFires>();
+        assert_eq!(fires.component, 1, "plain scroll cycles components");
+        assert_eq!(fires.target, 0, "plain scroll must not cycle targets");
+
+        // CTRL+scroll: target cycle only, component blocked.
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::ControlLeft);
+        app.update();
+        scroll_up(&mut app);
+        let fires = *app.world().resource::<CycleFires>();
+        assert_eq!(fires.target, 1, "CTRL+scroll cycles targets");
+        assert_eq!(
+            fires.component, 1,
+            "CTRL+scroll must not also cycle components"
+        );
+
+        // Releasing CTRL hands the wheel back to the component cycle.
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(KeyCode::ControlLeft);
+        app.update();
+        scroll_up(&mut app);
+        let fires = *app.world().resource::<CycleFires>();
+        assert_eq!(fires.component, 2);
+        assert_eq!(fires.target, 1);
+
+        // The pad DPadUp binding must fire WITHOUT Ctrl: the Chord sits on
+        // the wheel/bracket binding entities only, not the action (review
+        // R1.2 - an action-level Chord would silently gate the pad too).
+        use bevy::input::gamepad::{
+            GamepadConnection, GamepadConnectionEvent, RawGamepadButtonChangedEvent,
+            RawGamepadEvent,
+        };
+        let pad = app.world_mut().spawn_empty().id();
+        app.world_mut().write_message(GamepadConnectionEvent::new(
+            pad,
+            GamepadConnection::Connected {
+                name: "test pad".into(),
+                vendor_id: None,
+                product_id: None,
+            },
+        ));
+        app.update();
+        app.world_mut()
+            .write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent {
+                gamepad: pad,
+                button: GamepadButton::DPadUp,
+                value: 1.0,
+            }));
+        app.update();
+        let fires = *app.world().resource::<CycleFires>();
+        assert_eq!(fires.target, 2, "DPadUp cycles targets with no modifier");
+        assert_eq!(fires.component, 2, "DPadUp must not cycle components");
+    }
+
     /// A world with the flight rig's four autopilot actions bound as in
     /// the real rig, plus the resources the resolver reads.
     fn hint_world() -> World {
         let mut world = World::new();
         world.init_resource::<FlightVerbHints>();
         world.insert_resource(SpaceshipPlayerTargetLock(None));
+        world.insert_resource(SpaceshipPlayerLockFocus::default());
+        world.insert_resource(SpaceshipPlayerTargetCandidates::default());
         world.spawn((
             Action::<AutopilotStopInput>::new(),
             bindings![KeyCode::KeyX, GamepadButton::East],
@@ -1035,6 +1267,59 @@ mod tests {
         assert_eq!(hints.goto.key, "G");
         assert_eq!(hints.orbit.key, "O");
         assert_eq!(hints.cancel.key, "Z");
+    }
+
+    #[test]
+    fn cycle_hints_track_focus_and_candidates() {
+        let mut world = hint_world();
+        spawn_flyable_ship(&mut world);
+
+        // No candidates, no lock: both cycle rows present (fixed labels)
+        // but dim.
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert_eq!(hints.component_cycle.key, "SCROLL");
+        assert_eq!(hints.target_cycle.key, "CTRL+SCROLL");
+        assert!(!hints.component_cycle.available);
+        assert!(!hints.target_cycle.available);
+
+        // A tracked candidate that is not the lock lights TARGET.
+        let target = world.spawn_empty().id();
+        world.insert_resource(SpaceshipPlayerTargetCandidates {
+            entries: vec![target],
+            pinned_until: None,
+        });
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        assert!(world.resource::<FlightVerbHints>().target_cycle.available);
+
+        // Locking that only candidate leaves nothing to switch to: dim.
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        assert!(!world.resource::<FlightVerbHints>().target_cycle.available);
+
+        // COMPONENT lights once the dwell completes on a lock with at
+        // least two attached sections.
+        world.spawn((SectionMarker, ChildOf(target)));
+        world.spawn((SectionMarker, ChildOf(target)));
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        assert!(
+            !world
+                .resource::<FlightVerbHints>()
+                .component_cycle
+                .available,
+            "no focus yet"
+        );
+        world.insert_resource(SpaceshipPlayerLockFocus {
+            target: Some(target),
+            seconds: f32::MAX,
+        });
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        assert!(
+            world
+                .resource::<FlightVerbHints>()
+                .component_cycle
+                .available
+        );
     }
 
     #[test]

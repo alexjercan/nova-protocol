@@ -8,6 +8,7 @@ pub mod holo_instruments;
 pub mod keybind_hints;
 pub mod maneuver_instruments;
 pub mod screen_indicator;
+pub mod target_candidates;
 pub mod torpedo_target;
 pub mod turret_lead;
 pub mod velocity;
@@ -16,8 +17,8 @@ pub mod prelude {
     pub use super::{
         component_lock::prelude::*, flight_status::prelude::*, holo_instruments::prelude::*,
         keybind_hints::prelude::*, maneuver_instruments::prelude::*, screen_indicator::prelude::*,
-        torpedo_target::prelude::*, turret_lead::prelude::*, velocity::prelude::*, NovaHudAssets,
-        NovaHudPlugin, NovaHudSystems,
+        target_candidates::prelude::*, torpedo_target::prelude::*, turret_lead::prelude::*,
+        velocity::prelude::*, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
     };
 }
 
@@ -55,6 +56,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(torpedo_target::TorpedoTargetHudPlugin);
         app.add_plugins(turret_lead::TurretLeadPlugin);
         app.add_plugins(component_lock::ComponentLockHudPlugin);
+        app.add_plugins(target_candidates::TargetCandidatesHudPlugin);
 
         // Keep the generic HUD widgets inside nova's HUD ordering slot, as the local ones were.
         // ScreenIndicatorSystems is NOT in this Update slot anymore: the
@@ -91,6 +93,8 @@ impl Plugin for NovaHudPlugin {
         app.add_observer(remove_hud_turret_lead);
         app.add_observer(setup_hud_component_lock);
         app.add_observer(remove_hud_component_lock);
+        app.add_observer(setup_hud_target_candidates);
+        app.add_observer(remove_hud_target_candidates);
     }
 }
 
@@ -370,6 +374,38 @@ fn remove_hud_component_lock(
 ) {
     let entity = remove.entity;
     debug!("remove_hud_component_lock: entity {:?}", entity);
+
+    for hud_entity in &q_hud {
+        commands.entity(hud_entity).despawn();
+    }
+}
+
+fn setup_hud_target_candidates(
+    add: On<Add, PlayerSpaceshipMarker>,
+    mut commands: Commands,
+    q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+) {
+    let entity = add.entity;
+    debug!("setup_hud_target_candidates: entity {:?}", entity);
+
+    let Ok(_spaceship) = q_spaceship.get(entity) else {
+        error!(
+            "setup_hud_target_candidates: entity {:?} not found in q_spaceship",
+            entity
+        );
+        return;
+    };
+
+    commands.spawn(target_candidates_hud());
+}
+
+fn remove_hud_target_candidates(
+    remove: On<Remove, PlayerSpaceshipMarker>,
+    mut commands: Commands,
+    q_hud: Query<Entity, With<TargetCandidatesHudMarker>>,
+) {
+    let entity = remove.entity;
+    debug!("remove_hud_target_candidates: entity {:?}", entity);
 
     for hud_entity in &q_hud {
         commands.entity(hud_entity).despawn();

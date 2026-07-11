@@ -160,3 +160,14 @@ candidates, the active lock, and committed hostile torpedoes.
   rows. Spike link added to the task.
 - tatr 20260708-165704 (existing, sibling): consumes the candidate set for
   off-screen edge indicators; same flow.
+
+## Fix record
+
+- 20260711, tatr 20260708-165705: shipped the candidate set
+  (`SpaceshipPlayerTargetCandidates`, top-5 hostile ships ranked
+  aim-angle-then-distance, `pinned_until` pin state), the bracket overlay
+  (hud/target_candidates.rs), CTRL+scroll / CTRL+brackets cycle with a 4 s
+  pin, and the two hint rows. Deviation from this spike: gamepad got NEXT
+  only on DPadUp - DPadDown was already ORBIT (the collision this doc's
+  open question predicted); prev stays keyboard/wheel. The Chord sits on
+  binding entities, not the action, so the pad binding needs no modifier.
