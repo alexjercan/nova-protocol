@@ -215,3 +215,20 @@ playtest checklist.
   wiring was verified sound by the spike, and with the hull physically
   steady there is nothing left to alias. Final visual feel confirmation
   stays with the umbrella's user playtest step.
+
+### 20260710-231930: bullet streams (landed)
+
+- Fire timing and spawn moved to FixedUpdate on the raw root pose (new
+  `local_pose_in_root` chain walk), all velocity terms on the same raw
+  state, and the static 0.01 s nudge replaced by EXACT sub-tick lead:
+  spawn at `muzzle - muzzle_exit_velocity * lead`. The ship-motion terms
+  cancel in the derivation (v_bullet - v_muzzle = muzzle exit), so the
+  planned "advance by full velocity * overshoot" formula was WRONG - it
+  leaked ship-velocity scatter; the algebra is in the task file.
+- Bonus finding: the shipped default fire rate (100 rounds/s) exceeds the
+  64 Hz tick rate, and the old render-schedule path silently capped it at
+  one bullet per frame. The bounded multi-shot loop restores authored
+  cadence (regression pins ~100 bullets/s).
+- Regressions: `bullet_stream_stays_linear_at_high_ship_velocity`
+  (uniform + collinear deltas at 150 u/s cross-travel, A/B-proven) and
+  `fire_rate_above_the_tick_rate_keeps_its_true_cadence`.

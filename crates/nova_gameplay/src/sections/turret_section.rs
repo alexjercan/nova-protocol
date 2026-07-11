@@ -234,12 +234,21 @@ impl Plugin for TurretSectionPlugin {
             Update,
             (
                 apply_turret_config_to_children,
-                update_barrel_fire_state,
                 sync_turret_rotator_yaw_system,
                 sync_turret_rotator_pitch_system,
-                shoot_spawn_projectile,
             )
                 .in_set(super::SpaceshipSectionSystems),
+        );
+
+        // Firing lives on the physics clock (task 20260710-231930): the fire
+        // timer accumulates fixed ticks and bullets spawn from the RAW root
+        // pose, so shot spacing is exact at any ship velocity. In Update the
+        // timer quantized shots to render frames and the muzzle pose was the
+        // eased render pose - both errors scale with velocity and made
+        // streams "spew" at speed.
+        app.add_systems(
+            FixedUpdate,
+            shoot_spawn_projectile.in_set(super::SpaceshipSectionSystems),
         );
 
         app.add_systems(
@@ -435,24 +444,6 @@ fn apply_turret_config_to_children(
                 fire_state.0.set_duration(Duration::from_secs_f32(interval));
             }
         }
-    }
-}
-
-fn update_barrel_fire_state(
-    q_turret: Query<Entity, (With<TurretSectionMarker>, Without<SectionInactiveMarker>)>,
-    mut q_barrel: Query<
-        (&mut TurretSectionBarrelFireState, &TurretSectionPartOf),
-        With<TurretSectionBarrelMuzzleMarker>,
-    >,
-    time: Res<Time>,
-) {
-    let dt = time.delta();
-    for (mut fire_state, part_of) in &mut q_barrel {
-        if !q_turret.contains(**part_of) {
-            continue;
-        }
-
-        fire_state.tick(dt);
     }
 }
 
@@ -749,10 +740,40 @@ fn sync_turret_rotator_pitch_system(
     }
 }
 
+/// A runaway-config backstop for the multi-shot loop: at 64 Hz ticks this
+/// caps the effective fire rate at 512 rounds/s per barrel, far above any
+/// authored turret; without it a zero-ish fire interval would spawn
+/// unboundedly inside one tick.
+const MAX_SHOTS_PER_TICK: u32 = 8;
+
+/// The pose of `descendant` in `root`'s local frame, composed from the local
+/// mount `Transform`s along the `ChildOf` chain (render scale deliberately
+/// ignored, matching the raw-pose convention of the flight layer). `None`
+/// when the walk leaves the tree before reaching `root`.
+fn local_pose_in_root(
+    descendant: Entity,
+    root: Entity,
+    q_chain: &Query<(&Transform, &ChildOf)>,
+) -> Option<(Vec3, Quat)> {
+    let mut position = Vec3::ZERO;
+    let mut rotation = Quat::IDENTITY;
+    let mut entity = descendant;
+    while entity != root {
+        let (transform, &ChildOf(parent)) = q_chain.get(entity).ok()?;
+        position = transform.translation + transform.rotation * position;
+        rotation = transform.rotation * rotation;
+        entity = parent;
+    }
+    Some((position, rotation))
+}
+
 fn shoot_spawn_projectile(
     mut commands: Commands,
+    time: Res<Time>,
     q_spaceship: Query<
         (
+            &Position,
+            &Rotation,
             &LinearVelocity,
             &AngularVelocity,
             &ComputedCenterOfMass,
@@ -771,97 +792,130 @@ fn shoot_spawn_projectile(
         (With<TurretSectionMarker>, Without<SectionInactiveMarker>),
     >,
     mut q_muzzle: Query<&mut TurretSectionBarrelFireState, With<TurretSectionBarrelMuzzleMarker>>,
-    // We are using TransformHelper here because we need to compute the global transform; And it
-    // should be fine, since it will not be called frequently.
-    transform_helper: TransformHelper,
+    q_chain: Query<(&Transform, &ChildOf)>,
 ) {
+    let dt = time.delta_secs();
     for (turret, muzzle, ChildOf(spaceship), config, input) in &q_turret {
-        if !**input {
-            continue;
-        }
-
-        let Ok((lin_vel, ang_vel, center, allegiance)) = q_spaceship.get(*spaceship) else {
-            error!(
-                "on_shoot_spawn_projectile: entity {:?} not found in q_spaceship",
-                spaceship
-            );
-            continue;
-        };
-
         let Ok(mut fire_state) = q_muzzle.get_mut(**muzzle) else {
             error!(
-                "on_shoot_spawn_projectile: entity {:?} not found in q_muzzle",
+                "shoot_spawn_projectile: entity {:?} not found in q_muzzle",
                 **muzzle
             );
             continue;
         };
 
-        if !fire_state.is_finished() {
+        // The cooldown elapses on the fixed clock whether or not the trigger
+        // is held (absorbed from the old update_barrel_fire_state, which also
+        // removed an unordered-tick-vs-shoot ambiguity in the Update set).
+        // `elapsed` is sampled BEFORE the tick because a Once timer clamps at
+        // its duration: `before + dt - interval` is the only way to recover
+        // how far past due the shot came within this tick window.
+        let before = fire_state.elapsed_secs();
+        fire_state.tick(Duration::from_secs_f32(dt));
+
+        if !**input || !fire_state.is_finished() {
             continue;
         }
 
-        let Ok(muzzle_transform) = transform_helper.compute_global_transform(**muzzle) else {
+        let Ok((position, rotation, lin_vel, ang_vel, center, allegiance)) =
+            q_spaceship.get(*spaceship)
+        else {
             error!(
-                "on_shoot_spawn_projectile: entity {:?} global transform not found",
-                **muzzle
-            );
-            continue;
-        };
-
-        let muzzle_direction = muzzle_transform.forward();
-        let projectile_position = muzzle_transform.translation();
-        let projectile_rotation = muzzle_transform.rotation();
-
-        // Inherit the full motion of the muzzle, not just the ship's linear velocity: a muzzle
-        // offset from the center of mass of a rotating ship also swings tangentially. avian's
-        // `ComputedCenterOfMass` is body-local, so lift it to world space with the ship's
-        // global transform before taking the point velocity.
-        let Ok(ship_transform) = transform_helper.compute_global_transform(*spaceship) else {
-            error!(
-                "on_shoot_spawn_projectile: entity {:?} global transform not found",
+                "shoot_spawn_projectile: entity {:?} not found in q_spaceship",
                 spaceship
             );
             continue;
         };
-        let center_of_mass = ship_transform.transform_point(**center);
-        let inertia_vel =
-            rigid_body_point_velocity(**lin_vel, **ang_vel, center_of_mass, projectile_position);
 
+        // Muzzle pose on the RAW physics clock: the root's avian pose
+        // composed with the local mount chain (turret -> rotators ->
+        // muzzle). This system runs in FixedUpdate, where `GlobalTransform`
+        // still holds the previous frame's EASED render pose - sampling it
+        // scattered spawn points by up to a tick of ship motion per shot
+        // (task 20260710-231930). The rotator locals are written by the
+        // Update-schedule aim systems; reading them here means the aim is at
+        // most one frame old, which is control input staleness, not a
+        // velocity-proportional error.
+        let Some((muzzle_local_pos, muzzle_local_rot)) =
+            local_pose_in_root(**muzzle, *spaceship, &q_chain)
+        else {
+            error!(
+                "shoot_spawn_projectile: muzzle {:?} is not a descendant of ship {:?}",
+                **muzzle, spaceship
+            );
+            continue;
+        };
+        let projectile_rotation = rotation.0 * muzzle_local_rot;
+        let muzzle_position = position.0 + rotation.mul_vec3(muzzle_local_pos);
+        let muzzle_direction = projectile_rotation * Vec3::NEG_Z;
+
+        // Inherit the full motion of the muzzle, not just the ship's linear
+        // velocity: a muzzle offset from the center of mass of a rotating
+        // ship also swings tangentially. avian's `ComputedCenterOfMass` is
+        // body-local; lift it with the same raw pose as everything else.
+        let center_of_mass = position.0 + rotation.mul_vec3(**center);
+        let inertia_vel =
+            rigid_body_point_velocity(**lin_vel, **ang_vel, center_of_mass, muzzle_position);
         let muzzle_exit_velocity = muzzle_direction * config.muzzle_speed;
         let linear_velocity = muzzle_exit_velocity + inertia_vel;
 
-        let projectile_transform = Transform {
-            translation: projectile_position + muzzle_exit_velocity * 0.01,
-            rotation: projectile_rotation,
-            ..default()
-        };
+        let interval = fire_state.duration().as_secs_f32();
+        // How far past due the shot came within this tick window. A timer
+        // that finished in an earlier tick (idle barrel, trigger just
+        // pulled) reads `before == interval`, so the clamp lands the first
+        // shot on this tick's start - fire NOW, exactly the old semantics.
+        let mut excess = (before + dt - interval).clamp(0.0, dt);
 
-        let mut projectile = commands.spawn((
-            Name::new("Turret Projectile"),
-            TurretBulletProjectileMarker,
-            ProjectileOwner(*spaceship),
-            projectile_transform,
-            RigidBody::Dynamic,
-            LinearVelocity(linear_velocity),
-            Collider::sphere(0.05),
-            ActiveCollisionHooks::FILTER_PAIRS,
-            Mass(config.projectile_mass),
-            TurretSectionPartOf(turret),
-            TurretSectionMuzzleEntity(**muzzle),
-            BulletProjectileRenderMesh(config.projectile_render_mesh.clone()),
-            TempEntity(config.projectile_lifetime),
-            Visibility::Visible,
-            TransformInterpolation,
-        ));
-        // The projectile COPIES the shooter's allegiance instead of resolving
-        // through ProjectileOwner at read time: it stays attributable even if
-        // the owner dies mid-flight, and consumers stay single-query.
-        if let Some(&allegiance) = allegiance {
-            projectile.insert(allegiance);
+        for _ in 0..MAX_SHOTS_PER_TICK {
+            // Sub-tick exactness: a shot due `lead` seconds into this tick
+            // starts one lead-time of muzzle-exit travel BEHIND the muzzle,
+            // so after this tick's integration it sits exactly where a
+            // bullet fired at the due moment would - the stream stays
+            // uniformly spaced at any ship velocity. (The ship-motion terms
+            // cancel: spawn = muzzle + (v_muzzle - v_bullet) * lead, and
+            // v_bullet - v_muzzle is the muzzle exit velocity.)
+            let lead = dt - excess;
+            let projectile_transform = Transform {
+                translation: muzzle_position - muzzle_exit_velocity * lead,
+                rotation: projectile_rotation,
+                ..default()
+            };
+
+            let mut projectile = commands.spawn((
+                Name::new("Turret Projectile"),
+                TurretBulletProjectileMarker,
+                ProjectileOwner(*spaceship),
+                projectile_transform,
+                RigidBody::Dynamic,
+                LinearVelocity(linear_velocity),
+                Collider::sphere(0.05),
+                ActiveCollisionHooks::FILTER_PAIRS,
+                Mass(config.projectile_mass),
+                TurretSectionPartOf(turret),
+                TurretSectionMuzzleEntity(**muzzle),
+                BulletProjectileRenderMesh(config.projectile_render_mesh.clone()),
+                TempEntity(config.projectile_lifetime),
+                Visibility::Visible,
+                TransformInterpolation,
+            ));
+            // The projectile COPIES the shooter's allegiance instead of
+            // resolving through ProjectileOwner at read time: it stays
+            // attributable even if the owner dies mid-flight, and consumers
+            // stay single-query.
+            if let Some(&allegiance) = allegiance {
+                projectile.insert(allegiance);
+            }
+
+            // Re-arm and immediately advance by the leftover: if the excess
+            // spans another full interval the barrel fires again this tick
+            // (fire rates above the tick rate keep their true cadence).
+            fire_state.reset();
+            fire_state.tick(Duration::from_secs_f32(excess));
+            if !fire_state.is_finished() {
+                break;
+            }
+            excess -= interval;
         }
-
-        // Reset the fire state timer
-        fire_state.reset();
     }
 }
 
@@ -1677,18 +1731,14 @@ mod tests {
 
     /// A ready-to-fire ship + turret + muzzle rig for `shoot_spawn_projectile`,
     /// with the shooter's allegiance as given (`None` = unaligned shooter).
+    /// The ship carries the raw avian pose and the muzzle hangs in its
+    /// `ChildOf` tree, matching what the raw-clock spawn path reads.
     fn spawn_firing_rig(world: &mut World, allegiance: Option<Allegiance>) {
-        let muzzle = world
-            .spawn((TurretSectionBarrelMuzzleMarker, Transform::default(), {
-                // Pre-expired so the very first run fires.
-                let mut timer = Timer::from_seconds(0.1, TimerMode::Once);
-                timer.tick(std::time::Duration::from_secs(1));
-                TurretSectionBarrelFireState(timer)
-            }))
-            .id();
         let mut ship = world.spawn((
             SpaceshipRootMarker,
             Transform::default(),
+            Position(Vec3::ZERO),
+            Rotation::default(),
             LinearVelocity(Vec3::ZERO),
             AngularVelocity(Vec3::ZERO),
             ComputedCenterOfMass(Vec3::ZERO),
@@ -1697,6 +1747,19 @@ mod tests {
             ship.insert(allegiance);
         }
         let ship = ship.id();
+        let muzzle = world
+            .spawn((
+                TurretSectionBarrelMuzzleMarker,
+                Transform::default(),
+                ChildOf(ship),
+                {
+                    // Pre-expired so the very first run fires.
+                    let mut timer = Timer::from_seconds(0.1, TimerMode::Once);
+                    timer.tick(std::time::Duration::from_secs(1));
+                    TurretSectionBarrelFireState(timer)
+                },
+            ))
+            .id();
         world.spawn((
             TurretSectionMarker,
             ChildOf(ship),
@@ -1708,6 +1771,7 @@ mod tests {
 
     fn spawned_projectile_allegiance(world: &mut World) -> Option<Allegiance> {
         use bevy::ecs::system::RunSystemOnce;
+        world.init_resource::<Time>();
         world.run_system_once(shoot_spawn_projectile).unwrap();
         world
             .query_filtered::<Option<&Allegiance>, With<TurretBulletProjectileMarker>>()
@@ -1734,5 +1798,178 @@ mod tests {
         let mut world = World::new();
         spawn_firing_rig(&mut world, None);
         assert_eq!(spawned_projectile_allegiance(&mut world), None);
+    }
+
+    // -- raw-clock spawn (task 20260710-231930) --
+
+    /// A live-physics rig for the raw-clock spawn tests: a fast-capable ship
+    /// root with a turret child and muzzle grandchild (non-identity local
+    /// offsets AND a slewed rotator angle, so the local-chain composition is
+    /// exercised, not just translations). Uses the projectile collision
+    /// hooks so bullets ignore their own ship like production.
+    fn spawn_stream_rig(app: &mut App, fire_rate: f32) -> (Entity, Entity) {
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                RigidBody::Dynamic,
+                Transform::default(),
+                // Production ships interpolate; a raw-clock regression on a
+                // non-faithful rig would understate the old bug (see the
+                // 20260711-103527 retro).
+                TransformInterpolation,
+                Collider::cuboid(1.0, 1.0, 1.0),
+                ColliderDensity(1.0),
+            ))
+            .id();
+        let turret = app
+            .world_mut()
+            .spawn((
+                TurretSectionMarker,
+                ChildOf(ship),
+                Transform::from_xyz(0.0, 1.0, 0.0),
+                // Trigger stays cold through settle(); tests arm it once the
+                // rig's velocity is in place, so every bullet belongs to the
+                // same stream.
+                TurretSectionInput(false),
+                TurretSectionConfigHelper(TurretSectionConfig {
+                    fire_rate,
+                    muzzle_speed: 200.0,
+                    ..default()
+                }),
+            ))
+            .id();
+        let muzzle = app
+            .world_mut()
+            .spawn((
+                TurretSectionBarrelMuzzleMarker,
+                ChildOf(turret),
+                Transform::from_xyz(0.0, 0.0, -0.5).with_rotation(Quat::from_rotation_y(0.3)),
+                TurretSectionBarrelFireState({
+                    // Pre-expired: the first shot leaves on the first tick.
+                    let mut timer = Timer::from_seconds(1.0 / fire_rate, TimerMode::Once);
+                    timer.finish();
+                    timer
+                }),
+            ))
+            .id();
+        app.world_mut()
+            .entity_mut(turret)
+            .insert(TurretSectionMuzzleEntity(muzzle));
+        (ship, turret)
+    }
+
+    fn arm_turret(app: &mut App, turret: Entity) {
+        app.world_mut()
+            .get_mut::<TurretSectionInput>(turret)
+            .unwrap()
+            .0 = true;
+    }
+
+    /// Bullets from a fast ship must form a uniformly spaced, collinear
+    /// stream (task 20260710-231930). The old Update-schedule spawn sampled
+    /// the EASED muzzle pose at render-frame shot times with a static 0.01 s
+    /// nudge, so each shot picked up a different fraction of a tick of ship
+    /// motion - at 150 u/s the stream scattered by whole units ("bullets
+    /// spew out"). On the raw clock with sub-tick lead compensation the
+    /// inter-bullet spacing is exact: every consecutive delta equals
+    /// muzzle_speed * fire_interval along the exit direction, regardless of
+    /// ship velocity. The 24 rounds/s rate beats against the 64 Hz tick so
+    /// shots sample every phase of the tick window.
+    #[test]
+    fn bullet_stream_stays_linear_at_high_ship_velocity() {
+        use crate::{
+            integrity::test_support::{settle, unfinished_integrity_physics_app_with},
+            sections::projectile_hooks::ProjectileHooks,
+        };
+
+        let mut app = unfinished_integrity_physics_app_with(
+            PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
+        );
+        app.add_systems(FixedUpdate, shoot_spawn_projectile);
+        app.finish();
+
+        let (ship, turret) = spawn_stream_rig(&mut app, 24.0);
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::X * 150.0));
+        arm_turret(&mut app, turret);
+
+        for _ in 0..40 {
+            app.update();
+        }
+
+        let mut positions: Vec<Vec3> = app
+            .world_mut()
+            .query_filtered::<&Position, With<TurretBulletProjectileMarker>>()
+            .iter(app.world())
+            .map(|p| p.0)
+            .collect();
+        assert!(
+            positions.len() >= 10,
+            "expected a stream, got {} bullets",
+            positions.len()
+        );
+
+        // Sort along the exit direction (the muzzle's yaw-slewed -Z), then
+        // every consecutive delta must be the SAME vector: equal spacing and
+        // collinearity in one check.
+        let exit_direction = Quat::from_rotation_y(0.3) * Vec3::NEG_Z;
+        positions.sort_by(|a, b| a.dot(exit_direction).total_cmp(&b.dot(exit_direction)));
+        let expected_spacing = 200.0 / 24.0;
+        let first_delta = positions[1] - positions[0];
+        // Delivery guard: uniform spacing alone is also satisfied by every
+        // bullet sitting on one point; the spacing must be the real
+        // muzzle_speed * interval stride.
+        assert!(
+            (first_delta.length() - expected_spacing).abs() < 0.1,
+            "stream stride should be ~{expected_spacing}, got {}",
+            first_delta.length()
+        );
+        for window in positions.windows(2) {
+            let delta = window[1] - window[0];
+            assert!(
+                (delta - first_delta).length() < 0.05,
+                "stream must stay uniform and collinear at speed: delta {delta} vs {first_delta}"
+            );
+        }
+    }
+
+    /// The shipped default fire rate (100 rounds/s) is faster than the 64 Hz
+    /// physics tick: the multi-shot loop must deliver the TRUE cadence via
+    /// several spawns per tick. The old render-schedule path silently capped
+    /// fire rates at one bullet per frame.
+    #[test]
+    fn fire_rate_above_the_tick_rate_keeps_its_true_cadence() {
+        use crate::{
+            integrity::test_support::{settle, unfinished_integrity_physics_app_with},
+            sections::projectile_hooks::ProjectileHooks,
+        };
+
+        let mut app = unfinished_integrity_physics_app_with(
+            PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
+        );
+        app.add_systems(FixedUpdate, shoot_spawn_projectile);
+        app.finish();
+
+        let (_ship, turret) = spawn_stream_rig(&mut app, 100.0);
+        settle(&mut app);
+        arm_turret(&mut app, turret);
+
+        // 60 render frames = 1.0 s of manual time.
+        for _ in 0..60 {
+            app.update();
+        }
+
+        let count = app
+            .world_mut()
+            .query_filtered::<(), With<TurretBulletProjectileMarker>>()
+            .iter(app.world())
+            .count();
+        assert!(
+            (95..=105).contains(&count),
+            "one second at 100 rounds/s must yield ~100 bullets, got {count}"
+        );
     }
 }
