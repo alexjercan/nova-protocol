@@ -2764,6 +2764,61 @@ mod tests {
         );
     }
 
+    /// The playtest symptom behind 20260710-231931: at high velocity the
+    /// hull itself twitched - real attitude jitter, not a camera artifact.
+    /// The mechanism was 20260711-103527's stale impulse point, which only
+    /// bites when the thrust has a component PERPENDICULAR to the travel
+    /// (a decel path with drift correction), so the faithful rig is a full
+    /// production stack burning across its own velocity: PD at the shipped
+    /// 40 torque budget, TransformInterpolation on the hull, centered
+    /// drive, high cross velocity, zero rotation command. Against the
+    /// pre-fix impulse code this rig's PD is overwhelmed by ~2.3 u of
+    /// application-point error per tick and the max observed spin runs
+    /// away past 1 rad/s; a steady hull must stay at zero the whole run.
+    #[test]
+    fn cross_velocity_burn_keeps_the_hull_steady_at_high_speed() {
+        let mut app = flight_app();
+        let (ship, _, controller) = spawn_ship(&mut app);
+        // Production-faithful scheduling: clock-bug rigs must mirror the
+        // production interpolation opt-in (see the 20260711-103527 retro).
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(TransformInterpolation);
+        app.world_mut()
+            .get_mut::<PDController>(controller)
+            .unwrap()
+            .max_torque = 40.0; // the shipped torque budget
+        settle(&mut app);
+
+        // Fast cross-travel (+X) under a full forward burn (-Z): thrust
+        // perpendicular to velocity, the regime where a stale application
+        // point torques the hull.
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::X * 150.0));
+        app.world_mut().get_mut::<FlightIntent>(ship).unwrap().burn = 1.0;
+
+        let mut max_spin = 0.0f32;
+        for _ in 0..180 {
+            app.update();
+            max_spin = max_spin.max(app.world().get::<AngularVelocity>(ship).unwrap().length());
+        }
+        // Delivery guard (review R1.1): a steady hull only proves the fix if
+        // the engine actually fired - a silent burn seam would pass the spin
+        // bound vacuously. Three seconds of full burn must have accelerated
+        // the ship along -Z.
+        let burned = velocity_of(&app, ship).z;
+        assert!(
+            burned < -20.0,
+            "the -Z main drive must have delivered thrust, got vz {burned}"
+        );
+        assert!(
+            max_spin < 0.05,
+            "zero rotation command + centered drive must hold the hull steady \
+             at speed, max spin {max_spin} rad/s"
+        );
+    }
+
     #[test]
     fn stop_flips_the_hull_and_kills_velocity_with_no_external_force() {
         let mut app = flight_app();

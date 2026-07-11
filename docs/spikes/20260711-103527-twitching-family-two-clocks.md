@@ -201,3 +201,17 @@ playtest checklist.
 - Family status: with impulses on the raw clock, re-test 20260710-231931
   (ship render twitch) - the hull attitude jitter under thrust at speed is
   gone at the source.
+
+### 20260710-231931: ship render twitch at high velocity (re-tested)
+
+- Confirmed resolved-by-20260711-103527 at the mechanism level: a full
+  production stack (PD at the shipped 40 budget, TransformInterpolation,
+  centered drive) burning ACROSS 150 u/s of travel - the perpendicular
+  regime that models a decel path with drift correction - held max
+  angular velocity at ~0 over 180 frames, where the pre-fix impulse code
+  ran away to 4.26 rad/s in an A/B. Regression:
+  `cross_velocity_burn_keeps_the_hull_steady_at_high_speed` (flight.rs).
+- No further render-side mechanism found: camera anchor/interpolation
+  wiring was verified sound by the spike, and with the hull physically
+  steady there is nothing left to alias. Final visual feel confirmation
+  stays with the umbrella's user playtest step.
