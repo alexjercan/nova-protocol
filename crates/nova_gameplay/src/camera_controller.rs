@@ -1,4 +1,4 @@
-use avian3d::prelude::{ComputedCenterOfMass, Rotation};
+use avian3d::prelude::{ComputedCenterOfMass, LinearVelocity, Rotation};
 use bevy::{prelude::*, transform::TransformSystems};
 use bevy_common_systems::prelude::*;
 use bevy_enhanced_input::prelude::*;
@@ -43,13 +43,16 @@ impl Plugin for SpaceshipCameraControllerPlugin {
 
         app.add_systems(
             Update,
+            // Fully chained: the rig system owns every ChaseCamera field and
+            // must run after the mode switch (whose markers decide the rig)
+            // AND after the input write, because its velocity lead is
+            // expressed in this frame's anchor rotation frame.
             (
                 update_chase_camera_input,
-                // The rig system owns every ChaseCamera field, per frame, so
-                // it must run after the mode switch (whose markers decide the
-                // rig) - chained, not merely in the same set.
-                (sync_spaceship_control_mode, update_camera_rig).chain(),
+                sync_spaceship_control_mode,
+                update_camera_rig,
             )
+                .chain()
                 .in_set(NovaCameraSystems),
         );
 
@@ -410,6 +413,32 @@ fn update_chase_camera_input(
 /// Deliberate default from the flight-feel retune (task 20260709-095043).
 const CAMERA_SMOOTHING: f32 = 0.15;
 
+/// Seconds of velocity lead that cancel the chase lerp's steady-state lag
+/// at the given smoothing and frame delta. bcs `lerp_and_snap` keeps
+/// `r = (smoothing^7)^dt` of the remaining error each frame, so a camera
+/// tracking an anchor that advances `v * dt` per frame settles
+/// `v * dt * r / (1 - r)` BEHIND its rig position - about 20 u at 300 u/s
+/// and 60 fps with the shipped 0.15 (task 20260711-121711: the "camera
+/// zooms out too much at speed" was never a designed zoom). Leading the
+/// camera offset by exactly this cancels the lag; the focus stays on the
+/// true anchor, so framing is speed-invariant and the steady camera
+/// distance is the RIG distance at any cruise speed - the cap the playtest
+/// asked for, by construction. (The discrete form, not the continuous
+/// tau = -1/(7 ln s): at 60 fps the difference is a visible 2.4 u
+/// overshoot at 300 u/s.)
+fn chase_lag_lead_seconds(smoothing: f32, dt: f32) -> f32 {
+    if smoothing <= 0.0 || smoothing >= 1.0 || dt <= 0.0 {
+        // A rigid camera has no lag; a smoothing of 1.0 never converges and
+        // has no finite lead either - both degenerate to no compensation.
+        return 0.0;
+    }
+    let remaining = smoothing.powi(7).powf(dt);
+    if remaining >= 1.0 - f32::EPSILON {
+        return 0.0;
+    }
+    dt * remaining / (1.0 - remaining)
+}
+
 /// How far the camera is pushed back (anchor-frame -Z, away from the hull) at
 /// full main-drive burn, world units. Driven by the spooled thruster input,
 /// so the push ramps with the engines - lighting up leans the camera back,
@@ -482,17 +511,21 @@ fn survey_scale(action: Option<&AutopilotAction>, base_len: f32) -> f32 {
 /// smoothing as everything else, so engage and breakout ease exactly like
 /// a mode switch instead of snapping.
 fn update_camera_rig(
+    time: Res<Time>,
     mode: Res<SpaceshipCameraControlMode>,
-    camera: Single<&mut ChaseCamera, With<SpaceshipCameraController>>,
-    spaceship: Single<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    camera: Single<(&mut ChaseCamera, &ChaseCameraInput), With<SpaceshipCameraController>>,
+    spaceship: Single<
+        (Entity, Option<&LinearVelocity>),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
     q_autopilot: Query<&Autopilot>,
     q_thruster: Query<
         (&ThrusterSectionInput, &Transform, &ChildOf),
         (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>),
     >,
 ) {
-    let ship = spaceship.into_inner();
-    let mut camera = camera.into_inner();
+    let (ship, ship_velocity) = spaceship.into_inner();
+    let (mut camera, camera_input) = camera.into_inner();
 
     let mut heat = 0.0f32;
     for (input, transform, &ChildOf(parent)) in &q_thruster {
@@ -516,8 +549,21 @@ fn update_camera_rig(
             base_offset.length(),
         )
     };
-    camera.offset =
-        base_offset * scale + Vec3::new(0.0, 0.0, -BURN_PUSH_DISTANCE * heat.clamp(0.0, 1.0));
+    // Velocity lead: cancel the chase lerp's steady-state lag (see
+    // chase_lag_tau) so the camera holds the rig distance at any cruise
+    // speed. Expressed in the anchor rotation frame because bcs re-rotates
+    // the offset by anchor_rot; the bcs offset convention is
+    // world = rot * (x, y, -z), hence the z sign flip. The lead moves only
+    // the CAMERA - focus_offset stays untouched, so the look-at point (and
+    // the ship's framing) is identical at every speed.
+    let world_lead = ship_velocity.map(|v| v.0).unwrap_or(Vec3::ZERO)
+        * chase_lag_lead_seconds(CAMERA_SMOOTHING, time.delta_secs());
+    let local_lead = camera_input.anchor_rot.inverse() * world_lead;
+    let offset_lead = Vec3::new(local_lead.x, local_lead.y, -local_lead.z);
+
+    camera.offset = base_offset * scale
+        + Vec3::new(0.0, 0.0, -BURN_PUSH_DISTANCE * heat.clamp(0.0, 1.0))
+        + offset_lead;
     camera.focus_offset = focus_offset;
     camera.smoothing = CAMERA_SMOOTHING;
 }
@@ -1107,6 +1153,101 @@ mod tests {
         assert_eq!(
             seeded.initial_rotation, attitude,
             "the rig must be re-seeded from the hull attitude on disengage"
+        );
+    }
+
+    /// The camera must hold its RIG framing at any cruise speed (task
+    /// 20260711-121711). The chase lerp settles v * tau behind a moving
+    /// anchor (22 u at 300 u/s - the playtest's "camera zooms out too
+    /// much, pivot too far behind"); the rig's velocity lead cancels it,
+    /// so the ship's position in CAMERA space (what the player sees) is
+    /// the same at 300 u/s as at walking pace. Uses the real
+    /// update_camera_rig; before the lead this differed by ~20 u.
+    #[test]
+    fn camera_framing_is_speed_invariant() {
+        use avian3d::prelude::*;
+
+        use crate::integrity::test_support::{settle, unfinished_integrity_physics_app};
+
+        #[derive(Component)]
+        struct CruisingShip;
+
+        fn drive_camera_input(
+            q_ship: Query<&Transform, With<CruisingShip>>,
+            mut q_input: Query<&mut ChaseCameraInput>,
+        ) {
+            let Ok(ship) = q_ship.single() else {
+                return;
+            };
+            for mut input in &mut q_input {
+                input.anchor_pos = ship.translation;
+                input.anchor_rot = Quat::IDENTITY;
+            }
+        }
+
+        let converged_ship_in_camera_space = |speed: f32| -> Vec3 {
+            let mut app = unfinished_integrity_physics_app();
+            app.add_plugins(ChaseCameraPlugin);
+            app.init_resource::<SpaceshipCameraControlMode>();
+            app.add_systems(Update, (drive_camera_input, update_camera_rig).chain());
+            app.configure_sets(
+                PostUpdate,
+                ChaseCameraSystems::Sync.before(TransformSystems::Propagate),
+            );
+            app.finish();
+
+            let ship = app
+                .world_mut()
+                .spawn((
+                    CruisingShip,
+                    PlayerSpaceshipMarker,
+                    RigidBody::Dynamic,
+                    Transform::default(),
+                    TransformInterpolation,
+                    Collider::cuboid(1.0, 1.0, 1.0),
+                    ColliderDensity(1.0),
+                ))
+                .id();
+            let camera = app
+                .world_mut()
+                .spawn((Transform::default(), SpaceshipCameraController))
+                .id();
+            settle(&mut app);
+            app.world_mut()
+                .entity_mut(ship)
+                .insert(LinearVelocity(Vec3::NEG_Z * speed));
+
+            // Long enough for the lerp to converge at either speed.
+            for _ in 0..600 {
+                app.update();
+            }
+
+            let world = app.world();
+            // Delivery guard: the cruise actually happened.
+            let travelled = world
+                .entity(ship)
+                .get::<GlobalTransform>()
+                .unwrap()
+                .translation()
+                .length();
+            assert!(
+                travelled > speed * 5.0,
+                "the ship must actually cruise, got {travelled} at {speed} u/s"
+            );
+            let cam = *world.entity(camera).get::<GlobalTransform>().unwrap();
+            let ship_pos = world
+                .entity(ship)
+                .get::<GlobalTransform>()
+                .unwrap()
+                .translation();
+            cam.affine().inverse().transform_point3(ship_pos)
+        };
+
+        let slow = converged_ship_in_camera_space(5.0);
+        let fast = converged_ship_in_camera_space(300.0);
+        assert!(
+            (fast - slow).length() < 0.5,
+            "framing must not depend on cruise speed: slow {slow}, fast {fast}"
         );
     }
 }
