@@ -47,7 +47,7 @@ or superseded in place.
 ## Notes
 
 - Spike: docs/spikes/20260712-222610-travel-combat-lock-slots.md.
-- Depends on: 20260712-223034, 20260712-223035, 20260712-223036 (write
+- Depends on: 20260712-223034, 20260712-231141, 20260712-223035, 20260712-223036 (write
   docs LAST, against shipped code).
 - Replaces closed task 20260712-215958 (was scoped to the superseded
   unified-single-lock model).
