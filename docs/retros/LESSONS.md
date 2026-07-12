@@ -173,14 +173,30 @@ retros.
   behavioral delta (PD hold in MainMenu). 20260711-212519. Sixth (x6):
   caught a vacuous test MAJOR and also RULED OUT a suspected stuck-state
   by tracing completion semantics - the pass verifies non-issues, not
-  just finds issues. 20260711-212521.
-- `authored-vs-derived-values` (x1): content authored against a system
+  just finds issues. 20260711-212521. Seventh (x7): caught two MAJORs
+  (an every-frame HUD rebuild the new pulse induced, and a folklore
+  numeric bound whose failure mode was a silent softlock - empirically
+  confirmed by the demanded sweep), then mutation-tested the fix's
+  regression in the re-review round. 20260711-180506.
+- `authored-vs-derived-values` (x2): content authored against a system
   that derives its own runtime geometry/parameters (collider-derived body
   radius, well mu/SOI) must be placed using the runtime values, not the
   nominal constants - three scene bugs in one cycle (orbit inside the
   collider, ring inside the mesh, camera inside the rock) from reasoning
   with nominal sizes. Read the consumer's derivation before authoring.
-  20260711-180455.
+  20260711-180455. Folklore-bound variant: using the derived FORMULAS but
+  feeding them a range quoted from an observation comment is the same
+  bug one level up - a 256-seed sweep measured [3.70, 5.64] against the
+  comment's 4.0-4.55, a live beat-4 softlock; ranges consumed by content
+  must be measured by a test and exported as consts the content test
+  cites. 20260711-180506 (R1.2).
+- `advertised-but-unwired` (x2): a config surface (enum variant, doc
+  claim, query candidate) is not a capability until its producer/consumer
+  side is verified wired - grep for who fires/admits it before building
+  on it. Targeting gate rejected Static bodies the query surface
+  suggested were candidates (20260712-093044); EventConfig::OnUpdate
+  existed and was documented "every frame" but nothing ever fired the
+  event (20260711-180506). Same probe caught both, one day apart.
 - `cross-cycle-warning-with-numbers` (positive pattern): when a landed
   cycle discovers a hazard for a QUEUED task, write the warning into
   that task's TASK.md with the measured numbers and an explicit

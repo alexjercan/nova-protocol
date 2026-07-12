@@ -272,3 +272,14 @@ Direction-level tasks this spike seeded, for /plan to break into steps:
   otherwise unlockable, which would have broken beat 4's GOTO). Layer 1
   of the conveyance plan is therefore live. Details:
   tasks/20260712-093044/TASK.md.
+- 20260711-180506 (the scenario) LANDED 2026-07-12 (master 2449120): New
+  Game loads `shakedown_run` - all five beats, beat-counter gating, lazy
+  per-beat spawns, early-pirate-kill branch, death restart; scavenger
+  sections make "gentle" data. Platform pieces it forced: the
+  fire_on_update pulse (EventConfig::OnUpdate was dead config), a
+  write-on-diff GameObjectives sync, and sweep-pinned
+  ASTEROID_GEOMETRIC_FACTOR_MIN/MAX (measured [3.70, 5.64]) that the
+  orbit-gate geometry cites. Review 2 rounds, APPROVE. STILL OPEN: the
+  human visual playtest (beacon readability, pickup feel, pirate
+  difficulty, orbit-gate moment) - the conveyance task 20260712-093831
+  should follow it. Details: tasks/20260711-180506/TASK.md.
