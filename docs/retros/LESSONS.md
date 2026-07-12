@@ -33,7 +33,7 @@ retros.
   20260710-231931 (R1.1 MAJOR), 20260710-231930, 20260711-121701,
   20260711-121711, 20260710-214316 (expect-guard on the
   inside-envelope sample).
-- `verify-first-plan-steps` (x6, PROMOTED 2026-07-11 -> plan skill):
+- `verify-first-plan-steps` (x7, PROMOTED 2026-07-11 -> plan skill):
   plan steps encoding mechanisms/formulas/orderings must cite the
   verifying file or be phrased verify-first. 20260710-231931 (torque
   -blind burn), 20260710-231930 (wrong overshoot algebra),
@@ -48,7 +48,15 @@ retros.
   concrete engine API shape is also a mechanism claim - the plan wrote
   the Bevy 0.19 RTT spawn as `Camera { target }` but it is a standalone
   `RenderTarget` component; grep the engine example, don't state the
-  constructor from memory. 20260710-104421.
+  constructor from memory. 20260710-104421. Shared-state-consumer variant:
+  before changing the BEHAVIOUR of a shared resource, enumerate its
+  consumers (grep the type) and confirm the change against each - sticky
+  ship locks were designed from the combat symptom and missed that the same
+  `SpaceshipPlayerTargetLock` is the GOTO nav designator, so universal
+  stickiness broke re-designation; 44 green tests hid it because none
+  exercised the second consumer. Add a test per consumer, not just per
+  producer. Review caught it by tracing the data into `AutopilotAction::Goto`.
+  20260712-203353.
 - `landing-no-cd` (x3, PROMOTED 2026-07-11 -> flow skill): the
   squash-merge is its own command, no `cd`, `pwd` first, from the main
   checkout. 20260709-160753, diegetic-autopilot retro, 20260711-125225
