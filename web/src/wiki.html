@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Wiki - Nova Protocol</title>
+        <meta
+            name="description"
+            content="Nova Protocol reference: ship sections, scenarios, gravity wells and factions."
+        />
+        <link
+            rel="icon"
+            href="<%= htmlWebpackPlugin.options.basePath %>favicon.svg"
+        />
+    </head>
+    <body>
+        <div id="header"></div>
+        <main>
+            <article class="prose">
+                <h1>Wiki</h1>
+                <p class="prose__meta">
+                    Reference // sections, scenarios, physics
+                </p>
+                <p>
+                    A field guide to the pieces that make up Nova Protocol. For
+                    the keys, see the
+                    <a href="<%= htmlWebpackPlugin.options.basePath %>tutorial/"
+                        >tutorial</a
+                    >.
+                </p>
+
+                <h2 id="sections">Ship sections</h2>
+                <p>
+                    Ships are modular assemblies of sections. Each section is a
+                    child of the ship root with its own mass and health, and
+                    contributes one behavior to the whole. Knock a section off
+                    and the ship loses that capability.
+                </p>
+                <h3>Hull</h3>
+                <p>
+                    Passive structure and armor. Provides hitpoints and the
+                    connective backbone the other sections mount to.
+                </p>
+                <h3>Controller</h3>
+                <p>
+                    The steering system: a proportional-derivative attitude
+                    controller that rotates the ship toward a target heading.
+                    <strong>Required</strong> for any ship a player or AI can
+                    fly - no live controller, no control.
+                </p>
+                <h3>Thruster</h3>
+                <p>
+                    Produces forward thrust and drives the exhaust plume.
+                    Throttle is analog, so thrust authority comes from the
+                    thruster's magnitude and how many you fit.
+                </p>
+                <h3>Turret</h3>
+                <p>
+                    An articulated mount (base / yaw / pitch / barrel) that aims
+                    at a locked target with intercept lead and fires bullet
+                    projectiles, bounded by its yaw and pitch limits and fire
+                    rate.
+                </p>
+                <h3>Torpedo bay</h3>
+                <p>
+                    Fires guided torpedoes that home with
+                    proportional-navigation guidance and deal blast (area)
+                    damage on detonation.
+                </p>
+
+                <h2 id="scenarios">Scenarios</h2>
+                <p>
+                    A scenario places asteroids, gravity wells and ships into a
+                    world and wires up objectives. Three scenarios ship today:
+                </p>
+                <ul>
+                    <li>
+                        <strong>Asteroid field</strong> - the main playable
+                        scenario: a scatter of small asteroids, one large
+                        gravity rock, and a player ship kitted with hull,
+                        thruster, turret and torpedo.
+                    </li>
+                    <li>
+                        <strong>Menu ambience</strong> - the backdrop behind the
+                        main menu: a gravity-well planetoid with an AI ship
+                        flying a real ORBIT maneuver around it, framed by a
+                        fixed cinematic camera.
+                    </li>
+                    <li>
+                        <strong>Sandbox test scenario</strong> - the practice
+                        space the editor drops you into to fly what you built.
+                    </li>
+                </ul>
+
+                <h2 id="gravity">Gravity wells</h2>
+                <p>
+                    Large asteroids carry gravity wells that pull opted-in
+                    entities - ships and torpedoes - with real inverse-square
+                    physics (<code>a = mu / r^2</code>). Close to the surface
+                    the pull is clamped to a fixed surface value; it fades
+                    smoothly to zero across the outer edge of the sphere of
+                    influence, and is zero beyond it.
+                </p>
+                <p>
+                    When wells overlap, an entity tracks the
+                    <strong>dominant</strong> well (the strongest pull) with a
+                    bit of hysteresis so it does not flicker at the boundary.
+                    This is what the <strong>ORBIT</strong> autopilot flies
+                    around: it parks you in a stable circular orbit of the
+                    dominant well.
+                </p>
+
+                <h2 id="factions">Factions</h2>
+                <p>
+                    A minimal three-tier relation model: player, enemy, and
+                    neutral. Player ships are on the player side, AI ships are
+                    hostile, and projectiles inherit the allegiance of whoever
+                    fired them. Locks are hostile-only, and the reticle tints to
+                    the relation - cyan for your own, amber for a hostile.
+                </p>
+
+                <h2 id="hud">HUD tiers</h2>
+                <p>
+                    Every HUD widget carries a tier, and the grave/tilde key
+                    cycles the whole display through three levels:
+                    <strong>All</strong> (full chrome plus instruments),
+                    <strong>Minimal</strong> (flight and combat instruments
+                    only) and <strong>None</strong> (a clean screen for
+                    cinematic shots).
+                </p>
+
+                <p style="margin-top: 2.5em">
+                    Want the full technical picture? The
+                    <a
+                        href="https://github.com/alexjercan/nova-protocol/tree/master/docs"
+                        target="_blank"
+                        rel="noopener"
+                        >docs folder</a
+                    >
+                    in the repository goes deeper.
+                </p>
+            </article>
+        </main>
+        <div id="footer"></div>
+    </body>
+</html>

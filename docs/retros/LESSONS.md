@@ -186,6 +186,17 @@ retros.
   that task's TASK.md with the measured numbers and an explicit
   fallback exit - it turned a would-be shipped regression into a
   planned diagnosis. 20260711-140234 -> 20260711-140241.
+- `verify-at-deploy-base-path` (x1): behavior that depends on the deploy
+  base path (subpath links, client-side `location.pathname` logic) must
+  be verified base-path-faithfully, not just at local root where the
+  assumptions can accidentally hold; a root-only screenshot passed while
+  the subpath active-nav highlighted Home on every page (R1.1). A cheap
+  deterministic simulation over the real page URLs is enough.
+  20260712-093048.
+- `reuse-known-good-stack` (x1, positive pattern): scaffolding a new
+  sub-project by copying a working reference project's toolchain verbatim
+  (webpack/eslint/prettier/partials) built first-try with zero config
+  findings in review. Reuse beat authoring from scratch. 20260712-093048.
 
 ## Domain lessons (nova-protocol specific)
 

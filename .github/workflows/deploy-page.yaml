@@ -6,6 +6,18 @@ on:
 permissions:
   contents: write
 
+# Publishes a combined site to GitHub Pages:
+#   /            -> the marketing/content site (web/, webpack) at the project
+#                   pages subpath /nova-protocol/
+#   /play/       -> the Bevy WASM game (Trunk, relative public_url so it is
+#                   position-independent under the subpath)
+env:
+  # Project pages are served from https://<user>.github.io/nova-protocol/, so the
+  # webpack site needs its links/assets rooted at that subpath. The game keeps
+  # Trunk's relative public_url ("./" in Trunk.toml), which resolves correctly
+  # from /nova-protocol/play/ without baking the subpath in.
+  PUBLIC_PATH: /nova-protocol/
+
 jobs:
   build-web:
     runs-on: ubuntu-latest
@@ -13,6 +25,19 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # --- landing/content site (web/) ---
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build landing site
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      # --- Bevy WASM game ---
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
@@ -26,15 +51,28 @@ jobs:
       - name: Add wasm target
         run: |
           rustup target add wasm32-unknown-unknown
-      - name: Build Release
+      - name: Build game (release)
         run: |
           trunk build --release
-      - name: optimize Wasm
+      - name: Optimize Wasm
         uses: NiklasEi/wasm-opt-action@v2
         with:
           file: dist/*.wasm
+
+      # --- assemble the combined site: landing at root, game under /play/ ---
+      - name: Assemble site
+        run: |
+          rm -rf site
+          mkdir -p site
+          cp -r web/dist/. site/
+          mkdir -p site/play
+          cp -r dist/. site/play/
+          # Serve the built files verbatim; do not let GitHub Pages run Jekyll
+          # over them (harmless today, insurance against underscore paths later).
+          touch site/.nojekyll
+
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4.2.5
         with:
           branch: gh-pages
-          folder: dist
+          folder: site

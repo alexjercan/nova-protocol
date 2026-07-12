@@ -39,6 +39,7 @@
             rust-analyzer
             pkg-config
             llvmPackages.bintools
+            nodejs_22 # for the web/ landing site (matches the CI setup-node version)
           ];
 
           buildInputs = with pkgs; [

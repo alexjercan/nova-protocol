@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Tutorial - Nova Protocol</title>
+        <meta
+            name="description"
+            content="How to play Nova Protocol: controls, the editor-to-scenario loop, and the GOTO / ORBIT / STOP autopilot verbs."
+        />
+        <link
+            rel="icon"
+            href="<%= htmlWebpackPlugin.options.basePath %>favicon.svg"
+        />
+    </head>
+    <body>
+        <div id="header"></div>
+        <main>
+            <article class="prose">
+                <h1>How to play</h1>
+                <p class="prose__meta">
+                    Tutorial // getting off the launch pad
+                </p>
+
+                <p>
+                    Nova Protocol is a build-and-fly space shooter. You assemble
+                    a ship out of modular sections and then take it into a
+                    scenario - an asteroid field with gravity wells and hostile
+                    ships. The flight computer can fly for you through real
+                    thrusters, but the moment you touch a control you take over.
+                </p>
+
+                <h2>The game loop</h2>
+                <p>The game boots into a main menu with four options:</p>
+                <ul>
+                    <li>
+                        <strong>New Game</strong> - drops you straight into the
+                        asteroid-field scenario with a ready-made player ship.
+                    </li>
+                    <li>
+                        <strong>Sandbox</strong> - opens the ship editor so you
+                        can build a ship and test-fly it in a practice scenario.
+                    </li>
+                    <li><strong>Settings</strong> - placeholder for now.</li>
+                    <li>
+                        <strong>Exit</strong> - quits (hidden in the browser
+                        build).
+                    </li>
+                </ul>
+                <p>
+                    In <strong>Sandbox</strong> you build a ship from sections,
+                    then fly it; pressing <kbd>F1</kbd> takes you back to the
+                    editor (Sandbox only). In any scenario,
+                    <kbd>Esc</kbd> pauses the game and gives you Resume / Back
+                    to Main Menu / Exit.
+                </p>
+
+                <h2>Flight controls</h2>
+                <p>
+                    Thrust is analog on a gamepad trigger and on/off on the
+                    keyboard. The autopilot verbs each fly a whole maneuver and
+                    then hand control back; any manual input disengages them
+                    immediately.
+                </p>
+                <table class="controls">
+                    <tr>
+                        <td>Main thruster burn</td>
+                        <td>
+                            <kbd>W</kbd> / <kbd>Space</kbd> &nbsp;or&nbsp; RT
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>GOTO - fly to the current lock</td>
+                        <td><kbd>G</kbd> &nbsp;or&nbsp; North button</td>
+                    </tr>
+                    <tr>
+                        <td>ORBIT - park into orbit around a gravity well</td>
+                        <td><kbd>O</kbd> &nbsp;or&nbsp; D-Pad Down</td>
+                    </tr>
+                    <tr>
+                        <td>STOP - face retrograde and burn to rest</td>
+                        <td><kbd>X</kbd> &nbsp;or&nbsp; East button</td>
+                    </tr>
+                    <tr>
+                        <td>CANCEL autopilot (resume manual)</td>
+                        <td><kbd>Z</kbd> &nbsp;or&nbsp; West button</td>
+                    </tr>
+                </table>
+
+                <h2>Targeting and camera</h2>
+                <table class="controls">
+                    <tr>
+                        <td>Aim / look</td>
+                        <td>Mouse motion &nbsp;or&nbsp; Right stick</td>
+                    </tr>
+                    <tr>
+                        <td>Free look</td>
+                        <td><kbd>Alt</kbd> (hold) &nbsp;or&nbsp; LT</td>
+                    </tr>
+                    <tr>
+                        <td>Combat / turret mode</td>
+                        <td>Right mouse button &nbsp;or&nbsp; LT2</td>
+                    </tr>
+                    <tr>
+                        <td>Cycle locked ship</td>
+                        <td>
+                            <kbd>Ctrl</kbd> + scroll &nbsp;or&nbsp; D-Pad Up
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Cycle component</td>
+                        <td>
+                            <kbd>[</kbd> / <kbd>]</kbd> &nbsp;or&nbsp; D-Pad
+                            Left / Right
+                        </td>
+                    </tr>
+                </table>
+
+                <h2>Weapons</h2>
+                <table class="controls">
+                    <tr>
+                        <td>Fire turrets</td>
+                        <td>Left mouse button &nbsp;or&nbsp; RT2</td>
+                    </tr>
+                    <tr>
+                        <td>Launch torpedo</td>
+                        <td>
+                            Lock a target, then fire the committed torpedo bay
+                        </td>
+                    </tr>
+                </table>
+                <p>
+                    The aim-assist lock is an angular cone: it grabs the hostile
+                    nearest your aim, and panning the view re-targets to whoever
+                    is now closest to center. Turrets draw their lead from the
+                    lock and paint an amber pip on the intercept point.
+                </p>
+
+                <h2>Interface</h2>
+                <table class="controls">
+                    <tr>
+                        <td>Cycle HUD (All &rarr; Minimal &rarr; None)</td>
+                        <td><kbd>`</kbd> (grave / tilde)</td>
+                    </tr>
+                    <tr>
+                        <td>Pause menu</td>
+                        <td><kbd>Esc</kbd></td>
+                    </tr>
+                    <tr>
+                        <td>Back to editor (Sandbox only)</td>
+                        <td><kbd>F1</kbd></td>
+                    </tr>
+                </table>
+
+                <blockquote>
+                    New here? Hit <strong>ORBIT</strong> near the big rock and
+                    watch the ship fly itself into a clean circle - it is the
+                    fastest way to see the diegetic autopilot at work.
+                </blockquote>
+
+                <p style="margin-top: 2.5em">
+                    <a
+                        href="<%= htmlWebpackPlugin.options.basePath %>play/"
+                        class="btn btn--primary"
+                        >Launch the game</a
+                    >
+                </p>
+            </article>
+        </main>
+        <div id="footer"></div>
+    </body>
+</html>

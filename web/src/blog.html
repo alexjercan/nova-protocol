@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Blog - Nova Protocol</title>
+        <meta
+            name="description"
+            content="Devlog for Nova Protocol - notes from building a modular-ship space shooter in Bevy."
+        />
+        <link
+            rel="icon"
+            href="<%= htmlWebpackPlugin.options.basePath %>favicon.svg"
+        />
+    </head>
+    <body>
+        <div id="header"></div>
+        <main>
+            <article class="prose">
+                <h1>Devlog</h1>
+                <p class="prose__meta">Notes from building Nova Protocol</p>
+                <ul class="post-list">
+                    <li class="card">
+                        <a
+                            href="<%= htmlWebpackPlugin.options.basePath %>blog/building-nova-protocol/"
+                        >
+                            <span class="post-list__date">2026-07-12</span>
+                            <h2 class="card__title">
+                                Building Nova Protocol: modular ships and a
+                                diegetic autopilot
+                            </h2>
+                            <p class="post-list__excerpt">
+                                Why the ship is a bag of sections, and why the
+                                autopilot flies the hull instead of teleporting
+                                it.
+                            </p>
+                        </a>
+                    </li>
+                </ul>
+            </article>
+        </main>
+        <div id="footer"></div>
+    </body>
+</html>

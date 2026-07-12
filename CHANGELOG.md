@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- @alexjercan web landing site (new `web/` project: TypeScript + Webpack + Tailwind): a themed marketing/content site with a hero landing page, a "Play" gate, and blog/tutorial/wiki pages, styled from the `assets/banner.png` key art (space-navy field, neon-cyan and amber glow). README rewritten to match, with the banner embedded
+- @alexjercan the deploy now fronts the game: `deploy-page.yaml` builds the landing site to the Pages root (`/nova-protocol/`) and the Bevy WASM game under `/nova-protocol/play/`, instead of publishing the raw game at the root
+
 - @alexjercan pause menu: ESC freezes the game (virtual + physics clocks, spaceship input gated off) behind a dimmed overlay with Resume / Back to Main Menu / Exit; Back returns to the main menu cleanly (scenario unloaded, editor scene torn down, cursor released while paused and re-grabbed on resume during scenario play)
 
 - @alexjercan HUD visibility levels: the grave/tilde key cycles ALL -> MINIMAL (flight and combat instruments only, chrome hidden) -> NONE (clean screen for cinematic shots); every HUD widget carries a tier, the main menu drives the level to NONE while it is up, and the keybind hint cluster documents the key
