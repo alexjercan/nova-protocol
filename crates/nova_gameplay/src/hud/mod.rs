@@ -9,6 +9,7 @@ pub mod flight_status;
 pub mod holo_instruments;
 pub mod keybind_hints;
 pub mod maneuver_instruments;
+pub mod objective_feedback;
 pub mod screen_indicator;
 pub mod target_candidates;
 pub mod torpedo_target;
@@ -19,10 +20,10 @@ pub mod prelude {
     pub use super::{
         beacon_chips::prelude::*, component_lock::prelude::*, edge_indicators::prelude::*,
         flight_status::prelude::*, holo_instruments::prelude::*, keybind_hints::prelude::*,
-        maneuver_instruments::prelude::*, screen_indicator::prelude::*,
-        target_candidates::prelude::*, torpedo_target::prelude::*, turret_lead::prelude::*,
-        velocity::prelude::*, HudSelfDrivenVisibility, HudTier, HudVisibility, NovaHudAssets,
-        NovaHudPlugin, NovaHudSystems,
+        maneuver_instruments::prelude::*, objective_feedback::prelude::*,
+        screen_indicator::prelude::*, target_candidates::prelude::*, torpedo_target::prelude::*,
+        turret_lead::prelude::*, velocity::prelude::*, HudSelfDrivenVisibility, HudTier,
+        HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
     };
 }
 
@@ -154,6 +155,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(target_candidates::TargetCandidatesHudPlugin);
         app.add_plugins(edge_indicators::EdgeIndicatorsHudPlugin);
         app.add_plugins(beacon_chips::BeaconChipsHudPlugin);
+        app.add_plugins(objective_feedback::ObjectiveFeedbackPlugin);
 
         // Restyle freshly rebuilt objective lines. After the Sync set in
         // the same schedule: the rebuild despawns and respawns the text

@@ -40,6 +40,10 @@ SOUNDS = {
     # Thruster engine loop: a steady low hum, rendered to loop seamlessly (an
     # integer number of cycles at both partials, no fade envelope).
     "thruster_loop": ("tone", 70.0, 140.0, 1.0, 0.18),
+    # New objective posted: short neutral blip.
+    "objective_new": ("sweep", 520.0, 560.0, 0.12, 0.20),
+    # Objective completed: rising fifth, reads as success.
+    "objective_complete": ("sweep", 440.0, 660.0, 0.22, 0.22),
 }
 
 

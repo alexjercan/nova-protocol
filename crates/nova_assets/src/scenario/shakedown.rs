@@ -82,6 +82,11 @@ const CRATE_AREA_RADIUS: f32 = 8.0;
 
 const BEACON_COLOR: Color = Color::srgb(0.3, 0.9, 1.0);
 
+/// The scavenger's territorial tether (world units around its patrol
+/// centroid): combat breaks off beyond it, keeping the beat-5 fight at
+/// the debris field (playtest round 3 finding 3).
+const PIRATE_LEASH_RADIUS: f32 = 150.0;
+
 /// Soft manual-speed cap (u/s) on the starter ship: at 25 u/s a 350u leg
 /// still takes a quarter minute and a missed brake does not send a new
 /// pilot sailing out of the play area (playtest 2026-07-12 finding 1).
@@ -313,6 +318,11 @@ fn pirate_ship(sections: &GameSections) -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: PIRATE_PATROL.to_vec(),
+                // Territorial: the scavenger fights AT the debris field
+                // and breaks off if the duel drifts away (playtest round
+                // 3 finding 3) - the leash comfortably covers the patrol
+                // loop and the crate scatter.
+                leash: Some(PIRATE_LEASH_RADIUS),
                 ..Default::default()
             }),
             sections: vec![
@@ -406,7 +416,7 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                     set(VAR_TALLY_SHOWN, num(0.0)),
                     objective(
                         OBJ_B1,
-                        "Systems online. Burn for BEACON 1 - hold [W] to burn. (A training governor caps your speed.)",
+                        "Systems online. Burn for BEACON 1 - hold [W] to burn, tap [X] to stop. (A training governor caps your speed.)",
                     ),
                 ])
                 .collect(),
@@ -440,7 +450,7 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                 complete(OBJ_B2),
                 objective(
                     OBJ_B3,
-                    "Recover 3 supply crates from the debris cluster. [X] brings you to a stop.",
+                    "Recover 3 supply crates from the debris cluster.",
                 ),
             ],
         },
@@ -731,6 +741,14 @@ mod tests {
         }
 
         let pirate = ships.iter().find(|(id, _)| *id == ID_PIRATE).unwrap().1;
+        let SpaceshipController::AI(pirate_ai) = &pirate.controller else {
+            panic!("the pirate is AI-controlled");
+        };
+        assert_eq!(
+            pirate_ai.leash,
+            Some(PIRATE_LEASH_RADIUS),
+            "the scavenger is leashed to the debris field (playtest round 3)"
+        );
         assert!(
             pirate
                 .sections

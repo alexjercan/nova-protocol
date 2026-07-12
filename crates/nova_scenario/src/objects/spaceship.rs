@@ -41,6 +41,11 @@ pub struct AIControllerConfig {
     /// set (passive fallback: orbit > patrol > idle). None = no orbit
     /// assignment.
     pub orbit: Option<String>,
+    /// Territorial tether radius (world units): combat breaks off beyond
+    /// this distance from the patrol centroid (or the spawn position when
+    /// there is no route) and the ship returns to its routine. None = the
+    /// ship chases freely. See `AILeash`.
+    pub leash: Option<f32>,
 }
 
 pub type SectionId = String;
@@ -86,18 +91,22 @@ impl Plugin for SpaceshipPlugin {
 fn insert_spaceship_sections(
     add: On<Add, SpaceshipRootMarker>,
     mut commands: Commands,
-    q_spaceship: Query<(&SpaceshipSectionsConfig, &SpaceshipController), With<SpaceshipRootMarker>>,
+    q_spaceship: Query<
+        (&SpaceshipSectionsConfig, &SpaceshipController, &Transform),
+        With<SpaceshipRootMarker>,
+    >,
 ) {
     let entity = add.entity;
     trace!("insert_spaceship_sections: entity {:?}", entity);
 
-    let Ok((sections_config, controller_config)) = q_spaceship.get(entity) else {
+    let Ok((sections_config, controller_config, transform)) = q_spaceship.get(entity) else {
         error!(
             "insert_spaceship_sections: entity {:?} not found in q_spaceship",
             entity
         );
         return;
     };
+    let spawn_position = transform.translation;
 
     commands.entity(entity).with_children(|parent| {
         for section in sections_config.iter() {
@@ -181,6 +190,16 @@ fn insert_spaceship_sections(
                     well: EntityId::new(well.clone()),
                 });
             }
+            if let Some(radius) = config.leash {
+                // Anchor on the patrol centroid: the route IS the
+                // territory. A routeless ship tethers to where it spawned.
+                let center = if config.patrol.is_empty() {
+                    spawn_position
+                } else {
+                    config.patrol.iter().sum::<Vec3>() / config.patrol.len() as f32
+                };
+                commands.entity(entity).insert(AILeash { center, radius });
+            }
         }
     }
 }
@@ -199,10 +218,16 @@ mod tests {
 
         let spawn = |world: &mut World, config: AIControllerConfig| {
             let entity = world
-                .spawn(spaceship_scenario_object(SpaceshipConfig {
-                    controller: SpaceshipController::AI(config),
-                    sections: vec![],
-                }))
+                .spawn((
+                    // The observer reads the spawn Transform for the leash
+                    // anchor; production ships get one from the base
+                    // scenario bundle.
+                    Transform::default(),
+                    spaceship_scenario_object(SpaceshipConfig {
+                        controller: SpaceshipController::AI(config),
+                        sections: vec![],
+                    }),
+                ))
                 .id();
             world.flush();
             entity
@@ -238,6 +263,7 @@ mod tests {
             AIControllerConfig {
                 patrol: vec![Vec3::ZERO, Vec3::X],
                 orbit: Some("planetoid".to_string()),
+                leash: None,
             },
         );
         assert!(world.entity(both).get::<AIOrbitDirective>().is_some());

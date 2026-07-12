@@ -158,7 +158,9 @@ nodes, and set-expressions, evaluated by filters (`ExpressionFilterConfig`) and 
   destructible asteroid; `invulnerable: true` omits the health node entirely, so a
   designated body (a tutorial planetoid) and its well can never be shot away.
 - `Spaceship` (`SpaceshipConfig`) - a ship built from sections, controlled by either a
-  `Player` (with an input mapping) or `AI` controller. See [sections.md](sections.md).
+  `Player` (with an input mapping) or `AI` controller (patrol route, orbit directive,
+  and an optional `leash` radius: combat breaks off beyond it and the ship returns to
+  its routine - territorial enemies). See [sections.md](sections.md).
 - `Area` (`ScenarioAreaConfig`: position, radius) - trigger zone for enter/exit events.
 - `Beacon` (`BeaconConfig`: label, radius, color, `area_radius: Option<f32>`) - a nav
   waypoint: emissive blinking orb, on rails (`RigidBody::Static`) but aim-lockable via

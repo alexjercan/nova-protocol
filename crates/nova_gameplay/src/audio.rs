@@ -48,17 +48,23 @@ pub enum NovaSfx {
     Explosion,
     /// Damage is applied to a target.
     Impact,
+    /// A new objective was posted to the panel (UI cue, non-positional).
+    ObjectiveNew,
+    /// An objective was completed (UI cue, non-positional).
+    ObjectiveComplete,
 }
 
 /// The `(key, base-filename)` pairs Nova loads into its [`SoundBank`]. The bank
 /// applies the `sounds/<name>.wav` convention, so these map to
 /// `assets/sounds/<name>.wav`. Shared with `nova_assets`, which does the load.
-pub const NOVA_SFX_FILES: [(NovaSfx, &str); 5] = [
+pub const NOVA_SFX_FILES: [(NovaSfx, &str); 7] = [
     (NovaSfx::ThrusterLoop, "thruster_loop"),
     (NovaSfx::TurretFire, "turret_fire"),
     (NovaSfx::TorpedoLaunch, "torpedo_launch"),
     (NovaSfx::Explosion, "explosion"),
     (NovaSfx::Impact, "impact"),
+    (NovaSfx::ObjectiveNew, "objective_new"),
+    (NovaSfx::ObjectiveComplete, "objective_complete"),
 ];
 
 /// Per-cue *base* playback volumes (at point-blank; distance attenuation scales
