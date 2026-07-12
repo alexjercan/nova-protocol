@@ -15,6 +15,7 @@ pub mod objective_feedback;
 pub mod objective_markers;
 pub mod screen_indicator;
 pub mod target_candidates;
+pub mod target_inset;
 pub mod torpedo_target;
 pub mod turret_lead;
 pub mod velocity;
@@ -25,9 +26,10 @@ pub mod prelude {
         edge_indicators::prelude::*, flight_status::prelude::*, holo_instruments::prelude::*,
         item_highlights::prelude::*, keybind_hints::prelude::*, maneuver_instruments::prelude::*,
         objective_feedback::prelude::*, objective_markers::prelude::*,
-        screen_indicator::prelude::*, target_candidates::prelude::*, torpedo_target::prelude::*,
-        turret_lead::prelude::*, velocity::prelude::*, HudSelfDrivenVisibility, HudTier,
-        HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
+        screen_indicator::prelude::*, target_candidates::prelude::*, target_inset::prelude::*,
+        torpedo_target::prelude::*, turret_lead::prelude::*, velocity::prelude::*,
+        HudSelfDrivenVisibility, HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin,
+        NovaHudSystems,
     };
 }
 
@@ -163,6 +165,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(turret_lead::TurretLeadPlugin);
         app.add_plugins(ammo_readout::AmmoReadoutPlugin);
         app.add_plugins(component_lock::ComponentLockHudPlugin);
+        app.add_plugins(target_inset::TargetInsetHudPlugin);
         app.add_plugins(target_candidates::TargetCandidatesHudPlugin);
         app.add_plugins(edge_indicators::EdgeIndicatorsHudPlugin);
         app.add_plugins(beacon_chips::BeaconChipsHudPlugin);
@@ -218,6 +221,8 @@ impl Plugin for NovaHudPlugin {
         app.add_observer(remove_hud_ammo_readout);
         app.add_observer(setup_hud_component_lock);
         app.add_observer(remove_hud_component_lock);
+        app.add_observer(setup_hud_target_inset);
+        app.add_observer(remove_hud_target_inset);
         app.add_observer(setup_hud_target_candidates);
         app.add_observer(remove_hud_target_candidates);
         app.add_observer(setup_hud_edge_indicators);
@@ -664,6 +669,63 @@ fn remove_hud_component_lock(
     for hud_entity in &q_hud {
         commands.entity(hud_entity).despawn();
     }
+}
+
+/// Build the target-inset render target + highlight assets (Assets exist at
+/// runtime, not necessarily at plugin build) and spawn the corner panel Hidden.
+/// The inset camera itself spawns/despawns with the focus dwell
+/// (`target_inset::drive_inset_camera`), not with the player.
+fn setup_hud_target_inset(
+    add: On<Add, PlayerSpaceshipMarker>,
+    mut commands: Commands,
+    q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    mut images: ResMut<Assets<Image>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut render_target: ResMut<TargetInsetRenderTarget>,
+) {
+    let entity = add.entity;
+    debug!("setup_hud_target_inset: entity {:?}", entity);
+
+    let Ok(_spaceship) = q_spaceship.get(entity) else {
+        error!(
+            "setup_hud_target_inset: entity {:?} not found in q_spaceship",
+            entity
+        );
+        return;
+    };
+
+    let image = target_inset::create_render_target(&mut images);
+    **render_target = Some(image.clone());
+    commands.insert_resource(TargetInsetHighlightAssets {
+        mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
+        material: materials.add(target_inset::highlight_material()),
+    });
+    commands.spawn(target_inset_hud(image));
+}
+
+fn remove_hud_target_inset(
+    remove: On<Remove, PlayerSpaceshipMarker>,
+    mut commands: Commands,
+    q_panel: Query<Entity, With<TargetInsetHudMarker>>,
+    q_camera: Query<Entity, With<TargetInsetCameraMarker>>,
+    q_highlights: Query<Entity, With<TargetInsetHighlightMarker>>,
+    mut render_target: ResMut<TargetInsetRenderTarget>,
+) {
+    let entity = remove.entity;
+    debug!("remove_hud_target_inset: entity {:?}", entity);
+
+    for panel in &q_panel {
+        commands.entity(panel).despawn();
+    }
+    for camera in &q_camera {
+        commands.entity(camera).despawn();
+    }
+    for highlight in &q_highlights {
+        commands.entity(highlight).despawn();
+    }
+    **render_target = None;
+    commands.remove_resource::<TargetInsetHighlightAssets>();
 }
 
 fn setup_hud_target_candidates(

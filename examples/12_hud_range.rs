@@ -94,6 +94,8 @@ struct HudRangeScript {
     asserted_goto: bool,
     killed_target: bool,
     done: bool,
+    /// One-shot guard for the NOVA_INSET_SHOT debug screenshot.
+    shot: bool,
 }
 
 fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
@@ -509,6 +511,46 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
         );
         assert_eq!(sections, 3, "hud range: the target ship has 3 sections");
         info!("hud range: component markers OK ({markers} of {sections} sections)");
+
+        // The target inset spawns with the focus dwell: exactly one RTT camera
+        // exists and the corner panel is visible while focused.
+        let inset_cameras = world
+            .query_filtered::<(), With<TargetInsetCameraMarker>>()
+            .iter(world)
+            .count();
+        assert_eq!(
+            inset_cameras, 1,
+            "hud range: expected exactly one target-inset camera while focused"
+        );
+        let panel_visibility = *world
+            .query_filtered::<&Visibility, With<TargetInsetHudMarker>>()
+            .iter(world)
+            .next()
+            .expect("hud range: no target-inset panel node");
+        assert_eq!(
+            panel_visibility,
+            Visibility::Visible,
+            "hud range: the target-inset panel is not visible while focused"
+        );
+        info!("hud range: target inset OK (1 camera, panel visible)");
+    }
+
+    // Capture a real loaded frame (scene up, lock focused, inset rendering) to
+    // a PNG, so the RTT inset can be eyeballed headlessly. Inert unless
+    // NOVA_INSET_SHOT is set. BCS_SHOT itself captures black here because it
+    // force-advances to Playing and shoots before async asset loading has a
+    // scene; injecting the screenshot mid-run from the settled autopilot
+    // avoids that (task 20260710-104421 verify note).
+    if t > 2.2
+        && !world.resource::<HudRangeScript>().shot
+        && std::env::var("NOVA_INSET_SHOT").is_ok()
+    {
+        use bevy::render::view::screenshot::{save_to_disk, Screenshot};
+        world.resource_mut::<HudRangeScript>().shot = true;
+        world
+            .spawn(Screenshot::primary_window())
+            .observe(save_to_disk("inset_shot.png"));
+        info!("hud range: inset screenshot requested (inset_shot.png)");
     }
 
     if t > 2.5 && !engaged_goto {
@@ -658,6 +700,27 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
         assert_eq!(
             markers, 0,
             "hud range: component markers survived their target's death"
+        );
+
+        // The lock died with the target, so the inset camera tears down and the
+        // panel hides - the scene is not rendered a second time for nothing.
+        let inset_cameras = world
+            .query_filtered::<(), With<TargetInsetCameraMarker>>()
+            .iter(world)
+            .count();
+        assert_eq!(
+            inset_cameras, 0,
+            "hud range: the target-inset camera survived its target's death"
+        );
+        let panel_visibility = *world
+            .query_filtered::<&Visibility, With<TargetInsetHudMarker>>()
+            .iter(world)
+            .next()
+            .expect("hud range: no target-inset panel node");
+        assert_eq!(
+            panel_visibility,
+            Visibility::Hidden,
+            "hud range: the target-inset panel is still visible after its target died"
         );
         info!("hud range: PASS - indicators track their anchors and hide when they die");
     }

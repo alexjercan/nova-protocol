@@ -120,12 +120,22 @@ and loses the requested feel; C solves a different problem (magnification,
 not an inset); D leaves the shipped fine-lock mechanic hard to read at
 range.
 
+## Resolved (task 20260710-104421, 2026-07-12)
+
+- RTT coexistence: CONFIRMED. `RenderTarget::Image` (a standalone component on
+  Bevy 0.19, not a `Camera { target }` field) coexists with the main camera's
+  `PostProcessingCamera` and skybox with no blackout and no crash - both are
+  per-camera components, and every camera query in the codebase is
+  marker-filtered so an unmarked second camera trips no `Single<Camera>`.
+  Option A shipped as planned (Option B not needed). Details in
+  docs/2026-07-12-target-inset-view.md. WASM/WebGL2 is standard RTT territory
+  but was not profiled in-browser here (follow-up if it ever feels heavy).
+
 ## Open questions
 
-- Does `RenderTarget::Image` coexist with `PostProcessingCamera` and the
-  skybox on Bevy 0.19 in this app, and does the WASM build handle it? The
-  probe at the start of the seeded task answers this; if it fails, fall
-  back to option B and note it here.
+- ~~Does `RenderTarget::Image` coexist with `PostProcessingCamera` and the
+  skybox on Bevy 0.19 in this app, and does the WASM build handle it?~~
+  RESOLVED above (desktop confirmed; WASM unmeasured but expected to work).
 - Inset camera pose: fixed offset in the target's local frame (stable,
   hologram-like) vs player-relative bearing (matches what you see) vs slow
   orbit (shows all faces). Feel knob; decide at plan time, keep it a
