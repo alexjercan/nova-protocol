@@ -6,74 +6,59 @@
 
 ## Goal
 
-Make firing deliberate per the two-slot model (spike 20260712-222610): with
-a CombatLock the trigger fires as today; without one it does NOT fire - it
-acquires the combat lock instead. CTRL free-aim stays the deliberate
-unlocked-fire path. Add a dedicated key that clears the active view's lock.
+Make firing deliberate per spike 20260712-222610 rounds 2c + 3: the
+trigger works only while the weapon is RAISED - fires when combat-locked,
+acquires when not - and outside the raise it is an inert deny cue. No
+manual unlock key ships; stale locks are harmless by construction and
+clear naturally (death, range, allegiance flip, optional decay - the
+lifecycle itself lands in 20260712-223035; this task wires the trigger
+and the feedback).
+
+Body rewritten after round-3 adversarial review; supersedes the earlier
+X/SHIFT+X/MMB unlock plans (retired in round 2c; X = STOP,
+player.rs:584).
 
 ## Steps
 
-- [ ] Gate the turret trigger in its observer (`on_turret_input` Start,
-      player.rs:1054; bindings stay scenario-authored via
-      `SpaceshipTurretInputBinding` - no data change): CombatLock present ->
-      fire (unchanged three-tier feed); absent -> acquire the best enemy by
-      the `HostileContacts` ordering (cone-first; no-op when none) and do
-      NOT fire. Applies in every view, keyboard and pad identically.
-- [ ] CTRL free-aim bypass: free-aim held -> the trigger fires at the
-      camera ray regardless of lock (existing behavior, now the ONLY
-      unlocked fire path). Verify against the free-aim action confirmed in
+- [ ] Gate the turret trigger in its observers (player.rs:1053-1073;
+      bindings stay scenario-authored): RAISED + CombatLock -> fire
+      (three-tier feed unchanged); RAISED + no lock -> acquire the best
+      enemy from the CONE/ON-SCREEN pool (spike round 3 delta 4; no-op
+      deny cue when none) and do NOT fire; NOT RAISED -> deny cue,
+      never fire, never acquire - regardless of lock state. Keyboard and
+      pad identical.
+- [ ] CTRL free-aim bypass: fires at the camera ray in ANY view,
+      lock-independent (the only unlocked fire path). WIRING TRAP
+      (feasibility m7): free-aim reads raw CTRL keys (player.rs:434) -
+      do NOT reuse the cycle-modifier helper, which is SHIFT after
       20260712-223034.
-- [ ] Torpedo launch (player.rs:1128): keep existing semantics - lock ->
-      guided commit, no lock -> dumb-fire (spike default, flagged for
-      playtest). Add a comment citing the spike so the asymmetry with
-      turrets is documented as chosen, not accidental.
-- [ ] Unlock key: new input action bound to X (verify unbound at
-      implementation; spike placeholder), clearing the ACTIVE view's lock -
-      Turret view -> CombatLock, Normal/FreeLook -> TravelLock (spike
-      default, flagged). Pause-gated like the cycle observers. Pad
-      candidate: East/B - verify against the binding table
-      (player.rs:558-692) before choosing.
-- [ ] HUD hint rows: unlock key hint; trigger hint reflects state (fire vs
-      acquire). Feedback when a trigger press acquires instead of firing:
-      reuse the lock-acquired affordance (reticle snap) - no new audio/VFX
-      scope.
-- [ ] Tests (state-per-step): trigger with no CombatLock acquires and does
-      not spawn bullets; second press fires; CTRL+trigger fires with no
-      lock; trigger acquires nothing when no enemies (and does not fire);
-      unlock clears CombatLock in Turret view and TravelLock in Normal
-      view; unlock while empty no-ops; pad trigger follows the same gate.
+- [ ] Held-trigger interrupt (UX M1): when the CombatLock dies while the
+      trigger is held, the stream STOPS; auto-seed (223035) may refill
+      the slot but firing resumes only on a fresh press.
+- [ ] Torpedo launch (player.rs:1128): commit requires the CombatLock
+      stable for ~0.5 s (const knob) - else dumb-fire + deny cue. Keep
+      no-lock dumb-fire. Comment cites the spike: the turret/torpedo
+      gating asymmetry and the RECORDED LOSS of guided-at-nav-bodies are
+      chosen, not accidental.
+- [ ] Feedback + hints: deny cue on gated presses (reuse an existing
+      HUD affordance; no new audio/VFX scope); trigger hint reflects
+      state (FIRE / ACQUIRE / RAISE FIRST); no unlock hints anywhere.
+- [ ] Tests (state-per-step): lowered + lock -> LMB denies, no bullets;
+      raised + lock -> fires; raised + no lock -> first press acquires
+      (no bullets), second fires; raised + no enemies -> deny, no
+      acquisition; CTRL+LMB fires in any view without a lock;
+      held-trigger stops on lock death and does not resume on auto-seed
+      (flag on and off); torpedo within stability window commits, a
+      just-switched lock dumb-fires with deny cue; pad trigger follows
+      every gate identically.
 - [ ] cargo fmt + cargo check + run targeting/input test modules.
 
 ## Notes
 
-- Spike: docs/spikes/20260712-222610-travel-combat-lock-slots.md.
-- Depends on: 20260712-223035 (slots must exist).
-- Muscle-memory risk is real: this changes what LMB does with no lock.
-  The spike's rationale: seed-on-raise means the common case is already
-  locked when the player wants to shoot; CTRL covers panic fire. Playtest
-  verdicts go on this task.
-
-## Round 2 refinements (2026-07-12, spike round 2 - supersede the X
-placeholder in the Steps)
-
-- X is taken (`AutopilotStopInput`, player.rs:584, X + pad East). Unlock
-  binding: MMB primary (unbound, chord-free, wheel-adjacent); keyboard
-  alternative SHIFT+X (chord on a non-modifier - allowed; bare-modifier
-  taps remain forbidden per 20260711-173237). Pad: East/West taken;
-  candidate RightThumb - verify against the full pad table at
-  implementation.
-- Unlock clears the ACTIVE view's lock (unchanged round-1 default).
-
-## Round 2c update (2026-07-12 - supersedes the unlock-key steps above)
-
-Per spike round 2c: NO manual unlock key. Scope becomes:
-
-- Trigger gated on combat stance: fires (when locked) or acquires (when
-  unlocked, cone-limited) ONLY while in Turret view; outside it LMB is a
-  no-op with a deny cue. CTRL free-aim keeps firing in any view.
-- Natural clears on the combat lock: death/despawn and out-of-range
-  (exist), allegiance-flip-to-non-hostile (new), optional out-of-view
-  decay (~20 s const, ship flag-off or flag-on per playtest).
-- MMB stays unbound (reserved); SHIFT+X retired; no pad unlock needed.
-- HUD: "guns hot on X" banner while a combat lock exists outside Turret
-  view (adversarial finding M8) doubles as the decay countdown surface.
+- Spike: docs/spikes/20260712-222610-travel-combat-lock-slots.md (rounds
+  2c, 3 deltas 4/7/8/11).
+- Depends on: 20260712-223035 (slots + raised state + pools).
+- MMB stays unbound (reserved if playtest finds a "safe the guns while
+  raised" need).
+- Playtest flags: firing-requires-raise feel (fleeing gunfights mean
+  flying raised); torpedo stability window width.
