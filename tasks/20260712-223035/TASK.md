@@ -54,32 +54,38 @@ notes live in git history and the spike.
       The 550 m direction-blind hostile fallback does NOT apply to travel
       (deliberate slot); record its final disposition in this task when
       implemented.
-- [ ] COMBAT side: maintain `HostileContacts` (order from the turret ray
-      while raised - the only time it is consumed for ordering).
-      Seed/re-seed ON RAISE by the incumbent-hysteresis rule (spike
-      rounds 2b + 3 deltas 5-6): evaluate the best enemy by angle from
-      the press-frame look ray over a CONE/ON-SCREEN pool; the incumbent
-      (current CombatLock, else the hostile TravelLock IF designated or
-      in-cone) holds unless a challenger is clearly nearer (cos-ratio
-      band const). A NON-hostile TravelLock inside the TIGHT pick cone
-      at raise seeds instead (deliberate raise on a neutral/friend/rock -
-      the only path that puts a non-hostile in the combat slot).
-      Committed torpedoes are excluded from ALL automatic pools (scroll
-      still reaches them). Clears: death, out-of-range, allegiance flip
-      to non-hostile, optional ~20 s lowered-decay const (flag).
-- [ ] Scroll routing on RAISED (builds on 20260712-223034): lowered ->
-      travel step; raised -> combat step through `HostileContacts`
-      (angle order continuing past the cone edge - tail threats stay
-      reachable). Precedence (round 3 delta 9): scroll sets lock + 4 s
-      pin + freezes order; a raise re-seed that switches REPLACES the
-      pin; auto-seed only fills an EMPTY slot and sets no pin; a valid
-      lock is never auto re-picked. Add a small debounce const so a
-      wheel flick spanning the raise/lower transition does not land on
-      the wrong slot (UX m2).
+- [ ] COMBAT side (round-4 decisions): maintain `HostileContacts`
+      (edge-indicator threat set + auto-seed pool ONLY - combat scroll
+      does NOT walk it). Seed/re-seed ON RAISE by the incumbent-
+      hysteresis rule (spike rounds 2b + 3 deltas 5-6): evaluate the
+      best enemy by angle from the press-frame look ray over a
+      CONE/ON-SCREEN pool; the incumbent (current CombatLock, else the
+      hostile TravelLock IF designated or in-cone) holds unless a
+      challenger is clearly nearer (cos-ratio band const). A NON-hostile
+      TravelLock inside the TIGHT pick cone at raise seeds instead
+      (aimed-raise, questionnaire Q4). Committed torpedoes are excluded
+      from ALL automatic pools (scroll still reaches them). Clears:
+      death, out-of-range, allegiance flip to non-hostile, optional
+      ~20 s lowered-decay const (flag).
+- [ ] Scroll routing on RAISED (builds on 20260712-223034; round-4
+      decision 1: ONE pool, two slots): both modes' scroll walks the
+      SAME `AvailableTargets` cone list (wide cone of the ACTIVE look
+      ray - normal/freelook ray lowered, turret ray raised; STRICT cone,
+      no past-edge reach, questionnaire Q3; all classes including
+      neutrals/friendlies - "Combat mode is Combat mode"). RAISED
+      decides the slot written: lowered -> TravelLock (+designated),
+      raised -> CombatLock. Precedence (round 3 delta 9): scroll sets
+      lock + 4 s pin + freezes order; a raise re-seed that switches
+      REPLACES the pin; auto-seed only fills an EMPTY slot and sets no
+      pin; a valid lock is never auto re-picked. Add a small debounce
+      const so a wheel flick spanning the raise/lower transition does
+      not land on the wrong slot (UX m2).
 - [ ] Auto-seed-on-kill (const flag, default on): when the CombatLock
-      dies while RAISED, seed the next enemy by angle from the CURRENT
-      pool, ON-SCREEN only; while lowered, the slot stays empty. (The
-      held-trigger interrupt lives in 20260712-223036.)
+      dies while RAISED, seed the next ENEMY by angle (from
+      `HostileContacts`, hostile-only - deliberate scroll is the only
+      path to non-hostiles), ON-SCREEN only; while lowered, the slot
+      stays empty. Default ON (questionnaire Q2). (The held-trigger
+      interrupt lives in 20260712-223036.)
 - [ ] Consumer routing: G/GOTO + verb hints (player.rs:232/:841) ->
       TravelLock; turret feed (player.rs:361), torpedo commit
       (player.rs:459), focus dwell (targeting.rs:606), component
@@ -99,7 +105,11 @@ notes live in git history and the spike.
       stale undesignated behind-you hostile loses to the on-screen enemy /
       empty-space raise keeps the designated incumbent / non-hostile
       travel lock in tight cone seeds; scroll routes per raised state;
-      pin vs raise precedence; auto-seed only when raised+on-screen+empty;
+      pin vs raise precedence; combat scroll reaches a neutral rock in
+      the cone and a guided torpedo then commits to it (round-4 reversal
+      of the recorded loss); combat scroll does NOT reach an off-cone
+      enemy (strict cone); auto-seed only when raised+on-screen+empty
+      and only onto hostiles;
       combat lock persists on lowering; allegiance flip clears it;
       G reads travel while combat points elsewhere; torpedo commits on
       CombatLock; behind-player hostile in `HostileContacts`, absent
@@ -113,8 +123,8 @@ notes live in git history and the spike.
   deltas), 4 (user directives + questionnaire decisions).
 - Depends on: 20260712-223034 (scroll rebind) AND 20260712-231141
   (look-ray/mode infrastructure).
-- RECORDED LOSS pending user decision (questionnaire): guided torpedoes
-  at nav bodies die with the split - CombatLock never holds asteroids/
-  beacons; torpedo-at-rock becomes dumb-fire.
+- Round-4 reversal: the once-recorded loss (guided torpedoes at nav
+  bodies) is GONE - deliberate combat scroll locks any cone member, so
+  torpedo-at-rock stays guided via scroll+launch.
 - Playtest knobs as consts: wide-cone half-angle, hysteresis band, decay
   seconds + flag, auto-seed flag, debounce.

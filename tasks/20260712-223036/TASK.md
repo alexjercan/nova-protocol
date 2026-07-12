@@ -38,8 +38,9 @@ player.rs:584).
 - [ ] Torpedo launch (player.rs:1128): commit requires the CombatLock
       stable for ~0.5 s (const knob) - else dumb-fire + deny cue. Keep
       no-lock dumb-fire. Comment cites the spike: the turret/torpedo
-      gating asymmetry and the RECORDED LOSS of guided-at-nav-bodies are
-      chosen, not accidental.
+      gating asymmetry is chosen, not accidental. (Round 4: guided
+      shots at nav bodies WORK - the combat slot can hold any cone
+      member via deliberate scroll.)
 - [ ] Feedback + hints: deny cue on gated presses (reuse an existing
       HUD affordance; no new audio/VFX scope); trigger hint reflects
       state (FIRE / ACQUIRE / RAISE FIRST); no unlock hints anywhere.
