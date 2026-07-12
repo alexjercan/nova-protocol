@@ -1,10 +1,18 @@
 # Committed torpedoes do not auto-steal the aim lock (manual lock only)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 28
 - TAGS: v0.5.0, targeting, spike
 
-## Goal
+## Closed won't-do (2026-07-12)
+
+Superseded by the sticky-from-acquisition lock (task 20260712-203353). Once a
+held lock is not overwritten by the aim picker, a passing torpedo cannot steal
+it, so there is no need to exclude torpedoes from auto-acquisition - and the
+user explicitly wants torpedoes to stay lockable for point defense (aim/scroll
+to one to shoot it down). No code from this task.
+
+## Goal (original, not pursued)
 
 Stop a committed torpedo streaking across the aim ray from AUTO-stealing the
 target lock (and resetting the 1.5 s focus dwell). Torpedoes stay MANUALLY

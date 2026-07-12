@@ -140,6 +140,32 @@ from torpedo theft by B2) -> sticky on your chosen ship, inset scoped to it,
 until you CTRL+scroll off or it dies (B1). The inset only ever scopes ships
 (A2). Reversible - each piece is a gate/condition, not a rewrite.
 
+## Refinement (user decision, 2026-07-12)
+
+The user chose to flow two tasks in order (inset scope, then sticky lock) with
+these adjustments to the recommendation above:
+
+- **Inset scope is opt-in on "worth scoping" bodies, not ships only.** The
+  `InsetZoomable` marker goes on ships, committed torpedoes and asteroids (the
+  lockable physical/combat bodies) - "just skip beacons". Because torpedoes and
+  asteroids have no `SectionMarker` children, the inset framing
+  (`ship_framing_radius`) must fall back to the target's own collider/mesh
+  extent for section-less bodies; this task absorbs that generalization.
+- **Sticky lock is sticky-from-acquisition (B5), not sticky-after-focus (B1).**
+  The user's rationale - "this way the torpedo does not steal the lock, and you
+  can still lock a torpedo to shoot it down" - only holds if the lock sticks the
+  moment it is acquired (B1 leaves the pre-focus dwell stealable). So: the aim
+  picker acquires ONLY when there is no current valid lock; once locked, it
+  holds (range gates + death aside) until the player CTRL+scrolls off. Aim still
+  makes the FIRST acquisition; it just stops re-picking under you afterwards.
+- **B2 (no-torpedo-autolock) is DROPPED.** Superseded: sticky-from-acquisition
+  makes torpedo theft a non-issue, and the user explicitly wants torpedoes to
+  stay lockable for point defense. Task 20260712-203349 closed won't-do.
+- **Inset only in HUD `ALL` mode.** Already satisfied - the panel is `Chrome`
+  tier and the camera gates on `HudVisibility::shows(HudTier::Chrome)`, and
+  `Chrome` is visible only at `All` (Minimal = Instrument only, None = nothing).
+  The inset-scope task just pins this with a test.
+
 ## Open questions
 
 - Does B1 feel too sticky in practice (no aim-to-switch after commit)? Needs a

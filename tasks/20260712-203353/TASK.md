@@ -6,24 +6,35 @@
 
 ## Goal
 
-Once the 1.5 s focus dwell completes on a target, the aim-driven picker stops
-overwriting the lock: it holds on the committed target (subject to the existing
-range gates + hysteresis) until the target dies / leaves range or the player
-deliberately shifts off it with CTRL+scroll (which already cycles the ship
-lock). Aim-to-acquire is UNCHANGED before the commit. This is the "does not
-move off the thing I first locked on unless I scroll off" feel from the
-playtest.
+The lock is STICKY FROM ACQUISITION: the aim-driven picker acquires a lock only
+when there is no current valid lock; once you are locked on something, it HOLDS
+(subject to the existing range gates + hysteresis) until the target dies /
+leaves range or the player deliberately shifts off it with CTRL+scroll (which
+already cycles the ship lock). Aim still makes the FIRST acquisition - it just
+stops re-picking a new target under you afterwards. This is the "does not move
+off the thing I first locked on unless I scroll off" feel from the playtest.
 
-Direction (see spike): extend the existing `pinned` gate in
-`update_spaceship_target_input` (input/targeting.rs) so the aim re-pick is
-also skipped while `focus.focused_on(**lock)` - the same code path that a
-CTRL+scroll cycle already uses (`pinned_until`). A focused lock should hold
-even when the target leaves the aim cone (locked ship now behind you, inset
-still on it), matching the `pinned` path's in-range-holds behaviour.
+Direction (see spike + user refinement 2026-07-12 - this is option B5,
+sticky-from-acquisition, NOT B1 sticky-after-focus): in
+`update_spaceship_target_input` (input/targeting.rs), skip the aim re-pick when
+the current `**res_target` is still a valid (collectible/in-range) candidate -
+reusing the `pinned` gate's "incumbent still collectible" check. Only run the
+cone/signature pick when there is no held lock. The manual CTRL+scroll cycle
+(`step_target_lock`) and target death/out-of-range still change the lock. A
+held lock persists even when the target leaves the aim cone (locked ship behind
+you, inset still on it).
 
-Optional sub-step (B3): if B1 alone feels too binary, add angular hysteresis to
-the cone pick (the `snap_pick` incumbent-holds pattern the section fine-lock
-uses) so pre-commit acquisition also flickers less.
+Why B5 and not B1: the user's rationale - torpedo theft becomes a non-issue and
+torpedoes stay lockable for point defense - only holds if the lock sticks the
+moment it is acquired; B1 (after the 1.5 s dwell) leaves the pre-focus window
+stealable. This supersedes task 20260712-203349 (no-torpedo-autolock), now
+closed won't-do.
+
+Open feel-risk to PLAYTEST: sticky-from-acquisition removes aim-to-switch
+entirely (you must CTRL+scroll to change targets). If that feels stuck, the
+fallbacks are (a) a "sustained aim far off the locked target for N seconds
+releases it" grace, or (b) fall back to B1 (sticky only after the focus dwell).
+Decide from the playtest.
 
 ## Notes
 
