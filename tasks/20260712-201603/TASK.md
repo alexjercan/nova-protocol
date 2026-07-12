@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 15
-- TAGS: v0.5.0, debug, egui, bcs, chore
+- TAGS: v0.5.1, debug, egui, bcs, chore
 
 ## Goal
 
