@@ -310,7 +310,13 @@ retros.
   shape - ApparentSize measures collider AABBs, which meant "visible
   hull" on every prior anchor (ships) and "8u pickup sensor" on the first
   sensor-only prop, ballooning the highlight bracket to the trigger
-  volume (R1.1 MAJOR, caught in review). 20260712-093831.
+  volume (R1.1 MAJOR, caught in review). 20260712-093831. Deferred-fix
+  corollary: R1.1 deferred the generic sensor exclusion because no
+  CURRENT consumer anchored a sensor-only entity - but beacons are
+  lockable, so the reticle-on-beacon path was reachable and cost a
+  playtest round + a second cycle; when deferring, enumerate the
+  entities the code path can MEET, not today's call sites.
+  20260712-154318.
 - `run-system-once-always-changed` (x1): run_system_once registers a
   fresh system per call, so Res::is_changed/Added filters are ALWAYS true
   inside it - a change-detection-gated branch tested that way looks
