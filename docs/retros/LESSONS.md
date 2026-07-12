@@ -298,6 +298,21 @@ retros.
   to per-entity allocation, not the O(wells) scan I assumed - and stopped a
   misdirected optimization. 20260712-105505.
 
+- `verify-bevy-api-at-callsite` (x1): before writing a new Bevy
+  bundle/struct-literal, grep the repo for an existing use of each unfamiliar
+  component/field and copy its exact shape - the 0.x API churns. Wrote
+  `TextFont { font_size: 9.0 }` (now a `FontSize` enum;
+  `TextFont::from_font_size(..)`) and `BorderRadius::MAX` as a component (it is
+  a `Node` field); both had in-repo callsites to copy and cost two check
+  round-trips instead. 20260712-131348.
+- `spike-reuse-over-new-infra` (x1, positive pattern): when a request's framing
+  implies new infrastructure ("diegetic, on the weapon" -> a world-space 3D
+  widget), the spike's job is to check whether an existing substrate already
+  covers the real need. Reusing `screen_indicator` (rides/scales/hides for
+  free) beat a net-new billboard+material+3D-text path, and occlusion - the
+  new path's only edge - was actively wrong for a status readout.
+  20260712-131348.
+
 ## Domain lessons (nova-protocol specific)
 
 - `two-clocks` (family): FixedUpdate consumers read raw

@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::prelude::*;
 
+pub mod ammo_readout;
 pub mod beacon_chips;
 pub mod component_lock;
 pub mod edge_indicators;
@@ -18,12 +19,13 @@ pub mod velocity;
 
 pub mod prelude {
     pub use super::{
-        beacon_chips::prelude::*, component_lock::prelude::*, edge_indicators::prelude::*,
-        flight_status::prelude::*, holo_instruments::prelude::*, keybind_hints::prelude::*,
-        maneuver_instruments::prelude::*, objective_feedback::prelude::*,
-        screen_indicator::prelude::*, target_candidates::prelude::*, torpedo_target::prelude::*,
-        turret_lead::prelude::*, velocity::prelude::*, HudSelfDrivenVisibility, HudTier,
-        HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
+        ammo_readout::prelude::*, beacon_chips::prelude::*, component_lock::prelude::*,
+        edge_indicators::prelude::*, flight_status::prelude::*, holo_instruments::prelude::*,
+        keybind_hints::prelude::*, maneuver_instruments::prelude::*,
+        objective_feedback::prelude::*, screen_indicator::prelude::*,
+        target_candidates::prelude::*, torpedo_target::prelude::*, turret_lead::prelude::*,
+        velocity::prelude::*, HudSelfDrivenVisibility, HudTier, HudVisibility, NovaHudAssets,
+        NovaHudPlugin, NovaHudSystems,
     };
 }
 
@@ -151,6 +153,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(screen_indicator::ScreenIndicatorPlugin);
         app.add_plugins(torpedo_target::TorpedoTargetHudPlugin);
         app.add_plugins(turret_lead::TurretLeadPlugin);
+        app.add_plugins(ammo_readout::AmmoReadoutPlugin);
         app.add_plugins(component_lock::ComponentLockHudPlugin);
         app.add_plugins(target_candidates::TargetCandidatesHudPlugin);
         app.add_plugins(edge_indicators::EdgeIndicatorsHudPlugin);
@@ -201,6 +204,8 @@ impl Plugin for NovaHudPlugin {
         app.add_observer(remove_hud_torpedo_target);
         app.add_observer(setup_hud_turret_lead);
         app.add_observer(remove_hud_turret_lead);
+        app.add_observer(setup_hud_ammo_readout);
+        app.add_observer(remove_hud_ammo_readout);
         app.add_observer(setup_hud_component_lock);
         app.add_observer(remove_hud_component_lock);
         app.add_observer(setup_hud_target_candidates);
@@ -581,6 +586,38 @@ fn remove_hud_turret_lead(
 ) {
     let entity = remove.entity;
     debug!("remove_hud_turret_lead: entity {:?}", entity);
+
+    for hud_entity in &q_hud {
+        commands.entity(hud_entity).despawn();
+    }
+}
+
+fn setup_hud_ammo_readout(
+    add: On<Add, PlayerSpaceshipMarker>,
+    mut commands: Commands,
+    q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+) {
+    let entity = add.entity;
+    debug!("setup_hud_ammo_readout: entity {:?}", entity);
+
+    let Ok(_spaceship) = q_spaceship.get(entity) else {
+        error!(
+            "setup_hud_ammo_readout: entity {:?} not found in q_spaceship",
+            entity
+        );
+        return;
+    };
+
+    commands.spawn((HudTier::Instrument, ammo_readout_hud()));
+}
+
+fn remove_hud_ammo_readout(
+    remove: On<Remove, PlayerSpaceshipMarker>,
+    mut commands: Commands,
+    q_hud: Query<Entity, With<AmmoReadoutHudMarker>>,
+) {
+    let entity = remove.entity;
+    debug!("remove_hud_ammo_readout: entity {:?}", entity);
 
     for hud_entity in &q_hud {
         commands.entity(hud_entity).despawn();
