@@ -88,9 +88,11 @@ retros.
 - `does-the-old-element-survive` (x2): when a design adds an element
   overlapping an existing one, the spike/plan must ask what happens to
   the old one. 20260711-000547, 20260711-125226.
-- `one-cargo-test-filter` (x2): `cargo test a b c` errors after the slow
-  compile; one substring filter or a module prefix per run.
-  20260709-155922, 20260709-155920.
+- `one-cargo-test-filter` (x3): `cargo test a b c` errors after the slow
+  compile; one substring filter or a module prefix per run. The multi-package
+  form is the same trap: `cargo test -p A f1 -p B f2` errors with "unexpected
+  argument 'f2'" - one `-p` + one filter per invocation, separate runs for
+  separate packages. 20260709-155922, 20260709-155920, 20260712-143832.
 - `check-all-targets-for-struct-field` (x1): adding a non-`Default` field to
   a widely-constructed struct (config structs especially) breaks every
   initializer, but `cargo check --workspace` compiles only libs+bins - it
@@ -124,6 +126,10 @@ retros.
   one task, the other two overwritten) - the recovery is to rm the collided
   task and re-create the three in SEPARATE tool calls, seconds apart. The
   recurrence-despite-note is the argument for the mechanical fix in Pending.
+  FIFTH in 20260712-143832's spike phase (three tatr new in one && chain ->
+  one task); recovered with rm + separate calls each after a clock-tick
+  busy-wait. Five sessions, same trap - the note still does not fire when
+  composing a multi-`tatr new` command.
 - `state-diff-aliases-reset` (x1, MAJOR): deriving domain events by
   diffing a state snapshot makes a state RESET look like a batch of
   events - scenario teardown emptied GameObjectives and the feedback
@@ -222,7 +228,7 @@ retros.
   bit-identical without the mutating system in the loop; sentinel
   mutation is the fix) - apply the question to copied test shapes too.
   20260711-212521 (R1.1 MAJOR).
-- `out-of-context-review-pass` (positive pattern, x5, fourth catch: the
+- `out-of-context-review-pass` (positive pattern, x8, fourth catch: the
   ungated-observers MAJOR above): for a substantial
   branch reviewed in the implementer's own session, a fresh-context agent
   review caught a MAJOR (BCS_SHOT force-advance vs the Loaded hook) that
@@ -238,7 +244,25 @@ retros.
   (an every-frame HUD rebuild the new pulse induced, and a folklore
   numeric bound whose failure mode was a silent softlock - empirically
   confirmed by the demanded sweep), then mutation-tested the fix's
-  regression in the re-review round. 20260711-180506.
+  regression in the re-review round. 20260711-180506. Eighth (x8): caught a
+  fail-closed coupling MINOR - a new REQUIRED component fetch folded into the
+  existing `flyable` query would brick any controller missing the component -
+  that the same-session author had convinced himself was fine.
+  20260712-143832.
+- `required-component-in-shared-query` (x1): adding a REQUIRED component fetch
+  to an EXISTING system query narrows that query's membership set, so every
+  gate computed from the query silently inherits the new precondition - folding
+  `ControllerVerbs` into `q_computer` coupled `flyable` ("can this ship fly")
+  to "does the controller carry the flags component", failing closed. When the
+  new data is orthogonal to what the query already gates, fetch it `Optional`
+  or in a separate query. Sibling of reread-after-insert /
+  does-the-old-element-survive, applied to query membership. 20260712-143832.
+- `spike-open-question-pays-off` (positive pattern, x1): a spike that names a
+  risky unknown lets the implementer resolve it BEFORE wiring, not after a
+  flake - the verb-flags spike flagged the OnStart spawn-vs-action ordering
+  window, so the shakedown's initial GOTO-off was authored in config (off the
+  instant the section is built) instead of an action that could run before the
+  controller existed. 20260712-143832 (spike 20260712-143551).
 - `authored-vs-derived-values` (x2): content authored against a system
   that derives its own runtime geometry/parameters (collider-derived body
   radius, well mu/SOI) must be placed using the runtime values, not the
@@ -370,9 +394,10 @@ retros.
   candidate for the work skill's verify step and the review skill's test
   checklist ("every verification must be able to fail").
 
-- `one-cargo-test-filter` is at x2; the thrust-balancing retro already
-  proposed promoting it to an AGENTS.md testing note on the third
-  occurrence.
+- `one-cargo-test-filter` is now at x3 (the third occurrence added the
+  multi-package `-p A f1 -p B f2` variant) - promote to an AGENTS.md testing
+  note: "cargo test takes one filter and one -p per invocation; separate runs
+  for multiple filters or packages."
 - `record-the-exact-rig` is at x3 and is a candidate for the work
   skill's close-the-task step ("record the evidence rig in TASK.md for
   any diagnostic or falsification").

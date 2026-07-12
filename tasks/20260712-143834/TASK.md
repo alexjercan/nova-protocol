@@ -1,9 +1,8 @@
 # Shakedown: disable GOTO until the first objective (OBJ_B1) completes
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 43
-- TAGS: v0.5.0,scenario,shakedown,verbs,spike
-
+- TAGS: v0.5.0, scenario, shakedown, verbs, spike
 
 Spike: docs/spikes/20260712-143551-controller-provided-verb-flags.md
 

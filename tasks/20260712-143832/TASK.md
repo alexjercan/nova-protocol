@@ -1,9 +1,8 @@
 # Controller-provided flight verb flags: gate STOP/GOTO/ORBIT on the controller section
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 45
-- TAGS: v0.5.0,input,controller,verbs,spike
-
+- TAGS: v0.5.0, input, controller, verbs, spike
 
 Spike: docs/spikes/20260712-143551-controller-provided-verb-flags.md
 

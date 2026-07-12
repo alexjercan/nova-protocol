@@ -249,4 +249,31 @@ steps):
 
 ## Fix record
 
-(Appended by each implementing task as it lands.)
+- **2026-07-12, all three tasks (branch `spaceship-controller-verb-flags`,
+  commits f5f79d0 / 8dce7ca / 3017bbe + review fix b14914c).** Shipped Option A
+  end to end.
+  - `ControllerVerbs { stop, goto, orbit }` (default all-on) + `FlightVerb` enum
+    on the controller section, seeded from `ControllerSectionConfig::verbs`
+    (controller_section.rs). CANCEL/Z left un-gated by design.
+  - Hint pass (`update_flight_verb_hints`) and all three autopilot execution
+    observers gate on the flags via a shared `ship_grants_verb`/`verb_granted`
+    union predicate; observers also gained the controller-present re-check they
+    lacked. Toggle-OFF stays ungated so a verb disabled mid-maneuver never
+    strands an engaged autopilot.
+  - `EventActionConfig::SetControllerVerb` (actions.rs) flips one verb on a
+    ship's controller section(s) by scenario id, shaped like `SetSpeedCap`.
+  - **Design refinement vs the plan:** the shakedown's INITIAL GOTO-off is
+    authored in the player's controller CONFIG (clone-and-override the shared
+    `basic_controller_section` so the pirate is untouched), NOT an OnStart
+    action - because the ship and its controller section spawn during the same
+    OnStart drain, so a SetControllerVerb queued there could run before the
+    controller exists (the spike's own open question, resolved to the config
+    side). The beat-1 ENABLE is a `SetControllerVerb` action next to the
+    governor release, where the ship definitely exists.
+  - **Review (out-of-context, no BLOCKER/MAJOR):** one MINOR - folding
+    `ControllerVerbs` into the `flyable` query made a controller missing the
+    component fail closed and brick the ship. Fixed (b14914c) by making the
+    component Optional in both queries and treating absent as the all-on default,
+    decoupling `flyable` from the flags. Tests: hint gating independent of
+    lock/well, flags-less controller stays flyable, end-to-end GOTO keypress
+    gate, scoped + write-all action, config off-state + beat-1 unlock e2e.
