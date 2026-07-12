@@ -5,7 +5,8 @@
 - TAGS: v0.5.0,weapons,health,spike
 
 
-Spike: docs/spikes/20260712-133135-weapon-and-damage-type-variety.md
+Spike: docs/spikes/20260712-133135-weapon-and-damage-type-variety.md (architecture)
+Spike: docs/spikes/20260712-160505-damage-and-bullet-type-taxonomy.md (types + resistance table)
 
 Foundation of the combat-depth typed-damage pass. Add a nova DamageType enum
 (Kinetic/ArmorPiercing/Emp/Explosive), a ProjectileDamage { amount, kind }

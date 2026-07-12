@@ -197,7 +197,9 @@ knobs instead of one conflated number.
   (e.g. two kinetic loads) share a damage type? Pick when designing phase 2.
 - **Resistance values.** The actual multiplier table (which type is strong/weak
   vs which section) is a balance question for playtest; phase 1 ships a defensible
-  first table behind the mechanism.
+  first table behind the mechanism. RESOLVED by the taxonomy spike
+  docs/spikes/20260712-160505-damage-and-bullet-type-taxonomy.md, which fixes the
+  four-type set, the AmmoKind==DamageType decision, and the first table.
 - **HUD.** Damage types, the selected bullet type, and per-type ammo want HUD
   surfacing; folds into the already-filed ammo HUD task 20260712-131348.
 
