@@ -227,3 +227,12 @@ be closed pointing here.
   its falloff + trigger, leaving bcs's blast observer dormant (torpedo-blast-typing
   open question resolved). Feel-preserving at Kinetic 1.0. Details + reflection:
   docs/2026-07-12-typed-damage-core.md.
+- **20260712-133349 (bullet-type slot) LANDED, scoped to the foundation.** Per
+  user direction, phase 2 shipped as the seam, not the full system: a per-turret
+  `LoadedBullet { kind, damage }` runtime slot (seeded from a new config
+  `bullet_kind`) drives the fired `ProjectileDamage`, and the ammo readout is
+  color-coded by type via `damage_type_color` (Kinetic amber / AP steel / EMP
+  cyan / Explosive red-orange). `SectionAmmo` stays a single pool; AmmoKind ==
+  DamageType. DEFERRED to future ship-management: per-type magazine pools,
+  in-game reload, and editor/scenario/station switching (all just mutate the
+  slot / grow the pool). Details: docs/2026-07-12-bullet-type-slot.md.

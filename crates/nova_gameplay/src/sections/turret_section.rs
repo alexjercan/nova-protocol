@@ -14,7 +14,7 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        turret_section, TurretBulletProjectileMarker, TurretSectionAimPoint,
+        turret_section, LoadedBullet, TurretBulletProjectileMarker, TurretSectionAimPoint,
         TurretSectionAimSystems, TurretSectionBarrelMuzzleMarker, TurretSectionConfig,
         TurretSectionConfigHelper, TurretSectionInput, TurretSectionMarker,
         TurretSectionMuzzleEntity, TurretSectionPlugin, TurretSectionTargetInput,
@@ -72,6 +72,13 @@ pub struct TurretSectionConfig {
     /// the old emergent per-hit (via [`representative_kinetic_damage`]) keeps the
     /// turret's feel unchanged.
     pub bullet_damage: f32,
+    /// Damage TYPE of the round this turret is loaded with (task 20260712-133349).
+    /// The authoring default for the turret's [`LoadedBullet`] slot; the fired
+    /// projectile's `ProjectileDamage.kind` comes from that slot, and the ammo
+    /// readout is colored by it. Catalog turrets are `Kinetic`, so the feel is
+    /// unchanged; a future ship-management/station/scenario action swaps the
+    /// loaded type by mutating `LoadedBullet`, not this authored default.
+    pub bullet_kind: DamageType,
     /// The projectile mesh,
     pub projectile_render_mesh: Option<Handle<WorldAsset>>,
     /// The muzzle particle effect when shooting.
@@ -104,6 +111,7 @@ impl Default for TurretSectionConfig {
             projectile_lifetime: 5.0,
             // Matches the old emergent kinetic (mass 0.1 @ muzzle 100 u/s).
             bullet_damage: representative_kinetic_damage(0.1, 100.0),
+            bullet_kind: DamageType::Kinetic,
             projectile_render_mesh: None,
             muzzle_effect: None,
             ammo_capacity: None,
@@ -115,15 +123,37 @@ impl Default for TurretSectionConfig {
 pub fn turret_section(config: TurretSectionConfig) -> impl Bundle {
     debug!("turret_section: config {:?}", config);
 
+    // The loaded-ammo slot, seeded from the authored config. Read before `config`
+    // moves into the helper (both fields are `Copy`).
+    let loaded = LoadedBullet {
+        kind: config.bullet_kind,
+        damage: config.bullet_damage,
+    };
+
     (
         TurretSectionMarker,
         SectionDamageClass::Turret,
+        loaded,
         TurretSectionTargetInput(None),
         TurretSectionTargetVelocity::default(),
         TurretSectionAimPoint::default(),
         TurretSectionConfigHelper(config),
         TurretSectionInput(false),
     )
+}
+
+/// The turret's loaded-ammo "slot": the round it currently fires. Runtime state
+/// (seeded from [`TurretSectionConfig::bullet_kind`]/`bullet_damage`), NOT the
+/// authored config - a future ship-management / station / scenario action swaps
+/// the loaded round by mutating this one small component, and the fire path and
+/// ammo readout both read it. Task 20260712-133349; the growth seam toward
+/// per-type magazines + reload (spike 20260712-133135 phase 2).
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+pub struct LoadedBullet {
+    /// The damage type of the loaded round (stamps `ProjectileDamage.kind`).
+    pub kind: DamageType,
+    /// The pre-resistance per-hit damage of the loaded round.
+    pub damage: f32,
 }
 
 /// Input to request the turret to shoot a projectile.
@@ -881,6 +911,7 @@ fn shoot_spawn_projectile(
             &TurretSectionMuzzleEntity,
             &ChildOf,
             &TurretSectionConfigHelper,
+            Option<&LoadedBullet>,
             &TurretSectionInput,
             Option<&mut SectionAmmo>,
         ),
@@ -890,7 +921,13 @@ fn shoot_spawn_projectile(
     q_chain: Query<(&Transform, &ChildOf)>,
 ) {
     let dt = time.delta_secs();
-    for (turret, muzzle, ChildOf(spaceship), config, input, mut ammo) in &mut q_turret {
+    for (turret, muzzle, ChildOf(spaceship), config, loaded, input, mut ammo) in &mut q_turret {
+        // The fired round: the runtime LoadedBullet slot if present (production
+        // turrets carry one), else the authored config default (bare test rigs
+        // and any turret not built via `turret_section`).
+        let (bullet_kind, bullet_damage) = loaded
+            .map(|loaded| (loaded.kind, loaded.damage))
+            .unwrap_or((config.bullet_kind, config.bullet_damage));
         let Ok(mut fire_state) = q_muzzle.get_mut(**muzzle) else {
             error!(
                 "shoot_spawn_projectile: entity {:?} not found in q_muzzle",
@@ -1023,9 +1060,12 @@ fn shoot_spawn_projectile(
                 // (task 20260712-133343). Nested tuple: bundle arity.
                 (
                     Mass(NEUTRALIZED_BULLET_MASS),
+                    // The fired round comes from the turret's loaded-ammo slot,
+                    // not a hardcoded type (task 20260712-133349), so a future
+                    // ammo switch changes what this stamps.
                     ProjectileDamage {
-                        amount: config.bullet_damage,
-                        kind: DamageType::Kinetic,
+                        amount: bullet_damage,
+                        kind: bullet_kind,
                     },
                 ),
                 TurretSectionPartOf(turret),
@@ -1704,6 +1744,69 @@ mod tests {
             "an unlimited turret must not be capped at a magazine size, got {}",
             bullet_count(&mut app)
         );
+    }
+
+    #[test]
+    fn turret_section_seeds_the_loaded_bullet_slot_from_config() {
+        // The ammo slot is authored from config: bullet_kind/bullet_damage seed
+        // LoadedBullet, and a default turret loads Kinetic.
+        let mut world = World::new();
+        let emp = world
+            .spawn(turret_section(TurretSectionConfig {
+                bullet_kind: DamageType::Emp,
+                bullet_damage: 7.0,
+                ..default()
+            }))
+            .id();
+        let loaded = world
+            .entity(emp)
+            .get::<LoadedBullet>()
+            .expect("turret_section inserts a LoadedBullet slot");
+        assert_eq!(loaded.kind, DamageType::Emp);
+        assert_eq!(loaded.damage, 7.0);
+
+        let default_turret = world
+            .spawn(turret_section(TurretSectionConfig::default()))
+            .id();
+        assert_eq!(
+            world
+                .entity(default_turret)
+                .get::<LoadedBullet>()
+                .unwrap()
+                .kind,
+            DamageType::Kinetic,
+            "catalog default loadout is Kinetic (feel-preserving)"
+        );
+    }
+
+    #[test]
+    fn fired_bullet_takes_the_loaded_slots_type_not_a_hardcoded_kind() {
+        // Load a non-Kinetic round into the slot and confirm the fired bullet
+        // carries it. Would fail if the fire path still stamped a hardcoded
+        // Kinetic (the pre-slot behavior).
+        let mut app = firing_app(1.0);
+        let turret = spawn_firing_turret(&mut app, None);
+        app.world_mut().entity_mut(turret).insert(LoadedBullet {
+            kind: DamageType::Emp,
+            damage: 5.0,
+        });
+
+        for _ in 0..3 {
+            app.update();
+        }
+
+        let dmg = *app
+            .world_mut()
+            .query_filtered::<&ProjectileDamage, With<TurretBulletProjectileMarker>>()
+            .iter(app.world())
+            .next()
+            .expect("the turret fired at least one bullet");
+        assert_eq!(
+            dmg.kind,
+            DamageType::Emp,
+            "the fired round must take the loaded slot's type, not a hardcoded Kinetic"
+        );
+        assert_eq!(dmg.amount, 5.0, "and the slot's authored damage");
     }
 
     #[test]

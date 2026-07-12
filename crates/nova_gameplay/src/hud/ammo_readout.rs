@@ -62,10 +62,11 @@ const BAR_PIP_GAP: f32 = 2.0;
 #[cfg(feature = "debug")]
 const DEBUG_TOGGLE_KEY: KeyCode = KeyCode::F11;
 
-/// A lit chunk: warm amber, matching the turret-lead pip family.
-const LIT_COLOR: Color = Color::srgba(1.0, 0.75, 0.2, 0.95);
-/// A spent chunk: the same hue, dimmed so the gauge reads as a track that
-/// empties rather than as pips appearing and vanishing.
+/// A spent chunk's initial color at spawn: the Kinetic amber, dimmed.
+/// `drive_ammo_readouts` overwrites this each frame in the loaded round's hue;
+/// this is just the neutral pre-drive fill (the ring exists a frame before the
+/// driver runs). The lit/dim HUES now come from [`damage_type_color`]; the
+/// alphas are `LIT_ALPHA`/`DIM_ALPHA` on the driver.
 const DIM_COLOR: Color = Color::srgba(1.0, 0.75, 0.2, 0.16);
 
 /// A thin dark outline around every pip so the amber gauge holds contrast on
@@ -338,25 +339,46 @@ fn sync_ammo_readouts(
     }
 }
 
-/// Light each readout's chunks from its section's current `rounds/capacity`.
-/// The single point that reads ammo: swapping the source to a per-bullet-type
-/// magazine later (task 20260708-162005) is a one-line change here.
+/// Alpha of a lit / spent chunk. The hue now comes from the loaded round's
+/// [`damage_type_color`]; these are the lit-vs-dim alphas applied over it (the
+/// old `LIT_COLOR`/`DIM_COLOR` were this alpha over the Kinetic amber).
+const LIT_ALPHA: f32 = 0.95;
+const DIM_ALPHA: f32 = 0.16;
+
+/// Light each readout's chunks from its section's current `rounds/capacity`, in
+/// the color of the loaded round's damage type (task 20260712-133349). Turret
+/// readouts read the section's [`LoadedBullet`] slot; torpedo readouts are
+/// Explosive (a torpedo always detonates an Explosive `NovaBlast`). This is the
+/// single point that reads ammo state, so growing to per-bullet-type magazines
+/// later stays a local change.
 fn drive_ammo_readouts(
     q_readouts: Query<(&AmmoReadoutSection, &AmmoReadoutKind, &Children), With<AmmoReadoutMarker>>,
     q_ammo: Query<&SectionAmmo>,
+    q_loaded: Query<&LoadedBullet>,
     mut q_pips: Query<(&AmmoReadoutPip, &mut BackgroundColor)>,
 ) {
     for (section, kind, children) in &q_readouts {
         let Ok(ammo) = q_ammo.get(**section) else {
             continue;
         };
-        let lit = match kind {
-            AmmoReadoutKind::Turret => turret_lit_segments(ammo.rounds, ammo.capacity),
-            AmmoReadoutKind::Torpedo => ammo.rounds as usize,
+        let (lit, damage_type) = match kind {
+            AmmoReadoutKind::Turret => (
+                turret_lit_segments(ammo.rounds, ammo.capacity),
+                // The turret's loaded round; default Kinetic if the slot is
+                // somehow absent (production turrets always carry one).
+                q_loaded
+                    .get(**section)
+                    .map(|loaded| loaded.kind)
+                    .unwrap_or(DamageType::Kinetic),
+            ),
+            AmmoReadoutKind::Torpedo => (ammo.rounds as usize, DamageType::Explosive),
         };
+        let hue = damage_type_color(damage_type);
+        let lit_color = hue.with_alpha(LIT_ALPHA);
+        let dim_color = hue.with_alpha(DIM_ALPHA);
         for &child in children {
             if let Ok((pip, mut color)) = q_pips.get_mut(child) {
-                color.0 = if **pip < lit { LIT_COLOR } else { DIM_COLOR };
+                color.0 = if **pip < lit { lit_color } else { dim_color };
             }
         }
     }
@@ -593,7 +615,9 @@ mod tests {
         children
             .into_iter()
             .filter_map(|child| world.entity(child).get::<BackgroundColor>().copied())
-            .filter(|color| color.0 == LIT_COLOR)
+            // Lit pips carry LIT_ALPHA, dim pips DIM_ALPHA, regardless of the
+            // per-type hue - count by alpha so this works for any ammo type.
+            .filter(|color| color.0.alpha() > (LIT_ALPHA + DIM_ALPHA) / 2.0)
             .count()
     }
 
@@ -646,6 +670,65 @@ mod tests {
             .rounds = 1;
         world.run_system_once(drive_ammo_readouts).unwrap();
         assert_eq!(lit_pip_count(&mut world, torpedo), 1);
+    }
+
+    /// The color of the first lit pip of `section`'s readout.
+    fn first_lit_pip_color(world: &mut World, section: Entity) -> Color {
+        let readout = world
+            .query_filtered::<(Entity, &AmmoReadoutSection), With<AmmoReadoutMarker>>()
+            .iter(world)
+            .find(|(_, s)| ***s == section)
+            .map(|(entity, _)| entity)
+            .expect("readout exists");
+        let children: Vec<Entity> = world
+            .entity(readout)
+            .get::<Children>()
+            .map(|children| children.iter().collect())
+            .unwrap_or_default();
+        children
+            .into_iter()
+            .filter_map(|child| world.entity(child).get::<BackgroundColor>().copied())
+            .map(|c| c.0)
+            .find(|c| c.alpha() > (LIT_ALPHA + DIM_ALPHA) / 2.0)
+            .expect("at least one lit pip")
+    }
+
+    #[test]
+    fn driver_colors_pips_by_loaded_ammo_type() {
+        // The readout hue tracks the loaded round's DamageType: a turret loaded
+        // with EMP reads EMP-colored (differs from Kinetic amber), and a torpedo
+        // reads Explosive.
+        let mut world = World::new();
+        world.spawn(ammo_readout_hud());
+        let player = spawn_player(&mut world);
+        let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
+        world.entity_mut(turret).insert(LoadedBullet {
+            kind: DamageType::Emp,
+            damage: 5.0,
+        });
+        let torpedo = spawn_torpedo(&mut world, player, Some(SectionAmmo::new(4)));
+        world.run_system_once(sync_ammo_readouts).unwrap();
+        world.run_system_once(drive_ammo_readouts).unwrap();
+
+        let turret_lit = first_lit_pip_color(&mut world, turret);
+        assert_eq!(
+            turret_lit,
+            damage_type_color(DamageType::Emp).with_alpha(LIT_ALPHA),
+            "an EMP-loaded turret reads in the EMP hue"
+        );
+        assert_ne!(
+            turret_lit,
+            damage_type_color(DamageType::Kinetic).with_alpha(LIT_ALPHA),
+            "EMP must read differently from the Kinetic amber (the point of color-coding)"
+        );
+
+        // Torpedoes always detonate an Explosive blast, so their readout is
+        // Explosive-colored even though they carry no LoadedBullet slot.
+        assert_eq!(
+            first_lit_pip_color(&mut world, torpedo),
+            damage_type_color(DamageType::Explosive).with_alpha(LIT_ALPHA),
+            "a torpedo bay reads Explosive"
+        );
     }
 
     #[cfg(feature = "debug")]

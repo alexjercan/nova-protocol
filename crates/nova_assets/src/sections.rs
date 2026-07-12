@@ -112,6 +112,9 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 // 20260712-133343). Reproduces the old emergent per-hit (mass
                 // 0.1 @ 100 u/s) so Kinetic-at-1.0 keeps this turret's feel.
                 bullet_damage: representative_kinetic_damage(0.1, 100.0),
+                // Kinetic loadout (the slot's authored default; task
+                // 20260712-133349).
+                bullet_kind: DamageType::Kinetic,
                 projectile_render_mesh: None,
                 muzzle_effect: None,
                 // ~5s of sustained fire at 100 rounds/s. Generous on purpose:
@@ -173,6 +176,8 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 // (mass 0.05 @ 60 u/s) - roughly a fifth of the better turret's,
                 // matching the previous gentleness.
                 bullet_damage: representative_kinetic_damage(0.05, 60.0),
+                // Kinetic loadout (task 20260712-133349).
+                bullet_kind: DamageType::Kinetic,
                 projectile_render_mesh: None,
                 muzzle_effect: None,
                 // ~6s of fire at 25 rounds/s. Scavenger grade: a shorter fight

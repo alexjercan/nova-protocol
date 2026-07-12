@@ -1,6 +1,6 @@
 # Multi-type magazines, reload and bullet-type switching
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.5.0,weapons,spike
 
@@ -24,27 +24,27 @@ that type's color; proven in headless tests.
 
 ## Steps
 
-- [ ] Add `LoadedBullet { kind: DamageType, damage: f32 }` component (the ammo
+- [x] Add `LoadedBullet { kind: DamageType, damage: f32 }` component (the ammo
   slot) in turret_section.rs (prelude-exported). It is the runtime round the
   turret fires; a future scenario/station/ship-management action mutates it. Its
   authoring default comes from config (next step).
-- [ ] Add `bullet_kind: DamageType` to `TurretSectionConfig` (turret_section.rs:33
+- [x] Add `bullet_kind: DamageType` to `TurretSectionConfig` (turret_section.rs:33
   struct, :86 Default = `DamageType::Kinetic`). Keep `bullet_damage`. In the
   `turret_section` bundle fn (turret_section.rs:115) insert `LoadedBullet { kind:
   config.bullet_kind, damage: config.bullet_damage }` (read both before `config`
   is moved into `TurretSectionConfigHelper`; both are `Copy`). Arity is fine
   (bundle grows 6 -> 7).
-- [ ] Fire from the slot: in `shoot_spawn_projectile` (turret_section.rs:864) add
+- [x] Fire from the slot: in `shoot_spawn_projectile` (turret_section.rs:864) add
   `&LoadedBullet` to `q_turret` (line 878) and stamp `ProjectileDamage { amount:
   loaded.damage, kind: loaded.kind }` at the spawn (turret_section.rs:1027),
   replacing `config.bullet_damage` + hardcoded `DamageType::Kinetic`. Catalog
   turrets keep Kinetic (default), so feel is unchanged.
-- [ ] Add `pub fn damage_type_color(kind: DamageType) -> Color` in damage.rs
+- [x] Add `pub fn damage_type_color(kind: DamageType) -> Color` in damage.rs
   (prelude-exported): an opaque per-type hue. Kinetic = the current readout amber
   `(1.0, 0.75, 0.2)` (so Kinetic weapons look identical); ArmorPiercing = steel
   blue; Emp = cyan; Explosive = red-orange. Distinct hues, readable on the dark
   HUD behind the existing pip outline.
-- [ ] Color the readout by type: in ammo_readout.rs `drive_ammo_readouts`
+- [x] Color the readout by type: in ammo_readout.rs `drive_ammo_readouts`
   (ammo_readout.rs:344, the single ammo-source point the file flagged for exactly
   this) resolve each readout's `DamageType` - Turret readouts read the section's
   `LoadedBullet.kind`; Torpedo readouts are Explosive (torpedoes always detonate
@@ -52,7 +52,7 @@ that type's color; proven in headless tests.
   current lit alpha (0.95) and dim pips to the same hue at the dim alpha (0.16).
   Replace the `LIT_COLOR`/`DIM_COLOR` consts' role with per-type derivation; keep
   the black `PIP_OUTLINE_COLOR`.
-- [ ] Tests (headless): (1) `turret_section(config)` inserts a `LoadedBullet`
+- [x] Tests (headless): (1) `turret_section(config)` inserts a `LoadedBullet`
   matching `config.bullet_kind`/`bullet_damage`; default config is Kinetic.
   (2) `shoot_spawn_projectile` stamps the spawned bullet's `ProjectileDamage` from
   the slot - set a turret's `LoadedBullet.kind = Emp` and assert the fired bullet
@@ -62,7 +62,7 @@ that type's color; proven in headless tests.
   color path: a helper that maps a readout's resolved kind -> lit color equals
   `damage_type_color(kind)`; assert a non-Kinetic turret's lit pip color differs
   from Kinetic's. Use production spawn helpers; every assertion able to fail.
-- [ ] Docs: `docs/<date>-bullet-type-slot.md` (the slot design, why a separate
+- [x] Docs: `docs/<date>-bullet-type-slot.md` (the slot design, why a separate
   runtime component vs baking in config, the deferred per-type-magazine/reload
   growth seam, the HUD color choices). Append a Fix record entry to spike
   20260712-133135. Add a CHANGELOG Unreleased line (note torpedo readouts now read
@@ -93,3 +93,30 @@ that type's color; proven in headless tests.
   nova_assets/sections.rs use `..default()`, so only the two authoritative
   configs and the Default need the new field, but verify examples/tests.
 - Blocks nothing further in the family; alt-fire (20260712-133356) is independent.
+
+## Implementation record
+
+Landed: `LoadedBullet` slot + `bullet_kind` config in turret_section.rs, fire
+stamps from the slot, `damage_type_color` in damage.rs, per-type coloring in
+ammo_readout.rs `drive_ammo_readouts`. Write-up + reflection:
+docs/2026-07-12-bullet-type-slot.md. Fix record appended to spike 20260712-133135.
+
+Deviations from the plan as written:
+
+- The fire query uses `Option<&LoadedBullet>` with a fallback to the config
+  default (plan said required `&LoadedBullet`). A required component would have
+  stopped every headless fire rig (they spawn turrets by hand without the slot)
+  from firing. Optional + config fallback keeps them working and encodes
+  config-is-default / component-is-runtime.
+- Removed the now-dead `LIT_COLOR` const (its only remaining use was in a test);
+  the lit hue is derived from `damage_type_color`, and the test's lit-pip counter
+  is now alpha-based (hue-agnostic). `DIM_COLOR` stays as the neutral pre-drive
+  spawn fill.
+
+Verification: `cargo check --workspace --all-targets` clean, `cargo fmt` clean,
+new + affected tests green (damage 8/8, turret_section 20/20 incl. the two new
+slot tests, ammo_readout 9/9 incl. the color-by-type test). Full suite in CI.
+
+Playtest note (2026-07-12, filed separately): PDC one-shots asteroids/objects -
+authored Kinetic per-hit x 1.0 resistance vs low-HP unclassed targets. Routed to
+its own tuning task, not this branch.

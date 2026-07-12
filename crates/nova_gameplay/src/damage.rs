@@ -23,8 +23,9 @@ use bevy_common_systems::prelude::HealthApplyDamage;
 
 pub mod prelude {
     pub use super::{
-        apply_typed_damage, nova_blast, representative_kinetic_damage, resistance, DamageType,
-        NovaBlast, NovaDamagePlugin, ProjectileDamage, SectionDamageClass, NEUTRALIZED_BULLET_MASS,
+        apply_typed_damage, damage_type_color, nova_blast, representative_kinetic_damage,
+        resistance, DamageType, NovaBlast, NovaDamagePlugin, ProjectileDamage, SectionDamageClass,
+        NEUTRALIZED_BULLET_MASS,
     };
 }
 
@@ -125,6 +126,25 @@ pub const fn resistance(class: SectionDamageClass, kind: DamageType) -> f32 {
         (Controller, Explosive) => 1.0,
         (Turret, Explosive) => 0.5,
         (Torpedo, Explosive) => 1.25,
+    }
+}
+
+/// The identifying color of a damage type, for HUD conveyance (the ammo readout
+/// colors its pips by the loaded round's type; task 20260712-133349). Opaque
+/// hue - callers apply their own alpha (lit vs dim). Kinetic is the readout's
+/// historical amber so a Kinetic weapon looks unchanged; the others are distinct
+/// hues (steel blue, cyan, red-orange) that read on the dark HUD behind the pip
+/// outline.
+pub fn damage_type_color(kind: DamageType) -> Color {
+    match kind {
+        // The original ammo-readout amber (LIT_COLOR's hue) - unchanged look.
+        DamageType::Kinetic => Color::srgb(1.0, 0.75, 0.2),
+        // Hardened penetrator: cold steel blue.
+        DamageType::ArmorPiercing => Color::srgb(0.6, 0.75, 1.0),
+        // Anti-electronics: electric cyan.
+        DamageType::Emp => Color::srgb(0.3, 0.9, 1.0),
+        // Concussive: red-orange fire.
+        DamageType::Explosive => Color::srgb(1.0, 0.4, 0.15),
     }
 }
 
@@ -382,6 +402,29 @@ mod tests {
         assert_eq!(scaled_amount(Some(SectionDamageClass::Turret), ap), 17.5);
         // Unknown target (asteroid): raw amount, no resistance.
         assert_eq!(scaled_amount(None, ap), 10.0);
+    }
+
+    #[test]
+    fn damage_type_color_is_distinct_per_type_and_kinetic_is_the_readout_amber() {
+        let colors = [
+            damage_type_color(DamageType::Kinetic),
+            damage_type_color(DamageType::ArmorPiercing),
+            damage_type_color(DamageType::Emp),
+            damage_type_color(DamageType::Explosive),
+        ];
+        // Every pair distinct, so the ammo readout reads a different color per
+        // loaded type (would fail if two types shared a hue).
+        for i in 0..colors.len() {
+            for j in (i + 1)..colors.len() {
+                assert_ne!(colors[i], colors[j], "types {i} and {j} share a color");
+            }
+        }
+        // Kinetic keeps the historical readout amber, so a Kinetic weapon looks
+        // exactly as it did before typed ammo.
+        assert_eq!(
+            damage_type_color(DamageType::Kinetic),
+            Color::srgb(1.0, 0.75, 0.2)
+        );
     }
 
     #[test]
