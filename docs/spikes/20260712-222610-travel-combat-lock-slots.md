@@ -278,3 +278,29 @@ never sacrificed to combat retargeting.
   the travel lock in Normal view (default: yes, active-view rule from
   round 1).
 - User asked for an adversarial review of this round - recorded below.
+
+### Round 2b (2026-07-12, user verdict on seed-on-raise)
+
+User confirmed hostile-first seed-on-raise as "a really good find" and
+restated it as "raising the gun re-evaluates the best target", accepting
+the residual edge: travel-locked on an ENEMY, raising might lock a
+different enemy - "much more acceptable" than the friendly-seed annoyance.
+
+Refinement that shrinks that edge further - ONE incumbent-hysteresis rule
+for every raise: the raise evaluates the best enemy by angle-from-aim, and
+the INCUMBENT (the current combat lock on a re-raise, or the hostile
+travel lock on an empty-lock raise) holds unless another enemy is CLEARLY
+nearer the aim (the same cos-ratio band as round-2 rule 2). Outcomes:
+
+- Approach run (aiming at your travel-locked enemy, raise): locks THEM -
+  incumbent and aimed-at coincide.
+- Ambush (travel-locked on enemy A, looking at attacker B, raise): locks
+  B - you get the one you are looking at, which is the correct combat
+  reflex.
+- Raise while aiming at empty space with a hostile travel lock: incumbent
+  wins - your deliberate designation is respected.
+
+So the "might lock on something else" annoyance only remains when the
+player raises while genuinely looking at a different enemy - which is the
+case where switching IS the intent. Task 20260712-223035 seeding steps
+follow this rule.

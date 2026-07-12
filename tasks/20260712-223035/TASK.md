@@ -110,3 +110,7 @@ matching bullets above)
   playtest.
 - Inset view priority: combat lock, else travel lock (friendly inspection
   without combat-locking).
+- Round 2b: seeding and re-seeding unify into ONE incumbent-hysteresis
+  rule - raise evaluates best-enemy-by-angle; incumbent (combat lock, or
+  hostile travel lock when combat is empty) holds unless another enemy is
+  clearly nearer the aim (cos-ratio band). User-confirmed direction.
