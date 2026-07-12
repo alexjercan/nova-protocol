@@ -24,6 +24,36 @@ pub mod prelude {
     pub use super::{ObjectiveFeedbackPlugin, ObjectiveGhostLineMarker, ObjectiveGhostsHudMarker};
 }
 
+/// Feedback tunables, a resource for the inspector and a future settings
+/// screen (playtest round 4: "can be configured maybe").
+#[derive(Resource, Clone, Debug, Reflect)]
+#[reflect(Resource)]
+pub struct ObjectiveFeedbackSettings {
+    /// Seconds between a completion cue and the new-objective cue when
+    /// both land in one change - the chime gets its moment before the
+    /// posting blip (playtest round 4). Pure additions stay immediate.
+    pub new_cue_delay_secs: f32,
+}
+
+impl Default for ObjectiveFeedbackSettings {
+    fn default() -> Self {
+        Self {
+            new_cue_delay_secs: 1.0,
+        }
+    }
+}
+
+/// The held-back new-objective cue: set when a completion and an addition
+/// land in the same change, played by `play_pending_new_cue` when the
+/// timer runs out. A further change while pending refreshes it (latest
+/// change wins, cues never stack).
+#[derive(Resource, Default)]
+struct NewCueState {
+    /// Some = a new-objective cue is waiting out the post-completion
+    /// delay.
+    pending: Option<Timer>,
+}
+
 /// UI cue volumes: legible over the engine hum, no attenuation (these are
 /// panel sounds, not world sounds).
 const OBJECTIVE_NEW_VOLUME: f32 = 0.30;
@@ -56,13 +86,18 @@ impl Plugin for ObjectiveFeedbackPlugin {
         debug!("ObjectiveFeedbackPlugin: build");
 
         app.register_type::<ObjectiveGhostLineMarker>();
+        app.register_type::<ObjectiveFeedbackSettings>();
+        app.init_resource::<ObjectiveFeedbackSettings>();
+        app.init_resource::<NewCueState>();
         app.add_systems(Startup, spawn_ghost_stack);
         app.add_systems(
             Update,
             (
                 objective_change_feedback.run_if(resource_changed::<GameObjectives>),
+                play_pending_new_cue,
                 fade_ghost_lines,
             )
+                .chain()
                 .in_set(super::NovaHudSystems),
         );
     }
@@ -96,6 +131,8 @@ fn objective_change_feedback(
     mut commands: Commands,
     objectives: Res<GameObjectives>,
     bank: Option<Res<SoundBank<NovaSfx>>>,
+    settings: Res<ObjectiveFeedbackSettings>,
+    mut new_cue: ResMut<NewCueState>,
     q_stack: Query<Entity, With<ObjectiveGhostsHudMarker>>,
     mut snapshot: Local<Vec<Objective>>,
 ) {
@@ -107,6 +144,7 @@ fn objective_change_feedback(
     // completes b5 and posts "done" in one action list.
     if objectives.objectives.is_empty() {
         *snapshot = Vec::new();
+        new_cue.pending = None;
         return;
     }
 
@@ -127,9 +165,28 @@ fn objective_change_feedback(
                 bank.get(NovaSfx::ObjectiveComplete),
                 OBJECTIVE_COMPLETE_VOLUME,
             );
+            // A chime just played: restart any pending blip's clock, or a
+            // completion-only change late in the window would land the
+            // blip right on this chime's tail - the exact masking this
+            // delay exists to prevent (review R1.2).
+            if let Some(timer) = new_cue.pending.as_mut() {
+                timer.reset();
+            }
         }
         if added {
-            commands.play_sfx_volume(bank.get(NovaSfx::ObjectiveNew), OBJECTIVE_NEW_VOLUME);
+            if completed.is_empty() {
+                // Nothing finished in this change: the posting blip plays
+                // immediately.
+                commands.play_sfx_volume(bank.get(NovaSfx::ObjectiveNew), OBJECTIVE_NEW_VOLUME);
+            } else {
+                // The completion chime just played - hold the posting blip
+                // back so the two cues do not mask each other (playtest
+                // round 4). Latest change wins if one was already pending.
+                new_cue.pending = Some(Timer::from_seconds(
+                    settings.new_cue_delay_secs.max(0.0),
+                    TimerMode::Once,
+                ));
+            }
         }
     }
 
@@ -153,6 +210,26 @@ fn objective_change_feedback(
     }
 
     *snapshot = objectives.objectives.clone();
+}
+
+/// Play the held-back new-objective cue once its post-completion delay
+/// runs out (see [`NewCueState`]).
+fn play_pending_new_cue(
+    time: Res<Time>,
+    mut commands: Commands,
+    bank: Option<Res<SoundBank<NovaSfx>>>,
+    mut new_cue: ResMut<NewCueState>,
+) {
+    let Some(timer) = new_cue.pending.as_mut() else {
+        return;
+    };
+    if !timer.tick(time.delta()).is_finished() {
+        return;
+    }
+    new_cue.pending = None;
+    if let Some(bank) = &bank {
+        commands.play_sfx_volume(bank.get(NovaSfx::ObjectiveNew), OBJECTIVE_NEW_VOLUME);
+    }
 }
 
 /// Fade each ghost line's alpha with age and despawn it when spent.
@@ -180,15 +257,104 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         app.init_resource::<GameObjectives>();
+        app.init_resource::<ObjectiveFeedbackSettings>();
+        app.init_resource::<NewCueState>();
         app.add_systems(Startup, spawn_ghost_stack);
         app.add_systems(
             Update,
             (
                 objective_change_feedback.run_if(resource_changed::<GameObjectives>),
+                play_pending_new_cue,
                 fade_ghost_lines,
-            ),
+            )
+                .chain(),
         );
         app
+    }
+
+    /// Which cue a PlaySfx trigger carried, resolved by handle identity.
+    #[derive(Resource, Default)]
+    struct CueCounts {
+        complete: usize,
+        new: usize,
+    }
+
+    /// The feedback rig plus a real SoundBank and a PlaySfx capture, so
+    /// tests can assert WHICH cue played and WHEN.
+    fn sfx_app() -> App {
+        let mut app = feedback_app();
+        app.add_plugins(bevy::asset::AssetPlugin::default());
+        app.init_asset::<AudioSource>();
+        let bank = SoundBank::load(
+            app.world().resource::<AssetServer>(),
+            crate::audio::NOVA_SFX_FILES,
+        );
+        app.insert_resource(bank);
+        app.init_resource::<CueCounts>();
+        app.add_observer(
+            |sfx: On<PlaySfx>, bank: Res<SoundBank<NovaSfx>>, mut counts: ResMut<CueCounts>| {
+                if sfx.handle == bank.get(NovaSfx::ObjectiveComplete) {
+                    counts.complete += 1;
+                } else if sfx.handle == bank.get(NovaSfx::ObjectiveNew) {
+                    counts.new += 1;
+                }
+            },
+        );
+        app
+    }
+
+    /// A completion and a posting in ONE change (every shakedown beat
+    /// handler does exactly this): the chime plays immediately, the
+    /// posting blip waits out the configured delay so the two cues do
+    /// not mask each other (playtest round 4). Delivery guards: the blip
+    /// has NOT played at half the delay, and a pure posting (no
+    /// completion) stays immediate.
+    #[test]
+    fn the_posting_blip_waits_out_the_delay_after_a_chime() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+
+        let mut app = sfx_app();
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            0.2,
+        )));
+
+        // A pure posting: immediate blip.
+        app.world_mut().resource_mut::<GameObjectives>().objectives =
+            vec![Objective::new("b1", "Burn for Beacon 1")];
+        app.update();
+        app.update();
+        let counts = |app: &App| {
+            let counts = app.world().resource::<CueCounts>();
+            (counts.complete, counts.new)
+        };
+        assert_eq!(counts(&app), (0, 1), "a pure posting blips immediately");
+
+        // Beat transition: complete b1, post b2 in one change.
+        app.world_mut().resource_mut::<GameObjectives>().objectives =
+            vec![Objective::new("b2", "Find Beacon 2")];
+        app.update();
+        assert_eq!(
+            counts(&app),
+            (1, 1),
+            "the chime is immediate; the blip is held back"
+        );
+
+        // Half the 1.0s delay (2-3 ticks at 0.2s): still held.
+        app.update();
+        app.update();
+        assert_eq!(
+            counts(&app),
+            (1, 1),
+            "delivery guard: the blip must not fire before the delay"
+        );
+
+        // Ride out the rest of the delay: the blip lands.
+        for _ in 0..5 {
+            app.update();
+        }
+        assert_eq!(counts(&app), (1, 2), "the blip plays after the delay");
     }
 
     /// A completed objective leaves a fading ghost of its message; the

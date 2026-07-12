@@ -1,6 +1,6 @@
 # Objective feedback: delay the new-objective cue after a completion
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.5.0,feel,audio
 
@@ -14,22 +14,22 @@ one action list), so they mask each other.
 
 ## Steps
 
-- [ ] Presentation-side delay in hud/objective_feedback.rs: when one
+- [x] Presentation-side delay in hud/objective_feedback.rs: when one
       GameObjectives change contains BOTH completions and additions, play
       the complete cue immediately and hold the new-objective cue in a
       pending timer; a tick system plays it when the timer finishes.
       Pure additions (no completion in the same change) stay immediate.
       A further change while a cue is pending refreshes the pending state
       (latest change wins; no stacking).
-- [ ] Configurable: `ObjectiveFeedbackSettings { new_cue_delay_secs }`
+- [x] Configurable: `ObjectiveFeedbackSettings { new_cue_delay_secs }`
       resource (Reflect, default 1.0), consumed by the timer.
-- [ ] Tests via PlaySfx capture (observer counting bcs PlaySfx triggers,
+- [x] Tests via PlaySfx capture (observer counting bcs PlaySfx triggers,
       SoundBank loaded from the real NOVA_SFX_FILES): complete+add in
       one change -> exactly one cue immediately and the second only
       after the delay elapses (delivery guard: assert it has NOT played
       at delay/2); pure add -> immediate; teardown-empty -> still
       silent.
-- [ ] CHANGELOG entry; check --tests --examples + fmt.
+- [x] CHANGELOG entry; check --tests --examples + fmt.
 
 ## Notes
 
@@ -38,3 +38,15 @@ one action list), so they mask each other.
   deferred. The panel text swaps instantly - acceptable because the
   green ghost of the finished objective covers the reading gap.
 - Follows: 20260712-125342 (round 3, CLOSED, landed 8bf4a99).
+
+## Close record
+
+Shipped as planned: NewCueState resource holds the posting blip in a
+Timer when a completion landed in the same GameObjectives change;
+play_pending_new_cue (chained after the diff system) releases it;
+teardown-empty clears the pending cue too. ObjectiveFeedbackSettings
+{ new_cue_delay_secs: 1.0 } is a reflected resource. Tests capture real
+PlaySfx triggers against the loaded SoundBank and assert cue identity
+by handle: pure posting immediate, chime immediate + blip held at
+half-delay (delivery guard) and landing after; existing ghost/teardown
+tests unchanged and green.
