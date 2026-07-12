@@ -108,10 +108,22 @@ retros.
   in 20260711-180426 (five tatr new in one command -> one task) and AGAIN
   in 20260711-212519's spike phase (three in one && chain) despite the
   skill gotcha - the note does not fire when composing the command.
-- `reuse-production-helpers-in-tests` (x1): a test composing an expected
+- `verify-scripted-edits-applied` (x1, two MAJORs in one round): a
+  python/sed replacement that matches nothing is indistinguishable from
+  success - two test "fixes" no-opped against fmt-reflowed bodies and
+  were reported as done in three documents without reading the files
+  back; the reviewer caught both. Assert the replace count in the
+  script or grep the expected new text before claiming any scripted
+  edit. 20260712-110730 (R2.1, R2.2).
+- `reuse-production-helpers-in-tests` (x2): a test composing an expected
   value along a hierarchy should call the production composition helper
   (private is fine from the test module) instead of re-deriving inline;
   the inline version shipped a 0.148 u phantom offset. 20260711-121839.
+  Spawn-path variant: a UI test that hand-assembles a simpler bundle
+  than production stays green while the real spawn panics - the
+  objectives-panel duplicate-Node bundle panic shipped to a live
+  playtest because the test spawned the bare bcs panel; production and
+  test must call the same spawn helper. 20260712-110730 (R1.5).
 - `constant-offset-is-rig-math` (x1): an error invariant across the
   interpolation alpha implicates the test rig's math, not the timing
   under test - timing artifacts scale with alpha. 20260711-121839.
