@@ -95,3 +95,18 @@ neutral component.
 - Clutter knobs (wide-cone half-angle, 5-cap, travel nearest-N alternative)
   are playtest questions - keep them consts next to
   `TARGETING_CONE_HALF_ANGLE_DEG` (targeting.rs:128).
+
+## Round 2 refinements (2026-07-12, spike round 2 - these override the
+matching bullets above)
+
+- Seed-on-raise is HOSTILE-FIRST, not allegiance-blind: empty combat lock +
+  RMB -> hostile travel lock if any, else best enemy by angle-from-aim,
+  else empty. A friendly travel lock is never seeded into combat.
+- Re-seed on EVERY raise with aim hysteresis: a raise with a live combat
+  lock re-seeds only when a different enemy is clearly nearer the aim
+  (cos-ratio band, component-snap style ~0.75; feel knob).
+- Auto-seed next enemy (angle order) when the combat lock dies WHILE in
+  Turret view; empty when it dies outside. Behind a const flag for
+  playtest.
+- Inset view priority: combat lock, else travel lock (friendly inspection
+  without combat-locking).

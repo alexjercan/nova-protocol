@@ -52,3 +52,14 @@ unlocked-fire path. Add a dedicated key that clears the active view's lock.
   The spike's rationale: seed-on-raise means the common case is already
   locked when the player wants to shoot; CTRL covers panic fire. Playtest
   verdicts go on this task.
+
+## Round 2 refinements (2026-07-12, spike round 2 - supersede the X
+placeholder in the Steps)
+
+- X is taken (`AutopilotStopInput`, player.rs:584, X + pad East). Unlock
+  binding: MMB primary (unbound, chord-free, wheel-adjacent); keyboard
+  alternative SHIFT+X (chord on a non-modifier - allowed; bare-modifier
+  taps remain forbidden per 20260711-173237). Pad: East/West taken;
+  candidate RightThumb - verify against the full pad table at
+  implementation.
+- Unlock clears the ACTIVE view's lock (unchanged round-1 default).
