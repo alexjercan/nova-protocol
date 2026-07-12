@@ -69,6 +69,11 @@ retros.
   headless frame of a loaded scene, inject a `Screenshot::primary_window`
   from the autopilot script at a settled moment (~+2 s) instead.
   20260710-104421.
+- `observer-over-spawn-site` (x1): to attach a derived/flag component to every
+  entity of a kind, use an `On<Add, KindMarker>` observer (the repo's
+  `on_add_entity_with` pattern) instead of hunting/editing spawn sites - it is
+  spawn-site-agnostic; fall back to a bundle edit only across a crate boundary
+  the observer cannot reach. 20260712-203345 (InsetZoomable on ships/torpedoes).
 - `worktree-shares-main-target` (x1): a fresh sprout worktree does not
   share the main checkout's `target/`, so a naive build rebuilds Bevy
   from scratch (~290 GB cache wasted). Set
