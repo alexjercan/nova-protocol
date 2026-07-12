@@ -9,11 +9,15 @@ retros.
 
 ## Process lessons
 
-- `diagnostic-first` (x7): trace the exact reported scenario before
+- `diagnostic-first` (x8): trace the exact reported scenario before
   theorizing a mechanism; the trace has beaten the hypothesis list every
   time it has been tried. 20260709-125640, 20260711-103527,
   20260710-231930, 20260711-121701, 20260711-125225, 20260711-140241
-  (frame trace overturned the "dither" theory in one run).
+  (frame trace overturned the "dither" theory in one run). Balance-request
+  variant: for "PDC damage too high, one-shots asteroids", tracing the actual
+  numbers (20/hit x 100 rps vs 100-HP rock = ~5 rounds in 50ms) showed the
+  "one bullet" was PERCEPTUAL (a stream), not literal - reframing the fix from
+  damage-vs-HP to DPS/rounds-to-kill. 20260712-172035.
 - `fail-first-regression-ab` (x10, PROMOTED 2026-07-11 -> work skill): a
   bug-fix regression is proven by failing it against the pre-fix
   behavior and recording the numbers. 20260711-103527 (7.1 rad/s -> 0),

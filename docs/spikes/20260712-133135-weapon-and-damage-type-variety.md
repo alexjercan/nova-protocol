@@ -236,3 +236,9 @@ be closed pointing here.
   DamageType. DEFERRED to future ship-management: per-type magazine pools,
   in-game reload, and editor/scenario/station switching (all just mutate the
   slot / grow the pool). Details: docs/2026-07-12-bullet-type-slot.md.
+- **20260712-133356 (alt-fire) DEFERRED to v0.6.0 (user, 2026-07-12).** Phase 3
+  of the recommendation is not being pursued for now: one bullet type per weapon
+  is enough, and the near-term direction for changing a weapon's type is a
+  space-station / ship-management switch built on the `LoadedBullet` slot, not a
+  secondary-fire input. So the phased plan effectively ends at phase 2 for
+  v0.5.0; a station-based bullet-type-switch task is the likely v0.6.0 successor.
