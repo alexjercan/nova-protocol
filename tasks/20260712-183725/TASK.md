@@ -1,6 +1,6 @@
 # Editor keybind labels: add background + a deselect/select-mode button
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.5.0,editor,ux,playtest
 
@@ -17,16 +17,16 @@ Two playtest fixes to the editor section-keybind feature (task 20260712-163912):
 
 ## Steps
 
-- [ ] Deselect: add a palette button (top of the section list in
+- [x] Deselect: add a palette button (top of the section list in
   `setup_editor_scene`, nova_editor/lib.rs) with
   `ButtonValue(SectionChoice::None)`, labeled e.g. "Select / Rebind". The
   existing `button_on_setting::<SectionChoice>` observer already applies it, so
   clicking it sets None (select mode) and the SelectedOption highlight follows.
-- [ ] Label background: in `sync_section_keybind_labels`' label spawn, add a
+- [x] Label background: in `sync_section_keybind_labels`' label spawn, add a
   `BackgroundColor` (dark, ~0.75 alpha) plus small padding and `BorderRadius` to
   the label `Node` so the gold text reads as a pill chip over the scene. Keep the
   gold `TextColor`.
-- [ ] Verify `cargo check --workspace --all-targets` + `cargo test -p nova_editor`
+- [x] Verify `cargo check --workspace --all-targets` + `cargo test -p nova_editor`
   + `cargo fmt`. (The deselect is wired via the existing tested button path; the
   background is a cosmetic Node change - no new logic to unit test. Add/adjust a
   test only if a behavior branch is introduced.) CHANGELOG line.
@@ -39,3 +39,21 @@ Two playtest fixes to the editor section-keybind feature (task 20260712-163912):
   you pick any tool you're stuck until scene reload.
 - Relevant: nova_editor/lib.rs `setup_editor_scene` palette (~503), the label
   spawn in `sync_section_keybind_labels`, `button`/`ButtonValue`/`button_on_setting`.
+
+## Implementation record
+
+Two editor tweaks (nova_editor/lib.rs): (1) a "Select / Rebind" palette button
+with `ButtonValue(SectionChoice::None)` at the top of the section list - wired via
+the existing `button_on_setting::<SectionChoice>` observer - so you can deselect a
+tool and reach select mode where clicking a section arms a rebind (the rebind flow
+from 20260712-163912 was otherwise unreachable). (2) The keybind chip gained a
+dark semi-transparent `BackgroundColor` + padding + `border_radius` (a Node field,
+not a standalone component) for legibility.
+
+Difficulty: first pass added `BorderRadius::all(..)` as a bundle element -> "not a
+Bundle" (BorderRadius is a `Node` field in this bevy version, the
+verify-bevy-api-at-callsite trap); moved it into the `Node`.
+
+Verify: cargo check --workspace --all-targets clean; nova_editor 8/8; cargo fmt
+clean. Deselect uses the existing tested button path; the background is cosmetic,
+no new logic to unit-test.

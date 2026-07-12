@@ -500,6 +500,18 @@ fn setup_editor_scene(
                             ..default()
                         },))
                         .with_children(|parent| {
+                            // Deselect the build/delete tool -> select mode
+                            // (SectionChoice::None), where clicking a section
+                            // rebinds its key. Without this there is no way back
+                            // to None once a tool is picked, so the rebind flow
+                            // (task 20260712-163912) was unreachable (task
+                            // 20260712-183725).
+                            parent.spawn((
+                                Name::new("Select Section Button"),
+                                button("Select / Rebind"),
+                                ButtonValue(SectionChoice::None),
+                            ));
+
                             for section in sections.iter() {
                                 parent.spawn((
                                     Name::new(section.base.name.clone()),
@@ -1097,8 +1109,15 @@ fn sync_section_keybind_labels(
                 TextShadow::default(),
                 Node {
                     position_type: PositionType::Absolute,
+                    // Pill padding + rounded corners so the background reads as a
+                    // chip (BorderRadius is a Node field, not a component).
+                    padding: UiRect::axes(px(6), px(2)),
+                    border_radius: BorderRadius::all(px(4)),
                     ..default()
                 },
+                // Dark semi-transparent pill so the gold text stays legible over
+                // the 3D scene (task 20260712-183725).
+                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.75)),
                 // Hidden until the positioner projects it this frame.
                 Visibility::Hidden,
             ));
