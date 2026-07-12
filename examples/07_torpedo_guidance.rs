@@ -272,7 +272,7 @@ fn draw_guidance(
     }
 }
 
-fn log_torpedo_detonated(add: On<Add, BlastDamageMarker>) {
+fn log_torpedo_detonated(add: On<Add, NovaBlast>) {
     info!("range: torpedo detonated ({:?})", add.entity);
 }
 

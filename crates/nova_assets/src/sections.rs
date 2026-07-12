@@ -108,7 +108,10 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 fire_rate: 100.0,
                 muzzle_speed: 100.0,
                 projectile_lifetime: 5.0,
-                projectile_mass: 0.1,
+                // Authored Kinetic damage; typed-damage pass (task
+                // 20260712-133343). Reproduces the old emergent per-hit (mass
+                // 0.1 @ 100 u/s) so Kinetic-at-1.0 keeps this turret's feel.
+                bullet_damage: representative_kinetic_damage(0.1, 100.0),
                 projectile_render_mesh: None,
                 muzzle_effect: None,
                 // ~5s of sustained fire at 100 rounds/s. Generous on purpose:
@@ -159,14 +162,17 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 render_mesh_barrel: Some(game_assets.turret_barrel_01.clone()),
                 barrel_offset: Vec3::new(0.0, 0.128437, -0.110729),
                 muzzle_offset: Vec3::new(0.0, 0.0, -1.2),
-                // Bullet damage is kinetic (impulse/energy modifiers in the
-                // bcs integrity pipeline), so gentleness is tuned here: a
-                // quarter of the better turret's fire rate, slower and
-                // lighter rounds - roughly a fifth of the per-hit energy.
+                // Scavenger grade: a quarter of the better turret's fire rate,
+                // slower rounds. Since the typed-damage pass (task
+                // 20260712-133343) the per-hit damage is authored below
+                // (bullet_damage) rather than emergent from mass x velocity.
                 fire_rate: 25.0,
                 muzzle_speed: 60.0,
                 projectile_lifetime: 5.0,
-                projectile_mass: 0.05,
+                // Authored Kinetic damage reproducing the old emergent per-hit
+                // (mass 0.05 @ 60 u/s) - roughly a fifth of the better turret's,
+                // matching the previous gentleness.
+                bullet_damage: representative_kinetic_damage(0.05, 60.0),
                 projectile_render_mesh: None,
                 muzzle_effect: None,
                 // ~6s of fire at 25 rounds/s. Scavenger grade: a shorter fight

@@ -217,4 +217,13 @@ be closed pointing here.
 
 ## Fix record
 
-(Appended by each implementing task as it lands.)
+- **20260712-133343 (typed-damage core) LANDED.** Option A shipped as
+  `crates/nova_gameplay/src/damage.rs`: `DamageType`, `ProjectileDamage`,
+  `SectionDamageClass`, the `const fn resistance` table, and `apply_typed_damage`
+  (own-the-trigger). Turret bullets neutralize bcs kinetic via a near-zero
+  `NEUTRALIZED_BULLET_MASS` (open question resolved: mass, not dropping bcs's
+  observer; gravity is mass-independent so flight is unaffected) and carry an
+  authored Kinetic amount; torpedoes use a nova `NovaBlast` (Explosive) that owns
+  its falloff + trigger, leaving bcs's blast observer dormant (torpedo-blast-typing
+  open question resolved). Feel-preserving at Kinetic 1.0. Details + reflection:
+  docs/2026-07-12-typed-damage-core.md.

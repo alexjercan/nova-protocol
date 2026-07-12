@@ -7,6 +7,7 @@ use bevy::prelude::*;
 pub mod audio;
 pub mod beacon;
 pub mod camera_controller;
+pub mod damage;
 pub mod flight;
 pub mod gravity;
 pub mod hud;
@@ -28,6 +29,7 @@ pub mod prelude {
         audio::{NovaAudioPlugin, NovaSfx, SfxListenerMarker, NOVA_SFX_FILES},
         beacon::prelude::*,
         camera_controller::prelude::*,
+        damage::prelude::*,
         flight::prelude::*,
         gravity::prelude::*,
         hud::prelude::*,

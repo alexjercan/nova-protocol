@@ -63,8 +63,15 @@ pub struct TurretSectionConfig {
     pub muzzle_speed: f32,
     /// The projectile lifetime
     pub projectile_lifetime: f32,
-    /// The projectile mass
-    pub projectile_mass: f32,
+    /// Authored Kinetic damage per hit (pre-resistance). Since the typed-damage
+    /// pass (task 20260712-133343) weapon damage is AUTHORED here, not emergent
+    /// from bullet mass x velocity: the bullet is spawned at a near-zero physical
+    /// mass ([`NEUTRALIZED_BULLET_MASS`]) so bcs's kinetic term vanishes, and
+    /// this fixed amount (scaled by the section resistance table) is the only
+    /// weapon damage. Kinetic resistance is 1.0 everywhere, so authoring this to
+    /// the old emergent per-hit (via [`representative_kinetic_damage`]) keeps the
+    /// turret's feel unchanged.
+    pub bullet_damage: f32,
     /// The projectile mesh,
     pub projectile_render_mesh: Option<Handle<WorldAsset>>,
     /// The muzzle particle effect when shooting.
@@ -95,7 +102,8 @@ impl Default for TurretSectionConfig {
             fire_rate: 100.0,
             muzzle_speed: 100.0,
             projectile_lifetime: 5.0,
-            projectile_mass: 0.1,
+            // Matches the old emergent kinetic (mass 0.1 @ muzzle 100 u/s).
+            bullet_damage: representative_kinetic_damage(0.1, 100.0),
             projectile_render_mesh: None,
             muzzle_effect: None,
             ammo_capacity: None,
@@ -109,6 +117,7 @@ pub fn turret_section(config: TurretSectionConfig) -> impl Bundle {
 
     (
         TurretSectionMarker,
+        SectionDamageClass::Turret,
         TurretSectionTargetInput(None),
         TurretSectionTargetVelocity::default(),
         TurretSectionAimPoint::default(),
@@ -287,13 +296,17 @@ impl Plugin for TurretSectionPlugin {
     }
 }
 
-/// A bullet dies on its first contact with something TANGIBLE. Bullets
-/// are Sensor colliders (no solver response - see the spawn bundle), so
-/// without this a round would cross the target and keep starting
-/// collisions (and dealing damage) against event-enabled colliders along
-/// its line. The bcs damage observer runs on the same CollisionStart
-/// before this despawn command applies, so the first hit's damage always
-/// lands.
+/// A bullet deals its typed damage and dies on its first contact with something
+/// TANGIBLE.
+///
+/// Nova OWNS the damage here: the bullet is a near-zero-mass Sensor (see the
+/// spawn bundle), so bcs's emergent kinetic term is negligible; instead this
+/// scales the bullet's authored [`ProjectileDamage`] by the hit section's
+/// resistance and triggers `HealthApplyDamage` itself, which sidesteps Bevy
+/// 0.19's arbitrary observer order - bcs's subtractor just subtracts what nova
+/// decided (task 20260712-133343). The despawn keeps a sensor round from
+/// crossing the target and dealing damage again against every event-enabled
+/// collider along its line.
 ///
 /// The OTHER side must not itself be a pure volume: scenario trigger
 /// areas, beacon spheres and blast shells are Sensor colliders with
@@ -304,8 +317,9 @@ impl Plugin for TurretSectionPlugin {
 fn despawn_bullet_on_hit(
     collision: On<CollisionStart>,
     mut commands: Commands,
-    q_bullets: Query<(), With<TurretBulletProjectileMarker>>,
+    q_bullets: Query<Option<&ProjectileDamage>, With<TurretBulletProjectileMarker>>,
     q_sensors: Query<(), With<Sensor>>,
+    q_class: Query<&SectionDamageClass>,
 ) {
     let pairs = [
         (collision.body1, collision.collider2),
@@ -315,12 +329,21 @@ fn despawn_bullet_on_hit(
         let Some(body) = body else {
             continue;
         };
-        if !q_bullets.contains(body) {
+        // Membership gate: is this body a turret bullet? (`damage` is None only
+        // for bare test rigs; production bullets always carry it.)
+        let Ok(damage) = q_bullets.get(body) else {
             continue;
-        }
+        };
         if q_sensors.contains(other_collider) {
             // A trigger/blast volume: the round flies on through.
             continue;
+        }
+        if let Some(&damage) = damage {
+            // Own the trigger: scale by the hit section's resistance (unknown
+            // targets - asteroids - take the raw amount). The bullet is the
+            // source, carrying ProjectileOwner for threat attribution.
+            let class = q_class.get(other_collider).ok().copied();
+            apply_typed_damage(&mut commands, other_collider, Some(body), class, damage);
         }
         trace!("despawn_bullet_on_hit: bullet {:?} expended", body);
         commands.entity(body).try_despawn();
@@ -994,7 +1017,17 @@ fn shoot_spawn_projectile(
                 // Nested tuple: bundle arity.
                 (Collider::sphere(0.05), Sensor, CollisionEventsEnabled),
                 ActiveCollisionHooks::FILTER_PAIRS,
-                Mass(config.projectile_mass),
+                // Near-zero mass so bcs's emergent kinetic term (mass x velocity)
+                // vanishes; nova's authored ProjectileDamage is the only weapon
+                // damage. Gravity is mass-independent, so flight is unaffected
+                // (task 20260712-133343). Nested tuple: bundle arity.
+                (
+                    Mass(NEUTRALIZED_BULLET_MASS),
+                    ProjectileDamage {
+                        amount: config.bullet_damage,
+                        kind: DamageType::Kinetic,
+                    },
+                ),
                 TurretSectionPartOf(turret),
                 TurretSectionMuzzleEntity(**muzzle),
                 BulletProjectileRenderMesh(config.projectile_render_mesh.clone()),
@@ -2157,7 +2190,12 @@ mod tests {
             .id();
         settle(&mut app);
 
-        // A bullet as the turret spawns it (marker, sensor, mass, hot).
+        // A bullet with the OLD emergent-kinetic shape (Mass 0.1, no
+        // ProjectileDamage) on purpose: this test isolates the physics-contact
+        // behavior - knockback and no-tunnel-through - so it drives bcs's
+        // emergent damage rather than the typed path. The production bullet now
+        // spawns near-zero mass + ProjectileDamage; its typed damage is covered
+        // by `typed_bullet_applies_resistance_scaled_damage`.
         let bullet = app
             .world_mut()
             .spawn((
@@ -2198,6 +2236,92 @@ mod tests {
         assert!(
             app.world().get_entity(bullet).is_err(),
             "the round is expended on its first hit"
+        );
+    }
+
+    /// Production-faithful typed damage: a bullet as the turret now spawns it -
+    /// near-zero mass (so bcs's emergent kinetic is negligible) plus an authored
+    /// [`ProjectileDamage`] - hits a section and `despawn_bullet_on_hit` applies
+    /// `amount x resistance(class, kind)` through the owned trigger. Proven
+    /// across the table: Kinetic is unscaled everywhere (1.0), AP is amplified on
+    /// the armored Turret (1.75) and penalised on the exposed Thruster (0.75).
+    /// The drop is the nova-authored amount, NOT the old mass x velocity emergent
+    /// (which the neutralized mass reduces to ~0), and lands exactly once.
+    #[test]
+    fn typed_bullet_applies_resistance_scaled_damage() {
+        use crate::{
+            integrity::test_support::{settle, unfinished_integrity_physics_app_with},
+            sections::projectile_hooks::ProjectileHooks,
+        };
+
+        fn hit_drop(class: SectionDamageClass, damage: ProjectileDamage) -> f32 {
+            let mut app = unfinished_integrity_physics_app_with(
+                PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
+            );
+            app.add_observer(despawn_bullet_on_hit);
+            app.finish();
+
+            let start_hp = 1000.0;
+            let target = app
+                .world_mut()
+                .spawn((
+                    Name::new("target"),
+                    RigidBody::Dynamic,
+                    Transform::default(),
+                    Collider::cuboid(2.0, 2.0, 2.0),
+                    ColliderDensity(1.0),
+                    Health::new(start_hp),
+                    class,
+                ))
+                .id();
+            settle(&mut app);
+
+            app.world_mut().spawn((
+                Name::new("bullet"),
+                TurretBulletProjectileMarker,
+                RigidBody::Dynamic,
+                Transform::from_translation(Vec3::Z * 5.0),
+                Sensor,
+                Collider::sphere(0.05),
+                Mass(NEUTRALIZED_BULLET_MASS),
+                damage,
+                LinearVelocity(Vec3::NEG_Z * 100.0),
+            ));
+            for _ in 0..15 {
+                app.update();
+            }
+            start_hp
+                - app
+                    .world()
+                    .get::<Health>(target)
+                    .expect("target still exists")
+                    .current
+        }
+
+        let amount = 20.0;
+        let kinetic = ProjectileDamage {
+            amount,
+            kind: DamageType::Kinetic,
+        };
+        let ap = ProjectileDamage {
+            amount,
+            kind: DamageType::ArmorPiercing,
+        };
+
+        // Kinetic: 1.0 on every section (feel-preserving). Tolerance covers the
+        // ~2e-4 bcs residual from the neutralized mass.
+        assert!(
+            (hit_drop(SectionDamageClass::Turret, kinetic) - amount).abs() < 0.05,
+            "Kinetic must be unscaled on the Turret"
+        );
+        // AP: 1.75 on the armored Turret, 0.75 on the exposed Thruster.
+        assert!(
+            (hit_drop(SectionDamageClass::Turret, ap) - amount * 1.75).abs() < 0.05,
+            "AP must be amplified 1.75x on the Turret"
+        );
+        assert!(
+            (hit_drop(SectionDamageClass::Thruster, ap) - amount * 0.75).abs() < 0.05,
+            "AP must be penalised 0.75x on the Thruster"
         );
     }
 

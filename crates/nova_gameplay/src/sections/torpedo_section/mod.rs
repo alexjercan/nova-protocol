@@ -119,6 +119,7 @@ pub fn torpedo_section(config: TorpedoSectionConfig) -> impl Bundle {
 
     (
         TorpedoSectionMarker,
+        SectionDamageClass::Torpedo,
         TorpedoSectionConfigHelper(config),
         TorpedoSectionInput(false),
     )
@@ -936,9 +937,11 @@ mod tests {
     #[test]
     fn the_detonation_blast_inherits_the_torpedo_owner() {
         // The blast entity must stay attributable to the ship that fired
-        // the torpedo: bcs puts the blast collider into
+        // the torpedo: nova's typed blast puts the blast collider into
         // HealthApplyDamage.source, and the AI threat model resolves it to
-        // a shooter through ProjectileOwner (task 20260709-225731).
+        // a shooter through ProjectileOwner (task 20260709-225731). Since the
+        // typed-damage pass (task 20260712-133343) the blast is a NovaBlast
+        // (Explosive), not bcs's untyped BlastDamageMarker volume.
         let mut app = App::new();
         app.add_systems(Update, torpedo_detonate_system);
 
@@ -964,11 +967,16 @@ mod tests {
 
         let mut q_blast = app
             .world_mut()
-            .query_filtered::<&ProjectileOwner, With<BlastDamageMarker>>();
-        let blast_owner = q_blast
+            .query_filtered::<(&ProjectileOwner, &NovaBlast), With<NovaBlast>>();
+        let (blast_owner, blast) = q_blast
             .single(app.world())
-            .expect("the detonation spawned exactly one owned blast");
+            .expect("the detonation spawned exactly one owned nova blast");
         assert_eq!(**blast_owner, owner);
+        assert_eq!(
+            blast.kind,
+            DamageType::Explosive,
+            "a torpedo blast is Explosive"
+        );
     }
 
     #[test]
@@ -1309,7 +1317,7 @@ mod tests {
         );
         let blasts = app
             .world_mut()
-            .query_filtered::<Entity, With<BlastDamageMarker>>()
+            .query_filtered::<Entity, With<NovaBlast>>()
             .iter(app.world())
             .count();
         assert_eq!(blasts, 0, "a shot-down torpedo must not detonate");
@@ -1400,7 +1408,7 @@ mod tests {
         );
         let blasts = app
             .world_mut()
-            .query_filtered::<Entity, With<BlastDamageMarker>>()
+            .query_filtered::<Entity, With<NovaBlast>>()
             .iter(app.world())
             .count();
         assert_eq!(blasts, 0);

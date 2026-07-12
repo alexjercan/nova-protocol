@@ -323,7 +323,7 @@ fn log_torpedo_armed(
     }
 }
 
-fn log_torpedo_detonated(add: On<Add, BlastDamageMarker>) {
+fn log_torpedo_detonated(add: On<Add, NovaBlast>) {
     info!("range: torpedo detonated ({:?})", add.entity);
 }
 

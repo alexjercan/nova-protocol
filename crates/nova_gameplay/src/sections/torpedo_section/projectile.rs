@@ -90,17 +90,19 @@ pub(super) fn torpedo_detonate_system(
         // Proximity fuze: fire within half the blast radius of the target.
         if distance < blast.radius * 0.5 {
             commands.entity(torpedo).despawn();
+            // A nova typed blast (Explosive), not bcs's untyped `blast_damage`:
+            // nova owns the falloff + trigger so the blast obeys the resistance
+            // table. It carries no bcs BlastDamageMarker, so bcs's blast observer
+            // stays dormant and the damage is not double-counted (task
+            // 20260712-133343).
             let mut blast_entity = commands.spawn((
-                blast_damage(BlastDamageConfig {
-                    radius: blast.radius,
-                    max_damage: blast.damage,
-                }),
+                nova_blast(blast.radius, blast.damage, DamageType::Explosive),
                 Transform::from_translation(torpedo_transform.translation),
                 part_of.clone(),
                 TempEntity(0.1),
             ));
             // The blast inherits the torpedo's owner so the damage it deals
-            // stays attributable to the ship that fired the torpedo: bcs
+            // stays attributable to the ship that fired the torpedo: nova
             // populates HealthApplyDamage.source with the blast collider,
             // and the AI threat model resolves that source to a shooter
             // through ProjectileOwner (task 20260709-225731).

@@ -2,7 +2,7 @@
 
 use bevy::prelude::*;
 
-use crate::prelude::SectionRenderOf;
+use crate::prelude::{SectionDamageClass, SectionRenderOf};
 
 pub mod prelude {
     pub use super::{hull_section, HullSectionConfig, HullSectionMarker, HullSectionPlugin};
@@ -19,7 +19,11 @@ pub struct HullSectionConfig {
 pub fn hull_section(config: HullSectionConfig) -> impl Bundle {
     debug!("hull_section: config {:?}", config);
 
-    (HullSectionMarker, HullSectionRenderMesh(config.render_mesh))
+    (
+        HullSectionMarker,
+        SectionDamageClass::Hull,
+        HullSectionRenderMesh(config.render_mesh),
+    )
 }
 
 /// Marker component for hull sections.

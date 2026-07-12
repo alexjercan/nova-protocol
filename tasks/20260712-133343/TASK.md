@@ -1,6 +1,6 @@
 # Nova typed-damage core: DamageType, resistance table, own-the-trigger application
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 46
 - TAGS: v0.5.0,weapons,health,spike
 
@@ -23,12 +23,12 @@ to ~0 for the bullet.
 
 ## Steps
 
-- [ ] Add a `damage` module in nova_gameplay (`crates/nova_gameplay/src/damage.rs`,
+- [x] Add a `damage` module in nova_gameplay (`crates/nova_gameplay/src/damage.rs`,
   registered in `lib.rs` + prelude). Define `DamageType { Kinetic, ArmorPiercing,
   Emp, Explosive }` (Component-free plain enum; `Copy`, `Reflect`) and
   `ProjectileDamage { amount: f32, kind: DamageType }` as a `Component`
   (`Copy`, `Reflect`).
-- [ ] Add a section-kind discriminant readable at hit time. VERIFY FIRST which of
+- [x] Add a section-kind discriminant readable at hit time. VERIFY FIRST which of
   the per-kind markers exist and are on the collider entity
   (`HullSectionMarker` hull_section.rs:27, `ThrusterSectionMarker`
   thruster_section.rs:84, `ControllerSectionMarker` controller_section.rs:87,
@@ -39,21 +39,21 @@ to ~0 for the bullet.
   (`Component`, `Copy`, `Reflect`) and insert it wherever `base_section`/the
   kind-specific inserts run, so a single query resolves a hit entity's class
   without matching five markers.
-- [ ] Add the resistance table as a `const fn resistance(class: SectionDamageClass,
+- [x] Add the resistance table as a `const fn resistance(class: SectionDamageClass,
   kind: DamageType) -> f32` in `damage.rs`, with EXACTLY the values from
   docs/spikes/20260712-160505 (Kinetic column all 1.0; AP Hull 1.5 / Thruster
   0.75 / Controller 1.0 / Turret 1.75 / Torpedo 1.0; EMP Hull 0.1 / Thruster 0.25
   / Controller 3.0 / Turret 1.5 / Torpedo 1.25; Explosive Hull 1.0 / Thruster 1.5
   / Controller 1.0 / Turret 0.5 / Torpedo 1.25). Document each row's intent in a
   comment referencing the spike.
-- [ ] Add a nova helper `apply_typed_damage(commands, target_collider,
+- [x] Add a nova helper `apply_typed_damage(commands, target_collider,
   source, class, damage: ProjectileDamage)` in `damage.rs` that computes
   `final = damage.amount * resistance(class, damage.kind)` and
   `commands.trigger(HealthApplyDamage { entity: target_collider, source, amount:
   final })`. Single application point so both weapons scale identically. (bcs
   `on_damage` health/mod.rs:110 then subtracts the pre-scaled amount; propagation
   and overkill-clamp are reused unchanged.)
-- [ ] Turret: neutralize bcs emergent kinetic. bcs `on_impact_collision_deal_damage`
+- [x] Turret: neutralize bcs emergent kinetic. bcs `on_impact_collision_deal_damage`
   (bcs integrity/plugin.rs:108) computes `effective_mass = m1*m2/(m1+m2)` then
   `damage <= f32::EPSILON` early-returns (plugin.rs:143-152). Set the turret
   bullet `Mass` (turret_section.rs:997) to a near-zero value (dedicated const,
@@ -61,7 +61,7 @@ to ~0 for the bullet.
   uses `forces.apply_linear_acceleration` (gravity.rs, mass-independent); Sensor
   bullets already impart no knockback. Keep `projectile_mass` config field OUT of
   bcs's kinetic role - author the typed amount instead (next step).
-- [ ] Turret: author the Kinetic amount + own the trigger. Add a
+- [x] Turret: author the Kinetic amount + own the trigger. Add a
   `ProjectileDamage { kind: Kinetic, amount }` to the bullet spawn bundle
   (turret_section.rs ~974). Add a `turret_bullet_damage` config field on
   `TurretSectionConfig`; author it to reproduce today's per-hit kinetic (measure
@@ -70,7 +70,7 @@ to ~0 for the bullet.
   resolve the hit collider's `SectionDamageClass`, read the bullet's
   `ProjectileDamage`, and call `apply_typed_damage` before despawning the bullet.
   Keep the existing sensor/trigger-volume skip (do not damage pure volumes).
-- [ ] Torpedo: type the blast Explosive via a nova-owned blast. Today
+- [x] Torpedo: type the blast Explosive via a nova-owned blast. Today
   `torpedo_detonate_system` (torpedo_section/projectile.rs:57) spawns a bcs
   `blast_damage(BlastDamageConfig{radius,max_damage})` sensor that bcs's
   `on_blast_collision_deal_damage` (bcs integrity/plugin.rs:178) applies UNTYPED.
@@ -82,7 +82,7 @@ to ~0 for the bullet.
   VERIFY FIRST that removing bcs's `BlastDamageMarker` from the torpedo path does
   not disturb the impact observer's `Without<BlastDamageMarker>` exclusion
   (plugin.rs:113) for other bodies.
-- [ ] Tests (headless, `crates/nova_gameplay/src/damage.rs` + weapon modules):
+- [x] Tests (headless, `crates/nova_gameplay/src/damage.rs` + weapon modules):
   (1) `resistance()` returns the exact table values (a spot per column incl. the
   1.0 Kinetic invariant and the 3.0 EMP-vs-Controller peak). (2) FEEL-PRESERVING:
   a near-zero-mass bullet through bcs `on_impact` yields damage `<= f32::EPSILON`
@@ -94,7 +94,7 @@ to ~0 for the bullet.
   against a known class, and bcs's blast observer did NOT also fire (no
   double-count). Use production spawn helpers / faithful rigs (production-faithful
   -rigs lesson); every assertion must be able to fail (would-it-fail-without-it).
-- [ ] Docs: write `docs/<date>-typed-damage-core.md` (decision, the mass
+- [x] Docs: write `docs/<date>-typed-damage-core.md` (decision, the mass
   -neutralization measurement, the torpedo-blast-ownership choice, difficulties,
   self-reflection). Append a Fix record entry to BOTH spikes
   (20260712-133135 and 20260712-160505). Add a CHANGELOG Unreleased line.
@@ -120,3 +120,30 @@ to ~0 for the bullet.
 - AmmoKind vs DamageType stays 1:1 here; the superset question is phase-2's
   (task 20260712-133349).
 - Blocks tasks 20260712-133349 (magazines/reload) and 20260712-133356 (alt-fire).
+
+## Implementation record
+
+Landed as `crates/nova_gameplay/src/damage.rs` (types, `const fn resistance`,
+`apply_typed_damage`, `NovaBlast` + observer, `NovaDamagePlugin`) plus the weapon
+callsite edits. Full write-up, decisions, difficulties and reflection:
+docs/2026-07-12-typed-damage-core.md. Fix record appended to spike
+20260712-133135.
+
+Deviations from the plan as written:
+
+- The turret config knob was renamed `projectile_mass -> bullet_damage` (plan
+  said add `turret_bullet_damage`); the bullet's physical mass is now a module
+  const `NEUTRALIZED_BULLET_MASS` (1e-6), not a per-config field, since it must be
+  ~0 to neutralize bcs. Authored via `representative_kinetic_damage(mass, speed)`
+  so both catalog turrets reproduce their old per-hit (20.25 / 3.825).
+- The neutralization test asserts bcs's residual is negligible (< 0.01) rather
+  than literally `<= f32::EPSILON`: at 1e-6 mass bcs deals ~2e-4, far below nova's
+  authored amount but above f32::EPSILON. The A/B against the old 0.1 mass (> 15)
+  is what makes the test able to fail.
+- Consumer sweep (not in the plan) caught the torpedo blast VFX/SFX observers and
+  two example loggers keyed on `Add<BlastDamageMarker>`, plus two now-vacuous "no
+  blast" test assertions; all retargeted to `NovaBlast`.
+
+Verification: `cargo check --workspace --all-targets` clean, `cargo fmt` clean,
+and the new + affected module tests green (damage 7/7, turret_section incl. the
+new typed-hit test, torpedo_section, integrity). Full suite runs in CI.

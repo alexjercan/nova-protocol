@@ -4,7 +4,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 
-use crate::prelude::{SectionInactiveMarker, SectionRenderOf};
+use crate::prelude::{SectionDamageClass, SectionInactiveMarker, SectionRenderOf};
 
 pub mod prelude {
     pub use super::{
@@ -56,6 +56,7 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
 
     (
         ControllerSectionMarker,
+        SectionDamageClass::Controller,
         PDController {
             frequency: config.frequency,
             damping_ratio: config.damping_ratio,

@@ -132,12 +132,12 @@ pub(super) struct BlastRadiusVisual {
 /// The sphere mesh is a unit sphere shared across all blasts (cached in a `Local`);
 /// only the material is per-instance so each blast can fade independently.
 pub(super) fn insert_blast_radius_visual(
-    add: On<Add, BlastDamageMarker>,
+    add: On<Add, NovaBlast>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut sphere_mesh: Local<Option<Handle<Mesh>>>,
-    q_blast: Query<(&Transform, &BlastDamageConfig), With<BlastDamageMarker>>,
+    q_blast: Query<(&Transform, &NovaBlast)>,
 ) {
     let entity = add.entity;
     trace!("insert_blast_radius_visual: entity {:?}", entity);
@@ -225,10 +225,10 @@ pub(super) fn animate_blast_radius_visual(
 }
 
 pub(super) fn insert_particle_effect(
-    add: On<Add, BlastDamageMarker>,
+    add: On<Add, NovaBlast>,
     mut commands: Commands,
     mut effects: ResMut<Assets<EffectAsset>>,
-    q_blast: Query<(&Transform, &TorpedoSectionPartOf), With<BlastDamageMarker>>,
+    q_blast: Query<(&Transform, &TorpedoSectionPartOf), With<NovaBlast>>,
     q_config: Query<&TorpedoSectionConfigHelper, With<TorpedoSectionMarker>>,
 ) {
     let entity = add.entity;

@@ -9,7 +9,7 @@ use bevy::{
 };
 use bevy_common_systems::prelude::*;
 
-use crate::prelude::{SectionInactiveMarker, SectionRenderOf};
+use crate::prelude::{SectionDamageClass, SectionInactiveMarker, SectionRenderOf};
 
 pub mod prelude {
     pub use super::{
@@ -45,6 +45,7 @@ pub fn thruster_section(config: ThrusterSectionConfig) -> impl Bundle {
 
     (
         ThrusterSectionMarker,
+        SectionDamageClass::Thruster,
         ThrusterSectionMagnitude(config.magnitude),
         ThrusterSectionInput(0.0),
         ThrusterSectionRenderMesh(config.render_mesh),
