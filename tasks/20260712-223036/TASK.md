@@ -6,7 +6,7 @@
 
 ## Goal
 
-Make firing deliberate per spike 20260712-222610 rounds 2c + 3: the
+Make firing deliberate per spike 20260712-222610 (rounds 2c-4, FINAL): the
 trigger works only while the weapon is RAISED - fires when combat-locked,
 acquires when not - and outside the raise it is an inert deny cue. No
 manual unlock key ships; stale locks are harmless by construction and
@@ -14,9 +14,8 @@ clear naturally (death, range, allegiance flip, optional decay - the
 lifecycle itself lands in 20260712-223035; this task wires the trigger
 and the feedback).
 
-Body rewritten after round-3 adversarial review; supersedes the earlier
-X/SHIFT+X/MMB unlock plans (retired in round 2c; X = STOP,
-player.rs:584).
+The earlier X/SHIFT+X/MMB unlock plans are retired (round 2c; X = STOP,
+player.rs:584). Bodies rewritten clean post-round-4 per user directive.
 
 ## Steps
 

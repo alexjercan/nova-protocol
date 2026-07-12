@@ -7,7 +7,8 @@
 ## Goal
 
 Bring the targeting docs in line with the shipped two-slot model (spike
-20260712-222610) once tasks 20260712-223034/223035/223036 land. Retros are
+20260712-222610, rounds 1-4 final) once tasks 20260712-223034/231141/
+223035/223036 land. Retros are
 dated records and are NOT rewritten; design docs and spikes get corrected
 or superseded in place.
 

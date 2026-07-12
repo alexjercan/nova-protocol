@@ -502,3 +502,13 @@ Design is FINAL for v0.5 implementation. Execution order: 20260712-223034
 (scroll rebind) and 20260712-231141 (infrastructure) in either order or
 parallel, then 20260712-223035 (slots), 20260712-223036 (fire gating),
 20260712-223345 (docs).
+
+### Round 4 addendum: task bodies rewritten clean
+
+Per user directive after round 4, the five v0.5.0 task bodies
+(20260712-223034, -231141, -223035, -223036, -223345) were REWRITTEN in
+place against the final design - same IDs (all references above stay
+valid), fresh coherent Goals/Steps, no layered edit archaeology (that
+history lives in git and in this doc's rounds). Notably 223035's Goal had
+still said "enemy-only scroll while raised", which round-4 decision 1
+overturned.

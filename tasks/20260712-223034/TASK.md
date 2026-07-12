@@ -54,7 +54,8 @@ brackets/DPad, which share actions with the wheel.
 ## Notes
 
 - Spike: docs/spikes/20260712-222610-travel-combat-lock-slots.md (round 3
-  delta 3).
+  delta 3; round 4 confirms the gesture map). Bodies rewritten clean
+  post-round-4 per user directive.
 - No dependencies; first task of the sequence. 20260712-223035 routes the
   wheel per raised-state on top of this.
 - Input tests need the `app.finish()` dance (retro 20260708-165705;
