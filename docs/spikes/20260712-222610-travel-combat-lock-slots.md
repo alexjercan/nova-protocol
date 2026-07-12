@@ -204,3 +204,77 @@ Seeded, in execution order:
 ## Fix record
 
 (tasks not started yet)
+
+## Round 2 (2026-07-12, user review): scroll fatigue + key conflicts
+
+### User input (recorded verbatim as constraints)
+
+- X is already taken by STOP (`AutopilotStopInput`, player.rs:584, X + pad
+  East - verified) - the unlock placeholder was wrong; user floats SHIFT+X.
+- Raising the gun on a friendly via seed-on-raise is acceptable ("I guess
+  it's fine") but clearly not desired - treat as a tolerated edge, not a
+  feature.
+- THE core annoyance - too much scrolling to switch targets:
+  - Scenario A: traveling toward a friendly, an enemy appears. Path 1:
+    scroll off the friend (losing the travel designation), RMB, fire.
+    Path 2: RMB (seeds the FRIEND), scroll in combat to the enemy, fire.
+    Both are a step too many, and path 1 destroys the travel lock.
+  - Scenario B: in combat, locked on enemy 1, LOOKING at enemy 2 - you
+    still have to scroll before you can shoot it. The looking should
+    count for more.
+- Open question (user): is this UX friendly enough? Keep the two lock
+  modes, but reduce the input tax.
+
+### Round-2 refinements (two lock modes and stickiness kept)
+
+1. **Hostile-first seed-on-raise** (replaces allegiance-blind seeding): on
+   RMB with an empty combat lock, seed from the travel lock ONLY IF it is
+   hostile; else the best enemy by angle-from-aim; else empty. Scenario A
+   becomes RMB + LMB - zero scrolls, and the friend keeps the travel lock.
+   Raise-on-friendly disappears from the normal flow entirely (better than
+   "tolerated"). Friendly INSPECTION is preserved without combat-locking:
+   the inset view priority becomes combat lock, else travel lock - a
+   travel-locked friend still gets the inset/readout.
+2. **Re-seed on raise, with hysteresis**: every RMB press re-evaluates -
+   if a DIFFERENT enemy is clearly nearer the aim ray than the current
+   combat lock (cos-ratio hysteresis, same 0.75-style rule as the
+   component snap), the raise re-seeds onto it; otherwise the lock holds.
+   Scenario B gains a scroll-free path: release+press RMB while looking at
+   enemy 2 ("lower and re-raise the weapon at the new guy" - DayZ-true).
+   A hostile TRAVEL lock still wins an empty-lock raise (you designated
+   it deliberately); the hysteresis rule only governs raises with a live
+   combat lock.
+3. **Scroll stays the deterministic fallback**: angle-from-aim ordering
+   means the FIRST flick locks the enemy you are looking at (scenario B
+   while keeping RMB held = one flick). Past-cone-edge continuation stays
+   (point defense behind you).
+4. **Auto-seed next on kill while raised** (playtest flag): when the
+   combat lock dies while in Turret view, seed the next enemy by
+   angle-from-aim automatically; when it dies outside the view, leave the
+   slot empty. Kills are the most common mid-fight retarget; this removes
+   that scroll entirely. The fire gate still demands a deliberate LMB.
+5. **Unlock binding**: MMB - unbound today (verified), chord-free, and on
+   the same finger as the wheel it complements; keyboard alternative
+   SHIFT+X (user's suggestion; chord-on-non-modifier, not a bare-modifier
+   tap, so it avoids the 20260711-173237 bug class). Pad: East and West
+   are taken (STOP, autopilot-off); candidate is a stick click
+   (RightThumb) - verify at plan time.
+6. **CTRL free-aim unchanged**: the no-switch side-shot (shoot enemy 2
+   without giving up the lock on enemy 1) already exists and stays.
+
+Input-count check against the user's scenarios: A: was scroll+RMB+LMB (or
+RMB+scroll+LMB), now RMB+LMB. B: was scroll+LMB, now flick-RMB+LMB or
+scroll+LMB - and after a kill, usually just LMB. Travel designation is
+never sacrificed to combat retargeting.
+
+### Round-2 open questions
+
+- Does re-seed-on-raise (2) ever betray intent - e.g. re-raising for the
+  SAME enemy while another drifts closer to the aim? The hysteresis band
+  is the guard; width is a playtest knob.
+- Auto-seed-on-kill (4): does it feel like the computer stealing the hand?
+  Playtest; ship it behind a const flag.
+- Pad unlock binding (RightThumb?) and whether SHIFT+X should ALSO clear
+  the travel lock in Normal view (default: yes, active-view rule from
+  round 1).
+- User asked for an adversarial review of this round - recorded below.
