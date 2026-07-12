@@ -108,6 +108,16 @@ retros.
   in 20260711-180426 (five tatr new in one command -> one task) and AGAIN
   in 20260711-212519's spike phase (three in one && chain) despite the
   skill gotcha - the note does not fire when composing the command.
+- `pair-matrix-on-collider-class-change` (x1, BLOCKER + MAJOR in one
+  review): changing a collider's class (solid -> Sensor, adding/removing
+  CollisionEventsEnabled) must be checked against EVERY collider
+  category in the game, not just the pair being fixed - sensor bullets
+  were eaten by trigger volumes (pirate un-hittable inside a beacon
+  sphere) and tunneled through event-less invulnerable bodies; avian
+  tangibility is a per-side 2x2 of (sensor?, events?). Enumerate the
+  categories (ships, asteroids, invulnerable bodies, areas, beacons,
+  crates, bullets, torpedoes, blast shells) before the tests.
+  20260712-121101 (R1.1, R1.2).
 - `verify-scripted-edits-applied` (x1, two MAJORs in one round): a
   python/sed replacement that matches nothing is indistinguishable from
   success - two test "fixes" no-opped against fmt-reflowed bodies and
