@@ -44,6 +44,21 @@ const config = {
             "src/posts/building-nova-protocol.html",
             "blog/building-nova-protocol/index.html"
         ),
+        page(
+            "post",
+            "src/posts/devlog-3-zones-torpedoes-and-blast-damage.html",
+            "blog/devlog-3-zones-torpedoes-and-blast-damage/index.html"
+        ),
+        page(
+            "post",
+            "src/posts/devlog-2-objectives-enemy-ai-and-asteroids.html",
+            "blog/devlog-2-objectives-enemy-ai-and-asteroids/index.html"
+        ),
+        page(
+            "post",
+            "src/posts/devlog-1-modular-ships-and-first-combat.html",
+            "blog/devlog-1-modular-ships-and-first-combat/index.html"
+        ),
         page("tutorial", "src/tutorial.html", "tutorial/index.html"),
         page("wiki", "src/wiki.html", "wiki/index.html"),
         new CopyPlugin({
@@ -96,6 +111,18 @@ const config = {
                 {
                     from: /^\/blog\/building-nova-protocol/,
                     to: "/blog/building-nova-protocol/index.html",
+                },
+                {
+                    from: /^\/blog\/devlog-3-zones-torpedoes-and-blast-damage/,
+                    to: "/blog/devlog-3-zones-torpedoes-and-blast-damage/index.html",
+                },
+                {
+                    from: /^\/blog\/devlog-2-objectives-enemy-ai-and-asteroids/,
+                    to: "/blog/devlog-2-objectives-enemy-ai-and-asteroids/index.html",
+                },
+                {
+                    from: /^\/blog\/devlog-1-modular-ships-and-first-combat/,
+                    to: "/blog/devlog-1-modular-ships-and-first-combat/index.html",
                 },
                 { from: /^\/blog/, to: "/blog/index.html" },
                 { from: /^\/tutorial/, to: "/tutorial/index.html" },

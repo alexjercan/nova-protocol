@@ -230,6 +230,12 @@ main {
 .hero__art {
     display: block;
     width: min(560px, 90%);
+    /* Keep the banner's native 3:2 ratio. Tailwind v4's Preflight (which would
+       set `img { height: auto }`) is not emitted under the legacy `@tailwind
+       base` directive, so without this the `height` HTML attribute pins the
+       image height and squishes it as the width shrinks. */
+    height: auto;
+    aspect-ratio: 3 / 2;
     margin: 0 auto 28px;
     border-radius: 16px;
     box-shadow:
@@ -402,6 +408,37 @@ main {
     font-size: 0.82rem;
     letter-spacing: 0.05em;
     margin-bottom: 1.5em;
+}
+
+/* Responsive 16:9 video embed (YouTube devlog players). */
+.video-embed {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    margin: 1.6em 0;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow:
+        var(--shadow-panel),
+        0 0 40px rgba(92, 200, 255, 0.12);
+}
+.video-embed iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+.video-embed__caption {
+    display: block;
+    margin-top: -0.6em;
+    margin-bottom: 1.8em;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    text-align: center;
 }
 
 /* ---- key/value control table -------------------------------------------- */
