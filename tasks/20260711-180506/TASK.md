@@ -10,8 +10,14 @@ aggressive and not instantly lethal (e.g. passive until provoked, gentle
 damage). The design spike is done: build the "Shakedown Run" scenario
 (id shakedown_run) per the beat sheet in the spike doc - five beats
 (burn to beacon, freelook find, salvage sweep, GOTO/ORBIT hands-off,
-provoked single-pirate finale), planetoid + belt setting, objectives
-gated by trigger areas - then swap New Game to load it.
+then a pirate that spawned in the debris cluster during hands-off as the
+finale), planetoid + belt setting, objectives gated by trigger areas -
+then swap New Game to load it. Legs are short (a few hundred meters
+between objectives) and ships minimal (one turret each); objective
+conveyance is layer 0 per the spike (imperative text with [KEY] names,
+emissive blinking props, short distances) so the scenario works before
+the conveyance visuals task (20260712-093831) lands and upgrades in
+place after.
 
 Notes:
 - Spike (design, beat sheet): docs/spikes/20260712-092926-starter-scenario.md

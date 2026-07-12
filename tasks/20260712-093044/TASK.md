@@ -7,8 +7,10 @@
 Goal: two reusable scenario-object primitives the Shakedown Run starter
 scenario needs, built as general content pieces, not tutorial hacks:
 
-- Nav beacon: small emissive mesh + screen-indicator chip (label +
-  distance via the existing indicator substrate) + optional trigger area.
+- Nav beacon: small emissive blinking mesh + screen-indicator chip
+  (label + distance via the existing indicator substrate, with
+  ScreenIndicatorOffscreen::ClampToEdge so an off-screen beacon's chip
+  pins to the screen edge as a direction cue) + optional trigger area.
   The game's first player-facing waypoint marker.
 - Salvage crate: small prop that despawns on player proximity (its
   OnEnter area) and fires its handler; "collected" is a scenario

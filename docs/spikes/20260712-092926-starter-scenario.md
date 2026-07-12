@@ -104,38 +104,52 @@ answer to the current situation. Setting: a planetoid with a gravity well
 (reuse the menu_ambience planetoid family), a sparse asteroid belt, the
 best skybox we have - the same vista the menu sells, now flyable.
 
-Beat sheet (each beat = one objective + one area gate; ids for /plan):
+Beat sheet (each beat = one objective + one area gate; ids for /plan).
+Distances are deliberately short - a few hundred meters between
+objectives - both for pacing and because "close enough to see" is the
+cheapest possible objective marker (see the conveyance section below):
 
 1. **Underway** - "Your ship is drifting. Burn for Beacon 1." Teaches
-   W/Space + mouse steer. Beacon ~1.5km ahead, visible (new beacon
-   object). Gate: OnEnter beacon area.
+   W/Space + mouse steer. Beacon ~300-400m ahead, visible (new beacon
+   object, emissive and blinking). Gate: OnEnter beacon area.
 2. **Eyes up** - "Beacon 2 is somewhere off your beam. Hold [Alt] to look
-   around and find it." Beacon 2 placed ~120 degrees off boresight so
-   freelook is genuinely the answer, not decoration. Gate: OnEnter
-   beacon 2.
+   around and find it." Beacon 2 a few hundred meters out, ~120 degrees
+   off boresight so freelook is genuinely the answer, not decoration.
+   Gate: OnEnter beacon 2.
 3. **Salvage sweep** - "Recover 3 supply crates in the debris cluster."
    Three salvage crates (new pickup object) scattered inside a loose
-   asteroid cluster; weaving practice, and X STOP earns its keep for the
-   close-quarters stop-and-look. Variable counter, objective updates via
-   complete+re-add per pickup (the panel has no live counter - open
-   question below). Gate: counter == 3.
+   asteroid cluster right off beacon 2; weaving practice, and X STOP
+   earns its keep for the close-quarters stop-and-look. Variable counter,
+   objective updates via complete+re-add per pickup (the panel has no
+   live counter - open question below). Gate: counter == 3.
 4. **Hands off** - "Lock Beacon 3 and let the computer fly: [G] GOTO.
    Then make orbit over the planetoid: [O] ORBIT." Beacon 3 sits inside
    the planetoid's SOI, so arriving lights up the ORBIT hint naturally -
    the hint cluster does the teaching, the objective just points at it.
-   Gate: OnEnter an orbital shell area around the planetoid (a thick
-   sphere band approximating "in orbit"; the event system cannot see
-   autopilot state - open question below).
-5. **Contact** - while the player orbits, spawn (SpawnScenarioObject) a
-   lone pirate skiff patrolling near the last beacon: weak sections,
+   Entering this beat also quietly spawns the pirate back in the debris
+   cluster (see beat 5). Gate: OnEnter an orbital shell area around the
+   planetoid (a thick sphere band approximating "in orbit"; the event
+   system cannot see autopilot state - open question below).
+5. **Contact** - "A scavenger is picking through the debris field you
+   just cleared. Drive it off." The pirate skiff spawned during beat 4
+   prowls the crate cluster (patrol route over the debris), so the finale
+   sends the player back across ground they know - and they can reuse
+   G GOTO to get there, which is the point. Weak sections, one
    low-damage turret, passive until the player closes within 800m or
-   fires. "A scavenger is prowling the beacon line. Drive it off."
-   Teaches RMB combat mode, LMB fire, Ctrl+wheel lock, [ ] component
-   cycle - all via the existing anchored hints once a hostile exists.
-   Gate: OnDestroyed pirate -> "Shakedown complete." Then linger and
-   leave the player in free flight in a now-safe playground (no forced
-   exit; the belt, well, and orbit verbs are theirs). Death at any point:
-   OnDestroyed player -> reload shakedown_run (the asteroid_field pattern).
+   fires. Teaches RMB combat mode, LMB fire, Ctrl+wheel lock, [ ]
+   component cycle - all via the existing anchored hints once a hostile
+   exists. Gate: OnDestroyed pirate -> "Shakedown complete." Then linger
+   and leave the player in free flight in a now-safe playground (no
+   forced exit; the belt, well, and orbit verbs are theirs). Death at any
+   point: OnDestroyed player -> reload shakedown_run (the asteroid_field
+   pattern).
+
+Ships are deliberately minimal: the player's shakedown ship is
+controller + hull + thruster + a single turret (no torpedo bay - torpedo
+verbs are not taught here and every extra section is another thing on
+screen); the pirate is the same silhouette with weaker sections. One
+turret each keeps the component-cycle lesson trivially readable (there is
+exactly one thing to cycle to) and keeps the fight legible.
 
 Why this shape beat the alternatives: every keybind is introduced at the
 moment it is the obvious tool (freelook to find something behind you, STOP
@@ -144,6 +158,56 @@ in a debris field, ORBIT when the well hint lights up), which is the
 setting the whole thing in the well vista the release is about; and the
 fight is last, single, and provoked-on-approach, so "gentle" is structural,
 not just tuned.
+
+### Conveying objectives: layered, degrades to text
+
+The game has no objective markers, no direction-to-objective indicator,
+no item highlighting, and no in-context hint prompts. The scenario is
+designed so those are upgrades, not prerequisites - each layer slots in
+without touching the beat sheet, because beats reference targets by
+scenario entity id and the conveyance attaches to those ids.
+
+**Layer 0 - ships with the scenario (no new features).** Conveyance is
+carried by writing and staging:
+
+- Objective text is imperative + key-in-brackets, matching the hint
+  cluster labels exactly: "Hold [Alt] to look around", "Press [G] to let
+  the computer fly". The panel and the cluster corroborate each other.
+- Distances are a few hundred meters, so the current target is on screen
+  or one freelook sweep away. Short legs ARE the direction indicator.
+- Props self-advertise: beacons are emissive and blink; crates are bright
+  against grey rock; the planetoid dominates the sky. "Fly to the
+  blinking light" needs no UI.
+- One verb per beat, so the newly lit row in the hint cluster is
+  unambiguous - the only thing that changed is the thing to press.
+
+**Layer 1 - nav beacon chips (task 20260712-093044).** Beacons carry a
+screen-indicator chip (label + distance) with the substrate's existing
+ClampToEdge off-screen policy - which means an off-screen beacon's chip
+pins to the screen edge in its direction. Direction-to-objective falls
+out of a field the indicator substrate already has; no new system.
+
+**Layer 2 - objective conveyance substrate (task 20260712-093831).**
+Three reusable pieces, each consumed by the scenario as data:
+
+- **Objective marker action**: a scenario action that attaches/detaches a
+  designated indicator (distinct objective styling, label + distance,
+  edge-clamped) to any scenario entity. The script marks beacon 1 during
+  beat 1, the crate cluster during beat 3, the pirate during beat 5.
+- **Item highlight**: pulsing treatment for interactables - emissive
+  pulse on the prop and/or an apparent-size bracket chip that tightens as
+  the player closes. Applied to salvage crates; reusable for any future
+  pickup or interaction point.
+- **Hint emphasis**: a small API on the keybind-hint cluster to pulse one
+  verb row on request, plus the scenario action to trigger it - so beat 4
+  can literally point at [G] without new UI surface. The anchored
+  on-object cues ([O] on the well, [G] on the lock) already exist and
+  cover the "diegetic prompt" half.
+
+The layering is also the honest answer to "how do we convey press-button
+/ collect-items / goto-planet easily": text names the key, the cluster
+shows it live, the anchored cue sits on the object, and each later layer
+just shortens the distance between reading and doing.
 
 Two small reusable primitives get built for it (separate task, the
 scenario depends on it):
@@ -192,6 +256,9 @@ Direction-level tasks this spike seeded, for /plan to break into steps:
   (reusable content primitives; blocks the scenario task)
 - tatr 20260711-180506 (existing, re-pointed at this spike): build the
   Shakedown Run scenario per the beat sheet above and swap New Game to it
+- tatr 20260712-093831: objective conveyance visuals - marker action,
+  item highlight, hint emphasis (layer 2; enhances the scenario, does not
+  block it)
 
 ## Fix record
 
