@@ -99,6 +99,14 @@ retros.
   gave a false all-clear while six `examples/*.rs` stayed broken (surfaced
   only via editor diagnostics). Run `cargo check --workspace --all-targets`
   so examples/tests/benches are caught in one pass. 20260712-140250.
+- `endpoint-only-color-reasoning` (x1): a cross-hue RGB lerp passes
+  through desaturated blends that read as washed white on a dark HUD -
+  when designing or changing a color transition, evaluate the
+  INTERMEDIATE frames, not just the endpoints; the emphasis pulse's
+  cyan->gold mix shipped unreadable mid-blends that playtest caught.
+  Sibling note: wave-based "did it move" test guards must avoid the
+  wave's stationary points (a period/4 advance lands on the crest where
+  the factor is 1.0). 20260712-152340.
 - `data-source-over-schedule-fight` (x2): when a fix seems to need
   ordering after something that is itself ordered after the consumer,
   change WHERE the data comes from (compose fresh poses) instead of
