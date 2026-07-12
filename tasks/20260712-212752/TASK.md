@@ -4,6 +4,48 @@
 - PRIORITY: 60
 - TAGS: v0.5.0, bug, scenario
 
+## Diagnosis (2026-07-12) - reported mechanism NOT found; likely perceptual
+
+Read-only trace of the salvage/reset machinery (user flagged uncertainty:
+"maybe I didn't see it right ... the objective completed itself and I only
+collected 1"). Every concrete mechanism checks out as correct:
+
+- Persistence across replay - FALSIFIED. `NovaEventWorld::clear()` clears ALL
+  variables (nova_scenario/src/world.rs:101) and is called by
+  `teardown_scenario_entities` on unload/reload; the shakedown scenario's
+  `OnStart` re-sets `crates_recovered = 0` (nova_assets/src/scenario/
+  shakedown.rs:458) on every load. So the crate tally resets on replay.
+- Objective/beat persistence - FALSIFIED. Objectives live in the same
+  event-world (cleared) and are re-posted by OnStart; the beat is `VAR_BEAT`
+  (a variable, cleared). Write-on-diff sync rebuilds GameObjectives.
+- False "completed" cue on the 1/3, 2/3 tally rebuild - FALSIFIED. The tally
+  handlers do `complete(OBJ_B3)` + re-add for a flicker-free panel line, but
+  `objective_change_feedback` diffs completions BY ID (hud/objective_feedback.rs
+  :151-154); the re-add keeps id `b3_salvage`, so no completion chime/green.
+- Per-frame double-count on pickup - FALSIFIED. OnEnter fires on `CollisionStart`
+  (nova_scenario/src/objects/area.rs:60), an EDGE event - one crate = one
+  `add_one(VAR_CRATES)`. Completion gate is exact `crates == 3`
+  (shakedown.rs:576).
+
+Most likely explanation (matches the user's caveat): the 3 crates sit in a
+tight cluster - `CRATE_POSITIONS` span ~29-37u apart around `DEBRIS_CENTER`
+with `CRATE_AREA_RADIUS = 8` - so a fast pass can sweep 2-3 pickup volumes while
+the player only registers one, and the beat completes "after 1".
+
+## Open / next
+
+- NEEDS A LIVE REPRO to go further. Ask: does it happen on a FRESH first run,
+  or only after replaying? What exactly was seen - the completion chime, the
+  green "done" ghost, or the objective text jumping to 3/3? If it only happens
+  after a replay, the trace above is wrong somewhere and this becomes a real
+  integration bug (add a reload regression test through the real
+  LoadScenario/UnloadScenario observers, like `teardown_clears_hint_emphasis`).
+- If it is the cluster-sweep perception: NOT a reset bug. Options are a UX
+  tweak (space the crates further so each is a deliberate pickup, or a distinct
+  per-crate pickup cue) - a separate polish task, not this one.
+
+## Original report / where to look
+
 ## Goal
 
 Playtest bug (2026-07-12): exiting the main scenario to the main menu and
