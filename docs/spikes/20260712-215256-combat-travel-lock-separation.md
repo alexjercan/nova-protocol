@@ -141,6 +141,23 @@ as future work, not separate tasks yet (user steer: keep it light for now):
   cluster; consider authored regions (B2) as the cheap first cut. Seed these
   when they are next up.
 
+## Addendum (2026-07-12, spike 20260712-215733)
+
+A newer user steer supersedes parts of this doc; the unified-target-computer
+spike (docs/spikes/20260712-215733-unified-target-computer.md) is the current
+source of direction:
+
+- A1's NON-STICKY detail is superseded: one lock for both classes, sticky for
+  both, cone membership as the only gate. Task 20260712-215402 was repurposed
+  in place to carry that unified-list change (its body records the shift).
+- The Part C separation got a fuller UX analysis there ("Combat vs travel
+  separation" section): the leading future shape is a VIEW-ROUTED two-slot
+  lock (travel lock in Normal/FreeLook, combat lock while RMB/Turret view;
+  guns read only the combat slot) rather than the C1 toggle key - it also
+  solves "traveling to a friend must not point the guns at them". C1's
+  toggle-key form is effectively retired as the recommended shape.
+- Part B (clumps) is untouched and would plug into the travel slot.
+
 ## Fix record
 
 (none yet - tasks not started)
