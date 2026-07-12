@@ -1,7 +1,13 @@
 # Spike: Unified component-based target computer (cone list + sticky lock)
 
 - DATE: 20260712-215733
-- STATUS: RECOMMENDED
+- STATUS: SUPERSEDED (same day, by
+  docs/spikes/20260712-222610-travel-combat-lock-slots.md - the user
+  adopted the view-routed two-slot split immediately instead of the
+  single-lock v0.5 compromise recommended here; the divergence analysis,
+  componentization case, and "Combat vs travel separation" section fed
+  directly into that spike, but the recommendation and seeded tasks here
+  are dead - tasks 20260712-215957/-215402/-215958 were closed unstarted)
 - TAGS: spike, targeting, ecs, input, hud
 
 ## Question

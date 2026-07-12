@@ -1,6 +1,6 @@
 # Componentize targeting state: TargetLock + AvailableTargets on the ship root
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.5.0, targeting, refactor, spike
 
@@ -68,3 +68,13 @@ test keeps passing with mechanical query rewrites only.
   diff stays mechanical and reviewable.
 - Ordering: land BEFORE 20260712-215402 (the unified-list behavior change
   builds on these components).
+
+## Closure (2026-07-12, superseded - no code shipped)
+
+Superseded by the travel/combat lock-slot model (spike
+docs/spikes/20260712-222610-travel-combat-lock-slots.md) before any code
+was written. Componentization itself is still happening, but straight to
+the end-state shape: task 20260712-223035 ports the resources directly to
+TravelLock + CombatLock (+ AvailableTargets, HostileContacts) instead of a
+neutral TargetLock that would need renaming one task later. The worktree
+opened for this task (refactor/target-components) was removed untouched.

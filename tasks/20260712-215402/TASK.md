@@ -1,6 +1,6 @@
 # Unified cone target list + universal sticky lock (absorbs: cyclable nav bodies)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.5.0, targeting, navigation, spike
 
@@ -90,3 +90,19 @@ construction (no LockSignature at range).
   pin), LockSignature range model (unchanged).
 - Playtest: does cycling-to-redesignate feel OK for GOTO; explicit unlock
   input wanted; wide-cone half-angle value.
+
+## Closure (2026-07-12, superseded - no code shipped)
+
+Superseded by the travel/combat lock-slot model (user steer, spike
+docs/spikes/20260712-222610-travel-combat-lock-slots.md) before
+implementation started. This task's scope was redistributed:
+
+- cone list computation + angle ranking -> 20260712-223035 (travel slot)
+- HostileContacts edge-indicator decouple + stickiness -> 20260712-223035
+- cycle input changes -> 20260712-223034 (scroll rebind)
+
+History: this task was seeded as A1 "cyclable non-sticky nav bodies" (spike
+20260712-215256), repurposed to the unified single sticky lock (spike
+20260712-215733), then superseded by the two-slot model the same day. The
+Steps below were never started; they remain as the record of the
+unified-lock plan.

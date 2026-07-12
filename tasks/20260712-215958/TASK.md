@@ -1,6 +1,6 @@
 # Reconcile targeting docs: supersession banners + stale-claim fixes
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.5.0, targeting, docs, spike
 
@@ -47,3 +47,10 @@ corrected or superseded in place.
 - The spike's "Docs found wrong or stale" section is the checklist source;
   if implementation diverged from the spike, the code wins and the design
   doc records the divergence.
+
+## Closure (2026-07-12, superseded - no code shipped)
+
+Superseded together with the unified-single-lock direction (spike
+20260712-215733) it was written against. The docs-reconcile role continues
+as task 20260712-223345 under the two-slot model (spike
+docs/spikes/20260712-222610-travel-combat-lock-slots.md).

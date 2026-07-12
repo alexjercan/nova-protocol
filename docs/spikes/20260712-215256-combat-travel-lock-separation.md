@@ -158,6 +158,15 @@ source of direction:
   toggle-key form is effectively retired as the recommended shape.
 - Part B (clumps) is untouched and would plug into the travel slot.
 
+Second addendum, later the same day: the view-routed split arrived
+immediately rather than as future work - spike
+docs/spikes/20260712-222610-travel-combat-lock-slots.md (travel lock in
+Normal/FreeLook + combat lock raised via RMB, seed-on-raise,
+fire-gated-on-lock) is now the current source of direction, seeding tasks
+20260712-223034/223035/223036/223345. Task 20260712-215402 was closed
+unstarted, its scope redistributed there. Part B still plugs into the
+travel slot when it comes up.
+
 ## Fix record
 
 (none yet - tasks not started)
