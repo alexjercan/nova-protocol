@@ -63,8 +63,9 @@ pub struct ObjectiveMarkerChipTargetEntity(pub Entity);
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct ObjectiveMarkerChipLabelMarker;
 
-/// Marker for a node whose color breathes with the chip (the label text,
-/// the diamond border, the chevron strokes).
+/// Marker for a node whose color breathes with the chip: the diamond
+/// border and the chevron strokes - NOT the label text, which stays at
+/// full alpha for readability (task 20260712-152340).
 #[derive(Component, Debug, Clone, Reflect)]
 struct ObjectiveMarkerBreathMarker;
 
@@ -79,7 +80,6 @@ fn objective_marker_chip_hud(target: Entity) -> impl Bundle {
         children![(
             Name::new("ObjectiveMarkerChipUI"),
             ObjectiveMarkerChipLabelMarker,
-            ObjectiveMarkerBreathMarker,
             screen_indicator(ScreenIndicatorConfig {
                 anchor: Some(ScreenIndicatorAnchorKind::Entity(target)),
                 size: ScreenIndicatorSize::Fixed(CHIP_SIZE),
@@ -94,7 +94,15 @@ fn objective_marker_chip_hud(target: Entity) -> impl Bundle {
                 linebreak: LineBreak::NoWrap,
                 ..default()
             },
+            // The LABEL does not breathe: 12 px gold at 0.7 alpha over a
+            // bright planetoid was unreadable (playtest 2026-07-12, task
+            // 20260712-152340). Constant full gold + a tight dark shadow
+            // for contrast; the diamond and chevron carry the motion.
             TextColor(OBJECTIVE_GOLD),
+            TextShadow {
+                offset: Vec2::splat(1.0),
+                color: Color::srgba(0.0, 0.0, 0.0, 0.9),
+            },
             children![objective_marker_diamond(), objective_marker_arrow()],
         )],
     )
@@ -254,19 +262,18 @@ fn breath_alpha(elapsed_secs: f32) -> f32 {
     BREATH_ALPHA_MIN + (BREATH_ALPHA_MAX - BREATH_ALPHA_MIN) * wave
 }
 
-/// Breathe every chip's gold: text, diamond border and chevron strokes all
-/// scale their alpha with the shared wave.
+/// Breathe every chip's gold GLYPHS - the diamond border and the chevron
+/// strokes - with the shared wave. The label text deliberately does NOT
+/// breathe: thinning 12 px text to 0.7 alpha broke readability over
+/// bright scene content (playtest 2026-07-12, task 20260712-152340); the
+/// glyphs carry all the motion.
 fn breathe_objective_markers(
     time: Res<Time>,
-    mut q_text: Query<&mut TextColor, With<ObjectiveMarkerBreathMarker>>,
     mut q_border: Query<&mut BorderColor, With<ObjectiveMarkerBreathMarker>>,
     mut q_background: Query<&mut BackgroundColor, With<ObjectiveMarkerBreathMarker>>,
 ) {
     let alpha = breath_alpha(time.elapsed_secs());
     let breathed = OBJECTIVE_GOLD.with_alpha(OBJECTIVE_GOLD.alpha() * alpha);
-    for mut color in &mut q_text {
-        color.0 = breathed;
-    }
     for mut border in &mut q_border {
         *border = BorderColor::all(breathed);
     }
@@ -374,6 +381,52 @@ mod tests {
             .unwrap();
         assert_eq!(label_text(&mut world), "BEACON 3  420m");
         let _ = target;
+    }
+
+    /// The label text does NOT breathe and carries a contrast shadow;
+    /// the diamond glyph carries the motion (playtest 2026-07-12, task
+    /// 20260712-152340 - 12 px gold at 0.7 alpha over a bright planetoid
+    /// was unreadable).
+    #[test]
+    fn label_stays_full_alpha_while_glyphs_breathe() {
+        let mut world = world_with_observers();
+        world.spawn(ObjectiveMarkerTarget::new("BEACON 1"));
+        world.flush();
+
+        // Advance the wave off its spawn value, then run the breath. An
+        // eighth period - a quarter period lands exactly on the crest,
+        // whose alpha factor is 1.0, indistinguishable from spawn.
+        let mut time: Time = Time::default();
+        time.advance_by(std::time::Duration::from_secs_f32(BREATH_PERIOD_SECS / 8.0));
+        world.insert_resource(time);
+        world.run_system_once(breathe_objective_markers).unwrap();
+
+        let (label_color, has_shadow) = {
+            let mut q = world.query_filtered::<(&TextColor, Option<&TextShadow>), With<ObjectiveMarkerChipLabelMarker>>();
+            let (color, shadow) = q.iter(&world).next().expect("label exists");
+            (color.0, shadow.is_some())
+        };
+        assert_eq!(
+            label_color, OBJECTIVE_GOLD,
+            "the label stays at constant full gold"
+        );
+        assert!(has_shadow, "the label carries a contrast shadow");
+
+        // Delivery guard: the diamond DID breathe (a no-op system would
+        // pass the label assert vacuously).
+        let diamond_alpha = {
+            let mut q = world.query::<(&BorderColor, &Name)>();
+            q.iter(&world)
+                .find(|(_, name)| name.as_str() == "ObjectiveMarkerDiamond")
+                .expect("diamond exists")
+                .0
+                .top
+                .alpha()
+        };
+        assert!(
+            (diamond_alpha - OBJECTIVE_GOLD.alpha()).abs() > 1e-3,
+            "the diamond's border alpha moved off the spawn value ({diamond_alpha})"
+        );
     }
 
     /// The breath wave stays inside its authored band and actually moves -

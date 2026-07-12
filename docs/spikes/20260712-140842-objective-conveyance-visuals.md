@@ -201,6 +201,18 @@ scenario.
 
 ## Open questions
 
+Playtest verdict 2026-07-12 (user, after 20260712-093831 landed): the
+conveyance visuals are approved EXCEPT gold text readability - "the gold
+and white make the text not readable". Two mechanisms implicated: the
+emphasis pulse's cyan->gold cross-mix passing through a washed
+near-white blend, and the marker label breathing its text alpha down.
+Fixed by task 20260712-152340 (pure-gold alpha-only emphasis pulse;
+label at constant alpha + dark shadow, glyphs carry the breath). Same
+round: "beacons have a really big target thingy" - the lock reticle
+sizes to the beacon's 70u trigger sensor (the R1.1 bug class on its
+remaining consumer); filed separately. The questions below stay open
+where not superseded.
+
 - **Gold vs colorblind readability**: gold-vs-cyan and gold-vs-orange
   should survive deuteranopia (both hue pairs differ mainly in blue
   channel; likely fine). Check with a simulator screenshot during the

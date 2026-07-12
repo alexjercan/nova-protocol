@@ -52,11 +52,18 @@ struct HudLevelHintRow;
 /// the tracked candidates.
 const ROW_VERBS: [&str; 6] = ["STOP", "GOTO", "ORBIT", "CANCEL", "COMPONENT", "TARGET"];
 
-/// Emphasis pulse rate and depth: the emphasized row's color lerps between
-/// its availability color and objective gold on this wave. ~1 Hz - present
-/// in peripheral vision, not a strobe.
+/// Emphasis pulse rate and the alpha bands it sweeps. The emphasized row
+/// renders PURE OBJECTIVE_GOLD hue at all times and only its alpha
+/// pulses: the first cut cross-mixed the availability color toward gold,
+/// and a lit row's cyan->gold RGB path passes through a washed
+/// near-white blend every cycle - unreadable at 12 px (playtest
+/// 2026-07-12, task 20260712-152340). Availability still reads from the
+/// band: available rows sweep the bright band, unavailable rows a dim one
+/// (spotlight, not a state change). ~1 Hz - present in peripheral vision,
+/// not a strobe.
 const EMPHASIS_PERIOD_SECS: f32 = 1.0;
-const EMPHASIS_LERP_MAX: f32 = 0.85;
+const EMPHASIS_ALPHA_AVAILABLE: (f32, f32) = (0.7, 1.0);
+const EMPHASIS_ALPHA_UNAVAILABLE: (f32, f32) = (0.3, 0.5);
 
 /// The verb rows the scenario wants the player's eyes on (task
 /// 20260712-093831): names from [`ROW_VERBS`], set/cleared by the
@@ -289,7 +296,19 @@ fn base_row_color(hint: &VerbHint) -> Color {
     }
 }
 
-/// Pulse the emphasized rows' color toward objective gold (~1 Hz). Runs
+/// The emphasized row's color at `wave` in [0,1]: pure gold hue, alpha
+/// swept over the availability band - never a cross-hue blend (see the
+/// EMPHASIS_* docs).
+fn emphasis_color(available: bool, wave: f32) -> Color {
+    let (lo, hi) = if available {
+        EMPHASIS_ALPHA_AVAILABLE
+    } else {
+        EMPHASIS_ALPHA_UNAVAILABLE
+    };
+    OBJECTIVE_GOLD.with_alpha(lo + (hi - lo) * wave)
+}
+
+/// Pulse the emphasized rows in objective gold (~1 Hz alpha breath). Runs
 /// after [`update_hint_cluster`] so the availability coloring stays the
 /// base; on any emphasis change every row's base is restored first, so a
 /// cleared emphasis cannot leave a row stuck mid-pulse.
@@ -305,7 +324,6 @@ fn pulse_emphasized_rows(
 
     let t = time.elapsed_secs() * std::f32::consts::TAU / EMPHASIS_PERIOD_SECS;
     let wave = 0.5 + 0.5 * t.sin();
-    let lerp = wave * EMPHASIS_LERP_MAX;
 
     for (row, mut color) in &mut q_row {
         let hint = row_hint(&hints, **row);
@@ -315,7 +333,7 @@ fn pulse_emphasized_rows(
         // MID-pulse (rig despawn) must not keep its gold, and the key
         // emptying is a HINTS change, not an emphasis change (review R1.4).
         let next = if !hint.key.is_empty() && emphasis.contains(verb) {
-            base_row_color(hint).mix(&OBJECTIVE_GOLD, lerp)
+            emphasis_color(hint.available, wave)
         } else if emphasis.is_changed() || hints.is_changed() {
             // Restore the base exactly once per change; steady state
             // leaves unemphasized rows to update_hint_cluster (whose own
@@ -512,11 +530,43 @@ mod tests {
         assert!(emphasis.contains("GOTO"));
     }
 
-    /// The emphasized row leaves its availability color toward gold; the
-    /// other rows keep theirs. Emphasis is a spotlight, not a state: the
-    /// pulse departs from the row's own base (lit or dim).
+    /// The emphasized row renders PURE gold hue at every point of the
+    /// wave - only its alpha moves; a cross-hue mix (lit cyan -> gold)
+    /// passes through a washed near-white blend that killed readability
+    /// in playtest (task 20260712-152340). Availability reads from the
+    /// alpha band: an unavailable row pulses in the dim band, below the
+    /// available band (spotlight, not a state change). Unemphasized rows
+    /// keep their availability color.
     #[test]
-    fn emphasized_row_pulses_toward_gold() {
+    fn emphasized_rows_pulse_pure_gold_alpha_only() {
+        let gold = OBJECTIVE_GOLD.to_srgba();
+        // The invariant across the whole wave, not just one sample.
+        for i in 0..=10 {
+            let wave = i as f32 / 10.0;
+            for available in [true, false] {
+                let sample = emphasis_color(available, wave).to_srgba();
+                assert_eq!(
+                    (sample.red, sample.green, sample.blue),
+                    (gold.red, gold.green, gold.blue),
+                    "wave {wave}: hue must stay gold, never a white-ish blend"
+                );
+            }
+            let bright = emphasis_color(true, wave).to_srgba().alpha;
+            let dim = emphasis_color(false, wave).to_srgba().alpha;
+            assert!(
+                dim < bright,
+                "wave {wave}: unavailable stays below available ({dim} vs {bright})"
+            );
+        }
+        let (lo, hi) = EMPHASIS_ALPHA_AVAILABLE;
+        assert!(
+            emphasis_color(true, 1.0).to_srgba().alpha - emphasis_color(true, 0.0).to_srgba().alpha
+                >= 0.9 * (hi - lo),
+            "the alpha actually sweeps its band (a flat pulse is dead code)"
+        );
+
+        // And through the real system: the emphasized (unavailable) GOTO
+        // row carries gold hue, the unemphasized STOP row keeps cyan.
         let mut world = World::new();
         world.init_resource::<Time>();
         world.insert_resource(hints(true, false, None));
@@ -529,16 +579,11 @@ mod tests {
         world.run_system_once(pulse_emphasized_rows).unwrap();
 
         let color = |world: &World, e: Entity| world.entity(e).get::<TextColor>().unwrap().0;
-        // GOTO is unavailable in this fixture: the pulse departs from DIM.
-        assert_ne!(
-            color(&world, rows[1]),
-            DIM_COLOR,
-            "the emphasized row left its base color"
-        );
-        assert_ne!(
-            color(&world, rows[1]),
-            OBJECTIVE_GOLD,
-            "the pulse lerps toward gold, never fully replacing the row color"
+        let goto = color(&world, rows[1]).to_srgba();
+        assert_eq!(
+            (goto.red, goto.green, goto.blue),
+            (gold.red, gold.green, gold.blue),
+            "the emphasized row is gold-hued on screen"
         );
         assert_eq!(
             color(&world, rows[0]),
