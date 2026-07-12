@@ -435,7 +435,15 @@ fn update_spaceship_target_input(
                 // Hostility comes from the relation model, so an enemy's
                 // torpedo is auto-acquirable while the player's own is not.
                 let is_hostile = relation(ship_allegiance, allegiance) == Relation::Hostile;
-                Some((entity, position, is_hostile, is_ship))
+                // A COMBAT target - what the sticky lock holds and the
+                // CTRL+scroll cycle walks: ships and committed torpedoes
+                // (uncommitted torpedoes were already filtered out above, so any
+                // torpedo here is committed - point defense, task
+                // 20260712-212742). Nav bodies (asteroids/beacons/wells) are NOT
+                // combat targets: they stay aim-driven so GOTO re-designation
+                // by aiming keeps working (task 20260712-203353 review R1.1).
+                let is_combat_target = is_ship || is_torpedo.is_some();
+                Some((entity, position, is_hostile, is_combat_target))
             },
         )
         .collect();
@@ -457,23 +465,25 @@ fn update_spaceship_target_input(
         None => false,
     };
 
-    // Sticky-from-acquisition, SHIP LOCKS ONLY (task 20260712-203353, review
-    // R1.1): once a SHIP is locked, the aim picker stands down while it is still
-    // a collectible candidate (in range, with the incumbent hysteresis applied
-    // above), so a body crossing the aim ray (a passing torpedo, another ship)
-    // no longer steals the combat lock or resets the focus dwell. Deliberate
-    // switches go through the CTRL+scroll cycle (`step_target_lock`); torpedoes
-    // stay lockable for point defense (spike 20260712-203235, option B5).
+    // Sticky-from-acquisition, COMBAT TARGETS ONLY (task 20260712-203353 +
+    // 20260712-212742): once a combat target (ship or committed torpedo) is
+    // locked, the aim picker stands down while it is still a collectible
+    // candidate (in range, with the incumbent hysteresis applied above), so a
+    // body crossing the aim ray no longer steals the lock or resets the focus
+    // dwell. Deliberate switches go through the CTRL+scroll cycle
+    // (`step_target_lock`), which now walks ships AND committed torpedoes, so
+    // point defense works: flick to the incoming torpedo, the turrets (which
+    // fire at the lock) down it, and it reverts to the aim pick once it is gone.
     //
-    // NON-ship locks (asteroids, beacons) are NOT sticky: the lock doubles as
-    // the GOTO/torpedo nav designator, and you re-designate a nav target by
-    // aiming at it - CTRL+scroll only cycles hostile ships, so a sticky nav lock
-    // could not be switched off by aiming (review R1.1). Only the `is_ship` flag
-    // in the candidate tuple makes a lock sticky.
+    // NON-combat locks (asteroids, beacons, wells) are NOT sticky: the lock
+    // doubles as the GOTO nav designator, and you re-designate a nav target by
+    // aiming at it - the cycle does not include nav bodies, so a sticky nav lock
+    // could not be switched off (review R1.1 of 20260712-203353). Only the
+    // `is_combat_target` flag in the candidate tuple makes a lock sticky.
     let held = res_target.is_some_and(|target| {
         candidates
             .iter()
-            .any(|&(entity, _, _, is_ship)| entity == target && is_ship)
+            .any(|&(entity, _, _, is_combat_target)| entity == target && is_combat_target)
     });
 
     if !pinned && !held {
@@ -500,14 +510,17 @@ fn update_spaceship_target_input(
         });
     }
 
-    // Maintain the multi-target set: hostile ships from the same range-gated
-    // collection, ranked toward the aim ray.
-    let ranked = rank_ship_candidates(
+    // Maintain the multi-target set: hostile COMBAT targets (ships + committed
+    // torpedoes) from the same range-gated collection, ranked toward the aim
+    // ray. This is the CTRL+scroll cycle set, the candidate HUD, and the
+    // edge-indicator overlay - so an incoming torpedo is now a cyclable,
+    // indicated threat, not just a silent one.
+    let ranked = rank_combat_targets(
         origin,
         aim,
         candidates
             .iter()
-            .filter(|&&(_, _, is_hostile, is_ship)| is_hostile && is_ship)
+            .filter(|&&(_, _, is_hostile, is_combat_target)| is_hostile && is_combat_target)
             .map(|&(entity, position, ..)| (entity, position)),
     );
     let entries = maintain_candidates(&res_candidates.entries, &ranked, **res_target, pinned);
@@ -516,18 +529,19 @@ fn update_spaceship_target_input(
     }
 }
 
-/// Rank the lockable hostile ships for the multi-target set: nearest the aim
-/// ray first (largest cosine), distance as the tie-breaker. Not cone-gated -
-/// a hostile behind the player is still tracked (the edge-indicator overlay
-/// points at it); the cone only decides the aim PICK, not the SET.
+/// Rank the lockable hostile COMBAT targets (ships + committed torpedoes) for
+/// the multi-target set: nearest the aim ray first (largest cosine), distance
+/// as the tie-breaker. Not cone-gated - a hostile behind the player is still
+/// tracked (the edge-indicator overlay points at it); the cone only decides the
+/// aim PICK, not the SET.
 ///
 /// Pure and camera/physics-free so the ranking rule can be unit-tested.
-fn rank_ship_candidates(
+fn rank_combat_targets(
     origin: Vec3,
     aim: Vec3,
-    ships: impl Iterator<Item = (Entity, Vec3)>,
+    targets: impl Iterator<Item = (Entity, Vec3)>,
 ) -> Vec<Entity> {
-    let mut scored: Vec<(Entity, f32, f32)> = ships
+    let mut scored: Vec<(Entity, f32, f32)> = targets
         .filter_map(|(entity, position)| {
             let to_ship = position - origin;
             let distance = to_ship.length();
@@ -1848,7 +1862,7 @@ mod tests {
         let on_ray_far = entity(1);
         let off_ray_near = entity(2);
         let behind = entity(3);
-        let ranked = rank_ship_candidates(
+        let ranked = rank_combat_targets(
             origin,
             aim,
             [
@@ -1869,7 +1883,7 @@ mod tests {
     fn rank_breaks_angle_ties_by_distance() {
         let near = entity(1);
         let far = entity(2);
-        let ranked = rank_ship_candidates(
+        let ranked = rank_combat_targets(
             Vec3::ZERO,
             Vec3::NEG_Z,
             [
@@ -1947,23 +1961,27 @@ mod tests {
     }
 
     #[test]
-    fn candidates_track_hostile_ships_only() {
+    fn candidates_track_hostile_combat_targets_including_torpedoes() {
         let (mut world, ahead, behind) = multi_target_world();
-        // A neutral ship and a hostile committed torpedo: lockable, but not
-        // multi-target candidates.
+        // A neutral ship: lockable but not a combat candidate. A hostile
+        // committed torpedo: now a COMBAT candidate so CTRL+scroll can reach it
+        // for point defense (task 20260712-212742).
         world.spawn((
             SpaceshipRootMarker,
             Allegiance::Neutral,
             RigidBody::Dynamic,
             GlobalTransform::from_translation(Vec3::new(50.0, 0.0, -100.0)),
         ));
-        world.spawn((
-            TorpedoProjectileMarker,
-            TorpedoTargetChosen,
-            Allegiance::Enemy,
-            RigidBody::Dynamic,
-            GlobalTransform::from_translation(Vec3::new(0.0, 10.0, -200.0)),
-        ));
+        let torpedo = world
+            .spawn((
+                TorpedoProjectileMarker,
+                TorpedoTargetChosen,
+                Allegiance::Enemy,
+                RigidBody::Dynamic,
+                // Slightly off the aim ray: ranks between dead-ahead and behind.
+                GlobalTransform::from_translation(Vec3::new(0.0, 10.0, -200.0)),
+            ))
+            .id();
 
         world
             .run_system_once(update_spaceship_target_input)
@@ -1971,8 +1989,64 @@ mod tests {
 
         assert_eq!(
             world.resource::<SpaceshipPlayerTargetCandidates>().entries,
-            vec![ahead, behind],
-            "hostile ships ranked aim-first; neutrals and torpedoes stay out"
+            vec![ahead, torpedo, behind],
+            "hostile ships AND committed torpedoes ranked aim-first; neutrals stay out"
+        );
+    }
+
+    #[test]
+    fn a_committed_torpedo_lock_is_sticky() {
+        // A committed hostile torpedo is a combat target (task 20260712-212742),
+        // so once locked it is sticky like a ship: a closer body does not steal
+        // it while the PDC downs it.
+        let mut world = World::new();
+        spawn_acquisition_rig(&mut world);
+        let torpedo = world
+            .spawn((
+                TorpedoProjectileMarker,
+                TorpedoTargetChosen,
+                Allegiance::Enemy,
+                RigidBody::Dynamic,
+                GlobalTransform::from_translation(Vec3::new(2.0, 0.0, -100.0)),
+            ))
+            .id();
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(torpedo),
+            "aim acquires the committed torpedo"
+        );
+
+        // A ship dead ahead (closer to the aim ray) must NOT steal the held
+        // torpedo lock.
+        let ship = world
+            .spawn((
+                SpaceshipRootMarker,
+                AISpaceshipMarker,
+                RigidBody::Dynamic,
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -100.0)),
+            ))
+            .id();
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(torpedo),
+            "a committed-torpedo lock is sticky against a closer body"
+        );
+
+        // Delivery guard: with the torpedo gone the picker re-acquires the ship.
+        world.despawn(torpedo);
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(ship),
+            "re-acquires after the torpedo is downed"
         );
     }
 

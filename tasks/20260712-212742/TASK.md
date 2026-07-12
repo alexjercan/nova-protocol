@@ -1,8 +1,42 @@
 # Combat target set includes committed torpedoes (sticky + CTRL+scroll point defense)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.5.0, targeting, spike
+
+## Outcome (CLOSED 2026-07-12)
+
+Extended the combat target set to committed torpedoes in
+`update_spaceship_target_input` (input/targeting.rs): the candidate tuple's 4th
+field is now `is_combat_target = is_ship || is_torpedo.is_some()` (uncommitted
+torpedoes are already filtered out before this point, so any torpedo here is
+committed). The ranked candidate set (CTRL+scroll cycle, candidate HUD, edge
+indicators) filters `is_hostile && is_combat_target` (renamed
+`rank_ship_candidates` -> `rank_combat_targets`), and the sticky `held` gate now
+uses `is_combat_target` too. So a committed hostile torpedo is a cyclable,
+sticky combat target: CTRL+scroll reaches it, it holds while the auto-turrets
+(which fire at the lock) down it, then reverts to the aim pick. Nav bodies
+(asteroids/beacons/wells) are not combat targets, so they stay aim-driven and
+GOTO re-designation is unchanged (review R1.1 of 20260712-203353 preserved).
+
+Updated `candidates_track_hostile_ships_only` (asserted torpedoes stay OUT - the
+old behaviour) to `candidates_track_hostile_combat_targets_including_torpedoes`,
+and added `a_committed_torpedo_lock_is_sticky` (a closer ship does not steal a
+held torpedo lock; delivery guard re-acquires the ship once the torpedo is
+gone).
+
+Verified: `cargo test -p nova_gameplay targeting` 45 pass; `12_hud_range` +
+`10_gameplay` autopilots green; `fmt --check` clean.
+
+## Steps
+
+- [x] Add `is_combat_target` (ship or committed torpedo) to the candidate tuple.
+- [x] Rank filter uses `is_hostile && is_combat_target`; renamed
+      `rank_combat_targets`.
+- [x] Sticky `held` gates on `is_combat_target`.
+- [x] Tests: candidates include a hostile committed torpedo; a torpedo lock is
+      sticky (delivery-guarded); ship-sticky + nav-aim-driven still hold.
+- [x] Verify: targeting tests + autopilots.
 
 ## Goal
 
