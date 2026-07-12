@@ -213,6 +213,18 @@ retros.
   sub-project by copying a working reference project's toolchain verbatim
   (webpack/eslint/prettier/partials) built first-try with zero config
   findings in review. Reuse beat authoring from scratch. 20260712-093048.
+- `measure-before-writing-the-number` (x1): never write a specific quantity
+  (deflection, ms/tick, a threshold) into a comment/doc/task from a mental
+  model - leave a placeholder and backfill from an actual run. Guessed "~6.6u"
+  (actual 3.25u) and "~1.5 ms/tick" (actual ~0.1) both had to be corrected;
+  the failure mode when uncorrected is a shipped folklore number (cf
+  `authored-vs-derived-values`). 20260712-105505.
+- `ab-isolation-bench` (x1, positive pattern): to attribute one system's
+  marginal cost, run two worlds identical except for that system (here: N
+  gravity-affected bodies + a well vs N plain bodies, so the physics
+  integrator cost cancels) and read the delta. It isolated the gravity system
+  to per-entity allocation, not the O(wells) scan I assumed - and stopped a
+  misdirected optimization. 20260712-105505.
 
 ## Domain lessons (nova-protocol specific)
 
