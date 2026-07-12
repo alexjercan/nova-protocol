@@ -739,10 +739,16 @@ fn on_click_spaceship_section(
         SectionChoice::None => {
             // No placement tool selected = select/edit mode: clicking a bindable
             // section arms a rebind (task 20260712-163912). `apply_section_rebind`
-            // captures the next key press. Non-bindable sections (hull,
-            // controller) and empty space do nothing.
-            if q_bindable.get(entity).is_ok() {
+            // captures the next key or mouse-button press. Non-bindable sections
+            // (hull, controller) and empty space do nothing.
+            //
+            // Only arm when nothing is armed yet: while a rebind is pending, the
+            // next click is the user PICKING a mouse-button binding (e.g. LMB), so
+            // it must not re-arm on whatever is under the cursor (task 20260712-191604).
+            if rebind.target.is_none() && q_bindable.get(entity).is_ok() {
                 rebind.target = Some(entity);
+                // Wait for this arming click to release before capturing.
+                rebind.awaiting_release = true;
             }
         }
         SectionChoice::Section(ref id) => {
@@ -1060,10 +1066,15 @@ fn on_out_spaceship_section(
 
 /// The section currently awaiting a new keybind. Armed by clicking a bindable
 /// section in select mode (`SectionChoice::None`); `apply_section_rebind`
-/// consumes the next key press. Reset to `None` on every state entry.
+/// consumes the next key or mouse-button press. Reset to `None` on every state
+/// entry.
 #[derive(Resource, Debug, Clone, Default)]
 struct EditorRebind {
     target: Option<Entity>,
+    /// Set true when armed by a mouse click: the capture waits until that click
+    /// is released before reading a press, so the arming LMB is not itself bound
+    /// (task 20260712-191604). False = ready to capture (e.g. armed in a test).
+    awaiting_release: bool,
 }
 
 /// A screen-space UI chip showing `section`'s current keybind, positioned each
@@ -1188,12 +1199,14 @@ fn position_section_keybind_labels(
     }
 }
 
-/// Consume the next key press to rebind the armed section (see [`EditorRebind`]).
-/// Escape cancels. The new keyboard binding replaces the section's previous
-/// keyboard binding (any gamepad/mouse binding is preserved) on both the live
-/// component and `PlayerSpaceshipConfig::inputs` (what the scenario reads).
+/// Consume the next key or mouse-button press to rebind the armed section (see
+/// [`EditorRebind`]). Escape cancels. The new binding replaces the section's
+/// previous PRIMARY input (keyboard or mouse button; any gamepad binding is
+/// preserved) on both the live component and `PlayerSpaceshipConfig::inputs`
+/// (what the scenario reads).
 fn apply_section_rebind(
     keys: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
     mut rebind: ResMut<EditorRebind>,
     mut player_config: ResMut<PlayerSpaceshipConfig>,
     mut q_thruster: Query<&mut SpaceshipThrusterInputBinding>,
@@ -1208,24 +1221,42 @@ fn apply_section_rebind(
         q_thruster.contains(section) || q_turret.contains(section) || q_torpedo.contains(section);
     if !still_bindable {
         rebind.target = None;
+        rebind.awaiting_release = false;
         return;
     }
     if keys.just_pressed(KeyCode::Escape) {
         rebind.target = None;
+        rebind.awaiting_release = false;
         return;
     }
-    let Some(&key) = keys.get_just_pressed().find(|k| **k != KeyCode::Escape) else {
+    // Armed by a mouse click: wait for that click to release before reading a
+    // press, so the arming LMB is not captured as the new binding.
+    if rebind.awaiting_release {
+        if mouse.get_pressed().next().is_none() {
+            rebind.awaiting_release = false;
+        }
+        return;
+    }
+
+    // The next key or mouse button pressed becomes the binding (keyboard wins a
+    // same-frame tie, arbitrary but stable).
+    let new_binding = keys
+        .get_just_pressed()
+        .find(|k| **k != KeyCode::Escape)
+        .map(|k| Binding::from(*k))
+        .or_else(|| mouse.get_just_pressed().next().map(|b| Binding::from(*b)));
+    let Some(new_binding) = new_binding else {
         return;
     };
 
-    // Replace the keyboard part, keep any non-keyboard bindings.
+    // Replace the PRIMARY input (keyboard OR mouse button), keep gamepad binds.
     let rebind_binds = |current: &[Binding]| -> Vec<Binding> {
         let mut binds: Vec<Binding> = current
             .iter()
-            .filter(|b| !matches!(b, Binding::Keyboard { .. }))
+            .filter(|b| !matches!(b, Binding::Keyboard { .. } | Binding::MouseButton { .. }))
             .cloned()
             .collect();
-        binds.insert(0, Binding::from(key));
+        binds.insert(0, new_binding);
         binds
     };
 
@@ -1749,6 +1780,7 @@ mod tests {
         let mut input = ButtonInput::<KeyCode>::default();
         input.press(KeyCode::KeyR);
         world.insert_resource(input);
+        world.init_resource::<ButtonInput<MouseButton>>();
 
         world.run_system_once(apply_section_rebind).unwrap();
 
@@ -1802,6 +1834,7 @@ mod tests {
         let mut input = ButtonInput::<KeyCode>::default();
         input.press(KeyCode::Escape);
         world.insert_resource(input);
+        world.init_resource::<ButtonInput<MouseButton>>();
 
         world.run_system_once(apply_section_rebind).unwrap();
 
@@ -1854,6 +1887,87 @@ mod tests {
             run_wheel(100.0, 5.0),
             0.0,
             "scrolling up past the top clamps at 0"
+        );
+    }
+
+    #[test]
+    fn rebind_binds_a_mouse_button_after_the_arming_click_releases() {
+        let mut world = World::new();
+        world.init_resource::<EditorRebind>();
+        world.init_resource::<PlayerSpaceshipConfig>();
+        world.init_resource::<ButtonInput<KeyCode>>();
+        world.init_resource::<ButtonInput<MouseButton>>();
+        // Turret with a KEYBOARD primary + a gamepad bind; we'll swap the primary
+        // to LMB.
+        let section = world
+            .spawn(SpaceshipTurretInputBinding(vec![
+                Binding::from(KeyCode::Space),
+                Binding::from(GamepadButton::RightTrigger2),
+            ]))
+            .id();
+        {
+            let mut r = world.resource_mut::<EditorRebind>();
+            r.target = Some(section);
+            r.awaiting_release = true; // armed by a click
+        }
+        // The arming LMB is still held.
+        world
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Left);
+
+        // Click still down -> capture nothing, keep waiting (must not bind the
+        // arming click).
+        world.run_system_once(apply_section_rebind).unwrap();
+        assert!(world.resource::<EditorRebind>().awaiting_release);
+        assert_eq!(world.resource::<EditorRebind>().target, Some(section));
+
+        // Release the arming click -> ready, still armed, nothing bound yet.
+        world
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .release(MouseButton::Left);
+        world.run_system_once(apply_section_rebind).unwrap();
+        assert!(!world.resource::<EditorRebind>().awaiting_release);
+        assert_eq!(world.resource::<EditorRebind>().target, Some(section));
+
+        // A fresh LMB press now binds it.
+        {
+            let mut m = world.resource_mut::<ButtonInput<MouseButton>>();
+            m.clear();
+            m.press(MouseButton::Left);
+        }
+        world.run_system_once(apply_section_rebind).unwrap();
+
+        let binds = &world
+            .entity(section)
+            .get::<SpaceshipTurretInputBinding>()
+            .unwrap()
+            .0;
+        assert!(
+            binds.iter().any(
+                |b| matches!(b, Binding::MouseButton { button, .. } if *button == MouseButton::Left)
+            ),
+            "LMB is now bound"
+        );
+        assert!(
+            !binds.iter().any(|b| matches!(b, Binding::Keyboard { .. })),
+            "the old keyboard primary is replaced"
+        );
+        assert!(
+            binds.iter().any(|b| matches!(b, Binding::GamepadButton(_))),
+            "the gamepad bind is preserved"
+        );
+        assert!(
+            world
+                .resource::<PlayerSpaceshipConfig>()
+                .inputs
+                .get(&section)
+                .is_some_and(|b| b.iter().any(|b| matches!(b, Binding::MouseButton { .. }))),
+            "config (read on hand-off) updated"
+        );
+        assert_eq!(
+            world.resource::<EditorRebind>().target,
+            None,
+            "rebind consumed"
         );
     }
 }

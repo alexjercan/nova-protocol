@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- @alexjercan editor rebinding now accepts mouse buttons, not just keys: after clicking a section to rebind it, press any key OR mouse button (e.g. LMB) to bind it - the arming click is ignored (it waits for release first), and the new binding replaces the old key/mouse while keeping any gamepad bind
 - @alexjercan the editor build panel now scrolls with the mouse wheel, so its lower entries (section palette + Play) are reachable instead of overflowing the fixed-height panel
 - @alexjercan editor keybind rebinding is now reachable and the chips are readable: a "Select / Rebind" palette button deselects the build/delete tool so you can click a section to rebind it (previously no way back to select mode), and the keybind chips now sit on a dark rounded background instead of floating unreadably over the scene
 - @alexjercan the debug ammo-count number (the `rounds/capacity` text on the readout, F11-only) no longer lingers on screen while debug mode is off: its F11 toggle was gated to gameplay while the global debug toggle is not, so pressing F11 in the menu/editor desynced them and left the number showing in normal play. The toggle is now ungated, staying in phase with debug mode
