@@ -58,9 +58,10 @@ pub enum ScreenIndicatorSize {
     /// A fixed on-screen size in logical pixels.
     Fixed(Vec2),
     /// Track the anchor entity's on-screen extent (from the union of the
-    /// collider AABBs of its subtree), never shrinking below `min_px`.
-    /// `Point` anchors and entities without collider AABBs fall back to
-    /// `min_px`.
+    /// NON-SENSOR collider AABBs of its subtree - trigger volumes are
+    /// invisible and do not count as apparent size), never shrinking
+    /// below `min_px`. `Point` anchors and entities without qualifying
+    /// collider AABBs (e.g. a sensor-only beacon) fall back to `min_px`.
     ApparentSize {
         /// Minimum indicator size (px), also the fallback size.
         min_px: f32,
@@ -304,11 +305,17 @@ fn arrow_angle(dir: Vec2) -> f32 {
 ///
 /// A tracked body keeps its colliders on child entities (an asteroid's
 /// collider node, or a ship's sections), so the whole subtree is walked
-/// rather than just the root.
+/// rather than just the root. SENSOR colliders are excluded by the query:
+/// they are invisible trigger volumes, not apparent size - a locked
+/// beacon's only collider is its 70u trigger sphere, and the reticle
+/// wrapped the trigger instead of the 2u orb (playtest 2026-07-12, task
+/// 20260712-154318; same class as the crate bracket, 20260712-093831
+/// R1.1). A sensor-only subtree yields None and the consumer falls back
+/// to its min_px.
 fn target_world_aabb(
     entity: Entity,
     q_children: &Query<&Children>,
-    q_aabb: &Query<&ColliderAabb>,
+    q_aabb: &Query<&ColliderAabb, Without<Sensor>>,
 ) -> Option<ColliderAabb> {
     let mut acc: Option<ColliderAabb> = None;
     let mut stack = vec![entity];
@@ -333,8 +340,9 @@ fn target_world_aabb(
 /// size grows with apparent size and shrinks with distance. Only the center
 /// must project, which keeps this robust when a close target's far corners
 /// fall behind the camera. Falls back to `min_px` for `Point` anchors, for
-/// entities without collider AABBs (e.g. the frame they spawned), and when
-/// the anchor itself did not project.
+/// entities without NON-SENSOR collider AABBs (the frame they spawned, or
+/// a sensor-only body like a locked beacon), and when the anchor itself
+/// did not project.
 #[allow(clippy::too_many_arguments)]
 fn indicator_size(
     size_mode: ScreenIndicatorSize,
@@ -344,7 +352,7 @@ fn indicator_size(
     camera_transform: &GlobalTransform,
     camera: &Camera,
     q_children: &Query<&Children>,
-    q_aabb: &Query<&ColliderAabb>,
+    q_aabb: &Query<&ColliderAabb, Without<Sensor>>,
 ) -> Vec2 {
     // Shared projection: a world-space bounding radius around the anchor
     // to on-screen pixels (see the doc above for why only the center must
@@ -406,7 +414,7 @@ fn update_screen_indicators(
     // per-entity hierarchy walk negligible.
     transform_helper: TransformHelper,
     q_children: Query<&Children>,
-    q_aabb: Query<&ColliderAabb>,
+    q_aabb: Query<&ColliderAabb, Without<Sensor>>,
     q_nested: Query<(), With<ScreenIndicatorMarker>>,
     mut q_arrow: Query<
         (&mut UiTransform, &mut Visibility),
@@ -715,7 +723,7 @@ mod tests {
             .id();
         let parent = world.spawn_empty().add_children(&[child_a, child_b]).id();
 
-        let mut state: SystemState<(Query<&Children>, Query<&ColliderAabb>)> =
+        let mut state: SystemState<(Query<&Children>, Query<&ColliderAabb, Without<Sensor>>)> =
             SystemState::new(&mut world);
         let (q_children, q_aabb) = state.get(&world).unwrap();
 
@@ -732,11 +740,67 @@ mod tests {
         let mut world = World::new();
         let entity = world.spawn_empty().id();
 
-        let mut state: SystemState<(Query<&Children>, Query<&ColliderAabb>)> =
+        let mut state: SystemState<(Query<&Children>, Query<&ColliderAabb, Without<Sensor>>)> =
             SystemState::new(&mut world);
         let (q_children, q_aabb) = state.get(&world).unwrap();
 
         assert!(target_world_aabb(entity, &q_children, &q_aabb).is_none());
+    }
+
+    /// Sensor colliders are not apparent size: a locked BEACON's only
+    /// collider is its huge trigger sphere, and the reticle must fall
+    /// back to min_px instead of wrapping the trigger (playtest
+    /// 2026-07-12, task 20260712-154318). A mixed subtree (ship hull +
+    /// an aim sensor) unions only the solid part. Delivery guard: the
+    /// same entity WITH the Sensor removed does contribute - it is the
+    /// query shape, not entity absence, doing the excluding.
+    #[test]
+    fn target_world_aabb_ignores_sensor_colliders() {
+        let mut world = World::new();
+        // The beacon shape: root carries a big sensor AABB, the render
+        // child has no collider at all.
+        let beacon = world
+            .spawn((
+                ColliderAabb::from_min_max(Vec3::splat(-70.0), Vec3::splat(70.0)),
+                Sensor,
+            ))
+            .id();
+        // The mixed shape: solid hull child + sensor child.
+        let hull = world
+            .spawn(ColliderAabb::from_min_max(Vec3::splat(-1.0), Vec3::ONE))
+            .id();
+        let trigger = world
+            .spawn((
+                ColliderAabb::from_min_max(Vec3::splat(-50.0), Vec3::splat(50.0)),
+                Sensor,
+            ))
+            .id();
+        let ship = world.spawn_empty().add_children(&[hull, trigger]).id();
+
+        {
+            let mut state: SystemState<(Query<&Children>, Query<&ColliderAabb, Without<Sensor>>)> =
+                SystemState::new(&mut world);
+            let (q_children, q_aabb) = state.get(&world).unwrap();
+
+            assert!(
+                target_world_aabb(beacon, &q_children, &q_aabb).is_none(),
+                "a sensor-only body has no apparent size (falls back to min_px)"
+            );
+            let mixed = target_world_aabb(ship, &q_children, &q_aabb)
+                .expect("the solid hull still contributes");
+            assert_eq!(mixed.min, Vec3::splat(-1.0));
+            assert_eq!(mixed.max, Vec3::ONE);
+        }
+
+        // Delivery guard: strip the Sensor and the same AABB counts.
+        world.entity_mut(beacon).remove::<Sensor>();
+        let mut state: SystemState<(Query<&Children>, Query<&ColliderAabb, Without<Sensor>>)> =
+            SystemState::new(&mut world);
+        let (q_children, q_aabb) = state.get(&world).unwrap();
+        assert!(
+            target_world_aabb(beacon, &q_children, &q_aabb).is_some(),
+            "the query shape, not entity absence, excludes the sensor"
+        );
     }
 
     // -- whole-system behavior against a fabricated camera --

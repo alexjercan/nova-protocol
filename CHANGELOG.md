@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- @alexjercan the lock reticle on a beacon no longer wraps the beacon's (invisible) 70u trigger volume - apparent-size HUD elements now measure non-sensor colliders only, so a locked beacon gets the small minimum reticle (playtest: "beacons have a really big target thingy")
 - @alexjercan conveyance gold text readability (playtest): the emphasized keybind row now pulses pure gold with only its alpha breathing (the old cyan-to-gold cross-fade washed through an unreadable near-white every cycle), and the objective marker label keeps constant full alpha with a dark text shadow - the diamond and chevron carry the motion
 - @alexjercan objective sound pacing: when a beat completes and posts the next objective in one step, the posting blip now waits a configurable moment (default 1.0s, ObjectiveFeedbackSettings) after the completion chime instead of playing over it
 - @alexjercan Shakedown Run playtest round 3: objective changes now have feedback - a completion chime plus the finished objective lingering in green for a moment, and a posting blip for new objectives (two new placeholder sounds); the scavenger is territorial (new AI leash: combat breaks off beyond 150u of its patrol ground, so the fight stays at the debris field; being under fire overrides the tether); [X] stop is taught in the very first objective
