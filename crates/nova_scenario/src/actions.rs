@@ -11,7 +11,8 @@ pub mod prelude {
         base_scenario_object, BaseScenarioObjectConfig, DebugMessageActionConfig,
         DespawnScenarioObjectActionConfig, EventActionConfig, NextScenarioActionConfig,
         ObjectiveActionConfig, ObjectiveCompleteActionConfig, ScenarioAreaConfig,
-        ScenarioObjectConfig, ScenarioObjectKind, SetSpeedCapActionConfig, VariableSetActionConfig,
+        ScenarioObjectConfig, ScenarioObjectKind, SetControllerVerbActionConfig,
+        SetSpeedCapActionConfig, VariableSetActionConfig,
     };
 }
 
@@ -24,6 +25,7 @@ pub enum EventActionConfig {
     SpawnScenarioObject(ScenarioObjectConfig),
     DespawnScenarioObject(DespawnScenarioObjectActionConfig),
     SetSpeedCap(SetSpeedCapActionConfig),
+    SetControllerVerb(SetControllerVerbActionConfig),
     CreateScenarioArea(ScenarioAreaConfig),
     NextScenario(NextScenarioActionConfig),
 }
@@ -50,6 +52,9 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
                 config.action(world, info);
             }
             EventActionConfig::SetSpeedCap(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::SetControllerVerb(config) => {
                 config.action(world, info);
             }
             EventActionConfig::CreateScenarioArea(config) => {
@@ -251,6 +256,66 @@ impl EventAction<NovaEventWorld> for SetSpeedCapActionConfig {
     }
 }
 
+/// Enable or disable one flight verb on a scenario ship's controller
+/// section(s) by id. Flight verbs (STOP/GOTO/ORBIT) are a capability the
+/// controller grants; this flips a single verb at runtime - the shakedown
+/// withholds GOTO until the first objective is complete
+/// (spike docs/spikes/20260712-143551-controller-provided-verb-flags.md).
+/// Scoped-only lookup, same rule as SetSpeedCap; writes every controller
+/// section on the ship so the union the input layer reads matches.
+#[derive(Clone, Debug)]
+pub struct SetControllerVerbActionConfig {
+    pub id: String,
+    pub verb: FlightVerb,
+    pub enabled: bool,
+}
+
+impl EventAction<NovaEventWorld> for SetControllerVerbActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let id = self.id.clone();
+        let verb = self.verb;
+        let enabled = self.enabled;
+        debug!("SetControllerVerb: '{}' {:?} -> {}", id, verb, enabled);
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                let mut ships = world.query_filtered::<(Entity, &EntityId), (
+                    With<ScenarioScopedMarker>,
+                    With<SpaceshipRootMarker>,
+                )>();
+                let Some(ship) = ships
+                    .iter(world)
+                    .find(|(_, entity_id)| entity_id.0 == id)
+                    .map(|(entity, _)| entity)
+                else {
+                    warn!("SetControllerVerb: no scoped ship with id '{}'", id);
+                    return;
+                };
+
+                // Every controller section on this ship (active or not - the
+                // flag persists across (de)activation), so the union the hint
+                // pass and observers read reflects the change.
+                let mut controllers =
+                    world.query_filtered::<(Entity, &ChildOf), With<ControllerSectionMarker>>();
+                let targets: Vec<Entity> = controllers
+                    .iter(world)
+                    .filter(|(_, &ChildOf(parent))| parent == ship)
+                    .map(|(entity, _)| entity)
+                    .collect();
+                if targets.is_empty() {
+                    warn!("SetControllerVerb: ship '{}' has no controller section", id);
+                    return;
+                }
+                for controller in targets {
+                    if let Some(mut verbs) = world.get_mut::<ControllerVerbs>(controller) {
+                        verbs.set(verb, enabled);
+                    }
+                }
+            });
+        });
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct ScenarioObjectConfig {
     pub base: BaseScenarioObjectConfig,
@@ -413,6 +478,85 @@ mod tests {
         NovaEventWorld::state_to_world_system(&mut world);
 
         assert!(world.get_entity(bystander).is_ok());
+    }
+
+    /// SetControllerVerb flips exactly the addressed ship's controller verb,
+    /// leaving other verbs on that controller and other ships untouched; and
+    /// re-enabling restores it. If the action did not scope by ship id, the
+    /// bystander ship's controller would flip too and this test would fail.
+    #[test]
+    fn set_controller_verb_flips_only_the_scoped_ship() {
+        use bevy_common_systems::prelude::EventWorld;
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+
+        // The target ship and a bystander ship, each a scoped root with a
+        // controller section carrying all verbs.
+        let player = world
+            .spawn((
+                ScenarioScopedMarker,
+                SpaceshipRootMarker,
+                EntityId::new("player".to_string()),
+            ))
+            .id();
+        let player_ctrl = world
+            .spawn((
+                ChildOf(player),
+                ControllerSectionMarker,
+                ControllerVerbs::default(),
+            ))
+            .id();
+        let bystander = world
+            .spawn((
+                ScenarioScopedMarker,
+                SpaceshipRootMarker,
+                EntityId::new("bystander".to_string()),
+            ))
+            .id();
+        let bystander_ctrl = world
+            .spawn((
+                ChildOf(bystander),
+                ControllerSectionMarker,
+                ControllerVerbs::default(),
+            ))
+            .id();
+
+        // Disable GOTO on the player only.
+        let disable = SetControllerVerbActionConfig {
+            id: "player".to_string(),
+            verb: FlightVerb::Goto,
+            enabled: false,
+        };
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        disable.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        let pv = *world.get::<ControllerVerbs>(player_ctrl).unwrap();
+        assert!(!pv.goto, "GOTO disabled on the addressed ship");
+        assert!(
+            pv.stop && pv.orbit,
+            "other verbs on that controller untouched"
+        );
+        assert!(
+            world.get::<ControllerVerbs>(bystander_ctrl).unwrap().goto,
+            "the bystander ship's controller is untouched"
+        );
+
+        // Re-enable restores it.
+        let enable = SetControllerVerbActionConfig {
+            id: "player".to_string(),
+            verb: FlightVerb::Goto,
+            enabled: true,
+        };
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        enable.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+        assert!(
+            world.get::<ControllerVerbs>(player_ctrl).unwrap().goto,
+            "GOTO re-enabled on the addressed ship"
+        );
     }
 
     /// Every dynamic scenario body must interpolate its Transform between
