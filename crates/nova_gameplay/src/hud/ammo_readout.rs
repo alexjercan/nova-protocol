@@ -454,10 +454,13 @@ impl Plugin for AmmoReadoutPlugin {
             app.init_resource::<AmmoReadoutDebug>();
             app.register_type::<AmmoReadoutDebug>();
             app.register_type::<AmmoReadoutNumber>();
-            app.add_systems(
-                Update,
-                toggle_ammo_readout_debug.run_if(in_state(crate::GameStates::Playing)),
-            );
+            // UNGATED on purpose (task 20260712-173928): this mirrors
+            // nova_debug's `toggle_debug_mode`, which is also ungated, so the two
+            // F11 flags stay in phase from their shared `true` default. Gating
+            // this to `Playing` (the old bug) let an F11 press in the menu/editor
+            // flip `DebugEnabled` but not this mirror, leaving the ammo number
+            // visible with debug off. Do not re-add a state gate here.
+            app.add_systems(Update, toggle_ammo_readout_debug);
             app.add_systems(
                 PostUpdate,
                 drive_ammo_readout_numbers
@@ -764,5 +767,37 @@ mod tests {
             .single(&world)
             .unwrap();
         assert_eq!(*visibility, Visibility::Inherited);
+    }
+
+    #[cfg(feature = "debug")]
+    #[test]
+    fn f11_flips_the_ammo_debug_flag() {
+        // The toggle must flip on F11 so the number tracks debug mode. (The
+        // desync bug this guards against was in the REGISTRATION - a `Playing`
+        // state gate that let the flag fall out of phase with nova_debug's
+        // ungated toggle; keep this system ungated, see AmmoReadoutPlugin.)
+        let mut world = World::new();
+        world.init_resource::<AmmoReadoutDebug>(); // true by default
+        let mut input = ButtonInput::<KeyCode>::default();
+        input.press(DEBUG_TOGGLE_KEY);
+        world.insert_resource(input);
+
+        world.run_system_once(toggle_ammo_readout_debug).unwrap();
+        assert!(
+            !**world.resource::<AmmoReadoutDebug>(),
+            "F11 turns the ammo number off"
+        );
+
+        // A fresh press flips it back. (A new ButtonInput, not clear()+press():
+        // clear() keeps F11 in the `pressed` set, so a re-press would not raise a
+        // new just_pressed edge.)
+        let mut next = ButtonInput::<KeyCode>::default();
+        next.press(DEBUG_TOGGLE_KEY);
+        world.insert_resource(next);
+        world.run_system_once(toggle_ammo_readout_debug).unwrap();
+        assert!(
+            **world.resource::<AmmoReadoutDebug>(),
+            "a second F11 turns it back on"
+        );
     }
 }

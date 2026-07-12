@@ -1,6 +1,6 @@
 # Fix ammo-count number showing outside F11/debug mode
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 62
 - TAGS: v0.5.0,hud,bug,playtest
 
@@ -20,14 +20,14 @@ number still on.
 
 ## Steps
 
-- [ ] Remove the `.run_if(in_state(GameStates::Playing))` gate from the
+- [x] Remove the `.run_if(in_state(GameStates::Playing))` gate from the
   `toggle_ammo_readout_debug` registration (ammo_readout.rs AmmoReadoutPlugin
   build) so it toggles on F11 in every state, exactly like nova_debug's ungated
   `toggle_debug_mode` - keeping the two flags in phase from their shared `true`
   default. Comment the invariant (must stay ungated to match DebugEnabled).
-- [ ] Add a test that `toggle_ammo_readout_debug` flips `AmmoReadoutDebug` on an
+- [x] Add a test that `toggle_ammo_readout_debug` flips `AmmoReadoutDebug` on an
   F11 press (guards the toggle logic).
-- [ ] Verify check + the ammo_readout tests + fmt. CHANGELOG line.
+- [x] Verify check + the ammo_readout tests + fmt. CHANGELOG line.
 
 ## Notes
 
@@ -40,3 +40,19 @@ number still on.
 - Relevant: crates/nova_gameplay/src/hud/ammo_readout.rs (toggle_ammo_readout_debug
   :422, its registration in AmmoReadoutPlugin build :457-460, drive_ammo_readout_numbers
   :392); crates/nova_debug/src/lib.rs (toggle_debug_mode :68, ungated).
+
+## Implementation record
+
+One-line wiring fix: removed the `in_state(GameStates::Playing)` gate from
+`toggle_ammo_readout_debug`'s registration (ammo_readout.rs AmmoReadoutPlugin) so
+it toggles on F11 in every state, matching nova_debug's ungated `toggle_debug_mode`
+- the two F11 flags now stay in phase from their shared `true` default, so the
+ammo number is visible iff debug/F11 mode is active. Added a comment marking the
+invariant (do not re-gate) and a regression test `f11_flips_the_ammo_debug_flag`.
+
+Diagnosis: the desync surfaced when F11 was pressed OUTSIDE Playing (menu/editor) -
+`DebugEnabled` flipped but the gated ammo mirror did not, so entering Playing
+showed the number with debug off.
+
+Verify: cargo check --workspace --all-targets clean; ammo_readout tests 11/11 under
+`--features debug` (the number is debug-only); cargo fmt clean.
