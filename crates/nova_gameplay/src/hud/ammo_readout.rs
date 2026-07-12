@@ -22,8 +22,12 @@
 //! the reconcile filter skips it and it gets no readout at all, which is the
 //! intended "don't even show it" behavior for infinite ammo.
 //!
-//! The exact count is available as a debug overlay: a `Text` child per readout
-//! showing `rounds/capacity`, hidden unless [`AmmoReadoutDebug`] is on (F10).
+//! The exact count is a debug-only overlay, never a gameplay affordance: the
+//! `rounds/capacity` `Text` child, its resource and its toggle only compile
+//! under the `debug` cargo feature (`--features debug`), so a release build has
+//! no numeric readout at all. Under that feature F11 (the shared debug toggle)
+//! shows/hides it via [`AmmoReadoutDebug`].
+//!
 //! Like the other combat overlays the layer is `HudTier::Instrument` and is
 //! spawned/despawned with the player ship by the hud/mod.rs observers.
 
@@ -49,11 +53,12 @@ const BAR_PIP_W: f32 = 3.0;
 const BAR_PIP_H: f32 = 12.0;
 const BAR_PIP_GAP: f32 = 2.0;
 
-/// Key that toggles the debug ammo number. F10 is free (F1 is the editor, F11
-/// the nova_debug toggle); nova_gameplay cannot depend on nova_debug's
-/// `DebugEnabled` (that crate depends on this one), so the readout owns its
-/// own tiny toggle.
-const DEBUG_TOGGLE_KEY: KeyCode = KeyCode::F10;
+/// Key that toggles the debug ammo number. F11 mirrors the nova_debug toggle
+/// (`DebugEnabled`); nova_gameplay cannot depend on nova_debug (that crate
+/// depends on this one), so the readout owns its own F11-driven flag, kept in
+/// sync by watching the same key. Only exists under the `debug` feature.
+#[cfg(feature = "debug")]
+const DEBUG_TOGGLE_KEY: KeyCode = KeyCode::F11;
 
 /// A lit chunk: warm amber, matching the turret-lead pip family.
 const LIT_COLOR: Color = Color::srgba(1.0, 0.75, 0.2, 0.95);
@@ -61,12 +66,20 @@ const LIT_COLOR: Color = Color::srgba(1.0, 0.75, 0.2, 0.95);
 /// empties rather than as pips appearing and vanishing.
 const DIM_COLOR: Color = Color::srgba(1.0, 0.75, 0.2, 0.16);
 
+/// A thin dark outline around every pip so the amber gauge holds contrast on
+/// light or same-hue backgrounds (grey hull, orange nebula) - the way a
+/// dark-edged cursor stays visible on any desktop. Applied to lit and dim pips
+/// alike so the whole track reads regardless of what is behind it.
+const PIP_OUTLINE_PX: f32 = 1.0;
+const PIP_OUTLINE_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.85);
+
 pub mod prelude {
     pub use super::{
-        ammo_readout_hud, AmmoReadoutDebug, AmmoReadoutHudMarker, AmmoReadoutKind,
-        AmmoReadoutMarker, AmmoReadoutNumber, AmmoReadoutPip, AmmoReadoutPlugin,
-        AmmoReadoutSection, RING_SEGMENTS,
+        ammo_readout_hud, AmmoReadoutHudMarker, AmmoReadoutKind, AmmoReadoutMarker, AmmoReadoutPip,
+        AmmoReadoutPlugin, AmmoReadoutSection, RING_SEGMENTS,
     };
+    #[cfg(feature = "debug")]
+    pub use super::{AmmoReadoutDebug, AmmoReadoutNumber};
 }
 
 /// Marker for the full-screen readout layer (the root the HUD setup spawns).
@@ -95,12 +108,16 @@ pub enum AmmoReadoutKind {
 #[derive(Component, Debug, Clone, Copy, Deref, DerefMut, Reflect)]
 pub struct AmmoReadoutPip(pub usize);
 
-/// The debug `rounds/capacity` text child of a readout.
+/// The debug `rounds/capacity` text child of a readout. Debug-only: only
+/// compiled under the `debug` feature.
+#[cfg(feature = "debug")]
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct AmmoReadoutNumber;
 
-/// Whether the debug ammo number is shown (toggled with F10). Off by default;
-/// the gauge itself is always on.
+/// Whether the debug ammo number is shown (toggled with F11). Off by default;
+/// the gauge itself is always on. Debug-only: only compiled under the `debug`
+/// feature, so release builds have no numeric readout at all.
+#[cfg(feature = "debug")]
 #[derive(Resource, Debug, Clone, Copy, Default, Deref, DerefMut, PartialEq, Eq, Reflect)]
 #[reflect(Resource)]
 pub struct AmmoReadoutDebug(pub bool);
@@ -151,7 +168,8 @@ fn readout_indicator(section: Entity, size: Vec2) -> impl Bundle {
     })
 }
 
-/// The debug number child (hidden until [`AmmoReadoutDebug`] is on).
+/// The debug number child (hidden until [`AmmoReadoutDebug`] is on). Debug-only.
+#[cfg(feature = "debug")]
 fn readout_number() -> impl Bundle {
     (
         Name::new("AmmoReadoutNumber"),
@@ -196,8 +214,10 @@ fn spawn_turret_readout(commands: &mut Commands, layer: Entity, turret: Entity) 
                             ..default()
                         },
                         BackgroundColor(DIM_COLOR),
+                        Outline::new(Val::Px(PIP_OUTLINE_PX), Val::ZERO, PIP_OUTLINE_COLOR),
                     ));
                 }
+                #[cfg(feature = "debug")]
                 readout.spawn(readout_number());
             });
     });
@@ -239,8 +259,10 @@ fn spawn_torpedo_readout(commands: &mut Commands, layer: Entity, torpedo: Entity
                             ..default()
                         },
                         BackgroundColor(DIM_COLOR),
+                        Outline::new(Val::Px(PIP_OUTLINE_PX), Val::ZERO, PIP_OUTLINE_COLOR),
                     ));
                 }
+                #[cfg(feature = "debug")]
                 readout.spawn(readout_number());
             });
     });
@@ -300,24 +322,14 @@ fn sync_ammo_readouts(
     }
 }
 
-/// Light each readout's chunks from its section's current `rounds/capacity`,
-/// and drive the debug number. The single point that reads ammo: swapping the
-/// source to a per-bullet-type magazine later (task 20260708-162005) is a
-/// one-line change here.
-#[allow(clippy::type_complexity)]
+/// Light each readout's chunks from its section's current `rounds/capacity`.
+/// The single point that reads ammo: swapping the source to a per-bullet-type
+/// magazine later (task 20260708-162005) is a one-line change here.
 fn drive_ammo_readouts(
-    debug: Res<AmmoReadoutDebug>,
     q_readouts: Query<(&AmmoReadoutSection, &AmmoReadoutKind, &Children), With<AmmoReadoutMarker>>,
     q_ammo: Query<&SectionAmmo>,
     mut q_pips: Query<(&AmmoReadoutPip, &mut BackgroundColor)>,
-    mut q_number: Query<(&mut Text, &mut Visibility), With<AmmoReadoutNumber>>,
 ) {
-    let number_visibility = if **debug {
-        Visibility::Inherited
-    } else {
-        Visibility::Hidden
-    };
-
     for (section, kind, children) in &q_readouts {
         let Ok(ammo) = q_ammo.get(**section) else {
             continue;
@@ -330,6 +342,32 @@ fn drive_ammo_readouts(
             if let Ok((pip, mut color)) = q_pips.get_mut(child) {
                 color.0 = if **pip < lit { LIT_COLOR } else { DIM_COLOR };
             }
+        }
+    }
+}
+
+/// Write `rounds/capacity` onto each readout's debug number child and show it
+/// while [`AmmoReadoutDebug`] is on. Debug-only: compiled out of release builds
+/// so the exact count is never a gameplay affordance.
+#[cfg(feature = "debug")]
+#[allow(clippy::type_complexity)]
+fn drive_ammo_readout_numbers(
+    debug: Res<AmmoReadoutDebug>,
+    q_readouts: Query<(&AmmoReadoutSection, &Children), With<AmmoReadoutMarker>>,
+    q_ammo: Query<&SectionAmmo>,
+    mut q_number: Query<(&mut Text, &mut Visibility), With<AmmoReadoutNumber>>,
+) {
+    let number_visibility = if **debug {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    };
+
+    for (section, children) in &q_readouts {
+        let Ok(ammo) = q_ammo.get(**section) else {
+            continue;
+        };
+        for &child in children {
             if let Ok((mut text, mut visibility)) = q_number.get_mut(child) {
                 let wanted = format!("{}/{}", ammo.rounds, ammo.capacity);
                 if text.0 != wanted {
@@ -341,7 +379,8 @@ fn drive_ammo_readouts(
     }
 }
 
-/// Toggle the debug ammo number on F10 (gameplay only).
+/// Toggle the debug ammo number on F11 (gameplay only). Debug-only.
+#[cfg(feature = "debug")]
 fn toggle_ammo_readout_debug(mut debug: ResMut<AmmoReadoutDebug>, keys: Res<ButtonInput<KeyCode>>) {
     if keys.just_pressed(DEBUG_TOGGLE_KEY) {
         **debug = !**debug;
@@ -355,19 +394,11 @@ impl Plugin for AmmoReadoutPlugin {
     fn build(&self, app: &mut App) {
         debug!("AmmoReadoutPlugin: build");
 
-        app.init_resource::<AmmoReadoutDebug>();
-        app.register_type::<AmmoReadoutDebug>();
         app.register_type::<AmmoReadoutHudMarker>();
         app.register_type::<AmmoReadoutMarker>();
         app.register_type::<AmmoReadoutSection>();
         app.register_type::<AmmoReadoutKind>();
         app.register_type::<AmmoReadoutPip>();
-        app.register_type::<AmmoReadoutNumber>();
-
-        app.add_systems(
-            Update,
-            toggle_ammo_readout_debug.run_if(in_state(crate::GameStates::Playing)),
-        );
 
         // Reconcile then light the chunks before the indicator projection
         // places the nodes, mirroring TurretLeadPlugin's slot.
@@ -377,6 +408,25 @@ impl Plugin for AmmoReadoutPlugin {
                 .chain()
                 .before(ScreenIndicatorSystems),
         );
+
+        // The numeric readout is debug-only (never compiled into release): its
+        // resource, F11 toggle and driver all live behind the `debug` feature.
+        #[cfg(feature = "debug")]
+        {
+            app.init_resource::<AmmoReadoutDebug>();
+            app.register_type::<AmmoReadoutDebug>();
+            app.register_type::<AmmoReadoutNumber>();
+            app.add_systems(
+                Update,
+                toggle_ammo_readout_debug.run_if(in_state(crate::GameStates::Playing)),
+            );
+            app.add_systems(
+                PostUpdate,
+                drive_ammo_readout_numbers
+                    .after(drive_ammo_readouts)
+                    .before(ScreenIndicatorSystems),
+            );
+        }
     }
 }
 
@@ -534,7 +584,6 @@ mod tests {
     #[test]
     fn driver_lights_turret_chunks_by_fraction() {
         let mut world = World::new();
-        world.init_resource::<AmmoReadoutDebug>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(8)));
@@ -566,7 +615,6 @@ mod tests {
     #[test]
     fn driver_lights_one_torpedo_pip_per_remaining_round() {
         let mut world = World::new();
-        world.init_resource::<AmmoReadoutDebug>();
         world.spawn(ammo_readout_hud());
         let player = spawn_player(&mut world);
         let torpedo = spawn_torpedo(&mut world, player, Some(SectionAmmo::new(4)));
@@ -584,6 +632,7 @@ mod tests {
         assert_eq!(lit_pip_count(&mut world, torpedo), 1);
     }
 
+    #[cfg(feature = "debug")]
     #[test]
     fn driver_debug_number_follows_the_toggle() {
         let mut world = World::new();
@@ -599,7 +648,7 @@ mod tests {
             .rounds = 5;
 
         // Debug off: the number is hidden.
-        world.run_system_once(drive_ammo_readouts).unwrap();
+        world.run_system_once(drive_ammo_readout_numbers).unwrap();
         let (text, visibility) = world
             .query_filtered::<(&Text, &Visibility), With<AmmoReadoutNumber>>()
             .single(&world)
@@ -609,7 +658,7 @@ mod tests {
 
         // Debug on: the number shows.
         **world.resource_mut::<AmmoReadoutDebug>() = true;
-        world.run_system_once(drive_ammo_readouts).unwrap();
+        world.run_system_once(drive_ammo_readout_numbers).unwrap();
         let visibility = world
             .query_filtered::<&Visibility, With<AmmoReadoutNumber>>()
             .single(&world)
