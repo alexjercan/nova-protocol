@@ -20,6 +20,17 @@ const CONTROLLER_BASE_HEALTH: f32 = 100.0;
 const TURRET_BASE_HEALTH: f32 = 130.0;
 const TORPEDO_BASE_HEALTH: f32 = 100.0;
 
+// Authored per-hit Kinetic damage of the player's PDC (`better_turret`), a
+// playtest knob (task 20260712-172035). A point-defense profile: LOW per-hit,
+// HIGH rate (100 rounds/s). At 4.0 the PDC does ~400 DPS - clearly the stronger
+// gun than the scavenger light turret (3.825/hit @ 25 rps ~ 96 DPS) - while a
+// 100-HP asteroid now takes ~25 rounds (~0.25s of fire) instead of ~5, so a
+// burst visibly chips it down rather than popping it in a blink (playtest: "PDC
+// destroys asteroids/objects with one bullet"). Was ~20.25 (the old emergent
+// per-hit); the drop also slows ship TTK ~5x, consistent with a PDC and with the
+// shakedown pirate still dying in a short burst (~0.15s on a 60-HP hull).
+const BETTER_TURRET_BULLET_DAMAGE: f32 = 4.0;
+
 pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::GameAssets>) {
     // This should be loaded from a JSON file, but for now it is fine.
 
@@ -108,10 +119,11 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 fire_rate: 100.0,
                 muzzle_speed: 100.0,
                 projectile_lifetime: 5.0,
-                // Authored Kinetic damage; typed-damage pass (task
-                // 20260712-133343). Reproduces the old emergent per-hit (mass
-                // 0.1 @ 100 u/s) so Kinetic-at-1.0 keeps this turret's feel.
-                bullet_damage: representative_kinetic_damage(0.1, 100.0),
+                // Point-defense per-hit (task 20260712-172035): low damage, high
+                // rate. See BETTER_TURRET_BULLET_DAMAGE. (Was the old emergent
+                // per-hit representative_kinetic_damage(0.1, 100.0) ~= 20.25,
+                // which vaporised asteroids in a blink.)
+                bullet_damage: BETTER_TURRET_BULLET_DAMAGE,
                 // Kinetic loadout (the slot's authored default; task
                 // 20260712-133349).
                 bullet_kind: DamageType::Kinetic,
@@ -241,5 +253,23 @@ mod tests {
         );
         // The controller core and the torpedo bay share the mid baseline.
         assert_eq!(CONTROLLER_BASE_HEALTH, TORPEDO_BASE_HEALTH);
+    }
+
+    /// Anti-regression guard for the PDC one-shot fix (task 20260712-172035): the
+    /// player PDC's per-hit must stay low enough that a 100-HP asteroid takes a
+    /// sustained burst, not a blink. At the old ~20.25 a 100-HP rock died in ~5
+    /// rounds (~50 ms); the ceiling here keeps it at >= ~13 rounds. This fails if
+    /// the PDC damage creeps back toward the old value; it is a loose guard, not a
+    /// precise balance number (raise it consciously if playtest wants punchier).
+    #[test]
+    fn pdc_per_hit_stays_below_the_one_shot_ceiling() {
+        // A representative environment object (field asteroid) is 100 HP.
+        const ASTEROID_HP: f32 = 100.0;
+        const MIN_ROUNDS_TO_KILL: f32 = 12.0;
+        assert!(
+            BETTER_TURRET_BULLET_DAMAGE <= ASTEROID_HP / MIN_ROUNDS_TO_KILL,
+            "PDC per-hit {BETTER_TURRET_BULLET_DAMAGE} would kill a {ASTEROID_HP}-HP \
+             object in under {MIN_ROUNDS_TO_KILL} rounds - too close to a one-shot pop"
+        );
     }
 }

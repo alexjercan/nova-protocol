@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- @alexjercan PDC turret retuned to a point-defense profile (playtest: it "destroyed asteroids and objects with one bullet"): per-hit damage dropped from ~20 to 4 so the 100-round/s stream chips a target down over a visible burst (~0.25s to clear a 100-HP asteroid) instead of popping it instantly. Still clearly the strongest gun by rate; also lengthens ship fights slightly
 - @alexjercan the lock reticle on a beacon no longer wraps the beacon's (invisible) 70u trigger volume - apparent-size HUD elements now measure non-sensor colliders only, so a locked beacon gets the small minimum reticle (playtest: "beacons have a really big target thingy")
 - @alexjercan conveyance gold text readability (playtest): the emphasized keybind row now pulses pure gold with only its alpha breathing (the old cyan-to-gold cross-fade washed through an unreadable near-white every cycle), and the objective marker label keeps constant full alpha with a dark text shadow - the diamond and chevron carry the motion
 - @alexjercan objective sound pacing: when a beat completes and posts the next objective in one step, the posting blip now waits a configurable moment (default 1.0s, ObjectiveFeedbackSettings) after the completion chime instead of playing over it
