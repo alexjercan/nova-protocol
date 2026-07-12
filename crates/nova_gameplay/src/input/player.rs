@@ -11,7 +11,7 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        FlightVerbHints, PlayerSpaceshipMarker, SpaceshipPlayerInputPlugin,
+        binding_label, FlightVerbHints, PlayerSpaceshipMarker, SpaceshipPlayerInputPlugin,
         SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
         VerbHint,
     };
@@ -122,6 +122,29 @@ fn keyboard_label(key: KeyCode) -> String {
         .or_else(|| name.strip_prefix("Digit"))
         .unwrap_or(&name)
         .to_string()
+}
+
+/// A short display chip for a section's input binding (the editor keybind
+/// readout, task 20260712-163912): the first keyboard or mouse binding in the
+/// list, keyboards via [`keyboard_label`] and mouse buttons as `LMB`/`RMB`/`MMB`.
+/// Empty string when there is no keyboard/mouse binding (e.g. gamepad-only).
+pub fn binding_label(bindings: &[Binding]) -> String {
+    bindings
+        .iter()
+        .find_map(|binding| match binding {
+            Binding::Keyboard { key, .. } => Some(keyboard_label(*key)),
+            Binding::MouseButton { button, .. } => Some(
+                match button {
+                    MouseButton::Left => "LMB",
+                    MouseButton::Right => "RMB",
+                    MouseButton::Middle => "MMB",
+                    _ => "MB",
+                }
+                .to_string(),
+            ),
+            _ => None,
+        })
+        .unwrap_or_default()
 }
 
 /// Resolve the verb hints from the live world: availability from the same
@@ -1225,6 +1248,27 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
+
+    #[test]
+    fn binding_label_shows_the_first_keyboard_or_mouse_input() {
+        assert_eq!(
+            binding_label(&[Binding::from(KeyCode::KeyW)]),
+            "W",
+            "keyboard keys drop the Key/Digit prefix"
+        );
+        assert_eq!(binding_label(&[Binding::from(MouseButton::Left)]), "LMB");
+        // First bindable input wins; a keyboard key ahead of a gamepad button.
+        assert_eq!(
+            binding_label(&[
+                Binding::from(KeyCode::Space),
+                Binding::from(GamepadButton::South),
+            ]),
+            "Space"
+        );
+        // Gamepad-only / empty -> no chip.
+        assert_eq!(binding_label(&[Binding::from(GamepadButton::South)]), "");
+        assert_eq!(binding_label(&[]), "");
+    }
 
     /// A world with the flight rig's four autopilot actions bound as in
     /// the real rig, plus the resources the resolver reads.

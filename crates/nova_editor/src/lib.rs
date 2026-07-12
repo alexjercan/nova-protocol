@@ -42,6 +42,7 @@ fn editor_plugin(app: &mut App) {
     app.init_state::<ExampleStates>();
     app.insert_resource(SectionChoice::None);
     app.insert_resource(PlayerSpaceshipConfig::default());
+    app.init_resource::<EditorRebind>();
 
     // The editor is the Sandbox game. When the main menu fronts the app it hands
     // off to Playing with GameMode set: Sandbox enters the editor, NewGame goes
@@ -119,6 +120,27 @@ fn editor_plugin(app: &mut App) {
         .add_observer(on_hover_spaceship_section)
         .add_observer(on_move_spaceship_section)
         .add_observer(on_out_spaceship_section);
+
+    // Editor section keybind labels + click-to-rebind (task 20260712-163912).
+    // A stale rebind must not survive a scene change, so clear it on every
+    // state entry (like SectionChoice).
+    app.add_systems(
+        OnEnter(ExampleStates::Editor),
+        |mut rebind: ResMut<EditorRebind>| rebind.target = None,
+    );
+    app.add_systems(
+        OnEnter(ExampleStates::Scenario),
+        |mut rebind: ResMut<EditorRebind>| rebind.target = None,
+    );
+    app.add_systems(
+        Update,
+        (
+            sync_section_keybind_labels,
+            apply_section_rebind,
+            position_section_keybind_labels,
+        )
+            .run_if(in_state(ExampleStates::Editor)),
+    );
 
     app.add_systems(
         Update,
@@ -663,6 +685,15 @@ fn on_click_spaceship_section(
     gamepad: Option<Res<ButtonInput<GamepadButton>>>,
     sections: Res<GameSections>,
     mut player_config: ResMut<PlayerSpaceshipConfig>,
+    mut rebind: ResMut<EditorRebind>,
+    q_bindable: Query<
+        (),
+        Or<(
+            With<SpaceshipThrusterInputBinding>,
+            With<SpaceshipTurretInputBinding>,
+            With<SpaceshipTorpedoInputBinding>,
+        )>,
+    >,
 ) {
     if click.button != PointerButton::Primary {
         return;
@@ -686,7 +717,15 @@ fn on_click_spaceship_section(
     let position = transform.translation + normal * 1.0;
 
     match *selection {
-        SectionChoice::None => {}
+        SectionChoice::None => {
+            // No placement tool selected = select/edit mode: clicking a bindable
+            // section arms a rebind (task 20260712-163912). `apply_section_rebind`
+            // captures the next key press. Non-bindable sections (hull,
+            // controller) and empty space do nothing.
+            if q_bindable.get(entity).is_ok() {
+                rebind.target = Some(entity);
+            }
+        }
         SectionChoice::Section(ref id) => {
             let Some(section) = sections.get_section(id) else {
                 panic!("on_click_spaceship_section: Section '{}' not found.", id);
@@ -998,6 +1037,193 @@ fn on_out_spaceship_section(
     commands.entity(preview.into_inner()).despawn();
 }
 
+// -- Section keybind labels + rebind (task 20260712-163912) --
+
+/// The section currently awaiting a new keybind. Armed by clicking a bindable
+/// section in select mode (`SectionChoice::None`); `apply_section_rebind`
+/// consumes the next key press. Reset to `None` on every state entry.
+#[derive(Resource, Debug, Clone, Default)]
+struct EditorRebind {
+    target: Option<Entity>,
+}
+
+/// A screen-space UI chip showing `section`'s current keybind, positioned each
+/// frame over the section by projecting its world position with the editor
+/// camera. One per bindable (thruster/turret/torpedo) section.
+#[derive(Component, Debug, Clone, Copy)]
+struct SectionKeybindLabel {
+    section: Entity,
+}
+
+/// The chip text of the currently-armed section (see [`EditorRebind`]).
+const REBIND_PROMPT: &str = "press key";
+
+/// True set of currently-bindable sections (carry one of the three input
+/// binding components).
+type BindableFilter = Or<(
+    With<SpaceshipThrusterInputBinding>,
+    With<SpaceshipTurretInputBinding>,
+    With<SpaceshipTorpedoInputBinding>,
+)>;
+
+/// Keep exactly one [`SectionKeybindLabel`] per bindable section: spawn for new
+/// ones, despawn labels whose section is gone or lost its binding. Reconcile
+/// shape mirrors the ammo readout's `sync_ammo_readouts`.
+fn sync_section_keybind_labels(
+    mut commands: Commands,
+    q_bindable: Query<Entity, BindableFilter>,
+    q_labels: Query<(Entity, &SectionKeybindLabel)>,
+) {
+    // Despawn stale labels.
+    for (label, SectionKeybindLabel { section }) in &q_labels {
+        if q_bindable.get(*section).is_err() {
+            commands.entity(label).despawn();
+        }
+    }
+    // Spawn missing labels.
+    let has_label = |section: Entity| q_labels.iter().any(|(_, l)| l.section == section);
+    for section in &q_bindable {
+        if !has_label(section) {
+            commands.spawn((
+                DespawnOnExit(ExampleStates::Editor),
+                SectionKeybindLabel { section },
+                Name::new("Section Keybind Label"),
+                Text::new(""),
+                TextFont {
+                    font_size: FontSize::Px(16.0),
+                    ..default()
+                },
+                TextColor(Color::srgb(1.0, 0.85, 0.35)),
+                TextShadow::default(),
+                Node {
+                    position_type: PositionType::Absolute,
+                    ..default()
+                },
+                // Hidden until the positioner projects it this frame.
+                Visibility::Hidden,
+            ));
+        }
+    }
+}
+
+/// Position each keybind label over its section (project with the editor
+/// camera) and set its text to the section's current binding - or the rebind
+/// prompt while that section is armed. Hidden when the section projects
+/// off-screen or behind the camera.
+///
+/// Runs in `Update`, so it reads the previous frame's `GlobalTransform` - a
+/// one-frame lag that is invisible for a near-static editor scene (only the
+/// WASD camera moves). If labels ever need to track fast motion exactly, move
+/// this to `PostUpdate` after transform propagation (and mind bevy_ui layout
+/// ordering, as `screen_indicator` does).
+#[allow(clippy::type_complexity)]
+fn position_section_keybind_labels(
+    rebind: Res<EditorRebind>,
+    camera: Single<(&Camera, &GlobalTransform), With<WASDCameraController>>,
+    q_section: Query<(
+        &GlobalTransform,
+        Option<&SpaceshipThrusterInputBinding>,
+        Option<&SpaceshipTurretInputBinding>,
+        Option<&SpaceshipTorpedoInputBinding>,
+    )>,
+    mut q_labels: Query<(&SectionKeybindLabel, &mut Node, &mut Text, &mut Visibility)>,
+) {
+    let (cam, cam_transform) = *camera;
+    for (SectionKeybindLabel { section }, mut node, mut text, mut visibility) in &mut q_labels {
+        let Ok((section_transform, thruster, turret, torpedo)) = q_section.get(*section) else {
+            *visibility = Visibility::Hidden;
+            continue;
+        };
+        match cam.world_to_viewport(cam_transform, section_transform.translation()) {
+            Ok(screen) => {
+                node.left = Val::Px(screen.x);
+                node.top = Val::Px(screen.y);
+                *visibility = Visibility::Visible;
+            }
+            Err(_) => {
+                // Behind the camera / off-viewport: do not draw.
+                *visibility = Visibility::Hidden;
+                continue;
+            }
+        }
+        let wanted = if rebind.target == Some(*section) {
+            REBIND_PROMPT.to_string()
+        } else {
+            let binds = thruster
+                .map(|b| b.0.as_slice())
+                .or(turret.map(|b| b.0.as_slice()))
+                .or(torpedo.map(|b| b.0.as_slice()))
+                .unwrap_or(&[]);
+            binding_label(binds)
+        };
+        if text.0 != wanted {
+            text.0 = wanted;
+        }
+    }
+}
+
+/// Consume the next key press to rebind the armed section (see [`EditorRebind`]).
+/// Escape cancels. The new keyboard binding replaces the section's previous
+/// keyboard binding (any gamepad/mouse binding is preserved) on both the live
+/// component and `PlayerSpaceshipConfig::inputs` (what the scenario reads).
+fn apply_section_rebind(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut rebind: ResMut<EditorRebind>,
+    mut player_config: ResMut<PlayerSpaceshipConfig>,
+    mut q_thruster: Query<&mut SpaceshipThrusterInputBinding>,
+    mut q_turret: Query<&mut SpaceshipTurretInputBinding>,
+    mut q_torpedo: Query<&mut SpaceshipTorpedoInputBinding>,
+) {
+    let Some(section) = rebind.target else {
+        return;
+    };
+    // The section vanished (deleted while armed): drop the rebind.
+    let still_bindable =
+        q_thruster.contains(section) || q_turret.contains(section) || q_torpedo.contains(section);
+    if !still_bindable {
+        rebind.target = None;
+        return;
+    }
+    if keys.just_pressed(KeyCode::Escape) {
+        rebind.target = None;
+        return;
+    }
+    let Some(&key) = keys.get_just_pressed().find(|k| **k != KeyCode::Escape) else {
+        return;
+    };
+
+    // Replace the keyboard part, keep any non-keyboard bindings.
+    let rebind_binds = |current: &[Binding]| -> Vec<Binding> {
+        let mut binds: Vec<Binding> = current
+            .iter()
+            .filter(|b| !matches!(b, Binding::Keyboard { .. }))
+            .cloned()
+            .collect();
+        binds.insert(0, Binding::from(key));
+        binds
+    };
+
+    let new_binds = if let Ok(mut b) = q_thruster.get_mut(section) {
+        let binds = rebind_binds(&b.0);
+        b.0 = binds.clone();
+        binds
+    } else if let Ok(mut b) = q_turret.get_mut(section) {
+        let binds = rebind_binds(&b.0);
+        b.0 = binds.clone();
+        binds
+    } else if let Ok(mut b) = q_torpedo.get_mut(section) {
+        let binds = rebind_binds(&b.0);
+        b.0 = binds.clone();
+        binds
+    } else {
+        rebind.target = None;
+        return;
+    };
+
+    player_config.inputs.insert(section, new_binds);
+    rebind.target = None;
+}
+
 fn setup_grab_cursor_scenario(
     primary_cursor_options: Single<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
@@ -1173,7 +1399,7 @@ fn button(text: &str) -> impl Bundle {
 
 #[cfg(test)]
 mod tests {
-    use bevy::state::app::StatesPlugin;
+    use bevy::{ecs::system::RunSystemOnce, state::app::StatesPlugin};
 
     use super::*;
 
@@ -1405,5 +1631,130 @@ mod tests {
             _ => None,
         };
         assert_eq!(queued, Some(ExampleStates::Editor));
+    }
+
+    // -- section keybind labels + rebind (task 20260712-163912) --
+
+    #[test]
+    fn keybind_labels_reconcile_to_one_per_bound_section() {
+        let mut world = World::new();
+        let section = world
+            .spawn(SpaceshipThrusterInputBinding(vec![Binding::from(
+                KeyCode::KeyW,
+            )]))
+            .id();
+        // A non-bindable section (hull/controller have no binding) gets no label.
+        let _unbound = world.spawn(SectionMarker).id();
+
+        world.run_system_once(sync_section_keybind_labels).unwrap();
+        let labels: Vec<Entity> = world
+            .query::<&SectionKeybindLabel>()
+            .iter(&world)
+            .map(|l| l.section)
+            .collect();
+        assert_eq!(
+            labels,
+            vec![section],
+            "one label, for the bound section only"
+        );
+
+        // Idempotent: a second pass adds no duplicate.
+        world.run_system_once(sync_section_keybind_labels).unwrap();
+        assert_eq!(
+            world.query::<&SectionKeybindLabel>().iter(&world).count(),
+            1
+        );
+
+        // Section gone -> its label is despawned.
+        world.despawn(section);
+        world.run_system_once(sync_section_keybind_labels).unwrap();
+        assert_eq!(
+            world.query::<&SectionKeybindLabel>().iter(&world).count(),
+            0
+        );
+    }
+
+    #[test]
+    fn rebind_replaces_the_keyboard_bind_on_component_and_config() {
+        let mut world = World::new();
+        world.init_resource::<EditorRebind>();
+        world.init_resource::<PlayerSpaceshipConfig>();
+        let section = world
+            .spawn(SpaceshipThrusterInputBinding(vec![
+                Binding::from(KeyCode::Space),
+                Binding::from(GamepadButton::RightTrigger),
+            ]))
+            .id();
+        world.resource_mut::<EditorRebind>().target = Some(section);
+        let mut input = ButtonInput::<KeyCode>::default();
+        input.press(KeyCode::KeyR);
+        world.insert_resource(input);
+
+        world.run_system_once(apply_section_rebind).unwrap();
+
+        let binds = &world
+            .entity(section)
+            .get::<SpaceshipThrusterInputBinding>()
+            .unwrap()
+            .0;
+        assert!(
+            binds
+                .iter()
+                .any(|b| matches!(b, Binding::Keyboard { key, .. } if *key == KeyCode::KeyR)),
+            "the new key is bound"
+        );
+        assert!(
+            !binds
+                .iter()
+                .any(|b| matches!(b, Binding::Keyboard { key, .. } if *key == KeyCode::Space)),
+            "the old key is replaced"
+        );
+        assert!(
+            binds.iter().any(|b| matches!(b, Binding::GamepadButton(_))),
+            "a non-keyboard bind is preserved"
+        );
+        // The scenario reads player_config.inputs, so it must update too.
+        assert!(world
+            .resource::<PlayerSpaceshipConfig>()
+            .inputs
+            .get(&section)
+            .is_some_and(|b| b
+                .iter()
+                .any(|b| matches!(b, Binding::Keyboard { key, .. } if *key == KeyCode::KeyR))));
+        assert_eq!(
+            world.resource::<EditorRebind>().target,
+            None,
+            "the rebind is consumed"
+        );
+    }
+
+    #[test]
+    fn rebind_escape_cancels_without_changing_the_bind() {
+        let mut world = World::new();
+        world.init_resource::<EditorRebind>();
+        world.init_resource::<PlayerSpaceshipConfig>();
+        let section = world
+            .spawn(SpaceshipTurretInputBinding(vec![Binding::from(
+                KeyCode::Space,
+            )]))
+            .id();
+        world.resource_mut::<EditorRebind>().target = Some(section);
+        let mut input = ButtonInput::<KeyCode>::default();
+        input.press(KeyCode::Escape);
+        world.insert_resource(input);
+
+        world.run_system_once(apply_section_rebind).unwrap();
+
+        let binds = &world
+            .entity(section)
+            .get::<SpaceshipTurretInputBinding>()
+            .unwrap()
+            .0;
+        assert_eq!(binds, &vec![Binding::from(KeyCode::Space)], "unchanged");
+        assert_eq!(
+            world.resource::<EditorRebind>().target,
+            None,
+            "Escape still consumes the arm"
+        );
     }
 }

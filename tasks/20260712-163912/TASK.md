@@ -1,6 +1,6 @@
 # Editor: visible + editable section keybinds (v0.5.0)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.5.0,feature
 
@@ -34,19 +34,19 @@ The hold-key-while-placing flow stays as the fast path.
 
 ## Steps
 
-- [ ] Expose a `pub fn binding_label(bindings: &[Binding]) -> String` in
+- [x] Expose a `pub fn binding_label(bindings: &[Binding]) -> String` in
   nova_gameplay (input/player.rs, reusing the private `keyboard_label`; prelude
   -export). Return a short chip for the first bindable input: keyboard via
   `keyboard_label`, mouse buttons as "LMB"/"RMB"/"MMB", else "" . VERIFY the
   `Binding` variants (`Binding::Keyboard { key, .. }`, `Binding::Mouse`/
   MouseButton) against bevy_enhanced_input before matching. Unit test it.
-- [ ] Editor label component + reconcile: add `SectionKeybindLabel { section:
+- [x] Editor label component + reconcile: add `SectionKeybindLabel { section:
   Entity }` (a UI `Text` node) and a system `sync_section_keybind_labels`
   (Editor state) that spawns exactly one label per player-ship section carrying a
   binding component (`SpaceshipThrusterInputBinding` / `SpaceshipTurretInputBinding`
   / `SpaceshipTorpedoInputBinding`) and despawns labels whose section is gone -
   the reconcile shape used by ammo_readout's `sync_ammo_readouts`.
-- [ ] Editor label positioning + text: a system `position_section_keybind_labels`
+- [x] Editor label positioning + text: a system `position_section_keybind_labels`
   (Editor state, PostUpdate after transform propagation) that, per label, reads
   its section `&GlobalTransform`, projects with the editor camera
   (`q_camera: Query<(&Camera, &GlobalTransform), With<...editor cam...>>`,
@@ -55,20 +55,20 @@ The hold-key-while-placing flow stays as the fast path.
   `binding_label(binds)` - or the rebind prompt when this section is the armed
   target. VERIFY the editor camera marker to query (the `WASDCameraController` /
   `Camera3d` spawned at lib.rs:388).
-- [ ] Rebind arm on click: add resource `EditorRebind { target: Option<Entity> }`
+- [x] Rebind arm on click: add resource `EditorRebind { target: Option<Entity> }`
   (init None; reset to None on OnEnter of each state, like `SectionChoice`). In
   `on_click_spaceship_section`'s `SectionChoice::None` arm (currently `{}`,
   lib.rs:689), if the clicked entity carries any of the three binding components,
   set `EditorRebind.target = Some(entity)`. (Leave Section/Delete arms unchanged -
   the hold-to-bind placement path is untouched.)
-- [ ] Rebind capture: a system `apply_section_rebind` (Editor state) - if
+- [x] Rebind capture: a system `apply_section_rebind` (Editor state) - if
   `EditorRebind.target` is Some and a key was `just_pressed`: Escape -> clear
   (cancel); otherwise map the KeyCode to a `Binding`, write it to the section's
   binding component (match whichever of the three it has) AND
   `player_config.inputs`, then clear the target. Mirror the bind vec shape the
   placement path builds (keyboard binding; keep any existing gamepad bind if
   present, else just the key).
-- [ ] Tests (nova_editor + nova_gameplay): (1) `binding_label` maps Keyboard(KeyW)
+- [x] Tests (nova_editor + nova_gameplay): (1) `binding_label` maps Keyboard(KeyW)
   -> "W", Mouse(Left) -> "LMB", empty -> "". (2) `sync_section_keybind_labels`
   spawns one label for a bound section and despawns it when the section is
   removed. (3) `apply_section_rebind`: arm a thruster (has
@@ -76,7 +76,7 @@ The hold-key-while-placing flow stays as the fast path.
   component AND `player_config.inputs` now hold that key; a second test that
   Escape cancels (binding unchanged, target cleared). Use App/World rigs like the
   existing editor tests (lib.rs ~1180+); every assertion able to fail.
-- [ ] Docs: `docs/<date>-editor-section-keybinds.md` (the two features, the
+- [x] Docs: `docs/<date>-editor-section-keybinds.md` (the two features, the
   editor-local projection choice vs screen_indicator, the rebind interaction and
   why None-mode). CHANGELOG Unreleased line.
 
@@ -100,3 +100,23 @@ The hold-key-while-placing flow stays as the fast path.
 - Open question for /work: confirm `Camera::world_to_viewport` signature/return in
   this bevy version (Result vs Option) and the editor camera's component to query;
   the label positioning step is verify-first on those.
+
+## Implementation record
+
+Added `binding_label` (nova_gameplay, prelude) and, in nova_editor: an
+`EditorRebind` resource, `SectionKeybindLabel` UI chips reconciled by
+`sync_section_keybind_labels` and positioned/text-set by
+`position_section_keybind_labels` (editor-camera `world_to_viewport`), rebind
+armed in the `SectionChoice::None` click arm and consumed by
+`apply_section_rebind` (Escape cancels; updates the live binding component AND
+`PlayerSpaceshipConfig::inputs`; preserves a non-keyboard bind). Hold-to-bind
+placement path untouched. Write-up + reflection:
+docs/2026-07-12-editor-section-keybinds.md.
+
+Decisions: editor-local projection over the gameplay `screen_indicator` (whose
+`ScreenIndicatorCamera` is only on the chase camera, absent in the editor);
+rebind entered from the None/select mode; keyboard-only rebind.
+
+Verify: cargo check --workspace --all-targets clean; nova_editor 8/8 (3 new),
+nova_gameplay binding_label green; cargo fmt clean. Not unit-tested: the actual
+pixel projection in position_section_keybind_labels (needs a rendered viewport).
