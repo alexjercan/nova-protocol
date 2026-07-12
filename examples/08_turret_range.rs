@@ -10,6 +10,11 @@
 //! full game); the barrel slews to follow and fires when you hold the trigger.
 //!
 //! What it shows:
+//! - Bullet gravity: a planetoid slung below the firing lane bends rounds that
+//!   cross its sphere of influence downward toward it. The shooter's own
+//!   gravity is stripped so it stays a fixed frame; only the rounds curve, so
+//!   the straight-line lead pip visibly misses low as a round nears the rock.
+//!   Spike: docs/spikes/20260712-112113-bullets-affected-by-gravity.md.
 //! - Aim gizmos: a line down the barrel (green when it is on target, yellow while
 //!   it lags) and a red line + sphere at the point the turret is aiming for. The
 //!   gap between the barrel line and the target line is the tracking lag - the
@@ -84,6 +89,7 @@ fn custom_plugin(app: &mut App) {
             // ahead.
             range_aim.after(SpaceshipInputSystems),
             drive_moving_gate,
+            anchor_shooter_against_gravity,
             draw_turret_aim,
             report_status,
             update_knob_labels,
@@ -181,6 +187,27 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         gate("gate_right", "Right Gate", Vec3::new(30.0, 3.0, -48.0)),
         gate("gate_high", "High Gate", Vec3::new(6.0, 26.0, -40.0)),
         gate(MOVING_GATE_ID, "Moving Gate", Vec3::new(-35.0, 6.0, -55.0)),
+        // A gravity planetoid slung below the firing lane so rounds crossing
+        // its sphere of influence curve downward toward it - the range is where
+        // you eyeball bullet gravity (docs/spikes/20260712-112113). It is
+        // authored strong (surface_gravity 10) and big (radius 16 -> SOI 128u
+        // at the default soi_factor), which is why the shooter's own gravity is
+        // stripped below: otherwise the ship, sitting inside that SOI, would
+        // fall out of frame instead of holding still as a reference.
+        ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: "gravity_rock".to_string(),
+                name: "Planetoid".to_string(),
+                position: Vec3::new(0.0, -22.0, -50.0),
+                rotation: Quat::IDENTITY,
+            },
+            kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                radius: 16.0,
+                texture: game_assets.asteroid_texture.clone(),
+                health: 100_000.0,
+                surface_gravity: Some(10.0),
+            }),
+        },
     ];
 
     let events = vec![ScenarioEventConfig {
@@ -214,6 +241,27 @@ fn tag_gate(add: On<Add, AsteroidMarker>, mut commands: Commands, q_id: Query<&E
         commands
             .entity(entity)
             .insert((RangeMovingTarget, LinearVelocity::default()));
+    }
+}
+
+/// Keep the range ship a fixed reference frame despite the gravity planetoid.
+/// Ship roots opt into `GravityAffected` on spawn (nova_gameplay), and the
+/// shooter sits inside the planetoid's SOI; without this it would slowly fall
+/// toward the rock and drift the whole range. Rounds still feel gravity (they
+/// get their own `GravityAffected` at spawn), so this strips only the shooter's
+/// pull, not the effect the range exists to show. Range-local: the real game
+/// leaves ships gravity-affected. `DominantWell` is removed alongside because
+/// the force system may have inserted it in the frame before the strip and only
+/// cleans it up for still-affected entities.
+fn anchor_shooter_against_gravity(
+    mut commands: Commands,
+    q_ship: Query<Entity, (With<SpaceshipRootMarker>, With<GravityAffected>)>,
+) {
+    for ship in &q_ship {
+        commands
+            .entity(ship)
+            .remove::<GravityAffected>()
+            .remove::<DominantWell>();
     }
 }
 

@@ -80,11 +80,13 @@ impl GravityWell {
 }
 
 /// Opt-in marker: only entities carrying this feel gravity wells. Inserted
-/// automatically on ship roots (player and AI - one arena, one physics) and
-/// torpedo projectiles. Turret rounds and section debris deliberately skip
-/// v1 (spike decision 5): flight times are short and per-bullet well queries
-/// are pure cost for imperceptible curvature. Never insert this on a well
-/// source.
+/// automatically on ship roots (player and AI - one arena, one physics),
+/// torpedo projectiles, and turret rounds. Turret rounds opted in as of the
+/// bullet-gravity spike (docs/spikes/20260712-112113): the curve is only
+/// perceptible on close grazing passes, but since the target ship already
+/// feels gravity, letting rounds fall too is a free common-mode correction to
+/// the lead solver's aim-behind-a-falling-target miss. Section debris still
+/// skips (perf; a later flourish). Never insert this on a well source.
 #[derive(Component, Clone, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct GravityAffected;
@@ -191,6 +193,7 @@ impl Plugin for NovaGravityPlugin {
 
         app.add_observer(insert_gravity_affected_on_ship);
         app.add_observer(insert_gravity_affected_on_torpedo);
+        app.add_observer(insert_gravity_affected_on_turret_round);
         app.add_observer(remove_dominant_well_on_well_removed);
 
         app.configure_sets(
@@ -210,6 +213,19 @@ fn insert_gravity_affected_on_ship(add: On<Add, SpaceshipRootMarker>, mut comman
 /// so it self-corrects through wells (spike decision 5).
 fn insert_gravity_affected_on_torpedo(
     add: On<Add, TorpedoProjectileMarker>,
+    mut commands: Commands,
+) {
+    commands.entity(add.entity).try_insert(GravityAffected);
+}
+
+/// Turret rounds opt in as of the bullet-gravity spike
+/// (docs/spikes/20260712-112113). They ride the same `gravity_well_system` as
+/// ships and torpedoes - it only touches `DominantWell` on an SOI crossing
+/// (~twice over a round's life, not per tick), so ~500 live rounds/turret is
+/// affordable; a lighter no-`DominantWell` path was left unbuilt because the
+/// measurement did not call for it.
+fn insert_gravity_affected_on_turret_round(
+    add: On<Add, TurretBulletProjectileMarker>,
     mut commands: Commands,
 ) {
     commands.entity(add.entity).try_insert(GravityAffected);
@@ -320,11 +336,20 @@ pub(crate) fn gravity_well_system(
         (Entity, &Position, Option<&DominantWell>, Forces),
         (With<GravityAffected>, Without<GravityWell>),
     >,
+    // Reused across all affected entities each tick so the per-entity work is
+    // O(wells) with no heap allocation. `clear()` keeps the capacity, so after
+    // the first tick these never allocate. This is what makes a PDC's worth of
+    // gravity-affected rounds (thousands of affected bodies) affordable on the
+    // shared force path: the Vec-per-entity version cost ~2.2 ms/tick over 1500
+    // bodies; reusing the buffers drops the whole gravity system's marginal
+    // cost to ~0.1 ms/tick (see `gravity_system_marginal_cost`).
+    mut candidates: Local<Vec<(Entity, f32, Vec3)>>,
+    mut pulls: Local<Vec<(Entity, f32)>>,
 ) {
-    // O(wells x affected) with a small Vec per affected entity per tick:
-    // fine at nova's scale (a handful of wells, tens of affected bodies).
+    // O(wells x affected) at nova's scale (a handful of wells, tens to a few
+    // thousand affected bodies once turret rounds opt in).
     for (entity, position, current, mut forces) in &mut q_affected {
-        let mut candidates: Vec<(Entity, f32, Vec3)> = Vec::new();
+        candidates.clear();
         for (well_entity, well_position, well) in &q_wells {
             // Direction first: freshly spawned bodies sit at avian's
             // Position::PLACEHOLDER (Vector::MAX) until the first physics
@@ -349,10 +374,12 @@ pub(crate) fn gravity_well_system(
             }
         }
 
-        let pulls: Vec<(Entity, f32)> = candidates
-            .iter()
-            .map(|&(well_entity, accel, _)| (well_entity, accel))
-            .collect();
+        pulls.clear();
+        pulls.extend(
+            candidates
+                .iter()
+                .map(|&(well_entity, accel, _)| (well_entity, accel)),
+        );
         let chosen = dominant_well(current.map(|d| **d), &pulls, settings.switch_hysteresis);
 
         let Some(owner) = chosen else {
@@ -465,17 +492,20 @@ mod tests {
     // --- Observer wiring ---------------------------------------------------
 
     #[test]
-    fn ship_roots_and_torpedoes_opt_into_gravity() {
+    fn ships_torpedoes_and_turret_rounds_opt_into_gravity() {
         let mut app = App::new();
         app.add_observer(insert_gravity_affected_on_ship);
         app.add_observer(insert_gravity_affected_on_torpedo);
+        app.add_observer(insert_gravity_affected_on_turret_round);
 
         let ship = app.world_mut().spawn(SpaceshipRootMarker).id();
         let torpedo = app.world_mut().spawn(TorpedoProjectileMarker).id();
+        let round = app.world_mut().spawn(TurretBulletProjectileMarker).id();
         app.update();
 
         assert!(app.world().get::<GravityAffected>(ship).is_some());
         assert!(app.world().get::<GravityAffected>(torpedo).is_some());
+        assert!(app.world().get::<GravityAffected>(round).is_some());
     }
 
     // --- Physics-level integration ------------------------------------------
@@ -555,6 +585,141 @@ mod tests {
         assert!(
             app.world().get::<DominantWell>(probe).is_some(),
             "an orbiting body knows whose orbit it is in"
+        );
+    }
+
+    /// A dynamic body without `GravityAffected`, so an A/B control against a
+    /// gravity-affected round on the same tangential pass can prove the marker
+    /// is what curves the trajectory. Mirrors `spawn_probe` minus the marker.
+    fn spawn_straight_body(app: &mut App, position: Vec3, velocity: Vec3) -> Entity {
+        app.world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::from_translation(position),
+                Collider::sphere(0.5),
+                ColliderDensity(1.0),
+                LinearVelocity(velocity),
+            ))
+            .id()
+    }
+
+    #[test]
+    fn a_turret_round_curves_under_a_well_and_a_gravity_free_body_does_not() {
+        // The bullet-gravity regression (docs/spikes/20260712-112113): a round
+        // on a tangential pass past a well must bend toward the center, and an
+        // identical body WITHOUT GravityAffected must fly dead straight. This
+        // A/Bs the opt-in - delete the marker (or its observer) and the two
+        // trajectories coincide, failing the test.
+        //
+        // Geometry: well at origin (mu 1200, SOI 160, unfaded core out to
+        // 0.85*160 = 136u), body starts at x = b = 40u (deep in the core) on
+        // the +z side, flying -z at 40 u/s straight past the well. The pull
+        // has a -x (toward-center) component that accumulates transverse
+        // deflection measured off the entry lane x = b. Raw `Position` is the
+        // FixedUpdate-clock readout.
+        let b = 40.0;
+        let v = 40.0;
+        let z0 = 60.0;
+        let ticks = 240; // ~4s: z sweeps +60 -> -60 through closest approach.
+
+        let mut app = gravity_app();
+        spawn_well(&mut app, Vec3::ZERO);
+        let round = spawn_probe(&mut app, Vec3::new(b, 0.0, z0), Vec3::new(0.0, 0.0, -v));
+        settle(&mut app);
+        for _ in 0..ticks {
+            app.update();
+        }
+        let deflection = b - position_of(&app, round).x; // toward center => +
+
+        let mut ctrl_app = gravity_app();
+        spawn_well(&mut ctrl_app, Vec3::ZERO);
+        let ctrl = spawn_straight_body(
+            &mut ctrl_app,
+            Vec3::new(b, 0.0, z0),
+            Vec3::new(0.0, 0.0, -v),
+        );
+        settle(&mut ctrl_app);
+        for _ in 0..ticks {
+            ctrl_app.update();
+        }
+        let control_drift = (b - position_of(&ctrl_app, ctrl).x).abs();
+
+        // Measured on this rig: deflection = 3.25u, control drift = 0.0u. The
+        // 2.0u threshold sits well above integrator noise (the control is
+        // exactly straight) and below the signal; the control assertion is the
+        // in-test A/B that fails if the round stops feeling gravity.
+        assert!(
+            control_drift < 0.05,
+            "a gravity-free body must fly straight; drifted {control_drift}u"
+        );
+        assert!(
+            deflection > 2.0,
+            "the round should curve toward the well; deflection {deflection}u \
+             (gravity-free control drifted {control_drift}u)"
+        );
+    }
+
+    /// Marginal per-tick cost of letting a PDC's worth of rounds feel gravity.
+    /// Not a CI gate (wall-clock is environment-dependent, hence `#[ignore]`);
+    /// run manually to record the number that justified riding the shared
+    /// `gravity_well_system` instead of building a lighter bullet-only path:
+    ///
+    /// ```text
+    /// cargo test -p nova_gameplay gravity_system_marginal_cost -- --ignored --nocapture
+    /// ```
+    ///
+    /// It times N=1500 dynamic bodies (~3 turrets' worth of live rounds) with
+    /// the gravity opt-in + a well, against N identical bodies with neither.
+    /// Both worlds integrate the same N rigid bodies, so avian's cost cancels
+    /// and the delta is the gravity system's own O(wells x affected) work plus
+    /// its per-affected Vec alloc.
+    ///
+    /// Scope: the bodies start INSIDE the SOI, so this is the steady-state
+    /// per-tick force cost. It does not isolate the per-crossing `DominantWell`
+    /// insert/remove (archetype-move) churn a round pays entering/leaving an
+    /// SOI; that is bounded by SOI-crossings/sec (small - a round crosses at
+    /// most a couple of boundaries in its whole life) and is not the hot path
+    /// this measures.
+    #[test]
+    #[ignore = "wall-clock perf measurement, run manually"]
+    fn gravity_system_marginal_cost() {
+        use std::time::Instant;
+
+        const N: usize = 1500;
+        const TICKS: usize = 600;
+
+        fn time_ticks(with_gravity: bool) -> f64 {
+            let mut app = gravity_app();
+            if with_gravity {
+                spawn_well(&mut app, Vec3::ZERO);
+            }
+            // Spread the bodies through the well's core so most are inside an
+            // SOI (the expensive case: they push a candidate and hold a
+            // DominantWell), on gentle non-colliding lanes.
+            for i in 0..N {
+                let a = i as f32 * 0.31;
+                let pos = Vec3::new(30.0 + (i % 40) as f32, a.sin() * 20.0, a.cos() * 20.0);
+                let vel = Vec3::new(0.0, 0.0, -20.0);
+                if with_gravity {
+                    spawn_probe(&mut app, pos, vel);
+                } else {
+                    spawn_straight_body(&mut app, pos, vel);
+                }
+            }
+            settle(&mut app);
+            let start = Instant::now();
+            for _ in 0..TICKS {
+                app.update();
+            }
+            start.elapsed().as_secs_f64() * 1e3 / TICKS as f64 // ms/tick
+        }
+
+        let with = time_ticks(true);
+        let without = time_ticks(false);
+        eprintln!(
+            "gravity marginal cost over {N} bodies: with={with:.3} ms/tick, \
+             without={without:.3} ms/tick, delta={:.3} ms/tick",
+            with - without
         );
     }
 
