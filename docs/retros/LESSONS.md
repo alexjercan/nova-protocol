@@ -238,7 +238,11 @@ retros.
   (an every-frame HUD rebuild the new pulse induced, and a folklore
   numeric bound whose failure mode was a silent softlock - empirically
   confirmed by the demanded sweep), then mutation-tested the fix's
-  regression in the re-review round. 20260711-180506.
+  regression in the re-review round. 20260711-180506. Eighth (x8):
+  caught the sensor-sized highlight bracket (an inverted-behavior MAJOR
+  invisible to component-state tests) and independently re-derived two
+  load-bearing claims (command FIFO ordering, colors-do-not-wake-layout)
+  the implementer had only asserted. 20260712-093831.
 - `authored-vs-derived-values` (x2): content authored against a system
   that derives its own runtime geometry/parameters (collider-derived body
   radius, well mu/SOI) must be placed using the runtime values, not the
@@ -262,13 +266,25 @@ retros.
   the trigger, pre-scale) instead of a shipped flaky system. 20260525-133004
   (spike docs/spikes/20260712-133135). Sibling of advertised-but-unwired:
   that one verifies YOUR wiring, this one verifies the ENGINE's contract.
-- `advertised-but-unwired` (x2): a config surface (enum variant, doc
+- `advertised-but-unwired` (x3): a config surface (enum variant, doc
   claim, query candidate) is not a capability until its producer/consumer
   side is verified wired - grep for who fires/admits it before building
   on it. Targeting gate rejected Static bodies the query surface
   suggested were candidates (20260712-093044); EventConfig::OnUpdate
   existed and was documented "every frame" but nothing ever fired the
   event (20260711-180506). Same probe caught both, one day apart.
+  Generic-mode-vs-this-anchor variant: a mode that IS wired and working
+  must still have its DATA SOURCE read against the new consumer's entity
+  shape - ApparentSize measures collider AABBs, which meant "visible
+  hull" on every prior anchor (ships) and "8u pickup sensor" on the first
+  sensor-only prop, ballooning the highlight bracket to the trigger
+  volume (R1.1 MAJOR, caught in review). 20260712-093831.
+- `run-system-once-always-changed` (x1): run_system_once registers a
+  fresh system per call, so Res::is_changed/Added filters are ALWAYS true
+  inside it - a change-detection-gated branch tested that way looks
+  covered while being untestable; gate behavior needs an App-driven test
+  across real frames (set -> acts, clear -> restores, quiet frames ->
+  holds). 20260712-093831 (R1.3).
 - `cross-cycle-warning-with-numbers` (positive pattern): when a landed
   cycle discovers a hazard for a QUEUED task, write the warning into
   that task's TASK.md with the measured numbers and an explicit

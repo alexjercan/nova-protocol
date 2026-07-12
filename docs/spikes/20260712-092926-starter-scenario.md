@@ -283,3 +283,16 @@ Direction-level tasks this spike seeded, for /plan to break into steps:
   human visual playtest (beacon readability, pickup feel, pirate
   difficulty, orbit-gate moment) - the conveyance task 20260712-093831
   should follow it. Details: tasks/20260711-180506/TASK.md.
+- 20260712-093831 (conveyance layer 2) LANDED 2026-07-12 (master
+  63293fd): gold objective marker chip via ObjectiveMarkerAttach/Detach
+  actions (edge-clamp = direction arrow; marked beacons hand their cyan
+  chip to the marker), intrinsic salvage-crate highlight (emissive glow
+  pulse + WorldRadius HUD bracket on one shared clock), HintEmphasisSet/
+  Clear pulsing a keybind row toward gold (teardown clears), and the
+  per-beat attach/emphasis map wired into shakedown_run as data. The
+  objective-progress piece needed NO new code (the write-on-diff sync +
+  no-ghost-on-tally shipped with the scenario). Design spike:
+  docs/spikes/20260712-140842-objective-conveyance-visuals.md. Review
+  2 rounds APPROVE. The human visual playtest (inherited from
+  20260711-180506) now also owns the conveyance feel calls. Details:
+  tasks/20260712-093831/TASK.md.
