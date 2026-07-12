@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- @alexjercan the editor build panel now scrolls with the mouse wheel, so its lower entries (section palette + Play) are reachable instead of overflowing the fixed-height panel
 - @alexjercan editor keybind rebinding is now reachable and the chips are readable: a "Select / Rebind" palette button deselects the build/delete tool so you can click a section to rebind it (previously no way back to select mode), and the keybind chips now sit on a dark rounded background instead of floating unreadably over the scene
 - @alexjercan the debug ammo-count number (the `rounds/capacity` text on the readout, F11-only) no longer lingers on screen while debug mode is off: its F11 toggle was gated to gameplay while the global debug toggle is not, so pressing F11 in the menu/editor desynced them and left the number showing in normal play. The toggle is now ungated, staying in phase with debug mode
 - @alexjercan PDC turret retuned to a point-defense profile (playtest: it "destroyed asteroids and objects with one bullet"): per-hit damage dropped from ~20 to 4 so the 100-round/s stream chips a target down over a visible burst (~0.25s to clear a 100-HP asteroid) instead of popping it instantly. Still clearly the strongest gun by rate; also lengthens ship fights slightly

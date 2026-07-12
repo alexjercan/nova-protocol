@@ -138,6 +138,7 @@ fn editor_plugin(app: &mut App) {
             sync_section_keybind_labels,
             apply_section_rebind,
             position_section_keybind_labels,
+            scroll_editor_panel,
         )
             .run_if(in_state(ExampleStates::Editor)),
     );
@@ -438,6 +439,11 @@ fn setup_editor_scene(
             parent
                 .spawn((
                     Name::new("Menu Container"),
+                    // Scrollable (task 20260712-185527): the palette grew past
+                    // the fixed height, so the panel scrolls vertically with the
+                    // wheel (`scroll_editor_panel` drives ScrollPosition).
+                    EditorScrollPanel,
+                    ScrollPosition::default(),
                     Node {
                         flex_direction: FlexDirection::Column,
                         align_items: AlignItems::Center,
@@ -446,6 +452,7 @@ fn setup_editor_scene(
                         width: px(400),
                         margin: UiRect::all(px(50)),
                         padding: UiRect::all(px(0)).with_top(px(20)).with_bottom(px(20)),
+                        overflow: Overflow::scroll_y(),
                         ..default()
                     },
                     BackgroundColor(BACKGROUND_COLOR),
@@ -1243,6 +1250,40 @@ fn apply_section_rebind(
     rebind.target = None;
 }
 
+/// Marker for the scrollable editor palette panel (the "Menu Container" in
+/// `setup_editor_scene`). Task 20260712-185527.
+#[derive(Component, Debug, Clone, Copy)]
+struct EditorScrollPanel;
+
+/// Pixels scrolled per line of wheel movement.
+const SCROLL_LINE_HEIGHT: f32 = 20.0;
+
+/// Scroll the editor palette panel with the mouse wheel. Bevy does not scroll
+/// `Overflow::Scroll` nodes on its own - a system must drive `ScrollPosition`
+/// (bevy ui scroll example pattern). Editor-state only; the WASD camera does not
+/// consume the wheel, so there is no zoom conflict.
+fn scroll_editor_panel(
+    mut wheel: MessageReader<bevy::input::mouse::MouseWheel>,
+    mut q_panel: Query<&mut ScrollPosition, With<EditorScrollPanel>>,
+) {
+    use bevy::input::mouse::MouseScrollUnit;
+    let dy: f32 = wheel
+        .read()
+        .map(|ev| match ev.unit {
+            MouseScrollUnit::Line => ev.y * SCROLL_LINE_HEIGHT,
+            MouseScrollUnit::Pixel => ev.y,
+        })
+        .sum();
+    if dy == 0.0 {
+        return;
+    }
+    for mut scroll in &mut q_panel {
+        // Wheel up (dy > 0) reveals content above -> smaller offset; clamp at the
+        // top. Bevy clamps the bottom visually against the content height.
+        scroll.0.y = (scroll.0.y - dy).max(0.0);
+    }
+}
+
 fn setup_grab_cursor_scenario(
     primary_cursor_options: Single<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
@@ -1774,6 +1815,45 @@ mod tests {
             world.resource::<EditorRebind>().target,
             None,
             "Escape still consumes the arm"
+        );
+    }
+
+    #[test]
+    fn wheel_scrolls_the_editor_panel_and_clamps_at_the_top() {
+        use bevy::input::{
+            mouse::{MouseScrollUnit, MouseWheel},
+            touch::TouchPhase,
+        };
+
+        // Fresh world per case: a re-run `MessageReader` reads the whole buffer,
+        // so isolating avoids the first message leaking into the second run.
+        fn run_wheel(y: f32, start_y: f32) -> f32 {
+            let mut world = World::new();
+            world.init_resource::<Messages<MouseWheel>>();
+            let panel = world
+                .spawn((EditorScrollPanel, ScrollPosition(Vec2::new(0.0, start_y))))
+                .id();
+            world.write_message(MouseWheel {
+                unit: MouseScrollUnit::Line,
+                x: 0.0,
+                y,
+                window: Entity::PLACEHOLDER,
+                phase: TouchPhase::Moved,
+            });
+            world.run_system_once(scroll_editor_panel).unwrap();
+            world.entity(panel).get::<ScrollPosition>().unwrap().0.y
+        }
+
+        // Wheel down from the top scrolls the panel down (offset grows).
+        assert!(
+            run_wheel(-3.0, 0.0) > 0.0,
+            "wheel down must scroll the panel down"
+        );
+        // Wheel up past the top clamps the offset at 0.
+        assert_eq!(
+            run_wheel(100.0, 5.0),
+            0.0,
+            "scrolling up past the top clamps at 0"
         );
     }
 }
