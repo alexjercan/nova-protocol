@@ -203,7 +203,8 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
     // retuned default strength (6 u/s^2 surface, SOI 160u, v_circ ~ 6.9
     // u/s at r = 50u; doubled per the 2026-07-10 playtest). The field
     // rocks above stay well-free via the radius threshold in
-    // GravitySettings.
+    // GravitySettings. Invulnerable so turret fire (now gravity-affected)
+    // cannot destroy the well mid-playtest and take the orbit demo with it.
     objects.push(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: "asteroid_grav".to_string(),
@@ -216,7 +217,7 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
             texture: game_assets.asteroid_texture.clone(),
             health: 2000.0,
             surface_gravity: Some(6.0),
-            invulnerable: false,
+            invulnerable: true,
         }),
     });
 
