@@ -351,7 +351,13 @@ retros.
   lockable, so the reticle-on-beacon path was reachable and cost a
   playtest round + a second cycle; when deferring, enumerate the
   entities the code path can MEET, not today's call sites.
-  20260712-154318.
+  20260712-154318. Reuse-precondition variant (positive): before reusing a
+  subsystem in a NEW context, verify its runtime PRECONDITIONS hold there, not
+  just that its API fits - the gameplay `screen_indicator` compiles fine in the
+  editor but its `ScreenIndicatorCamera` is attached only to the spaceship chase
+  camera (absent in the editor's WASD-camera scene), so reusing it would have
+  silently shown nothing; checking that before planning led to a small
+  editor-local `world_to_viewport` projection instead. 20260712-163912.
 - `run-system-once-always-changed` (x1): run_system_once registers a
   fresh system per call, so Res::is_changed/Added filters are ALWAYS true
   inside it - a change-detection-gated branch tested that way looks
