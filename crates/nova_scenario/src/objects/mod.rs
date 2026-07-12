@@ -1,10 +1,13 @@
 pub mod area;
 pub mod asteroid;
+pub mod beacon;
+pub mod salvage;
 pub mod spaceship;
 
 pub mod prelude {
     pub use super::{
-        area::prelude::*, asteroid::prelude::*, spaceship::prelude::*, ScenarioObjectsPlugin,
+        area::prelude::*, asteroid::prelude::*, beacon::prelude::*, salvage::prelude::*,
+        spaceship::prelude::*, ScenarioObjectsPlugin,
     };
 }
 
@@ -23,5 +26,11 @@ impl Plugin for ScenarioObjectsPlugin {
         });
         app.add_plugins(spaceship::SpaceshipPlugin);
         app.add_plugins(area::ScenarioAreaPlugin);
+        app.add_plugins(beacon::BeaconPlugin {
+            render: self.render,
+        });
+        app.add_plugins(salvage::SalvageCratePlugin {
+            render: self.render,
+        });
     }
 }

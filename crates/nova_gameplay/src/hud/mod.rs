@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::prelude::*;
 
+pub mod beacon_chips;
 pub mod component_lock;
 pub mod edge_indicators;
 pub mod flight_status;
@@ -16,11 +17,12 @@ pub mod velocity;
 
 pub mod prelude {
     pub use super::{
-        component_lock::prelude::*, edge_indicators::prelude::*, flight_status::prelude::*,
-        holo_instruments::prelude::*, keybind_hints::prelude::*, maneuver_instruments::prelude::*,
-        screen_indicator::prelude::*, target_candidates::prelude::*, torpedo_target::prelude::*,
-        turret_lead::prelude::*, velocity::prelude::*, HudSelfDrivenVisibility, HudTier,
-        HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
+        beacon_chips::prelude::*, component_lock::prelude::*, edge_indicators::prelude::*,
+        flight_status::prelude::*, holo_instruments::prelude::*, keybind_hints::prelude::*,
+        maneuver_instruments::prelude::*, screen_indicator::prelude::*,
+        target_candidates::prelude::*, torpedo_target::prelude::*, turret_lead::prelude::*,
+        velocity::prelude::*, HudSelfDrivenVisibility, HudTier, HudVisibility, NovaHudAssets,
+        NovaHudPlugin, NovaHudSystems,
     };
 }
 
@@ -142,6 +144,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(component_lock::ComponentLockHudPlugin);
         app.add_plugins(target_candidates::TargetCandidatesHudPlugin);
         app.add_plugins(edge_indicators::EdgeIndicatorsHudPlugin);
+        app.add_plugins(beacon_chips::BeaconChipsHudPlugin);
 
         // Keep the generic HUD widgets inside nova's HUD ordering slot, as the local ones were.
         // ScreenIndicatorSystems is NOT in this Update slot anymore: the

@@ -5,6 +5,7 @@
 use bevy::prelude::*;
 
 pub mod audio;
+pub mod beacon;
 pub mod camera_controller;
 pub mod flight;
 pub mod gravity;
@@ -24,6 +25,7 @@ pub mod prelude {
 
     pub use super::{
         audio::{NovaAudioPlugin, NovaSfx, SfxListenerMarker, NOVA_SFX_FILES},
+        beacon::prelude::*,
         camera_controller::prelude::*,
         flight::prelude::*,
         gravity::prelude::*,

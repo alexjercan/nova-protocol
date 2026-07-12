@@ -377,10 +377,16 @@ fn update_spaceship_target_input(
             )| {
                 // Only physical, movable bodies are lockable. This skips static sensor
                 // volumes such as scenario trigger areas (`RigidBody::Static`), which
-                // are invisible and must never be locked. Gravity-well sources are the
-                // exception: they sit on rails (Static since the gravity task), but they
-                // are big, visible rocks the player GOTOs and orbits - lockable.
-                if !matches!(rigid_body, RigidBody::Dynamic) && well.is_none() {
+                // are invisible and must never be locked. Two exceptions sit on rails
+                // (Static) yet are visible things the player navigates by, so they stay
+                // lockable: gravity-well sources (big rocks the player GOTOs and orbits,
+                // Static since the gravity task) and bodies with an AUTHORED
+                // LockSignature (nav beacons, task 20260712-093044) - trigger areas
+                // never carry a signature, so the invisible-statics rule holds.
+                if !matches!(rigid_body, RigidBody::Dynamic)
+                    && well.is_none()
+                    && signature.is_none()
+                {
                     return None;
                 }
                 // Never lock the player's own ship.
@@ -1167,6 +1173,50 @@ mod tests {
             **world.resource::<SpaceshipPlayerTargetLock>(),
             Some(debris),
             "point-blank debris is still designatable"
+        );
+    }
+
+    /// A Static body with an AUTHORED LockSignature is lockable (a nav
+    /// beacon on rails, task 20260712-093044) at its signature range, while
+    /// a bare Static body (a scenario trigger area) stays invisible to the
+    /// scanner at any distance - the gate must tell them apart.
+    #[test]
+    fn static_beacons_lock_but_static_areas_never_do() {
+        let mut world = World::new();
+        spawn_acquisition_rig(&mut world);
+        let beacon = world
+            .spawn((
+                RigidBody::Static,
+                LockSignature(20.0),
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -300.0)),
+            ))
+            .id();
+
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(beacon),
+            "a signed static body (nav beacon) is aim-lockable"
+        );
+
+        // Same rig, but the static body carries no signature: a trigger
+        // area. Point-blank dead ahead and still never locked.
+        let mut world = World::new();
+        spawn_acquisition_rig(&mut world);
+        world.spawn((
+            RigidBody::Static,
+            GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -10.0)),
+        ));
+
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            None,
+            "an unsigned static body (trigger area) is never lockable"
         );
     }
 

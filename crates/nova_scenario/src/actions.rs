@@ -8,9 +8,9 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         base_scenario_object, BaseScenarioObjectConfig, DebugMessageActionConfig,
-        EventActionConfig, NextScenarioActionConfig, ObjectiveActionConfig,
-        ObjectiveCompleteActionConfig, ScenarioAreaConfig, ScenarioObjectConfig,
-        ScenarioObjectKind, VariableSetActionConfig,
+        DespawnScenarioObjectActionConfig, EventActionConfig, NextScenarioActionConfig,
+        ObjectiveActionConfig, ObjectiveCompleteActionConfig, ScenarioAreaConfig,
+        ScenarioObjectConfig, ScenarioObjectKind, VariableSetActionConfig,
     };
 }
 
@@ -21,6 +21,7 @@ pub enum EventActionConfig {
     Objective(ObjectiveActionConfig),
     ObjectiveComplete(ObjectiveCompleteActionConfig),
     SpawnScenarioObject(ScenarioObjectConfig),
+    DespawnScenarioObject(DespawnScenarioObjectActionConfig),
     CreateScenarioArea(ScenarioAreaConfig),
     NextScenario(NextScenarioActionConfig),
 }
@@ -41,6 +42,9 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
                 config.action(world, info);
             }
             EventActionConfig::SpawnScenarioObject(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::DespawnScenarioObject(config) => {
                 config.action(world, info);
             }
             EventActionConfig::CreateScenarioArea(config) => {
@@ -143,6 +147,62 @@ impl EventAction<NovaEventWorld> for ObjectiveCompleteActionConfig {
     }
 }
 
+/// Despawn the scenario object whose [`EntityId`] matches `id` (recursive,
+/// so the object's whole child hierarchy goes with it). The complement of
+/// `SpawnScenarioObject`, e.g. a salvage crate the script removes on pickup.
+#[derive(Clone, Debug)]
+pub struct DespawnScenarioObjectActionConfig {
+    pub id: String,
+}
+
+impl DespawnScenarioObjectActionConfig {
+    /// Construct from a string slice.
+    pub fn new(id: &str) -> Self {
+        Self { id: id.to_string() }
+    }
+}
+
+impl EventAction<NovaEventWorld> for DespawnScenarioObjectActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let id = self.id.clone();
+        debug!("DespawnScenarioObject: despawning '{}'", id);
+
+        // The id -> Entity lookup needs world access, which push_command's
+        // `&mut Commands` does not have - so the command queues a Command
+        // closure that resolves and despawns in one step. The lookup is
+        // gated on ScenarioScopedMarker: spaceship SECTIONS also carry
+        // EntityId (their per-ship section ids like "controller"), and an
+        // unscoped match on such an id would rip that section out of every
+        // ship in the scene.
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                let mut query =
+                    world.query_filtered::<(Entity, &EntityId), With<ScenarioScopedMarker>>();
+                let matches: Vec<Entity> = query
+                    .iter(world)
+                    .filter(|(_, entity_id)| entity_id.0 == id)
+                    .map(|(entity, _)| entity)
+                    .collect();
+                if matches.is_empty() {
+                    warn!(
+                        "DespawnScenarioObject: no entity with id '{}'; check the scenario \
+                         for a typo or a double despawn",
+                        id
+                    );
+                }
+                for entity in matches {
+                    // get_entity_mut, not entity_mut: an earlier recursive
+                    // despawn in this loop may have taken a matched
+                    // descendant with it (review R1.1).
+                    if let Ok(entity_mut) = world.get_entity_mut(entity) {
+                        entity_mut.despawn();
+                    }
+                }
+            });
+        });
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct ScenarioObjectConfig {
     pub base: BaseScenarioObjectConfig,
@@ -242,6 +302,71 @@ mod tests {
         }
     }
 
+    /// The despawn action removes exactly the scenario object whose id
+    /// matches - and ONLY scenario-scoped entities: spaceship sections
+    /// carry EntityId too (per-ship ids like "controller"), and an
+    /// unscoped match would rip that section out of every ship.
+    #[test]
+    fn despawn_action_removes_the_scoped_object_by_id() {
+        use bevy_common_systems::prelude::EventWorld;
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+
+        let crate_1 = world
+            .spawn((ScenarioScopedMarker, EntityId::new("crate_1".to_string())))
+            .id();
+        let crate_2 = world
+            .spawn((ScenarioScopedMarker, EntityId::new("crate_2".to_string())))
+            .id();
+        // An unscoped entity with a colliding id - a stand-in for a ship
+        // section - must survive.
+        let section = world.spawn(EntityId::new("crate_1".to_string())).id();
+
+        let action = DespawnScenarioObjectActionConfig::new("crate_1");
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        action.action(&mut event_world, &GameEventInfo::default());
+
+        // The action only queues; the drain in state_to_world applies it.
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        assert!(
+            world.get_entity(crate_1).is_err(),
+            "the matching scoped object despawns"
+        );
+        assert!(
+            world.get_entity(crate_2).is_ok(),
+            "other scoped objects survive"
+        );
+        assert!(
+            world.get_entity(section).is_ok(),
+            "an unscoped entity with the same id (a ship section) survives"
+        );
+    }
+
+    /// A missing id is a warning, not a crash: the drain must complete and
+    /// unrelated entities survive (double-despawn / typo path).
+    #[test]
+    fn despawn_action_with_missing_id_is_harmless() {
+        use bevy_common_systems::prelude::EventWorld;
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+
+        let bystander = world
+            .spawn((ScenarioScopedMarker, EntityId::new("beacon_1".to_string())))
+            .id();
+
+        let action = DespawnScenarioObjectActionConfig::new("no_such_id");
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        action.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        assert!(world.get_entity(bystander).is_ok());
+    }
+
     /// Every dynamic scenario body must interpolate its Transform between
     /// fixed physics ticks, or it stair-steps under the smoothed chase
     /// camera (task 20260709-160753).
@@ -264,6 +389,8 @@ mod tests {
 pub enum ScenarioObjectKind {
     Asteroid(AsteroidConfig),
     Spaceship(SpaceshipConfig),
+    Beacon(BeaconConfig),
+    SalvageCrate(SalvageCrateConfig),
 }
 
 impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
@@ -280,6 +407,12 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
                 }
                 ScenarioObjectKind::Spaceship(config) => {
                     entity_commands.insert(spaceship_scenario_object(config.clone()));
+                }
+                ScenarioObjectKind::Beacon(config) => {
+                    entity_commands.insert(beacon_scenario_object(config.clone()));
+                }
+                ScenarioObjectKind::SalvageCrate(config) => {
+                    entity_commands.insert(salvage_crate_scenario_object(config.clone()));
                 }
             }
         });

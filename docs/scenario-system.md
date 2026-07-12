@@ -104,7 +104,12 @@ Run in order when an event passes its filters:
 - `VariableSet` - evaluate an expression and store it into a scenario variable.
 - `Objective` / `ObjectiveComplete` - add or complete an objective (surfaced in the
   objectives HUD).
-- `SpawnScenarioObject(ScenarioObjectConfig)` - spawn an `Asteroid` or `Spaceship`.
+- `SpawnScenarioObject(ScenarioObjectConfig)` - spawn an `Asteroid`, `Spaceship`,
+  `Beacon` or `SalvageCrate`.
+- `DespawnScenarioObject(DespawnScenarioObjectActionConfig)` - despawn the scenario
+  object whose id matches (recursive; scoped entities only, so a ship section that
+  happens to share the id string is never touched). The complement of
+  `SpawnScenarioObject`, e.g. removing a salvage crate on pickup.
 - `CreateScenarioArea(ScenarioAreaConfig)` - create a spherical trigger zone (drives
   `OnEnter` / `OnExit`).
 - `NextScenario(NextScenarioActionConfig)` - switch to another scenario by id (with a
@@ -137,6 +142,18 @@ nodes, and set-expressions, evaluated by filters (`ExpressionFilterConfig`) and 
 - `Spaceship` (`SpaceshipConfig`) - a ship built from sections, controlled by either a
   `Player` (with an input mapping) or `AI` controller. See [sections.md](sections.md).
 - `Area` (`ScenarioAreaConfig`: position, radius) - trigger zone for enter/exit events.
+- `Beacon` (`BeaconConfig`: label, radius, color, `area_radius: Option<f32>`) - a nav
+  waypoint: emissive blinking orb, on rails (`RigidBody::Static`) but aim-lockable via
+  its authored `LockSignature` (the targeting gate admits signed statics), with a HUD
+  chip (label + live distance, edge-clamped as a direction cue) that nova_gameplay
+  hangs off `BeaconMarker` automatically. With `area_radius` set the beacon doubles as
+  its own trigger area: `OnEnter`/`OnExit` fire under the beacon's scenario id, no
+  separate `CreateScenarioArea` needed.
+- `SalvageCrate` (`SalvageCrateConfig`: size, area_radius) - a minimal proximity
+  pickup: a bright tumbling box that is its own sensor trigger. Flying through it
+  fires `OnEnter` under the crate's id; the script pairs that with
+  `DespawnScenarioObject` and whatever counting it wants ("collected" is a scenario
+  variable, not an item system).
 
 ## Where the built-in scenarios live
 
