@@ -10,38 +10,23 @@ Split the single lock into two slots per spike 20260712-222610 (rounds
 1-3): a TRAVEL lock (auto-cast from the live look ray, sticky,
 scroll-cycled while lowered, feeds GOTO) and a COMBAT lock (seeded on
 raise by an incumbent-hysteresis rule, enemy-only scroll while raised,
-persists when lowered, feeds guns/torpedoes/fine-lock/inset). Also
-carries the componentization (resources port straight to the end-state
-shape) and the look-ray re-sourcing that round 3 proved necessary.
+persists when lowered, feeds guns/torpedoes/fine-lock/inset). The
+look-ray and mode/raised-state infrastructure this builds on lands first
+in task 20260712-231141; this task consumes it. Also carries the
+componentization (resources port straight to the end-state shape).
 
 Body rewritten after the round-3 adversarial review; the earlier layered
 notes live in git history and the spike.
 
 ## Steps
 
-- [ ] Look-ray re-sourcing (round 3 delta 1, feasibility B1/B3/M3): add an
-      "active look ray" accessor - the `PointRotationOutput` of the rig
-      currently holding `SpaceshipRotationInputActiveMarker`
-      (camera_controller.rs:575-631). Travel casting uses it every frame;
-      raise-frame seeding uses it on the press frame (the marker still
-      sits on the outgoing rig that frame - that IS the live look). The
-      turret slewing feed keeps the turret rig. Also seed the turret rig
-      from the ACTIVE rig on Turret entry instead of the Normal rig
-      (camera_controller.rs:586/:623-628), so raising out of FreeLook
-      aims where the player looks. Test rigs must model the SPLIT rigs
-      faithfully (today's tests spawn one both-marker entity,
-      targeting.rs:1029-1032/:1097-1101, masking the divergence - retro
-      rule: non-faithful rigs are not evidence).
-- [ ] Raised state (round 3 delta 2, feasibility M2): a public
-      weapon-raised flag written ONLY by `Start`/`Complete<CombatInput>`
-      (camera_controller.rs:699-711; keep `CombatInput` private by
-      writing the flag from those observers). All gameplay routing reads
-      RAISED, never `SpaceshipCameraControlMode` (Alt-tap during RMB
-      corrupts the enum; it also lacks PartialEq,
-      camera_controller.rs:79-85). Latch transitions across pause (mode
-      observers are pause-ungated, the consumers are pause-gated -
-      feasibility m3). The enum's own restore-on-nested-release bug is
-      noted as a separate camera task candidate, not fixed here.
+- [ ] Consume the 20260712-231141 infrastructure: travel casting and the
+      wide-cone list use the ACTIVE look ray every frame (live in
+      Normal/FreeLook per user directive); raise-frame seeding evaluates
+      against the press-frame look (the accessor's documented property);
+      all routing reads the RAISED flag, never the camera enum. Turret
+      slewing keeps the turret rig. Extend the faithful split-rig test
+      fixtures from 231141 rather than re-inventing single-rig ones.
 - [ ] Componentize straight to the end state: replace
       `SpaceshipPlayerTargetLock` (targeting.rs:72, registered :91) with
       `TravelLock { target: Option<Entity>, designated: bool }` and
@@ -107,8 +92,8 @@ notes live in git history and the spike.
       CombatLock + off-screen TravelLock arrow; "guns hot on <target>"
       banner whenever a CombatLock exists while lowered (UX M8).
       Unmistakable slot distinction is IN scope; polish is not.
-- [ ] Tests (state-per-step for gestures; split camera rigs modeled
-      faithfully): travel cast follows the look ray in Normal AND
+- [ ] Tests (state-per-step for gestures; on the 231141 split-rig
+      fixtures): travel cast follows the look ray in Normal AND
       FreeLook; raise out of FreeLook seeds toward the flanker being
       looked at; seed cases - designated hostile incumbent holds /
       stale undesignated behind-you hostile loses to the on-screen enemy /
@@ -125,9 +110,11 @@ notes live in git history and the spike.
 
 - Spike: docs/spikes/20260712-222610-travel-combat-lock-slots.md - rounds
   2b (incumbent rule, user-confirmed), 2c (raised-gating), 3 (adversarial
-  deltas). Depends on: 20260712-223034.
-- RECORDED LOSS pending user ack (round 3 delta 8): guided torpedoes at
-  nav bodies die with the split - CombatLock never holds asteroids/
+  deltas), 4 (user directives + questionnaire decisions).
+- Depends on: 20260712-223034 (scroll rebind) AND 20260712-231141
+  (look-ray/mode infrastructure).
+- RECORDED LOSS pending user decision (questionnaire): guided torpedoes
+  at nav bodies die with the split - CombatLock never holds asteroids/
   beacons; torpedo-at-rock becomes dumb-fire.
 - Playtest knobs as consts: wide-cone half-angle, hysteresis band, decay
   seconds + flag, auto-seed flag, debounce.
