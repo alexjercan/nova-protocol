@@ -457,7 +457,26 @@ fn update_spaceship_target_input(
         None => false,
     };
 
-    if !pinned {
+    // Sticky-from-acquisition, SHIP LOCKS ONLY (task 20260712-203353, review
+    // R1.1): once a SHIP is locked, the aim picker stands down while it is still
+    // a collectible candidate (in range, with the incumbent hysteresis applied
+    // above), so a body crossing the aim ray (a passing torpedo, another ship)
+    // no longer steals the combat lock or resets the focus dwell. Deliberate
+    // switches go through the CTRL+scroll cycle (`step_target_lock`); torpedoes
+    // stay lockable for point defense (spike 20260712-203235, option B5).
+    //
+    // NON-ship locks (asteroids, beacons) are NOT sticky: the lock doubles as
+    // the GOTO/torpedo nav designator, and you re-designate a nav target by
+    // aiming at it - CTRL+scroll only cycles hostile ships, so a sticky nav lock
+    // could not be switched off by aiming (review R1.1). Only the `is_ship` flag
+    // in the candidate tuple makes a lock sticky.
+    let held = res_target.is_some_and(|target| {
+        candidates
+            .iter()
+            .any(|&(entity, _, _, is_ship)| entity == target && is_ship)
+    });
+
+    if !pinned && !held {
         // Aiming designates as always; with an empty cone the nearest hostile
         // inside the signature range auto-acquires (the close-in
         // heat-signature lock from the component-lock spike).
@@ -1333,6 +1352,111 @@ mod tests {
     }
 
     #[test]
+    fn a_held_lock_is_not_stolen_by_a_closer_body() {
+        // Sticky-from-acquisition (task 20260712-203353): once locked, a body
+        // closer to the aim ray must not steal the lock.
+        let mut world = World::new();
+        spawn_acquisition_rig(&mut world);
+        // A sits slightly off the aim ray (-Z); it is the only candidate, so
+        // aim acquires it.
+        let a = world
+            .spawn((
+                SpaceshipRootMarker,
+                RigidBody::Dynamic,
+                GlobalTransform::from_translation(Vec3::new(5.0, 0.0, -100.0)),
+            ))
+            .id();
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(a),
+            "aim acquires the first ship"
+        );
+
+        // A challenger dead ahead (closer to the aim ray) appears: a
+        // non-sticky picker would switch to it. The held lock must stay on A.
+        let b = world
+            .spawn((
+                SpaceshipRootMarker,
+                RigidBody::Dynamic,
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -100.0)),
+            ))
+            .id();
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(a),
+            "a held lock is not stolen by a closer body"
+        );
+
+        // Delivery guard: with A gone the picker re-acquires B, proving it CAN
+        // still move - the hold above was stickiness, not a wedged picker.
+        world.despawn(a);
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(b),
+            "the picker re-acquires after the held target leaves"
+        );
+    }
+
+    #[test]
+    fn a_non_ship_lock_is_not_sticky_so_nav_re_designates() {
+        // Review R1.1: stickiness is ship-only. A nav body (signed rock /
+        // beacon-like, NOT a ship) must stay aim-driven, so the GOTO designator
+        // can be re-pointed by aiming.
+        let mut world = World::new();
+        spawn_acquisition_rig(&mut world);
+        // Two signed rocks (nav bodies): A dead ahead, B just off-axis.
+        let a = world
+            .spawn((
+                RigidBody::Dynamic,
+                LockSignature(50.0),
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -100.0)),
+            ))
+            .id();
+        let b = world
+            .spawn((
+                RigidBody::Dynamic,
+                LockSignature(50.0),
+                GlobalTransform::from_translation(Vec3::new(3.0, 0.0, -100.0)),
+            ))
+            .id();
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(a),
+            "aim locks the dead-ahead rock"
+        );
+
+        // Move A off the aim ray so B is now nearest it. A non-ship lock is not
+        // sticky, so the picker re-designates to B - nav switching by aiming
+        // still works (unlike a ship lock, which would hold; see
+        // a_held_lock_is_not_stolen_by_a_closer_body).
+        world
+            .entity_mut(a)
+            .insert(GlobalTransform::from_translation(Vec3::new(
+                10.0, 0.0, -100.0,
+            )));
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(b),
+            "a non-ship lock is not sticky; aiming re-designates the nav target"
+        );
+    }
+
+    #[test]
     fn an_authored_signature_never_gates_below_the_debris_floor() {
         // LockSignature(0.0) would gate at zero range; the floor keeps it
         // at least as visible as unsigned debris.
@@ -1899,7 +2023,11 @@ mod tests {
     }
 
     #[test]
-    fn pinned_lock_holds_against_the_aim_pick_until_expiry() {
+    fn an_expired_pin_leaves_the_lock_sticky_not_re_aimed() {
+        // Under sticky-from-acquisition (task 20260712-203353), an expired pin
+        // does NOT hand the lock back to the aim pick: the pinned target is
+        // still a valid candidate, so it stays HELD. Only losing the target
+        // (death / out of range) returns the lock to the picker.
         let (mut world, ahead, behind) = multi_target_world();
         // Pin the lock on the ship BEHIND while aiming at the one ahead.
         world.insert_resource(SpaceshipPlayerTargetLock(Some(behind)));
@@ -1916,7 +2044,8 @@ mod tests {
             "the pin holds against the cone pick"
         );
 
-        // Past the deadline the picker takes back over.
+        // Past the deadline: the pin window clears, but the lock stays sticky
+        // on `behind` (still in range) rather than re-aiming to `ahead`.
         world
             .resource_mut::<Time>()
             .advance_by(Duration::from_secs_f32(TARGET_PIN_WINDOW + 0.5));
@@ -1925,14 +2054,27 @@ mod tests {
             .unwrap();
         assert_eq!(
             **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(ahead),
-            "an expired pin hands the lock back to the aim pick"
+            Some(behind),
+            "an expired pin leaves the lock sticky, not re-aimed"
         );
         assert_eq!(
             world
                 .resource::<SpaceshipPlayerTargetCandidates>()
                 .pinned_until,
-            None
+            None,
+            "the pin window still clears at its deadline"
+        );
+
+        // Delivery guard: once the held target leaves, the aim pick re-acquires
+        // `ahead` - proving the stickiness above was a hold, not a wedged picker.
+        world.despawn(behind);
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(ahead),
+            "with the held target gone, the aim pick re-acquires"
         );
     }
 

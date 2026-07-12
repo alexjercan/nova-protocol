@@ -1,8 +1,56 @@
 # Sticky focused lock: a focused lock resists aim-steal, manual CTRL+scroll to shift off
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 26
 - TAGS: v0.5.0, targeting, spike
+
+## Outcome (CLOSED 2026-07-12)
+
+Implemented B5 (sticky-from-acquisition) in `update_spaceship_target_input`
+(input/targeting.rs) with a `held` gate: the aim pick (cone + signature) now
+only runs when `!pinned && !held`, where `held` = the current
+`SpaceshipPlayerTargetLock` target is still a collectible candidate AND is a
+SHIP (review R1.1 - `is_ship` in the candidate tuple). Ship-only because the
+lock doubles as the GOTO/torpedo nav designator: asteroids/beacons must stay
+aim-driven so you can re-point a GOTO by aiming (CTRL+scroll cycles only hostile
+ships). So:
+
+- Aim makes the FIRST acquisition (no lock -> `held` false -> pick runs).
+- Once locked, a body crossing the aim ray (passing torpedo, another ship) no
+  longer steals the lock or resets the focus dwell (`held` true -> pick skipped).
+- The lock returns to the picker only when its target dies / leaves range
+  (drops from candidates -> `held` false -> re-acquire).
+- Deliberate switches stay on the existing CTRL+scroll cycle (`step_target_lock`),
+  which also keeps torpedoes lockable for point defense (why the separate
+  no-torpedo-autolock task 20260712-203349 was dropped).
+
+One existing test encoded the OLD behaviour (`pinned_lock_holds_against_the_aim_
+pick_until_expiry` asserted an expired pin re-aims to a different target); that
+is exactly what B5 changes, so it was rewritten as
+`an_expired_pin_leaves_the_lock_sticky_not_re_aimed` (pin clears at its deadline
+but the lock stays sticky; delivery guard: losing the target re-acquires).
+Added `a_held_lock_is_not_stolen_by_a_closer_body` (a challenger closer to the
+aim ray does not steal a held lock; delivery guard proves the picker still
+moves once the held target leaves).
+
+Verified: `cargo test -p nova_gameplay targeting` 43 pass; `12_hud_range` +
+`10_gameplay` autopilots green (lock acquires, inset opens, everything hides on
+target death); `fmt --check` + non-debug `cargo check --workspace` clean.
+
+PLAYTEST NOTE (spike open question): B5 removes aim-to-switch entirely - you
+must CTRL+scroll to change targets (or the target must die / leave range). If
+that feels stuck, the fallbacks are a "sustained aim-away releases the lock"
+grace or reverting to B1 (sticky only after the focus dwell). Decide at playtest.
+
+## Steps
+
+- [x] Add a `held` gate in `update_spaceship_target_input`: skip the aim pick
+      when the current lock target is still a collectible candidate.
+- [x] Keep first-acquisition, death/out-of-range re-acquire, and the CTRL+scroll
+      cycle working (they fall out of `held` being false / `step_target_lock`).
+- [x] Rewrite the pin-expiry test for sticky semantics + add a held-lock-not-
+      stolen test (both delivery-guarded).
+- [x] Verify: targeting unit tests + 12_hud_range/10_gameplay autopilots.
 
 ## Goal
 

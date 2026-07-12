@@ -191,4 +191,15 @@ first.
 
 ## Fix record
 
-(none yet - tasks not started; buy-in pending)
+- 20260712-203345 (inset scope) LANDED: `InsetZoomable` opt-in flag on
+  ships/torpedoes/asteroids (not beacons); inset gated on it; framing
+  generalized to a collider-AABB union for section-less bodies; ALL-HUD-mode
+  only. See its TASK.md + docs/2026-07-12-target-inset-view.md.
+- 20260712-203349 (no-torpedo-autolock) CLOSED won't-do: superseded by B5.
+- 20260712-203353 (sticky lock) LANDED: B5 sticky-from-acquisition, SHIP LOCKS
+  ONLY (review R1.1 - the lock is also the nav designator, so asteroids/beacons
+  stay aim-driven). The aim pick runs only when no valid SHIP lock is `held`;
+  first acquisition + death/out-of-range re-acquire + CTRL+scroll switch
+  preserved; torpedoes stay lockable. PLAYTEST the "must CTRL+scroll to switch"
+  feel and the residual "held ship lock blocks aiming at a nav target" gap (its
+  aim-away-release remedy). See its TASK.md.

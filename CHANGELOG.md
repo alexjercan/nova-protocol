@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- @alexjercan ship target locks are now sticky: once you lock onto an enemy ship it stays locked until that ship dies/leaves range or you deliberately switch with CTRL+scroll - a torpedo streaking across your aim (or another ship drifting through it) no longer steals the lock or resets the focus dwell. Aiming still makes the first acquisition; it just stops re-picking a new ship under you. Torpedoes remain lockable (CTRL+scroll or aim to one) for point defense. Nav targets (asteroids, beacons) stay aim-driven so you can still re-point a GOTO by aiming
+
 ### Fixed
 
 - @alexjercan the target inset now scopes only combat bodies (ships, torpedoes, asteroids), not nav beacons: a new `InsetZoomable` flag gates what the scope will zoom, so locking a waypoint no longer opens a pointless close-up. The framing also handles bodies without ship sections (a torpedo/asteroid) by using their collider bounds. The inset stays hidden outside the full (`ALL`) HUD mode
