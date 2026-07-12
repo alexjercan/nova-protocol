@@ -297,7 +297,13 @@ retros.
   turret query would have stopped every headless fire rig (they spawn turrets
   without the slot) from firing; recalled the lesson before running and used
   `Option<&LoadedBullet>` + a config fallback. The lesson caught the trap at
-  design time instead of via a broken-test loop. 20260712-133349.
+  design time instead of via a broken-test loop. 20260712-133349. Sibling
+  (run_system_once variant): adding a `Res<T>` param to a system that tests drive
+  via `run_system_once` makes every such rig panic on the missing resource (a
+  RUNTIME error, not a compile error) - grep the callsites and `init_resource` it
+  in each rig in the same change. Adding `Res<ButtonInput<KeyCode>>` to
+  `update_turret_target_input` needed both turret-feed rigs to init it.
+  20260712-164031.
 - `spike-open-question-pays-off` (positive pattern, x1): a spike that names a
   risky unknown lets the implementer resolve it BEFORE wiring, not after a
   flake - the verb-flags spike flagged the OnStart spawn-vs-action ordering
