@@ -25,8 +25,10 @@
 //! The exact count is a debug-only overlay, never a gameplay affordance: the
 //! `rounds/capacity` `Text` child, its resource and its toggle only compile
 //! under the `debug` cargo feature (`--features debug`), so a release build has
-//! no numeric readout at all. Under that feature F11 (the shared debug toggle)
-//! shows/hides it via [`AmmoReadoutDebug`].
+//! no numeric readout at all. Under that feature the number tracks debug mode:
+//! it is shown while debug mode is on (which nova_debug starts on) and hidden
+//! once debug mode is switched off, F11 (the shared debug toggle) flipping both
+//! together via [`AmmoReadoutDebug`].
 //!
 //! Like the other combat overlays the layer is `HudTier::Instrument` and is
 //! spawned/despawned with the player ship by the hud/mod.rs observers.
@@ -114,13 +116,27 @@ pub struct AmmoReadoutPip(pub usize);
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct AmmoReadoutNumber;
 
-/// Whether the debug ammo number is shown (toggled with F11). Off by default;
-/// the gauge itself is always on. Debug-only: only compiled under the `debug`
-/// feature, so release builds have no numeric readout at all.
+/// Whether the debug ammo number is shown (toggled with F11). On by default so
+/// it starts in phase with nova_debug's `DebugEnabled(true)`: the number then
+/// tracks debug mode (shown while on, hidden once F11 switches debug off)
+/// instead of inverting it. The gauge itself is always on. Debug-only: only
+/// compiled under the `debug` feature, so release builds have no numeric
+/// readout at all.
 #[cfg(feature = "debug")]
-#[derive(Resource, Debug, Clone, Copy, Default, Deref, DerefMut, PartialEq, Eq, Reflect)]
+#[derive(Resource, Debug, Clone, Copy, Deref, DerefMut, PartialEq, Eq, Reflect)]
 #[reflect(Resource)]
 pub struct AmmoReadoutDebug(pub bool);
+
+/// Starts on to match nova_debug's `DebugEnabled(true)` default. Both toggle on
+/// F11, so matching defaults keeps the ammo number in phase with debug mode; a
+/// mismatch here is what makes the number show in normal play and vanish in
+/// debug mode.
+#[cfg(feature = "debug")]
+impl Default for AmmoReadoutDebug {
+    fn default() -> Self {
+        Self(true)
+    }
+}
 
 /// UI bundle for the readout layer. Readouts are spawned under it by
 /// [`sync_ammo_readouts`], one per player weapon section with ammo.
@@ -648,6 +664,7 @@ mod tests {
             .rounds = 5;
 
         // Debug off: the number is hidden.
+        **world.resource_mut::<AmmoReadoutDebug>() = false;
         world.run_system_once(drive_ammo_readout_numbers).unwrap();
         let (text, visibility) = world
             .query_filtered::<(&Text, &Visibility), With<AmmoReadoutNumber>>()
