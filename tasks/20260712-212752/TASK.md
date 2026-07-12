@@ -1,8 +1,19 @@
 # Reset scenario progress (salvaged crates) on scenario start/exit
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.5.0, bug, scenario
+
+## Closed not-reproducible (2026-07-12)
+
+User could not reproduce it on retry. The read-only trace below falsified every
+concrete mechanism (the crate tally resets on replay via `NovaEventWorld::clear`
++ the scenario's `OnStart`; no false completion cue on the tally rebuild; pickup
+is edge-triggered; completion gate is exact `== 3`). The most likely original
+observation was the clustered crates swept in one pass. No code change; the
+reset path is already guarded by the teardown tests (e.g.
+`teardown_clears_hint_emphasis`). Reopen with a fresh-vs-replay repro if it
+recurs - the trace notes where an integration reload test would go.
 
 ## Diagnosis (2026-07-12) - reported mechanism NOT found; likely perceptual
 
