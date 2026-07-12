@@ -1,6 +1,25 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
+// Per-section-type durability baselines (task 20260525-133004).
+//
+// Section TYPE governs how much damage a section effectively takes. With the
+// single (kinetic) damage model in play today, "takes more damage" is simply
+// "has less health", so the variation lives here in the health numbers rather
+// than in a damage-interception system (a real per-damage-type resistance -
+// AP/EMP - is the next pass, task 20260708-162005, and lands nova-side).
+//
+// Thrusters are exposed propulsion and go down fast (take MORE); turrets are
+// armored weapon mounts and shrug off MORE (take LESS); the controller core and
+// the torpedo bay sit at the mid baseline. Direction follows the task title and
+// is a playtest knob - flipping "fragile vs tough" is a one-line change here.
+// Per-section variants (a reinforced hull, a scavenger-grade turret) may deviate
+// from their type baseline on purpose; these are the values they start from.
+const THRUSTER_BASE_HEALTH: f32 = 70.0;
+const CONTROLLER_BASE_HEALTH: f32 = 100.0;
+const TURRET_BASE_HEALTH: f32 = 130.0;
+const TORPEDO_BASE_HEALTH: f32 = 100.0;
+
 pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::GameAssets>) {
     // This should be loaded from a JSON file, but for now it is fine.
 
@@ -23,7 +42,9 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 name: "Basic Thruster Section".to_string(),
                 description: "A basic thruster section for spaceships.".to_string(),
                 mass: 1.0,
-                health: 100.0,
+                // Exposed propulsion: fragile, takes more damage per hit than an
+                // armored mount (task 20260525-133004).
+                health: THRUSTER_BASE_HEALTH,
             },
             kind: SectionKind::Thruster(ThrusterSectionConfig {
                 magnitude: 1.0,
@@ -36,7 +57,8 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 name: "Basic Controller Section".to_string(),
                 description: "A basic controller section for spaceships.".to_string(),
                 mass: 1.0,
-                health: 100.0,
+                // Command core: mid durability baseline (task 20260525-133004).
+                health: CONTROLLER_BASE_HEALTH,
             },
             kind: SectionKind::Controller(ControllerSectionConfig {
                 frequency: 4.0,
@@ -60,7 +82,9 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 name: "Better Turret Section".to_string(),
                 description: "A better turret section for spaceships.".to_string(),
                 mass: 1.0,
-                health: 100.0,
+                // Armored weapon mount: tough, takes less damage per hit than an
+                // exposed section (task 20260525-133004).
+                health: TURRET_BASE_HEALTH,
             },
             kind: SectionKind::Turret(TurretSectionConfig {
                 yaw_speed: std::f32::consts::PI,   // 180 degrees per second
@@ -82,6 +106,11 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 projectile_mass: 0.1,
                 projectile_render_mesh: None,
                 muzzle_effect: None,
+                // ~5s of sustained fire at 100 rounds/s. Generous on purpose:
+                // finite ammo lands before its reload (task 20260708-162005),
+                // so the player should feel the limit without running dry in a
+                // normal engagement. Playtest knob.
+                ammo_capacity: Some(500),
             }),
         },
         SectionConfig {
@@ -105,6 +134,10 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 name: "Light Turret Section".to_string(),
                 description: "A low-caliber turret; scavenger grade.".to_string(),
                 mass: 1.0,
+                // Deliberately BELOW the turret baseline: scavenger grade, and
+                // the shakedown pirate should die in a short burst (task
+                // 20260711-180506). A per-section variant departing from its
+                // type baseline on purpose - not the armored better_turret.
                 health: 60.0,
             },
             kind: SectionKind::Turret(TurretSectionConfig {
@@ -131,6 +164,9 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 projectile_mass: 0.05,
                 projectile_render_mesh: None,
                 muzzle_effect: None,
+                // ~6s of fire at 25 rounds/s. Scavenger grade: a shorter fight
+                // before the pirate's guns run dry. Playtest knob.
+                ammo_capacity: Some(150),
             }),
         },
         SectionConfig {
@@ -139,7 +175,8 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 name: "Torpedo Bay Section".to_string(),
                 description: "A torpedo bay section for spaceships.".to_string(),
                 mass: 1.0,
-                health: 100.0,
+                // Torpedo bay: mid durability baseline (task 20260525-133004).
+                health: TORPEDO_BASE_HEALTH,
             },
             kind: SectionKind::Torpedo(TorpedoSectionConfig {
                 render_mesh: Some(game_assets.torpedo_bay_01.clone()),
@@ -158,7 +195,35 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 blast_damage: 100.0,
                 blast_effect: None,
                 launch_effect: None,
+                // A small salvo of torpedoes before the bay is spent. Playtest
+                // knob; reloading is task 20260708-162005.
+                ammo_capacity: Some(6),
             }),
         },
     ]));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// "Variable damage by section type" (task 20260525-133004) as a checked
+    /// invariant: section TYPE must drive durability, not sit at a uniform value.
+    /// If someone flattens the baselines back to one number this fails, catching
+    /// a silent regression of the feature.
+    #[test]
+    fn section_type_durability_ordering_holds() {
+        // Thrusters take MORE damage than the baseline (fragile); turrets take
+        // LESS (armored). The strict inequalities are the feature.
+        assert!(
+            THRUSTER_BASE_HEALTH < CONTROLLER_BASE_HEALTH,
+            "a thruster must be more fragile than the mid baseline: {THRUSTER_BASE_HEALTH} vs {CONTROLLER_BASE_HEALTH}"
+        );
+        assert!(
+            CONTROLLER_BASE_HEALTH < TURRET_BASE_HEALTH,
+            "a turret must be tougher than the mid baseline: {CONTROLLER_BASE_HEALTH} vs {TURRET_BASE_HEALTH}"
+        );
+        // The controller core and the torpedo bay share the mid baseline.
+        assert_eq!(CONTROLLER_BASE_HEALTH, TORPEDO_BASE_HEALTH);
+    }
 }

@@ -69,6 +69,11 @@ pub struct TurretSectionConfig {
     pub projectile_render_mesh: Option<Handle<WorldAsset>>,
     /// The muzzle particle effect when shooting.
     pub muzzle_effect: Option<Handle<EffectAsset>>,
+    /// Magazine size in rounds. `None` fires without limit (the pre-ammo
+    /// behavior); `Some(n)` gives the turret a [`SectionAmmo`] of `n` rounds
+    /// that depletes one per bullet and blocks firing once empty. Reloading it
+    /// is task 20260708-162005.
+    pub ammo_capacity: Option<u32>,
 }
 
 impl Default for TurretSectionConfig {
@@ -93,6 +98,7 @@ impl Default for TurretSectionConfig {
             projectile_mass: 0.1,
             projectile_render_mesh: None,
             muzzle_effect: None,
+            ammo_capacity: None,
         }
     }
 }
@@ -447,6 +453,13 @@ fn insert_turret_section(
         .entity(turret)
         .insert((TurretSectionMuzzleEntity(muzzle),))
         .add_child(rotator_base);
+
+    // Opt-in finite ammo: a magazine on the turret SECTION entity (the one
+    // `shoot_spawn_projectile` queries), so the fire loop spends and gates on it
+    // with the query it already runs. `None` leaves the turret unlimited.
+    if let Some(capacity) = config.ammo_capacity {
+        commands.entity(turret).insert(SectionAmmo::new(capacity));
+    }
 }
 
 /// Push live edits of a turret's [`TurretSectionConfigHelper`] onto the child entities that
@@ -839,13 +852,14 @@ fn shoot_spawn_projectile(
         ),
         With<SpaceshipRootMarker>,
     >,
-    q_turret: Query<
+    mut q_turret: Query<
         (
             Entity,
             &TurretSectionMuzzleEntity,
             &ChildOf,
             &TurretSectionConfigHelper,
             &TurretSectionInput,
+            Option<&mut SectionAmmo>,
         ),
         (With<TurretSectionMarker>, Without<SectionInactiveMarker>),
     >,
@@ -853,7 +867,7 @@ fn shoot_spawn_projectile(
     q_chain: Query<(&Transform, &ChildOf)>,
 ) {
     let dt = time.delta_secs();
-    for (turret, muzzle, ChildOf(spaceship), config, input) in &q_turret {
+    for (turret, muzzle, ChildOf(spaceship), config, input, mut ammo) in &mut q_turret {
         let Ok(mut fire_state) = q_muzzle.get_mut(**muzzle) else {
             error!(
                 "shoot_spawn_projectile: entity {:?} not found in q_muzzle",
@@ -872,6 +886,14 @@ fn shoot_spawn_projectile(
         fire_state.tick(Duration::from_secs_f32(dt));
 
         if !**input || !fire_state.is_finished() {
+            continue;
+        }
+
+        // Out of ammo: an empty magazine suppresses the whole turret this tick.
+        // A turret with no `SectionAmmo` (unlimited) is never gated here, so the
+        // pre-ammo behavior is untouched. The per-shot decrement below stops a
+        // magazine that empties partway through this tick's burst.
+        if ammo.as_deref().is_some_and(SectionAmmo::is_empty) {
             continue;
         }
 
@@ -925,6 +947,16 @@ fn shoot_spawn_projectile(
         let mut excess = (before + dt - interval).clamp(0.0, dt);
 
         for _ in 0..MAX_SHOTS_PER_TICK {
+            // Spend one round per bullet. A magazine that runs dry mid-burst
+            // stops the stream exactly at zero (a high fire rate can queue
+            // several shots per tick, so the gate above is not enough on its
+            // own). Unlimited turrets carry no `SectionAmmo` and never break.
+            if let Some(ammo) = ammo.as_deref_mut() {
+                if !ammo.try_consume() {
+                    break;
+                }
+            }
+
             // Sub-tick exactness: a shot due `lead` seconds into this tick
             // starts one lead-time of muzzle-exit travel BEHIND the muzzle,
             // so after this tick's integration it sits exactly where a
@@ -1520,7 +1552,126 @@ fn insert_turret_barrel_muzzle_effect(
 
 #[cfg(test)]
 mod tests {
+    use bevy::time::TimeUpdateStrategy;
+
     use super::*;
+
+    /// A minimal app that runs ONLY `shoot_spawn_projectile` on a manual clock,
+    /// so ammo behavior is observed by counting spawned bullets without the full
+    /// physics/render stack. `dt` far larger than the fire interval keeps the
+    /// barrel timer finished every tick, so firing is gated by ammo alone.
+    fn firing_app(dt: f32) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(
+            std::time::Duration::from_secs_f32(dt),
+        ));
+        app.add_systems(Update, shoot_spawn_projectile);
+        app
+    }
+
+    /// Spawn a ship + one turret holding its trigger, optionally with a finite
+    /// magazine. The muzzle is parented directly under the ship so
+    /// `local_pose_in_root` resolves in one hop; the fire timer starts finished
+    /// so the first tick can fire. `q_spaceship` reads avian `Position`/
+    /// `Rotation`, so those are inserted directly (no physics stepping).
+    fn spawn_firing_turret(app: &mut App, ammo: Option<u32>) -> Entity {
+        let interval = 1.0 / TurretSectionConfig::default().fire_rate;
+        let mut timer = Timer::from_seconds(interval, TimerMode::Once);
+        timer.finish();
+
+        let world = app.world_mut();
+        let ship = world
+            .spawn((
+                SpaceshipRootMarker,
+                Position(Vec3::ZERO),
+                Rotation::default(),
+                LinearVelocity(Vec3::ZERO),
+                AngularVelocity(Vec3::ZERO),
+                ComputedCenterOfMass(Vec3::ZERO),
+            ))
+            .id();
+        let turret = world
+            .spawn((
+                TurretSectionMarker,
+                TurretSectionConfigHelper(TurretSectionConfig::default()),
+                TurretSectionInput(true),
+                Transform::default(),
+                ChildOf(ship),
+            ))
+            .id();
+        let muzzle = world
+            .spawn((
+                TurretSectionBarrelMuzzleMarker,
+                TurretSectionBarrelFireState(timer),
+                Transform::default(),
+                ChildOf(turret),
+            ))
+            .id();
+        world
+            .entity_mut(turret)
+            .insert(TurretSectionMuzzleEntity(muzzle));
+        if let Some(capacity) = ammo {
+            world.entity_mut(turret).insert(SectionAmmo::new(capacity));
+        }
+        turret
+    }
+
+    fn bullet_count(app: &mut App) -> usize {
+        app.world_mut()
+            .query_filtered::<Entity, With<TurretBulletProjectileMarker>>()
+            .iter(app.world())
+            .count()
+    }
+
+    #[test]
+    fn a_turret_with_ammo_fires_exactly_its_magazine_then_stops() {
+        // The core ammo claim: `try_consume` hard-caps total bullets at the
+        // magazine size regardless of sub-tick fire timing, so an exact count is
+        // a robust assertion. Ten wide ticks would fire far more than three
+        // bullets unlimited (see the A/B below).
+        let mut app = firing_app(1.0);
+        let turret = spawn_firing_turret(&mut app, Some(3));
+
+        for _ in 0..10 {
+            app.update();
+        }
+
+        assert_eq!(
+            bullet_count(&mut app),
+            3,
+            "a 3-round magazine must fire exactly three bullets, ever"
+        );
+        let ammo = app
+            .world()
+            .entity(turret)
+            .get::<SectionAmmo>()
+            .expect("the turret keeps its magazine");
+        assert_eq!(
+            ammo.rounds, 0,
+            "the magazine must read empty after firing out"
+        );
+    }
+
+    #[test]
+    fn a_turret_without_ammo_keeps_firing_past_a_magazine() {
+        // A/B control for the gate: the identical rig with no `SectionAmmo`
+        // fires every tick, well past three bullets - proof that ammo, not some
+        // other limit, stopped the stream above and that unlimited is the opt-in
+        // default.
+        let mut app = firing_app(1.0);
+        spawn_firing_turret(&mut app, None);
+
+        for _ in 0..10 {
+            app.update();
+        }
+
+        assert!(
+            bullet_count(&mut app) > 3,
+            "an unlimited turret must not be capped at a magazine size, got {}",
+            bullet_count(&mut app)
+        );
+    }
 
     #[test]
     fn lead_of_a_stationary_target_is_the_target() {

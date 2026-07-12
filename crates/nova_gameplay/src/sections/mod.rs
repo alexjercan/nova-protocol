@@ -3,6 +3,7 @@
 use avian3d::prelude::ComputedCenterOfMass;
 use bevy::prelude::*;
 
+pub mod ammo;
 pub mod base_section;
 pub mod controller_section;
 pub mod hull_section;
@@ -13,10 +14,10 @@ pub mod turret_section;
 
 pub mod prelude {
     pub use super::{
-        base_section::prelude::*, controller_section::prelude::*, hull_section::prelude::*,
-        live_structure_anchor, projectile_hooks::prelude::*, thruster_section::prelude::*,
-        torpedo_section::prelude::*, turret_section::prelude::*, SpaceshipRootMarker,
-        SpaceshipSectionPlugin, SpaceshipSectionSystems,
+        ammo::prelude::*, base_section::prelude::*, controller_section::prelude::*,
+        hull_section::prelude::*, live_structure_anchor, projectile_hooks::prelude::*,
+        thruster_section::prelude::*, torpedo_section::prelude::*, turret_section::prelude::*,
+        SpaceshipRootMarker, SpaceshipSectionPlugin, SpaceshipSectionSystems,
     };
 }
 
@@ -117,6 +118,7 @@ pub struct SpaceshipSectionPlugin {
 
 impl Plugin for SpaceshipSectionPlugin {
     fn build(&self, app: &mut App) {
+        app.register_type::<ammo::SectionAmmo>();
         app.add_plugins((
             hull_section::HullSectionPlugin {
                 render: self.render,

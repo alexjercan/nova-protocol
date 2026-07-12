@@ -83,6 +83,11 @@ pub struct TorpedoSectionConfig {
     /// `base_velocity` `Vec3` properties, which `on_torpedo_launch_effect` sets
     /// per shot (unknown properties are ignored by hanabi).
     pub launch_effect: Option<Handle<EffectAsset>>,
+    /// Magazine size in torpedoes. `None` launches without limit (the pre-ammo
+    /// behavior); `Some(n)` gives the bay a [`SectionAmmo`] of `n` torpedoes
+    /// that depletes one per launch and blocks firing once empty. Reloading it
+    /// is task 20260708-162005.
+    pub ammo_capacity: Option<u32>,
 }
 
 impl Default for TorpedoSectionConfig {
@@ -104,6 +109,7 @@ impl Default for TorpedoSectionConfig {
             blast_damage: 100.0,
             blast_effect: None,
             launch_effect: None,
+            ammo_capacity: None,
         }
     }
 }
@@ -435,6 +441,13 @@ fn insert_torpedo_section(
         .entity(entity)
         .insert(TorpedoSectionSpawnerEntity(spawner))
         .add_children(&[body, spawner]);
+
+    // Opt-in finite ammo: a magazine on the torpedo SECTION entity (the one
+    // `shoot_spawn_projectile` queries), depleted one per launch. `None` leaves
+    // the bay unlimited, matching the pre-ammo behavior.
+    if let Some(capacity) = config.ammo_capacity {
+        commands.entity(entity).insert(SectionAmmo::new(capacity));
+    }
 }
 
 fn update_spawner_fire_state(
@@ -465,21 +478,28 @@ fn shoot_spawn_projectile(
         ),
         With<SpaceshipRootMarker>,
     >,
-    q_section: Query<
+    mut q_section: Query<
         (
             Entity,
             &TorpedoSectionSpawnerEntity,
             &ChildOf,
             &TorpedoSectionConfigHelper,
             &TorpedoSectionInput,
+            Option<&mut SectionAmmo>,
         ),
         (With<TorpedoSectionMarker>, Without<SectionInactiveMarker>),
     >,
     mut q_spawner: Query<&mut TorpedoSectionSpawnerFireState, With<TorpedoSectionSpawnerMarker>>,
     q_chain: Query<(&Transform, &ChildOf)>,
 ) {
-    for (section, spawner, ChildOf(spaceship), config, input) in &q_section {
+    for (section, spawner, ChildOf(spaceship), config, input, mut ammo) in &mut q_section {
         if !**input {
+            continue;
+        }
+
+        // Out of torpedoes: an empty bay launches nothing. A bay with no
+        // `SectionAmmo` (unlimited) is never gated here.
+        if ammo.as_deref().is_some_and(SectionAmmo::is_empty) {
             continue;
         }
 
@@ -668,6 +688,14 @@ fn shoot_spawn_projectile(
             projectile.insert(allegiance);
         }
 
+        // A torpedo left the bay: spend one round. The empty-bay gate above
+        // already refused to reach here on a spent magazine, so this only ever
+        // fires on a launch that actually happened. Unlimited bays carry no
+        // `SectionAmmo` and are unaffected.
+        if let Some(ammo) = ammo.as_deref_mut() {
+            ammo.try_consume();
+        }
+
         // Reset the fire state timer
         fire_state.reset();
     }
@@ -675,7 +703,133 @@ fn shoot_spawn_projectile(
 
 #[cfg(test)]
 mod tests {
+    use bevy::time::TimeUpdateStrategy;
+
     use super::*;
+
+    /// A minimal app running ONLY `shoot_spawn_projectile` on a manual clock, so
+    /// bay ammo is observed by counting launched torpedoes without the physics /
+    /// render stack. A wide `dt` keeps the bay's fire timer finished each tick.
+    fn firing_app(dt: f32) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(
+            std::time::Duration::from_secs_f32(dt),
+        ));
+        // The bay's fire timer is ticked by a separate system; without it the
+        // timer never re-arms after the first launch (unlike the turret, which
+        // ticks in its own fire system). Tick before firing so the timer is
+        // finished when the shot is considered.
+        app.add_systems(
+            Update,
+            (update_spawner_fire_state, shoot_spawn_projectile).chain(),
+        );
+        app
+    }
+
+    /// Spawn a ship + one torpedo bay holding its trigger, optionally with a
+    /// finite magazine. Spawner is parented under the section under the ship so
+    /// `local_pose_in_root` resolves; the fire timer starts finished.
+    fn spawn_firing_bay(app: &mut App, ammo: Option<u32>) -> Entity {
+        // A fast bay so the fire timer re-arms every tick (the default 1/s
+        // interval outruns the virtual clock's 0.25s max-delta clamp, which
+        // would starve the timer). The bay still launches at most one torpedo
+        // per tick, so ammo is what caps the total.
+        let config = TorpedoSectionConfig {
+            fire_rate: 100.0,
+            ..TorpedoSectionConfig::default()
+        };
+        let interval = 1.0 / config.fire_rate;
+        let mut timer = Timer::from_seconds(interval, TimerMode::Once);
+        timer.finish();
+
+        let world = app.world_mut();
+        let ship = world
+            .spawn((
+                SpaceshipRootMarker,
+                Position(Vec3::ZERO),
+                Rotation::default(),
+                LinearVelocity(Vec3::ZERO),
+                AngularVelocity(Vec3::ZERO),
+                ComputedCenterOfMass(Vec3::ZERO),
+            ))
+            .id();
+        let section = world
+            .spawn((
+                TorpedoSectionMarker,
+                TorpedoSectionConfigHelper(config),
+                TorpedoSectionInput(true),
+                Transform::default(),
+                ChildOf(ship),
+            ))
+            .id();
+        let spawner = world
+            .spawn((
+                TorpedoSectionSpawnerMarker,
+                TorpedoSectionSpawnerFireState(timer),
+                Transform::default(),
+                ChildOf(section),
+            ))
+            .id();
+        world
+            .entity_mut(section)
+            .insert(TorpedoSectionSpawnerEntity(spawner));
+        if let Some(capacity) = ammo {
+            world.entity_mut(section).insert(SectionAmmo::new(capacity));
+        }
+        section
+    }
+
+    fn torpedo_count(app: &mut App) -> usize {
+        app.world_mut()
+            .query_filtered::<Entity, With<TorpedoProjectileMarker>>()
+            .iter(app.world())
+            .count()
+    }
+
+    #[test]
+    fn a_bay_with_ammo_launches_exactly_its_magazine_then_stops() {
+        // One launch per tick spends one round; a 2-torpedo bay held open for
+        // many ticks launches exactly two, then the empty-bay gate suppresses
+        // the rest.
+        let mut app = firing_app(2.0);
+        let section = spawn_firing_bay(&mut app, Some(2));
+
+        for _ in 0..6 {
+            app.update();
+        }
+
+        assert_eq!(
+            torpedo_count(&mut app),
+            2,
+            "a 2-torpedo bay must launch exactly two torpedoes, ever"
+        );
+        let ammo = app
+            .world()
+            .entity(section)
+            .get::<SectionAmmo>()
+            .expect("the bay keeps its magazine");
+        assert_eq!(ammo.rounds, 0, "the bay must read empty after firing out");
+    }
+
+    #[test]
+    fn a_bay_without_ammo_keeps_launching_past_a_magazine() {
+        // A/B control: the identical rig with no `SectionAmmo` launches every
+        // tick, past two - proof the empty-bay gate, not another limit, stopped
+        // the salvo above.
+        let mut app = firing_app(2.0);
+        spawn_firing_bay(&mut app, None);
+
+        for _ in 0..6 {
+            app.update();
+        }
+
+        assert!(
+            torpedo_count(&mut app) > 2,
+            "an unlimited bay must not be capped at a magazine size, got {}",
+            torpedo_count(&mut app)
+        );
+    }
 
     #[test]
     fn torpedo_is_unarmed_on_spawn() {
