@@ -91,6 +91,12 @@ retros.
 - `one-cargo-test-filter` (x2): `cargo test a b c` errors after the slow
   compile; one substring filter or a module prefix per run.
   20260709-155922, 20260709-155920.
+- `check-all-targets-for-struct-field` (x1): adding a non-`Default` field to
+  a widely-constructed struct (config structs especially) breaks every
+  initializer, but `cargo check --workspace` compiles only libs+bins - it
+  gave a false all-clear while six `examples/*.rs` stayed broken (surfaced
+  only via editor diagnostics). Run `cargo check --workspace --all-targets`
+  so examples/tests/benches are caught in one pass. 20260712-140250.
 - `data-source-over-schedule-fight` (x2): when a fix seems to need
   ordering after something that is itself ordered after the consumer,
   change WHERE the data comes from (compose fresh poses) instead of
