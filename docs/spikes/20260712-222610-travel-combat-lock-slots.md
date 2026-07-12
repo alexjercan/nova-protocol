@@ -304,3 +304,39 @@ So the "might lock on something else" annoyance only remains when the
 player raises while genuinely looking at a different enemy - which is the
 case where switching IS the intent. Task 20260712-223035 seeding steps
 follow this rule.
+
+### Round 2c (2026-07-12, user question): drop the manual unlock?
+
+User: MMB clearing may not be needed at all - could the combat lock clear
+NATURALLY (e.g. when the travel lock changes)? What is the best way?
+
+Analysis. A manual unlock exists only to defuse a stale combat lock. The
+candidate natural triggers:
+
+- Clear on travel-lock change or on G: rejected - it disarms the
+  fight-while-fleeing case (travel-lock the escape station, G, keep the
+  turrets on the pursuer). Travel and combat slots must stay independent;
+  coupling them re-imports the dual-purpose-lock problem this whole model
+  exists to kill.
+- The better move is to make a stale lock INERT instead of cleaning it
+  eagerly: gate FIRING on combat stance - the trigger only fires (or
+  acquires) while RMB is held (Turret view); outside it, LMB is a no-op
+  deny cue regardless of lock state, and CTRL free-aim remains the
+  any-view manual escape hatch. This kills the adversarial review's
+  blind-fire trap (B1) and the stale-lock verb-mismatch (M8) in one rule
+  that is also the DayZ metaphor played straight: you cannot fire a
+  lowered weapon.
+- With stale locks inert, the natural-clear set suffices: death/despawn
+  (exists), out-of-range (exists), allegiance flip to non-hostile (new,
+  from adversarial finding m5), and an optional slow decay - N seconds
+  outside Turret view (generous, ~20 s const, playtest flag) - so old
+  locks fade without ever mattering. Re-raising near a new enemy already
+  re-targets via the incumbent-hysteresis rule, so switching never needed
+  the unlock either.
+
+RESOLVED: no manual unlock key ships. MMB stays unbound (reserved - if
+playtest finds a "safe the guns NOW while raised" need, it slots back in
+without conflicts). SHIFT+X idea retired. Trade-off accepted and flagged
+for playtest: firing always requires holding combat stance - a fleeing
+gunfight means flying in Turret view, which is already how combat flying
+works today.

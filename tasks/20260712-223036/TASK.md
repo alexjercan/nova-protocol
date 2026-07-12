@@ -1,4 +1,4 @@
-# Fire gating + combat unlock: LMB acquires when unlocked, fires when locked; dedicated unlock key
+# Fire gating on combat stance + natural combat-lock clearing (no unlock key)
 
 - STATUS: OPEN
 - PRIORITY: 52
@@ -63,3 +63,17 @@ placeholder in the Steps)
   candidate RightThumb - verify against the full pad table at
   implementation.
 - Unlock clears the ACTIVE view's lock (unchanged round-1 default).
+
+## Round 2c update (2026-07-12 - supersedes the unlock-key steps above)
+
+Per spike round 2c: NO manual unlock key. Scope becomes:
+
+- Trigger gated on combat stance: fires (when locked) or acquires (when
+  unlocked, cone-limited) ONLY while in Turret view; outside it LMB is a
+  no-op with a deny cue. CTRL free-aim keeps firing in any view.
+- Natural clears on the combat lock: death/despawn and out-of-range
+  (exist), allegiance-flip-to-non-hostile (new), optional out-of-view
+  decay (~20 s const, ship flag-off or flag-on per playtest).
+- MMB stays unbound (reserved); SHIFT+X retired; no pad unlock needed.
+- HUD: "guns hot on X" banner while a combat lock exists outside Turret
+  view (adversarial finding M8) doubles as the decay countdown surface.
