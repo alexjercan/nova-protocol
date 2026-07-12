@@ -276,8 +276,17 @@ fn teardown_scenario_entities(
     commands: &mut Commands,
     q_scoped: &Query<Entity, With<ScenarioScopedMarker>>,
     world: &mut NovaEventWorld,
+    emphasis: Option<&mut HintEmphasis>,
 ) {
     world.clear();
+    // Scenario-driven HUD emphasis dies with the scenario: a leaked
+    // emphasis would pulse a verb row into the next scenario (or the
+    // menu's death gap) with nothing left to clear it - the same reset
+    // class as the objectives diff (state-diff-aliases-reset,
+    // 20260712-125342). Optional: headless rigs run without the HUD.
+    if let Some(emphasis) = emphasis {
+        emphasis.clear_all();
+    }
     for entity in q_scoped.iter() {
         commands.entity(entity).despawn();
     }
@@ -289,8 +298,14 @@ fn unload_scenario(
     q_scoped: Query<Entity, With<ScenarioScopedMarker>>,
     mut current_scenario: ResMut<CurrentScenario>,
     mut world: ResMut<NovaEventWorld>,
+    mut emphasis: Option<ResMut<HintEmphasis>>,
 ) {
-    teardown_scenario_entities(&mut commands, &q_scoped, &mut world);
+    teardown_scenario_entities(
+        &mut commands,
+        &q_scoped,
+        &mut world,
+        emphasis.as_deref_mut(),
+    );
     **current_scenario = None;
 }
 
@@ -300,8 +315,14 @@ fn on_load_scenario(
     mut current_scenario: ResMut<CurrentScenario>,
     q_scoped: Query<Entity, With<ScenarioScopedMarker>>,
     mut world: ResMut<NovaEventWorld>,
+    mut emphasis: Option<ResMut<HintEmphasis>>,
 ) {
-    teardown_scenario_entities(&mut commands, &q_scoped, &mut world);
+    teardown_scenario_entities(
+        &mut commands,
+        &q_scoped,
+        &mut world,
+        emphasis.as_deref_mut(),
+    );
 
     let scenario = (**load).clone();
     **current_scenario = Some(scenario.clone());
@@ -497,6 +518,38 @@ mod tests {
             cubemap: Handle::default(),
             events,
         }
+    }
+
+    /// Scenario teardown clears the HUD hint emphasis: a leaked emphasis
+    /// would pulse a verb row into the next scenario with nothing left to
+    /// clear it (the state-reset class of 20260712-125342). Driven through
+    /// the real UnloadScenario observer; scoped entities and the event
+    /// world are cleared by the same helper, so the emphasis assert is the
+    /// new behavior under test.
+    #[test]
+    fn teardown_clears_hint_emphasis() {
+        use nova_gameplay::prelude::HintEmphasis;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<CurrentScenario>();
+        app.init_resource::<HintEmphasis>();
+        app.add_observer(unload_scenario);
+
+        app.world_mut().resource_mut::<HintEmphasis>().set("GOTO");
+        assert!(
+            app.world().resource::<HintEmphasis>().contains("GOTO"),
+            "delivery guard: the emphasis is set before teardown"
+        );
+
+        app.world_mut().trigger(UnloadScenario);
+        app.update();
+
+        assert!(
+            app.world().resource::<HintEmphasis>().is_empty(),
+            "unloading the scenario drops every emphasis"
+        );
     }
 
     /// The OnUpdate pulse: fires every frame while a scenario is live and

@@ -10,6 +10,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_events::prelude::*;
+use nova_gameplay::prelude::*;
 
 use crate::prelude::*;
 
@@ -29,8 +30,14 @@ const CRATE_TUMBLE_RAD_PER_SEC: f32 = 0.6;
 /// prop advertises itself; spike, "Conveying objectives").
 const CRATE_COLOR: Color = Color::srgb(1.0, 0.75, 0.15);
 
-/// Faint self-glow so crates read in shadowed debris.
-const CRATE_EMISSIVE: f32 = 2.0;
+/// Self-glow band the highlight pulse sweeps (task 20260712-093831): the
+/// old static 2.0 becomes a sine between these - visible motion against
+/// static debris, still far dimmer than a beacon (8..60, a landmark).
+/// The period is the shared item-highlight clock
+/// (ITEM_HIGHLIGHT_PULSE_PERIOD_SECS, nova_gameplay), so the mesh glow and
+/// the HUD bracket breathe together.
+const CRATE_EMISSIVE_MIN: f32 = 3.0;
+const CRATE_EMISSIVE_MAX: f32 = 6.0;
 
 #[derive(Clone, Debug)]
 pub struct SalvageCrateConfig {
@@ -47,6 +54,12 @@ pub fn salvage_crate_scenario_object(config: SalvageCrateConfig) -> impl Bundle 
         SalvageCrateMarker,
         EntityTypeName::new(SALVAGE_CRATE_TYPE_NAME),
         SalvageCrateSize(config.size),
+        // Every pickup advertises itself (task 20260712-093831): the HUD's
+        // item-highlights observer grows a bracket sized to the crate's
+        // VISIBLE half-diagonal (authored, not collider-derived - the only
+        // collider here is the sensor sphere, review R1.1). Intrinsic, not
+        // scenario data - a silent pickup is a bug.
+        ItemHighlight::new(config.size * 3f32.sqrt() / 2.0),
         // The pickup volume: the crate IS its own trigger area, so OnEnter
         // fires under its scenario id via the area plugin.
         ScenarioAreaMarker,
@@ -74,6 +87,15 @@ pub struct CrateTumble {
     pub axis: Vec3,
 }
 
+/// The glow driver on the crate's render child: the material whose
+/// emissive the highlight pulse sweeps. Unlike beacons, NO per-entity
+/// phase: the crates and their HUD brackets share one clock, so the whole
+/// highlight system moves as one.
+#[derive(Component, Clone, Debug, Reflect)]
+pub struct CrateGlow {
+    pub material: Handle<StandardMaterial>,
+}
+
 pub struct SalvageCratePlugin {
     pub render: bool,
 }
@@ -84,7 +106,7 @@ impl Plugin for SalvageCratePlugin {
 
         if self.render {
             app.add_observer(insert_crate_render);
-            app.add_systems(Update, tumble_crates);
+            app.add_systems(Update, (tumble_crates, pulse_crate_glow));
         }
     }
 }
@@ -110,7 +132,7 @@ fn insert_crate_render(
 
     let material = materials.add(StandardMaterial {
         base_color: CRATE_COLOR,
-        emissive: CRATE_COLOR.to_linear() * CRATE_EMISSIVE,
+        emissive: CRATE_COLOR.to_linear() * CRATE_EMISSIVE_MAX,
         ..default()
     });
 
@@ -125,9 +147,28 @@ fn insert_crate_render(
         Name::new("SalvageCrateBox"),
         Transform::default(),
         Mesh3d(meshes.add(Cuboid::from_length(**size))),
-        MeshMaterial3d(material),
+        MeshMaterial3d(material.clone()),
         CrateTumble { axis },
+        CrateGlow { material },
     )]);
+}
+
+/// Sweep each crate's emissive between the glow band's floor and ceiling
+/// on the shared item-highlight clock.
+fn pulse_crate_glow(
+    time: Res<Time>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    q_glow: Query<&CrateGlow>,
+) {
+    for glow in &q_glow {
+        let Some(mut material) = materials.get_mut(&glow.material) else {
+            continue;
+        };
+        let t = time.elapsed_secs() * std::f32::consts::TAU / ITEM_HIGHLIGHT_PULSE_PERIOD_SECS;
+        let wave = 0.5 + 0.5 * t.sin();
+        let luminance = CRATE_EMISSIVE_MIN + (CRATE_EMISSIVE_MAX - CRATE_EMISSIVE_MIN) * wave;
+        material.emissive = material.base_color.to_linear() * luminance;
+    }
 }
 
 /// Spin each crate's render child around its tumble axis.
@@ -158,6 +199,17 @@ mod tests {
             .id();
 
         assert!(world.get::<SalvageCrateMarker>(entity).is_some());
+        let highlight = world
+            .get::<ItemHighlight>(entity)
+            .expect("a pickup advertises itself: the HUD bracket hangs off this tag");
+        // The bracket radius is the crate box's half-diagonal - the VISIBLE
+        // extent, decoupled from the (much larger) sensor sphere (R1.1).
+        let expected = 1.5 * 3f32.sqrt() / 2.0;
+        assert!(
+            (highlight.world_radius - expected).abs() < 1e-5,
+            "highlight radius {} is the visible half-diagonal {expected}, not the 6.0 sensor",
+            highlight.world_radius
+        );
         assert!(world.get::<ScenarioAreaMarker>(entity).is_some());
         assert!(world.get::<Sensor>(entity).is_some());
         assert!(world.get::<Collider>(entity).is_some());
@@ -256,6 +308,70 @@ mod tests {
                 .get_variable("picked_up"),
             Some(&VariableLiteral::Boolean(true)),
             "the crate's OnEnter drove the filtered handler's action"
+        );
+    }
+
+    /// The glow pulse actually moves the emissive: after a nonzero step
+    /// off the wave's crest the luminance has left its spawn value, and it
+    /// stays inside the authored band. Real observer + system, real
+    /// material asset, deterministic manual clock (review R1.6).
+    #[test]
+    fn crate_glow_pulses_inside_its_band() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            TransformPlugin,
+            AssetPlugin::default(),
+            bevy::mesh::MeshPlugin,
+        ));
+        // An eighth of the pulse period per frame - well under
+        // Time<Virtual>'s 0.25s max-delta clamp.
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            ITEM_HIGHLIGHT_PULSE_PERIOD_SECS / 8.0,
+        )));
+        app.init_asset::<StandardMaterial>();
+        app.add_observer(insert_crate_render);
+        app.add_systems(Update, pulse_crate_glow);
+
+        let root = app
+            .world_mut()
+            .spawn(salvage_crate_scenario_object(SalvageCrateConfig {
+                size: 1.5,
+                area_radius: 6.0,
+            }))
+            .id();
+
+        app.update();
+        let emissive_of = |app: &App| {
+            let children = app.world().get::<Children>(root).expect("render child");
+            let child = children.iter().next().expect("one child");
+            let glow = app.world().get::<CrateGlow>(child).unwrap();
+            app.world()
+                .resource::<Assets<StandardMaterial>>()
+                .get(&glow.material)
+                .unwrap()
+                .emissive
+        };
+        let spawn_emissive = emissive_of(&app);
+
+        // An eighth period into the wave the luminance must have moved.
+        app.update();
+        let later = emissive_of(&app);
+        assert_ne!(
+            spawn_emissive, later,
+            "the pulse moves the emissive off its spawn value"
+        );
+
+        // And the sweep stays inside the authored band (checked on the
+        // luminance factor recovered against base color red = 1.0).
+        let factor = later.red;
+        assert!(
+            (CRATE_EMISSIVE_MIN..=CRATE_EMISSIVE_MAX).contains(&factor),
+            "emissive factor {factor} escaped [{CRATE_EMISSIVE_MIN}, {CRATE_EMISSIVE_MAX}]"
         );
     }
 

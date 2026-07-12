@@ -12,15 +12,15 @@
 //!   hand-placed v1 cue in flight_status.rs), `[G] GOTO` on the aim lock
 //!   while no maneuver is engaged.
 
-use bevy::prelude::*;
+use bevy::{platform::collections::HashSet, prelude::*};
 
-use super::{screen_indicator::prelude::*, NAV_CYAN};
+use super::{screen_indicator::prelude::*, NAV_CYAN, OBJECTIVE_GOLD};
 use crate::input::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        keybind_hint_cluster_hud, verb_cues_hud, KeybindHintClusterMarker, KeybindHintsPlugin,
-        VerbCuesHudMarker,
+        keybind_hint_cluster_hud, verb_cues_hud, HintEmphasis, KeybindHintClusterMarker,
+        KeybindHintsPlugin, VerbCuesHudMarker,
     };
 }
 
@@ -51,6 +51,61 @@ struct HudLevelHintRow;
 /// steps the component fine-lock, CTRL+scroll steps the ship lock through
 /// the tracked candidates.
 const ROW_VERBS: [&str; 6] = ["STOP", "GOTO", "ORBIT", "CANCEL", "COMPONENT", "TARGET"];
+
+/// Emphasis pulse rate and depth: the emphasized row's color lerps between
+/// its availability color and objective gold on this wave. ~1 Hz - present
+/// in peripheral vision, not a strobe.
+const EMPHASIS_PERIOD_SECS: f32 = 1.0;
+const EMPHASIS_LERP_MAX: f32 = 0.85;
+
+/// The verb rows the scenario wants the player's eyes on (task
+/// 20260712-093831): names from [`ROW_VERBS`], set/cleared by the
+/// `HintEmphasisSet`/`HintEmphasisClear` scenario actions and cleared
+/// wholesale on scenario teardown. Emphasis is a SPOTLIGHT, not a state
+/// change - it never alters availability; an unavailable row pulses from
+/// dim, still clearly "not yet".
+#[derive(Resource, Debug, Clone, Default, Reflect)]
+#[reflect(Resource)]
+pub struct HintEmphasis {
+    verbs: HashSet<String>,
+}
+
+impl HintEmphasis {
+    /// Emphasize `verb` (a [`ROW_VERBS`] name). Unknown verbs are refused
+    /// with a warning - a typo in scenario data should be loud, not a
+    /// silently dead handler.
+    pub fn set(&mut self, verb: &str) -> bool {
+        if !ROW_VERBS.contains(&verb) {
+            warn!(
+                "HintEmphasis: '{}' is not a cluster verb (rows: {:?})",
+                verb, ROW_VERBS
+            );
+            return false;
+        }
+        self.verbs.insert(verb.to_string());
+        true
+    }
+
+    /// Drop the emphasis on `verb` (no-op when it was not emphasized).
+    pub fn clear(&mut self, verb: &str) {
+        self.verbs.remove(verb);
+    }
+
+    /// Drop every emphasis (scenario teardown).
+    pub fn clear_all(&mut self) {
+        self.verbs.clear();
+    }
+
+    /// Whether `verb` is currently emphasized.
+    pub fn contains(&self, verb: &str) -> bool {
+        self.verbs.contains(verb)
+    }
+
+    /// Whether nothing is emphasized (the pulse system's early-out).
+    pub fn is_empty(&self) -> bool {
+        self.verbs.is_empty()
+    }
+}
 
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct VerbCuesHudMarker;
@@ -154,9 +209,19 @@ impl Plugin for KeybindHintsPlugin {
     fn build(&self, app: &mut App) {
         debug!("KeybindHintsPlugin: build");
 
+        app.init_resource::<HintEmphasis>();
+        app.register_type::<HintEmphasis>();
+
         app.add_systems(
             Update,
-            (update_hint_cluster, (drive_orbit_cue, drive_goto_cue)).in_set(super::NovaHudSystems),
+            (
+                update_hint_cluster,
+                // The pulse layers OVER the availability coloring, so it
+                // must run downstream of the writer inside the frame.
+                pulse_emphasized_rows.after(update_hint_cluster),
+                (drive_orbit_cue, drive_goto_cue),
+            )
+                .in_set(super::NovaHudSystems),
         );
     }
 }
@@ -210,6 +275,57 @@ fn update_hint_cluster(
             }
         } else {
             text.clear();
+        }
+    }
+}
+
+/// The availability color [`update_hint_cluster`] gives a row - the base
+/// the emphasis pulse departs from and returns to.
+fn base_row_color(hint: &VerbHint) -> Color {
+    if hint.available {
+        NAV_CYAN
+    } else {
+        DIM_COLOR
+    }
+}
+
+/// Pulse the emphasized rows' color toward objective gold (~1 Hz). Runs
+/// after [`update_hint_cluster`] so the availability coloring stays the
+/// base; on any emphasis change every row's base is restored first, so a
+/// cleared emphasis cannot leave a row stuck mid-pulse.
+fn pulse_emphasized_rows(
+    time: Res<Time>,
+    emphasis: Res<HintEmphasis>,
+    hints: Res<FlightVerbHints>,
+    mut q_row: Query<(&KeybindHintRow, &mut TextColor)>,
+) {
+    if emphasis.is_empty() && !emphasis.is_changed() {
+        return;
+    }
+
+    let t = time.elapsed_secs() * std::f32::consts::TAU / EMPHASIS_PERIOD_SECS;
+    let wave = 0.5 + 0.5 * t.sin();
+    let lerp = wave * EMPHASIS_LERP_MAX;
+
+    for (row, mut color) in &mut q_row {
+        let hint = row_hint(&hints, **row);
+        let verb = ROW_VERBS[(**row).min(ROW_VERBS.len() - 1)];
+        // Key-empty rows (no flight rig) have cleared text and never pulse,
+        // but they still take the restore below - a row whose key empties
+        // MID-pulse (rig despawn) must not keep its gold, and the key
+        // emptying is a HINTS change, not an emphasis change (review R1.4).
+        let next = if !hint.key.is_empty() && emphasis.contains(verb) {
+            base_row_color(hint).mix(&OBJECTIVE_GOLD, lerp)
+        } else if emphasis.is_changed() || hints.is_changed() {
+            // Restore the base exactly once per change; steady state
+            // leaves unemphasized rows to update_hint_cluster (whose own
+            // write is identical, so the diffed write below is a no-op).
+            base_row_color(hint)
+        } else {
+            continue;
+        };
+        if color.0 != next {
+            color.0 = next;
         }
     }
 }
@@ -383,6 +499,150 @@ mod tests {
         world.insert_resource(hints(false, true, Some(well)));
         world.run_system_once(drive_orbit_cue).unwrap();
         assert_eq!(anchor_of(&world, orbit_cue), None);
+    }
+
+    /// Only cluster verbs are addressable - a scenario typo is refused
+    /// loudly instead of becoming a silently dead emphasis.
+    #[test]
+    fn emphasis_rejects_non_cluster_verbs() {
+        let mut emphasis = HintEmphasis::default();
+        assert!(!emphasis.set("ALT"), "ALT is not a cluster row");
+        assert!(!emphasis.contains("ALT"));
+        assert!(emphasis.set("GOTO"));
+        assert!(emphasis.contains("GOTO"));
+    }
+
+    /// The emphasized row leaves its availability color toward gold; the
+    /// other rows keep theirs. Emphasis is a spotlight, not a state: the
+    /// pulse departs from the row's own base (lit or dim).
+    #[test]
+    fn emphasized_row_pulses_toward_gold() {
+        let mut world = World::new();
+        world.init_resource::<Time>();
+        world.insert_resource(hints(true, false, None));
+        let mut emphasis = HintEmphasis::default();
+        emphasis.set("GOTO");
+        world.insert_resource(emphasis);
+        let rows = cluster_rows(&mut world);
+
+        world.run_system_once(update_hint_cluster).unwrap();
+        world.run_system_once(pulse_emphasized_rows).unwrap();
+
+        let color = |world: &World, e: Entity| world.entity(e).get::<TextColor>().unwrap().0;
+        // GOTO is unavailable in this fixture: the pulse departs from DIM.
+        assert_ne!(
+            color(&world, rows[1]),
+            DIM_COLOR,
+            "the emphasized row left its base color"
+        );
+        assert_ne!(
+            color(&world, rows[1]),
+            OBJECTIVE_GOLD,
+            "the pulse lerps toward gold, never fully replacing the row color"
+        );
+        assert_eq!(
+            color(&world, rows[0]),
+            NAV_CYAN,
+            "unemphasized rows keep their availability color"
+        );
+    }
+
+    /// Clearing the emphasis restores the availability color - a cleared
+    /// row must not stay stuck mid-pulse.
+    #[test]
+    fn cleared_emphasis_restores_the_base_color() {
+        let mut world = World::new();
+        world.init_resource::<Time>();
+        world.insert_resource(hints(true, false, None));
+        let mut emphasis = HintEmphasis::default();
+        emphasis.set("STOP");
+        world.insert_resource(emphasis);
+        let rows = cluster_rows(&mut world);
+
+        world.run_system_once(update_hint_cluster).unwrap();
+        world.run_system_once(pulse_emphasized_rows).unwrap();
+        let color = |world: &World, e: Entity| world.entity(e).get::<TextColor>().unwrap().0;
+        assert_ne!(color(&world, rows[0]), NAV_CYAN, "delivery guard: pulsing");
+
+        world.resource_mut::<HintEmphasis>().clear("STOP");
+        world.run_system_once(pulse_emphasized_rows).unwrap();
+        assert_eq!(
+            color(&world, rows[0]),
+            NAV_CYAN,
+            "the cleared row returns to its availability color"
+        );
+    }
+
+    /// The change-detection gates across REAL frames (run_system_once
+    /// makes Res::is_changed always true, so the run_system_once tests
+    /// above cannot exercise them - review R1.3): pulsing runs every
+    /// frame while emphasized, the clear restores the base on the next
+    /// frame, and the restored color then STAYS at base over further
+    /// quiet frames.
+    #[test]
+    fn emphasis_gates_behave_across_real_frames() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(hints(true, false, None));
+        app.init_resource::<HintEmphasis>();
+        app.add_systems(
+            Update,
+            (
+                update_hint_cluster,
+                pulse_emphasized_rows.after(update_hint_cluster),
+            ),
+        );
+        let cluster = app.world_mut().spawn(keybind_hint_cluster_hud()).id();
+        let stop_row = app.world().entity(cluster).get::<Children>().unwrap()[0];
+        let color = |app: &App| app.world().entity(stop_row).get::<TextColor>().unwrap().0;
+
+        app.world_mut().resource_mut::<HintEmphasis>().set("STOP");
+        app.update();
+        assert_ne!(color(&app), NAV_CYAN, "delivery guard: the row pulses");
+
+        app.world_mut().resource_mut::<HintEmphasis>().clear("STOP");
+        app.update();
+        assert_eq!(color(&app), NAV_CYAN, "the clear restores the base");
+
+        // Quiet frames: nothing rewrites the row, and it stays at base
+        // (a regressed gate would resume pulsing or stick a stale color).
+        app.update();
+        app.update();
+        assert_eq!(color(&app), NAV_CYAN, "steady state holds at base");
+    }
+
+    /// A rig despawn (key empties) while a row is mid-pulse must restore
+    /// the base color even though the EMPHASIS never changed - the key
+    /// emptying is a hints change (review R1.4).
+    #[test]
+    fn rig_despawn_mid_pulse_restores_the_base_color() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(hints(true, false, None));
+        app.init_resource::<HintEmphasis>();
+        app.add_systems(
+            Update,
+            (
+                update_hint_cluster,
+                pulse_emphasized_rows.after(update_hint_cluster),
+            ),
+        );
+        let cluster = app.world_mut().spawn(keybind_hint_cluster_hud()).id();
+        let stop_row = app.world().entity(cluster).get::<Children>().unwrap()[0];
+        let color = |app: &App| app.world().entity(stop_row).get::<TextColor>().unwrap().0;
+
+        app.world_mut().resource_mut::<HintEmphasis>().set("STOP");
+        app.update();
+        assert_ne!(color(&app), NAV_CYAN, "delivery guard: the row pulses");
+
+        // The rig despawns: every key label empties, emphasis untouched.
+        app.insert_resource(FlightVerbHints::default());
+        app.update();
+        assert_eq!(
+            color(&app),
+            DIM_COLOR,
+            "the keyless row returns to its base instead of freezing gold"
+        );
     }
 
     #[test]

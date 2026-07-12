@@ -8,9 +8,11 @@ pub mod component_lock;
 pub mod edge_indicators;
 pub mod flight_status;
 pub mod holo_instruments;
+pub mod item_highlights;
 pub mod keybind_hints;
 pub mod maneuver_instruments;
 pub mod objective_feedback;
+pub mod objective_markers;
 pub mod screen_indicator;
 pub mod target_candidates;
 pub mod torpedo_target;
@@ -21,11 +23,11 @@ pub mod prelude {
     pub use super::{
         ammo_readout::prelude::*, beacon_chips::prelude::*, component_lock::prelude::*,
         edge_indicators::prelude::*, flight_status::prelude::*, holo_instruments::prelude::*,
-        keybind_hints::prelude::*, maneuver_instruments::prelude::*,
-        objective_feedback::prelude::*, screen_indicator::prelude::*,
-        target_candidates::prelude::*, torpedo_target::prelude::*, turret_lead::prelude::*,
-        velocity::prelude::*, HudSelfDrivenVisibility, HudTier, HudVisibility, NovaHudAssets,
-        NovaHudPlugin, NovaHudSystems,
+        item_highlights::prelude::*, keybind_hints::prelude::*, maneuver_instruments::prelude::*,
+        objective_feedback::prelude::*, objective_markers::prelude::*,
+        screen_indicator::prelude::*, target_candidates::prelude::*, torpedo_target::prelude::*,
+        turret_lead::prelude::*, velocity::prelude::*, HudSelfDrivenVisibility, HudTier,
+        HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
     };
 }
 
@@ -103,6 +105,12 @@ const OBJECTIVES_FONT_PX: f32 = 13.0;
 /// ring).
 pub(crate) const NAV_CYAN: Color = Color::srgba(0.3, 0.9, 1.0, 0.9);
 
+/// Objective gold, the "do this now" accent (task 20260712-093831): the
+/// objective marker chip and the hint-emphasis pulse draw from it. One hue
+/// per meaning - cyan is nav infrastructure, red is threat, green is
+/// own/done, gold is the current objective.
+pub(crate) const OBJECTIVE_GOLD: Color = Color::srgba(1.0, 0.85, 0.3, 0.95);
+
 #[derive(Resource, Clone, Default, Debug)]
 pub struct NovaHudAssets {
     pub target_sprite: Handle<Image>,
@@ -158,6 +166,8 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(target_candidates::TargetCandidatesHudPlugin);
         app.add_plugins(edge_indicators::EdgeIndicatorsHudPlugin);
         app.add_plugins(beacon_chips::BeaconChipsHudPlugin);
+        app.add_plugins(objective_markers::ObjectiveMarkersHudPlugin);
+        app.add_plugins(item_highlights::ItemHighlightsHudPlugin);
         app.add_plugins(objective_feedback::ObjectiveFeedbackPlugin);
 
         // Restyle freshly rebuilt objective lines. After the Sync set in

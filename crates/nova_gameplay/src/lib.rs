@@ -13,6 +13,7 @@ pub mod hud;
 pub mod input;
 pub mod integrity;
 pub mod juice;
+pub mod objective_marker;
 pub mod plugin;
 pub mod relations;
 pub mod sections;
@@ -33,6 +34,7 @@ pub mod prelude {
         input::prelude::*,
         integrity::prelude::*,
         juice::prelude::*,
+        objective_marker::prelude::*,
         plugin::{NovaGameplayPlugin, SpaceshipSystems},
         relations::prelude::*,
         sections::prelude::*,

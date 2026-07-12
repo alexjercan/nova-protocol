@@ -129,6 +129,19 @@ Run in order when an event passes its filters:
 - `SetSpeedCap(SetSpeedCapActionConfig)` - install (`Some(cap)`) or remove (`None`)
   the manual `FlightSpeedCap` on a scoped ship by id (the shakedown training
   governor releases at beacon 1).
+- `ObjectiveMarkerAttach` / `ObjectiveMarkerDetach` - attach the gold objective
+  marker chip (label + live distance, edge-clamped as a direction cue) to the
+  scoped object whose id matches, or take it off. Attaching inserts nova_gameplay's
+  `ObjectiveMarkerTarget`; the HUD observer does the rest, and the marked entity
+  despawning detaches implicitly (the chip dies with it). While a beacon is marked
+  its cyan beacon chip yields to the marker, so one entity shows one chip. An
+  attach ordered after a spawn in the same handler sees the fresh entity.
+- `HintEmphasisSet` / `HintEmphasisClear` - pulse one keybind-cluster verb row
+  toward objective gold (the row names: STOP, GOTO, ORBIT, CANCEL, COMPONENT,
+  TARGET), so an objective like "press [G]" can point at its row without new UI.
+  Emphasis never changes availability - a dim row pulses dim. Scenario teardown
+  clears all emphasis, so death/exit cannot leak a pulsing row into the next
+  scenario.
 - `NextScenario(NextScenarioActionConfig)` - switch to another scenario by id (with a
   `linger` flag to defer the switch).
 

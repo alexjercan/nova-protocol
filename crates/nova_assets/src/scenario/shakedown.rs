@@ -187,6 +187,27 @@ fn despawn(id: &str) -> EventActionConfig {
     EventActionConfig::DespawnScenarioObject(DespawnScenarioObjectActionConfig::new(id))
 }
 
+/// Attach the gold objective marker to a scenario entity (task
+/// 20260712-093831). Ordered AFTER the target's spawn action when both sit
+/// in one handler - actions queue in list order.
+fn mark(target_id: &str, label: &str) -> EventActionConfig {
+    EventActionConfig::ObjectiveMarkerAttach(ObjectiveMarkerAttachActionConfig::new(
+        target_id, label,
+    ))
+}
+
+fn unmark(target_id: &str) -> EventActionConfig {
+    EventActionConfig::ObjectiveMarkerDetach(ObjectiveMarkerDetachActionConfig::new(target_id))
+}
+
+fn emphasize(verb: &str) -> EventActionConfig {
+    EventActionConfig::HintEmphasisSet(HintEmphasisSetActionConfig::new(verb))
+}
+
+fn deemphasize(verb: &str) -> EventActionConfig {
+    EventActionConfig::HintEmphasisClear(HintEmphasisClearActionConfig::new(verb))
+}
+
 fn spawn(object: ScenarioObjectConfig) -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(object)
 }
@@ -422,6 +443,11 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                         OBJ_B1,
                         "Systems online. Burn for BEACON 1 - hold [W] to burn, tap [X] to stop. (A training governor caps your speed.)",
                     ),
+                    // The gold marker rides the current leg's target
+                    // (conveyance layer 2, task 20260712-093831); its
+                    // beacon chip yields while marked, so each beacon
+                    // shows exactly one chip.
+                    mark(ID_BEACON_1, "BEACON 1"),
                 ])
                 .collect(),
         },
@@ -443,6 +469,10 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                     OBJ_B2,
                     "Governor released. BEACON 2 is somewhere off your beam. Hold [Alt] to look around and find it.",
                 ),
+                // Marker hand-off: attach runs after the spawn above
+                // (action list order), so the fresh beacon is findable.
+                unmark(ID_BEACON_1),
+                mark(ID_BEACON_2, "BEACON 2"),
             ],
         },
         // Beat 2 -> 3: reach beacon 2; the debris cluster is right there.
@@ -456,6 +486,12 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                     OBJ_B3,
                     "Recover 3 supply crates from the debris cluster.",
                 ),
+                // All three crates carry the marker at once; each dies
+                // with its crate, so the survivors answer "which is left".
+                unmark(ID_BEACON_2),
+                mark("crate_1", "SALVAGE"),
+                mark("crate_2", "SALVAGE"),
+                mark("crate_3", "SALVAGE"),
             ],
         },
         // Beat 3 pickups: one handler per crate (the despawn action needs
@@ -519,6 +555,12 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                     OBJ_B4,
                     "Cargo secured. Lock BEACON 3 and press [G] - let the computer fly. Then press [O] and hold the orbit over the planetoid.",
                 ),
+                // The crates despawned with their pickups (markers went
+                // with them); the marker moves to the beat-4 lock target
+                // and the cluster's GOTO row pulses gold - the objective
+                // text, the lit row and the pulse all point at [G].
+                mark(ID_BEACON_3, "BEACON 3"),
+                emphasize("GOTO"),
             ],
         },
         // Beat 4 -> 5: the player has HELD an autopilot orbit around the
@@ -537,6 +579,11 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                     OBJ_B5,
                     "A scavenger is picking through the debris field you cleared. Drive it off - hold [RMB] to aim, [LMB] to fire.",
                 ),
+                // The hands-off lesson is done: the pulse stops, the
+                // marker jumps to the intruder (attach after its spawn).
+                deemphasize("GOTO"),
+                unmark(ID_BEACON_3),
+                mark(ID_PIRATE, "SCAVENGER"),
             ],
         },
         // Beat 5 end: pirate destroyed.
@@ -547,6 +594,10 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                 set(VAR_BEAT, num(6.0)),
                 complete(OBJ_B5),
                 objective(OBJ_DONE, "Shakedown complete. The belt is yours."),
+                // Defensive detach: the destroyed ship normally takes its
+                // marker down with it, but the free-flight epilogue must
+                // not depend on the wreck's despawn timing.
+                unmark(ID_PIRATE),
             ],
         },
         // Player death: back to the top (Enter confirms - linger).
@@ -614,8 +665,19 @@ mod tests {
             }
         }
         for action in all_actions(&config) {
-            if let EventActionConfig::DespawnScenarioObject(despawn) = action {
-                referenced.push(despawn.id.clone());
+            match action {
+                EventActionConfig::DespawnScenarioObject(despawn) => {
+                    referenced.push(despawn.id.clone());
+                }
+                // Marker targets are id strings too - a typo'd attach is a
+                // silently missing marker.
+                EventActionConfig::ObjectiveMarkerAttach(attach) => {
+                    referenced.push(attach.target_id.clone());
+                }
+                EventActionConfig::ObjectiveMarkerDetach(detach) => {
+                    referenced.push(detach.target_id.clone());
+                }
+                _ => {}
             }
         }
 
@@ -627,6 +689,150 @@ mod tests {
                 spawned
             );
         }
+    }
+
+    /// The conveyance choreography (task 20260712-093831), pinned at the
+    /// config level: every leg's target is marked, hand-offs detach the
+    /// previous marker, an attach that shares a handler with its target's
+    /// spawn comes AFTER the spawn (actions queue in list order - an
+    /// attach before the spawn resolves nothing), and the beat-4 GOTO
+    /// emphasis is cleared by the orbit handler.
+    #[test]
+    fn the_marker_rides_every_leg_and_hands_off() {
+        let config = scenario();
+
+        // Handler index -> (attach targets, detach targets) in order.
+        let marker_ops = |event: &ScenarioEventConfig| {
+            let mut attaches = Vec::new();
+            let mut detaches = Vec::new();
+            for action in &event.actions {
+                match action {
+                    EventActionConfig::ObjectiveMarkerAttach(attach) => {
+                        attaches.push(attach.target_id.clone());
+                    }
+                    EventActionConfig::ObjectiveMarkerDetach(detach) => {
+                        detaches.push(detach.target_id.clone());
+                    }
+                    _ => {}
+                }
+            }
+            (attaches, detaches)
+        };
+
+        // OnStart marks beacon 1.
+        let on_start = config
+            .events
+            .iter()
+            .find(|event| matches!(event.name, EventConfig::OnStart))
+            .unwrap();
+        assert_eq!(marker_ops(on_start).0, vec![ID_BEACON_1.to_string()]);
+
+        // Attach-after-spawn ordering: in every handler that both spawns
+        // an object and attaches a marker to it, the spawn comes first.
+        for event in &config.events {
+            let mut spawned_so_far: Vec<&str> = Vec::new();
+            let spawned_by_this_handler: Vec<String> = {
+                // Ids spawned by OTHER handlers before this one can run are
+                // not checkable statically; restrict the ordering assert to
+                // ids this same handler spawns.
+                event
+                    .actions
+                    .iter()
+                    .filter_map(|action| match action {
+                        EventActionConfig::SpawnScenarioObject(object) => {
+                            Some(object.base.id.clone())
+                        }
+                        _ => None,
+                    })
+                    .collect()
+            };
+            for action in &event.actions {
+                match action {
+                    EventActionConfig::SpawnScenarioObject(object) => {
+                        spawned_so_far.push(object.base.id.as_str());
+                    }
+                    EventActionConfig::ObjectiveMarkerAttach(attach)
+                        if spawned_by_this_handler.contains(&attach.target_id) =>
+                    {
+                        assert!(
+                            spawned_so_far.contains(&attach.target_id.as_str()),
+                            "attach to '{}' precedes its spawn in the same handler",
+                            attach.target_id
+                        );
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        // Hand-offs: the beat 1->2 handler detaches beacon 1 and marks
+        // beacon 2; beat 2->3 detaches beacon 2 and marks all crates;
+        // beat 3->4 marks beacon 3; the orbit handler detaches beacon 3
+        // and marks the pirate; done detaches the pirate.
+        let handler_with_attach = |target: &str| {
+            config
+                .events
+                .iter()
+                .find(|event| marker_ops(event).0.iter().any(|id| id == target))
+                .unwrap_or_else(|| panic!("some handler attaches to '{}'", target))
+        };
+        assert_eq!(
+            marker_ops(handler_with_attach(ID_BEACON_2)).1,
+            vec![ID_BEACON_1.to_string()]
+        );
+        let crates_handler = handler_with_attach("crate_1");
+        assert_eq!(marker_ops(crates_handler).1, vec![ID_BEACON_2.to_string()]);
+        assert_eq!(
+            marker_ops(crates_handler).0,
+            vec!["crate_1", "crate_2", "crate_3"]
+        );
+        assert_eq!(
+            marker_ops(handler_with_attach(ID_PIRATE)).1,
+            vec![ID_BEACON_3.to_string()]
+        );
+        let done_handler = config
+            .events
+            .iter()
+            .find(|event| {
+                event.actions.iter().any(|action| {
+                    matches!(action, EventActionConfig::Objective(objective) if objective.id == OBJ_DONE)
+                })
+            })
+            .unwrap();
+        assert_eq!(marker_ops(done_handler).1, vec![ID_PIRATE.to_string()]);
+
+        // Emphasis pairing: every emphasized verb is cleared somewhere
+        // downstream (teardown covers death, but the happy path must not
+        // rely on it), and the GOTO pair sits on beat 4 -> orbit.
+        let mut set_verbs = Vec::new();
+        let mut cleared_verbs = Vec::new();
+        for action in all_actions(&config) {
+            match action {
+                EventActionConfig::HintEmphasisSet(set) => set_verbs.push(set.verb.clone()),
+                EventActionConfig::HintEmphasisClear(clear) => {
+                    cleared_verbs.push(clear.verb.clone())
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(set_verbs, vec!["GOTO".to_string()]);
+        assert_eq!(cleared_verbs, vec!["GOTO".to_string()]);
+        let beat4_handler = handler_with_attach(ID_BEACON_3);
+        assert!(
+            beat4_handler
+                .actions
+                .iter()
+                .any(|action| matches!(action, EventActionConfig::HintEmphasisSet(_))),
+            "the GOTO emphasis rides the beat-4 handler"
+        );
+        let orbit_handler = handler_with_attach(ID_PIRATE);
+        assert!(
+            orbit_handler
+                .actions
+                .iter()
+                .any(|action| matches!(action, EventActionConfig::HintEmphasisClear(_))),
+            "the orbit handler retires the GOTO emphasis"
+        );
     }
 
     /// The ambush choreography: the pirate is NOT part of the opening
@@ -904,6 +1110,9 @@ mod tests {
         app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
         app.init_resource::<NovaEventWorld>();
         app.init_resource::<GameObjectives>();
+        // Production inits this in the HUD plugin; the emphasis actions
+        // write it through the same drain the walk exercises.
+        app.init_resource::<HintEmphasis>();
         app.add_plugins(ScenarioObjectsPlugin { render: false });
         app.finish();
 
@@ -1030,10 +1239,24 @@ mod tests {
                 .find(|(_, entity_id)| entity_id.0 == id)
                 .map(|(entity, _)| entity)
         };
+        let marker_label = |app: &mut App, id: &str| -> Option<String> {
+            let entity = entity_with_id(app, id)?;
+            app.world()
+                .get::<ObjectiveMarkerTarget>(entity)
+                .map(|marker| marker.label.clone())
+        };
+        let goto_emphasized =
+            |app: &App| -> bool { app.world().resource::<HintEmphasis>().contains("GOTO") };
+
         // Boot: OnStart is what the loader fires after registration.
         boot(&mut app);
 
         assert_eq!(beat(&app), 1.0);
+        assert_eq!(
+            marker_label(&mut app, ID_BEACON_1).as_deref(),
+            Some("BEACON 1"),
+            "the gold marker rides beacon 1 from the start"
+        );
         assert!(has_objective(&app, OBJ_B1), "beat 1 objective is up");
         assert!(
             entity_with_id(&mut app, ID_PLAYER).is_some(),
@@ -1065,6 +1288,12 @@ mod tests {
             app.world().get::<FlightSpeedCap>(player).is_none(),
             "reaching beacon 1 releases the training governor"
         );
+        // Marker hand-off: beacon 1 yields, the fresh beacon 2 carries it.
+        assert_eq!(marker_label(&mut app, ID_BEACON_1), None);
+        assert_eq!(
+            marker_label(&mut app, ID_BEACON_2).as_deref(),
+            Some("BEACON 2")
+        );
 
         // A stray re-entry into beacon 1 must not re-fire the beat.
         enter(&mut app, ID_BEACON_1);
@@ -1074,6 +1303,15 @@ mod tests {
         enter(&mut app, ID_BEACON_2);
         assert_eq!(beat(&app), 3.0);
         assert!(has_objective(&app, OBJ_B3));
+        // All three crates carry the marker at once.
+        assert_eq!(marker_label(&mut app, ID_BEACON_2), None);
+        for crate_id in ["crate_1", "crate_2", "crate_3"] {
+            assert_eq!(
+                marker_label(&mut app, crate_id).as_deref(),
+                Some("SALVAGE"),
+                "{crate_id} is marked for the sweep"
+            );
+        }
 
         // Beat 3: the salvage sweep. Tally text follows the count via the
         // OnUpdate milestones; crates despawn on pickup.
@@ -1105,6 +1343,14 @@ mod tests {
             entity_with_id(&mut app, ID_PIRATE).is_none(),
             "beat 4 is pirate-free (playtest finding 4)"
         );
+        // Beat 4 conveyance: the marker rides the lock target and the
+        // cluster's GOTO row is emphasized - text, row and pulse all
+        // point at [G].
+        assert_eq!(
+            marker_label(&mut app, ID_BEACON_3).as_deref(),
+            Some("BEACON 3")
+        );
+        assert!(goto_emphasized(&app), "beat 4 emphasizes GOTO");
 
         // Beat 4 -> 5: HOLDING the orbit completes the beat and only then
         // does the scavenger slip into the debris field.
@@ -1115,12 +1361,27 @@ mod tests {
             entity_with_id(&mut app, ID_PIRATE).is_some(),
             "the pirate spawns with the beat-5 reveal"
         );
+        // The hands-off lesson retires: emphasis off, marker on the
+        // intruder.
+        assert!(
+            !goto_emphasized(&app),
+            "the orbit handler retires the GOTO emphasis"
+        );
+        assert_eq!(marker_label(&mut app, ID_BEACON_3), None);
+        assert_eq!(
+            marker_label(&mut app, ID_PIRATE).as_deref(),
+            Some("SCAVENGER")
+        );
 
         // Beat 5 -> done: the scavenger driven off.
         destroy(&mut app, ID_PIRATE);
         assert_eq!(beat(&app), 6.0);
         assert!(!has_objective(&app, OBJ_B5));
         assert!(has_objective(&app, OBJ_DONE), "the run completes");
+        // Free flight is marker-free: the done handler's defensive detach
+        // (the rig's destroy event does not despawn the wreck, so the
+        // detach action is what clears it here).
+        assert_eq!(marker_label(&mut app, ID_PIRATE), None);
     }
 
     /// The pirate exists only from the beat-5 reveal on (playtest finding

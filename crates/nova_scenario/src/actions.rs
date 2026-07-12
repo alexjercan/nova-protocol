@@ -9,9 +9,11 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         base_scenario_object, BaseScenarioObjectConfig, DebugMessageActionConfig,
-        DespawnScenarioObjectActionConfig, EventActionConfig, NextScenarioActionConfig,
-        ObjectiveActionConfig, ObjectiveCompleteActionConfig, ScenarioAreaConfig,
-        ScenarioObjectConfig, ScenarioObjectKind, SetSpeedCapActionConfig, VariableSetActionConfig,
+        DespawnScenarioObjectActionConfig, EventActionConfig, HintEmphasisClearActionConfig,
+        HintEmphasisSetActionConfig, NextScenarioActionConfig, ObjectiveActionConfig,
+        ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
+        ObjectiveMarkerDetachActionConfig, ScenarioAreaConfig, ScenarioObjectConfig,
+        ScenarioObjectKind, SetSpeedCapActionConfig, VariableSetActionConfig,
     };
 }
 
@@ -21,6 +23,10 @@ pub enum EventActionConfig {
     VariableSet(VariableSetActionConfig),
     Objective(ObjectiveActionConfig),
     ObjectiveComplete(ObjectiveCompleteActionConfig),
+    ObjectiveMarkerAttach(ObjectiveMarkerAttachActionConfig),
+    ObjectiveMarkerDetach(ObjectiveMarkerDetachActionConfig),
+    HintEmphasisSet(HintEmphasisSetActionConfig),
+    HintEmphasisClear(HintEmphasisClearActionConfig),
     SpawnScenarioObject(ScenarioObjectConfig),
     DespawnScenarioObject(DespawnScenarioObjectActionConfig),
     SetSpeedCap(SetSpeedCapActionConfig),
@@ -41,6 +47,18 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
                 config.action(world, info);
             }
             EventActionConfig::ObjectiveComplete(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::ObjectiveMarkerAttach(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::ObjectiveMarkerDetach(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::HintEmphasisSet(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::HintEmphasisClear(config) => {
                 config.action(world, info);
             }
             EventActionConfig::SpawnScenarioObject(config) => {
@@ -203,6 +221,183 @@ impl EventAction<NovaEventWorld> for DespawnScenarioObjectActionConfig {
                         entity_mut.despawn();
                     }
                 }
+            });
+        });
+    }
+}
+
+/// Attach the gold objective marker (task 20260712-093831) to the scenario
+/// object whose [`EntityId`] matches `target_id`: inserts
+/// [`ObjectiveMarkerTarget`] with `label`, and the HUD's objective-markers
+/// observer grows the chip. Scoped-only lookup, same rule as
+/// DespawnScenarioObject. Attaching to an already-marked entity just
+/// updates the label.
+#[derive(Clone, Debug)]
+pub struct ObjectiveMarkerAttachActionConfig {
+    pub target_id: String,
+    /// The short name the marker chip shows next to the distance.
+    pub label: String,
+}
+
+impl ObjectiveMarkerAttachActionConfig {
+    /// Construct from string slices.
+    pub fn new(target_id: &str, label: &str) -> Self {
+        Self {
+            target_id: target_id.to_string(),
+            label: label.to_string(),
+        }
+    }
+}
+
+impl EventAction<NovaEventWorld> for ObjectiveMarkerAttachActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let id = self.target_id.clone();
+        let label = self.label.clone();
+        debug!("ObjectiveMarkerAttach: '{}' <- '{}'", id, label);
+
+        // Same shape as DespawnScenarioObject: the id lookup needs world
+        // access, so the queued command resolves and inserts in one step -
+        // which also means an attach ordered after a spawn in the same
+        // handler sees the freshly spawned entity.
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                let mut query =
+                    world.query_filtered::<(Entity, &EntityId), With<ScenarioScopedMarker>>();
+                let matches: Vec<Entity> = query
+                    .iter(world)
+                    .filter(|(_, entity_id)| entity_id.0 == id)
+                    .map(|(entity, _)| entity)
+                    .collect();
+                if matches.is_empty() {
+                    warn!(
+                        "ObjectiveMarkerAttach: no scoped entity with id '{}'; check the \
+                         scenario for a typo or an attach before the spawn",
+                        id
+                    );
+                }
+                for entity in matches {
+                    if let Ok(mut entity_mut) = world.get_entity_mut(entity) {
+                        entity_mut.insert(ObjectiveMarkerTarget::new(&label));
+                    }
+                }
+            });
+        });
+    }
+}
+
+/// Detach the objective marker from the scenario object whose [`EntityId`]
+/// matches `target_id` (no-op with a warning when nothing matches; a
+/// marker whose entity despawned is already detached - the chip died with
+/// it).
+#[derive(Clone, Debug)]
+pub struct ObjectiveMarkerDetachActionConfig {
+    pub target_id: String,
+}
+
+impl ObjectiveMarkerDetachActionConfig {
+    /// Construct from a string slice.
+    pub fn new(target_id: &str) -> Self {
+        Self {
+            target_id: target_id.to_string(),
+        }
+    }
+}
+
+impl EventAction<NovaEventWorld> for ObjectiveMarkerDetachActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let id = self.target_id.clone();
+        debug!("ObjectiveMarkerDetach: '{}'", id);
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                let mut query =
+                    world.query_filtered::<(Entity, &EntityId), With<ScenarioScopedMarker>>();
+                let matches: Vec<Entity> = query
+                    .iter(world)
+                    .filter(|(_, entity_id)| entity_id.0 == id)
+                    .map(|(entity, _)| entity)
+                    .collect();
+                if matches.is_empty() {
+                    // Quieter than attach: detaching an entity that already
+                    // despawned (crate picked up) is a legitimate script
+                    // shape, not necessarily a typo.
+                    debug!("ObjectiveMarkerDetach: no scoped entity with id '{}'", id);
+                }
+                for entity in matches {
+                    if let Ok(mut entity_mut) = world.get_entity_mut(entity) {
+                        entity_mut.remove::<ObjectiveMarkerTarget>();
+                    }
+                }
+            });
+        });
+    }
+}
+
+/// Emphasize one keybind-hint row (task 20260712-093831): pushes `verb`
+/// into nova_gameplay's [`HintEmphasis`] resource, so the cluster pulses
+/// that row toward objective gold until a `HintEmphasisClear` (or scenario
+/// teardown) drops it. Only [`ROW_VERBS`] names are valid; the resource
+/// refuses unknown verbs with a warning.
+#[derive(Clone, Debug)]
+pub struct HintEmphasisSetActionConfig {
+    pub verb: String,
+}
+
+impl HintEmphasisSetActionConfig {
+    /// Construct from a string slice.
+    pub fn new(verb: &str) -> Self {
+        Self {
+            verb: verb.to_string(),
+        }
+    }
+}
+
+impl EventAction<NovaEventWorld> for HintEmphasisSetActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let verb = self.verb.clone();
+        debug!("HintEmphasisSet: '{}'", verb);
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                // get_resource_mut, not resource_mut: headless rigs that
+                // exercise scenario scripts without the HUD plugins have no
+                // emphasis resource, and the action must not panic there.
+                let Some(mut emphasis) = world.get_resource_mut::<HintEmphasis>() else {
+                    warn!("HintEmphasisSet: no HintEmphasis resource (HUD not loaded)");
+                    return;
+                };
+                emphasis.set(&verb);
+            });
+        });
+    }
+}
+
+/// Drop the emphasis on one keybind-hint row (see [`HintEmphasisSetActionConfig`]).
+#[derive(Clone, Debug)]
+pub struct HintEmphasisClearActionConfig {
+    pub verb: String,
+}
+
+impl HintEmphasisClearActionConfig {
+    /// Construct from a string slice.
+    pub fn new(verb: &str) -> Self {
+        Self {
+            verb: verb.to_string(),
+        }
+    }
+}
+
+impl EventAction<NovaEventWorld> for HintEmphasisClearActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let verb = self.verb.clone();
+        debug!("HintEmphasisClear: '{}'", verb);
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                let Some(mut emphasis) = world.get_resource_mut::<HintEmphasis>() else {
+                    return;
+                };
+                emphasis.clear(&verb);
             });
         });
     }
@@ -413,6 +608,126 @@ mod tests {
         NovaEventWorld::state_to_world_system(&mut world);
 
         assert!(world.get_entity(bystander).is_ok());
+    }
+
+    /// The marker attach/detach pair drives the [`ObjectiveMarkerTarget`]
+    /// component on exactly the scoped object with the id - unscoped
+    /// entities with colliding ids (ship sections) are never marked, and a
+    /// re-attach updates the label in place.
+    #[test]
+    fn objective_marker_attach_and_detach_drive_the_component() {
+        use bevy_common_systems::prelude::EventWorld;
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+
+        let beacon = world
+            .spawn((ScenarioScopedMarker, EntityId::new("beacon_1".to_string())))
+            .id();
+        let section = world.spawn(EntityId::new("beacon_1".to_string())).id();
+
+        let attach = ObjectiveMarkerAttachActionConfig::new("beacon_1", "BEACON 1");
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        attach.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        assert_eq!(
+            world
+                .get::<ObjectiveMarkerTarget>(beacon)
+                .map(|marker| marker.label.as_str()),
+            Some("BEACON 1"),
+            "the scoped object is marked"
+        );
+        assert!(
+            world.get::<ObjectiveMarkerTarget>(section).is_none(),
+            "an unscoped entity with the same id (a ship section) is never marked"
+        );
+
+        // Re-attach updates the label in place (no detach needed between).
+        let relabel = ObjectiveMarkerAttachActionConfig::new("beacon_1", "NEXT");
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        relabel.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+        assert_eq!(
+            world
+                .get::<ObjectiveMarkerTarget>(beacon)
+                .map(|marker| marker.label.as_str()),
+            Some("NEXT")
+        );
+
+        let detach = ObjectiveMarkerDetachActionConfig::new("beacon_1");
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        detach.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+        assert!(
+            world.get::<ObjectiveMarkerTarget>(beacon).is_none(),
+            "detach removes the marker"
+        );
+    }
+
+    /// Attach/detach against a missing id must warn and complete, not
+    /// crash - the detach-after-despawn shape is legitimate script data
+    /// (crate picked up before its detach action runs).
+    #[test]
+    fn objective_marker_actions_with_missing_id_are_harmless() {
+        use bevy_common_systems::prelude::EventWorld;
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+        let bystander = world
+            .spawn((ScenarioScopedMarker, EntityId::new("beacon_1".to_string())))
+            .id();
+
+        for action in [
+            EventActionConfig::ObjectiveMarkerAttach(ObjectiveMarkerAttachActionConfig::new(
+                "no_such_id",
+                "GHOST",
+            )),
+            EventActionConfig::ObjectiveMarkerDetach(ObjectiveMarkerDetachActionConfig::new(
+                "no_such_id",
+            )),
+        ] {
+            let mut event_world = world.resource_mut::<NovaEventWorld>();
+            action.action(&mut event_world, &GameEventInfo::default());
+            NovaEventWorld::state_to_world_system(&mut world);
+        }
+
+        assert!(world.get_entity(bystander).is_ok());
+        assert!(world.get::<ObjectiveMarkerTarget>(bystander).is_none());
+    }
+
+    /// The emphasis pair mutates nova_gameplay's HintEmphasis resource
+    /// through the queued-command drain; without the resource (headless
+    /// scenario rigs) both are warn-and-continue no-ops.
+    #[test]
+    fn hint_emphasis_actions_drive_the_resource() {
+        use bevy_common_systems::prelude::EventWorld;
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+
+        // Without the resource: harmless.
+        let set = HintEmphasisSetActionConfig::new("GOTO");
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        set.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        // With it: set lands, clear drops.
+        world.init_resource::<HintEmphasis>();
+        let set = HintEmphasisSetActionConfig::new("GOTO");
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        set.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+        assert!(world.resource::<HintEmphasis>().contains("GOTO"));
+
+        let clear = HintEmphasisClearActionConfig::new("GOTO");
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        clear.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+        assert!(!world.resource::<HintEmphasis>().contains("GOTO"));
     }
 
     /// Every dynamic scenario body must interpolate its Transform between
