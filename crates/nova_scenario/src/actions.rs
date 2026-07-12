@@ -559,6 +559,58 @@ mod tests {
         );
     }
 
+    /// SetControllerVerb writes EVERY controller section on the ship, so the
+    /// union the input layer reads (verb available if ANY live controller
+    /// grants it) reflects the change no matter which controller it samples.
+    #[test]
+    fn set_controller_verb_writes_all_controllers_on_the_ship() {
+        use bevy_common_systems::prelude::EventWorld;
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+
+        let ship = world
+            .spawn((
+                ScenarioScopedMarker,
+                SpaceshipRootMarker,
+                EntityId::new("twin".to_string()),
+            ))
+            .id();
+        let ctrl_a = world
+            .spawn((
+                ChildOf(ship),
+                ControllerSectionMarker,
+                ControllerVerbs::default(),
+            ))
+            .id();
+        let ctrl_b = world
+            .spawn((
+                ChildOf(ship),
+                ControllerSectionMarker,
+                ControllerVerbs::default(),
+            ))
+            .id();
+
+        let disable = SetControllerVerbActionConfig {
+            id: "twin".to_string(),
+            verb: FlightVerb::Stop,
+            enabled: false,
+        };
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        disable.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        assert!(
+            !world.get::<ControllerVerbs>(ctrl_a).unwrap().stop,
+            "first controller written"
+        );
+        assert!(
+            !world.get::<ControllerVerbs>(ctrl_b).unwrap().stop,
+            "second controller written too"
+        );
+    }
+
     /// Every dynamic scenario body must interpolate its Transform between
     /// fixed physics ticks, or it stair-steps under the smoothed chase
     /// camera (task 20260709-160753).

@@ -139,7 +139,7 @@ fn update_flight_verb_hints(
     q_sections: Query<&ChildOf, With<SectionMarker>>,
     q_ship: Query<(Entity, Option<&Autopilot>, Option<&DominantWell>), With<PlayerSpaceshipMarker>>,
     q_computer: Query<
-        (&ChildOf, &ControllerVerbs),
+        (&ChildOf, Option<&ControllerVerbs>),
         (
             With<ControllerSectionMarker>,
             With<PDController>,
@@ -180,13 +180,16 @@ fn update_flight_verb_hints(
     });
     // The individual maneuvers are a capability the controller GRANTS: a verb
     // lights only if some live controller on this ship enables it (union across
-    // controllers), on top of `flyable`. No controller -> no grant -> already
-    // dark via `flyable`. The `SetControllerVerb` scenario action flips these.
+    // controllers), on top of `flyable`. The verb flags are kept SEPARATE from
+    // `flyable` above (which only asks "is there a live controller + engine")
+    // so a controller missing the flags component can never brick the ship - it
+    // just falls back to the all-on default (matching `ControllerVerbs::default`
+    // and the pre-flags behavior). The `SetControllerVerb` action flips these.
     let verb_granted = |verb: FlightVerb| -> bool {
         ship.is_some_and(|ship| {
-            q_computer
-                .iter()
-                .any(|(&ChildOf(parent), verbs)| parent == ship && verbs.granted(verb))
+            q_computer.iter().any(|(&ChildOf(parent), verbs)| {
+                parent == ship && verbs.is_none_or(|verbs| verbs.granted(verb))
+            })
         })
     };
     let engaged = autopilot.is_some();
@@ -697,13 +700,15 @@ fn on_flight_burn_input_completed(
     intent.burn = 0.0;
 }
 
-/// Query over every live controller section and its granted verbs, shared by
-/// the three maneuver observers so they gate execution on the same
-/// controller-provided capability the hint pass shows.
+/// Query over every live controller section and its (optional) granted verbs,
+/// shared by the three maneuver observers so they gate execution on the same
+/// controller-provided capability the hint pass shows. `ControllerVerbs` is
+/// optional for the same reason as in the hint pass: a controller missing the
+/// flags falls back to the all-on default rather than becoming ungovernable.
 type ControllerVerbQuery<'w, 's> = Query<
     'w,
     's,
-    (&'static ChildOf, &'static ControllerVerbs),
+    (&'static ChildOf, Option<&'static ControllerVerbs>),
     (
         With<ControllerSectionMarker>,
         With<PDController>,
@@ -718,7 +723,7 @@ type ControllerVerbQuery<'w, 's> = Query<
 fn ship_grants_verb(ship: Entity, verb: FlightVerb, q_verbs: &ControllerVerbQuery) -> bool {
     q_verbs
         .iter()
-        .any(|(&ChildOf(parent), verbs)| parent == ship && verbs.granted(verb))
+        .any(|(&ChildOf(parent), verbs)| parent == ship && verbs.is_none_or(|v| v.granted(verb)))
 }
 
 fn on_autopilot_stop_input(
@@ -1492,6 +1497,38 @@ mod tests {
             ),
             "GOTO granted: the keypress engages GOTO on the lock"
         );
+    }
+
+    /// A controller that predates the flags (no `ControllerVerbs` component)
+    /// must stay flyable and grant every verb - the flags are decoupled from
+    /// `flyable`, so a missing component falls back to the all-on default and
+    /// never bricks the ship. Guards the fail-closed hazard (review MINOR 1).
+    #[test]
+    fn controller_without_verb_flags_is_flyable_and_grants_all_verbs() {
+        let mut world = hint_world();
+        // A live controller WITHOUT ControllerVerbs, plus a thruster: not the
+        // production bundle, but the shape a legacy/hand-built spawn could take.
+        let ship = world.spawn(PlayerSpaceshipMarker).id();
+        world.spawn((
+            ChildOf(ship),
+            ControllerSectionMarker,
+            PDController {
+                frequency: 4.0,
+                damping_ratio: 4.0,
+                max_torque: 40.0,
+            },
+        ));
+        world.spawn((ChildOf(ship), ThrusterSectionMarker));
+        let lock = world.spawn_empty().id();
+        let well = world.spawn_empty().id();
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(lock)));
+        world.entity_mut(ship).insert(DominantWell(well));
+
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert!(hints.stop.available, "flyable despite no flags component");
+        assert!(hints.goto.available, "GOTO defaults on without flags");
+        assert!(hints.orbit.available, "ORBIT defaults on without flags");
     }
 
     #[test]
