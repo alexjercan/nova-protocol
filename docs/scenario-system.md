@@ -126,6 +126,9 @@ Run in order when an event passes its filters:
   `SpawnScenarioObject`, e.g. removing a salvage crate on pickup.
 - `CreateScenarioArea(ScenarioAreaConfig)` - create a spherical trigger zone (drives
   `OnEnter` / `OnExit`).
+- `SetSpeedCap(SetSpeedCapActionConfig)` - install (`Some(cap)`) or remove (`None`)
+  the manual `FlightSpeedCap` on a scoped ship by id (the shakedown training
+  governor releases at beacon 1).
 - `NextScenario(NextScenarioActionConfig)` - switch to another scenario by id (with a
   `linger` flag to defer the switch).
 

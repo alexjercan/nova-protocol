@@ -2,6 +2,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 use nova_events::prelude::*;
+use nova_gameplay::prelude::*;
 
 use crate::prelude::*;
 
@@ -10,7 +11,7 @@ pub mod prelude {
         base_scenario_object, BaseScenarioObjectConfig, DebugMessageActionConfig,
         DespawnScenarioObjectActionConfig, EventActionConfig, NextScenarioActionConfig,
         ObjectiveActionConfig, ObjectiveCompleteActionConfig, ScenarioAreaConfig,
-        ScenarioObjectConfig, ScenarioObjectKind, VariableSetActionConfig,
+        ScenarioObjectConfig, ScenarioObjectKind, SetSpeedCapActionConfig, VariableSetActionConfig,
     };
 }
 
@@ -22,6 +23,7 @@ pub enum EventActionConfig {
     ObjectiveComplete(ObjectiveCompleteActionConfig),
     SpawnScenarioObject(ScenarioObjectConfig),
     DespawnScenarioObject(DespawnScenarioObjectActionConfig),
+    SetSpeedCap(SetSpeedCapActionConfig),
     CreateScenarioArea(ScenarioAreaConfig),
     NextScenario(NextScenarioActionConfig),
 }
@@ -45,6 +47,9 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
                 config.action(world, info);
             }
             EventActionConfig::DespawnScenarioObject(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::SetSpeedCap(config) => {
                 config.action(world, info);
             }
             EventActionConfig::CreateScenarioArea(config) => {
@@ -196,6 +201,49 @@ impl EventAction<NovaEventWorld> for DespawnScenarioObjectActionConfig {
                     // descendant with it (review R1.1).
                     if let Ok(entity_mut) = world.get_entity_mut(entity) {
                         entity_mut.despawn();
+                    }
+                }
+            });
+        });
+    }
+}
+
+/// Set or clear the manual [`FlightSpeedCap`] on a scenario ship by id
+/// (the shakedown training governor releases at beacon 1; playtest round
+/// 2 finding 3). Scoped-only lookup, same rule as DespawnScenarioObject.
+#[derive(Clone, Debug)]
+pub struct SetSpeedCapActionConfig {
+    pub id: String,
+    /// `Some(cap)` installs/updates the cap (u/s); `None` removes it.
+    pub cap: Option<f32>,
+}
+
+impl EventAction<NovaEventWorld> for SetSpeedCapActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let id = self.id.clone();
+        let cap = self.cap;
+        debug!("SetSpeedCap: '{}' -> {:?}", id, cap);
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                let mut query = world.query_filtered::<(Entity, &EntityId), (
+                    With<ScenarioScopedMarker>,
+                    With<SpaceshipRootMarker>,
+                )>();
+                let Some(ship) = query
+                    .iter(world)
+                    .find(|(_, entity_id)| entity_id.0 == id)
+                    .map(|(entity, _)| entity)
+                else {
+                    warn!("SetSpeedCap: no scoped ship with id '{}'", id);
+                    return;
+                };
+                match cap {
+                    Some(cap) => {
+                        world.entity_mut(ship).insert(FlightSpeedCap(cap));
+                    }
+                    None => {
+                        world.entity_mut(ship).remove::<FlightSpeedCap>();
                     }
                 }
             });

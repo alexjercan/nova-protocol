@@ -222,6 +222,7 @@ impl Plugin for TurretSectionPlugin {
         debug!("TurretSectionPlugin: build");
 
         app.add_observer(insert_turret_section);
+        app.add_observer(despawn_bullet_on_hit);
 
         if self.render {
             app.add_observer(insert_turret_section_render);
@@ -277,6 +278,46 @@ impl Plugin for TurretSectionPlugin {
                 .in_set(TurretSectionAimSystems)
                 .in_set(super::SpaceshipSectionSystems),
         );
+    }
+}
+
+/// A bullet dies on its first contact with something TANGIBLE. Bullets
+/// are Sensor colliders (no solver response - see the spawn bundle), so
+/// without this a round would cross the target and keep starting
+/// collisions (and dealing damage) against event-enabled colliders along
+/// its line. The bcs damage observer runs on the same CollisionStart
+/// before this despawn command applies, so the first hit's damage always
+/// lands.
+///
+/// The OTHER side must not itself be a pure volume: scenario trigger
+/// areas, beacon spheres and blast shells are Sensor colliders with
+/// collision events enabled, and expending rounds at a beacon's 70u
+/// trigger boundary made the pirate un-hittable while it patrolled near
+/// one (review R1.1 BLOCKER of task 20260712-121101). A sensor-vs-sensor
+/// pair is two intangibles crossing - nothing to expend on.
+fn despawn_bullet_on_hit(
+    collision: On<CollisionStart>,
+    mut commands: Commands,
+    q_bullets: Query<(), With<TurretBulletProjectileMarker>>,
+    q_sensors: Query<(), With<Sensor>>,
+) {
+    let pairs = [
+        (collision.body1, collision.collider2),
+        (collision.body2, collision.collider1),
+    ];
+    for (body, other_collider) in pairs {
+        let Some(body) = body else {
+            continue;
+        };
+        if !q_bullets.contains(body) {
+            continue;
+        }
+        if q_sensors.contains(other_collider) {
+            // A trigger/blast volume: the round flies on through.
+            continue;
+        }
+        trace!("despawn_bullet_on_hit: bullet {:?} expended", body);
+        commands.entity(body).try_despawn();
     }
 }
 
@@ -905,7 +946,21 @@ fn shoot_spawn_projectile(
                 projectile_transform,
                 RigidBody::Dynamic,
                 LinearVelocity(linear_velocity),
-                Collider::sphere(0.05),
+                // Sensor: the impact-damage observer computes damage from
+                // masses and velocities, never from the solver contact -
+                // so a bullet needs NO physical contact response, and a
+                // solid one was the knockback bug (mass 0.1 at 100 u/s
+                // plus restitution shoved a ~4-mass ship ~3 u/s per hit;
+                // playtest round 2 finding 2). despawn_bullet_on_hit
+                // keeps a sensor round from crossing on through every
+                // collider behind the first. CollisionEventsEnabled is
+                // carried by the BULLET because the other side may not
+                // have it: an invulnerable planetoid's collider has no
+                // Health, so bcs never enables events on it, and an
+                // event-less sensor pair raises nothing - rounds tunneled
+                // straight through solid cover (review R1.2 MAJOR).
+                // Nested tuple: bundle arity.
+                (Collider::sphere(0.05), Sensor, CollisionEventsEnabled),
                 ActiveCollisionHooks::FILTER_PAIRS,
                 Mass(config.projectile_mass),
                 TurretSectionPartOf(turret),
@@ -1913,6 +1968,164 @@ mod tests {
     /// motion - at 150 u/s the stream scattered by whole units ("bullets
     /// spew out"). On the raw clock with sub-tick lead compensation the
     /// inter-bullet spacing is exact: every consecutive delta equals
+    /// Sensor bullets deal damage without knockback and die on the first
+    /// hit (playtest round 2 finding 2). Before the Sensor change, a
+    /// solid 0.1-mass round at 100 u/s shoved a unit-cube target ~2.5+
+    /// u/s per hit (momentum 10 into the target mass, amplified by
+    /// restitution 0.5) - "1 bullet sends you off like crazy". The bcs
+    /// damage observer computes from masses and velocities, not the
+    /// solver contact, so removing the contact response leaves damage
+    /// intact. Delivery guards: the health drop proves the hit landed
+    /// (a missed bullet would also read zero knockback), and the despawn
+    /// proves a sensor round cannot sail on through everything behind
+    /// the target.
+    #[test]
+    fn sensor_bullets_damage_without_knockback() {
+        use crate::{
+            integrity::test_support::{settle, unfinished_integrity_physics_app_with},
+            sections::projectile_hooks::ProjectileHooks,
+        };
+
+        let mut app = unfinished_integrity_physics_app_with(
+            PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
+        );
+        app.add_observer(despawn_bullet_on_hit);
+        app.finish();
+
+        // A free-floating target with health: one body, one collider.
+        let target = app
+            .world_mut()
+            .spawn((
+                Name::new("target"),
+                RigidBody::Dynamic,
+                Transform::default(),
+                Collider::cuboid(2.0, 2.0, 2.0),
+                ColliderDensity(1.0),
+                Health::new(100.0),
+            ))
+            .id();
+        settle(&mut app);
+
+        // A bullet as the turret spawns it (marker, sensor, mass, hot).
+        let bullet = app
+            .world_mut()
+            .spawn((
+                Name::new("bullet"),
+                TurretBulletProjectileMarker,
+                RigidBody::Dynamic,
+                Transform::from_translation(Vec3::Z * 5.0),
+                Sensor,
+                Collider::sphere(0.05),
+                Mass(0.1),
+                LinearVelocity(Vec3::NEG_Z * 100.0),
+            ))
+            .id();
+
+        // 5u at 100 u/s: contact within ~0.05s; run a quarter second.
+        for _ in 0..15 {
+            app.update();
+        }
+
+        let health = app
+            .world()
+            .get::<Health>(target)
+            .expect("target still exists")
+            .current;
+        assert!(
+            health < 100.0,
+            "delivery guard: the bullet must actually hit and damage, health {health}"
+        );
+        let speed = app
+            .world()
+            .get::<LinearVelocity>(target)
+            .expect("target body")
+            .length();
+        assert!(
+            speed < 0.05,
+            "a sensor bullet imparts no knockback (pre-fix: ~2.5+ u/s), got {speed}"
+        );
+        assert!(
+            app.world().get_entity(bullet).is_err(),
+            "the round is expended on its first hit"
+        );
+    }
+
+    /// The two collision-event blind spots review R1.1/R1.2 caught in the
+    /// sensor-bullet change: a round crossing a pure trigger volume (a
+    /// beacon sphere - Sensor + events, no solidity) must SURVIVE, or the
+    /// pirate goes un-hittable while patrolling near a beacon; and a round
+    /// into an event-less solid (an invulnerable planetoid's collider has
+    /// no Health, so bcs never enables events on it) must still expend
+    /// instead of tunneling through cover - the bullet carries its own
+    /// CollisionEventsEnabled for exactly that pair.
+    #[test]
+    fn bullets_ignore_trigger_volumes_and_stop_at_event_less_solids() {
+        use crate::{
+            integrity::test_support::{settle, unfinished_integrity_physics_app_with},
+            sections::projectile_hooks::ProjectileHooks,
+        };
+
+        let mut app = unfinished_integrity_physics_app_with(
+            PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
+        );
+        app.add_observer(despawn_bullet_on_hit);
+        app.finish();
+
+        // A beacon-style trigger volume in the flight path...
+        app.world_mut().spawn((
+            Name::new("trigger"),
+            RigidBody::Static,
+            Transform::from_translation(Vec3::Z * 6.0),
+            Collider::sphere(2.0),
+            Sensor,
+            CollisionEventsEnabled,
+        ));
+        // ...and an invulnerable-planetoid stand-in behind it: solid,
+        // no Health, no CollisionEventsEnabled of its own.
+        app.world_mut().spawn((
+            Name::new("event-less solid"),
+            RigidBody::Static,
+            Transform::default(),
+            Collider::cuboid(3.0, 3.0, 1.0),
+        ));
+        settle(&mut app);
+
+        let bullet = app
+            .world_mut()
+            .spawn((
+                Name::new("bullet"),
+                TurretBulletProjectileMarker,
+                RigidBody::Dynamic,
+                Transform::from_translation(Vec3::Z * 10.0),
+                (Collider::sphere(0.05), Sensor, CollisionEventsEnabled),
+                Mass(0.1),
+                LinearVelocity(Vec3::NEG_Z * 100.0),
+            ))
+            .id();
+
+        // Run to just past the trigger (4u of travel = 0.04s) but short of
+        // the solid: the round must still be alive after crossing the
+        // volume.
+        for _ in 0..4 {
+            app.update();
+        }
+        assert!(
+            app.world().get_entity(bullet).is_ok(),
+            "a round crossing a trigger volume must fly on (review R1.1)"
+        );
+
+        // Run into the solid: the round expends even though the solid has
+        // no events of its own.
+        for _ in 0..12 {
+            app.update();
+        }
+        assert!(
+            app.world().get_entity(bullet).is_err(),
+            "a round must stop at an event-less solid instead of tunneling \
+             (review R1.2)"
+        );
+    }
+
     /// muzzle_speed * fire_interval along the exit direction, regardless of
     /// ship velocity. The 24 rounds/s rate beats against the 64 Hz tick so
     /// shots sample every phase of the tick window.

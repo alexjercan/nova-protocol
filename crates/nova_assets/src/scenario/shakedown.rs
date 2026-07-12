@@ -53,14 +53,16 @@ const CRATE_POSITIONS: [Vec3; 3] = [
     Vec3::new(375.0, 10.0, -165.0),
 ];
 /// The stage dressing and beat-4 destination: a planetoid with a real
-/// gravity well. On low-factor seeds the SOI edge (560u+) is crossed on
-/// the GOTO leg; on high-factor seeds the debris cluster is already
-/// inside it (the [O] hint lights earlier - cosmetic, not structural).
-const PLANETOID_POS: Vec3 = Vec3::new(900.0, -60.0, -500.0);
+/// gravity well, far enough that even the WORST-seed SOI (960u) falls
+/// short of the debris cluster - playtest round 2 finding 1: at the old
+/// ~650u separation the player was fighting gravity while weaving
+/// crates. The SOI edge is now genuinely crossed mid-way through the
+/// beat-4 GOTO leg on every seed.
+const PLANETOID_POS: Vec3 = Vec3::new(1240.0, -105.0, -700.0);
 const PLANETOID_NOMINAL_RADIUS: f32 = 20.0;
 /// Beat 4's lock target: on the cluster-facing side of the planetoid,
-/// deep inside the smallest-seed SOI.
-const BEACON_3_POS: Vec3 = Vec3::new(682.0, -29.0, -362.0);
+/// deep inside the smallest-seed SOI, outside the widest orbit ring.
+const BEACON_3_POS: Vec3 = Vec3::new(1019.0, -74.0, -566.0);
 /// The pirate spawns back at the debris cluster while the player is on the
 /// beat-4 leg, and patrols it.
 const PIRATE_SPAWN: Vec3 = Vec3::new(380.0, 40.0, -100.0);
@@ -404,7 +406,7 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                     set(VAR_TALLY_SHOWN, num(0.0)),
                     objective(
                         OBJ_B1,
-                        "Systems online. Burn for BEACON 1 - hold [W] to burn.",
+                        "Systems online. Burn for BEACON 1 - hold [W] to burn. (A training governor caps your speed.)",
                     ),
                 ])
                 .collect(),
@@ -416,10 +418,16 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
             actions: vec![
                 set(VAR_BEAT, num(2.0)),
                 complete(OBJ_B1),
+                // The training governor releases once the pilot has proven
+                // a controlled leg (playtest round 2 finding 3).
+                EventActionConfig::SetSpeedCap(SetSpeedCapActionConfig {
+                    id: ID_PLAYER.to_string(),
+                    cap: None,
+                }),
                 spawn(beacon(ID_BEACON_2, "BEACON 2", BEACON_2_POS)),
                 objective(
                     OBJ_B2,
-                    "BEACON 2 is somewhere off your beam. Hold [Alt] to look around and find it.",
+                    "Governor released. BEACON 2 is somewhere off your beam. Hold [Alt] to look around and find it.",
                 ),
             ],
         },
@@ -777,6 +785,27 @@ mod tests {
             "beacon 3 clears the largest plausible geometric surface"
         );
 
+        // Playtest round 2 finding 1: the debris cluster (and every crate
+        // in it) must sit OUTSIDE the worst-seed SOI - the salvage beat is
+        // flown by hand, and fighting gravity while weaving crates reads
+        // as a bug, not a challenge.
+        let largest_soi = SOI_FACTOR * PLANETOID_NOMINAL_RADIUS * ASTEROID_GEOMETRIC_FACTOR_MAX;
+        let cluster_distance = DEBRIS_CENTER.distance(PLANETOID_POS);
+        assert!(
+            cluster_distance > largest_soi + 40.0,
+            "the debris cluster ({cluster_distance:.0}u from the planetoid) must clear \
+             the largest plausible SOI ({largest_soi:.0}u)"
+        );
+        for (i, crate_pos) in CRATE_POSITIONS.iter().enumerate() {
+            let distance = crate_pos.distance(PLANETOID_POS);
+            assert!(
+                distance > largest_soi + 40.0,
+                "crate_{} ({distance:.0}u) sits outside the largest plausible SOI \
+                 with margin",
+                i + 1
+            );
+        }
+
         // Review R2.3 (adapted): the beacon triggers must CONTAIN the
         // GOTO park point (playtest finding 2) - the autopilot stops
         // arrival_standoff from an unsized target, and a smaller trigger
@@ -995,6 +1024,13 @@ mod tests {
         );
         assert!(entity_with_id(&mut app, ID_PLANETOID).is_some());
         assert!(entity_with_id(&mut app, "crate_1").is_some());
+        // The training governor is aboard for beat 1 (delivery guard for
+        // the release assert below: the cap must exist to be removed).
+        let player = entity_with_id(&mut app, ID_PLAYER).unwrap();
+        assert!(
+            app.world().get::<FlightSpeedCap>(player).is_some(),
+            "the training governor caps the fresh ship"
+        );
 
         // Beat 1 -> 2.
         enter(&mut app, ID_BEACON_1);
@@ -1002,6 +1038,11 @@ mod tests {
         assert!(!has_objective(&app, OBJ_B1), "beat 1 objective completed");
         assert!(has_objective(&app, OBJ_B2));
         assert!(entity_with_id(&mut app, ID_BEACON_2).is_some());
+        // The governor releases with the beat (playtest round 2 finding 3).
+        assert!(
+            app.world().get::<FlightSpeedCap>(player).is_none(),
+            "reaching beacon 1 releases the training governor"
+        );
 
         // A stray re-entry into beacon 1 must not re-fire the beat.
         enter(&mut app, ID_BEACON_1);

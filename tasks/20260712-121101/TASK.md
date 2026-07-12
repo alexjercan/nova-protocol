@@ -1,6 +1,6 @@
 # Shakedown Run playtest round 2: gravity reach, bullet knockback, beat-scoped speed cap
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.5.0,scenario,bug,feel
 
@@ -13,7 +13,7 @@ verbatim in Notes.
 
 ## Steps
 
-- [ ] (finding 1) Move the planetoid out of gravity reach of the debris
+- [x] (finding 1) Move the planetoid out of gravity reach of the debris
       field: worst-seed SOI is 8 * 20 * ASTEROID_GEOMETRIC_FACTOR_MAX =
       960u, and the cluster currently sits ~650u from the planetoid -
       inside it on most seeds. New layout: PLANETOID_POS
@@ -23,7 +23,7 @@ verbatim in Notes.
       > 8 * nominal * FACTOR_MAX + margin, citing the exported consts.
       Update the layout comments (the SOI edge is now genuinely crossed
       on the beat-4 leg on every seed).
-- [ ] (finding 2) Kill bullet knockback without touching damage: the bcs
+- [x] (finding 2) Kill bullet knockback without touching damage: the bcs
       impact-damage observer computes damage from masses and velocities
       (integrity/plugin.rs:113-125) and never reads the solver contact -
       so make turret bullets `Sensor` colliders (no contact resolution,
@@ -36,7 +36,7 @@ verbatim in Notes.
       deals damage AND despawns; quantify the pre-fix knockback in the
       test comment (bullet momentum 0.1 * 100 = 10 into a ~4-mass ship
       = ~2.5 u/s per hit before restitution amplification).
-- [ ] (finding 3) Beat-scoped speed cap: new
+- [x] (finding 3) Beat-scoped speed cap: new
       `EventActionConfig::SetSpeedCap(SetSpeedCapActionConfig { id,
       cap: Option<f32> })` - resolves the scoped ship by EntityId and
       inserts/removes `FlightSpeedCap` (same scoped-only lookup rule as
@@ -45,7 +45,7 @@ verbatim in Notes.
       objective text mentions the governor in b1 ("training governor
       caps your speed") and its release in b2. Walk test asserts the cap
       component exists after boot and is gone after entering beacon 1.
-- [ ] Docs (scenario-system.md action list; CHANGELOG entries for all
+- [x] Docs (scenario-system.md action list; CHANGELOG entries for all
       three) and the full new-test set + check + fmt WITH --examples
       (the round-1 landing broke example builds because --tests does not
       cover them).
@@ -72,3 +72,19 @@ verbatim in Notes.
   back, add a small authored impulse in the despawn-on-hit observer
   later.
 - Follows: 20260712-110730 (round 1, CLOSED, landed d6f4a8c).
+
+## Close record
+
+All three findings fixed as planned; no plan deviations. Planetoid at
+(1200,-100,-680), cluster clearance ~1004u vs worst SOI 960u, pinned by
+new geometry asserts (cluster + every crate outside the largest SOI).
+Bullets are Sensor projectiles with a despawn-on-first-hit observer;
+the knockback test proves damage lands (health drop), knockback is zero
+(< 0.05 u/s vs ~2.5+ pre-fix), and the round expends. SetSpeedCap action
+releases the governor at beacon 1; the walk test asserts the cap exists
+at boot and is gone after the beat, and objective text names the
+governor in b1/b2. Checked with --examples (the round-1 landing gap).
+
+Tradeoff shipped: bullets no longer push debris rocks either; if the
+hit-shove juice is missed, a small authored impulse can ride the
+despawn observer later.
