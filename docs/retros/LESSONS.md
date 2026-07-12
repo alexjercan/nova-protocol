@@ -53,12 +53,18 @@ retros.
   skill): commit the fix before A/B sabotage; file-level `git checkout`
   restores the branch base, not your uncommitted work. 20260710-231930
   (~250 lines lost and redone).
-- `production-faithful-rigs` (x3, PROMOTED 2026-07-11 -> work skill):
+- `production-faithful-rigs` (x4, PROMOTED 2026-07-11 -> work skill):
   clock/schedule test rigs must mirror production scheduling components;
   a clean trace on a non-faithful rig is not evidence. 20260711-103527,
   20260710-231930, 20260711-140234 (arrival dynamics proved
   wiring-dependent; the regression had to be re-wired to production
-  mid-cycle).
+  mid-cycle). 20260525-133025: a headless ammo test ran only the torpedo
+  bay's fire system but NOT the separate `update_spawner_fire_state` that
+  ticks its timer in production, so the bay fired once and never re-armed;
+  and `Time<Virtual>`'s 0.25s max-delta clamp silently under-advanced a 2s
+  manual dt, starving the 1s fire interval. Two rig-vs-production mismatches
+  in one test - list every production system that ticks the state, and
+  bound the manual dt to the virtual clamp.
 - `presence-vs-behavior-tests` (x2): component-exists assertions stay
   green while the behavior regresses; assert the behavior.
   20260709-160753 (R1.2), applied in 20260710-231931.
@@ -102,12 +108,16 @@ retros.
 - `spike-fix-record` (positive pattern, PROMOTED 2026-07-11 -> spike
   skill): multi-task spikes keep a living fix-record section as the
   family's single source of current state. 20260711-103527 family.
-- `tatr-same-second-collision` (x3, documented 2026-07-11 -> tatr skill
+- `tatr-same-second-collision` (x4, documented 2026-07-11 -> tatr skill
   gotchas): consecutive `tatr new` calls in one second silently share an
   ID; sleep between calls. Filed from the 2026-07-11 session; hit again
   in 20260711-180426 (five tatr new in one command -> one task) and AGAIN
   in 20260711-212519's spike phase (three in one && chain) despite the
-  skill gotcha - the note does not fire when composing the command.
+  skill gotcha - the note does not fire when composing the command. FOURTH
+  time in 20260525-133004's spike phase (three tatr new in one script ->
+  one task, the other two overwritten) - the recovery is to rm the collided
+  task and re-create the three in SEPARATE tool calls, seconds apart. The
+  recurrence-despite-note is the argument for the mechanical fix in Pending.
 - `state-diff-aliases-reset` (x1, MAJOR): deriving domain events by
   diffing a state snapshot makes a state RESET look like a batch of
   events - scenario teardown emptied GameObjectives and the feedback
@@ -115,17 +125,22 @@ retros.
   objectives. Before shipping cue/feedback logic on a diff, enumerate
   the transitions that are not domain events (teardown, load, clear)
   and guard them. 20260712-125342 (R1.1).
-- `landing-checkout-not-yours` (x1, near-miss): the flow landing rule
-  assumes the main checkout sits on the default branch, but a parallel
-  session had switched it to its own feature branch - the squash staged
-  onto the wrong branch before the `git branch --show-current` output
-  was read. Landing now requires verifying the current branch IS the
-  default first, falling back to a temporary `git worktree add <tmp>
-  master` when the main checkout is occupied; `git reset --merge`
-  undoes a staged squash without destroying the other session's
-  uncommitted work. 20260712-125342. Applied successfully next cycle:
-  branch-guarded squash+commit landed cleanly while master moved twice
-  under a parallel session. 20260712-133832.
+- `landing-checkout-not-yours` (x3): parallel sessions share the in-place
+  main checkout, so one switching branches moves EVERY session's HEAD.
+  20260712-125342 (near-miss): the flow landing assumed the checkout sat on
+  the default branch, but a parallel session had switched it - the squash
+  nearly staged onto the wrong branch before `git branch --show-current` was
+  read. 20260712-133832: branch-guarded squash+commit then landed cleanly
+  while master moved twice under a parallel session. 20260525-133004 (actual
+  leak): a parallel /flow checked out master in this shared checkout
+  mid-session, so a later `git commit` (a spike doc) meant for the feature
+  branch landed on master. Recovered non-destructively - cherry-pick the
+  stray commit onto the right branch via a temporary `git worktree`, then
+  remove it from master with a compare-and-swap-guarded reset
+  (`[ "$(git rev-parse HEAD)" = <sha> ]` before `git reset --hard`) so a
+  concurrent advance aborts. RULE: verify `git branch --show-current` before
+  EVERY commit, not just at session start; prefer a real sprout/worktree
+  when asked for a branch. At x3 across three sessions - promotion candidate.
 - `pair-matrix-on-collider-class-change` (x1, BLOCKER + MAJOR in one
   review): changing a collider's class (solid -> Sensor, adding/removing
   CollisionEventsEnabled) must be checked against EVERY collider
@@ -230,6 +245,17 @@ retros.
   comment's 4.0-4.55, a live beat-4 softlock; ranges consumed by content
   must be measured by a test and exported as consts the content test
   cites. 20260711-180506 (R1.2).
+- `verify-engine-guarantees-in-source` (x1): before DESIGNING around an
+  engine ordering/scheduling guarantee, read the engine's own docs/source -
+  do not assume. The intuitive "variable damage by section type" design was
+  a nova observer that scales `HealthApplyDamage.amount` before bcs's
+  subtractor runs; grepping bevy_ecs found the flat statement that observer
+  execution order between observers of the same event is ARBITRARY ("make no
+  assumptions"), so that design would have raced and lost half the time. The
+  source check cost minutes and turned the wall into the recommendation (own
+  the trigger, pre-scale) instead of a shipped flaky system. 20260525-133004
+  (spike docs/spikes/20260712-133135). Sibling of advertised-but-unwired:
+  that one verifies YOUR wiring, this one verifies the ENGINE's contract.
 - `advertised-but-unwired` (x2): a config surface (enum variant, doc
   claim, query candidate) is not a capability until its producer/consumer
   side is verified wired - grep for who fires/admits it before building
@@ -320,10 +346,19 @@ retros.
   concrete two-grep rule: "before closing a task that deletes or moves a
   mechanism, grep the workspace (1) for its symbol names and (2) for its
   describing words, covering comments, module docs and CHANGELOG".
-- `tatr-same-second-collision` is at x3 despite the tatr skill gotcha -
-  candidate for a mechanical fix instead of a note: teach `tatr new` to
-  disambiguate same-second IDs (suffix or sub-second component), or an
-  AGENTS.md rule "never chain tatr new in one command".
+- `tatr-same-second-collision` is at x4 despite the tatr skill gotcha -
+  the note demonstrably does not fire when composing a multi-`tatr new`
+  command, so promote a MECHANICAL fix over another note: teach `tatr new`
+  to disambiguate same-second IDs (suffix or sub-second component), or an
+  AGENTS.md rule "never chain/script tatr new - one call per tool
+  invocation".
+- `landing-checkout-not-yours` is at x3 across three sessions in two days,
+  all from parallel sessions sharing the in-place main checkout - promote to
+  the flow/work skills: verify `git branch --show-current` before EVERY
+  commit (not just at session start), and prefer a real sprout/worktree when
+  the user asks for a branch so the shared HEAD cannot be moved out from
+  under the session. The deeper fix is that concurrent in-place sessions on
+  one checkout is the root hazard.
 
 - `would-it-fail-without-it` is at x3 across three consecutive cycles -
   candidate for the work skill's verify step and the review skill's test
