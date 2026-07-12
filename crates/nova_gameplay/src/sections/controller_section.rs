@@ -10,7 +10,7 @@ pub mod prelude {
     pub use super::{
         controller_section, preview_controller_section, ControllerSectionConfig,
         ControllerSectionMarker, ControllerSectionPlugin, ControllerSectionRenderMarker,
-        ControllerSectionRotationInput,
+        ControllerSectionRotationInput, ControllerVerbs, FlightVerb,
     };
 }
 
@@ -23,6 +23,14 @@ pub struct ControllerSectionConfig {
     pub damping_ratio: f32,
     /// The maximum torque that can be applied by the PD controller.
     pub max_torque: f32,
+    /// Which flight verbs this controller grants, its initial loadout. The
+    /// autopilot maneuvers (STOP/GOTO/ORBIT) are a capability of the controller
+    /// section, so a controller can be authored to withhold one - a cheap
+    /// shuttle controller that only brakes, or the shakedown's GOTO-off intro
+    /// (spike docs/spikes/20260712-143551-controller-provided-verb-flags.md).
+    /// Defaults to all verbs enabled. Scenarios can also flip a verb at runtime
+    /// via `SetControllerVerb`.
+    pub verbs: ControllerVerbs,
     /// The render mesh of the hull section, defaults to a cuboid of size 1x1x1.
     pub render_mesh: Option<Handle<WorldAsset>>,
 }
@@ -33,6 +41,7 @@ impl Default for ControllerSectionConfig {
             frequency: 2.0,
             damping_ratio: 2.0,
             max_torque: 1.0,
+            verbs: ControllerVerbs::default(),
             render_mesh: None,
         }
     }
@@ -52,6 +61,7 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
             damping_ratio: config.damping_ratio,
             max_torque: config.max_torque,
         },
+        config.verbs,
         ControllerSectionRotationInput::default(),
         ControllerSectionRenderMesh(config.render_mesh),
     )
@@ -76,6 +86,70 @@ pub fn preview_controller_section(config: ControllerSectionConfig) -> impl Bundl
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct ControllerSectionMarker;
 
+/// One of the autopilot flight verbs the controller section grants. These are
+/// the maneuvers the flight computer can fly (STOP/GOTO/ORBIT); CANCEL is not
+/// listed because it only ever disengages an already-running maneuver and stays
+/// available so a disabled verb can never strand an engaged autopilot. The enum
+/// is the addressable handle used by [`ControllerVerbs`] and the
+/// `SetControllerVerb` scenario action.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
+pub enum FlightVerb {
+    /// STOP: kill all velocity.
+    Stop,
+    /// GOTO: fly to the locked target and come to rest.
+    Goto,
+    /// ORBIT: circularize and station-keep in a gravity well.
+    Orbit,
+}
+
+/// Per-verb enable flags carried on a controller section: the flight verbs are
+/// a capability the controller provides, and each maneuver can be individually
+/// withheld while the controller is otherwise alive. A verb is available only
+/// if the ship has a live controller section AND that section's flag for the
+/// verb is set (layered on top of the existing physical `flyable` gate - a live
+/// controller plus a live thruster). Defaults to all verbs enabled. Written at
+/// build time from [`ControllerSectionConfig::verbs`] and flipped at runtime by
+/// the `SetControllerVerb` scenario action.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+pub struct ControllerVerbs {
+    /// Whether STOP (kill velocity) is granted.
+    pub stop: bool,
+    /// Whether GOTO (fly to lock) is granted.
+    pub goto: bool,
+    /// Whether ORBIT (station-keep in a well) is granted.
+    pub orbit: bool,
+}
+
+impl Default for ControllerVerbs {
+    fn default() -> Self {
+        Self {
+            stop: true,
+            goto: true,
+            orbit: true,
+        }
+    }
+}
+
+impl ControllerVerbs {
+    /// Whether the given verb is currently granted.
+    pub fn granted(&self, verb: FlightVerb) -> bool {
+        match verb {
+            FlightVerb::Stop => self.stop,
+            FlightVerb::Goto => self.goto,
+            FlightVerb::Orbit => self.orbit,
+        }
+    }
+
+    /// Enable or disable the given verb.
+    pub fn set(&mut self, verb: FlightVerb, enabled: bool) {
+        match verb {
+            FlightVerb::Stop => self.stop = enabled,
+            FlightVerb::Goto => self.goto = enabled,
+            FlightVerb::Orbit => self.orbit = enabled,
+        }
+    }
+}
+
 /// The desired rotation of the controller section, in world space. Written by
 /// the player's mouse command, the AI brain, or the autopilot
 /// (`crate::flight`) - whoever currently holds rotation authority.
@@ -95,7 +169,9 @@ impl Plugin for ControllerSectionPlugin {
         // Register the section's reflected components so the debug inspector
         // (and the flight-feel retune) can see and edit them.
         app.register_type::<ControllerSectionMarker>()
-            .register_type::<ControllerSectionRotationInput>();
+            .register_type::<ControllerSectionRotationInput>()
+            .register_type::<ControllerVerbs>()
+            .register_type::<FlightVerb>();
 
         app.add_observer(insert_controller_section_target);
 
