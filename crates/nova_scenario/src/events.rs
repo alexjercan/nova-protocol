@@ -15,6 +15,10 @@ pub enum EventConfig {
     OnUpdate,
     OnEnter,
     OnExit,
+    /// A ship has held an autopilot orbit around a well for the hold
+    /// window (the orbit-hold tracker in loader.rs fires it once per
+    /// engagement). Filters like OnEnter: id = the well, other = the ship.
+    OnOrbit,
 }
 
 impl From<EventConfig> for EventHandler<NovaEventWorld> {
@@ -25,6 +29,7 @@ impl From<EventConfig> for EventHandler<NovaEventWorld> {
             EventConfig::OnUpdate => EventHandler::new::<OnUpdateEvent>(),
             EventConfig::OnEnter => EventHandler::new::<OnEnterEvent>(),
             EventConfig::OnExit => EventHandler::new::<OnExitEvent>(),
+            EventConfig::OnOrbit => EventHandler::new::<OnOrbitEvent>(),
         }
     }
 }

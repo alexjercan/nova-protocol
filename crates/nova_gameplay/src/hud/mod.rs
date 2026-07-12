@@ -86,6 +86,15 @@ pub enum HudTier {
 #[reflect(Component)]
 pub struct HudSelfDrivenVisibility;
 
+/// Objectives panel width (px): narrow enough to sit as a side column,
+/// wide enough that a beat objective wraps to 3-4 lines.
+const OBJECTIVES_PANEL_WIDTH_PX: f32 = 280.0;
+
+/// Objective line font size (px). The bcs ObjectivesPlugin spawns its text
+/// lines at the default (much larger) size; nova restyles them as they
+/// appear (playtest 2026-07-12 finding 3).
+const OBJECTIVES_FONT_PX: f32 = 13.0;
+
 /// Nav cyan, the family color of every flight-computer projection (the
 /// destination marker tint, the orbit cue, the maneuver chips, the holo
 /// ring).
@@ -146,6 +155,17 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(edge_indicators::EdgeIndicatorsHudPlugin);
         app.add_plugins(beacon_chips::BeaconChipsHudPlugin);
 
+        // Restyle freshly rebuilt objective lines. After the Sync set in
+        // the same schedule: the rebuild despawns and respawns the text
+        // entities, so styling keys on Added<ObjectiveMarker> and must run
+        // downstream of the producer within the frame.
+        app.add_systems(
+            Update,
+            style_objective_lines
+                .after(ObjectivesPluginSystems::Sync)
+                .in_set(NovaHudSystems),
+        );
+
         // Keep the generic HUD widgets inside nova's HUD ordering slot, as the local ones were.
         // ScreenIndicatorSystems is NOT in this Update slot anymore: the
         // projection runs in PostUpdate after the chase camera's final move
@@ -185,6 +205,44 @@ impl Plugin for NovaHudPlugin {
         app.add_observer(remove_hud_target_candidates);
         app.add_observer(setup_hud_edge_indicators);
         app.add_observer(remove_hud_edge_indicators);
+    }
+}
+
+/// Spawn the bcs objectives panel, then REPLACE its Node with nova's
+/// layout: fixed width so objective text WRAPS instead of running across
+/// the screen, stacked as a column (playtest 2026-07-12 finding 3; the
+/// full HUD treatment is the conveyance task 20260712-093831). The
+/// override MUST be a second insert, not part of the spawn bundle - a
+/// bundle with two Nodes (the panel's and ours) PANICS on duplicate
+/// components (playtest crash, review R1.5). insert-on-existing replaces.
+/// Factored out so the styling test exercises this exact spawn path.
+fn spawn_objectives_panel(commands: &mut Commands) {
+    commands
+        .spawn((HudTier::Chrome, objectives_panel(ObjectivesPanelConfig {})))
+        .insert(Node {
+            position_type: PositionType::Absolute,
+            top: Val::Percent(50.0),
+            right: Val::Px(8.0),
+            width: Val::Px(OBJECTIVES_PANEL_WIDTH_PX),
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(4.0),
+            ..default()
+        });
+}
+
+/// Restyle the bcs objectives panel's text lines the frame they (re)spawn:
+/// smaller font, left-justified, wrapping inside the panel's fixed width.
+/// The lines are rebuilt from scratch on every objectives change
+/// (ObjectivesPlugin), so Added fires for each rebuild.
+fn style_objective_lines(mut commands: Commands, q_lines: Query<Entity, Added<ObjectiveMarker>>) {
+    for line in &q_lines {
+        commands.entity(line).insert((
+            TextFont::from_font_size(OBJECTIVES_FONT_PX),
+            TextLayout {
+                justify: Justify::Left,
+                linebreak: LineBreak::WordBoundary,
+            },
+        ));
     }
 }
 
@@ -479,7 +537,7 @@ fn setup_hud_objectives(
         return;
     };
 
-    commands.spawn((HudTier::Chrome, objectives_panel(ObjectivesPanelConfig {})));
+    spawn_objectives_panel(&mut commands);
 }
 
 fn remove_hud_objectives(
@@ -841,6 +899,71 @@ mod tests {
             *app.world().get::<Visibility>(sphere).unwrap(),
             Visibility::Hidden,
             "restore must skip self-driven widgets"
+        );
+    }
+
+    /// Objective lines are restyled the frame the bcs plugin (re)spawns
+    /// them: nova's font size and wrapping layout land on every rebuild,
+    /// including replacements (the tally text swaps lines wholesale). The
+    /// panel is spawned through the PRODUCTION helper - a bare-panel spawn
+    /// here let a duplicate-Node bundle panic ship to a live playtest
+    /// (R1.5), and round 2 shipped a no-op edit claiming this was fixed
+    /// (R2.1): the helper call below is the actual guard, and the width
+    /// assert catches a dropped override.
+    #[test]
+    fn objective_lines_get_novas_font_and_wrap() {
+        let mut app = App::new();
+        app.add_plugins(ObjectivesPlugin);
+        app.add_systems(
+            Update,
+            style_objective_lines.after(ObjectivesPluginSystems::Sync),
+        );
+        app.add_systems(Startup, |mut commands: Commands| {
+            spawn_objectives_panel(&mut commands);
+        });
+        app.update();
+
+        let mut q_panel = app
+            .world_mut()
+            .query_filtered::<&Node, With<ObjectivesPanelMarker>>();
+        let panel_node = q_panel.single(app.world()).expect("the panel spawned");
+        assert_eq!(
+            panel_node.width,
+            Val::Px(OBJECTIVES_PANEL_WIDTH_PX),
+            "nova's Node override replaced the bcs panel layout"
+        );
+
+        app.world_mut().resource_mut::<GameObjectives>().objectives =
+            vec![Objective::new("b1", "Burn for Beacon 1")];
+        app.update();
+        app.update();
+
+        let expected = TextFont::from_font_size(OBJECTIVES_FONT_PX).font_size;
+        let mut q_lines = app
+            .world_mut()
+            .query_filtered::<&TextFont, With<ObjectiveMarker>>();
+        let fonts: Vec<_> = q_lines
+            .iter(app.world())
+            .map(|font| font.font_size)
+            .collect();
+        assert_eq!(fonts.len(), 1, "one line per objective");
+        assert_eq!(fonts[0], expected, "the line carries nova's font size");
+
+        // A rebuild (message swap) restyles the fresh line too.
+        app.world_mut().resource_mut::<GameObjectives>().objectives =
+            vec![Objective::new("b1", "Supply crates recovered: 1/3.")];
+        app.update();
+        app.update();
+        let fonts: Vec<_> = {
+            let mut q = app
+                .world_mut()
+                .query_filtered::<&TextFont, With<ObjectiveMarker>>();
+            q.iter(app.world()).map(|font| font.font_size).collect()
+        };
+        assert!(
+            fonts.iter().all(|size| *size == expected),
+            "rebuilt lines are restyled, got {:?}",
+            fonts
         );
     }
 }

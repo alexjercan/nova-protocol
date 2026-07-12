@@ -49,6 +49,7 @@ pub fn test_scenario(game_assets: &GameAssets) -> ScenarioConfig {
                 texture,
                 health: 500.0,
                 surface_gravity: None,
+                invulnerable: false,
             }),
         });
     }

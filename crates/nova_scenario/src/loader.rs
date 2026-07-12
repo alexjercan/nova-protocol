@@ -137,6 +137,13 @@ impl Plugin for ScenarioLoaderPlugin {
         // nothing ever fired the event. The pulse runs only while a
         // scenario is live - same liveness rule as the ship systems.
         app.add_systems(Update, fire_on_update.run_if(scenario_is_live));
+
+        // The orbit-hold tracker behind `EventConfig::OnOrbit` (task
+        // 20260712-110730 finding 5): "in orbit" is autopilot state, not
+        // a position - a gate area is unwinnable because the ORBIT verb
+        // rings at max(clearance band, engage radius).
+        app.register_type::<OrbitHold>();
+        app.add_systems(Update, track_orbit_holds.run_if(scenario_is_live));
     }
 }
 
@@ -145,6 +152,97 @@ impl Plugin for ScenarioLoaderPlugin {
 /// must not depend on handler execution order within another event.
 fn fire_on_update(mut commands: Commands) {
     commands.fire::<OnUpdateEvent>(OnUpdateEventInfo);
+}
+
+/// How long (seconds) a ship must hold an engaged ORBIT around one well
+/// before [`OnOrbitEvent`] fires - and the RE-FIRE period while the hold
+/// continues. Recurring, not once-per-engagement (review R1.1 of task
+/// 20260712-110730): a single-shot event consumed while a handler's beat
+/// guard rejects it would be gone for good, soft-locking any scenario
+/// whose beat can advance during a held orbit. Beat-gated handlers make
+/// the repeats no-ops.
+const ORBIT_HOLD_SECS: f32 = 5.0;
+
+/// Bookkeeping for the orbit-hold tracker, on the orbiting ship: which
+/// well and how long the current window has been held. Disengaging (or
+/// switching wells) removes it, restarting the clock.
+#[derive(Component, Clone, Debug, Reflect)]
+#[reflect(Component)]
+pub struct OrbitHold {
+    pub well: Entity,
+    pub held_secs: f32,
+}
+
+/// Fire [`OnOrbitEvent`] once a ship has HELD an engaged
+/// `Autopilot { action: Orbit { well } }` for [`ORBIT_HOLD_SECS`]
+/// continuously. Ships are identified by their scenario `EntityId` (ships
+/// without one - editor previews - are invisible to the tracker); the
+/// event's `id` is the WELL's scenario id, mirroring OnEnter's
+/// (area, other) shape so filters compose identically.
+fn track_orbit_holds(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut q_ships: Query<
+        (
+            Entity,
+            &Autopilot,
+            Option<&mut OrbitHold>,
+            &EntityId,
+            &EntityTypeName,
+        ),
+        With<SpaceshipRootMarker>,
+    >,
+    q_disengaged: Query<Entity, (With<OrbitHold>, Without<Autopilot>)>,
+    q_ids: Query<&EntityId>,
+) {
+    // Disengaged ships re-arm: the hold dies with the autopilot.
+    for ship in &q_disengaged {
+        commands.entity(ship).remove::<OrbitHold>();
+    }
+
+    for (ship, autopilot, hold, ship_id, ship_type_name) in &mut q_ships {
+        let AutopilotAction::Orbit { well, .. } = autopilot.action else {
+            // Engaged, but not an orbit (GOTO/STOP): no hold.
+            if hold.is_some() {
+                commands.entity(ship).remove::<OrbitHold>();
+            }
+            continue;
+        };
+
+        match hold {
+            Some(mut hold) if hold.well == well => {
+                hold.held_secs += time.delta_secs();
+                if hold.held_secs >= ORBIT_HOLD_SECS {
+                    // Restart the window whether or not the event can be
+                    // addressed (review R1.2: a well without a scenario id
+                    // must not consume the hold - the next window retries).
+                    hold.held_secs = 0.0;
+                    let Ok(well_id) = q_ids.get(well) else {
+                        // A well without a scenario id (despawned or
+                        // non-scenario body) has no address to fire under.
+                        continue;
+                    };
+                    debug!(
+                        "track_orbit_holds: ship '{}' held orbit around '{}' for {}s",
+                        ship_id.0, well_id.0, ORBIT_HOLD_SECS
+                    );
+                    commands.fire::<OnOrbitEvent>(OnOrbitEventInfo {
+                        id: well_id.0.clone(),
+                        other_id: ship_id.0.clone(),
+                        other_type_name: ship_type_name.0.clone(),
+                    });
+                }
+            }
+            // New engagement, or the directive switched wells: restart the
+            // clock on the current well.
+            _ => {
+                commands.entity(ship).insert(OrbitHold {
+                    well,
+                    held_secs: 0.0,
+                });
+            }
+        }
+    }
 }
 
 /// Ships act only while a scenario is live: gate the spaceship input/section
@@ -378,6 +476,7 @@ mod tests {
                 texture: Handle::default(),
                 health: 1.0,
                 surface_gravity: None,
+                invulnerable: false,
             }),
         })
     }
@@ -446,6 +545,129 @@ mod tests {
                 .get_variable("pulsed"),
             Some(&VariableLiteral::Boolean(true)),
             "a live scenario pulses OnUpdate handlers"
+        );
+    }
+
+    /// The orbit-hold tracker: an engaged ORBIT fires OnOrbit once per
+    /// HOLD WINDOW - never before the window, never per frame, and the
+    /// window recurs while the hold continues (a single-shot event
+    /// consumed under a rejecting beat guard would soft-lock any scenario
+    /// whose beat advances mid-orbit; review R1.1). Driven through the
+    /// real event pipeline into a real handler counting into a scenario
+    /// variable.
+    #[test]
+    fn orbit_hold_fires_once_per_window_and_recurs() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+        use bevy_common_systems::prelude::{EventHandler, GameEventsPlugin, GameObjectives};
+        use nova_gameplay::prelude::{Autopilot, AutopilotAction, SpaceshipRootMarker};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        // 0.2s steps: Time<Virtual> clamps any single delta at its
+        // default max_delta of 0.25s, so bigger manual steps silently
+        // accumulate slower than wall time.
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            0.2,
+        )));
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
+        app.add_systems(Update, track_orbit_holds.run_if(scenario_is_live));
+
+        // The counting handler: orbits = orbits + 1 on every OnOrbit
+        // under the well's id.
+        let mut handler = EventHandler::<NovaEventWorld>::from(EventConfig::OnOrbit);
+        handler.add_filter(EventFilterConfig::Entity(EntityFilterConfig {
+            id: Some("planetoid".to_string()),
+            other_id: Some("player_spaceship".to_string()),
+            ..default()
+        }));
+        handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: "orbits".to_string(),
+            expression: VariableExpressionNode::new_add(
+                VariableTermNode::new_factor(VariableFactorNode::new_name("orbits".to_string())),
+                VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                    VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
+                )),
+            ),
+        }));
+        app.world_mut().spawn(handler);
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .insert_variable("orbits".to_string(), VariableLiteral::Number(0.0));
+
+        let orbits = |app: &App| -> f64 {
+            match app
+                .world()
+                .resource::<NovaEventWorld>()
+                .get_variable("orbits")
+            {
+                Some(VariableLiteral::Number(n)) => *n,
+                other => panic!("orbits variable missing: {:?}", other),
+            }
+        };
+
+        let well = app
+            .world_mut()
+            .spawn(EntityId::new("planetoid".to_string()))
+            .id();
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                EntityId::new("player_spaceship".to_string()),
+                EntityTypeName::new("spaceship".to_string()),
+                Autopilot::engage(AutopilotAction::Orbit { well, plan: None }),
+            ))
+            .id();
+
+        // ~2 seconds of hold (10 frames at 0.2s): under the 5s window.
+        for _ in 0..10 {
+            app.update();
+        }
+        assert_eq!(orbits(&app), 0.0, "no fire before the hold window");
+
+        // Push just past the window: exactly one fire, not one per frame.
+        // (~1.8s held so far; 18 frames = 3.6s more puts the total at
+        // ~5.4s, 0.4s into the next window.)
+        for _ in 0..18 {
+            app.update();
+        }
+        assert_eq!(orbits(&app), 1.0, "one fire per window, not per frame");
+
+        // Keep holding through a second full window: the event RECURS
+        // during one continuous engagement - this is what saves a beat
+        // that advances mid-orbit from a consumed one-shot (R1.1, and the
+        // assertion round 2 claimed to add but did not, R2.2).
+        for _ in 0..25 {
+            app.update();
+        }
+        assert_eq!(
+            orbits(&app),
+            2.0,
+            "a continued hold fires again next window"
+        );
+
+        // Disengage, re-engage: the clock restarts from zero and the next
+        // window fires again.
+        app.world_mut().entity_mut(ship).remove::<Autopilot>();
+        app.update();
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Orbit {
+                well,
+                plan: None,
+            }));
+        for _ in 0..30 {
+            app.update();
+        }
+        assert_eq!(
+            orbits(&app),
+            3.0,
+            "a fresh engagement fires on a fresh clock"
         );
     }
 

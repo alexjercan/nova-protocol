@@ -42,7 +42,7 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, FlightIntent, FlightSettings,
-        ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
+        FlightSpeedCap, ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
     };
 }
 
@@ -98,6 +98,24 @@ pub struct FlightIntent {
     /// Analog main-drive burn, `0..1` (W / Space / right trigger).
     pub burn: f32,
 }
+
+/// Soft cap (u/s) on the MANUAL main-drive burn, on the ship root:
+/// scenario-authored for ships whose pilot should not be able to sail off
+/// into the void (the shakedown starter ship; playtest 2026-07-12 finding
+/// 1). [`manual_burn_system`] tapers the commanded burn to zero as the
+/// velocity component along the burn direction approaches the cap - a
+/// held W levels off instead of accelerating forever. Deliberately narrow:
+/// only the manual burn reads it (the autopilot plans its own decel),
+/// only the along-burn component counts (turning and retro-braking are
+/// never blocked), and ships without the component keep unbounded
+/// Newtonian burn.
+#[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
+#[reflect(Component)]
+pub struct FlightSpeedCap(pub f32);
+
+/// Fraction of the cap over which the manual burn tapers to zero (the
+/// last stretch below the cap). Wide enough to feel like drag, not a wall.
+const SPEED_CAP_TAPER_FRACTION: f32 = 0.2;
 
 /// An engaged autopilot maneuver, on the ship root. Present = engaged; the
 /// input layer inserts it (X = STOP, G = GOTO the lock) and removes it on any
@@ -419,7 +437,8 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<AutopilotPhase>()
             .register_type::<OrbitPlan>()
             .register_type::<ManeuverTelemetry>()
-            .register_type::<BodyRadius>();
+            .register_type::<BodyRadius>()
+            .register_type::<FlightSpeedCap>();
 
         app.add_observer(insert_flight_control);
         app.add_observer(on_autopilot_removed_cool_engines);
@@ -1842,7 +1861,14 @@ fn manual_burn_system(
     time: Res<Time>,
     settings: Res<FlightSettings>,
     q_ship: Query<
-        (Entity, &FlightIntent, Option<&ComputedCenterOfMass>),
+        (
+            Entity,
+            &FlightIntent,
+            Option<&ComputedCenterOfMass>,
+            Option<&FlightSpeedCap>,
+            &Rotation,
+            &LinearVelocity,
+        ),
         (With<SpaceshipRootMarker>, Without<Autopilot>),
     >,
     mut q_thruster: Query<
@@ -1863,8 +1889,19 @@ fn manual_burn_system(
 ) {
     let dt = time.delta_secs();
 
-    for (ship, intent, com) in &q_ship {
-        let burn = intent.burn.clamp(0.0, 1.0);
+    for (ship, intent, com, speed_cap, rotation, velocity) in &q_ship {
+        let mut burn = intent.burn.clamp(0.0, 1.0);
+
+        // The soft speed cap: taper the commanded burn to zero as the
+        // velocity component ALONG the burn direction (the hull's world
+        // forward - the primary set's thrust axis) approaches the cap.
+        // Raw-clock pose (avian Rotation) - this is FixedUpdate.
+        if let Some(cap) = speed_cap {
+            let burn_direction = rotation.0.mul_vec3(Vec3::NEG_Z);
+            let along = velocity.dot(burn_direction);
+            let taper_band = (**cap * SPEED_CAP_TAPER_FRACTION).max(1.0);
+            burn *= ((**cap - along) / taper_band).clamp(0.0, 1.0);
+        }
 
         // The allocation set: every live unbound engine (bound thrusters keep
         // their own keys), with its balance coefficients in the ship-local
@@ -2787,6 +2824,63 @@ mod tests {
         for _ in 0..frames {
             app.update();
         }
+    }
+
+    /// The soft manual speed cap (playtest 2026-07-12 finding 1): a held
+    /// full burn levels off just past the cap - the overshoot is the
+    /// spool-down tail, bounded by accel / spool_down_rate - while the
+    /// SAME ship uncapped blows straight past it. The uncapped leg is the
+    /// delivery guard proving the burn itself works AND the measured
+    /// acceleration the overshoot bound derives from (this rig is
+    /// deliberately over-powered; the physics-derived bound keeps the
+    /// assertion honest instead of hardcoding a slack constant).
+    #[test]
+    fn manual_burn_levels_off_at_the_speed_cap() {
+        const CAP: f32 = 3.0;
+        const FRAMES: usize = 1200;
+
+        let run_ship = |cap: Option<f32>| -> (f32, f32) {
+            let mut app = flight_app();
+            let (ship, ..) = spawn_ship(&mut app);
+            app.world_mut()
+                .entity_mut(ship)
+                .insert(FlightIntent { burn: 1.0 });
+            if let Some(cap) = cap {
+                app.world_mut().entity_mut(ship).insert(FlightSpeedCap(cap));
+            }
+            run(&mut app, FRAMES / 2);
+            let mid = velocity_of(&app, ship).length();
+            run(&mut app, FRAMES / 2);
+            (mid, velocity_of(&app, ship).length())
+        };
+
+        let (uncapped_mid, uncapped) = run_ship(None);
+        assert!(
+            uncapped > CAP + 2.0,
+            "delivery guard: the uncapped burn must sail past the cap, got {uncapped}"
+        );
+        // Measured acceleration of THIS rig, from the uncapped leg.
+        let accel = uncapped_mid / (FRAMES as f32 / 2.0 / 60.0);
+
+        let (capped_mid, capped) = run_ship(Some(CAP));
+        // Overshoot bound: the spool-down tail keeps pushing for
+        // ~1/spool_down_rate after the taper cuts the command, plus a
+        // couple of ticks of taper-crossing.
+        let settings = FlightSettings::default();
+        let bound = CAP + accel * (1.0 / settings.spool_down_rate + 2.0 / 60.0) + 0.2;
+        assert!(
+            capped <= bound,
+            "a capped ship levels off near the cap: got {capped}, bound {bound} \
+             (cap {CAP}, measured accel {accel})"
+        );
+        assert!(
+            capped >= CAP * 0.5,
+            "the cap is a ceiling, not a parking brake: got {capped} vs cap {CAP}"
+        );
+        assert!(
+            (capped - capped_mid).abs() < 0.05,
+            "the capped ship has PLATEAUED, not still accelerating: {capped_mid} -> {capped}"
+        );
     }
 
     /// A bare hull for the impulse-frame tests: no FlightIntent (the manual

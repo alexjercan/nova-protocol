@@ -57,6 +57,7 @@ pub fn menu_ambience(game_assets: &super::GameAssets, sections: &GameSections) -
             texture: game_assets.asteroid_texture.clone(),
             health: 2000.0,
             surface_gravity: Some(6.0),
+            invulnerable: true,
         }),
     });
 
@@ -90,6 +91,7 @@ pub fn menu_ambience(game_assets: &super::GameAssets, sections: &GameSections) -
                 texture: game_assets.asteroid_texture.clone(),
                 health: 100.0,
                 surface_gravity: None,
+                invulnerable: false,
             }),
         });
     }
@@ -191,6 +193,7 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
                 texture,
                 health: 100.0,
                 surface_gravity: None,
+                invulnerable: false,
             }),
         });
     }
@@ -213,6 +216,7 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
             texture: game_assets.asteroid_texture.clone(),
             health: 2000.0,
             surface_gravity: Some(6.0),
+            invulnerable: false,
         }),
     });
 
@@ -230,6 +234,8 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
                     GamepadButton::RightTrigger2.into(),
                 ],
             )]),
+
+            speed_cap: None,
         }),
         sections: vec![
             SpaceshipSectionConfig {

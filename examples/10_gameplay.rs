@@ -134,6 +134,7 @@ fn gameplay_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scena
             texture: game_assets.asteroid_texture.clone(),
             health: 30.0,
             surface_gravity: None,
+            invulnerable: false,
         }),
     };
 

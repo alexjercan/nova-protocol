@@ -201,6 +201,7 @@ fn test_scenario(
                 texture,
                 health: 100.0,
                 surface_gravity: None,
+                invulnerable: false,
             }),
         });
     }
@@ -278,6 +279,8 @@ fn test_scenario(
                 .iter()
                 .map(|(entity, key)| (entity.to_string(), key.clone()))
                 .collect(),
+
+            speed_cap: None,
         }),
         sections: player_config.sections.values().cloned().collect(),
     };

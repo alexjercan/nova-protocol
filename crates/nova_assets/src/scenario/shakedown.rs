@@ -44,12 +44,13 @@ const BEACON_1_POS: Vec3 = Vec3::new(0.0, 0.0, -350.0);
 /// Beat 2: ~120 degrees off the beacon-1 boresight, so freelook (or a
 /// deliberate turn) is genuinely how you find it.
 const BEACON_2_POS: Vec3 = Vec3::new(260.0, 20.0, -200.0);
-/// Beat 3: a loose debris cluster just past beacon 2.
-const DEBRIS_CENTER: Vec3 = Vec3::new(330.0, 20.0, -140.0);
+/// Beat 3: a loose debris cluster past beacon 2 - pushed out so no crate
+/// sensor overlaps the (now standoff-sized) beacon trigger.
+const DEBRIS_CENTER: Vec3 = Vec3::new(350.0, 20.0, -160.0);
 const CRATE_POSITIONS: [Vec3; 3] = [
-    Vec3::new(315.0, 15.0, -155.0),
-    Vec3::new(335.0, 30.0, -130.0),
-    Vec3::new(350.0, 10.0, -145.0),
+    Vec3::new(340.0, 15.0, -175.0),
+    Vec3::new(360.0, 30.0, -150.0),
+    Vec3::new(375.0, 10.0, -165.0),
 ];
 /// The stage dressing and beat-4 destination: a planetoid with a real
 /// gravity well. On low-factor seeds the SOI edge (560u+) is crossed on
@@ -58,12 +59,8 @@ const CRATE_POSITIONS: [Vec3; 3] = [
 const PLANETOID_POS: Vec3 = Vec3::new(900.0, -60.0, -500.0);
 const PLANETOID_NOMINAL_RADIUS: f32 = 20.0;
 /// Beat 4's lock target: on the cluster-facing side of the planetoid,
-/// outside the orbit gate, deep inside the smallest-seed SOI.
+/// deep inside the smallest-seed SOI.
 const BEACON_3_POS: Vec3 = Vec3::new(682.0, -29.0, -362.0);
-/// "In orbit" approximation: a sphere the ORBIT ring is inside of ACROSS
-/// THE WHOLE FACTOR RANGE (widest ring 1.5 * (20 * 6.0 + 1) = 181.5u) and
-/// beacon 3 (~260u out) is outside of.
-const ORBIT_GATE_RADIUS: f32 = 200.0;
 /// The pirate spawns back at the debris cluster while the player is on the
 /// beat-4 leg, and patrols it.
 const PIRATE_SPAWN: Vec3 = Vec3::new(380.0, 40.0, -100.0);
@@ -72,12 +69,21 @@ const PIRATE_PATROL: [Vec3; 3] = [
     Vec3::new(360.0, 25.0, -110.0),
     Vec3::new(330.0, 60.0, -140.0),
 ];
-/// Beacon trigger radius: generous, arriving should feel like arriving.
-const BEACON_AREA_RADIUS: f32 = 40.0;
+/// Beacon trigger radius. MUST contain the GOTO park point: the autopilot
+/// stops arrival_standoff (50u, FlightSettings) from an unsized target,
+/// and a trigger smaller than that leaves the ship parked 10u OUTSIDE its
+/// own objective (playtest 2026-07-12 finding 2). Pinned by a config test
+/// against FlightSettings::default().
+const BEACON_AREA_RADIUS: f32 = 70.0;
 /// Crate pickup radius: tight enough to require flying AT the crate.
 const CRATE_AREA_RADIUS: f32 = 8.0;
 
 const BEACON_COLOR: Color = Color::srgb(0.3, 0.9, 1.0);
+
+/// Soft manual-speed cap (u/s) on the starter ship: at 25 u/s a 350u leg
+/// still takes a quarter minute and a missed brake does not send a new
+/// pilot sailing out of the play area (playtest 2026-07-12 finding 1).
+const PLAYER_SPEED_CAP: f32 = 25.0;
 
 // Scenario entity ids (strings are the script's wiring; the config-shape
 // test cross-checks every reference against the spawn set).
@@ -86,7 +92,6 @@ const ID_BEACON_1: &str = "beacon_1";
 const ID_BEACON_2: &str = "beacon_2";
 const ID_BEACON_3: &str = "beacon_3";
 const ID_PLANETOID: &str = "planetoid";
-const ID_ORBIT_GATE: &str = "orbit_gate";
 const ID_PIRATE: &str = "pirate";
 
 // Objective ids.
@@ -101,7 +106,6 @@ const OBJ_DONE: &str = "done";
 const VAR_BEAT: &str = "beat";
 const VAR_CRATES: &str = "crates_recovered";
 const VAR_TALLY_SHOWN: &str = "tally_shown";
-const VAR_PIRATE_DEAD: &str = "pirate_dead";
 
 // Expression / action shorthands - the raw node constructors are too
 // verbose to keep a 14-handler script readable.
@@ -109,12 +113,6 @@ const VAR_PIRATE_DEAD: &str = "pirate_dead";
 fn num(value: f64) -> VariableExpressionNode {
     VariableExpressionNode::new_term(VariableTermNode::new_factor(
         VariableFactorNode::new_literal(VariableLiteral::Number(value)),
-    ))
-}
-
-fn boolean(value: bool) -> VariableExpressionNode {
-    VariableExpressionNode::new_term(VariableTermNode::new_factor(
-        VariableFactorNode::new_literal(VariableLiteral::Boolean(value)),
     ))
 }
 
@@ -145,13 +143,6 @@ fn eq_num(name: &str, value: f64) -> EventFilterConfig {
     EventFilterConfig::Expression(ExpressionFilterConfig(VariableConditionNode::new_equals(
         var(name),
         num(value),
-    )))
-}
-
-fn eq_bool(name: &str, value: bool) -> EventFilterConfig {
-    EventFilterConfig::Expression(ExpressionFilterConfig(VariableConditionNode::new_equals(
-        var(name),
-        boolean(value),
     )))
 }
 
@@ -245,7 +236,10 @@ fn section(
 fn player_ship(sections: &GameSections) -> ScenarioObjectConfig {
     let turret = SpaceshipSectionConfig {
         id: "turret".to_string(),
-        position: Vec3::new(0.0, 0.0, -2.0),
+        // Directly behind the controller: the minimal ships have no
+        // hull_back, and a turret at -2 left a one-section hole in the
+        // silhouette (playtest 2026-07-12 finding 7).
+        position: Vec3::new(0.0, 0.0, -1.0),
         rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
         config: sections
             .get_section("better_turret_section")
@@ -268,6 +262,8 @@ fn player_ship(sections: &GameSections) -> ScenarioObjectConfig {
                         GamepadButton::RightTrigger2.into(),
                     ],
                 )]),
+
+                speed_cap: Some(PLAYER_SPEED_CAP),
             }),
             sections: vec![
                 section(
@@ -295,7 +291,10 @@ fn player_ship(sections: &GameSections) -> ScenarioObjectConfig {
 fn pirate_ship(sections: &GameSections) -> ScenarioObjectConfig {
     let turret = SpaceshipSectionConfig {
         id: "turret".to_string(),
-        position: Vec3::new(0.0, 0.0, -2.0),
+        // Directly behind the controller: the minimal ships have no
+        // hull_back, and a turret at -2 left a one-section hole in the
+        // silhouette (playtest 2026-07-12 finding 7).
+        position: Vec3::new(0.0, 0.0, -1.0),
         rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
         config: sections
             .get_section("light_turret_section")
@@ -365,6 +364,7 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
             texture: game_assets.asteroid_texture.clone(),
             health: 2000.0,
             surface_gravity: Some(6.0),
+            invulnerable: true,
         }),
     });
     for (i, (offset, radius)) in ROCK_OFFSETS.iter().zip(ROCK_RADII).enumerate() {
@@ -380,6 +380,7 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                 texture: game_assets.asteroid_texture.clone(),
                 health: 100.0,
                 surface_gravity: None,
+                invulnerable: false,
             }),
         });
     }
@@ -398,17 +399,9 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                 .into_iter()
                 .map(EventActionConfig::SpawnScenarioObject)
                 .chain([
-                    EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
-                        id: ID_ORBIT_GATE.to_string(),
-                        name: "Orbit Gate".to_string(),
-                        position: PLANETOID_POS,
-                        rotation: Quat::IDENTITY,
-                        radius: ORBIT_GATE_RADIUS,
-                    }),
                     set(VAR_BEAT, num(1.0)),
                     set(VAR_CRATES, num(0.0)),
                     set(VAR_TALLY_SHOWN, num(0.0)),
-                    set(VAR_PIRATE_DEAD, boolean(false)),
                     objective(
                         OBJ_B1,
                         "Systems online. Burn for BEACON 1 - hold [W] to burn.",
@@ -491,8 +484,8 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
             ],
         },
         // Beat 3 -> 4: all crates aboard. Beacon 3 appears by the
-        // planetoid, and the pirate quietly moves into the debris field
-        // behind the player.
+        // planetoid. (The pirate does NOT spawn yet - playtest finding 4:
+        // it ambushed players still fumbling with GOTO.)
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
             filters: vec![eq_num(VAR_BEAT, 3.0), eq_num(VAR_CRATES, 3.0)],
@@ -500,45 +493,31 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                 set(VAR_BEAT, num(4.0)),
                 complete(OBJ_B3),
                 spawn(beacon(ID_BEACON_3, "BEACON 3", BEACON_3_POS)),
-                spawn(pirate_ship(sections)),
                 objective(
                     OBJ_B4,
-                    "Cargo secured. Lock BEACON 3 and press [G] - let the computer fly. Then press [O] to make orbit over the planetoid.",
+                    "Cargo secured. Lock BEACON 3 and press [G] - let the computer fly. Then press [O] and hold the orbit over the planetoid.",
                 ),
             ],
         },
-        // Beat 4 -> 5: in orbit (the gate sphere approximates it) - and the
-        // scavenger reveal, unless the player already dealt with it.
+        // Beat 4 -> 5: the player has HELD an autopilot orbit around the
+        // planetoid (OnOrbit, the orbit-hold tracker - a position gate is
+        // unwinnable because the ORBIT verb rings at max(band, engage
+        // radius); playtest finding 5). NOW the scavenger slips into the
+        // debris field behind them.
         ScenarioEventConfig {
-            name: EventConfig::OnEnter,
-            filters: vec![
-                player_enters(ID_ORBIT_GATE),
-                eq_num(VAR_BEAT, 4.0),
-                eq_bool(VAR_PIRATE_DEAD, false),
-            ],
+            name: EventConfig::OnOrbit,
+            filters: vec![player_enters(ID_PLANETOID), eq_num(VAR_BEAT, 4.0)],
             actions: vec![
                 set(VAR_BEAT, num(5.0)),
                 complete(OBJ_B4),
+                spawn(pirate_ship(sections)),
                 objective(
                     OBJ_B5,
                     "A scavenger is picking through the debris field you cleared. Drive it off - hold [RMB] to aim, [LMB] to fire.",
                 ),
             ],
         },
-        ScenarioEventConfig {
-            name: EventConfig::OnEnter,
-            filters: vec![
-                player_enters(ID_ORBIT_GATE),
-                eq_num(VAR_BEAT, 4.0),
-                eq_bool(VAR_PIRATE_DEAD, true),
-            ],
-            actions: vec![
-                set(VAR_BEAT, num(6.0)),
-                complete(OBJ_B4),
-                objective(OBJ_DONE, "Shakedown complete. The belt is yours."),
-            ],
-        },
-        // Beat 5 end: pirate destroyed after the reveal.
+        // Beat 5 end: pirate destroyed.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![destroyed(ID_PIRATE), eq_num(VAR_BEAT, 5.0)],
@@ -547,13 +526,6 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                 complete(OBJ_B5),
                 objective(OBJ_DONE, "Shakedown complete. The belt is yours."),
             ],
-        },
-        // Pirate killed early (during the beat-4 leg): remember it, so the
-        // orbit gate routes straight to done.
-        ScenarioEventConfig {
-            name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_PIRATE), eq_num(VAR_BEAT, 4.0)],
-            actions: vec![set(VAR_PIRATE_DEAD, boolean(true))],
         },
         // Player death: back to the top (Enter confirms - linger).
         ScenarioEventConfig {
@@ -734,6 +706,22 @@ mod tests {
             );
         }
 
+        // No holes in the silhouette (playtest finding 7): every section
+        // sits within one unit of another section.
+        for (id, ship) in &ships {
+            for section in &ship.sections {
+                let adjacent = ship.sections.iter().any(|other| {
+                    other.id != section.id
+                        && other.position.distance(section.position) <= 1.0 + 1e-3
+                });
+                assert!(
+                    adjacent,
+                    "'{}' section '{}' at {:?} has no adjacent neighbor",
+                    id, section.id, section.position
+                );
+            }
+        }
+
         let pirate = ships.iter().find(|(id, _)| *id == ID_PIRATE).unwrap().1;
         assert!(
             pirate
@@ -772,18 +760,15 @@ mod tests {
              ({smallest_soi:.0}u), so the ORBIT hint lights on arrival"
         );
 
-        assert!(
-            beacon_3_distance > ORBIT_GATE_RADIUS + 30.0,
-            "beacon 3 ({beacon_3_distance:.0}u) stays clear outside the orbit gate \
-             ({ORBIT_GATE_RADIUS}u); arriving must not complete the orbit beat"
-        );
-
+        // The beat itself completes via OnOrbit (autopilot state), so no
+        // gate geometry to pin anymore - but beacon 3 must still clear the
+        // widest ring so a parked orbit does not graze the lock target.
         let widest_ring = ORBIT_CLEARANCE
             * (PLANETOID_NOMINAL_RADIUS * ASTEROID_GEOMETRIC_FACTOR_MAX + SURFACE_MARGIN);
         assert!(
-            widest_ring < ORBIT_GATE_RADIUS,
-            "the widest plausible orbit ring ({widest_ring:.0}u) is inside the gate \
-             ({ORBIT_GATE_RADIUS}u), so making orbit always fires the gate"
+            beacon_3_distance > widest_ring + 30.0,
+            "beacon 3 ({beacon_3_distance:.0}u) clears the widest orbit ring \
+             ({widest_ring:.0}u)"
         );
 
         let largest_surface = PLANETOID_NOMINAL_RADIUS * ASTEROID_GEOMETRIC_FACTOR_MAX;
@@ -792,22 +777,17 @@ mod tests {
             "beacon 3 clears the largest plausible geometric surface"
         );
 
-        // Review R2.3: two invariants the script depends on but only
-        // geometry enforces - pin them so a constant tweak cannot silently
-        // reopen the holes.
-        // (a) No crate near the orbit gate: OnEnter fires on ENTRY only,
-        // so a player already inside the gate when beat 4 starts (it
-        // starts at the last crate) would never advance.
-        for (i, crate_pos) in CRATE_POSITIONS.iter().enumerate() {
-            let distance = crate_pos.distance(PLANETOID_POS);
-            assert!(
-                distance > ORBIT_GATE_RADIUS + 100.0,
-                "crate_{} ({distance:.0}u from the planetoid) must be well outside the \
-                 orbit gate ({ORBIT_GATE_RADIUS}u): beat 4 starts at the last crate",
-                i + 1
-            );
-        }
-        // (b) No crate sensor reachable from inside beacon 2's trigger:
+        // Review R2.3 (adapted): the beacon triggers must CONTAIN the
+        // GOTO park point (playtest finding 2) - the autopilot stops
+        // arrival_standoff from an unsized target, and a smaller trigger
+        // parks the ship outside its own objective.
+        let standoff = nova_gameplay::prelude::FlightSettings::default().arrival_standoff;
+        assert!(
+            BEACON_AREA_RADIUS > standoff + 10.0,
+            "beacon trigger ({BEACON_AREA_RADIUS}u) must contain the GOTO park point \
+             (standoff {standoff}u) with margin"
+        );
+        // No crate sensor reachable from inside beacon 2's trigger:
         // the beat 2->3 flip happens inside beacon 2's area, and a player
         // already parked inside a crate sensor when the pickups arm would
         // miss its CollisionStart.
@@ -919,6 +899,22 @@ mod tests {
             .commands()
             .fire::<OnEnterEvent>(OnEnterEventInfo {
                 id: area.to_string(),
+                other_id: ID_PLAYER.to_string(),
+                other_type_name: "spaceship".to_string(),
+            });
+        app.update();
+        app.update();
+    }
+
+    /// The player has held an orbit around `well` (the orbit-hold
+    /// tracker's event; the tracker itself is tested in nova_scenario's
+    /// loader tests - here the script consumes the event).
+    fn orbit(app: &mut App, well: &str) {
+        use nova_events::prelude::*;
+        app.world_mut()
+            .commands()
+            .fire::<OnOrbitEvent>(OnOrbitEventInfo {
+                id: well.to_string(),
                 other_id: ID_PLAYER.to_string(),
                 other_type_name: "spaceship".to_string(),
             });
@@ -1043,14 +1039,19 @@ mod tests {
             "beacon 3 appears with beat 4"
         );
         assert!(
-            entity_with_id(&mut app, ID_PIRATE).is_some(),
-            "the pirate slips into the debris field during beat 4"
+            entity_with_id(&mut app, ID_PIRATE).is_none(),
+            "beat 4 is pirate-free (playtest finding 4)"
         );
 
-        // Beat 4 -> 5: making orbit.
-        enter(&mut app, ID_ORBIT_GATE);
+        // Beat 4 -> 5: HOLDING the orbit completes the beat and only then
+        // does the scavenger slip into the debris field.
+        orbit(&mut app, ID_PLANETOID);
         assert_eq!(beat(&app), 5.0);
         assert!(has_objective(&app, OBJ_B5));
+        assert!(
+            entity_with_id(&mut app, ID_PIRATE).is_some(),
+            "the pirate spawns with the beat-5 reveal"
+        );
 
         // Beat 5 -> done: the scavenger driven off.
         destroy(&mut app, ID_PIRATE);
@@ -1059,11 +1060,13 @@ mod tests {
         assert!(has_objective(&app, OBJ_DONE), "the run completes");
     }
 
-    /// The alternate ending: the pirate dies during the beat-4 leg (before
-    /// the reveal), and making orbit routes straight to done instead of
-    /// asking the player to fight a ghost.
+    /// The pirate exists only from the beat-5 reveal on (playtest finding
+    /// 4), so an "early kill" is no longer reachable: a stray
+    /// OnDestroyed(pirate) DURING beat 4 (e.g. a scenario edit
+    /// re-introducing an early spawn) must be a no-op, not a skipped
+    /// fight - the beat-5 guard on the kill handler owns that.
     #[test]
-    fn early_pirate_kill_routes_the_orbit_gate_to_done() {
+    fn pirate_destruction_only_counts_during_beat_five() {
         let mut app = scripted_app();
         boot(&mut app);
         enter(&mut app, ID_BEACON_1);
@@ -1073,19 +1076,22 @@ mod tests {
             pulse(&mut app);
         }
 
-        // Beat 4: kill the pirate before making orbit.
+        // Beat 4: a pirate death event now is out-of-script; nothing moves.
         destroy(&mut app, ID_PIRATE);
+        let objectives = &app.world().resource::<GameObjectives>().objectives;
+        assert!(
+            !objectives.iter().any(|objective| objective.id == OBJ_DONE),
+            "a stray pirate death during beat 4 must not complete the run"
+        );
 
-        enter(&mut app, ID_ORBIT_GATE);
+        // The real path still works: orbit reveals, killing completes.
+        orbit(&mut app, ID_PLANETOID);
+        destroy(&mut app, ID_PIRATE);
         let objectives = &app.world().resource::<GameObjectives>().objectives;
         assert!(
             objectives.iter().any(|objective| objective.id == OBJ_DONE),
-            "orbit after an early kill completes the run, got: {:?}",
+            "the beat-5 kill completes the run, got: {:?}",
             objectives
-        );
-        assert!(
-            !objectives.iter().any(|objective| objective.id == OBJ_B5),
-            "the drive-it-off objective never appears for a dead pirate"
         );
     }
 

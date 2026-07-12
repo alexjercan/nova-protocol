@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- @alexjercan Shakedown Run playtest round 1: beacon triggers now contain the GOTO park point (the autopilot used to stop 10u outside the objective); the orbit beat completes by HOLDING the orbit for 5s (new OnOrbit scenario event driven by autopilot state - the old position gate was unreachable on many asteroid seeds); the scavenger spawns only after making orbit instead of ambushing mid-tutorial; the ships' hull gap is closed (turret sits directly behind the controller); the planetoids (shakedown and menu) are invulnerable so the orbit beat cannot be shot away; objective text is smaller and wraps in a fixed-width panel; the starter ship carries a soft 25 u/s manual speed cap so a missed brake does not sail a new pilot out of the play area
 - @alexjercan F1 no longer drops a New Game scenario into the ship editor; the back-to-editor key is sandbox-only (the pause menu is the way out of a campaign)
 
 ### Added

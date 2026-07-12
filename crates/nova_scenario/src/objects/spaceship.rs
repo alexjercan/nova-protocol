@@ -23,6 +23,11 @@ pub enum SpaceshipController {
 #[derive(Clone, Debug, Default, Reflect)]
 pub struct PlayerControllerConfig {
     pub input_mapping: HashMap<SectionId, Vec<Binding>>,
+    /// Soft manual-speed cap (u/s), inserted as [`FlightSpeedCap`] on the
+    /// ship root: the manual burn tapers off approaching it (the starter
+    /// scenario's don't-sail-into-the-void guard; playtest 2026-07-12
+    /// finding 1). None = unbounded Newtonian burn, the default.
+    pub speed_cap: Option<f32>,
 }
 
 #[derive(Clone, Debug, Default, Reflect)]
@@ -158,8 +163,11 @@ fn insert_spaceship_sections(
 
     match controller_config {
         SpaceshipController::None => {}
-        SpaceshipController::Player(_) => {
+        SpaceshipController::Player(config) => {
             commands.entity(entity).insert(PlayerSpaceshipMarker);
+            if let Some(cap) = config.speed_cap {
+                commands.entity(entity).insert(FlightSpeedCap(cap));
+            }
         }
         SpaceshipController::AI(config) => {
             commands.entity(entity).insert(AISpaceshipMarker);

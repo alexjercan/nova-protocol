@@ -86,6 +86,20 @@ Entities carry `EntityId(String)` and `EntityTypeName(String)` components so fil
 and actions can identify who triggered an event (and, for enter/exit, the "other"
 entity via the `other_id` / `other_type_name` fields).
 
+### `OnOrbit`
+
+Fired when a ship has HELD an engaged autopilot ORBIT around a well for
+the hold window (5s; the orbit-hold tracker in `loader.rs`), and again
+every further window while the hold continues - recurring, so an event
+consumed while a handler's guard rejects it (wrong beat) is simply
+retried next window instead of soft-locking the script. Disengaging (or
+switching wells) restarts the clock. `id` is the well's scenario id and
+`other` the ship, the same shape as `OnEnter`, so filters compose
+identically; gate handlers on script state to make repeats no-ops. This
+is the right gate for "make orbit" objectives: a position gate is
+unwinnable because the ORBIT verb rings at max(clearance band, engage
+radius).
+
 ## Filters (`EventFilterConfig`)
 
 All filters on a handler must pass for its actions to run.
@@ -137,8 +151,9 @@ nodes, and set-expressions, evaluated by filters (`ExpressionFilterConfig`) and 
 
 ## Scenario objects (`objects/`)
 
-- `Asteroid` (`AsteroidConfig`: radius, texture, health) - procedural destructible
-  asteroid.
+- `Asteroid` (`AsteroidConfig`: radius, texture, health, `invulnerable`) - procedural
+  destructible asteroid; `invulnerable: true` omits the health node entirely, so a
+  designated body (a tutorial planetoid) and its well can never be shot away.
 - `Spaceship` (`SpaceshipConfig`) - a ship built from sections, controlled by either a
   `Player` (with an input mapping) or `AI` controller. See [sections.md](sections.md).
 - `Area` (`ScenarioAreaConfig`: position, radius) - trigger zone for enter/exit events.

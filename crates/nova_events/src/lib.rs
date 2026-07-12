@@ -4,9 +4,10 @@ use bevy_common_systems::prelude::*;
 pub mod prelude {
     pub use super::{
         EntityId, EntityTypeName, OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent,
-        OnEnterEventInfo, OnExitEvent, OnExitEventInfo, OnStartEvent, OnStartEventInfo,
-        OnUpdateEvent, OnUpdateEventInfo, ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
-        ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME,
+        OnEnterEventInfo, OnExitEvent, OnExitEventInfo, OnOrbitEvent, OnOrbitEventInfo,
+        OnStartEvent, OnStartEventInfo, OnUpdateEvent, OnUpdateEventInfo, ENTITY_ID_COMPONENT_NAME,
+        ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
+        ENTITY_TYPE_NAME_COMPONENT_NAME,
     };
 }
 
@@ -76,6 +77,25 @@ pub struct OnExitEvent;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
 pub struct OnExitEventInfo {
+    #[serde(rename = "id")]
+    pub id: String,
+    #[serde(rename = "other_id")]
+    pub other_id: String,
+    #[serde(rename = "other_type_name")]
+    pub other_type_name: String,
+}
+
+/// A ship has HELD a stable autopilot orbit around a well for the hold
+/// window (nova_scenario's orbit-hold tracker fires it). `id` is the
+/// well's scenario id, `other` the orbiting ship - the same shape as
+/// [`OnEnterEvent`], so scenario filters compose identically.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onorbit")]
+#[event_info(OnOrbitEventInfo)]
+pub struct OnOrbitEvent;
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct OnOrbitEventInfo {
     #[serde(rename = "id")]
     pub id: String,
     #[serde(rename = "other_id")]

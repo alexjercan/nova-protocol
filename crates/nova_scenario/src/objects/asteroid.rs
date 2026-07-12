@@ -9,9 +9,10 @@ use rand::Rng;
 
 pub mod prelude {
     pub use super::{
-        asteroid_scenario_object, AsteroidConfig, AsteroidMarker, AsteroidPlugin, AsteroidRadius,
-        AsteroidRenderMesh, AsteroidSurfaceGravity, AsteroidTexture, ASTEROID_GEOMETRIC_FACTOR_MAX,
-        ASTEROID_GEOMETRIC_FACTOR_MIN, ASTEROID_TYPE_NAME,
+        asteroid_scenario_object, AsteroidConfig, AsteroidInvulnerable, AsteroidMarker,
+        AsteroidPlugin, AsteroidRadius, AsteroidRenderMesh, AsteroidSurfaceGravity,
+        AsteroidTexture, ASTEROID_GEOMETRIC_FACTOR_MAX, ASTEROID_GEOMETRIC_FACTOR_MIN,
+        ASTEROID_TYPE_NAME,
     };
 }
 
@@ -29,6 +30,12 @@ pub struct AsteroidConfig {
     /// well when `radius >= GravitySettings::min_well_radius`, none
     /// otherwise).
     pub surface_gravity: Option<f32>,
+    /// An invulnerable body gets its collider WITHOUT a health node:
+    /// nothing can disable or destroy it, so its gravity well can never
+    /// die mid-scenario (playtest 2026-07-12 finding 6 - a tutorial
+    /// planetoid shot to death takes the whole orbit beat with it).
+    /// `health` is ignored when set.
+    pub invulnerable: bool,
 }
 
 pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
@@ -40,6 +47,7 @@ pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
         AsteroidTexture(config.texture),
         AsteroidRadius(config.radius),
         AsteroidHealth(config.health),
+        AsteroidInvulnerable(config.invulnerable),
         AsteroidSurfaceGravity(config.surface_gravity),
         // The lock scanner sees a rock in proportion to its size: field
         // rocks only lock up close, big bodies from afar (well sources
@@ -66,6 +74,10 @@ pub struct AsteroidRadius(pub f32);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidHealth(pub f32);
+
+/// See [`AsteroidConfig::invulnerable`].
+#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
+pub struct AsteroidInvulnerable(pub bool);
 
 /// The scenario's authored gravity for this asteroid (see
 /// [`AsteroidConfig::surface_gravity`]). Consumed by
@@ -186,13 +198,16 @@ fn insert_asteroid_gravity_well(
 fn insert_asteroid_collider(
     add: On<Add, AsteroidMarker>,
     mut commands: Commands,
-    q_asteroid: Query<(&AsteroidRadius, &AsteroidHealth), With<AsteroidMarker>>,
+    q_asteroid: Query<
+        (&AsteroidRadius, &AsteroidHealth, &AsteroidInvulnerable),
+        With<AsteroidMarker>,
+    >,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
 ) {
     let entity = add.entity;
     trace!("insert_asteroid_render: entity {:?}", entity);
 
-    let Ok((radius, health)) = q_asteroid.get(entity) else {
+    let Ok((radius, health, invulnerable)) = q_asteroid.get(entity) else {
         error!(
             "insert_asteroid_render: entity {:?} not found in q_asteroid",
             entity
@@ -219,15 +234,28 @@ fn insert_asteroid_collider(
         .entity(entity)
         .insert(BodyRadius(**radius * unit_extent));
 
-    commands.entity(entity).insert((children![(
-        Transform::from_scale(Vec3::splat(**radius)),
-        AsteroidRenderMesh(mesh.clone()),
-        collider,
-        destructible_body(**health, 1.0),
-        // destructible_body (bevy_common_systems) is Health + density + visibility; add
-        // ExplodableEntity so the asteroid enters nova's explode pipeline on destruction.
-        ExplodableEntity,
-    )],));
+    if **invulnerable {
+        // No Health on the node: the integrity pipeline has nothing to
+        // deplete, so the body (and its well) cannot be destroyed. The
+        // rest matches destructible_body minus the health.
+        commands.entity(entity).insert((children![(
+            Transform::from_scale(Vec3::splat(**radius)),
+            AsteroidRenderMesh(mesh.clone()),
+            collider,
+            ColliderDensity(1.0),
+            Visibility::Inherited,
+        )],));
+    } else {
+        commands.entity(entity).insert((children![(
+            Transform::from_scale(Vec3::splat(**radius)),
+            AsteroidRenderMesh(mesh.clone()),
+            collider,
+            destructible_body(**health, 1.0),
+            // destructible_body (bevy_common_systems) is Health + density + visibility; add
+            // ExplodableEntity so the asteroid enters nova's explode pipeline on destruction.
+            ExplodableEntity,
+        )],));
+    }
 }
 
 /// Bounds on the unit-mesh geometric factor: how far the noise-displaced
@@ -674,6 +702,59 @@ mod tests {
         assert_eq!(well.mu, 6.0 * derived * derived);
     }
 
+    /// An invulnerable body's collider node carries NO Health - the
+    /// integrity pipeline has nothing to deplete, so the body (and its
+    /// well) cannot die mid-scenario (playtest 2026-07-12 finding 6). A
+    /// destructible one keeps Health; both keep the collider so physics
+    /// and lock targeting are unchanged.
+    #[test]
+    fn invulnerable_asteroids_get_no_health_node() {
+        let mut app = App::new();
+        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.add_observer(insert_asteroid_collider);
+        app.update();
+
+        let spawn = |app: &mut App, invulnerable: bool| -> Entity {
+            app.world_mut()
+                .spawn((
+                    RigidBody::Dynamic,
+                    asteroid_scenario_object(AsteroidConfig {
+                        radius: 20.0,
+                        texture: Handle::default(),
+                        health: 2000.0,
+                        surface_gravity: Some(6.0),
+                        invulnerable,
+                    }),
+                ))
+                .id()
+        };
+        let tough = spawn(&mut app, true);
+        let normal = spawn(&mut app, false);
+        app.update();
+
+        let child_of = |app: &mut App, root: Entity| -> Entity {
+            app.world()
+                .get::<Children>(root)
+                .and_then(|children| children.iter().next())
+                .expect("the collider observer spawns the node child")
+        };
+        let tough_node = child_of(&mut app, tough);
+        let normal_node = child_of(&mut app, normal);
+
+        assert!(
+            app.world().get::<Collider>(tough_node).is_some(),
+            "invulnerable bodies still collide"
+        );
+        assert!(
+            app.world().get::<Health>(tough_node).is_none(),
+            "no Health on an invulnerable body's node - nothing to deplete"
+        );
+        assert!(
+            app.world().get::<Health>(normal_node).is_some(),
+            "delivery guard: a destructible body's node does carry Health"
+        );
+    }
+
     /// The raw scenario bundle without the test stand-in BodyRadius, for
     /// tests that run the real collider derivation.
     fn spawn_asteroid_underived(
@@ -689,6 +770,7 @@ mod tests {
                     texture: Handle::default(),
                     health: 100.0,
                     surface_gravity,
+                    invulnerable: false,
                 }),
             ))
             .id()
@@ -715,6 +797,7 @@ mod tests {
                     texture: Handle::default(),
                     health: 100.0,
                     surface_gravity,
+                    invulnerable: false,
                 }),
                 // In the real pipeline the collider observer derives this
                 // from the generated mesh; the well tests stand in with a

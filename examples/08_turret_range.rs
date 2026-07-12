@@ -169,6 +169,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             texture: game_assets.asteroid_texture.clone(),
             health: 2000.0,
             surface_gravity: None,
+            invulnerable: false,
         }),
     };
 
