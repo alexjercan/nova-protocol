@@ -73,6 +73,11 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 // docs/2026-07-09-flight-feel-retune.md; playtest owns the
                 // final number.
                 max_torque: 40.0,
+                // Full flight-verb loadout by default; scenarios withhold a
+                // verb at runtime via `SetControllerVerb` (the shakedown's
+                // GOTO-off intro) rather than baking it into this shared
+                // catalog entry, which the pirate reuses too.
+                verbs: ControllerVerbs::default(),
                 render_mesh: None,
             }),
         },

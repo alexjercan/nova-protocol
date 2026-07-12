@@ -642,6 +642,7 @@ fn shoot_spawn_projectile(
                         frequency: 4.0,
                         damping_ratio: 4.0,
                         max_torque: 10.0,
+                        verbs: ControllerVerbs::default(),
                         render_mesh: None,
                     }),
                 ),

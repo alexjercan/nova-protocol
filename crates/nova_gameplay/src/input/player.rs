@@ -139,7 +139,7 @@ fn update_flight_verb_hints(
     q_sections: Query<&ChildOf, With<SectionMarker>>,
     q_ship: Query<(Entity, Option<&Autopilot>, Option<&DominantWell>), With<PlayerSpaceshipMarker>>,
     q_computer: Query<
-        &ChildOf,
+        (&ChildOf, Option<&ControllerVerbs>),
         (
             With<ControllerSectionMarker>,
             With<PDController>,
@@ -173,9 +173,25 @@ fn update_flight_verb_hints(
     // engine or it disengages on its next tick; a hint below that bar
     // would light a key that visibly does nothing.
     let flyable = ship.is_some_and(|ship| {
-        q_computer.iter().any(|&ChildOf(parent)| parent == ship)
+        q_computer
+            .iter()
+            .any(|(&ChildOf(parent), _)| parent == ship)
             && q_thruster.iter().any(|&ChildOf(parent)| parent == ship)
     });
+    // The individual maneuvers are a capability the controller GRANTS: a verb
+    // lights only if some live controller on this ship enables it (union across
+    // controllers), on top of `flyable`. The verb flags are kept SEPARATE from
+    // `flyable` above (which only asks "is there a live controller + engine")
+    // so a controller missing the flags component can never brick the ship - it
+    // just falls back to the all-on default (matching `ControllerVerbs::default`
+    // and the pre-flags behavior). The `SetControllerVerb` action flips these.
+    let verb_granted = |verb: FlightVerb| -> bool {
+        ship.is_some_and(|ship| {
+            q_computer.iter().any(|(&ChildOf(parent), verbs)| {
+                parent == ship && verbs.is_none_or(|verbs| verbs.granted(verb))
+            })
+        })
+    };
     let engaged = autopilot.is_some();
     let orbiting = matches!(
         autopilot.map(|ap| ap.action),
@@ -185,17 +201,20 @@ fn update_flight_verb_hints(
     let next = FlightVerbHints {
         stop: VerbHint {
             key: label(q_stop.single().ok()),
-            available: flyable,
+            available: flyable && verb_granted(FlightVerb::Stop),
             anchor: None,
         },
         goto: VerbHint {
             key: label(q_goto.single().ok()),
-            available: flyable && lock.is_some(),
+            available: flyable && verb_granted(FlightVerb::Goto) && lock.is_some(),
             anchor: **lock,
         },
         orbit: VerbHint {
             key: label(q_orbit.single().ok()),
-            available: flyable && dominant.is_some() && !orbiting,
+            available: flyable
+                && verb_granted(FlightVerb::Orbit)
+                && dominant.is_some()
+                && !orbiting,
             anchor: dominant.map(|well| **well),
         },
         cancel: VerbHint {
@@ -681,10 +700,37 @@ fn on_flight_burn_input_completed(
     intent.burn = 0.0;
 }
 
+/// Query over every live controller section and its (optional) granted verbs,
+/// shared by the three maneuver observers so they gate execution on the same
+/// controller-provided capability the hint pass shows. `ControllerVerbs` is
+/// optional for the same reason as in the hint pass: a controller missing the
+/// flags falls back to the all-on default rather than becoming ungovernable.
+type ControllerVerbQuery<'w, 's> = Query<
+    'w,
+    's,
+    (&'static ChildOf, Option<&'static ControllerVerbs>),
+    (
+        With<ControllerSectionMarker>,
+        With<PDController>,
+        Without<SectionInactiveMarker>,
+    ),
+>;
+
+/// Whether some live controller section on `ship` grants `verb` (union across
+/// controllers). Doubles as the controller-present check: no live controller,
+/// no grant. Mirrors the `verb_granted` closure in the hint pass so a lit hint
+/// and a firing key never disagree.
+fn ship_grants_verb(ship: Entity, verb: FlightVerb, q_verbs: &ControllerVerbQuery) -> bool {
+    q_verbs
+        .iter()
+        .any(|(&ChildOf(parent), verbs)| parent == ship && verbs.is_none_or(|v| v.granted(verb)))
+}
+
 fn on_autopilot_stop_input(
     _: On<Start<AutopilotStopInput>>,
     mut commands: Commands,
     ship: Single<(Entity, Option<&Autopilot>), With<PlayerSpaceshipMarker>>,
+    q_verbs: ControllerVerbQuery,
     pause: Res<State<crate::PauseStates>>,
 ) {
     // Observers bypass system-set gating; freeze intent changes while the
@@ -696,17 +742,23 @@ fn on_autopilot_stop_input(
 
     let (entity, autopilot) = ship.into_inner();
     match autopilot.map(|ap| ap.action) {
-        // Toggle off an active STOP...
+        // Toggle off an active STOP... (disengage stays ungated so a verb
+        // disabled mid-maneuver can never strand the ship braking).
         Some(AutopilotAction::Stop) => {
             debug!("on_autopilot_stop_input: disengaging STOP");
             commands.entity(entity).remove::<Autopilot>();
         }
-        // ...but braking overrides any other maneuver (or engages fresh).
-        _ => {
+        // ...but braking overrides any other maneuver (or engages fresh) -
+        // only if a live controller on this ship grants STOP. No controller,
+        // or STOP withheld, and the press is a no-op (matches the dark hint).
+        _ if ship_grants_verb(entity, FlightVerb::Stop, &q_verbs) => {
             debug!("on_autopilot_stop_input: engaging STOP");
             commands
                 .entity(entity)
                 .insert(Autopilot::engage(AutopilotAction::Stop));
+        }
+        _ => {
+            debug!("on_autopilot_stop_input: STOP not granted by a controller");
         }
     }
 }
@@ -716,6 +768,7 @@ fn on_autopilot_goto_input(
     mut commands: Commands,
     res_target: Res<SpaceshipPlayerTargetLock>,
     ship: Single<(Entity, Option<&Autopilot>), With<PlayerSpaceshipMarker>>,
+    q_verbs: ControllerVerbQuery,
     pause: Res<State<crate::PauseStates>>,
 ) {
     // Observers bypass system-set gating; freeze intent changes while the
@@ -727,7 +780,8 @@ fn on_autopilot_goto_input(
 
     let (entity, autopilot) = ship.into_inner();
 
-    // Already flying somewhere? G toggles the trip off.
+    // Already flying somewhere? G toggles the trip off. Disengage stays
+    // ungated so a verb disabled mid-trip can never strand the ship in GOTO.
     if let Some(Autopilot {
         action: AutopilotAction::Goto { .. },
         ..
@@ -735,6 +789,14 @@ fn on_autopilot_goto_input(
     {
         debug!("on_autopilot_goto_input: disengaging GOTO");
         commands.entity(entity).remove::<Autopilot>();
+        return;
+    }
+
+    // GOTO is granted by the controller: no live controller enabling it (the
+    // shakedown withholds it until the first objective) and the press is a
+    // no-op, matching the dark hint.
+    if !ship_grants_verb(entity, FlightVerb::Goto, &q_verbs) {
+        debug!("on_autopilot_goto_input: GOTO not granted by a controller");
         return;
     }
 
@@ -755,6 +817,7 @@ fn on_autopilot_orbit_input(
     _: On<Start<AutopilotOrbitInput>>,
     mut commands: Commands,
     ship: Single<(Entity, Option<&Autopilot>, Option<&DominantWell>), With<PlayerSpaceshipMarker>>,
+    q_verbs: ControllerVerbQuery,
     pause: Res<State<crate::PauseStates>>,
 ) {
     // Observers bypass system-set gating; freeze intent changes while the
@@ -766,7 +829,8 @@ fn on_autopilot_orbit_input(
 
     let (entity, autopilot, dominant) = ship.into_inner();
 
-    // Already orbiting? O toggles the parking off.
+    // Already orbiting? O toggles the parking off. Disengage stays ungated so
+    // a verb disabled mid-orbit can never strand the ship station-keeping.
     if let Some(Autopilot {
         action: AutopilotAction::Orbit { .. },
         ..
@@ -774,6 +838,13 @@ fn on_autopilot_orbit_input(
     {
         debug!("on_autopilot_orbit_input: disengaging ORBIT");
         commands.entity(entity).remove::<Autopilot>();
+        return;
+    }
+
+    // ORBIT is granted by the controller: no live controller enabling it and
+    // the press is a no-op, matching the dark hint.
+    if !ship_grants_verb(entity, FlightVerb::Orbit, &q_verbs) {
+        debug!("on_autopilot_orbit_input: ORBIT not granted by a controller");
         return;
     }
 
@@ -1170,7 +1241,10 @@ mod tests {
         world
     }
 
-    /// A flyable player ship: live controller (with PD) + live thruster.
+    /// A flyable player ship: live controller (with PD, all verbs granted) +
+    /// live thruster. Mirrors the production `controller_section` bundle, which
+    /// always carries [`ControllerVerbs`]; the hint pass and the observers both
+    /// require it, so a controller without it would match nothing.
     fn spawn_flyable_ship(world: &mut World) -> (Entity, Entity) {
         let ship = world.spawn(PlayerSpaceshipMarker).id();
         let controller = world
@@ -1182,6 +1256,7 @@ mod tests {
                     damping_ratio: 4.0,
                     max_torque: 40.0,
                 },
+                ControllerVerbs::default(),
             ))
             .id();
         world.spawn((ChildOf(ship), ThrusterSectionMarker));
@@ -1312,6 +1387,148 @@ mod tests {
         let hints = world.resource::<FlightVerbHints>().clone();
         assert!(!hints.stop.available && !hints.cancel.available);
         assert_eq!(hints.stop.key, "X", "labels survive the ship");
+    }
+
+    #[test]
+    fn controller_verb_flags_gate_the_hints_independently_of_lock_and_well() {
+        let mut world = hint_world();
+        let (ship, controller) = spawn_flyable_ship(&mut world);
+
+        // A lock and a dominant well are present, so absent the flags GOTO and
+        // ORBIT would both light (as the neighbor test proves).
+        let lock = world.spawn_empty().id();
+        let well = world.spawn_empty().id();
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(lock)));
+        world.entity_mut(ship).insert(DominantWell(well));
+
+        // Withhold GOTO and ORBIT on the controller; STOP stays granted.
+        world.entity_mut(controller).insert(ControllerVerbs {
+            stop: true,
+            goto: false,
+            orbit: false,
+        });
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert!(hints.stop.available, "STOP is still granted");
+        assert!(
+            !hints.goto.available,
+            "GOTO withheld by the controller despite a live lock"
+        );
+        assert!(
+            !hints.orbit.available,
+            "ORBIT withheld by the controller despite a dominant well"
+        );
+
+        // Granting them lights both (the lock/well are unchanged) - proves the
+        // flag, not some other condition, was the gate.
+        world
+            .entity_mut(controller)
+            .insert(ControllerVerbs::default());
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert!(hints.goto.available, "GOTO lights once granted");
+        assert!(hints.orbit.available, "ORBIT lights once granted");
+    }
+
+    /// End-to-end through the REAL flight rig and EnhancedInputPlugin: a GOTO
+    /// keypress engages the autopilot only when a live controller grants GOTO.
+    /// With the verb withheld the press is a no-op even with a valid lock; the
+    /// gate deleted, the first press would engage and this test would fail.
+    #[test]
+    fn goto_keypress_is_gated_by_the_controller_verb_flag() {
+        use bevy::input::InputPlugin;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        // The autopilot observers are pause-gated (task 20260711-185156).
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<crate::PauseStates>();
+        app.add_input_context::<FlightInputMarker>();
+        app.add_observer(on_autopilot_goto_input);
+
+        // A player ship whose controller withholds GOTO, plus a valid lock.
+        let (ship, controller) = spawn_flyable_ship(app.world_mut());
+        app.world_mut()
+            .entity_mut(controller)
+            .insert(ControllerVerbs {
+                stop: true,
+                goto: false,
+                orbit: true,
+            });
+        let target = app.world_mut().spawn_empty().id();
+        app.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
+
+        // The context registry finalizes in App::finish; run the lifecycle
+        // before spawning the rig, like the production app does.
+        app.finish();
+        app.cleanup();
+        app.update();
+        app.world_mut().spawn(flight_input_rig());
+        app.update();
+
+        // Press G with GOTO withheld: nothing engages.
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyG);
+        app.update();
+        app.update();
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "GOTO withheld: the keypress must not engage the autopilot"
+        );
+
+        // Release, grant GOTO, press again: now it engages on the lock.
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(KeyCode::KeyG);
+        app.update();
+        app.world_mut()
+            .entity_mut(controller)
+            .insert(ControllerVerbs::default());
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyG);
+        app.update();
+        app.update();
+        assert!(
+            matches!(
+                app.world().get::<Autopilot>(ship).map(|ap| ap.action),
+                Some(AutopilotAction::Goto { target: t }) if t == target
+            ),
+            "GOTO granted: the keypress engages GOTO on the lock"
+        );
+    }
+
+    /// A controller that predates the flags (no `ControllerVerbs` component)
+    /// must stay flyable and grant every verb - the flags are decoupled from
+    /// `flyable`, so a missing component falls back to the all-on default and
+    /// never bricks the ship. Guards the fail-closed hazard (review MINOR 1).
+    #[test]
+    fn controller_without_verb_flags_is_flyable_and_grants_all_verbs() {
+        let mut world = hint_world();
+        // A live controller WITHOUT ControllerVerbs, plus a thruster: not the
+        // production bundle, but the shape a legacy/hand-built spawn could take.
+        let ship = world.spawn(PlayerSpaceshipMarker).id();
+        world.spawn((
+            ChildOf(ship),
+            ControllerSectionMarker,
+            PDController {
+                frequency: 4.0,
+                damping_ratio: 4.0,
+                max_torque: 40.0,
+            },
+        ));
+        world.spawn((ChildOf(ship), ThrusterSectionMarker));
+        let lock = world.spawn_empty().id();
+        let well = world.spawn_empty().id();
+        world.insert_resource(SpaceshipPlayerTargetLock(Some(lock)));
+        world.entity_mut(ship).insert(DominantWell(well));
+
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert!(hints.stop.available, "flyable despite no flags component");
+        assert!(hints.goto.available, "GOTO defaults on without flags");
+        assert!(hints.orbit.available, "ORBIT defaults on without flags");
     }
 
     #[test]
