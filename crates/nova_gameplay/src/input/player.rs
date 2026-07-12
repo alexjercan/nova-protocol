@@ -357,6 +357,7 @@ fn update_turret_target_input(
     >,
     lock: Res<SpaceshipPlayerTargetLock>,
     component: Res<SpaceshipPlayerComponentLock>,
+    keys: Res<ButtonInput<KeyCode>>,
     q_lock_target: Query<(
         &Transform,
         Option<&ComputedCenterOfMass>,
@@ -401,7 +402,18 @@ fn update_turret_target_input(
         let forward = **point_rotation * Vec3::NEG_Z;
         (position + forward * 100.0, Vec3::ZERO)
     };
-    let (target_point, target_velocity) = component_tier.or(lock_tier).unwrap_or(ray_tier);
+    // Manual free-aim (task 20260712-164031): while CTRL is held the turret
+    // detaches from the lock and tracks the camera crosshair (= the mouse, since
+    // the camera is mouse-look), instead of the auto-fire lock tiers. Release ->
+    // the lock tiers take over again. Both CTRL keys, matching the ship-lock
+    // cycle modifier. (Note: that CTRL+scroll cycle and this free-aim share the
+    // CTRL hold - see the task's interaction note.)
+    let free_aim = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
+    let (target_point, target_velocity) = if free_aim {
+        ray_tier
+    } else {
+        component_tier.or(lock_tier).unwrap_or(ray_tier)
+    };
 
     for (mut turret, mut velocity, _) in q_turret
         .iter_mut()
@@ -1668,6 +1680,7 @@ mod tests {
         let mut world = World::new();
         world.insert_resource(SpaceshipPlayerTargetLock(None));
         world.insert_resource(SpaceshipPlayerComponentLock::default());
+        world.init_resource::<ButtonInput<KeyCode>>();
         world.spawn((
             SpaceshipCameraInputMarker,
             SpaceshipCameraTurretInputMarker,
@@ -1746,6 +1759,8 @@ mod tests {
             .id();
         world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
         world.insert_resource(SpaceshipPlayerComponentLock::default());
+        // The feed reads CTRL for free-aim; default = no keys held = normal.
+        world.init_resource::<ButtonInput<KeyCode>>();
         (world, turret, target, section)
     }
 
@@ -1812,5 +1827,46 @@ mod tests {
 
         assert_eq!(point, Some(Vec3::new(0.0, 0.0, -100.0)));
         assert_eq!(velocity, Vec3::ZERO);
+    }
+
+    #[test]
+    fn holding_ctrl_free_aims_at_the_camera_ray_over_the_lock() {
+        // Manual free-aim (task 20260712-164031): while CTRL is held the turret
+        // ignores the lock - even a component lock, the strongest tier - and
+        // tracks the camera crosshair. Would fail if the feed still let the lock
+        // tiers win with CTRL down.
+        let (mut world, turret, _, section) = turret_feed_world();
+        world.resource_mut::<SpaceshipPlayerComponentLock>().section = Some(section);
+        world
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::ControlLeft);
+
+        let (point, velocity) = turret_feed(&mut world, turret);
+        assert_eq!(
+            point,
+            Some(Vec3::new(0.0, 0.0, -100.0)),
+            "CTRL detaches the turret to the camera ray, not the locked section"
+        );
+        assert_eq!(
+            velocity,
+            Vec3::ZERO,
+            "free aim commands a point, no lead velocity"
+        );
+
+        // Releasing CTRL snaps back to the lock feed (the component tier).
+        world
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(KeyCode::ControlLeft);
+        let (point, velocity) = turret_feed(&mut world, turret);
+        assert_eq!(
+            point,
+            Some(Vec3::new(1.0, 0.5, -199.0)),
+            "release resumes the component lock"
+        );
+        assert_eq!(
+            velocity,
+            Vec3::new(7.0, 0.0, 0.0),
+            "lock root velocity is back"
+        );
     }
 }

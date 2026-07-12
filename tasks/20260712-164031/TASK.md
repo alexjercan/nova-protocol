@@ -1,6 +1,6 @@
 # Turret: manual free-aim while holding CTRL
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.5.0,feature
 
@@ -16,28 +16,28 @@ CTRL -> normal locked/manual behavior resumes.
 
 ## Steps
 
-- [ ] In `update_turret_target_input` (input/player.rs:338 - the player's turret
+- [x] In `update_turret_target_input` (input/player.rs:338 - the player's turret
   aim feed) add a `keys: Res<ButtonInput<KeyCode>>` param and compute
   `free_aim = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight)`
   (both CTRL keys, matching the existing ship-lock-cycle modifier binding
   player.rs:590).
-- [ ] Change the tier pick (player.rs:404) from
+- [x] Change the tier pick (player.rs:404) from
   `component_tier.or(lock_tier).unwrap_or(ray_tier)` to: when `free_aim`, use
   `ray_tier` directly (the camera crosshair = where the mouse points, velocity 0);
   otherwise the existing `component_tier.or(lock_tier).unwrap_or(ray_tier)`.
   Comment the behavior and the interaction note below.
-- [ ] The system now requires `ButtonInput<KeyCode>`: init it in the existing
+- [x] The system now requires `ButtonInput<KeyCode>`: init it in the existing
   turret-feed tests so they keep running with default (no CTRL) behavior -
   `turret_feed_world()` (player.rs:1710) and
   `turret_aim_ray_bases_on_the_live_structure_anchor` (player.rs:1664). Default =
   no keys pressed = unchanged assertions.
-- [ ] Add a test `holding_ctrl_free_aims_at_the_camera_ray_over_the_lock`: build
+- [x] Add a test `holding_ctrl_free_aims_at_the_camera_ray_over_the_lock`: build
   `turret_feed_world()` (has a ship lock), also set a component lock (the
   strongest tier), press `ControlLeft`, run the feed, and assert the turret aims
   at the camera ray point `(0,0,-100)` with zero velocity - NOT the locked
   section `(1,0.5,-199)`. Then release CTRL, re-run, assert it snaps back to the
   component-lock point. Falsifiable: fails if CTRL is ignored.
-- [ ] Verify `cargo check --workspace --all-targets` + the player input tests +
+- [x] Verify `cargo check --workspace --all-targets` + the player input tests +
   `cargo fmt`. Add a CHANGELOG Unreleased line.
 
 ## Notes
@@ -61,3 +61,19 @@ CTRL -> normal locked/manual behavior resumes.
   tests :1663-1816); input/targeting.rs (the lock resources it reads); the
   turret follows `TurretSectionTargetInput` via `update_turret_aim_point`
   (sections/turret_section.rs).
+
+## Implementation record
+
+`update_turret_target_input` (input/player.rs) now reads `Res<ButtonInput<KeyCode>>`
+and, when either CTRL is held, uses the camera-ray tier directly instead of
+`component_tier.or(lock_tier).unwrap_or(ray_tier)` - so the turret free-aims at the
+crosshair while CTRL is down and snaps back to the lock on release. Existing
+turret-feed test rigs gained `init_resource::<ButtonInput<KeyCode>>()` (default =
+no CTRL = unchanged); added `holding_ctrl_free_aims_at_the_camera_ray_over_the_lock`
+(falsifiable: a component lock is set, yet CTRL forces the ray point).
+
+Interaction (see Notes): CTRL is shared with the CTRL+scroll ship-lock cycle, so
+holding CTRL to cycle also free-aims until release. Left as-is for playtest.
+
+Verify: cargo check --workspace --all-targets clean; input::player tests 17/17
+(incl. the new one) and turret tests green; cargo fmt clean.
