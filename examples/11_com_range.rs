@@ -103,6 +103,7 @@ fn com_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
     let ship = SpaceshipConfig {
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: HashMap::new(),
+            speed_cap: None,
         }),
         sections: vec![
             at("controller", "basic_controller_section", 0.0),

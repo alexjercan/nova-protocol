@@ -113,6 +113,7 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
                 "torpedo".to_string(),
                 vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
             )]),
+            speed_cap: None,
         }),
         sections: vec![
             SpaceshipSectionConfig {

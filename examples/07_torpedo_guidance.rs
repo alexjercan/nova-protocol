@@ -107,6 +107,7 @@ fn guidance_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scena
     let ship = SpaceshipConfig {
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: HashMap::from([("torpedo".to_string(), vec![KeyCode::Space.into()])]),
+            speed_cap: None,
         }),
         sections: vec![
             SpaceshipSectionConfig {

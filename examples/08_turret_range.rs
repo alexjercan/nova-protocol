@@ -129,6 +129,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                 "turret".to_string(),
                 vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
             )]),
+            speed_cap: None,
         }),
         sections: vec![
             SpaceshipSectionConfig {
@@ -207,6 +208,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                 texture: game_assets.asteroid_texture.clone(),
                 health: 100_000.0,
                 surface_gravity: Some(10.0),
+                invulnerable: false,
             }),
         },
     ];

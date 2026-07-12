@@ -91,6 +91,7 @@ fn gameplay_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scena
                 "turret".to_string(),
                 vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
             )]),
+            speed_cap: None,
         }),
         sections: vec![
             SpaceshipSectionConfig {

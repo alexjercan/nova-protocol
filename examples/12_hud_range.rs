@@ -139,6 +139,7 @@ fn hud_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
     let player = SpaceshipConfig {
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: HashMap::new(),
+            speed_cap: None,
         }),
         sections: player_sections,
     };
