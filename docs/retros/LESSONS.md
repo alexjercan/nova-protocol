@@ -33,7 +33,7 @@ retros.
   20260710-231931 (R1.1 MAJOR), 20260710-231930, 20260711-121701,
   20260711-121711, 20260710-214316 (expect-guard on the
   inside-envelope sample).
-- `verify-first-plan-steps` (x5, PROMOTED 2026-07-11 -> plan skill):
+- `verify-first-plan-steps` (x6, PROMOTED 2026-07-11 -> plan skill):
   plan steps encoding mechanisms/formulas/orderings must cite the
   verifying file or be phrased verify-first. 20260710-231931 (torque
   -blind burn), 20260710-231930 (wrong overshoot algebra),
@@ -44,7 +44,11 @@ retros.
   will accept X" claims must follow the data into Y's filter/gate logic,
   not stop at the query/function signature - a signature-level read
   missed the in-lambda gate that rejected Static bodies and would have
-  broken the GOTO beat. 20260712-093044.
+  broken the GOTO beat. 20260712-093044. API-constructor variant: a
+  concrete engine API shape is also a mechanism claim - the plan wrote
+  the Bevy 0.19 RTT spawn as `Camera { target }` but it is a standalone
+  `RenderTarget` component; grep the engine example, don't state the
+  constructor from memory. 20260710-104421.
 - `landing-no-cd` (x3, PROMOTED 2026-07-11 -> flow skill): the
   squash-merge is its own command, no `cd`, `pwd` first, from the main
   checkout. 20260709-160753, diegetic-autopilot retro, 20260711-125225
@@ -53,6 +57,24 @@ retros.
   record the rig (systems run, command path, components) or they
   mislead the next session. 20260709-125640 (origin), 20260711-121701,
   20260711-125225.
+- `probe-surfaces-adjacent-issues` (x1): a real runtime de-risk probe
+  pays for itself beyond its stated question - the RTT probe answered
+  "no blackout" AND surfaced the inspector-egui bleed into the RTT
+  camera and the BCS_SHOT black-capture gotcha, neither of which was on
+  any list. When a spike calls for a probe, run it for real rather than
+  reasoning it away. 20260710-104421.
+- `headless-shot-after-load` (x1): `BCS_SHOT` captures BLACK in this
+  repo because it force-advances to Playing and shoots ~30 frames later,
+  before async asset loading has a scene (the GPU is real). For a real
+  headless frame of a loaded scene, inject a `Screenshot::primary_window`
+  from the autopilot script at a settled moment (~+2 s) instead.
+  20260710-104421.
+- `worktree-shares-main-target` (x1): a fresh sprout worktree does not
+  share the main checkout's `target/`, so a naive build rebuilds Bevy
+  from scratch (~290 GB cache wasted). Set
+  `CARGO_TARGET_DIR=<main-checkout>/target` for worktree builds. The
+  session shell cwd also resets to the main checkout between commands, so
+  use absolute paths or `cd <wt> && ...`. 20260710-104421.
 - `commit-before-sabotage` (x1 + scar, PROMOTED 2026-07-11 -> work
   skill): commit the fix before A/B sabotage; file-level `git checkout`
   restores the branch base, not your uncommitted work. 20260710-231930
