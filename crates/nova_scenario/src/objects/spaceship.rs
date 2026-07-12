@@ -28,6 +28,13 @@ pub struct PlayerControllerConfig {
     /// scenario's don't-sail-into-the-void guard; playtest 2026-07-12
     /// finding 1). None = unbounded Newtonian burn, the default.
     pub speed_cap: Option<f32>,
+    /// Give this player ship unlimited ammunition: its weapon sections are
+    /// built with `ammo_capacity = None`, so no [`SectionAmmo`] is attached and
+    /// the guns never run dry (the finite-ammo default is task 20260525-133025).
+    /// The first/New Game scenario turns this on so the intro is not gated on
+    /// ammo before a reload mechanic exists; `false` (the default) keeps the
+    /// authored per-weapon magazines. Player-scoped: enemies are unaffected.
+    pub infinite_ammo: bool,
 }
 
 #[derive(Clone, Debug, Default, Reflect)]
@@ -108,6 +115,13 @@ fn insert_spaceship_sections(
     };
     let spawn_position = transform.translation;
 
+    // A player ship flagged for infinite ammo has its weapons built without a
+    // magazine: overriding `ammo_capacity` to None means `insert_turret_section`
+    // / `insert_torpedo_section` attach no `SectionAmmo`, which is exactly the
+    // unlimited-ammo default. Enemy ships are never flagged, so they keep theirs.
+    let infinite_ammo =
+        matches!(controller_config, SpaceshipController::Player(config) if config.infinite_ammo);
+
     commands.entity(entity).with_children(|parent| {
         for section in sections_config.iter() {
             let mut section_entity = parent.spawn((
@@ -139,7 +153,11 @@ fn insert_spaceship_sections(
                     }
                 }
                 SectionKind::Turret(turret_config) => {
-                    section_entity.insert(turret_section(turret_config.clone()));
+                    let mut turret_config = turret_config.clone();
+                    if infinite_ammo {
+                        turret_config.ammo_capacity = None;
+                    }
+                    section_entity.insert(turret_section(turret_config));
 
                     match controller_config {
                         SpaceshipController::None => {}
@@ -153,7 +171,11 @@ fn insert_spaceship_sections(
                     }
                 }
                 SectionKind::Torpedo(torpedo_config) => {
-                    section_entity.insert(torpedo_section(torpedo_config.clone()));
+                    let mut torpedo_config = torpedo_config.clone();
+                    if infinite_ammo {
+                        torpedo_config.ammo_capacity = None;
+                    }
+                    section_entity.insert(torpedo_section(torpedo_config));
 
                     match controller_config {
                         SpaceshipController::None => {}
@@ -268,5 +290,59 @@ mod tests {
         );
         assert!(world.entity(both).get::<AIOrbitDirective>().is_some());
         assert!(world.entity(both).get::<AIPatrolRoute>().is_some());
+    }
+
+    /// A Player ship flagged `infinite_ammo` builds its weapon with no magazine
+    /// (`ammo_capacity` None, so `insert_turret_section` attaches no
+    /// `SectionAmmo` - that half is covered by the ammo tests); unflagged it
+    /// keeps the authored `Some(10)`. Asserting on the section's config helper
+    /// is the right boundary for this scenario-side override.
+    #[test]
+    fn player_infinite_ammo_strips_the_weapon_magazine() {
+        fn turret_ammo_capacity(infinite_ammo: bool) -> Option<u32> {
+            let mut world = World::new();
+            world.add_observer(insert_spaceship_sections);
+            world.spawn((
+                Transform::default(),
+                spaceship_scenario_object(SpaceshipConfig {
+                    controller: SpaceshipController::Player(PlayerControllerConfig {
+                        infinite_ammo,
+                        ..default()
+                    }),
+                    sections: vec![SpaceshipSectionConfig {
+                        id: "turret".to_string(),
+                        position: Vec3::ZERO,
+                        rotation: Quat::IDENTITY,
+                        config: SectionConfig {
+                            base: BaseSectionConfig {
+                                id: "turret".to_string(),
+                                ..default()
+                            },
+                            kind: SectionKind::Turret(TurretSectionConfig {
+                                ammo_capacity: Some(10),
+                                ..default()
+                            }),
+                        },
+                    }],
+                }),
+            ));
+            world.flush();
+            let mut q = world.query::<&TurretSectionConfigHelper>();
+            q.iter(&world)
+                .next()
+                .expect("a turret section was spawned")
+                .ammo_capacity
+        }
+
+        assert_eq!(
+            turret_ammo_capacity(true),
+            None,
+            "infinite_ammo must strip the weapon magazine"
+        );
+        assert_eq!(
+            turret_ammo_capacity(false),
+            Some(10),
+            "without the flag the authored magazine is kept"
+        );
     }
 }

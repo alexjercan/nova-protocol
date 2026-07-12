@@ -140,6 +140,8 @@ fn hud_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: HashMap::new(),
             speed_cap: None,
+            // Dev/tuning harness: fire freely.
+            infinite_ammo: true,
         }),
         sections: player_sections,
     };

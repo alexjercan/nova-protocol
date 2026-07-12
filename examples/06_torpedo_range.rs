@@ -114,6 +114,8 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
                 vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
             )]),
             speed_cap: None,
+            // Dev/tuning harness: fire freely.
+            infinite_ammo: true,
         }),
         sections: vec![
             SpaceshipSectionConfig {

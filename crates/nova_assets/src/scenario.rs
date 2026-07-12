@@ -237,6 +237,8 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
             )]),
 
             speed_cap: None,
+            // The sandbox scenario keeps the authored finite magazines.
+            infinite_ammo: false,
         }),
         sections: vec![
             SpaceshipSectionConfig {

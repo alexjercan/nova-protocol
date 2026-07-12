@@ -130,6 +130,8 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                 vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
             )]),
             speed_cap: None,
+            // Dev/tuning harness: fire freely.
+            infinite_ammo: true,
         }),
         sections: vec![
             SpaceshipSectionConfig {

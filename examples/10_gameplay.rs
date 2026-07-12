@@ -92,6 +92,8 @@ fn gameplay_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scena
                 vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
             )]),
             speed_cap: None,
+            // Dev/tuning harness: fire freely.
+            infinite_ammo: true,
         }),
         sections: vec![
             SpaceshipSectionConfig {

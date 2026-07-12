@@ -271,6 +271,10 @@ fn player_ship(sections: &GameSections) -> ScenarioObjectConfig {
                 )]),
 
                 speed_cap: Some(PLAYER_SPEED_CAP),
+                // The first/New Game scenario: unlimited ammo so the intro is
+                // not gated on running dry before a reload mechanic exists
+                // (task 20260712-140250).
+                infinite_ammo: true,
             }),
             sections: vec![
                 section(
@@ -1188,5 +1192,26 @@ mod tests {
                 event.filters.len()
             );
         }
+    }
+
+    /// The first/New Game scenario must not gate the player on ammo
+    /// (task 20260712-140250): guard that the player ship is actually built
+    /// with `infinite_ammo` ON, so it cannot be silently turned off. Fails if
+    /// the flag is dropped or flipped - the mechanism test in nova_scenario
+    /// would still pass, so this is the one that pins the user-facing behavior.
+    #[test]
+    fn the_new_game_player_has_infinite_ammo() {
+        let sections = crate::scenario::tests::real_sections();
+        let player = player_ship(&sections);
+        let ScenarioObjectKind::Spaceship(config) = player.kind else {
+            panic!("the player object must be a spaceship");
+        };
+        let SpaceshipController::Player(controller) = config.controller else {
+            panic!("the player ship must be player-controlled");
+        };
+        assert!(
+            controller.infinite_ammo,
+            "the New Game player must have infinite ammo"
+        );
     }
 }

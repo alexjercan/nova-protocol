@@ -281,6 +281,8 @@ fn test_scenario(
                 .collect(),
 
             speed_cap: None,
+            // The editor sandbox keeps normal finite magazines.
+            infinite_ammo: false,
         }),
         sections: player_config.sections.values().cloned().collect(),
     };
