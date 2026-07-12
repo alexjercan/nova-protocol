@@ -340,3 +340,124 @@ without conflicts). SHIFT+X idea retired. Trade-off accepted and flagged
 for playtest: firing always requires holding combat stance - a fleeing
 gunfight means flying in Turret view, which is already how combat flying
 works today.
+
+## Round 3 (2026-07-12): adversarial reviews - findings and design deltas
+
+Two independent adversarial reviewers (one UX, attacking with player
+scenarios; one feasibility, attacking against the code at file:line) were
+run on rounds 1-2b. Round 2c (no unlock key, fire gated on raise) landed
+between their start and finish and already resolves several findings.
+Verified myself before adopting: the frozen-ray chain and the rig-marker
+sync (camera_controller.rs:575-631).
+
+### Accepted findings -> design deltas (v3)
+
+1. **The look ray must be re-sourced (feasibility B1/B3/M3 - the deepest
+   find).** Today the acquisition cone reads the TURRET rig's
+   `PointRotationOutput` (targeting.rs:314-319), which only integrates
+   input while that rig holds `SpaceshipRotationInputActiveMarker` -
+   Turret mode only (camera_controller.rs:616-629). Outside combat view
+   the ray is FROZEN at the last raise's direction: travel casting in
+   Normal/FreeLook is impossible as planned, and every raise-frame angle
+   evaluation (seeding, hysteresis) compares against the stale ray.
+   DELTA: introduce one "active look ray" accessor - the
+   `PointRotationOutput` of whichever rig currently holds the active
+   marker. Travel casting uses it every frame; raise-time seeding uses it
+   on the press frame (the marker still sits on the outgoing rig that
+   frame, so it IS the live look). The turret rig keeps feeding turret
+   slewing. Bonus fix: Turret entry currently seeds from the NORMAL rig
+   even when raising out of FreeLook (camera_controller.rs:586/:623-628) -
+   seed from the ACTIVE rig instead, so raising while free-looking at a
+   flanker aims at the flanker.
+2. **Weapon-raised state, not the camera enum, routes gameplay
+   (feasibility M2).** `SpaceshipCameraControlMode` is last-writer-wins
+   across four ungated observers; Alt-tap while RMB is held corrupts it.
+   DELTA: a dedicated raised flag written only by
+   `Start/Complete<CombatInput>`; scroll routing, fire gate, seeding and
+   auto-seed all read RAISED. The camera enum stays a camera concern
+   (restoring the outer mode on nested releases is noted as a separate
+   camera bug, not load-bearing here).
+3. **Scroll rebind is a re-binding, not a branch swap (feasibility B2).**
+   Wheel, brackets and DPad share the same two actions; swapping observer
+   branches would make bare DPadRight retarget the guns. DELTA: move the
+   WHEEL bindings onto `TargetCycleNextInput`/`TargetCyclePrevInput`
+   (prev is empty today, player.rs:681-688), put the SHIFT dispatch in
+   the target-cycle observers, leave brackets/DPad on component cycling
+   untouched. Hint plumbing is field-vs-caption paired in
+   keybind_hints.rs:242-243 with pinned tests - update both ends.
+4. **Acquire/fire only while raised** (round 2c, confirmed by UX B1): a
+   no-lock trigger outside combat stance is a deny cue, never an
+   acquisition from an all-directions set (the "second click fires
+   backwards" trap dies). Seed/acquire pools are cone/on-screen limited.
+5. **Designated bit on the travel lock (UX B2).** An auto-cast travel
+   lock was never "designated"; only a scrolled (or aimed-at-raise-time)
+   one carries intent. The incumbent-hysteresis raise rule (round 2b)
+   treats the hostile travel lock as incumbent ONLY if designated or
+   currently in the cone; a stale auto-cast hostile behind you never
+   wins a raise.
+6. **Deliberate raise on a non-hostile (UX M4/M5), no new key.** Round 2's
+   hostile-first seeding silently deleted every path to combat-lock a
+   neutral/friendly/rock (traitor ships, mining assist). DELTA: a raise
+   while the travel lock is non-hostile AND inside the tight pick cone
+   seeds it - you are LOOKING at the thing you designated and raising on
+   it, which is exactly deliberate. (Replaces the earlier CTRL+RMB
+   override idea - no gesture conflict with free-aim, no new input.)
+7. **Auto-seed-on-kill guards (UX M1).** Raised-only, on-screen-only,
+   and it interrupts a held trigger - continuing fire requires a
+   re-press. Behind a const flag, default ON for playtest.
+8. **Torpedo protections (UX M3, feasibility m4).** Commit requires the
+   combat lock stable for ~0.5 s (knob), else dumb-fire + deny cue;
+   committed torpedoes are excluded from all AUTO-seeding (scroll still
+   reaches them). RECORDED LOSS, needs user ack: guided torpedoes at nav
+   bodies (asteroids/beacons) die with the split - the combat slot never
+   holds them; torpedo-at-rock becomes dumb-fire.
+9. **Precedence table (feasibility M1)** - deliberate beats automatic,
+   last deliberate act wins: (i) scroll sets lock + 4 s pin + freezes
+   list order; (ii) a raise re-seed (hysteresis passed) REPLACES any pin
+   with a fresh one; (iii) auto-seed-on-kill runs only into an empty
+   slot, sets no pin; (iv) stickiness: a valid lock is never auto
+   re-picked, either slot. HUD "guns hot on X" banner whenever a combat
+   lock exists while lowered (UX M8).
+10. **Componentization port surface additions (feasibility m2/m3):**
+    examples/12_hud_range.rs compiles against the resources; verb hints
+    (player.rs:157-281) must keep running shipless or hints freeze
+    stale; `drive_reticle_anchor` must write None on empty query, not
+    early-return; mode enum lacks PartialEq (transition detection needs
+    a Local prev); mode observers are pause-ungated while the seed
+    system is pause-gated - latch raise transitions across pause.
+    Good news verified: HUD layers tear down on Remove<PlayerSpaceshipMarker>
+    (hud/mod.rs:217-229), and ship-scoped components FIX today's
+    stale-resource-across-respawn wart.
+11. Free-aim reads raw CTRL keys (player.rs:434) - the fire-gate bypass
+    must NOT reuse the (now SHIFT) cycle-modifier helper (feasibility
+    m7). Scroll-at-view-transition race (UX m2): debounce const on
+    routing flips.
+
+### Rejected / deferred, with reasons
+
+- Soft/hard travel locks (UX M7): contradicts the user's explicit
+  sticky-from-cast choice; angle-ordered scroll makes re-designation 1-2
+  flicks. Deferred to playtest; the designated bit (delta 5) already
+  exists if it becomes wanted.
+- Combat-lock time expiry (UX M8 remedy): persistence is the point
+  (user model item 4); inertness-while-lowered + banner + natural clears
+  cover the risk. The ~20 s decay stays an optional flag.
+- LOS hold-fire through a crossing friendly (UX m4): real, but
+  pre-existing today and orthogonal to the slot split - future task
+  candidate, not this family.
+- SHIFT+X unlock collides with X=STOP + Chord class (feasibility M4):
+  moot - round 2c removed the unlock key entirely; recorded as further
+  evidence for that decision.
+- RMB-flick retargeting camera whiplash on pad (UX m6): the scroll path
+  remains primary; flick is an alternative, not a requirement.
+- UX m1 (input-count arithmetic): fair - the honest claim is parity on
+  raw counts vs today with the wins being travel-lock preservation,
+  kill-chain continuity, and fewer wrong-target incidents.
+
+### What survived both attacks unscathed
+
+The two-slot invariant itself (G reads travel, guns read only combat),
+the angle-from-aim combat scroll with past-cone continuation, torpedo
+no-lock dumb-fire, CTRL free-aim as escape hatch, and all binding facts
+(SHIFT/MMB free, X=STOP, pad table). The tasks' cited line numbers were
+verified accurate.
