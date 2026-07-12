@@ -108,6 +108,22 @@ retros.
   in 20260711-180426 (five tatr new in one command -> one task) and AGAIN
   in 20260711-212519's spike phase (three in one && chain) despite the
   skill gotcha - the note does not fire when composing the command.
+- `state-diff-aliases-reset` (x1, MAJOR): deriving domain events by
+  diffing a state snapshot makes a state RESET look like a batch of
+  events - scenario teardown emptied GameObjectives and the feedback
+  diff played the success chime over green ghosts of the FAILED
+  objectives. Before shipping cue/feedback logic on a diff, enumerate
+  the transitions that are not domain events (teardown, load, clear)
+  and guard them. 20260712-125342 (R1.1).
+- `landing-checkout-not-yours` (x1, near-miss): the flow landing rule
+  assumes the main checkout sits on the default branch, but a parallel
+  session had switched it to its own feature branch - the squash staged
+  onto the wrong branch before the `git branch --show-current` output
+  was read. Landing now requires verifying the current branch IS the
+  default first, falling back to a temporary `git worktree add <tmp>
+  master` when the main checkout is occupied; `git reset --merge`
+  undoes a staged squash without destroying the other session's
+  uncommitted work. 20260712-125342.
 - `pair-matrix-on-collider-class-change` (x1, BLOCKER + MAJOR in one
   review): changing a collider's class (solid -> Sensor, adding/removing
   CollisionEventsEnabled) must be checked against EVERY collider
