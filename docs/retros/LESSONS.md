@@ -281,7 +281,7 @@ retros.
   constants, and confirmed the `BlastDamageMarker` -> `NovaBlast` sweep was total
   (zero stragglers), turning an APPROVE into a verified one rather than a trusting
   one. 20260712-133343.
-- `required-component-in-shared-query` (x1): adding a REQUIRED component fetch
+- `required-component-in-shared-query` (x2): adding a REQUIRED component fetch
   to an EXISTING system query narrows that query's membership set, so every
   gate computed from the query silently inherits the new precondition - folding
   `ControllerVerbs` into `q_computer` coupled `flyable` ("can this ship fly")
@@ -289,6 +289,11 @@ retros.
   new data is orthogonal to what the query already gates, fetch it `Optional`
   or in a separate query. Sibling of reread-after-insert /
   does-the-old-element-survive, applied to query membership. 20260712-143832.
+  x2 (applied PROACTIVELY): adding `&LoadedBullet` to `shoot_spawn_projectile`'s
+  turret query would have stopped every headless fire rig (they spawn turrets
+  without the slot) from firing; recalled the lesson before running and used
+  `Option<&LoadedBullet>` + a config fallback. The lesson caught the trap at
+  design time instead of via a broken-test loop. 20260712-133349.
 - `spike-open-question-pays-off` (positive pattern, x1): a spike that names a
   risky unknown lets the implementer resolve it BEFORE wiring, not after a
   flake - the verb-flags spike flagged the OnStart spawn-vs-action ordering
