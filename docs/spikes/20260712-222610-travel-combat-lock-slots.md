@@ -461,3 +461,44 @@ the angle-from-aim combat scroll with past-cone continuation, torpedo
 no-lock dumb-fire, CTRL free-aim as escape hatch, and all binding facts
 (SHIFT/MMB free, X=STOP, pad table). The tasks' cited line numbers were
 verified accurate.
+
+## Round 4 (2026-07-12): user directives + questionnaire decisions (FINAL for v0.5)
+
+User directives after round 3: fix the point-rotation plumbing and the
+Normal/FreeLook/Turret transitions PROPERLY (new infrastructure task
+20260712-231141 - mode derived from held inputs with Turret > FreeLook
+priority, transition seeding from the outgoing rig, active-look-ray
+accessor, faithful split-rig test fixtures); "Normal mode chooses target
+for travel" is a hard requirement the code must be changed to allow. All
+round-3 findings/solutions approved.
+
+Questionnaire decisions:
+
+1. **Combat slot membership (user's own design, supersedes both offered
+   options): nav bodies AND friendlies join the CombatLock via deliberate
+   SCROLL in combat mode - "Combat mode is Combat mode".** The combat
+   scroll pool is the same cone list the travel scroll walks (lockable
+   bodies in the wide cone of the live look ray, angle-ordered), not an
+   enemies-only ordering. SIMPLIFICATION: one `AvailableTargets` list
+   serves both modes (its ray source is simply the active rig - normal/
+   freelook ray lowered, turret ray raised); the RAISED flag decides
+   which slot a scroll writes. AUTOMATIC mechanics stay hostile-only:
+   seed-on-raise (incumbent rule + the aimed-non-hostile case), LMB
+   acquire, auto-seed-on-kill. REVERSES the round-3 recorded loss:
+   guided torpedoes at rocks work again - scroll to the rock while
+   raised, launch. `HostileContacts` remains, but only as the
+   edge-indicator threat set and the auto-seed pool.
+2. **Auto-seed-on-kill: default ON** (on-screen only, held fire
+   interrupts, const flag).
+3. **Combat scroll reach: STRICT CONE ONLY** (rejects the past-cone
+   continuation): scroll never selects what you cannot see; a tail
+   torpedo requires turning to face it (edge arrows warn). The round-3
+   "continuing past the cone edge" delta is dead.
+4. **Aimed-raise on a designated non-hostile seeds it: confirmed** (with
+   decision 1 this is the raise-path complement to combat scrolling
+   non-hostiles).
+
+Design is FINAL for v0.5 implementation. Execution order: 20260712-223034
+(scroll rebind) and 20260712-231141 (infrastructure) in either order or
+parallel, then 20260712-223035 (slots), 20260712-223036 (fire gating),
+20260712-223345 (docs).
