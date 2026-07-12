@@ -3,6 +3,8 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use rand::prelude::*;
 
+pub mod shakedown;
+
 pub(crate) fn register_scenario(
     mut commands: Commands,
     game_assets: Res<super::GameAssets>,
@@ -20,6 +22,10 @@ pub(crate) fn register_scenario(
         (
             "menu_ambience".to_string(),
             menu_ambience(&game_assets, &sections),
+        ),
+        (
+            shakedown::SHAKEDOWN_SCENARIO_ID.to_string(),
+            shakedown::shakedown_run(&game_assets, &sections),
         ),
     ])));
 }
@@ -545,14 +551,15 @@ pub fn asteroid_next(game_assets: &super::GameAssets, _sections: &GameSections) 
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
 
     /// A GameAssets with default handles - fine for config-shape tests,
-    /// which never resolve the assets.
-    fn dummy_assets() -> crate::GameAssets {
+    /// which never resolve the assets. pub(crate): the shakedown child
+    /// module's tests build on the same helpers.
+    pub(crate) fn dummy_assets() -> crate::GameAssets {
         crate::GameAssets {
             cubemap: Handle::default(),
             asteroid_texture: Handle::default(),
@@ -568,13 +575,29 @@ mod tests {
 
     /// The real section registry, built by the production register_sections
     /// system against the dummy assets.
-    fn real_sections() -> GameSections {
+    pub(crate) fn real_sections() -> GameSections {
         let mut world = World::new();
         world.insert_resource(dummy_assets());
         world
             .run_system_once(crate::sections::register_sections)
             .unwrap();
         world.remove_resource::<GameSections>().unwrap()
+    }
+
+    /// New Game's contract with nova_menu: the shakedown scenario is
+    /// actually registered under the id the menu hardcodes (the menu
+    /// panics at runtime on a miss, which a config typo here would cause).
+    #[test]
+    fn shakedown_run_is_registered() {
+        let mut world = World::new();
+        world.insert_resource(dummy_assets());
+        world.insert_resource(real_sections());
+        world.run_system_once(register_scenario).unwrap();
+        let scenarios = world.resource::<GameScenarios>();
+        assert!(
+            scenarios.contains_key(shakedown::SHAKEDOWN_SCENARIO_ID),
+            "shakedown_run must be in GameScenarios"
+        );
     }
 
     /// The menu backdrop's contract (task 20260711-212504): the orbiter is

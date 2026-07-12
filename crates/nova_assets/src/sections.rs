@@ -86,6 +86,55 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
         },
         SectionConfig {
             base: BaseSectionConfig {
+                id: "light_hull_section".to_string(),
+                name: "Light Hull Section".to_string(),
+                description: "A thin-walled hull section; scavenger grade.".to_string(),
+                mass: 1.0,
+                // A third of reinforced: the shakedown pirate should die in
+                // a short burst, not a slugging match (task 20260711-180506,
+                // "gentle" is data).
+                health: 60.0,
+            },
+            kind: SectionKind::Hull(HullSectionConfig {
+                render_mesh: Some(game_assets.hull_01.clone()),
+            }),
+        },
+        SectionConfig {
+            base: BaseSectionConfig {
+                id: "light_turret_section".to_string(),
+                name: "Light Turret Section".to_string(),
+                description: "A low-caliber turret; scavenger grade.".to_string(),
+                mass: 1.0,
+                health: 60.0,
+            },
+            kind: SectionKind::Turret(TurretSectionConfig {
+                yaw_speed: std::f32::consts::PI,
+                pitch_speed: std::f32::consts::PI,
+                min_pitch: Some(-std::f32::consts::FRAC_PI_6),
+                max_pitch: Some(std::f32::consts::FRAC_PI_2),
+                render_mesh_base: None,
+                base_offset: Vec3::new(0.0, -0.5, 0.0),
+                render_mesh_yaw: Some(game_assets.turret_yaw_01.clone()),
+                yaw_offset: Vec3::new(0.0, 0.1, 0.0),
+                render_mesh_pitch: Some(game_assets.turret_pitch_01.clone()),
+                pitch_offset: Vec3::new(0.0, 0.332706, 0.303954),
+                render_mesh_barrel: Some(game_assets.turret_barrel_01.clone()),
+                barrel_offset: Vec3::new(0.0, 0.128437, -0.110729),
+                muzzle_offset: Vec3::new(0.0, 0.0, -1.2),
+                // Bullet damage is kinetic (impulse/energy modifiers in the
+                // bcs integrity pipeline), so gentleness is tuned here: a
+                // quarter of the better turret's fire rate, slower and
+                // lighter rounds - roughly a fifth of the per-hit energy.
+                fire_rate: 25.0,
+                muzzle_speed: 60.0,
+                projectile_lifetime: 5.0,
+                projectile_mass: 0.05,
+                projectile_render_mesh: None,
+                muzzle_effect: None,
+            }),
+        },
+        SectionConfig {
+            base: BaseSectionConfig {
                 id: "torpedo_section".to_string(),
                 name: "Torpedo Bay Section".to_string(),
                 description: "A torpedo bay section for spaceships.".to_string(),

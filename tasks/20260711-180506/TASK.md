@@ -1,6 +1,6 @@
 # Starter New Game scenario: fun but gentle
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.5.0,scenario,content,spike
 
@@ -16,92 +16,122 @@ distances). Ends with New Game loading it instead of asteroid_field.
 
 ## Steps
 
-- [ ] Verify TurretSectionConfig's damage/fire-rate fields in
-      `crates/nova_assets/src/sections.rs` (better_turret_section, line
-      ~59), then register a `light_turret_section` there: same model,
-      noticeably lower damage and fire rate - the pirate's armament, so
-      "gentle" is data. Also confirm which section healths make a weak
-      pirate (reinforced_hull_section is 150; if nothing lighter exists,
-      add a `light_hull_section` with ~60 health).
-- [ ] New module `crates/nova_assets/src/scenario/shakedown.rs` (turn
-      scenario.rs into a directory module, or add `mod shakedown` beside
-      it - keep asteroid_field where it is): `pub fn shakedown_run(...)
-      -> ScenarioConfig`. Layout constants at the top (positions derived
-      from the beat distances): player spawn; beacon_1 ~350u ahead
-      (+Z); beacon_2 ~300u further, ~120 degrees off the beacon_1
-      approach axis; debris cluster (8-10 small asteroids, radius 1-3)
-      just past beacon_2 with crate_1..crate_3 inside it; planetoid
-      (nominal 20u, surface_gravity Some(6.0) - geometric radius runs
-      80-91u, menu_ambience:39) ~700u out; beacon_3 at ~200u from the
-      planetoid center (inside the SOI); orbit gate area = sphere around
-      the planetoid, radius ~150u. All props clear of the planetoid's
-      geometric radius (the menu_ambience penetration lesson).
-- [ ] Player ship: SpaceshipController::Player, LMB turret mapping (copy
-      asteroid_field:220), sections controller + reinforced_hull_front +
-      basic_thruster + better_turret - one turret, no hull_back, no
-      torpedo bay. Pirate: SpaceshipController::AI with patrol waypoints
-      looping over the debris cluster, sections controller + light_hull +
-      basic_thruster + light_turret; NOT spawned at OnStart - its
-      SpawnScenarioObject action rides the salvage-complete event.
-- [ ] Beat chain events (mirror asteroid_field's variable+filter idiom):
-      OnStart spawns everything except the pirate, sets `beat` bookkeeping
-      variables, pushes objective b1 "Your ship is drifting. Burn for
-      Beacon 1 [W]". OnEnter(beacon_1, player) + beat guard -> complete
-      b1, push b2 "Beacon 2 is off your beam. Hold [Alt] to look around
-      and find it". OnEnter(beacon_2, player) -> complete b2, push b3
-      "Recover 3 supply crates from the debris cluster [X] stops you".
-      OnEnter(crate_N, player) x3 -> DespawnScenarioObject(crate_N),
-      increment `crates_recovered`, complete+re-add b3 with the count
-      ("... 1/3", "... 2/3" - single-frame rebuild, no flicker, verified
-      in 20260712-093044 notes). When crates_recovered == 3: complete b3,
-      push b4 "Lock Beacon 3 and press [G]. Then make orbit over the
-      planetoid [O]", and SpawnScenarioObject(pirate) in the same action
-      list (quiet - no objective mentions it yet). OnEnter(orbit_gate,
-      player) + beat guard -> complete b4, push b5 "A scavenger is picking
-      through the debris field you cleared. Drive it off [RMB] aims,
-      [LMB] fires". OnDestroyed(pirate) -> complete b5, push final
-      objective "Shakedown complete - the belt is yours" (no
-      NextScenario; free flight). OnDestroyed(player) ->
-      NextScenario(shakedown_run, linger: true).
-- [ ] Register `shakedown_run` in register_scenario
-      (crates/nova_assets/src/scenario.rs:11) and flip
-      NEW_GAME_SCENARIO_ID to "shakedown_run"
-      (crates/nova_menu/src/lib.rs:40); update the const's doc comment.
-- [ ] Config-shape tests beside the scenario (pattern:
-      menu_orbiter_is_an_ai_ship_directed_at_the_planetoid,
-      scenario.rs:586): every area/beacon/crate id referenced by an event
-      filter or despawn action is spawned by OnStart (catches typo'd ids,
-      the whole script is strings); the pirate is NOT in the OnStart
-      spawn set but IS in exactly one later action list; the pirate is AI
-      with a patrol route over the debris cluster and carries exactly one
-      turret (the light one); the player ship has exactly one turret and
-      no torpedo section; beacon_3 sits inside the planetoid's SOI
-      given the geometric-radius derivation (cite
-      insert_asteroid_gravity_well for the SOI rule when writing it);
-      player death routes back to shakedown_run with linger.
-- [ ] Playtest with /run: boot -> New Game lands in shakedown_run, walk
-      all five beats, confirm each objective advances, the counter text
-      updates, the pirate stays passive until approached, death restarts.
-      Screenshot the beacon chip and the b5 fight for the record.
-- [ ] Update docs: CHANGELOG.md entry; note in docs/scenario-system.md
-      that shakedown_run is the New Game scenario and the reference
-      example of the beat-chain idiom.
+- [x] Verify TurretSectionConfig's damage/fire-rate fields, then register
+      scavenger-grade sections in `crates/nova_assets/src/sections.rs`.
+      AS EXECUTED: bullet damage is kinetic (bcs integrity impulse/energy
+      modifiers), so `light_turret_section` tunes fire_rate 100->25,
+      muzzle_speed 100->60, projectile_mass 0.1->0.05 (~1/5 per-hit
+      energy); `light_hull_section` is 60 health vs reinforced 200.
+- [x] New module `crates/nova_assets/src/scenario/shakedown.rs` (child of
+      scenario.rs): `shakedown_run(...) -> ScenarioConfig` with the whole
+      layout as named constants. AS EXECUTED, geometry derived from the
+      RUNTIME numbers (authored-vs-derived lesson): geometric planetoid
+      radius ~4.0-4.55x nominal, SOI = 8x geometric (640-730u), ORBIT ring
+      = 1.5 * (body_radius + 1) = ~122-138u. Player at origin; beacon 1 at
+      350u ahead; beacon 2 ~120 degrees off boresight; debris cluster (9
+      fixed-offset rocks + 3 crates) past beacon 2; planetoid ~1050u from
+      spawn (SOI edge crossed on the beat-4 leg); beacon 3 at ~220u from
+      the planetoid center; orbit gate sphere at 160u. Rocks are fixed
+      offsets, not rng - determinism keeps the config tests honest.
+- [x] Player ship: LMB turret mapping, controller + reinforced hull +
+      thruster + one better_turret - no hull_back, no torpedo bay.
+      Pirate: AI patrol over the debris cluster, controller + light hull +
+      thruster + one light_turret; spawned by the salvage-complete
+      handler, not OnStart.
+- [x] Beat chain events. AS EXECUTED, two structural choices beyond the
+      plan: (1) a single `beat` counter variable gates every handler
+      (finished beats cannot re-fire; asteroid_field's per-flag idiom
+      would have needed 5 flags); (2) count milestones (tally text, beat
+      advance) run on OnUpdate handlers keyed on the counter value,
+      NOT on the pickup event - handler execution order within one event
+      is query-iteration order and must not be load-bearing. Lazy spawns:
+      beacon 2 appears with beat 2, beacon 3 + pirate with beat 4, so a
+      new HUD chip always means "this is next". Early-pirate-kill branch:
+      killing it during beat 4 sets a flag and the orbit gate routes
+      straight to done. Player death -> NextScenario(shakedown_run,
+      linger).
+- [x] ADDITIONAL (found during work): `EventConfig::OnUpdate` was DEAD
+      CONFIG - the variant and docs existed but nothing ever fired
+      OnUpdateEvent, so the milestone handlers could never run. Added the
+      `fire_on_update` pulse to ScenarioLoaderPlugin (Update, gated on
+      scenario_is_live), with a loader test proving it pulses only while
+      a scenario is live.
+- [x] Register `shakedown_run` in register_scenario and flip
+      NEW_GAME_SCENARIO_ID to "shakedown_run" (nova_menu reads the const
+      everywhere, including its tests, so the swap is one line).
+- [x] Config-shape tests (7) + full-script walk (2): every referenced id
+      is spawned (the script is strings; a typo fails silently); pirate
+      spawns late, exactly once, patrolling the cluster; ships minimal
+      and scavenger-grade where required; beat-4 geometry pinned against
+      the WORST derived-radius seed (beacon 3 inside smallest SOI,
+      outside the gate; widest ring inside the gate); death routes home
+      with linger; every gameplay handler carries a variable guard. Then
+      `the_five_beats_walk_end_to_end`: the real handlers registered
+      exactly as the loader registers them, real spawn/despawn against a
+      real World, all five beats driven by the same events production
+      fires (plus the stray-re-entry non-refire case), and
+      `early_pirate_kill_routes_the_orbit_gate_to_done` for the alternate
+      ending. The physics half of OnEnter is owned by 20260712-093044's
+      pipeline test; registration guarded by shakedown_run_is_registered.
+- [x] Update docs: CHANGELOG (scenario + primitives entries),
+      docs/scenario-system.md (shakedown_run as the beat-chain reference,
+      OnUpdate now actually fired).
+- [ ] Visual playtest (boot -> New Game -> walk the beats by hand,
+      screenshots): NOT DONE - needs a human at the controls; the
+      headless walk covers the script, not the feel. First playtest owns:
+      beacon visual size/blink readability, crate pickup radius feel,
+      pirate difficulty, orbit-gate moment, objective text length.
 
 ## Notes
 
 - Spike (design, beat sheet): docs/spikes/20260712-092926-starter-scenario.md
 - Spike (parent direction): docs/spikes/20260711-180500-main-menu.md
 - Parent task: 20260711-174915
-- Depends on: 20260711-180426 (New Game wiring; CLOSED - swap the id)
-- Depends on: 20260712-093044 (nav beacon + salvage crate objects +
-  despawn action)
-- Conveyance is layer 0 by design; task 20260712-093831 upgrades visuals
-  later without touching the beat chain (targets are scenario entity ids).
-- Objective text must use the exact key labels the hint cluster shows
-  (hud/keybind_hints.rs) so panel and cluster corroborate.
-- The orbit gate is an area approximation of "in orbit" (the event system
-  cannot see autopilot state); if playtest says it feels wrong, that is a
-  follow-up, not a redesign (spike open question).
-- rand is used at config-build time (asteroid_field does the same); keep
-  the debris scatter deterministic-enough by seeding positions from
-  constants if test flakiness appears.
+- Depends on: 20260711-180426 (CLOSED), 20260712-093044 (CLOSED)
+- Conveyance is layer 0/1 by design; task 20260712-093831 upgrades
+  visuals later without touching the beat chain (targets are scenario
+  entity ids).
+- Objective text uses the exact key labels the hint cluster shows for the
+  flight verbs; Alt/RMB/LMB are named in text only (the cluster covers
+  flight verbs, not camera/combat modifiers).
+- The orbit gate is an area approximation of "in orbit"; if playtest says
+  it fires too early/late, tune ORBIT_GATE_RADIUS (200u vs ring 106-182u
+  across the pinned factor range) before reaching for autopilot-state
+  events - and keep it above the widest ring
+  (1.5 * (20 * ASTEROID_GEOMETRIC_FACTOR_MAX + 1)) or beat 4 soft-locks
+  on high seeds (review R1.2).
+
+## Close record
+
+What changed: scenario/shakedown.rs (the whole scenario: layout
+constants, expression/action shorthands, 14 handlers), two scavenger
+sections in sections.rs, registration + NEW_GAME_SCENARIO_ID swap, the
+fire_on_update pulse in nova_scenario's loader (OnUpdate handlers were
+dead config), CHANGELOG + scenario-system.md, 10 new tests.
+
+Alternatives considered: per-beat boolean flags (asteroid_field idiom) vs
+the beat counter - counter chosen for single-guard gating; milestones on
+the pickup event relying on handler order (asteroid_field does this for
+its threshold check) vs OnUpdate value-gating - the latter chosen and the
+missing pulse built, because handler order within an event is
+query-iteration order and should not carry gameplay.
+
+Difficulties: the dead OnUpdate discovery (grep for the event's fire site
+before building on an advertised config variant - the docs said "every
+frame", the code never fired it); f64 vs f32 in VariableLiteral::Number.
+
+Self-reflection: the OnUpdate gap is the same shape as task 1's targeting
+gate - an advertised capability whose consumer side was never wired; both
+were caught by asking "who actually fires/admits this" before trusting
+the config surface. The visual playtest step was planned as if the agent
+could fly the game; plans should split "script walk (automatable)" from
+"feel pass (human)" up front.
+
+Review addendum (round 1 -> 2): the fresh-context review caught two
+MAJORs the implementation missed - the OnUpdate pulse making the
+objectives panel rebuild every frame (fixed with a write-on-diff sync,
+mutation-tested regression), and the geometric-factor band being
+folklore: a 256-seed sweep measured [3.70, 5.64] vs the assumed 4.55, so
+the orbit ring could park OUTSIDE the old 160u gate (a live softlock).
+Bounds are now exported consts pinned by the sweep; gate 200u, beacon 3
+at ~260u. APPROVE in round 2 (tasks/20260711-180506/REVIEW.md).

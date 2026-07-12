@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- @alexjercan New Game now drops into "Shakedown Run", a five-beat starter scenario: burn to a beacon (W), freelook to find the next one (Alt), recover 3 supply crates from a debris cluster (X to stop), hand the ship to the computer (G GOTO a locked beacon, O ORBIT the planetoid), then drive off a lone scavenger that snuck into the debris field (passive until provoked, scavenger-grade hull and turret); dying restarts the run (Enter confirms)
+- @alexjercan scenario content primitives: nav beacons (emissive blinking waypoints with a HUD chip showing label + live distance that clamps to the screen edge as a direction chevron; aim-lockable, so GOTO works on them) and salvage crates (bright tumbling proximity pickups); scenarios can now despawn objects by id (crate pickup consumes the crate)
 - @alexjercan web landing site (new `web/` project: TypeScript + Webpack + Tailwind): a themed marketing/content site with a hero landing page, a "Play" gate, and blog/tutorial/wiki pages, styled from the `assets/banner.png` key art (space-navy field, neon-cyan and amber glow). README rewritten to match, with the banner embedded
 - @alexjercan the deploy now fronts the game: `deploy-page.yaml` builds the landing site to the Pages root (`/nova-protocol/`) and the Bevy WASM game under `/nova-protocol/play/`, instead of publishing the raw game at the root
 

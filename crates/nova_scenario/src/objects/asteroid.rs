@@ -10,7 +10,8 @@ use rand::Rng;
 pub mod prelude {
     pub use super::{
         asteroid_scenario_object, AsteroidConfig, AsteroidMarker, AsteroidPlugin, AsteroidRadius,
-        AsteroidRenderMesh, AsteroidSurfaceGravity, AsteroidTexture, ASTEROID_TYPE_NAME,
+        AsteroidRenderMesh, AsteroidSurfaceGravity, AsteroidTexture, ASTEROID_GEOMETRIC_FACTOR_MAX,
+        ASTEROID_GEOMETRIC_FACTOR_MIN, ASTEROID_TYPE_NAME,
     };
 }
 
@@ -228,6 +229,19 @@ fn insert_asteroid_collider(
         ExplodableEntity,
     )],));
 }
+
+/// Bounds on the unit-mesh geometric factor: how far the noise-displaced
+/// asteroid mesh reaches past its nominal unit sphere, across seeds. The
+/// derived `BodyRadius` is `nominal_radius * factor`, and everything sized
+/// from it (SOI = 8x, orbit ring = 1.5x) inherits the spread - so CONTENT
+/// that authors distances around a designated body (the shakedown orbit
+/// gate, beacon placement) must hold across this whole range, not one
+/// observed seed. Pinned by the seed-sweep test below
+/// (`geometric_factor_bounds_hold_across_seeds`): observed [3.70, 5.64]
+/// across 256 seeds spread over the u32 space; the consts carry margin on
+/// both sides. Widen only with the sweep's numbers in hand.
+pub const ASTEROID_GEOMETRIC_FACTOR_MIN: f32 = 3.5;
+pub const ASTEROID_GEOMETRIC_FACTOR_MAX: f32 = 6.0;
 
 /// The outermost vertex distance of a mesh, in its local space: the
 /// radius of the smallest origin-centered sphere containing the collider
@@ -531,6 +545,37 @@ impl NoiseFn<f64, 3> for PlanetHeight {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Pin ASTEROID_GEOMETRIC_FACTOR_MIN/MAX against the real mesh
+    /// generator: sweep the production noise + mesh path (the exact
+    /// pipeline insert_asteroid_collider runs) across a spread of seeds
+    /// and require every factor inside the exported bounds. Content
+    /// authored against the derived geometry (the shakedown orbit gate)
+    /// cites these consts; a noise retune that widens the real range
+    /// fails HERE instead of soft-locking a scenario in the field.
+    #[test]
+    fn geometric_factor_bounds_hold_across_seeds() {
+        let mut lowest = f32::MAX;
+        let mut highest = 0.0f32;
+        for i in 0..256u32 {
+            // Spread the sampled seeds across the u32 space (production
+            // seeds come from rng.next_u32(), not small integers).
+            let seed = i.wrapping_mul(2654435761);
+            let planet = PlanetHeight::default().with_seed(seed);
+            let mesh = TriangleMeshBuilder::new_octahedron(3)
+                .apply_noise(&planet)
+                .build();
+            let factor = mesh_max_vertex_radius(&mesh).max(1.0);
+            lowest = lowest.min(factor);
+            highest = highest.max(factor);
+            assert!(
+                (ASTEROID_GEOMETRIC_FACTOR_MIN..=ASTEROID_GEOMETRIC_FACTOR_MAX).contains(&factor),
+                "seed {seed}: factor {factor} outside the exported bounds \
+                 [{ASTEROID_GEOMETRIC_FACTOR_MIN}, {ASTEROID_GEOMETRIC_FACTOR_MAX}]"
+            );
+        }
+        eprintln!("geometric factor sweep: observed [{lowest}, {highest}] across 256 seeds");
+    }
 
     fn husk_app() -> App {
         let mut app = App::new();

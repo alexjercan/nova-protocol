@@ -34,10 +34,11 @@ pub mod prelude {
     pub use super::NovaMenuPlugin;
 }
 
-/// The scenario New Game drops the player into. `asteroid_field` is registered by
-/// `nova_assets` and already contains a canned player ship, so the menu needs no
-/// content of its own. Task 20260711-180506 swaps in a designed starter scenario.
-const NEW_GAME_SCENARIO_ID: &str = "asteroid_field";
+/// The scenario New Game drops the player into: the Shakedown Run starter
+/// tutorial (task 20260711-180506, spike 20260712-092926). Registered by
+/// `nova_assets` with its own canned player ship, so the menu needs no
+/// content of its own.
+const NEW_GAME_SCENARIO_ID: &str = "shakedown_run";
 
 /// The backdrop scenario (nova_assets registers it; task 20260711-180455).
 const MENU_AMBIENCE_SCENARIO_ID: &str = "menu_ambience";

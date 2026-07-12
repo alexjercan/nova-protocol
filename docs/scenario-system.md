@@ -157,7 +157,17 @@ nodes, and set-expressions, evaluated by filters (`ExpressionFilterConfig`) and 
 
 ## Where the built-in scenarios live
 
-`crates/nova_assets/src/scenario.rs` builds `asteroid_field` and `asteroid_next` in
-Rust and inserts them into `GameScenarios`. This is a stand-in for loading scenarios
-from data files (there is an explicit `// This should be loaded from a JSON file`
-note in `sections.rs`); a real modding pipeline would deserialize these configs.
+`crates/nova_assets/src/scenario.rs` builds `asteroid_field`, `asteroid_next` and
+`menu_ambience` in Rust and inserts them into `GameScenarios`;
+`crates/nova_assets/src/scenario/shakedown.rs` adds `shakedown_run`, the starter
+scenario New Game loads. This is a stand-in for loading scenarios from data files
+(there is an explicit `// This should be loaded from a JSON file` note in
+`sections.rs`); a real modding pipeline would deserialize these configs.
+
+`shakedown_run` is the reference example of the beat-chain idiom: one `beat`
+counter variable gates every handler (no finished beat can re-fire), pickups
+are per-entity `OnEnter` handlers paired with `DespawnScenarioObject`, and
+count milestones (the crate tally, the beat advance) run on `OnUpdate`
+handlers keyed on the counter value - deliberately NOT piggybacked on the
+pickup event, because handler execution order within one event is
+query-iteration order and should not be load-bearing.

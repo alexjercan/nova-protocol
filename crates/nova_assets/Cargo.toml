@@ -11,6 +11,13 @@ rand = { version = "0.10.2" }
 nova_gameplay = { path = "../nova_gameplay" }
 nova_scenario = { path = "../nova_scenario" }
 
+[dev-dependencies]
+avian3d = { version = "0.7" }
+bevy_rand = { version = "0.15.0", default-features = false, features = [
+    "wyrand",
+] }
+nova_events = { path = "../nova_events" }
+
 [lints]
 workspace = true
 

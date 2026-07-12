@@ -131,7 +131,20 @@ impl Plugin for ScenarioLoaderPlugin {
         app.add_input_context::<ScenarioInputMarker>();
         app.add_observer(on_next_input);
         app.add_observer(unload_scenario);
+
+        // OnUpdate handlers were dead config until task 20260711-180506:
+        // EventConfig::OnUpdate existed (and the docs advertised it) but
+        // nothing ever fired the event. The pulse runs only while a
+        // scenario is live - same liveness rule as the ship systems.
+        app.add_systems(Update, fire_on_update.run_if(scenario_is_live));
     }
+}
+
+/// The per-frame pulse behind `EventConfig::OnUpdate` handlers. Scenarios
+/// use it for value-gated milestones (e.g. shakedown's crate tally), which
+/// must not depend on handler execution order within another event.
+fn fire_on_update(mut commands: Commands) {
+    commands.fire::<OnUpdateEvent>(OnUpdateEventInfo);
 }
 
 /// Ships act only while a scenario is live: gate the spaceship input/section
@@ -385,6 +398,55 @@ mod tests {
             cubemap: Handle::default(),
             events,
         }
+    }
+
+    /// The OnUpdate pulse: fires every frame while a scenario is live and
+    /// stays silent otherwise. Proven through a real OnUpdate handler
+    /// mutating a variable - a handler that could not fire without the
+    /// pulse (OnUpdate was dead config before task 20260711-180506).
+    #[test]
+    fn on_update_pulses_only_while_a_scenario_is_live() {
+        use bevy_common_systems::prelude::{EventHandler, GameEventsPlugin, GameObjectives};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<CurrentScenario>();
+        app.add_systems(Update, fire_on_update.run_if(scenario_is_live));
+
+        let mut handler = EventHandler::<NovaEventWorld>::from(EventConfig::OnUpdate);
+        handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: "pulsed".to_string(),
+            expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                VariableFactorNode::new_literal(VariableLiteral::Boolean(true)),
+            )),
+        }));
+        app.world_mut().spawn(handler);
+
+        // No scenario: silent.
+        app.update();
+        app.update();
+        assert!(
+            app.world()
+                .resource::<NovaEventWorld>()
+                .get_variable("pulsed")
+                .is_none(),
+            "no pulse without a live scenario"
+        );
+
+        // Scenario live: the handler fires within a frame or two.
+        app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
+        app.update();
+        app.update();
+        assert_eq!(
+            app.world()
+                .resource::<NovaEventWorld>()
+                .get_variable("pulsed"),
+            Some(&VariableLiteral::Boolean(true)),
+            "a live scenario pulses OnUpdate handlers"
+        );
     }
 
     #[test]
