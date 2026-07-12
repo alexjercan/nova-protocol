@@ -129,14 +129,17 @@ clustering proves costly.
 
 ## Next steps
 
-Direction-level tasks seeded (parked; `/plan` breaks into steps when picked up):
+One near-term task seeded (v0.5.0); the other two directions live in this doc
+as future work, not separate tasks yet (user steer: keep it light for now):
 
 - tatr 20260712-215402: cyclable nav bodies - notable signed asteroids/beacons
-  join the CTRL+scroll cycle at range (non-sticky, combat-first, no debris)
-- tatr 20260712-215406: combat vs travel lock separation (mode toggle, C1) -
-  the root fix; keep combat-only until picked up
-- tatr 20260712-215411: asteroid-clump travel waypoints (long-range GOTO to a
-  cluster) - future; consider authored regions (B2) as the cheap first cut
+  join the CTRL+scroll cycle at range (non-sticky, combat-first, no debris).
+  THE ONE seeded task.
+- FUTURE (not seeded - this doc is the record): combat vs travel lock
+  separation (mode toggle, C1) - the root fix; keep combat-only until it earns
+  a task. And asteroid-clump travel waypoints (Part B) - long-range GOTO to a
+  cluster; consider authored regions (B2) as the cheap first cut. Seed these
+  when they are next up.
 
 ## Fix record
 

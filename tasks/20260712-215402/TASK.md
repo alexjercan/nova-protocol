@@ -26,10 +26,11 @@ ships/torpedoes out of the 5-slot cycle + edge indicators.
 
 - Spike: docs/spikes/20260712-215256-combat-travel-lock-separation.md
   (Part A, option A1).
-- This is a stopgap the combat/travel mode toggle (task 20260712-215406) later
-  subsumes; worth landing on its own.
+- This is a stopgap the combat/travel mode toggle (a future direction in the
+  spike doc, not yet a task) later subsumes; worth landing on its own.
 - Relevant: `TARGET_CANDIDATE_COUNT` (cap), `maintain_candidates`,
   `rank_combat_targets`, the `is_hostile && is_combat_target` filter, the
   LockSignature range model; check against 04_asteroids for clutter.
 - Playtest: does non-sticky-but-pinned (4 s) feel right for GOTO, or does travel
-  want a longer hold (an input into whether the mode toggle is needed sooner)?
+  want a longer hold (an input into whether the mode toggle - a future spike
+  direction - is needed sooner)?
