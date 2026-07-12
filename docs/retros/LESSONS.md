@@ -123,7 +123,9 @@ retros.
   default first, falling back to a temporary `git worktree add <tmp>
   master` when the main checkout is occupied; `git reset --merge`
   undoes a staged squash without destroying the other session's
-  uncommitted work. 20260712-125342.
+  uncommitted work. 20260712-125342. Applied successfully next cycle:
+  branch-guarded squash+commit landed cleanly while master moved twice
+  under a parallel session. 20260712-133832.
 - `pair-matrix-on-collider-class-change` (x1, BLOCKER + MAJOR in one
   review): changing a collider's class (solid -> Sensor, adding/removing
   CollisionEventsEnabled) must be checked against EVERY collider
