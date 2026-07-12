@@ -29,14 +29,18 @@ retros.
   20260710-231931 (R1.1 MAJOR), 20260710-231930, 20260711-121701,
   20260711-121711, 20260710-214316 (expect-guard on the
   inside-envelope sample).
-- `verify-first-plan-steps` (x4, PROMOTED 2026-07-11 -> plan skill):
+- `verify-first-plan-steps` (x5, PROMOTED 2026-07-11 -> plan skill):
   plan steps encoding mechanisms/formulas/orderings must cite the
   verifying file or be phrased verify-first. 20260710-231931 (torque
   -blind burn), 20260710-231930 (wrong overshoot algebra),
   20260711-121701 (balancer chatter on a single-engine ship); related
   ordering cases in 20260710-231928; 20260708-165705 (plan assigned
   DPadDown already bound to ORBIT - concrete key/button assignments must
-  quote the current binding table).
+  quote the current binding table). Consumer-gate variant: "system Y
+  will accept X" claims must follow the data into Y's filter/gate logic,
+  not stop at the query/function signature - a signature-level read
+  missed the in-lambda gate that rejected Static bodies and would have
+  broken the GOTO beat. 20260712-093044.
 - `landing-no-cd` (x3, PROMOTED 2026-07-11 -> flow skill): the
   squash-merge is its own command, no `cd`, `pwd` first, from the main
   checkout. 20260709-160753, diegetic-autopilot retro, 20260711-125225

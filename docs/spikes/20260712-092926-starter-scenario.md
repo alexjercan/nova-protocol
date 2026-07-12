@@ -263,3 +263,12 @@ Direction-level tasks this spike seeded, for /plan to break into steps:
 ## Fix record
 
 (Appended by implementing tasks as they land.)
+
+- 20260712-093044 (beacon + crate primitives) LANDED 2026-07-12 (master
+  2cac4b3): Beacon and SalvageCrate scenario object kinds, the
+  DespawnScenarioObject action (scoped-only id lookup), beacon HUD chip
+  with edge-clamp direction chevron, and a targeting-gate amendment
+  (Static + authored LockSignature is lockable - Static beacons were
+  otherwise unlockable, which would have broken beat 4's GOTO). Layer 1
+  of the conveyance plan is therefore live. Details:
+  tasks/20260712-093044/TASK.md.
