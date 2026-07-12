@@ -53,7 +53,7 @@ retros.
   skill): commit the fix before A/B sabotage; file-level `git checkout`
   restores the branch base, not your uncommitted work. 20260710-231930
   (~250 lines lost and redone).
-- `production-faithful-rigs` (x4, PROMOTED 2026-07-11 -> work skill):
+- `production-faithful-rigs` (x5, PROMOTED 2026-07-11 -> work skill):
   clock/schedule test rigs must mirror production scheduling components;
   a clean trace on a non-faithful rig is not evidence. 20260711-103527,
   20260710-231930, 20260711-140234 (arrival dynamics proved
@@ -64,11 +64,18 @@ retros.
   and `Time<Virtual>`'s 0.25s max-delta clamp silently under-advanced a 2s
   manual dt, starving the 1s fire interval. Two rig-vs-production mismatches
   in one test - list every production system that ticks the state, and
-  bound the manual dt to the virtual clamp.
+  bound the manual dt to the virtual clamp. 20260712-133343
+  (entity-hierarchy flavor): a typed-damage integration test built its target
+  as a single flat entity (destructible_body + Collider, no RigidBody), so
+  bcs's impact/blast observers read body1/body2 = None and the test read a
+  false damage-of-zero; production sections are a RigidBody ROOT with child
+  colliders holding the Health. When a headless target must be SEEN by an
+  engine observer (collision/damage/integrity), mirror the real
+  body-vs-collider hierarchy (grep a spawn site), not a flattened stand-in.
 - `presence-vs-behavior-tests` (x2): component-exists assertions stay
   green while the behavior regresses; assert the behavior.
   20260709-160753 (R1.2), applied in 20260710-231931.
-- `sweep-then-delete` (x4): grep for consumers BEFORE deleting or
+- `sweep-then-delete` (x5): grep for consumers BEFORE deleting or
   slimming a symbol/readout. 20260711-000547, 20260711-125226. Prose
   variant: comments/docs citing a retired invariant are consumers too -
   grep the workspace for the invariant's fingerprint, not just files the
@@ -77,7 +84,15 @@ retros.
   variant: sweep the deleted mechanism's DESCRIBING words ("ballistic",
   "seeds"), not just its symbol names - a fn doc in the edited file and
   a CHANGELOG Unreleased entry survived a clean symbol sweep.
-  20260711-212504.
+  20260711-212504. Observer-consumer variant: when SWAPPING a marker
+  component for a new one (bcs `BlastDamageMarker` -> nova `NovaBlast`),
+  grep every consumer that OBSERVES or queries the old marker - `On<Add, X>`
+  observers, `With<X>` queries, example loggers, test assertions - and
+  retarget them in the same change. The torpedo blast VFX/SFX observers keyed
+  on `Add<BlastDamageMarker>` would have silently stopped firing (no test
+  covers particle spawning); the proactive grep, not a test, caught it, and
+  two "no blast" test asserts were rescued from querying a now-never-spawned
+  marker (a vacuous pass). 20260712-133343.
 - `reread-after-insert` (x2): after inserting into an existing function
   or test, re-read the whole function for bindings/assertions the
   insertion duplicated or obsoleted; a mid-test insertion left the
@@ -236,7 +251,7 @@ retros.
   bit-identical without the mutating system in the loop; sentinel
   mutation is the fix) - apply the question to copied test shapes too.
   20260711-212521 (R1.1 MAJOR).
-- `out-of-context-review-pass` (positive pattern, x8, fourth catch: the
+- `out-of-context-review-pass` (positive pattern, x10, fourth catch: the
   ungated-observers MAJOR above): for a substantial
   branch reviewed in the implementer's own session, a fresh-context agent
   review caught a MAJOR (BCS_SHOT force-advance vs the Loaded hook) that
@@ -260,7 +275,12 @@ retros.
   fail-closed coupling MINOR - a new REQUIRED component fetch folded into the
   existing `flyable` query would brick any controller missing the component -
   that the same-session author had convinced himself was fine.
-  20260712-143832.
+  20260712-143832. Tenth (x10): on the typed-damage core it did not just read
+  the diff - it independently re-derived the neutralization residual (~2e-4 at
+  1e-6 mass) and the authored per-hit numbers (20.25 / 3.825) against bcs's own
+  constants, and confirmed the `BlastDamageMarker` -> `NovaBlast` sweep was total
+  (zero stragglers), turning an APPROVE into a verified one rather than a trusting
+  one. 20260712-133343.
 - `required-component-in-shared-query` (x1): adding a REQUIRED component fetch
   to an EXISTING system query narrows that query's membership set, so every
   gate computed from the query silently inherits the new precondition - folding
@@ -416,11 +436,14 @@ retros.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-- `sweep-then-delete` is at x4 and recurred even WITH the prose variant
+- `sweep-then-delete` is at x5 and recurred even WITH the prose variant
   freshly on record (same day) - promote to the work skill with the
-  concrete two-grep rule: "before closing a task that deletes or moves a
-  mechanism, grep the workspace (1) for its symbol names and (2) for its
-  describing words, covering comments, module docs and CHANGELOG".
+  concrete grep rule: "before closing a task that deletes, moves, OR SWAPS a
+  mechanism/marker, grep the workspace (1) for its symbol names, (2) for its
+  describing words, and (3) for who OBSERVES/queries it (`On<Add, X>`,
+  `With<X>`), covering comments, module docs, examples, tests and CHANGELOG".
+  The x5 occurrence (20260712-133343) added the marker-swap/observer-consumer
+  case, where the escaped consumer was a silent VFX observer no test covered.
 - `tatr-same-second-collision` is at x4 despite the tatr skill gotcha -
   the note demonstrably does not fire when composing a multi-`tatr new`
   command, so promote a MECHANICAL fix over another note: teach `tatr new`
