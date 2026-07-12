@@ -253,6 +253,29 @@ fn player_ship(sections: &GameSections) -> ScenarioObjectConfig {
             .unwrap()
             .clone(),
     };
+    // GOTO starts WITHHELD on the player's controller: the pilot has not yet
+    // flown a controlled leg. The Beat 1 -> 2 handler's SetControllerVerb
+    // enables it once the first objective (OBJ_B1) is complete (spike
+    // docs/spikes/20260712-143551-controller-provided-verb-flags.md). Authored
+    // in config, not an OnStart action, so GOTO is off from the instant the
+    // controller section is built - no spawn-vs-action ordering window - and
+    // the shared basic_controller_section catalog entry (the pirate reuses it)
+    // stays untouched because we clone-and-override here.
+    let controller = {
+        let mut config = sections
+            .get_section("basic_controller_section")
+            .unwrap()
+            .clone();
+        if let SectionKind::Controller(ref mut controller_config) = config.kind {
+            controller_config.verbs.goto = false;
+        }
+        SpaceshipSectionConfig {
+            id: "controller".to_string(),
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            config,
+        }
+    };
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: ID_PLAYER.to_string(),
@@ -277,12 +300,7 @@ fn player_ship(sections: &GameSections) -> ScenarioObjectConfig {
                 infinite_ammo: true,
             }),
             sections: vec![
-                section(
-                    sections,
-                    "controller",
-                    "basic_controller_section",
-                    Vec3::ZERO,
-                ),
+                controller,
                 section(sections, "hull_front", "reinforced_hull_section", Vec3::Z),
                 section(
                     sections,
@@ -437,6 +455,15 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                 EventActionConfig::SetSpeedCap(SetSpeedCapActionConfig {
                     id: ID_PLAYER.to_string(),
                     cap: None,
+                }),
+                // GOTO unlocks with the first objective: the ship starts with
+                // it withheld (player_ship's controller config) and clearing
+                // beat 1 grants it (spike
+                // docs/spikes/20260712-143551-controller-provided-verb-flags.md).
+                EventActionConfig::SetControllerVerb(SetControllerVerbActionConfig {
+                    id: ID_PLAYER.to_string(),
+                    verb: FlightVerb::Goto,
+                    enabled: true,
                 }),
                 spawn(beacon(ID_BEACON_2, "BEACON 2", BEACON_2_POS)),
                 objective(
@@ -1212,6 +1239,75 @@ mod tests {
         assert!(
             controller.infinite_ammo,
             "the New Game player must have infinite ammo"
+        );
+    }
+
+    /// The player's controller section is authored with GOTO withheld (STOP
+    /// and ORBIT stay granted), so the verb is off from the instant the
+    /// section is built - no OnStart-action ordering window.
+    #[test]
+    fn the_new_game_player_starts_with_goto_withheld() {
+        let sections = crate::scenario::tests::real_sections();
+        let player = player_ship(&sections);
+        let ScenarioObjectKind::Spaceship(config) = player.kind else {
+            panic!("the player object must be a spaceship");
+        };
+        let controller = config
+            .sections
+            .iter()
+            .find(|section| matches!(section.config.kind, SectionKind::Controller(_)))
+            .expect("the player ship has a controller section");
+        let SectionKind::Controller(ref controller_config) = controller.config.kind else {
+            unreachable!("filtered to Controller above");
+        };
+        assert!(
+            !controller_config.verbs.goto,
+            "GOTO starts withheld on the fresh player controller"
+        );
+        assert!(
+            controller_config.verbs.stop && controller_config.verbs.orbit,
+            "STOP and ORBIT are granted from the start"
+        );
+    }
+
+    /// End-to-end: GOTO is withheld on the live player controller after boot
+    /// and is granted when the first objective (beat 1) completes. Withheld
+    /// initially and granted after - deleting either the config off-state or
+    /// the beat-1 SetControllerVerb would flip one of these asserts.
+    #[test]
+    fn goto_unlocks_at_the_first_objective() {
+        use nova_events::prelude::*;
+
+        let mut app = scripted_app();
+
+        let controller_goto = |app: &mut App| -> bool {
+            let player = {
+                let mut q = app.world_mut().query::<(Entity, &EntityId)>();
+                q.iter(app.world())
+                    .find(|(_, id)| id.0 == ID_PLAYER)
+                    .map(|(e, _)| e)
+                    .expect("player ship spawned")
+            };
+            let mut q = app
+                .world_mut()
+                .query_filtered::<(&ChildOf, &ControllerVerbs), With<ControllerSectionMarker>>();
+            q.iter(app.world())
+                .find(|(&ChildOf(parent), _)| parent == player)
+                .map(|(_, verbs)| verbs.goto)
+                .expect("player has a controller section carrying ControllerVerbs")
+        };
+
+        boot(&mut app);
+        assert!(
+            !controller_goto(&mut app),
+            "GOTO is withheld on the fresh ship"
+        );
+
+        // Clearing beat 1 (the first objective) grants GOTO.
+        enter(&mut app, ID_BEACON_1);
+        assert!(
+            controller_goto(&mut app),
+            "reaching beacon 1 (first objective) unlocks GOTO"
         );
     }
 }
