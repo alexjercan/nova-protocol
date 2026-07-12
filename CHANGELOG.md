@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- @alexjercan the target inset now scopes only combat bodies (ships, torpedoes, asteroids), not nav beacons: a new `InsetZoomable` flag gates what the scope will zoom, so locking a waypoint no longer opens a pointless close-up. The framing also handles bodies without ship sections (a torpedo/asteroid) by using their collider bounds. The inset stays hidden outside the full (`ALL`) HUD mode
 - @alexjercan debug inspector egui no longer renders into a render-to-texture camera: bcs's inspector assigns its egui context to the first camera added, so a second camera that draws to a texture (the new target inset) could steal it and paint the inspector inside the inset instead of the window. The debug crate now keeps the inspector pinned to a window-targeting camera regardless of spawn order
 - @alexjercan editor rebinding now accepts mouse buttons, not just keys: after clicking a section to rebind it, press any key OR mouse button (e.g. LMB) to bind it - the arming click is ignored (it waits for release first), and the new binding replaces the old key/mouse while keeping any gamepad bind
 - @alexjercan the editor build panel now scrolls with the mouse wheel, so its lower entries (section palette + Play) are reachable instead of overflowing the fixed-height panel

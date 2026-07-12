@@ -53,6 +53,10 @@ pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
         // rocks only lock up close, big bodies from afar (well sources
         // are range-free in the targeting gate anyway).
         LockSignature(config.radius),
+        // Asteroids are worth scoping in the target inset (a physical combat
+        // body, unlike a nav beacon), so flag them zoomable (task
+        // 20260712-203345).
+        InsetZoomable,
         // BodyRadius (the surface the GOTO standoff and the orbit band
         // measure from) is NOT authored here: the noise-displaced mesh
         // reaches past the nominal radius, so insert_asteroid_collider

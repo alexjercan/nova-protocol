@@ -1,8 +1,54 @@
 # Inset scope: InsetZoomable marker so the target inset only zooms ships
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.5.0, hud, targeting, spike
+
+## Outcome (CLOSED 2026-07-12)
+
+Added `InsetZoomable` (nova_gameplay `hud/target_inset.rs`) and gated
+`drive_inset_camera` on it, so the inset only scopes flagged bodies. The flag is
+authored by observers - `mark_inset_zoomable::<SpaceshipRootMarker>` and
+`::<TorpedoTargetChosen>` in nova_gameplay (mirrors the loader's
+`on_add_entity_with` pattern, so no spawn-site hunting), plus a bundle line on
+asteroids in nova_scenario. Beacons never get it, so the inset skips them.
+
+Framing generalized: `ship_framing_radius` (section-center spread) ->
+`zoomable_framing_radius`, which unions the body's non-sensor collider AABBs
+(reused `screen_indicator::target_world_aabb`, made pub(crate)) and takes the
+anchor-to-farthest-corner distance. Works uniformly for sectioned ships and
+section-less torpedoes/asteroids; falls back to the section half-extent when a
+body has no collider AABB, so the pose stays finite.
+
+ALL-mode-only was already true (Chrome tier + the `shows(Chrome)` camera gate);
+pinned by the existing `camera_absent_while_hud_chrome_is_hidden` test.
+
+Verified: 9 headless unit tests pass (added `inset_skips_non_zoomable_targets`
+with a delivery guard, and `framing_radius_is_finite_for_a_section_less_body`);
+`12_hud_range` autopilot confirms the range's ship still opens the inset via the
+observer-added marker (PASS, no panic); AABB framing frames the hull cleanly in
+a live capture; `fmt --check` + non-debug `cargo check --workspace` green.
+
+Note: did not add a beacon to `12_hud_range` for a live skip assertion - the
+unit test covers the gate and beacons provably lack the marker (no code adds it
+to them). Torpedo/asteroid scoping ride the same marker+framing path.
+
+## Steps
+
+- [x] Add `InsetZoomable` marker component in `hud/target_inset.rs` (or
+      sections), registered for reflection.
+- [x] Author it where the zoomable bodies spawn: ship roots
+      (`sections/` ship spawn), committed torpedoes
+      (`TorpedoProjectileMarker` path), asteroids (scenario asteroid spawn).
+      NOT beacons. (Done via observers on SpaceshipRootMarker +
+      TorpedoTargetChosen; asteroid bundle line in nova_scenario.)
+- [x] Gate `drive_inset_camera`'s `framed` predicate on
+      `q.get(target).has::<InsetZoomable>()`.
+- [x] Generalize `ship_framing_radius` to section-less bodies (now
+      `zoomable_framing_radius` via `target_world_aabb`).
+- [x] Tests: non-zoomable target opens no inset (delivery-guarded); ALL-mode
+      gate pinned; framing radius finite for a section-less body.
+- [x] Verify in `12_hud_range` (ship still opens via the observer) + docs note.
 
 ## Goal
 

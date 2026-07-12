@@ -312,7 +312,7 @@ fn arrow_angle(dir: Vec2) -> f32 {
 /// 20260712-154318; same class as the crate bracket, 20260712-093831
 /// R1.1). A sensor-only subtree yields None and the consumer falls back
 /// to its min_px.
-fn target_world_aabb(
+pub(crate) fn target_world_aabb(
     entity: Entity,
     q_children: &Query<&Children>,
     q_aabb: &Query<&ColliderAabb, Without<Sensor>>,

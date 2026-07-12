@@ -126,3 +126,22 @@ visual check of a loaded scene.
   and focus-scoped spawning. Not yet profiled on the WASM/WebGL2 build - a
   follow-up if the inset ever feels heavy in-browser (RTT is standard on
   WebGL2, so expected to work, but unmeasured here).
+
+## Update: ship-only scope + AABB framing (task 20260712-203345)
+
+Playtest follow-up: the inset was scoping beacons (nav waypoints), which is not
+worth a close-up. Added an opt-in `InsetZoomable` flag; the inset only scopes
+flagged bodies. Authored by observers (`On<Add, SpaceshipRootMarker>`,
+`On<Add, TorpedoTargetChosen>`) plus a bundle line on asteroids in
+nova_scenario - so ships, committed torpedoes and asteroids are zoomable, and
+beacons (which never get the flag) are skipped.
+
+Framing was section-based (`ship_framing_radius` over `SectionMarker` children),
+which does not fit section-less torpedoes/asteroids. Generalized to
+`zoomable_framing_radius`: union the body's non-sensor collider AABBs
+(`screen_indicator::target_world_aabb`, now `pub(crate)`) and take the
+anchor-to-farthest-corner distance. Uniform across sectioned and section-less
+bodies; falls back to the section half-extent when a body has no collider AABB.
+
+The inset is `ALL`-HUD-mode only (hidden at Minimal/None) - already the case via
+the Chrome tier + the `shows(HudTier::Chrome)` camera gate; pinned by a test.

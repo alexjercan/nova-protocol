@@ -1,8 +1,9 @@
 //! Target inset: a corner HUD panel showing a live, magnified render-to-texture
-//! close-up of the currently focused/locked enemy ship, so the player can see
-//! which section the fine-lock is selecting (and watch it take damage / explode
+//! close-up of the currently focused/locked body - a ship, torpedo or asteroid
+//! flagged [`InsetZoomable`], but not a nav beacon - so the player can see which
+//! section the fine-lock is selecting (and watch it take damage / explode
 //! scope-style) instead of squinting at sub-pixel markers at range
-//! (task 20260710-104421; design in
+//! (task 20260710-104421 + scope refinement 20260712-203345; design in
 //! docs/spikes/20260710-104011-target-inset-view.md, Option A).
 //!
 //! Three pieces, all thin consumers of the existing targeting state
@@ -24,18 +25,27 @@
 //! frame on the locked ship's [`live_structure_anchor`] from a scope-like
 //! player-relative bearing.
 
-use avian3d::prelude::ComputedCenterOfMass;
+use avian3d::prelude::{ColliderAabb, ComputedCenterOfMass, Sensor};
 use bevy::{camera::RenderTarget, prelude::*, render::render_resource::TextureFormat};
 
+use super::screen_indicator::target_world_aabb;
 use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        target_inset_hud, TargetInsetCameraMarker, TargetInsetHighlightAssets,
+        target_inset_hud, InsetZoomable, TargetInsetCameraMarker, TargetInsetHighlightAssets,
         TargetInsetHighlightMarker, TargetInsetHudMarker, TargetInsetHudPlugin,
         TargetInsetRenderTarget,
     };
 }
+
+/// Opt-in flag for bodies the target inset is allowed to scope: the lockable
+/// physical/combat bodies (ships, committed torpedoes, asteroids), but NOT nav
+/// beacons - a waypoint is not worth a close-up (user decision 2026-07-12,
+/// spike 20260712-203235). Authored by observers on the kind markers
+/// (SpaceshipRootMarker, TorpedoTargetChosen) and on asteroids in nova_scenario.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct InsetZoomable;
 
 /// Square resolution (px) of the offscreen render texture. Small on purpose:
 /// the inset renders the scene a second time, so it stays cheap.
@@ -187,11 +197,27 @@ impl Plugin for TargetInsetHudPlugin {
         app.register_type::<TargetInsetCameraMarker>();
         app.register_type::<TargetInsetHighlightMarker>();
         app.register_type::<TargetInsetHighlightOf>();
+        app.register_type::<InsetZoomable>();
+
+        // Author the zoomable flag on the kinds worth scoping as they spawn
+        // (ships, committed torpedoes). Asteroids get it in nova_scenario;
+        // beacons deliberately never do. Observer-per-kind mirrors the
+        // scenario loader's on_add_entity_with pattern.
+        app.add_observer(mark_inset_zoomable::<SpaceshipRootMarker>);
+        app.add_observer(mark_inset_zoomable::<TorpedoTargetChosen>);
 
         app.add_systems(
             Update,
             (drive_inset_camera, sync_section_highlight).in_set(super::NovaHudSystems),
         );
+    }
+}
+
+/// Insert [`InsetZoomable`] on any entity that gains the kind marker `T`, so
+/// the inset may scope it. Idempotent (inserting a second time is a no-op).
+fn mark_inset_zoomable<T: Component>(add: On<Add, T>, mut commands: Commands) {
+    if let Ok(mut entity) = commands.get_entity(add.entity) {
+        entity.insert(InsetZoomable);
     }
 }
 
@@ -207,24 +233,27 @@ fn inset_camera_pose(target_anchor: Vec3, player_anchor: Vec3, radius: f32) -> T
     Transform::from_translation(eye).looking_at(target_anchor, Vec3::Y)
 }
 
-/// Framing radius of the locked ship: the farthest section center from the
-/// anchor, padded by a section half-extent so the hull edge frames. Falls back
-/// to the half-extent when the ship has no live sections (should not happen
-/// while focused, but keeps the pose finite).
-fn ship_framing_radius(
+/// Framing radius of the target from `anchor`: the distance from the anchor to
+/// the farthest corner of the union of the body's non-sensor collider AABBs
+/// ([`target_world_aabb`], which walks the subtree so a ship's section colliders
+/// and a section-less torpedo/asteroid's own collider are both covered). Falls
+/// back to the section half-extent when the body has no collider AABB (test
+/// entities, or a body that has not built its colliders yet), keeping the pose
+/// finite.
+fn zoomable_framing_radius(
     target: Entity,
     anchor: Vec3,
-    q_sections: &Query<
-        (&ChildOf, &GlobalTransform),
-        (With<SectionMarker>, Without<TargetInsetCameraMarker>),
-    >,
+    q_children: &Query<&Children>,
+    q_aabb: &Query<&ColliderAabb, Without<Sensor>>,
 ) -> f32 {
-    let spread = q_sections
-        .iter()
-        .filter(|(ChildOf(parent), _)| *parent == target)
-        .map(|(_, gt)| gt.translation().distance(anchor))
-        .fold(0.0_f32, f32::max);
-    spread + SECTION_HALF_EXTENT
+    match target_world_aabb(target, q_children, q_aabb) {
+        Some(aabb) => {
+            let center = 0.5 * (aabb.min + aabb.max);
+            let half_diagonal = 0.5 * (aabb.max - aabb.min).length();
+            anchor.distance(center) + half_diagonal
+        }
+        None => SECTION_HALF_EXTENT,
+    }
 }
 
 /// The inset camera bundle. Order -1 renders it before the main (order 0)
@@ -259,7 +288,14 @@ fn drive_inset_camera(
     focus: Res<SpaceshipPlayerLockFocus>,
     hud_visibility: Res<super::HudVisibility>,
     render_target: Res<TargetInsetRenderTarget>,
-    q_anchor: Query<(&Transform, Option<&ComputedCenterOfMass>), Without<TargetInsetCameraMarker>>,
+    q_anchor: Query<
+        (
+            &Transform,
+            Option<&ComputedCenterOfMass>,
+            Has<InsetZoomable>,
+        ),
+        Without<TargetInsetCameraMarker>,
+    >,
     q_player: Query<
         (&Transform, Option<&ComputedCenterOfMass>),
         (
@@ -268,24 +304,24 @@ fn drive_inset_camera(
             Without<TargetInsetCameraMarker>,
         ),
     >,
-    q_sections: Query<
-        (&ChildOf, &GlobalTransform),
-        (With<SectionMarker>, Without<TargetInsetCameraMarker>),
-    >,
+    q_children: Query<&Children>,
+    q_aabb: Query<&ColliderAabb, Without<Sensor>>,
     mut q_camera: Query<(Entity, &mut Transform), With<TargetInsetCameraMarker>>,
     mut q_panel: Query<&mut Visibility, With<TargetInsetHudMarker>>,
 ) {
     // The inset exists only while the focus dwell is complete on the current
     // lock, the HUD is showing chrome (so hiding the HUD also stops the second
-    // render, not just the panel), and the target still resolves to a real
+    // render, not just the panel), the target is flagged InsetZoomable (a ship
+    // / torpedo / asteroid, NOT a beacon), and it still resolves to a real
     // anchor. The inset panel is Chrome tier, so gating here keeps the RTT
     // camera and the (tier-hidden) panel consistent.
     let framed = match **lock {
         Some(target) if hud_visibility.shows(HudTier::Chrome) && focus.focused_on(target) => {
-            q_anchor
-                .get(target)
-                .ok()
-                .map(|(transform, com)| (target, live_structure_anchor(transform, com)))
+            match q_anchor.get(target) {
+                Ok((transform, com, true)) => Some((target, live_structure_anchor(transform, com))),
+                // Not zoomable (beacon) or unresolved: no inset.
+                _ => None,
+            }
         }
         _ => None,
     };
@@ -309,7 +345,7 @@ fn drive_inset_camera(
         // No player anchor (teardown): fall back to a fixed bearing so the pose
         // stays finite rather than degenerate.
         .unwrap_or(target_anchor + Vec3::Z);
-    let radius = ship_framing_radius(target, target_anchor, &q_sections);
+    let radius = zoomable_framing_radius(target, target_anchor, &q_children, &q_aabb);
     let pose = inset_camera_pose(target_anchor, player_anchor, radius);
 
     for mut visibility in &mut q_panel {
@@ -396,7 +432,11 @@ mod tests {
             Transform::from_xyz(0.0, 0.0, 0.0),
         ));
         let target = world
-            .spawn((SpaceshipRootMarker, Transform::from_xyz(0.0, 0.0, -50.0)))
+            .spawn((
+                SpaceshipRootMarker,
+                InsetZoomable,
+                Transform::from_xyz(0.0, 0.0, -50.0),
+            ))
             .id();
         for i in 0..n {
             world.spawn((
@@ -509,6 +549,47 @@ mod tests {
         world.run_system_once(drive_inset_camera).unwrap();
         assert_eq!(camera_count(&mut world), 1);
         assert_eq!(panel_visibility(&mut world), Visibility::Visible);
+    }
+
+    #[test]
+    fn inset_skips_non_zoomable_targets() {
+        // A focused target that is NOT flagged InsetZoomable (a beacon) must not
+        // open the inset, even though it is the current focused lock.
+        let (mut world, target) = rig(3);
+        world.entity_mut(target).remove::<InsetZoomable>();
+
+        world.run_system_once(drive_inset_camera).unwrap();
+        assert_eq!(
+            camera_count(&mut world),
+            0,
+            "a non-zoomable focused target (beacon) opens no inset"
+        );
+        assert_eq!(panel_visibility(&mut world), Visibility::Hidden);
+
+        // Delivery guard: flagging it zoomable brings the inset up, so the
+        // assertion above is really gated on the flag.
+        world.entity_mut(target).insert(InsetZoomable);
+        world.run_system_once(drive_inset_camera).unwrap();
+        assert_eq!(camera_count(&mut world), 1);
+        assert_eq!(panel_visibility(&mut world), Visibility::Visible);
+    }
+
+    #[test]
+    fn framing_radius_is_finite_for_a_section_less_body() {
+        // A zoomable body with no collider AABB (a test torpedo/asteroid stand-in)
+        // still yields a finite framing radius via the fallback, so the pose is
+        // never NaN/degenerate.
+        let mut world = World::new();
+        let target = world.spawn_empty().id();
+        let radius = world
+            .run_system_once(
+                move |q_children: Query<&Children>,
+                      q_aabb: Query<&ColliderAabb, Without<Sensor>>| {
+                    zoomable_framing_radius(target, Vec3::ZERO, &q_children, &q_aabb)
+                },
+            )
+            .unwrap();
+        assert!(radius.is_finite() && radius > 0.0);
     }
 
     // -- highlight --
