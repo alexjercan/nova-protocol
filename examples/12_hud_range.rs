@@ -604,6 +604,14 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
             "hud range: the target-inset panel is not visible while focused"
         );
         info!("hud range: target inset OK (1 camera, panel visible)");
+
+        // The weapons safety is OFF while the combat lock exists (lowered
+        // stance - the lock alone keeps the guns hot, task 20260713-082337).
+        assert!(
+            world.entity(player).get::<WeaponsHot>().unwrap().0,
+            "hud range: a combat lock must keep the weapons hot"
+        );
+        info!("hud range: weapons hot while combat-locked OK");
     }
 
     // Capture a real loaded frame (scene up, lock focused, inset rendering) to
@@ -797,6 +805,13 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
             panel_visibility,
             Visibility::Hidden,
             "hud range: the target-inset panel is still visible after its target died"
+        );
+        // The dead lock cleared (upkeep) and the stance is lowered: the
+        // weapons safety re-engages by itself.
+        let player = player_root(world);
+        assert!(
+            !world.entity(player).get::<WeaponsHot>().unwrap().0,
+            "hud range: the safety must re-engage once the lock dies lowered"
         );
         info!("hud range: PASS - indicators track their anchors and hide when they die");
     }

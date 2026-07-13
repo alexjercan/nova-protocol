@@ -80,6 +80,12 @@ pub struct VerbHint {
     pub anchor: Option<Entity>,
 }
 
+/// Optional playtest flag (adversarial round NIT): deny the fire PRESS while
+/// the radar search is held, so sweeping with the trigger down cannot rake
+/// bystanders. Off by default - manual gunnery during a search is a player
+/// freedom until playtest says otherwise.
+const HOLD_FIRE_DURING_RADAR: bool = false;
+
 /// The player's currently available flight verbs, resolved every frame by
 /// [`update_flight_verb_hints`] - computed here, where the verbs and their
 /// (private) input actions live; the HUD renders it dumb. Keyboard labels
@@ -1060,12 +1066,29 @@ fn on_turret_input_binding(
 fn on_turret_input(
     fire: On<Start<TurretInput>>,
     mut q_input: Query<&mut TurretSectionInput, With<TurretInputMarker>>,
+    q_player_safety: Query<
+        (&WeaponsHot, Option<&RadarState>),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
     pause: Res<State<crate::PauseStates>>,
 ) {
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up (review R1.1). Releases stay ungated so held keys
     // clear cleanly during a pause.
     if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+
+    // The weapons safety denies the PRESS on a managed cold ship (the live
+    // section-side gate is the enforcement; this is the immediate feedback
+    // path - the input bool never even latches). HOLD_FIRE_DURING_RADAR:
+    // optional playtest flag from the adversarial round (sweeping with the
+    // trigger down rakes bystanders); off by default.
+    let cold = q_player_safety
+        .iter()
+        .next()
+        .is_some_and(|(hot, radar)| !hot.0 || (HOLD_FIRE_DURING_RADAR && radar.is_some()));
+    if cold {
         return;
     }
 
@@ -1134,12 +1157,29 @@ fn on_torpedo_input_binding(
 fn on_torpedo_input(
     fire: On<Start<TorpedoInput>>,
     mut q_input: Query<&mut TorpedoSectionInput, With<TorpedoInputMarker>>,
+    q_player_safety: Query<
+        (&WeaponsHot, Option<&RadarState>),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
     pause: Res<State<crate::PauseStates>>,
 ) {
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up (review R1.1). Releases stay ungated so held keys
     // clear cleanly during a pause.
     if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+
+    // The weapons safety denies the PRESS on a managed cold ship (the live
+    // section-side gate is the enforcement; this is the immediate feedback
+    // path - the input bool never even latches). HOLD_FIRE_DURING_RADAR:
+    // optional playtest flag from the adversarial round (sweeping with the
+    // trigger down rakes bystanders); off by default.
+    let cold = q_player_safety
+        .iter()
+        .next()
+        .is_some_and(|(hot, radar)| !hot.0 || (HOLD_FIRE_DURING_RADAR && radar.is_some()));
+    if cold {
         return;
     }
 
@@ -1869,6 +1909,31 @@ mod tests {
 
         assert_eq!(point, Some(Vec3::new(0.0, 0.0, -100.0)));
         assert_eq!(velocity, Vec3::ZERO);
+    }
+
+    /// D8 capture semantics: the engaged GOTO holds the target captured at
+    /// [G]; re-designating the travel lock must NOT re-route the trip.
+    #[test]
+    fn goto_keeps_the_captured_target_across_re_designation() {
+        let mut world = World::new();
+        let a = world.spawn_empty().id();
+        let b = world.spawn_empty().id();
+        let ship = world
+            .spawn((
+                PlayerSpaceshipMarker,
+                TravelLock(Some(a)),
+                Autopilot::engage(AutopilotAction::Goto { target: a }),
+            ))
+            .id();
+
+        // Radar re-designates the travel lock to B mid-flight.
+        world.get_mut::<TravelLock>(ship).unwrap().0 = Some(b);
+
+        let autopilot = world.get::<Autopilot>(ship).unwrap();
+        assert!(
+            matches!(autopilot.action, AutopilotAction::Goto { target } if target == a),
+            "the engaged GOTO keeps the target captured at [G]"
+        );
     }
 
     #[test]

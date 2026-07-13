@@ -919,9 +919,18 @@ fn shoot_spawn_projectile(
     >,
     mut q_muzzle: Query<&mut TurretSectionBarrelFireState, With<TurretSectionBarrelMuzzleMarker>>,
     q_chain: Query<(&Transform, &ChildOf)>,
+    q_hot: Query<&WeaponsHot>,
 ) {
     let dt = time.delta_secs();
     for (turret, muzzle, ChildOf(spaceship), config, loaded, input, mut ammo) in &mut q_turret {
+        // The weapons safety is a LIVE predicate (deliberate-radar task
+        // 20260713-082337): a managed ship (player, mirrored AI) cannot fire
+        // while SAFE even mid-held-trigger - the input bool is latched, so a
+        // press-time gate alone would leak. Unmanaged ships (no WeaponsHot -
+        // bare example turrets) fire freely.
+        if q_hot.get(*spaceship).is_ok_and(|hot| !hot.0) {
+            continue;
+        }
         // The fired round: the runtime LoadedBullet slot if present (production
         // turrets carry one), else the authored config default (bare test rigs
         // and any turret not built via `turret_section`).

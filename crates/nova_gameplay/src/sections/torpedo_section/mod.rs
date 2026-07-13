@@ -492,9 +492,15 @@ fn shoot_spawn_projectile(
     >,
     mut q_spawner: Query<&mut TorpedoSectionSpawnerFireState, With<TorpedoSectionSpawnerMarker>>,
     q_chain: Query<(&Transform, &ChildOf)>,
+    q_hot: Query<&WeaponsHot>,
 ) {
     for (section, spawner, ChildOf(spaceship), config, input, mut ammo) in &mut q_section {
         if !**input {
+            continue;
+        }
+        // Live weapons-safety gate, same rule as the turret (task
+        // 20260713-082337); unmanaged ships fire freely.
+        if q_hot.get(*spaceship).is_ok_and(|hot| !hot.0) {
             continue;
         }
 

@@ -20,6 +20,10 @@ impl Plugin for SpaceshipAIInputPlugin {
 
         app.register_type::<AIBehaviorState>();
         app.register_type::<AITarget>();
+        app.add_systems(
+            Update,
+            mirror_ai_combat_state.in_set(super::SpaceshipInputSystems),
+        );
         app.register_type::<AIFireCadence>();
         app.register_type::<AIPointDefenseTarget>();
         app.register_type::<AIPatrolRoute>();
@@ -86,6 +90,57 @@ pub struct AISpaceshipMarker;
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq, Deref, DerefMut, Reflect)]
 #[reflect(Component)]
 pub struct AITarget(pub Option<Entity>);
+
+/// Mirror the AI's engagement onto the shared combat components (deliberate-
+/// radar AI parity, task 20260713-082337): `CombatLock` = the point-defense
+/// override else the primary target, refreshed every frame (the AI's own
+/// acquisition hygiene replaces the player's validity/decay upkeep), and the
+/// stance is raised while engaged - so the shared section-side weapons-safety
+/// gate never silences a fighting AI, and the AI's guns go SAFE the moment it
+/// disengages. Instant acquisition for AI is the accepted spec (the human
+/// gesture is the deliberate part, not the machine's).
+fn mirror_ai_combat_state(
+    mut commands: Commands,
+    mut q_ships: Query<
+        (
+            Entity,
+            &AITarget,
+            &AIPointDefenseTarget,
+            Option<&mut CombatLock>,
+            Option<&mut WeaponsRaised>,
+        ),
+        With<AISpaceshipMarker>,
+    >,
+) {
+    for (ship, target, pd_target, lock, raised) in &mut q_ships {
+        let engaged = pd_target.0.or(target.0);
+        let managed = lock.is_some();
+        match lock {
+            Some(mut lock) => {
+                if lock.0 != engaged {
+                    lock.0 = engaged;
+                }
+            }
+            None => {
+                commands.entity(ship).insert(CombatLock(engaged));
+            }
+        }
+        let is_raised = engaged.is_some();
+        match raised {
+            Some(mut raised) => {
+                raised.set_if_neq(WeaponsRaised(is_raised));
+            }
+            None => {
+                commands.entity(ship).insert(WeaponsRaised(is_raised));
+            }
+        }
+        // WeaponsHot itself is derived by the shared safety system; give the
+        // ship the component so it becomes a MANAGED ship.
+        if !managed {
+            commands.entity(ship).insert(WeaponsHot::default());
+        }
+    }
+}
 
 /// What kind of body a target candidate is. Priority TIER, not a score
 /// tweak: hostile ships always beat hostile torpedoes (the urgency flip for
@@ -2537,6 +2592,62 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
+
+    /// AI parity mirror (task 20260713-082337): engagement -> CombatLock +
+    /// raised stance + a managed WeaponsHot, so the shared section-side
+    /// safety gate never silences a fighting AI; the point-defense override
+    /// wins; disengaging safes the guns.
+    #[test]
+    fn ai_engagement_mirrors_onto_the_combat_components() {
+        use bevy::ecs::system::RunSystemOnce;
+
+        let mut world = World::new();
+        let enemy = world.spawn_empty().id();
+        let torpedo = world.spawn_empty().id();
+        let ship = world
+            .spawn((
+                AISpaceshipMarker,
+                AITarget(None),
+                AIPointDefenseTarget(None),
+            ))
+            .id();
+
+        // Disengaged: managed but safe once the safety derivation runs.
+        world.run_system_once(mirror_ai_combat_state).unwrap();
+        world
+            .run_system_once(crate::input::targeting::update_weapons_safety_for_tests)
+            .unwrap();
+        assert_eq!(world.get::<CombatLock>(ship).unwrap().0, None);
+        assert!(
+            !world.get::<WeaponsHot>(ship).unwrap().0,
+            "disengaged AI is safe"
+        );
+
+        // Engaged on the primary target: locked, raised, hot.
+        world.get_mut::<AITarget>(ship).unwrap().0 = Some(enemy);
+        world.run_system_once(mirror_ai_combat_state).unwrap();
+        world
+            .run_system_once(crate::input::targeting::update_weapons_safety_for_tests)
+            .unwrap();
+        assert_eq!(world.get::<CombatLock>(ship).unwrap().0, Some(enemy));
+        assert!(world.get::<WeaponsRaised>(ship).unwrap().0);
+        assert!(world.get::<WeaponsHot>(ship).unwrap().0, "engaged AI fires");
+
+        // Point defense overrides the primary.
+        world.get_mut::<AIPointDefenseTarget>(ship).unwrap().0 = Some(torpedo);
+        world.run_system_once(mirror_ai_combat_state).unwrap();
+        assert_eq!(world.get::<CombatLock>(ship).unwrap().0, Some(torpedo));
+
+        // Disengage everything: lock drops, stance lowers.
+        world.get_mut::<AITarget>(ship).unwrap().0 = None;
+        world.get_mut::<AIPointDefenseTarget>(ship).unwrap().0 = None;
+        world.run_system_once(mirror_ai_combat_state).unwrap();
+        world
+            .run_system_once(crate::input::targeting::update_weapons_safety_for_tests)
+            .unwrap();
+        assert_eq!(world.get::<CombatLock>(ship).unwrap().0, None);
+        assert!(!world.get::<WeaponsHot>(ship).unwrap().0);
+    }
 
     #[test]
     fn ai_turrets_target_the_live_structure_anchor() {

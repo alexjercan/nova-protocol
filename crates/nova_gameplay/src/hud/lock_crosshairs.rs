@@ -59,6 +59,15 @@ pub struct RadarCandidateMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 struct RadarCandidateLabelMarker;
 
+/// Marker for the toast stack node (review 082330 R1.3 - a marker beats the
+/// Name-string lookup).
+#[derive(Component, Debug, Clone, Reflect)]
+struct LockToastStackMarker;
+
+/// Marker for the weapons-safety status block (hot/safe + torpedo commit).
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct WeaponsStatusMarker;
+
 /// One fading tap-clear toast line; `age` drives the fade.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct LockToastMarker {
@@ -116,11 +125,31 @@ pub fn lock_crosshairs_hud(target_sprite: Handle<Image>) -> impl Bundle {
             ),
             (
                 Name::new("LockToasts"),
+                LockToastStackMarker,
                 Node {
                     position_type: PositionType::Absolute,
                     left: Val::Percent(50.0),
                     bottom: Val::Percent(30.0),
                     flex_direction: FlexDirection::Column,
+                    ..default()
+                },
+            ),
+            (
+                // The weapons-safety status (task 20260713-082337): loud
+                // "WEAPONS HOT" with the reason while the safety is off
+                // (adversarial finding: a silent perma-hot state is the
+                // risk), plus the torpedo commit target (decision D5a - the
+                // one weapon where a wrong target costs a munition must not
+                // be routed by invisible state). Hidden while safe.
+                Name::new("WeaponsStatus"),
+                WeaponsStatusMarker,
+                Text::new(""),
+                TextFont::from_font_size(13.0),
+                TextColor(RADAR_COMBAT_COLOR),
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Percent(50.0),
+                    bottom: Val::Percent(24.0),
                     ..default()
                 },
             ),
@@ -149,6 +178,7 @@ impl Plugin for LockCrosshairsHudPlugin {
                 style_radar_box,
                 drive_travel_crosshair,
                 drive_radar_candidate,
+                drive_weapons_status,
                 spawn_lock_toasts,
                 fade_lock_toasts,
             )
@@ -214,13 +244,9 @@ fn drive_radar_candidate(
 fn spawn_lock_toasts(
     mut commands: Commands,
     mut toasts: MessageReader<LockClearedToast>,
-    q_stack: Query<(Entity, &Name)>,
+    q_stack: Query<Entity, With<LockToastStackMarker>>,
 ) {
-    let Some(stack) = q_stack
-        .iter()
-        .find(|(_, name)| name.as_str() == "LockToasts")
-        .map(|(entity, _)| entity)
-    else {
+    let Some(stack) = q_stack.iter().next() else {
         // No player HUD: drain quietly.
         toasts.read().for_each(|_| {});
         return;
@@ -255,6 +281,65 @@ fn fade_lock_toasts(
         }
         let alpha = (1.0 - marker.age / TOAST_SECONDS).clamp(0.0, 1.0);
         color.0 = color.0.with_alpha(alpha);
+    }
+}
+
+/// Drive the weapons-safety status text: "WEAPONS HOT" + why (manual stance
+/// or the locked target's name and distance) + the torpedo commit line;
+/// empty while safe.
+#[allow(clippy::type_complexity)]
+fn drive_weapons_status(
+    q_player: Query<
+        (
+            &GlobalTransform,
+            &WeaponsHot,
+            Option<&WeaponsRaised>,
+            &CombatLock,
+        ),
+        With<PlayerSpaceshipMarker>,
+    >,
+    q_targets: Query<(Option<&Name>, &GlobalTransform)>,
+    q_torpedo_bays: Query<&ChildOf, (With<TorpedoSectionMarker>, Without<SectionInactiveMarker>)>,
+    mut q_status: Query<(Entity, &mut Text), With<WeaponsStatusMarker>>,
+) {
+    let Some((ship_transform, hot, raised, lock)) = q_player.iter().next() else {
+        return;
+    };
+    for (_, mut text) in &mut q_status {
+        let next = if !hot.0 {
+            String::new()
+        } else {
+            let reason = match lock.0.and_then(|target| q_targets.get(target).ok()) {
+                Some((name, target_transform)) => {
+                    let distance = ship_transform
+                        .translation()
+                        .distance(target_transform.translation());
+                    let name = name
+                        .map(|name| name.to_string())
+                        .unwrap_or_else(|| "TARGET".to_string());
+                    format!("lock {name} {distance:.0}m")
+                }
+                None => "manual".to_string(),
+            };
+            let raised = raised.is_some_and(|raised| raised.0);
+            let torpedo = if q_torpedo_bays.iter().next().is_some() {
+                match lock.0.and_then(|target| q_targets.get(target).ok()) {
+                    Some((name, _)) => format!(
+                        "\nTORP -> {}",
+                        name.map(|name| name.to_string())
+                            .unwrap_or_else(|| "TARGET".to_string())
+                    ),
+                    None => "\nTORP: DUMB".to_string(),
+                }
+            } else {
+                String::new()
+            };
+            let stance = if raised { " [RAISED]" } else { "" };
+            format!("WEAPONS HOT{stance}: {reason}{torpedo}")
+        };
+        if text.0 != next {
+            text.0 = next;
+        }
     }
 }
 
