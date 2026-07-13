@@ -274,14 +274,18 @@ fn player_ship(sections: &GameSections) -> ScenarioObjectConfig {
             .unwrap()
             .clone(),
     };
-    // GOTO starts WITHHELD on the player's controller: the pilot has not yet
-    // flown a controlled leg. The Beat 1 -> 2 handler's SetControllerVerb
-    // enables it once the first objective (OBJ_B1) is complete (spike
-    // docs/spikes/20260712-143551-controller-provided-verb-flags.md). Authored
-    // in config, not an OnStart action, so GOTO is off from the instant the
-    // controller section is built - no spawn-vs-action ordering window - and
-    // the shared basic_controller_section catalog entry (the pirate reuses it)
-    // stays untouched because we clone-and-override here.
+    // GOTO and LOCK start WITHHELD on the player's controller: the pilot has
+    // not yet flown a controlled leg, and the targeting computer is not
+    // online yet. The Beat 1 -> 2 handler's SetControllerVerb grants GOTO
+    // after the first objective (spike
+    // docs/spikes/20260712-143551-controller-provided-verb-flags.md); the
+    // Beat 3 -> 4 handler grants LOCK - the radar-era capability beat (task
+    // 20260713-090653): until then a CTRL hold answers with the deny buzz +
+    // flash, diegetically "no targeting computer". Authored in config, not
+    // an OnStart action, so both are off from the instant the controller
+    // section is built - no spawn-vs-action ordering window - and the shared
+    // basic_controller_section catalog entry (the pirate reuses it) stays
+    // untouched because we clone-and-override here.
     let controller = {
         let mut config = sections
             .get_section("basic_controller_section")
@@ -289,6 +293,7 @@ fn player_ship(sections: &GameSections) -> ScenarioObjectConfig {
             .clone();
         if let SectionKind::Controller(ref mut controller_config) = config.kind {
             controller_config.verbs.goto = false;
+            controller_config.verbs.lock = false;
         }
         SpaceshipSectionConfig {
             id: "controller".to_string(),
@@ -577,16 +582,28 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
             actions: vec![
                 set(VAR_BEAT, num(4.0)),
                 complete(OBJ_B3),
+                // The capability beat (task 20260713-090653): the targeting
+                // computer comes online HERE, like the governor release -
+                // until this grant a CTRL hold answered with the deny buzz.
+                EventActionConfig::SetControllerVerb(SetControllerVerbActionConfig {
+                    id: ID_PLAYER.to_string(),
+                    verb: FlightVerb::Lock,
+                    enabled: true,
+                }),
                 spawn(beacon(ID_BEACON_3, "BEACON 3", BEACON_3_POS)),
                 objective(
                     OBJ_B4,
-                    "Cargo secured. Hold [CTRL], look at BEACON 3, release to lock it, then press [G] - let the computer fly. Then press [O] and hold the orbit over the planetoid.",
+                    "Cargo secured. Targeting computer online: hold [CTRL] and put your eyes on BEACON 3 - the white lock sticks when you let go. Then press [G] and let the computer fly. Then press [O] and hold the orbit over the planetoid.",
                 ),
                 // The crates despawned with their pickups (markers went
-                // with them); the marker moves to the beat-4 lock target
-                // and the cluster's GOTO row pulses gold - the objective
-                // text, the lit row and the pulse all point at [G].
+                // with them); the marker moves to the beat-4 lock target.
+                // Both new keys pulse gold: RADAR is actionable the moment
+                // the grant lands; the contextual cluster shows the
+                // emphasized GOTO row early (dim + gold) and lights it the
+                // moment the nav lock exists - the progression reads off
+                // the cluster itself.
                 mark(ID_BEACON_3, "BEACON 3"),
+                emphasize("RADAR"),
                 emphasize("GOTO"),
             ],
         },
@@ -602,12 +619,17 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                 set(VAR_BEAT, num(5.0)),
                 complete(OBJ_B4),
                 spawn(pirate_ship(sections)),
+                // The combat-lock lesson (task 20260713-090653): raise,
+                // radar WHILE raised for the red lock, then fire - this is
+                // where the viewfinder inset, the fine-lock and guided
+                // torpedoes become discoverable instead of secret.
                 objective(
                     OBJ_B5,
-                    "A scavenger is picking through the debris field you cleared. Drive it off - hold [RMB] to aim, [LMB] to fire.",
+                    "A scavenger is picking through the debris field you cleared. Hold [RMB] to raise your weapons, keep [CTRL] held to lock it - watch the viewfinder - then [LMB]. Drive it off.",
                 ),
-                // The hands-off lesson is done: the pulse stops, the
+                // The hands-off lesson is done: the pulses stop, the
                 // marker jumps to the intruder (attach after its spawn).
+                deemphasize("RADAR"),
                 deemphasize("GOTO"),
                 unmark(ID_BEACON_3),
                 mark(ID_PIRATE, "SCAVENGER"),
@@ -620,7 +642,13 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
             actions: vec![
                 set(VAR_BEAT, num(6.0)),
                 complete(OBJ_B5),
-                objective(OBJ_DONE, "Shakedown complete. The belt is yours."),
+                // The stand-down closes the loop: the tap-clear pops the
+                // unlatch ghosts and the safety click answers - the last
+                // radar gesture the tutorial has not shown.
+                objective(
+                    OBJ_DONE,
+                    "Shakedown complete. Tap [CTRL] to stand down your locks - the belt is yours.",
+                ),
                 // Defensive detach: the destroyed ship normally takes its
                 // marker down with it, but the free-flight epilogue must
                 // not depend on the wreck's despawn timing.
@@ -830,7 +858,8 @@ mod tests {
 
         // Emphasis pairing: every emphasized verb is cleared somewhere
         // downstream (teardown covers death, but the happy path must not
-        // rely on it), and the GOTO pair sits on beat 4 -> orbit.
+        // rely on it), and both radar-era pairs (RADAR + GOTO, task
+        // 20260713-090653) sit on beat 4 -> orbit.
         let mut set_verbs = Vec::new();
         let mut cleared_verbs = Vec::new();
         for action in all_actions(&config) {
@@ -842,15 +871,15 @@ mod tests {
                 _ => {}
             }
         }
-        assert_eq!(set_verbs, vec!["GOTO".to_string()]);
-        assert_eq!(cleared_verbs, vec!["GOTO".to_string()]);
+        assert_eq!(set_verbs, vec!["RADAR".to_string(), "GOTO".to_string()]);
+        assert_eq!(cleared_verbs, vec!["RADAR".to_string(), "GOTO".to_string()]);
         let beat4_handler = handler_with_attach(ID_BEACON_3);
         assert!(
             beat4_handler
                 .actions
                 .iter()
                 .any(|action| matches!(action, EventActionConfig::HintEmphasisSet(_))),
-            "the GOTO emphasis rides the beat-4 handler"
+            "the RADAR + GOTO emphasis rides the beat-4 handler"
         );
         let orbit_handler = handler_with_attach(ID_PIRATE);
         assert!(
@@ -858,7 +887,7 @@ mod tests {
                 .actions
                 .iter()
                 .any(|action| matches!(action, EventActionConfig::HintEmphasisClear(_))),
-            "the orbit handler retires the GOTO emphasis"
+            "the orbit handler retires the RADAR + GOTO emphasis"
         );
     }
 
@@ -1274,6 +1303,21 @@ mod tests {
         };
         let goto_emphasized =
             |app: &App| -> bool { app.world().resource::<HintEmphasis>().contains("GOTO") };
+        let radar_emphasized =
+            |app: &App| -> bool { app.world().resource::<HintEmphasis>().contains("RADAR") };
+        // The Lock capability on the player's REAL controller section (the
+        // capability beat, task 20260713-090653 - same pin shape as the
+        // training governor).
+        let lock_granted = |app: &mut App, player: Entity| -> bool {
+            let mut q_controllers = app
+                .world_mut()
+                .query_filtered::<(&ChildOf, &ControllerVerbs), With<ControllerSectionMarker>>();
+            q_controllers
+                .iter(app.world())
+                .find(|(ChildOf(parent), _)| *parent == player)
+                .map(|(_, verbs)| verbs.granted(FlightVerb::Lock))
+                .expect("the player ship has a controller section")
+        };
 
         // Boot: OnStart is what the loader fires after registration.
         boot(&mut app);
@@ -1302,6 +1346,10 @@ mod tests {
         assert!(
             app.world().get::<FlightSpeedCap>(player).is_some(),
             "the training governor caps the fresh ship"
+        );
+        assert!(
+            !lock_granted(&mut app, player),
+            "the targeting computer starts OFFLINE (lock withheld; CTRL answers with the deny cue)"
         );
 
         // Beat 1 -> 2.
@@ -1378,6 +1426,11 @@ mod tests {
             Some("BEACON 3")
         );
         assert!(goto_emphasized(&app), "beat 4 emphasizes GOTO");
+        assert!(radar_emphasized(&app), "beat 4 emphasizes RADAR");
+        assert!(
+            lock_granted(&mut app, player),
+            "beat 4 brings the targeting computer ONLINE (delivery guard: withheld at boot)"
+        );
 
         // Beat 4 -> 5: HOLDING the orbit completes the beat and only then
         // does the scavenger slip into the debris field.
@@ -1393,6 +1446,10 @@ mod tests {
         assert!(
             !goto_emphasized(&app),
             "the orbit handler retires the GOTO emphasis"
+        );
+        assert!(
+            !radar_emphasized(&app),
+            "the orbit handler retires the RADAR emphasis"
         );
         assert_eq!(marker_label(&mut app, ID_BEACON_3), None);
         assert_eq!(

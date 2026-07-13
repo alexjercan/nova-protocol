@@ -397,3 +397,10 @@ accurate.
   pinned (D8). Audio blip + gesture hint rows deferred to 20260713-090653.
 - 20260713-082344 LANDED: this docs sweep (banners on the component-lock,
   signature and inset docs; CHANGELOG coherence; shakedown minimal text fix).
+- 20260713-090653 LANDED: the Shakedown Run teaches the radar era - LOCK
+  withheld at spawn and granted as the beat-4 capability moment (deny buzz
+  answers CTRL before it), RADAR + GOTO emphasized for the leg, the
+  scavenger fight teaches raise + combat lock + viewfinder, the epilogue
+  teaches the stand-down tap. The adversarial round's tutorial findings
+  (beat 5 pure manual gunnery; inset/fine-lock undiscoverable) are closed.
+  See tasks/20260713-090653/TASK.md.
