@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-13
+
 ### Changed
 
 - @alexjercan the viewfinder now shows the kill: when the combat-locked target is destroyed, the inset holds a frozen final shot for ~2 seconds - watching the fragments scatter while the safety click and the calming frame play inside it - then closes. Clearing a lock yourself still closes it instantly, and locking something new takes the panel over immediately
@@ -17,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - @alexjercan Shakedown Run radar-era rework: the targeting computer is now a tutorial beat - LOCK starts withheld (a CTRL hold answers with the deny buzz until it comes online) and is granted when the cargo is secured, right when the GOTO leg needs it ("Targeting computer online"); both [CTRL] RADAR and [G] GOTO pulse gold for that leg, and the contextual cluster shows GOTO early and lights it the moment the nav lock lands. The scavenger fight now teaches the combat lock (raise, keep CTRL held, watch the viewfinder) instead of bare manual gunnery, and the epilogue teaches the stand-down tap. Objective text re-phrased for the live-lock gesture throughout
 - @alexjercan radar playtest round (2026-07-13): the radar now LOCKS LIVE - after the 0.25s hold threshold it grabs the first body under your look and retargets instantly as you sweep; releasing just makes it stick (no more wait-for-release), and sweeping over empty space keeps the last target. The slot (nav vs combat) is chosen at the threshold from your stance at that moment. The HUD shows instead of telling: the target inset appears the moment a combat lock exists and acts as the sweep's viewfinder (with a text-free NO-SIGNAL panel across non-scopeable bodies like beacons), its frame turns red with armed corner ticks while weapons are hot, and the "WEAPONS HOT / TORP" status text is gone - the inset's presence IS the guided-torpedo signal. Lock clears pop a wordless unlatch ghost with a lock-off sound; lock-on, safety-on and radar-denied placeholder cues join the sound bank (a computer without the LOCK capability now buzzes + flashes instead of silently ignoring CTRL). The on-object lock language is purely slot-colored: RED bracket = combat lock, WHITE bracket = nav lock (the relation tint and the reticle corner pips are retired). Turrets stay on the combat lock even while RMB is held - moving the cursor no longer pulls them off; tap CTRL to clear the lock and get manual aim back. The inset panel moved below the FPS status bar. Polish from the next round: [CTRL] RADAR joined the keybind cluster; the nav crosshair renders a step larger than the combat reticle so an overlapped pair stays concentric at any target size; the inset shows a relation-colored faction line ("SCAVENGER - HOSTILE") for the locked target; the sweep label next to the bracket is distance-only and identical for both lock types. The keybind cluster went contextual (Arma-style): rows appear only while their verb can actually do something (a scenario-emphasized key still shows early, pulsing gold), instead of idling greyed out, and the [`] HUD row is gone from the list (the key still works)
 - @alexjercan deliberate radar locking replaces all passive targeting (supersedes the interim sticky-lock/CTRL+scroll model that shipped earlier in this cycle): nothing locks by itself anymore. Hold CTRL to run the radar - it live-tracks the best body under your look (hollow box + name) - and release to lock it: a white NAV crosshair when lowered, the combat reticle when raised (RMB); the slot is chosen at the moment you press, so a mid-gesture stance change cannot re-route it. Releasing onto empty space changes nothing (the abort). Tap CTRL to clear, staged: combat lock first, then the nav lock (which also disengages an engaged GOTO); while raised a tap only ever clears the combat lock. Locks are sticky until the target dies, leaves range, turns non-hostile, or (combat) 30 s pass without any combat activity. GOTO flies to the NAV lock captured at [G]; guns/torpedoes/focus/component fine-lock/inset follow the COMBAT lock; the wheel still cycles sections. Some ship computers may not provide the LOCK capability at all (same flag family as GOTO). Debris is now only radar-visible within ~5 m (was 15)
+- @alexjercan the editor's play-test scenario ship is now a passive target instead of an AI combatant, matching the sandbox's build-and-fly scope
+- @alexjercan the velocity sphere tints to the flight computer's nav-cyan family while the autopilot flies and reverts to white/blue in manual, so engaged-vs-manual reads from the instrument itself; the gravity sphere stays yellow in both states
+- @alexjercan the bottom-left flight status text is replaced by diegetic readouts: a speed chip and an engaged-mode chip (verb + phase) anchored to the ship beside the velocity sphere, and an ORBIT radius spoke holo (well-to-ship line with the current radius riding it); the GRAV coasting cue is retired in favor of the gravity sphere and the keybind hint cluster re-docks to the freed corner; the ring's planned `r | v_circ` chip is retired as redundant with the new readouts
 
 ### Fixed
 
@@ -48,20 +53,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - @alexjercan scenario content primitives: nav beacons (emissive blinking waypoints with a HUD chip showing label + live distance that clamps to the screen edge as a direction chevron; aim-lockable, so GOTO works on them) and salvage crates (bright tumbling proximity pickups); scenarios can now despawn objects by id (crate pickup consumes the crate)
 - @alexjercan web landing site (new `web/` project: TypeScript + Webpack + Tailwind): a themed marketing/content site with a hero landing page, a "Play" gate, and blog/tutorial/wiki pages, styled from the `assets/banner.png` key art (space-navy field, neon-cyan and amber glow). README rewritten to match, with the banner embedded
 - @alexjercan the deploy now fronts the game: `deploy-page.yaml` builds the landing site to the Pages root (`/nova-protocol/`) and the Bevy WASM game under `/nova-protocol/play/`, instead of publishing the raw game at the root
-
 - @alexjercan pause menu: ESC freezes the game (virtual + physics clocks, spaceship input gated off) behind a dimmed overlay with Resume / Back to Main Menu / Exit; Back returns to the main menu cleanly (scenario unloaded, editor scene torn down, cursor released while paused and re-grabbed on resume during scenario play)
-
 - @alexjercan HUD visibility levels: the grave/tilde key cycles ALL -> MINIMAL (flight and combat instruments only, chrome hidden) -> NONE (clean screen for cinematic shots); every HUD widget carries a tier, the main menu drives the level to NONE while it is up, and the keybind hint cluster documents the key
-
 - @alexjercan the main menu plays a live ambient scene behind the panel: an AI ship flying a real thruster-driven orbit around a gravity-well planetoid (visible flame, engine hum), framed by a fixed cinematic camera (WASD controller stripped, fps/version status bar hidden while the menu is up)
 - @alexjercan the game boots into a main menu (new `nova_menu` crate): a bottom-right "Nova Protocol" panel with New Game (loads the asteroid-field scenario with the canned player ship), Sandbox (the ship editor), Settings (placeholder) and Exit (hidden on wasm); examples with custom game plugins keep the direct Loading -> Playing flow, and `AppBuilder::with_main_menu(bool)` overrides the default
-
-### Changed
-
-- @alexjercan the editor's play-test scenario ship is now a passive target instead of an AI combatant, matching the sandbox's build-and-fly scope
-
-- @alexjercan the velocity sphere tints to the flight computer's nav-cyan family while the autopilot flies and reverts to white/blue in manual, so engaged-vs-manual reads from the instrument itself; the gravity sphere stays yellow in both states
-- @alexjercan the bottom-left flight status text is replaced by diegetic readouts: a speed chip and an engaged-mode chip (verb + phase) anchored to the ship beside the velocity sphere, and an ORBIT radius spoke holo (well-to-ship line with the current radius riding it); the GRAV coasting cue is retired in favor of the gravity sphere and the keybind hint cluster re-docks to the freed corner; the ring's planned `r | v_circ` chip is retired as redundant with the new readouts
 
 ## [0.4.1] - 2026-07-10
 
@@ -182,7 +177,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - @alexjercan basic spaceship sections added
 - @alexjercan editor and simulation scenes added
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.4.1...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/alexjercan/nova-protocol/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/alexjercan/nova-protocol/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/alexjercan/nova-protocol/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/alexjercan/nova-protocol/compare/v0.3.0...v0.3.1

@@ -4371,7 +4371,7 @@ dependencies = [
 
 [[package]]
 name = "nova-protocol"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4386,7 +4386,7 @@ dependencies = [
 
 [[package]]
 name = "nova_assets"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4400,7 +4400,7 @@ dependencies = [
 
 [[package]]
 name = "nova_core"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "bevy",
  "bevy_enhanced_input",
@@ -4416,7 +4416,7 @@ dependencies = [
 
 [[package]]
 name = "nova_debug"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4430,7 +4430,7 @@ dependencies = [
 
 [[package]]
 name = "nova_editor"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4443,7 +4443,7 @@ dependencies = [
 
 [[package]]
 name = "nova_events"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "bevy",
  "bevy_common_systems",
@@ -4452,7 +4452,7 @@ dependencies = [
 
 [[package]]
 name = "nova_gameplay"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4468,11 +4468,11 @@ dependencies = [
 
 [[package]]
 name = "nova_info"
-version = "0.4.1"
+version = "0.5.0"
 
 [[package]]
 name = "nova_menu"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "avian3d",
  "bevy",
@@ -4484,7 +4484,7 @@ dependencies = [
 
 [[package]]
 name = "nova_scenario"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "avian3d",
  "bevy",
