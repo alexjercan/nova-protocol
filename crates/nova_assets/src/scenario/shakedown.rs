@@ -576,7 +576,7 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                 spawn(beacon(ID_BEACON_2, "BEACON 2", BEACON_2_POS)),
                 objective(
                     OBJ_B2,
-                    "Governor released. BEACON 2 is somewhere off your beam. Hold [Alt] to look around and find it.",
+                    "BEACON 2 is somewhere off your beam. Hold [Alt] to look around and find it.",
                 ),
                 // Marker hand-off: attach runs after the spawn above
                 // (action list order), so the fresh beacon is findable.
