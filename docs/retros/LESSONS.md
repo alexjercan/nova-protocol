@@ -57,6 +57,13 @@ retros.
   exercised the second consumer. Add a test per consumer, not just per
   producer. Review caught it by tracing the data into `AutopilotAction::Goto`.
   20260712-203353.
+- `scripted-walks-skip-the-bridges` (x1): a scenario beat-walk that fires
+  events BY HAND proves the script, not the game: the asteroid OnDestroyed
+  bridge had NEVER fired (the integrity marker lands on an id-less child
+  node) and every walk stayed green because the walk faked the event. Each
+  event a scenario consumes needs one pin that drives the PRODUCTION
+  bridge (marker/physics -> event -> handler); the walk covers the rest.
+  20260713-150343 round 2 (the derelict softlock's real cause).
 - `collider-needs-a-rigidbody` (x1): an avian Collider WITHOUT a RigidBody
   registers no contact pair - SILENTLY (no warning, no events); a
   spawned-around-a-body sensor test failed through FOUR hypotheses (missing
