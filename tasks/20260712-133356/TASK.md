@@ -1,7 +1,7 @@
 # Alt-fire modes: primary/secondary fire profiles and input
 
 - STATUS: OPEN
-- PRIORITY: 42
+- PRIORITY: 0
 - TAGS: v0.6.0,weapons,spike
 
 

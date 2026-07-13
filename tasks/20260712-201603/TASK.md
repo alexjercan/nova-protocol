@@ -56,3 +56,11 @@ camera. That fully resolves the symptom, but the root cause is in bcs.
   workaround to remove once upstream is fixed).
 - Discovered during task 20260710-104421 (target inset view); see
   tasks/20260710-104421/NOTES.md ("Adjacent fix").
+- v0.5.2 plan pass (2026-07-13): the user approved implementing the bcs
+  change in this flow. Logistics: develop and commit the fix in
+  ~/personal/bevy-common-systems (its own repo, its own commit); test nova
+  against it locally via a `[patch]` path override BEFORE any rev bump; the
+  final rev bump in nova's Cargo.tomls only builds once the bcs commit is
+  on GitHub, and pushing bcs is the user's call - stop and ask when the fix
+  is ready. bcs master is currently a35b74c = exactly the rev nova pins, so
+  there is no drift to absorb.

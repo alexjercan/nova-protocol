@@ -1,8 +1,8 @@
 # Sensor-model lock ranges for ships (minimap follow-up)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 30
-- TAGS: sensors, targeting, minimap
+- TAGS: sensors, targeting, minimap, wontdo
 
 ## Goal
 

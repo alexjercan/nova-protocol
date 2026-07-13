@@ -1,8 +1,8 @@
 # Keybind hint icons and key remapping (Arma Reforger look)
 
 - STATUS: OPEN
-- PRIORITY: 20
-- TAGS: backlog,hud,ux,input
+- PRIORITY: 0
+- TAGS: v0.6.0,hud,ux,input
 
 
 ## Goal

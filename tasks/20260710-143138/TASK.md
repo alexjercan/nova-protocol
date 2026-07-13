@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 20
-- TAGS: ci, testing, bug
+- TAGS: v0.5.2, ci, testing, bug
 
 The `examples_smoke` test step in `.github/workflows/ci.yaml` is currently
 `continue-on-error: true` because `03_scenario` deterministically panics on
@@ -45,3 +45,17 @@ Steps:
       zen3-JIT theory off-CI.
 - [ ] When the panic is understood or worked around, remove
       `continue-on-error: true` from the smoke step so it gates again.
+
+## Notes (v0.5.2 plan pass, 2026-07-13)
+
+- Depends on: 20260712-211352 (examples rework) - re-enable the gate over
+  the final example set, not the pre-rework one.
+- The CI experiments (backtrace, LP_NATIVE_VECTOR_WIDTH, SwiftShader/Mesa
+  swaps) only run on GitHub's runners, so this task needs branches pushed
+  to origin. Pushing is the user's call: prepare the experiment commits,
+  then stop and ask before the first push. The qemu-user `-cpu EPYC`
+  reproduction attempt is the one experiment that runs locally.
+- If the panic stays unexplained after the experiment budget, the fallback
+  is an explicit containment: keep 03_scenario out of the blocking set with
+  a written justification, gate the rest, and leave this task's NOTES.md as
+  the investigation record - do not leave the whole suite non-blocking.
