@@ -52,19 +52,41 @@ const CRATE_POSITIONS: [Vec3; 3] = [
     Vec3::new(360.0, 30.0, -150.0),
     Vec3::new(375.0, 10.0, -165.0),
 ];
-/// The stage dressing and beat-4 destination: a planetoid with a real
+/// The stage dressing and late-run destination: a planetoid with a real
 /// gravity well, far enough that even the WORST-seed SOI (960u) falls
 /// short of the debris cluster - playtest round 2 finding 1: at the old
 /// ~650u separation the player was fighting gravity while weaving
-/// crates. The SOI edge is now genuinely crossed mid-way through the
-/// beat-4 GOTO leg on every seed.
+/// crates. The SOI edge is crossed on the waypoint leg on every seed.
 const PLANETOID_POS: Vec3 = Vec3::new(1240.0, -105.0, -700.0);
 const PLANETOID_NOMINAL_RADIUS: f32 = 20.0;
-/// Beat 4's lock target: on the cluster-facing side of the planetoid,
-/// deep inside the smallest-seed SOI, outside the widest orbit ring.
-const BEACON_3_POS: Vec3 = Vec3::new(1019.0, -74.0, -566.0);
-/// The pirate spawns back at the debris cluster while the player is on the
-/// beat-4 leg, and patrols it.
+/// The FIRST radar-lock target (beat sheet v2, spike 20260713-140742):
+/// a comfortable GOTO leg from the debris cluster, OUTSIDE even the
+/// worst-seed SOI so the hands-off ride is gravity-free, and inside the
+/// default beacon lock range (600u) from the cluster.
+const BEACON_3_POS: Vec3 = Vec3::new(600.0, 90.0, 120.0);
+/// The waypoint-run target: the old beacon-3 spot scaled out to 300u from
+/// the planetoid - inside the smallest-seed SOI (so the ORBIT hint lights
+/// on arrival) with its trigger clear of the coast ring (the
+/// already-inside-when-armed trap; pinned below). The beacon-3 -> beacon-4
+/// leg (~800u) is beyond the DEFAULT beacon lock range, so beacon 4
+/// authors the signature its leg needs (pinned below).
+const BEACON_4_POS: Vec3 = Vec3::new(985.0, -69.0, -545.0);
+const BEACON_4_LOCK_SIGNATURE: f32 = 30.0;
+/// The gravity-coast ring: a planetoid-centered invisible trigger sphere.
+/// Entering it (drifting in from the beacon-4 park) is the coast beat;
+/// LEAVING it after the held orbit is the break-away beat. Outside the
+/// widest orbit ring, inside the smallest SOI, clear of beacon 4's
+/// trigger - all pinned below.
+const COAST_RING_RADIUS: f32 = 210.0;
+/// The live-fire rehearsal target: an inert hulk drifting near the old
+/// salvage field, OUTSIDE the worst-seed SOI (a dynamic body inside it
+/// would fall into the planetoid). Its combat-lock range is short
+/// (signature = radius, ~75u) - the marker walks the player in.
+const DERELICT_POS: Vec3 = Vec3::new(300.0, -40.0, 40.0);
+const DERELICT_RADIUS: f32 = 2.5;
+const DERELICT_HEALTH: f32 = 150.0;
+/// The pirate spawns back at the debris cluster once the rehearsal is
+/// done, and patrols it.
 const PIRATE_SPAWN: Vec3 = Vec3::new(380.0, 40.0, -100.0);
 const PIRATE_PATROL: [Vec3; 3] = [
     Vec3::new(300.0, 20.0, -170.0),
@@ -98,15 +120,25 @@ const ID_PLAYER: &str = "player_spaceship";
 const ID_BEACON_1: &str = "beacon_1";
 const ID_BEACON_2: &str = "beacon_2";
 const ID_BEACON_3: &str = "beacon_3";
+const ID_BEACON_4: &str = "beacon_4";
+const ID_COAST_RING: &str = "coast_ring";
+const ID_DERELICT: &str = "derelict";
 const ID_PLANETOID: &str = "planetoid";
 const ID_PIRATE: &str = "pirate";
 
-// Objective ids.
+// Objective ids (beat sheet v2: one gesture per objective).
 const OBJ_B1: &str = "b1_burn";
 const OBJ_B2: &str = "b2_look";
 const OBJ_B3: &str = "b3_salvage";
-const OBJ_B4: &str = "b4_autopilot";
-const OBJ_B5: &str = "b5_contact";
+const OBJ_B4: &str = "b4_lock";
+const OBJ_B5: &str = "b5_autopilot";
+const OBJ_B6: &str = "b6_waypoint";
+const OBJ_B7: &str = "b7_coast";
+const OBJ_B8: &str = "b8_orbit";
+const OBJ_B9: &str = "b9_break";
+const OBJ_B10: &str = "b10_paint";
+const OBJ_B11: &str = "b11_fire";
+const OBJ_B12: &str = "b12_contact";
 const OBJ_DONE: &str = "done";
 
 // Script variables.
@@ -213,6 +245,18 @@ fn spawn(object: ScenarioObjectConfig) -> EventActionConfig {
 }
 
 fn beacon(id: &str, label: &str, position: Vec3) -> ScenarioObjectConfig {
+    beacon_with_signature(id, label, position, None)
+}
+
+/// A beacon whose radar signature is authored for a longer-than-default
+/// GOTO leg (beacon 4's waypoint run; the leg-vs-range pin lives in the
+/// geometry test).
+fn beacon_with_signature(
+    id: &str,
+    label: &str,
+    position: Vec3,
+    lock_signature: Option<f32>,
+) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
@@ -225,8 +269,41 @@ fn beacon(id: &str, label: &str, position: Vec3) -> ScenarioObjectConfig {
             radius: 2.0,
             color: BEACON_COLOR,
             area_radius: Some(BEACON_AREA_RADIUS),
+            lock_signature,
         }),
     }
+}
+
+/// The live-fire rehearsal target: an inert asteroid-kind hulk - zero new
+/// spawn paths (asteroids lock, zoom in the viewfinder, and die); the
+/// inert-SHIP silhouette is recorded future polish (spike 20260713-140742).
+fn derelict(game_assets: &crate::GameAssets) -> ScenarioObjectConfig {
+    ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: ID_DERELICT.to_string(),
+            name: "Derelict Hulk".to_string(),
+            position: DERELICT_POS,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+            radius: DERELICT_RADIUS,
+            texture: game_assets.asteroid_texture.clone(),
+            health: DERELICT_HEALTH,
+            surface_gravity: None,
+            invulnerable: false,
+        }),
+    }
+}
+
+/// The invisible gravity-coast trigger sphere around the planetoid.
+fn coast_ring() -> EventActionConfig {
+    EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
+        id: ID_COAST_RING.to_string(),
+        name: "Coast Ring".to_string(),
+        position: PLANETOID_POS,
+        rotation: Quat::IDENTITY,
+        radius: COAST_RING_RADIUS,
+    })
 }
 
 fn crate_object(index: usize, position: Vec3) -> ScenarioObjectConfig {
@@ -464,7 +541,7 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                     set(VAR_TALLY_SHOWN, num(0.0)),
                     objective(
                         OBJ_B1,
-                        "Systems online. Burn for BEACON 1 - hold [W] to burn, tap [X] to stop. (A training governor caps your speed.)",
+                        "Hold [W] and burn for BEACON 1. Tap [X] to stop.",
                     ),
                     // The gold marker rides the current leg's target
                     // (conveyance layer 2, task 20260712-093831); its
@@ -573,18 +650,18 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                 objective(OBJ_B3, "Supply crates recovered: 2/3."),
             ],
         },
-        // Beat 3 -> 4: all crates aboard. Beacon 3 appears by the
-        // planetoid. (The pirate does NOT spawn yet - playtest finding 4:
-        // it ambushed players still fumbling with GOTO.)
+        // Beat 3 -> 4: all crates aboard - the targeting computer comes
+        // online (the capability beat, task 20260713-090653: until this
+        // grant a CTRL hold answered with the deny buzz) and the first
+        // radar lesson begins. One gesture: the lock (beat sheet v2, spike
+        // 20260713-140742). Beacon 3 sits OUTSIDE the SOI, within default
+        // beacon lock range of the cluster.
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
             filters: vec![eq_num(VAR_BEAT, 3.0), eq_num(VAR_CRATES, 3.0)],
             actions: vec![
                 set(VAR_BEAT, num(4.0)),
                 complete(OBJ_B3),
-                // The capability beat (task 20260713-090653): the targeting
-                // computer comes online HERE, like the governor release -
-                // until this grant a CTRL hold answered with the deny buzz.
                 EventActionConfig::SetControllerVerb(SetControllerVerbActionConfig {
                     id: ID_PLAYER.to_string(),
                     verb: FlightVerb::Lock,
@@ -593,55 +670,149 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                 spawn(beacon(ID_BEACON_3, "BEACON 3", BEACON_3_POS)),
                 objective(
                     OBJ_B4,
-                    "Cargo secured. Targeting computer online: hold [CTRL] and put your eyes on BEACON 3 - the white lock sticks when you let go. Then press [G] and let the computer fly. Then press [O] and hold the orbit over the planetoid.",
+                    "Targeting computer online. Hold [CTRL] on BEACON 3 until the lock sticks.",
                 ),
-                // The crates despawned with their pickups (markers went
-                // with them); the marker moves to the beat-4 lock target.
-                // Both new keys pulse gold: RADAR is actionable the moment
-                // the grant lands; the contextual cluster shows the
-                // emphasized GOTO row early (dim + gold) and lights it the
-                // moment the nav lock exists - the progression reads off
-                // the cluster itself.
                 mark(ID_BEACON_3, "BEACON 3"),
                 emphasize("RADAR"),
-                emphasize("GOTO"),
             ],
         },
-        // Beat 4 -> 5: the player has HELD an autopilot orbit around the
-        // planetoid (OnOrbit, the orbit-hold tracker - a position gate is
-        // unwinnable because the ORBIT verb rings at max(band, engage
-        // radius); playtest finding 5). NOW the scavenger slips into the
-        // debris field behind them.
+        // Beat 4 -> 5: the white lock LANDED (OnTravelLock - the lesson
+        // ticks the instant the radar rewards it). One gesture: [G].
         ScenarioEventConfig {
-            name: EventConfig::OnOrbit,
-            filters: vec![player_enters(ID_PLANETOID), eq_num(VAR_BEAT, 4.0)],
+            name: EventConfig::OnTravelLock,
+            filters: vec![player_enters(ID_BEACON_3), eq_num(VAR_BEAT, 4.0)],
             actions: vec![
                 set(VAR_BEAT, num(5.0)),
                 complete(OBJ_B4),
-                spawn(pirate_ship(sections)),
-                // The combat-lock lesson (task 20260713-090653): raise,
-                // radar WHILE raised for the red lock, then fire - this is
-                // where the viewfinder inset, the fine-lock and guided
-                // torpedoes become discoverable instead of secret.
-                objective(
-                    OBJ_B5,
-                    "A scavenger is picking through the debris field you cleared. Hold [RMB] to raise your weapons, keep [CTRL] held to lock it - watch the viewfinder - then [LMB]. Drive it off.",
-                ),
-                // The hands-off lesson is done: the pulses stop, the
-                // marker jumps to the intruder (attach after its spawn).
+                objective(OBJ_B5, "Locked. Press [G] - let the computer fly."),
                 deemphasize("RADAR"),
-                deemphasize("GOTO"),
-                unmark(ID_BEACON_3),
-                mark(ID_PIRATE, "SCAVENGER"),
+                emphasize("GOTO"),
             ],
         },
-        // Beat 5 end: pirate destroyed.
+        // Beat 5 -> 6: arrival at beacon 3. The waypoint run: beacon 4
+        // appears (long leg, signature authored for it) - re-designating
+        // and re-pressing [G] teaches that GOTO captures the lock at the
+        // press (the re-designation semantics, previously untaught).
         ScenarioEventConfig {
-            name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_PIRATE), eq_num(VAR_BEAT, 5.0)],
+            name: EventConfig::OnEnter,
+            filters: vec![player_enters(ID_BEACON_3), eq_num(VAR_BEAT, 5.0)],
             actions: vec![
                 set(VAR_BEAT, num(6.0)),
                 complete(OBJ_B5),
+                spawn(beacon_with_signature(
+                    ID_BEACON_4,
+                    "BEACON 4",
+                    BEACON_4_POS,
+                    Some(BEACON_4_LOCK_SIGNATURE),
+                )),
+                objective(OBJ_B6, "New waypoint: BEACON 4. Lock it, press [G] again."),
+                unmark(ID_BEACON_3),
+                mark(ID_BEACON_4, "BEACON 4"),
+            ],
+        },
+        // Beat 6 -> 7: arrival at beacon 4, deep in the planetoid's grip.
+        // The gravity coast: zero keys, the well does the flying. The ring
+        // spawns HERE (not at start), so its OnEnter cannot fire early.
+        ScenarioEventConfig {
+            name: EventConfig::OnEnter,
+            filters: vec![player_enters(ID_BEACON_4), eq_num(VAR_BEAT, 6.0)],
+            actions: vec![
+                set(VAR_BEAT, num(7.0)),
+                complete(OBJ_B6),
+                coast_ring(),
+                objective(
+                    OBJ_B7,
+                    "You are in the planetoid's pull. Cut the burn and coast.",
+                ),
+                unmark(ID_BEACON_4),
+                mark(ID_PLANETOID, "PLANETOID"),
+                deemphasize("GOTO"),
+            ],
+        },
+        // Beat 7 -> 8: the drift crossed the coast ring. One gesture: [O]
+        // (OnOrbit is autopilot state - a position gate is unwinnable
+        // because the ORBIT verb rings at max(band, engage radius);
+        // playtest finding 5).
+        ScenarioEventConfig {
+            name: EventConfig::OnEnter,
+            filters: vec![player_enters(ID_COAST_RING), eq_num(VAR_BEAT, 7.0)],
+            actions: vec![
+                set(VAR_BEAT, num(8.0)),
+                complete(OBJ_B7),
+                objective(OBJ_B8, "Press [O] and hold the orbit."),
+            ],
+        },
+        // Beat 8 -> 9: orbit held. Break away (teaches [Z] with a real
+        // completion: leaving the coast ring). The derelict spawns now,
+        // back by the salvage field - outside the SOI, so it stays put.
+        ScenarioEventConfig {
+            name: EventConfig::OnOrbit,
+            filters: vec![player_enters(ID_PLANETOID), eq_num(VAR_BEAT, 8.0)],
+            actions: vec![
+                set(VAR_BEAT, num(9.0)),
+                complete(OBJ_B8),
+                spawn(derelict(game_assets)),
+                objective(OBJ_B9, "Orbit held. Press [Z] to break away and burn clear."),
+                unmark(ID_PLANETOID),
+                mark(ID_DERELICT, "DERELICT"),
+            ],
+        },
+        // Beat 9 -> 10: left the ring. The live-fire rehearsal begins: the
+        // combat lock in calm - this is where the viewfinder inset, the
+        // fine-lock and guided torpedoes become discoverable.
+        ScenarioEventConfig {
+            name: EventConfig::OnExit,
+            filters: vec![player_enters(ID_COAST_RING), eq_num(VAR_BEAT, 9.0)],
+            actions: vec![
+                set(VAR_BEAT, num(10.0)),
+                complete(OBJ_B9),
+                objective(
+                    OBJ_B10,
+                    "A derelict hulk drifts by your old salvage field. Hold [RMB], keep [CTRL] on it - watch the viewfinder.",
+                ),
+                emphasize("RADAR"),
+            ],
+        },
+        // Beat 10 -> 11: the RED lock landed on the hulk. One gesture:
+        // fire.
+        ScenarioEventConfig {
+            name: EventConfig::OnCombatLock,
+            filters: vec![player_enters(ID_DERELICT), eq_num(VAR_BEAT, 10.0)],
+            actions: vec![
+                set(VAR_BEAT, num(11.0)),
+                complete(OBJ_B10),
+                objective(OBJ_B11, "Locked on. Open fire - [LMB]."),
+                deemphasize("RADAR"),
+            ],
+        },
+        // Beat 11 -> 12: the hulk is dust. NOW the scavenger slips into
+        // the debris field - every gesture was rehearsed, so the fight is
+        // the exam, not the lesson: ONE line.
+        ScenarioEventConfig {
+            name: EventConfig::OnDestroyed,
+            filters: vec![destroyed(ID_DERELICT), eq_num(VAR_BEAT, 11.0)],
+            actions: vec![
+                set(VAR_BEAT, num(12.0)),
+                complete(OBJ_B11),
+                spawn(pirate_ship(sections)),
+                objective(
+                    OBJ_B12,
+                    "A scavenger is picking through your debris field. Drive it off.",
+                ),
+                // Defensive detach (the destroyed hulk takes its marker
+                // with it; do not depend on despawn timing), then the
+                // marker jumps to the intruder (attach after its spawn).
+                unmark(ID_DERELICT),
+                mark(ID_PIRATE, "SCAVENGER"),
+            ],
+        },
+        // Beat 12 end: pirate destroyed.
+        ScenarioEventConfig {
+            name: EventConfig::OnDestroyed,
+            filters: vec![destroyed(ID_PIRATE), eq_num(VAR_BEAT, 12.0)],
+            actions: vec![
+                set(VAR_BEAT, num(13.0)),
+                complete(OBJ_B12),
                 // The stand-down closes the loop: the tap-clear pops the
                 // unlatch ghosts and the safety click answers - the last
                 // radar gesture the tutorial has not shown.
@@ -649,9 +820,6 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                     OBJ_DONE,
                     "Shakedown complete. Tap [CTRL] to stand down your locks - the belt is yours.",
                 ),
-                // Defensive detach: the destroyed ship normally takes its
-                // marker down with it, but the free-flight epilogue must
-                // not depend on the wreck's despawn timing.
                 unmark(ID_PIRATE),
             ],
         },
@@ -820,10 +988,10 @@ mod tests {
             }
         }
 
-        // Hand-offs: the beat 1->2 handler detaches beacon 1 and marks
-        // beacon 2; beat 2->3 detaches beacon 2 and marks all crates;
-        // beat 3->4 marks beacon 3; the orbit handler detaches beacon 3
-        // and marks the pirate; done detaches the pirate.
+        // Hand-offs down the v2 leg chain: beacon 1 -> beacon 2 -> crates
+        // -> beacon 3 -> beacon 4 -> planetoid -> derelict -> pirate ->
+        // done (each attach handler detaches the previous leg's marker;
+        // the crate markers die with their crates).
         let handler_with_attach = |target: &str| {
             config
                 .events
@@ -842,8 +1010,24 @@ mod tests {
             vec!["crate_1", "crate_2", "crate_3"]
         );
         assert_eq!(
-            marker_ops(handler_with_attach(ID_PIRATE)).1,
+            marker_ops(handler_with_attach(ID_BEACON_3)).1,
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            marker_ops(handler_with_attach(ID_BEACON_4)).1,
             vec![ID_BEACON_3.to_string()]
+        );
+        assert_eq!(
+            marker_ops(handler_with_attach(ID_PLANETOID)).1,
+            vec![ID_BEACON_4.to_string()]
+        );
+        assert_eq!(
+            marker_ops(handler_with_attach(ID_DERELICT)).1,
+            vec![ID_PLANETOID.to_string()]
+        );
+        assert_eq!(
+            marker_ops(handler_with_attach(ID_PIRATE)).1,
+            vec![ID_DERELICT.to_string()]
         );
         let done_handler = config
             .events
@@ -856,10 +1040,11 @@ mod tests {
             .unwrap();
         assert_eq!(marker_ops(done_handler).1, vec![ID_PIRATE.to_string()]);
 
-        // Emphasis pairing: every emphasized verb is cleared somewhere
-        // downstream (teardown covers death, but the happy path must not
-        // rely on it), and both radar-era pairs (RADAR + GOTO, task
-        // 20260713-090653) sit on beat 4 -> orbit.
+        // Emphasis pairing: every emphasized verb is cleared downstream
+        // (teardown covers death, but the happy path must not rely on it).
+        // v2 sequences: RADAR for the first lock (cleared when it lands),
+        // GOTO for the autopilot legs (cleared at the coast), RADAR again
+        // for the combat rehearsal (cleared when the red lock lands).
         let mut set_verbs = Vec::new();
         let mut cleared_verbs = Vec::new();
         for action in all_actions(&config) {
@@ -871,23 +1056,13 @@ mod tests {
                 _ => {}
             }
         }
-        assert_eq!(set_verbs, vec!["RADAR".to_string(), "GOTO".to_string()]);
-        assert_eq!(cleared_verbs, vec!["RADAR".to_string(), "GOTO".to_string()]);
-        let beat4_handler = handler_with_attach(ID_BEACON_3);
-        assert!(
-            beat4_handler
-                .actions
-                .iter()
-                .any(|action| matches!(action, EventActionConfig::HintEmphasisSet(_))),
-            "the RADAR + GOTO emphasis rides the beat-4 handler"
+        assert_eq!(
+            set_verbs,
+            vec!["RADAR".to_string(), "GOTO".to_string(), "RADAR".to_string()]
         );
-        let orbit_handler = handler_with_attach(ID_PIRATE);
-        assert!(
-            orbit_handler
-                .actions
-                .iter()
-                .any(|action| matches!(action, EventActionConfig::HintEmphasisClear(_))),
-            "the orbit handler retires the RADAR + GOTO emphasis"
+        assert_eq!(
+            cleared_verbs,
+            vec!["RADAR".to_string(), "GOTO".to_string(), "RADAR".to_string()]
         );
     }
 
@@ -1043,37 +1218,92 @@ mod tests {
         const ORBIT_CLEARANCE: f32 = 1.5;
         const SURFACE_MARGIN: f32 = 1.0;
 
-        let beacon_3_distance = BEACON_3_POS.distance(PLANETOID_POS);
-
         let smallest_soi = SOI_FACTOR * PLANETOID_NOMINAL_RADIUS * ASTEROID_GEOMETRIC_FACTOR_MIN;
-        assert!(
-            beacon_3_distance < smallest_soi * 0.5,
-            "beacon 3 ({beacon_3_distance:.0}u) sits deep inside the smallest plausible SOI \
-             ({smallest_soi:.0}u), so the ORBIT hint lights on arrival"
-        );
-
-        // The beat itself completes via OnOrbit (autopilot state), so no
-        // gate geometry to pin anymore - but beacon 3 must still clear the
-        // widest ring so a parked orbit does not graze the lock target.
+        let largest_soi = SOI_FACTOR * PLANETOID_NOMINAL_RADIUS * ASTEROID_GEOMETRIC_FACTOR_MAX;
         let widest_ring = ORBIT_CLEARANCE
             * (PLANETOID_NOMINAL_RADIUS * ASTEROID_GEOMETRIC_FACTOR_MAX + SURFACE_MARGIN);
+
+        // Beacon 3 (the FIRST lock target, beat sheet v2): its GOTO leg is
+        // the gravity-free rehearsal, so it must clear even the worst-seed
+        // SOI - and stay within the DEFAULT beacon lock range of the
+        // debris cluster, where the lesson is taught (BEACON_LOCK_SIGNATURE
+        // 20 * signature_range_per_unit 30 = 600u; both cited constants).
+        let beacon_3_planetoid = BEACON_3_POS.distance(PLANETOID_POS);
         assert!(
-            beacon_3_distance > widest_ring + 30.0,
-            "beacon 3 ({beacon_3_distance:.0}u) clears the widest orbit ring \
-             ({widest_ring:.0}u)"
+            beacon_3_planetoid > largest_soi + 40.0,
+            "beacon 3 ({beacon_3_planetoid:.0}u from the planetoid) must clear the \
+             largest plausible SOI ({largest_soi:.0}u)"
+        );
+        let default_lock_range = 20.0 * 30.0;
+        let cluster_to_beacon_3 = DEBRIS_CENTER.distance(BEACON_3_POS);
+        assert!(
+            cluster_to_beacon_3 < default_lock_range - 100.0,
+            "beacon 3 ({cluster_to_beacon_3:.0}u from the cluster) must be well inside \
+             the default beacon lock range ({default_lock_range:.0}u)"
         );
 
-        let largest_surface = PLANETOID_NOMINAL_RADIUS * ASTEROID_GEOMETRIC_FACTOR_MAX;
+        // Beacon 4 (the waypoint target): inside the smallest SOI with
+        // margin so the ORBIT hint lights on arrival, outside the widest
+        // orbit ring, and its 70u trigger must stay CLEAR of the coast
+        // ring - a player still inside a trigger when its OnEnter beat
+        // arms misses the CollisionStart (the already-inside trap, same
+        // rule as the crate sensors below).
+        let beacon_4_distance = BEACON_4_POS.distance(PLANETOID_POS);
         assert!(
-            beacon_3_distance > largest_surface + 50.0,
-            "beacon 3 clears the largest plausible geometric surface"
+            beacon_4_distance < smallest_soi * 0.75,
+            "beacon 4 ({beacon_4_distance:.0}u) sits inside the smallest plausible SOI \
+             ({smallest_soi:.0}u) with margin, so the ORBIT hint lights on arrival"
+        );
+        assert!(
+            beacon_4_distance > widest_ring + 30.0,
+            "beacon 4 ({beacon_4_distance:.0}u) clears the widest orbit ring \
+             ({widest_ring:.0}u)"
+        );
+        assert!(
+            beacon_4_distance - BEACON_AREA_RADIUS > COAST_RING_RADIUS + 10.0,
+            "beacon 4's trigger inner edge ({:.0}u) stays outside the coast ring \
+             ({COAST_RING_RADIUS}u) - the already-inside trap",
+            beacon_4_distance - BEACON_AREA_RADIUS
+        );
+        // The waypoint LEG must be lockable: beacon 4 authors its own
+        // signature (BEACON_4_LOCK_SIGNATURE * 30u/unit, the range model).
+        let waypoint_leg = BEACON_3_POS.distance(BEACON_4_POS);
+        assert!(
+            waypoint_leg < BEACON_4_LOCK_SIGNATURE * 30.0 - 50.0,
+            "the waypoint leg ({waypoint_leg:.0}u) fits beacon 4's authored lock range \
+             ({:.0}u) with margin",
+            BEACON_4_LOCK_SIGNATURE * 30.0
+        );
+
+        // The coast ring: outside the widest orbit ring (the held orbit
+        // must stay INSIDE the ring, or breaking away could not be
+        // detected by OnExit - and a swing outside during capture would
+        // fire it early, though the beat guard eats that), inside the
+        // smallest SOI (the coast is FELT on every seed).
+        assert!(
+            COAST_RING_RADIUS > widest_ring + 20.0,
+            "the coast ring ({COAST_RING_RADIUS}u) clears the widest orbit ring \
+             ({widest_ring:.0}u)"
+        );
+        assert!(
+            COAST_RING_RADIUS < smallest_soi - 50.0,
+            "the coast ring ({COAST_RING_RADIUS}u) sits well inside the smallest SOI \
+             ({smallest_soi:.0}u)"
+        );
+
+        // The derelict: a DYNAMIC body - inside the SOI it would fall into
+        // the planetoid; it must hold still by the old salvage field.
+        let derelict_distance = DERELICT_POS.distance(PLANETOID_POS);
+        assert!(
+            derelict_distance > largest_soi + 40.0,
+            "the derelict ({derelict_distance:.0}u from the planetoid) must clear the \
+             largest plausible SOI ({largest_soi:.0}u)"
         );
 
         // Playtest round 2 finding 1: the debris cluster (and every crate
         // in it) must sit OUTSIDE the worst-seed SOI - the salvage beat is
         // flown by hand, and fighting gravity while weaving crates reads
         // as a bug, not a challenge.
-        let largest_soi = SOI_FACTOR * PLANETOID_NOMINAL_RADIUS * ASTEROID_GEOMETRIC_FACTOR_MAX;
         let cluster_distance = DEBRIS_CENTER.distance(PLANETOID_POS);
         assert!(
             cluster_distance > largest_soi + 40.0,
@@ -1250,6 +1480,51 @@ mod tests {
         app.update();
     }
 
+    /// The player left `area` (the area plugin's exit half).
+    fn exit(app: &mut App, area: &str) {
+        use nova_events::prelude::*;
+        app.world_mut()
+            .commands()
+            .fire::<OnExitEvent>(OnExitEventInfo {
+                id: area.to_string(),
+                other_id: ID_PLAYER.to_string(),
+                other_type_name: "spaceship".to_string(),
+            });
+        app.update();
+        app.update();
+    }
+
+    /// The player's TRAVEL lock landed on `id` (the loader's lock bridge -
+    /// tested in nova_scenario; here the script consumes the event). The
+    /// bridge ECHOES a held lock every few seconds, so firing this twice
+    /// for the same id models a stale held lock.
+    fn travel_lock(app: &mut App, id: &str) {
+        use nova_events::prelude::*;
+        app.world_mut()
+            .commands()
+            .fire::<OnTravelLockEvent>(OnTravelLockEventInfo {
+                id: id.to_string(),
+                other_id: ID_PLAYER.to_string(),
+                other_type_name: "spaceship".to_string(),
+            });
+        app.update();
+        app.update();
+    }
+
+    /// The player's COMBAT lock landed on `id`.
+    fn combat_lock(app: &mut App, id: &str) {
+        use nova_events::prelude::*;
+        app.world_mut()
+            .commands()
+            .fire::<OnCombatLockEvent>(OnCombatLockEventInfo {
+                id: id.to_string(),
+                other_id: ID_PLAYER.to_string(),
+                other_type_name: "spaceship".to_string(),
+            });
+        app.update();
+        app.update();
+    }
+
     /// Walk ALL FIVE BEATS through the real event pipeline: the actual
     /// handlers registered exactly as the loader registers them, real
     /// spawn/despawn commands applied to a real World, beat transitions
@@ -1418,49 +1693,121 @@ mod tests {
             entity_with_id(&mut app, ID_PIRATE).is_none(),
             "beat 4 is pirate-free (playtest finding 4)"
         );
-        // Beat 4 conveyance: the marker rides the lock target and the
-        // cluster's GOTO row is emphasized - text, row and pulse all
-        // point at [G].
+        // Beat 4 conveyance: the marker rides the lock target, RADAR (and
+        // only RADAR) pulses, and the targeting computer is now online.
         assert_eq!(
             marker_label(&mut app, ID_BEACON_3).as_deref(),
             Some("BEACON 3")
         );
-        assert!(goto_emphasized(&app), "beat 4 emphasizes GOTO");
         assert!(radar_emphasized(&app), "beat 4 emphasizes RADAR");
+        assert!(!goto_emphasized(&app), "GOTO waits for its own beat");
         assert!(
             lock_granted(&mut app, player),
             "beat 4 brings the targeting computer ONLINE (delivery guard: withheld at boot)"
         );
 
-        // Beat 4 -> 5: HOLDING the orbit completes the beat and only then
-        // does the scavenger slip into the debris field.
-        orbit(&mut app, ID_PLANETOID);
-        assert_eq!(beat(&app), 5.0);
+        // Beat 4 -> 5: the white lock lands (the OnTravelLock bridge).
+        travel_lock(&mut app, ID_BEACON_3);
+        assert_eq!(beat(&app), 5.0, "the lock lesson ticks on the lock");
         assert!(has_objective(&app, OBJ_B5));
-        assert!(
-            entity_with_id(&mut app, ID_PIRATE).is_some(),
-            "the pirate spawns with the beat-5 reveal"
+        assert!(!radar_emphasized(&app), "RADAR retires with its lesson");
+        assert!(goto_emphasized(&app), "beat 5 emphasizes GOTO");
+
+        // The bridge ECHOES held locks every few seconds: a stale re-fire
+        // for beacon 3 during beat 5 must be a no-op (beat guards own
+        // ordering; the echo exists so a lock HELD across a beat advance
+        // can still complete a lesson, not to skip ones already done).
+        travel_lock(&mut app, ID_BEACON_3);
+        assert_eq!(
+            beat(&app),
+            5.0,
+            "a stale lock echo does not re-fire the beat"
         );
-        // The hands-off lesson retires: emphasis off, marker on the
-        // intruder.
+
+        // Beat 5 -> 6: arrival at beacon 3; the waypoint run opens.
+        enter(&mut app, ID_BEACON_3);
+        assert_eq!(beat(&app), 6.0);
+        assert!(has_objective(&app, OBJ_B6));
         assert!(
-            !goto_emphasized(&app),
-            "the orbit handler retires the GOTO emphasis"
-        );
-        assert!(
-            !radar_emphasized(&app),
-            "the orbit handler retires the RADAR emphasis"
+            entity_with_id(&mut app, ID_BEACON_4).is_some(),
+            "beacon 4 spawns lazily with its beat"
         );
         assert_eq!(marker_label(&mut app, ID_BEACON_3), None);
+        assert_eq!(
+            marker_label(&mut app, ID_BEACON_4).as_deref(),
+            Some("BEACON 4")
+        );
+
+        // Beat 6 -> 7: arrival at beacon 4; the coast ring appears and the
+        // hands-off lesson retires.
+        enter(&mut app, ID_BEACON_4);
+        assert_eq!(beat(&app), 7.0);
+        assert!(has_objective(&app, OBJ_B7));
+        assert!(
+            entity_with_id(&mut app, ID_COAST_RING).is_some(),
+            "the coast ring spawns with its beat (never early - the \
+             already-inside trap)"
+        );
+        assert!(!goto_emphasized(&app), "GOTO retires at the coast");
+        assert_eq!(
+            marker_label(&mut app, ID_PLANETOID).as_deref(),
+            Some("PLANETOID")
+        );
+
+        // Beat 7 -> 8: the drift crosses the ring.
+        enter(&mut app, ID_COAST_RING);
+        assert_eq!(beat(&app), 8.0);
+        assert!(has_objective(&app, OBJ_B8));
+
+        // Beat 8 -> 9: orbit held; the derelict appears by the old field.
+        orbit(&mut app, ID_PLANETOID);
+        assert_eq!(beat(&app), 9.0);
+        assert!(has_objective(&app, OBJ_B9));
+        assert!(
+            entity_with_id(&mut app, ID_DERELICT).is_some(),
+            "the derelict spawns with the rehearsal"
+        );
+        assert!(
+            entity_with_id(&mut app, ID_PIRATE).is_none(),
+            "still no scavenger - the rehearsal comes first"
+        );
+        assert_eq!(
+            marker_label(&mut app, ID_DERELICT).as_deref(),
+            Some("DERELICT")
+        );
+
+        // Beat 9 -> 10: breaking away exits the ring; the combat-lock
+        // lesson begins.
+        exit(&mut app, ID_COAST_RING);
+        assert_eq!(beat(&app), 10.0);
+        assert!(has_objective(&app, OBJ_B10));
+        assert!(radar_emphasized(&app), "the rehearsal re-emphasizes RADAR");
+
+        // An early COMBAT lock on the derelict during beat 9 would have
+        // been a no-op; the echo covers the held lock once beat 10 arms -
+        // modeled here by the beat-10 fire.
+        combat_lock(&mut app, ID_DERELICT);
+        assert_eq!(beat(&app), 11.0, "the red lock ticks the lesson");
+        assert!(has_objective(&app, OBJ_B11));
+        assert!(!radar_emphasized(&app), "RADAR retires with the red lock");
+
+        // Beat 11 -> 12: the hulk dies; NOW the scavenger appears.
+        destroy(&mut app, ID_DERELICT);
+        assert_eq!(beat(&app), 12.0);
+        assert!(has_objective(&app, OBJ_B12));
+        assert!(
+            entity_with_id(&mut app, ID_PIRATE).is_some(),
+            "the scavenger spawns with the beat-12 reveal"
+        );
         assert_eq!(
             marker_label(&mut app, ID_PIRATE).as_deref(),
             Some("SCAVENGER")
         );
 
-        // Beat 5 -> done: the scavenger driven off.
+        // Beat 12 -> done: the scavenger driven off.
         destroy(&mut app, ID_PIRATE);
-        assert_eq!(beat(&app), 6.0);
-        assert!(!has_objective(&app, OBJ_B5));
+        assert_eq!(beat(&app), 13.0);
+        assert!(!has_objective(&app, OBJ_B12));
         assert!(has_objective(&app, OBJ_DONE), "the run completes");
         // Free flight is marker-free: the done handler's defensive detach
         // (the rig's destroy event does not despawn the wreck, so the
@@ -1468,13 +1815,13 @@ mod tests {
         assert_eq!(marker_label(&mut app, ID_PIRATE), None);
     }
 
-    /// The pirate exists only from the beat-5 reveal on (playtest finding
-    /// 4), so an "early kill" is no longer reachable: a stray
-    /// OnDestroyed(pirate) DURING beat 4 (e.g. a scenario edit
+    /// The pirate exists only from the beat-12 reveal on (playtest finding
+    /// 4 lineage), so an "early kill" is no longer reachable: a stray
+    /// OnDestroyed(pirate) DURING the rehearsal (e.g. a scenario edit
     /// re-introducing an early spawn) must be a no-op, not a skipped
-    /// fight - the beat-5 guard on the kill handler owns that.
+    /// fight - the beat-12 guard on the kill handler owns that.
     #[test]
-    fn pirate_destruction_only_counts_during_beat_five() {
+    fn pirate_destruction_only_counts_during_the_final_beat() {
         let mut app = scripted_app();
         boot(&mut app);
         enter(&mut app, ID_BEACON_1);
@@ -1483,22 +1830,30 @@ mod tests {
             enter(&mut app, crate_id);
             pulse(&mut app);
         }
+        travel_lock(&mut app, ID_BEACON_3);
+        enter(&mut app, ID_BEACON_3);
+        enter(&mut app, ID_BEACON_4);
+        enter(&mut app, ID_COAST_RING);
+        orbit(&mut app, ID_PLANETOID);
+        exit(&mut app, ID_COAST_RING);
 
-        // Beat 4: a pirate death event now is out-of-script; nothing moves.
+        // Beat 10 (the rehearsal): a pirate death event is out-of-script;
+        // nothing moves.
         destroy(&mut app, ID_PIRATE);
         let objectives = &app.world().resource::<GameObjectives>().objectives;
         assert!(
             !objectives.iter().any(|objective| objective.id == OBJ_DONE),
-            "a stray pirate death during beat 4 must not complete the run"
+            "a stray pirate death during the rehearsal must not complete the run"
         );
 
-        // The real path still works: orbit reveals, killing completes.
-        orbit(&mut app, ID_PLANETOID);
+        // The real path still works: red lock, hulk down, scavenger down.
+        combat_lock(&mut app, ID_DERELICT);
+        destroy(&mut app, ID_DERELICT);
         destroy(&mut app, ID_PIRATE);
         let objectives = &app.world().resource::<GameObjectives>().objectives;
         assert!(
             objectives.iter().any(|objective| objective.id == OBJ_DONE),
-            "the beat-5 kill completes the run, got: {:?}",
+            "the beat-12 kill completes the run, got: {:?}",
             objectives
         );
     }

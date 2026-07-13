@@ -45,6 +45,11 @@ pub struct BeaconConfig {
     /// When set, the beacon is also its own trigger area of this radius:
     /// `OnEnter`/`OnExit` fire with the beacon's scenario id.
     pub area_radius: Option<f32>,
+    /// Radar signature override; `None` = the default
+    /// [`BEACON_LOCK_SIGNATURE`] (600u lock range). A scenario whose GOTO
+    /// leg is longer than that authors the signature the leg needs
+    /// (shakedown's waypoint run, task 20260713-140929).
+    pub lock_signature: Option<f32>,
 }
 
 pub fn beacon_scenario_object(config: BeaconConfig) -> impl Bundle {
@@ -64,7 +69,7 @@ pub fn beacon_scenario_object(config: BeaconConfig) -> impl Bundle {
         // preserved by the authored LockSignature (the targeting gate
         // admits Static bodies with one; input/targeting.rs).
         RigidBody::Static,
-        LockSignature(BEACON_LOCK_SIGNATURE),
+        LockSignature(config.lock_signature.unwrap_or(BEACON_LOCK_SIGNATURE)),
     )
 }
 
@@ -190,7 +195,29 @@ mod tests {
             radius: 2.0,
             color: Color::srgb(0.3, 0.9, 1.0),
             area_radius,
+            lock_signature: None,
         }
+    }
+
+    #[test]
+    fn the_signature_override_beats_the_default() {
+        let mut world = World::new();
+        let default_beacon = world.spawn(beacon_scenario_object(config(None))).id();
+        let far_beacon = world
+            .spawn(beacon_scenario_object(BeaconConfig {
+                lock_signature: Some(30.0),
+                ..config(None)
+            }))
+            .id();
+        assert_eq!(
+            world.get::<LockSignature>(default_beacon).map(|s| **s),
+            Some(BEACON_LOCK_SIGNATURE)
+        );
+        assert_eq!(
+            world.get::<LockSignature>(far_beacon).map(|s| **s),
+            Some(30.0),
+            "an authored signature overrides the default"
+        );
     }
 
     /// The beacon's contract with the rest of the stack: on rails (a nav

@@ -144,4 +144,20 @@ Direction-level tasks this spike seeded, for /plan to break into steps:
 
 ## Fix record
 
-(appended by the implementing tasks as they land)
+- 20260713-140922 LANDED (18632a2): OnTravelLock/OnCombatLock events + the
+  player-lock loader bridge. Deviation from this spike's open question:
+  NOT once-per-acquisition - acquisition fires immediately and a held lock
+  echoes every 5 s (the orbit tracker's anti-soft-lock recurrence, R1.1);
+  beat guards own ordering. Player-scoped (the AI mirror writes AI
+  CombatLocks).
+- 20260713-140929 LANDED: the beat sheet itself - 12 one-line beats,
+  beacon 3 moved OUTSIDE the SOI (the gravity-free first GOTO leg),
+  beacon 4 at the old beacon-3 spot with an authored lock signature (the
+  ~800u waypoint leg exceeds the default 600u beacon range - BeaconConfig
+  gained a lock_signature override), the coast ring via the EXISTING
+  CreateScenarioArea (spawned with its beat to dodge the already-inside
+  trap), the derelict as an asteroid-kind hulk outside the SOI, a break-
+  away beat on OnExit(coast_ring) teaching [Z] for free, and the fight
+  text collapsed to one line. All geometry pinned against the worst/min
+  seed range; the walk covers all 12 beats incl. the stale-lock-echo
+  no-op.
