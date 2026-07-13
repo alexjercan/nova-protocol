@@ -22,6 +22,7 @@ const HARNESSED_EXAMPLES: &[&str] = &[
     "08_turret_range",
     "09_editor",
     "10_gameplay",
+    "13_menu_newgame",
 ];
 
 /// Run each harnessed example headless and assert it reaches gameplay and exits

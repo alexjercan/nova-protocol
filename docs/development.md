@@ -59,8 +59,9 @@ Debug-only CLI flags (`src/main.rs`): `--norender` (no rendering) and
 runnable examples over isolated unit tests. Current set: `01_scene`,
 `02_thruster_shader`, `03_scenario`, `04_asteroids`, `05_directional`,
 `06_torpedo_range`, `07_torpedo_guidance`, `07b_slicer`, `08_turret_range`,
-`09_editor`, `10_gameplay`, `11_com_range`, `12_hud_range`. When adding a
-substantial feature, consider adding an example that drives it.
+`09_editor`, `10_gameplay`, `11_com_range`, `12_hud_range`,
+`13_menu_newgame`. When adding a substantial feature, consider adding an
+example that drives it.
 
 ## Web build
 
