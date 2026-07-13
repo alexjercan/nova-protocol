@@ -72,7 +72,7 @@ States: `GameStates::{Loading, MainMenu, Playing}` and
   messages with no AI attribution, no time-based technical arguments.
 - Bevy idioms: one plugin per subsystem, systems grouped in `SystemSet`s,
   subsystems talk via events (`nova_events`), not direct coupling.
-- Read `docs/retros/LESSONS.md` before starting work: the short list of
+- Read `docs/LESSONS.md` before starting work: the short list of
   mistakes this repo has already paid for.
 - Worktrees come only from the sprout skill (used by /work and /flow). Never
   create one by hand. Otherwise work in the main checkout.
@@ -92,7 +92,9 @@ Everything tied to one task lives in that task's folder - never as loose
 - `tasks/<id>/NOTES.md` - design/fix record for the shipped change.
 
 `docs/` keeps only: the reference docs, `docs/plans/` (multi-task plans), and
-`docs/retros/LESSONS.md` (the ledger /compound appends to).
+`docs/LESSONS.md` (the ledger /compound appends to). If a skill's default
+output path says `docs/retros/` or `docs/spikes/`, use the locations above
+instead; the ledger is `docs/LESSONS.md`, never `docs/retros/LESSONS.md`.
 
 ## Docs, tasks, versioning
 

@@ -14,7 +14,7 @@ internal error: entered unreachable code
 Encountered a panic in system `bevy_ui::layout::ui_layout_system`!
 ```
 
-Full background in docs/retros/20260710-skybox-cubemap-upload-race.md (section
+Full background in NOTES.md in this task folder (section
 "The taffy panic"). Summary of what is already ruled out:
 
 - NOT the skybox cubemap upload race (fixed in v0.4.0; the panic still

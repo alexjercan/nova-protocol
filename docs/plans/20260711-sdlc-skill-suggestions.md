@@ -99,7 +99,7 @@ Keep these; they are the load-bearing parts.
    -lesson mining ("is this the third occurrence?") depends on memory of
    which files to reopen. Today's promotion threshold was only detected
    because the same session wrote all three occurrences. Suggestion: a
-   single `docs/retros/LESSONS.md` ledger with one line per lesson
+   single `docs/LESSONS.md` ledger with one line per lesson
    (slug, one sentence, occurrence count, retro links), appended by
    /compound. Retros keep the narrative; the ledger makes recurrence
    detection mechanical and gives /flow's read-recent-retros step a
@@ -193,6 +193,6 @@ Keep these; they are the load-bearing parts.
 - Apply items 1, 3, 4, 6, 11 as edits to the plan/work/review/flow
   skills - each is a sentence or two, and each has 2-3 documented
   occurrences behind it.
-- Create `docs/retros/LESSONS.md` seeded from this session's retros and
+- Create `docs/LESSONS.md` seeded from this session's retros and
   teach /compound to append to it (items 8-9).
 - Fix or document the tatr same-second collision (item 14).

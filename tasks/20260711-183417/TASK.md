@@ -13,7 +13,7 @@ one-shot SFX; the bug is likely specific to the looping, throttle-tracking
 thruster source (crates/nova_gameplay/src/audio.rs, task 20260708-162011
 introduced it). Investigate diagnostic-first: trace the actual attenuation
 values applied to a distant thruster loop versus a turret shot before
-theorizing (see docs/retros/LESSONS.md, diagnostic-first).
+theorizing (see docs/LESSONS.md, diagnostic-first).
 
 Notes:
 - Comparison anchor: turret shoot = correct, thruster loop = wrong.

@@ -18,7 +18,7 @@ retros, design notes) live next to their task under `tasks/<id>/` - see
   changes applied moving from Bevy 0.17 to 0.19; useful for the next upgrade.
 - [plans/](plans/README.md) - long-form plans spanning multiple tasks
   (release scopes, roadmaps, process proposals).
-- [retros/LESSONS.md](retros/LESSONS.md) - the distilled lessons ledger.
+- [LESSONS.md](LESSONS.md) - the distilled lessons ledger.
   Read it before starting work; /compound appends to it.
 
 ## Where records go
@@ -32,9 +32,8 @@ of `tasks/<id>/` shows the whole story:
 - `tasks/<id>/RETRO.md` - the retrospective (/compound).
 - `tasks/<id>/NOTES.md` - design/fix record for the shipped change.
 
-Do not create per-task record files under `docs/`. The only records kept here
-are [retros/](retros/README.md): the LESSONS.md ledger plus a few old records
-whose task folder no longer exists.
+Do not create per-task record files under `docs/`. The only record kept here
+is the [LESSONS.md](LESSONS.md) ledger.
 
 ## After a meaningful change
 

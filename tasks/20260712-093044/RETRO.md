@@ -38,6 +38,6 @@
 
 ## Action items
 
-- [x] Bumped `verify-first-plan-steps` in docs/retros/LESSONS.md with the
+- [x] Bumped `verify-first-plan-steps` in docs/LESSONS.md with the
       consumer-gate variant.
 - [x] Spike fix record appended (tasks/20260712-092926/SPIKE.md).

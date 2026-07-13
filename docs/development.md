@@ -113,5 +113,5 @@ starting, close tasks when done. The plan-work-review-retro loop is the
 `/plan`, `/work`, `/review`, `/compound` skills (plus `/flow` for the whole
 cycle). All task-scoped records live in the task's folder: `SPIKE.md`,
 `REVIEW.md`, `RETRO.md`, `NOTES.md` next to its `TASK.md`. Only multi-task
-plans (`docs/plans/`) and the lessons ledger (`docs/retros/LESSONS.md`) live
+plans (`docs/plans/`) and the lessons ledger (`docs/LESSONS.md`) live
 under `docs/`.

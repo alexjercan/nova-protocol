@@ -7,7 +7,7 @@
 ## Goal
 
 The skybox cubemap fix from tasks/20260710 (retro
-docs/retros/20260710-skybox-cubemap-upload-race.md) relies on
+tasks/20260710-143138/NOTES.md) relies on
 `assets/textures/cubemap.png.meta` reinterpreting the stacked 4096x24576 PNG
 into a 6 layer array inside the image loader. That meta is silently ignored
 in the shipped app on every platform: `assets_plugin()` in

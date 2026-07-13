@@ -130,6 +130,15 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   sed-editing source. 20260711-121839.
 - `confounded-knob-experiment` (x1): before concluding a knob A/B, grep every
   reader of the knob. 20260711-140234.
+- `recompute-both-sides-of-a-band` (x1): changing one side of a guard, band, or
+  inequality (clearance floor, hysteresis pair, arrival margin) requires
+  recomputing the OTHER side with realistic in-game magnitudes; when a value's
+  MEANING changes (nominal -> geometric), re-ask every reader which meaning it
+  wants. Shipped a playtest-visible "no stable band" regression once (see
+  tasks/20260709-193338/NOTES.md).
+- `distinct-refusal-reasons` (positive, x1): every refusal/disengage path logs
+  its own distinct reason string; one pasted log line then names the failing
+  gate (see tasks/20260709-193338/NOTES.md).
 - `quat-angle-noise-floor` (x1): f32 quat angle_between floors around 1e-3 rad;
   assert an order above it or compare components. 20260711-140241.
 - `audit-state-gates-on-new-entry-path` (x2): a new route into a state needs a
