@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Flight & autopilot - Nova Protocol Wiki</title>
+        <meta
+            name="description"
+            content="How Nova Protocol ships move: Newtonian manual flight, center-of-mass thrust balancing, mass-legible handling, and the GOTO / ORBIT / STOP autopilot verbs that fly the real hull."
+        />
+        <link
+            rel="icon"
+            href="/nova-protocol/favicon.svg"
+        />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/"
+                            >Wiki</a
+                        >
+                        / Flight &amp; autopilot
+                    </p>
+                    <h1>Flight &amp; autopilot</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+
+                    <p>
+                        Manual flight in Nova Protocol is fully
+                        <strong>Newtonian</strong>: momentum persists, nothing
+                        dampens you, and the only assist is the autopilot itself
+                        - which flies the same real controller and thrusters you
+                        do. There is no flight-assist toggle and no separate RCS
+                        budget; how a ship handles falls out of its mass and the
+                        thrusters bolted to it.
+                    </p>
+
+                    <figure class="figure">
+                        <!-- Capture: assets/wiki-flight.png -->
+                        <div class="figure__placeholder">
+                            <span class="figure__placeholder-tag"
+                                >Screenshot needed</span
+                            >
+                            <span class="figure__placeholder-name"
+                                >assets/wiki-flight.png</span
+                            >
+                            <span class="figure__placeholder-note"
+                                >A ship mid-burn with its plume lit and the
+                                velocity sphere reading, ideally during a GOTO
+                                flip so the diegetic autopilot is visible.</span
+                            >
+                        </div>
+                    </figure>
+
+                    <h2 id="manual-flight">Manual flight</h2>
+                    <p>
+                        You point the hull by mouse or stick - the controller
+                        section's PD attitude loop turns the ship toward your
+                        aim - and hold <kbd>W</kbd> (or the burn trigger) for an
+                        analog main-drive burn. The main drive is the sum of the
+                        thrusters that point forward; inputs spool up and down
+                        smoothly rather than snapping. A ship can carry an
+                        optional soft <strong>speed cap</strong> (used by
+                        training legs like the Shakedown's 25 u/s starter
+                        governor): the burn tapers to zero over the last stretch
+                        before the cap, along the burn axis only, so a held
+                        throttle levels off instead of accelerating forever.
+                        Turning and braking are never capped.
+                    </p>
+
+                    <h2 id="center-of-mass">
+                        Balancing thrust through the hull
+                    </h2>
+                    <p>
+                        Because thrusters sit wherever you bolted them, an
+                        off-center burn would spin the ship. The flight computer
+                        prevents that: it solves, every tick, a small allocation
+                        that sets each engine's throttle to deliver the
+                        commanded forward thrust while
+                        <strong>nulling the net torque</strong> through the live
+                        center of mass, recruiting off-axis thrusters purely for
+                        counter-torque when the firing set cannot balance
+                        itself. An asymmetric or battle-damaged ship still flies
+                        straight (the tiny residual torque is mopped up by the
+                        attitude loop) - see
+                        <a
+                            href="/nova-protocol/wiki/sections/thruster/"
+                            >Thruster</a
+                        >.
+                    </p>
+
+                    <h2 id="mass-legible">Mass-legible handling</h2>
+                    <p>
+                        Turn rate is derived from the ship's torque budget and
+                        its live rotational inertia, then clamped into a sane
+                        band (roughly 10 to 240 degrees per second). A
+                        stripped-down hull snaps around; a heavy, fully-built
+                        ship lumbers. Lose sections and the handling changes
+                        with the mass - so how a ship flies is legible from how
+                        it is built.
+                    </p>
+
+                    <h2 id="autopilot">The autopilot flies the hull</h2>
+                    <p>
+                        The autopilot verbs are the assist. Each writes to the
+                        <em>same</em> actuators you use - the controller's
+                        rotation command and the thrusters' throttle - so you
+                        watch the hull physically swing and the plume light up;
+                        there are no invisible forces. Any manual input (a
+                        thruster key, a burn, a rotation, or CANCEL) disengages
+                        it instantly and hands you back a ship that is already
+                        moving.
+                    </p>
+                    <ul>
+                        <li>
+                            <strong>GOTO</strong> - burns toward your current
+                            nav lock, flips at the arrival curve, and
+                            decelerates to rest at a standoff (about 50 u plus
+                            the target's radius, measured from the surface, kept
+                            outside a torpedo's blast radius). It tracks a
+                            drifting target.
+                        </li>
+                        <li>
+                            <strong>ORBIT</strong> - circularizes and
+                            station-keeps around the dominant
+                            <a
+                                href="/nova-protocol/wiki/gravity-wells/"
+                                >gravity well</a
+                            >, holding a stable ring at orbital speed (<code
+                                >v = sqrt(mu / r)</code
+                            >) with micro-burns. It never self-completes - it
+                            holds until you break away.
+                        </li>
+                        <li>
+                            <strong>STOP</strong> - flips to retrograde and
+                            burns until you are at rest, budgeting for the local
+                            gravity pull along your velocity.
+                        </li>
+                    </ul>
+                    <p>
+                        Because the autopilot flies through the real actuators,
+                        it is honest about the ship's limits - an
+                        under-thrustered build takes longer to come around than
+                        a nimble one - and it will refuse a maneuver it cannot
+                        physically achieve (for example, ORBIT will not engage a
+                        well with no stable band). See
+                        <a
+                            href="/nova-protocol/wiki/keybinds/"
+                            >Keybinds</a
+                        >
+                        for the verb keys.
+                    </p>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

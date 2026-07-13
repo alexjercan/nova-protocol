@@ -65,11 +65,22 @@
                         >How to play</a
                     >
                 </div>
+                <a
+                    class="hero__scroll"
+                    href="#features"
+                    aria-label="Scroll to what you do in Nova Protocol"
+                >
+                    <span>Scroll</span>
+                    <span
+                        class="hero__scroll-chevron"
+                        aria-hidden="true"
+                    ></span>
+                </a>
             </section>
 
             <section class="section" id="features">
                 <div class="container">
-                    <p class="section__eyebrow">// Systems online</p>
+                    <p class="section__eyebrow">Systems online</p>
                     <h2 class="section__title">
                         What you do in
                         <span class="glow-cyan">Nova Protocol</span>
@@ -79,65 +90,181 @@
                         real - every autopilot maneuver moves the hull and burns
                         the thrusters you bolted on.
                     </p>
-                    <div class="grid grid--3">
-                        <article class="card">
-                            <div class="card__icon">&#128296;</div>
-                            <h3 class="card__title">Modular ship editor</h3>
-                            <p class="card__body">
-                                Bolt together hull, controller, thruster, turret
-                                and torpedo-bay sections. Each section carries
-                                its own mass and health and contributes its
-                                behavior to the whole ship.
-                            </p>
-                        </article>
-                        <article class="card">
-                            <div class="card__icon">&#129517;</div>
-                            <h3 class="card__title">Diegetic autopilot</h3>
-                            <p class="card__body">
-                                GOTO, ORBIT and STOP verbs fly the ship through
-                                its real actuators - you watch the hull swing
-                                and the plume light up. Any manual input takes
-                                back control instantly.
-                            </p>
-                        </article>
-                        <article class="card">
-                            <div class="card__icon">&#127756;</div>
-                            <h3 class="card__title">Gravity wells</h3>
-                            <p class="card__body">
-                                Large asteroids pull ships and torpedoes with
-                                real inverse-square gravity. Park into a stable
-                                circular orbit around the dominant well with a
-                                single key.
-                            </p>
-                        </article>
-                        <article class="card">
-                            <div class="card__icon">&#127919;</div>
-                            <h3 class="card__title">Locks &amp; turrets</h3>
-                            <p class="card__body">
-                                An angular aim-assist cone locks the nearest
-                                hostile; turrets compute intercept lead and
-                                paint aim pips, while torpedo bays fire guided,
-                                blast-damage warheads.
-                            </p>
-                        </article>
-                        <article class="card">
-                            <div class="card__icon">&#128165;</div>
-                            <h3 class="card__title">Combat you can feel</h3>
-                            <p class="card__body">
-                                Trauma camera shake, expanding hit rings and
-                                distance-attenuated audio sell every impact and
-                                section that gets blown off a hull.
-                            </p>
-                        </article>
-                        <article class="card">
-                            <div class="card__icon">&#128421;</div>
-                            <h3 class="card__title">Cinematic HUD</h3>
-                            <p class="card__body">
-                                Cycle the HUD from full chrome to
-                                instruments-only to a clean screen for capturing
-                                shots - every widget knows its tier.
-                            </p>
-                        </article>
+                    <div class="feature-list">
+                        <div class="feature-row">
+                            <div class="feature-row__text">
+                                <span class="feature-row__num">01</span>
+                                <h3 class="feature-row__title">
+                                    Modular ship editor
+                                </h3>
+                                <p class="feature-row__body">
+                                    Bolt together hull, controller, thruster,
+                                    turret and torpedo-bay sections. Each
+                                    section carries its own mass and health and
+                                    contributes its behavior to the whole ship.
+                                </p>
+                            </div>
+                            <figure class="feature-row__media">
+                                <div class="figure__placeholder">
+                                    <span class="figure__placeholder-tag"
+                                        >Screenshot needed</span
+                                    >
+                                    <span class="figure__placeholder-name"
+                                        >assets/feature-editor.png</span
+                                    >
+                                    <span class="figure__placeholder-note"
+                                        >The ship editor: hull, controller,
+                                        thruster, turret and torpedo-bay
+                                        sections being bolted onto a
+                                        build.</span
+                                    >
+                                </div>
+                            </figure>
+                        </div>
+                        <div class="feature-row">
+                            <div class="feature-row__text">
+                                <span class="feature-row__num">02</span>
+                                <h3 class="feature-row__title">
+                                    Diegetic autopilot
+                                </h3>
+                                <p class="feature-row__body">
+                                    GOTO, ORBIT and STOP verbs fly the ship
+                                    through its real actuators - you watch the
+                                    hull swing and the plume light up. Any
+                                    manual input takes back control instantly.
+                                </p>
+                            </div>
+                            <figure class="feature-row__media">
+                                <div class="figure__placeholder">
+                                    <span class="figure__placeholder-tag"
+                                        >Screenshot needed</span
+                                    >
+                                    <span class="figure__placeholder-name"
+                                        >assets/feature-autopilot.png</span
+                                    >
+                                    <span class="figure__placeholder-note"
+                                        >A ship mid-GOTO/ORBIT maneuver: the
+                                        hull swung onto its new heading with the
+                                        thruster plume lit.</span
+                                    >
+                                </div>
+                            </figure>
+                        </div>
+                        <div class="feature-row">
+                            <div class="feature-row__text">
+                                <span class="feature-row__num">03</span>
+                                <h3 class="feature-row__title">
+                                    Gravity wells
+                                </h3>
+                                <p class="feature-row__body">
+                                    Large asteroids pull ships and torpedoes
+                                    with real inverse-square gravity. Park into
+                                    a stable circular orbit around the dominant
+                                    well with a single key.
+                                </p>
+                            </div>
+                            <figure class="feature-row__media">
+                                <div class="figure__placeholder">
+                                    <span class="figure__placeholder-tag"
+                                        >Screenshot needed</span
+                                    >
+                                    <span class="figure__placeholder-name"
+                                        >assets/feature-gravity.png</span
+                                    >
+                                    <span class="figure__placeholder-note"
+                                        >A ship parked in a stable orbit around
+                                        a planetoid, the ORBIT radius spoke
+                                        drawn on the HUD.</span
+                                    >
+                                </div>
+                            </figure>
+                        </div>
+                        <div class="feature-row">
+                            <div class="feature-row__text">
+                                <span class="feature-row__num">04</span>
+                                <h3 class="feature-row__title">
+                                    Locks &amp; turrets
+                                </h3>
+                                <p class="feature-row__body">
+                                    Hold CTRL to sweep the radar and lock what
+                                    you are looking at; turrets compute
+                                    intercept lead and paint aim pips, while
+                                    torpedo bays fire guided, blast-damage
+                                    warheads.
+                                </p>
+                            </div>
+                            <figure class="feature-row__media">
+                                <div class="figure__placeholder">
+                                    <span class="figure__placeholder-tag"
+                                        >Screenshot needed</span
+                                    >
+                                    <span class="figure__placeholder-name"
+                                        >assets/feature-combat.png</span
+                                    >
+                                    <span class="figure__placeholder-note"
+                                        >A red combat lock bracketing a hostile
+                                        with turret lead pips on the intercept
+                                        point.</span
+                                    >
+                                </div>
+                            </figure>
+                        </div>
+                        <div class="feature-row">
+                            <div class="feature-row__text">
+                                <span class="feature-row__num">05</span>
+                                <h3 class="feature-row__title">
+                                    Combat you can feel
+                                </h3>
+                                <p class="feature-row__body">
+                                    Trauma camera shake, expanding hit rings and
+                                    distance-attenuated audio sell every impact
+                                    and section that gets blown off a hull.
+                                </p>
+                            </div>
+                            <figure class="feature-row__media">
+                                <div class="figure__placeholder">
+                                    <span class="figure__placeholder-tag"
+                                        >Screenshot needed</span
+                                    >
+                                    <span class="figure__placeholder-name"
+                                        >assets/feature-juice.png</span
+                                    >
+                                    <span class="figure__placeholder-note"
+                                        >A section blown off a hull mid-fight,
+                                        framed by expanding hit rings and camera
+                                        shake.</span
+                                    >
+                                </div>
+                            </figure>
+                        </div>
+                        <div class="feature-row">
+                            <div class="feature-row__text">
+                                <span class="feature-row__num">06</span>
+                                <h3 class="feature-row__title">
+                                    Cinematic HUD
+                                </h3>
+                                <p class="feature-row__body">
+                                    Cycle the HUD from full chrome to
+                                    instruments-only to a clean screen for
+                                    capturing shots - every widget knows its
+                                    tier.
+                                </p>
+                            </div>
+                            <figure class="feature-row__media">
+                                <div class="figure__placeholder">
+                                    <span class="figure__placeholder-tag"
+                                        >Screenshot needed</span
+                                    >
+                                    <span class="figure__placeholder-name"
+                                        >assets/feature-hud.png</span
+                                    >
+                                    <span class="figure__placeholder-note"
+                                        >The HUD at full chrome beside its
+                                        minimal and clean-screen tiers.</span
+                                    >
+                                </div>
+                            </figure>
+                        </div>
                     </div>
                 </div>
             </section>

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Factions - Nova Protocol Wiki</title>
+        <meta
+            name="description"
+            content="Nova Protocol's faction model: the player / enemy / neutral relation that drives targeting, projectile allegiance, reticle tint and AI hostility."
+        />
+        <link
+            rel="icon"
+            href="/nova-protocol/favicon.svg"
+        />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/"
+                            >Wiki</a
+                        >
+                        / Factions
+                    </p>
+                    <h1>Factions</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+
+                    <p>
+                        Sides in Nova Protocol are deliberately minimal - three
+                        states, no alliances or reputation. It is just enough to
+                        tell friend from foe from furniture.
+                    </p>
+
+                    <h2 id="relations">The relation model</h2>
+                    <p>
+                        Every ship carries an allegiance -
+                        <strong>Player</strong>, <strong>Enemy</strong> or
+                        <strong>Neutral</strong> - and any two things resolve to
+                        one of three relations:
+                    </p>
+                    <ul>
+                        <li>
+                            <strong>Own</strong> - the same combatant side
+                            (Player-Player or Enemy-Enemy).
+                        </li>
+                        <li>
+                            <strong>Hostile</strong> - opposing combatants
+                            (Player vs Enemy).
+                        </li>
+                        <li>
+                            <strong>Neutral</strong> - everything else: anything
+                            marked Neutral, and any body without an allegiance
+                            at all (asteroids, debris, salvage). Non-combatants
+                            stay out of the fight by default.
+                        </li>
+                    </ul>
+
+                    <h2 id="allegiance">What allegiance drives</h2>
+                    <p>Relation is the switch behind most of combat:</p>
+                    <ul>
+                        <li>
+                            <strong>Projectile allegiance</strong> - a round
+                            copies its shooter's side at launch and keeps it
+                            even if the shooter dies, so your torpedo stays
+                            yours and never hits your own hull.
+                        </li>
+                        <li>
+                            <strong>Targeting</strong> - what you can lock and
+                            what the AI will attack keys off relation and radar
+                            <a
+                                href="/nova-protocol/wiki/targeting-radar/"
+                                >signature</a
+                            >.
+                        </li>
+                        <li>
+                            <strong>AI hostility</strong> - enemy ships engage
+                            hostiles, remember who shot them, and raise their
+                            weapons only when they have a hostile target.
+                        </li>
+                    </ul>
+
+                    <h2 id="reticle-tint">Reading it on the HUD</h2>
+                    <p>
+                        The
+                        <a
+                            href="/nova-protocol/wiki/hud/"
+                            >HUD</a
+                        >
+                        carries the relation in the target viewfinder's faction
+                        caption (hostile red, own green, neutral steel) rather
+                        than tinting the reticle itself. A player ship spawns
+                        Player and an AI ship spawns Enemy automatically - the
+                        allegiance rides along with the ship marker at spawn.
+                    </p>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>
