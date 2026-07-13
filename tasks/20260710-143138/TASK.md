@@ -1,6 +1,6 @@
 # CI: examples smoke test panics in taffy on GitHub runners only - diagnose and re-enable as blocking
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 20
 - TAGS: v0.5.2, ci, testing, bug
 
@@ -35,17 +35,14 @@ unrelated safe-Rust system.
 
 Steps:
 
-- [ ] Collect the full backtrace from CI (the non-blocking step now runs
-      with RUST_BACKTRACE=full) and confirm the panic site and thread.
-- [ ] Try steering the llvmpipe JIT on CI: `LP_NATIVE_VECTOR_WIDTH=128`
-      env for the smoke step is the cheapest experiment (CI logs report
-      "llvmpipe (LLVM 20.1.2, 256 bits)").
-- [ ] If that does not help, try a different software Vulkan driver on CI
-      (SwiftShader) or a newer Mesa (kisak PPA) to rule the driver in/out.
-- [ ] Consider reproducing under qemu-user with `-cpu EPYC` to test the
-      zen3-JIT theory off-CI.
-- [ ] When the panic is understood or worked around, remove
-      `continue-on-error: true` from the smoke step so it gates again.
+- [~] Collect the full backtrace from CI: SUPERSEDED - the panic did not
+      survive the 20260712-211352 examples rework (see Record), so there
+      is no backtrace to collect.
+- [~] LP_NATIVE_VECTOR_WIDTH / SwiftShader / Mesa experiments: SUPERSEDED,
+      same reason - no reproduction left to experiment against.
+- [~] qemu-user `-cpu EPYC` reproduction: SUPERSEDED, same reason.
+- [x] Remove `continue-on-error: true` from the smoke step so it gates
+      again - done, over the reworked 12-example suite.
 
 ## Notes (v0.5.2 plan pass, 2026-07-13)
 
@@ -61,3 +58,32 @@ Steps:
   set with
   a written justification, gate the rest, and leave this task's NOTES.md as
   the investigation record - do not leave the whole suite non-blocking.
+
+
+## Record (2026-07-14)
+
+Resolution: worked around by replacement rather than root-caused. The
+panic was observed deterministically on the pre-rework 03_scenario; the
+20260712-211352 rework rebuilt the entire suite (03_scenario's content
+lives on as 08_scenario, a different scene and script), and the first
+master push after it ran the FULL reworked suite green on ubuntu-latest -
+including the new in-example behavior assertions and the command-error
+gate (run 29283727248; the STEP conclusion is maskable under
+continue-on-error, so the evidence is the job log itself: `test result:
+ok. 1 passed; 0 failed ... finished in 188.23s` for
+tests/examples_smoke.rs, whose single test iterates all twelve
+HARNESSED_EXAMPLES - review R1.2). A deterministic failure that no longer fires after its trigger
+was replaced is resolved for gating purposes; the gate is blocking again.
+
+What we never learned: the actual corruption mechanism (the llvmpipe
+zen3-JIT theory was never confirmed or refuted - the local
+non-reproduction evidence and the empirical taffy-tag analysis remain in
+NOTES.md). If the panic resurfaces, the now-blocking step fails loudly
+with RUST_BACKTRACE=full and this task's NOTES.md is the starting point;
+the planned experiments (LP_NATIVE_VECTOR_WIDTH, SwiftShader, qemu EPYC)
+are still the right ladder.
+
+Self-reflection: sequencing this task AFTER the examples rework (a plan
+call) converted a hardware-forensics investigation into a one-line gate
+flip - the cheapest possible resolution. The discipline point: the close
+is honest that this is containment-by-replacement, not understanding.

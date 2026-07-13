@@ -82,17 +82,17 @@ jobs:
         run: cargo test --workspace --features debug
 
       # The windowed examples smoke test: spawns each harnessed example under
-      # BCS_AUTOPILOT/Xvfb (lavapipe renders) and asserts it reaches gameplay
-      # and exits without panic. Currently NON-BLOCKING: the scenario example
-      # (03_scenario when observed; rebuilt as 08_scenario in 20260712-211352,
-      # so re-verify against the new suite) panics
-      # inside taffy (resolve.rs unreachable) only on GitHub's runners - it
-      # does not reproduce on an identical Ubuntu 24.04 + Mesa/LLVM stack
-      # locally, pointing at the runner hardware (llvmpipe JIT on AMD EPYC).
-      # See docs/2026-07-10-skybox-cubemap-upload-race.md ("The taffy panic")
-      # and the tracking task before removing continue-on-error.
-      - name: Examples smoke test (non-blocking)
-        continue-on-error: true
+      # BCS_AUTOPILOT/Xvfb (lavapipe renders) and asserts it reaches gameplay,
+      # passes its in-example behavior assertions, logs no command errors,
+      # and exits without panic. BLOCKING again since 20260710-143138: the
+      # taffy panic (resolve.rs unreachable, GitHub runners only) was
+      # observed deterministically on the pre-rework 03_scenario and did not
+      # survive the 20260712-211352 examples rework - the full reworked
+      # suite ran green on ubuntu-latest (run 29283727248, 2026-07-13). If
+      # it ever resurfaces, this step fails loudly with RUST_BACKTRACE=full
+      # and the investigation record lives in tasks/20260710-143138/NOTES.md
+      # ("The taffy panic").
+      - name: Examples smoke test
         env:
           RUST_BACKTRACE: full
         # --features debug here too: the test binary links the nova-protocol
