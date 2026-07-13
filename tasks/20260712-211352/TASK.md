@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 90
-- TAGS: v0.5.1,refactor,examples,tests
+- TAGS: v0.5.2,refactor,examples,tests
 
 The examples were not created with testing in mind initially, so I think it
 would be a good idea to re-work them and refactor them (can even remove some of
