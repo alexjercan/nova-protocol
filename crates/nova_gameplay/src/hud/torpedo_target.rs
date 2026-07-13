@@ -46,20 +46,14 @@ const FOCUS_METER_BACKDROP: Color = Color::srgba(0.15, 0.15, 0.15, 0.8);
 /// unlocks.
 const FOCUS_METER_COLOR: Color = Color::srgba(1.0, 0.4, 0.25, 0.9);
 
-// Reticle tint by relation to the locked target (task 20260708-203708):
-// hostile reads as a threat, your own torpedo as friendly, everything else
-// (asteroids, neutral ships) stays plain white.
-const RETICLE_HOSTILE_COLOR: Color = Color::srgba(1.0, 0.35, 0.3, 1.0);
-const RETICLE_OWN_COLOR: Color = Color::srgba(0.35, 0.9, 0.55, 1.0);
-const RETICLE_NEUTRAL_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 1.0);
-
-/// Armed corner ticks on the reticle (Q5a of spike 20260713-110039, the
-/// SHAPE half of the hot cue): four small pips at the reticle corners,
-/// visible only while the player's weapons are HOT. This is the universal
-/// non-inset hot cue - a beacon lock or a reduced HUD tier has no inset
-/// frame to carry the state.
-const ARMED_TICK_PX: f32 = 6.0;
-const ARMED_TICK_COLOR: Color = Color::srgba(1.0, 0.45, 0.3, 0.95);
+/// The combat reticle is ALWAYS combat-red (user decision 2026-07-13, task
+/// 20260713-124000): the on-object lock language is purely slot-colored -
+/// red bracket = combat lock, white bracket = travel lock. This retires the
+/// relation tint (task 20260708-203708, kept "awaiting user veto" - this is
+/// the veto) and the reticle's four armed corner pips: a visible combat
+/// reticle already IMPLIES weapons-hot (lock => hot, the safety truth
+/// table), and the raised-manual hot cue lives on the lead pips.
+const RETICLE_COMBAT_COLOR: Color = Color::srgba(1.0, 0.35, 0.3, 1.0);
 
 pub mod prelude {
     pub use super::{
@@ -136,7 +130,7 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
                 offset: Vec2::ZERO,
                 offscreen: ScreenIndicatorOffscreen::Hide,
             }),
-            ImageNode::new(config.target_sprite.clone()),
+            ImageNode::new(config.target_sprite.clone()).with_color(RETICLE_COMBAT_COLOR),
             children![
                 (
                     Name::new("TorpedoTargetFocusMeter"),
@@ -235,72 +229,15 @@ pub struct TorpedoTargetHudPlugin;
 
 impl Plugin for TorpedoTargetHudPlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<TorpedoTargetArmedTickMarker>();
         app.add_systems(
             Update,
             (
-                spawn_reticle_armed_ticks,
                 drive_reticle_anchor,
-                update_reticle_relation_tint,
-                drive_reticle_armed_ticks,
                 update_target_readout,
                 update_focus_meter,
             )
                 .in_set(super::NovaHudSystems),
         );
-    }
-}
-
-/// Marker for one armed corner tick on the reticle.
-#[derive(Component, Debug, Clone, Reflect)]
-pub struct TorpedoTargetArmedTickMarker;
-
-/// Stamp the four armed corner ticks onto a freshly spawned reticle (the
-/// Added-styling pattern, like the radar box border): corner pips placed by
-/// percent so they track the reticle's ApparentSize scaling for free.
-fn spawn_reticle_armed_ticks(
-    mut commands: Commands,
-    q_reticle: Query<Entity, Added<TorpedoTargetReticleMarker>>,
-) {
-    for reticle in &q_reticle {
-        for (right, bottom) in [(false, false), (true, false), (false, true), (true, true)] {
-            let offset = Val::Px(-ARMED_TICK_PX - 1.0);
-            let auto = Val::Auto;
-            commands.entity(reticle).with_child((
-                Name::new("ReticleArmedTick"),
-                TorpedoTargetArmedTickMarker,
-                Node {
-                    position_type: PositionType::Absolute,
-                    left: if right { auto } else { offset },
-                    right: if right { offset } else { auto },
-                    top: if bottom { auto } else { offset },
-                    bottom: if bottom { offset } else { auto },
-                    width: Val::Px(ARMED_TICK_PX),
-                    height: Val::Px(ARMED_TICK_PX),
-                    ..default()
-                },
-                BackgroundColor(ARMED_TICK_COLOR),
-                Pickable::IGNORE,
-                Visibility::Hidden,
-            ));
-        }
-    }
-}
-
-/// Show the armed ticks while the player's weapons are HOT (Q5a): shape +
-/// color redundancy with the reticle tint and the inset frame.
-fn drive_reticle_armed_ticks(
-    q_player: Query<&WeaponsHot, With<PlayerSpaceshipMarker>>,
-    mut q_ticks: Query<&mut Visibility, With<TorpedoTargetArmedTickMarker>>,
-) {
-    let hot = q_player.iter().next().is_some_and(|hot| hot.0);
-    let visibility = if hot {
-        Visibility::Inherited
-    } else {
-        Visibility::Hidden
-    };
-    for mut tick in &mut q_ticks {
-        tick.set_if_neq(visibility);
     }
 }
 
@@ -313,43 +250,6 @@ fn drive_reticle_anchor(
     let lock = q_player.iter().next().and_then(|lock| lock.0);
     for mut anchor in &mut q_reticle {
         **anchor = lock.map(ScreenIndicatorAnchorKind::Entity);
-    }
-}
-
-/// The reticle tint for a relation to the locked target.
-fn reticle_color(relation: Relation) -> Color {
-    match relation {
-        Relation::Hostile => RETICLE_HOSTILE_COLOR,
-        Relation::Own => RETICLE_OWN_COLOR,
-        Relation::Neutral => RETICLE_NEUTRAL_COLOR,
-    }
-}
-
-/// Tint the reticle sprite by the locked target's relation to the player:
-/// hostile vs your-own(-torpedo) vs neutral. With no lock the tint is left
-/// alone - the widget hides the reticle anyway.
-fn update_reticle_relation_tint(
-    player: Single<
-        (Option<&Allegiance>, &CombatLock),
-        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
-    >,
-    q_allegiance: Query<Option<&Allegiance>>,
-    mut q_reticle: Query<&mut ImageNode, With<TorpedoTargetReticleMarker>>,
-) {
-    let (player, lock) = player.into_inner();
-    let Some(target) = lock.0 else {
-        return;
-    };
-    let Ok(target_allegiance) = q_allegiance.get(target) else {
-        // The lock can outlive its entity by a frame (see the readout).
-        return;
-    };
-
-    let color = reticle_color(relation(player, target_allegiance));
-    for mut image in &mut q_reticle {
-        if image.color != color {
-            image.color = color;
-        }
     }
 }
 
@@ -819,43 +719,23 @@ mod tests {
         assert_eq!(meter_state(&mut world).0, Visibility::Hidden);
     }
 
-    // -- reticle relation tint (task 20260708-203708) --
-
-    fn reticle_tint(world: &mut World) -> Color {
-        world
-            .query_filtered::<&ImageNode, With<TorpedoTargetReticleMarker>>()
-            .iter(world)
-            .next()
-            .expect("reticle exists")
-            .color
-    }
+    // -- reticle slot color (task 20260713-124000) --
 
     #[test]
-    fn reticle_tints_by_relation_to_the_locked_target() {
+    fn the_reticle_is_always_combat_red() {
+        // The on-object lock language is slot-colored (user decision
+        // 2026-07-13): red bracket = combat lock, white bracket = travel
+        // lock. No relation tint, no per-frame color system - the red is
+        // baked into the bundle; this pins the contract so a re-added tint
+        // system shows up as a failing diff here.
         let mut world = World::new();
         world.spawn(torpedo_target_hud(TorpedoTargetHudConfig::default()));
-        // The player marker requires Allegiance::Player, so the rig gets the
-        // relation model's player side for free.
-        let player = world
-            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker, CombatLock(None)))
-            .id();
-
-        // Hostile lock: an enemy-aligned body.
-        let enemy = world.spawn(Allegiance::Enemy).id();
-        world.get_mut::<CombatLock>(player).unwrap().0 = Some(enemy);
-        world.run_system_once(update_reticle_relation_tint).unwrap();
-        assert_eq!(reticle_tint(&mut world), RETICLE_HOSTILE_COLOR);
-
-        // Own lock: e.g. the player's own loitering torpedo.
-        let own_torpedo = world.spawn(Allegiance::Player).id();
-        world.get_mut::<CombatLock>(player).unwrap().0 = Some(own_torpedo);
-        world.run_system_once(update_reticle_relation_tint).unwrap();
-        assert_eq!(reticle_tint(&mut world), RETICLE_OWN_COLOR);
-
-        // Neutral lock: an unmarked body (asteroid).
-        let asteroid = world.spawn_empty().id();
-        world.get_mut::<CombatLock>(player).unwrap().0 = Some(asteroid);
-        world.run_system_once(update_reticle_relation_tint).unwrap();
-        assert_eq!(reticle_tint(&mut world), RETICLE_NEUTRAL_COLOR);
+        let color = world
+            .query_filtered::<&ImageNode, With<TorpedoTargetReticleMarker>>()
+            .iter(&world)
+            .next()
+            .expect("reticle exists")
+            .color;
+        assert_eq!(color, RETICLE_COMBAT_COLOR);
     }
 }

@@ -279,3 +279,10 @@ Direction-level tasks this spike seeded, for /plan to break into steps:
   inset panel also moved below the bcs status bar (user playtest note,
   top 12 -> 44 px). 471 tests; 12_hud_range asserts the viewfinder
   mid-sweep.
+- 20260713-124000 (2026-07-13, direct on master): the reticle half of Q5a
+  is superseded by the user's slot-color rule - the on-object lock bracket
+  is ALWAYS red for combat / white for travel; the relation tint (the
+  082330 R1.2 deviation, kept awaiting this veto) and the reticle corner
+  pips are retired (a visible combat reticle already implies weapons-hot).
+  The edge-indicator lock arrow follows. Shape+color hot redundancy now
+  lives on the inset frame only.

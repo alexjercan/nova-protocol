@@ -3,8 +3,12 @@
 //!
 //! - WHITE crosshair on the [`TravelLock`] target - the nav designation. The
 //!   COMBAT crosshair (the existing reticle in hud/torpedo_target.rs, kept
-//!   slightly SMALLER so the two overlap cleanly on one body) stays
-//!   relation-tinted and carries the armed ticks while hot.
+//!   slightly SMALLER so the two overlap cleanly on one body) is always
+//!   combat-RED: the on-object lock language is purely slot-colored (user
+//!   decision 2026-07-13, task 20260713-124000 - red bracket = combat lock,
+//!   white bracket = travel lock; the relation tint and the reticle corner
+//!   pips are retired, since a visible combat reticle already implies
+//!   weapons-hot).
 //! - A HOLLOW bordered box riding the live lock while a radar gesture is
 //!   ENGAGED (past the hold threshold; nothing renders inside the tap
 //!   window - F11), colored by the engaged slot. During a TRAVEL sweep it
@@ -17,10 +21,10 @@
 //! - A brief centered red flash when the radar is DENIED (no Lock
 //!   capability, F7/Q8a; pairs with the deny buzz).
 //!
-//! The old "WEAPONS HOT ..." status text block is GONE: the inset frame +
-//! reticle ticks carry the safety state, the inset's presence is the
-//! guided-torpedo signal, and "TORP: DUMB" died without replacement (the
-//! red reticle's presence anywhere IS the guided cue).
+//! The old "WEAPONS HOT ..." status text block is GONE: the inset frame
+//! (+ the hot-shifted lead pips) carries the safety state, the inset's
+//! presence is the guided-torpedo signal, and "TORP: DUMB" died without
+//! replacement (the red reticle's presence anywhere IS the guided cue).
 
 use bevy::prelude::*;
 

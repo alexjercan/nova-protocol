@@ -41,11 +41,10 @@ const TORPEDO_COLOR: Color = Color::srgba(1.0, 0.2, 0.2, 0.95);
 /// Tracked candidates that are not the lock: the bracket overlay's dim red.
 const CANDIDATE_COLOR: Color = Color::srgba(1.0, 0.25, 0.25, 0.45);
 
-// The lock arrow follows the reticle's relation tint (torpedo_target.rs):
-// hostile reads as a threat, own as friendly, neutral plain white.
-const LOCK_HOSTILE_COLOR: Color = Color::srgba(1.0, 0.35, 0.3, 1.0);
-const LOCK_OWN_COLOR: Color = Color::srgba(0.35, 0.9, 0.55, 1.0);
-const LOCK_NEUTRAL_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 1.0);
+/// The combat-lock arrow follows the reticle's slot color (torpedo_target.rs,
+/// task 20260713-124000): always combat-red - red = combat lock, white =
+/// travel lock, everywhere. (The relation tint it used to mirror is retired.)
+const LOCK_COLOR: Color = Color::srgba(1.0, 0.35, 0.3, 1.0);
 
 pub mod prelude {
     pub use super::{
@@ -75,7 +74,7 @@ pub struct EdgeIndicatorTarget(pub Entity);
 /// kind (Lock > Torpedo > Candidate).
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Reflect)]
 pub enum EdgeIndicatorKind {
-    /// The active target lock, tinted by relation like the reticle.
+    /// The active combat lock, combat-red like the reticle.
     Lock,
     /// A committed hostile torpedo - a threat to run from.
     Torpedo,
@@ -237,13 +236,9 @@ fn tracked_entities(
 }
 
 /// The arrow tint for a tracked entity.
-fn arrow_color(kind: EdgeIndicatorKind, lock_relation: Relation) -> Color {
+fn arrow_color(kind: EdgeIndicatorKind) -> Color {
     match kind {
-        EdgeIndicatorKind::Lock => match lock_relation {
-            Relation::Hostile => LOCK_HOSTILE_COLOR,
-            Relation::Own => LOCK_OWN_COLOR,
-            Relation::Neutral => LOCK_NEUTRAL_COLOR,
-        },
+        EdgeIndicatorKind::Lock => LOCK_COLOR,
         EdgeIndicatorKind::Torpedo => TORPEDO_COLOR,
         EdgeIndicatorKind::Candidate => CANDIDATE_COLOR,
     }
@@ -268,7 +263,6 @@ fn sync_edge_indicators(
         (Entity, Option<&Allegiance>),
         (With<TorpedoProjectileMarker>, With<TorpedoTargetChosen>),
     >,
-    q_allegiance: Query<&Allegiance>,
     q_indicators: Query<
         (Entity, &EdgeIndicatorTarget, &EdgeIndicatorKind),
         With<EdgeIndicatorMarker>,
@@ -309,12 +303,9 @@ fn sync_edge_indicators(
         if exists {
             continue;
         }
-        let lock_relation = relation(player_allegiance, q_allegiance.get(entity).ok());
-        commands.entity(layer).with_child(edge_indicator(
-            entity,
-            kind,
-            arrow_color(kind, lock_relation),
-        ));
+        commands
+            .entity(layer)
+            .with_child(edge_indicator(entity, kind, arrow_color(kind)));
     }
 }
 
@@ -494,28 +485,12 @@ mod tests {
     }
 
     #[test]
-    fn lock_arrow_color_follows_relation_and_kinds_have_their_tints() {
-        assert_eq!(
-            arrow_color(EdgeIndicatorKind::Lock, Relation::Hostile),
-            LOCK_HOSTILE_COLOR
-        );
-        assert_eq!(
-            arrow_color(EdgeIndicatorKind::Lock, Relation::Own),
-            LOCK_OWN_COLOR
-        );
-        assert_eq!(
-            arrow_color(EdgeIndicatorKind::Lock, Relation::Neutral),
-            LOCK_NEUTRAL_COLOR
-        );
-        assert_eq!(
-            arrow_color(EdgeIndicatorKind::Torpedo, Relation::Neutral),
-            TORPEDO_COLOR,
-            "non-lock kinds ignore the relation"
-        );
-        assert_eq!(
-            arrow_color(EdgeIndicatorKind::Candidate, Relation::Hostile),
-            CANDIDATE_COLOR
-        );
+    fn the_kinds_have_their_tints_and_the_lock_arrow_is_combat_red() {
+        // Slot-colored lock language (task 20260713-124000): the lock arrow
+        // is always combat-red, relation-independent, matching the reticle.
+        assert_eq!(arrow_color(EdgeIndicatorKind::Lock), LOCK_COLOR);
+        assert_eq!(arrow_color(EdgeIndicatorKind::Torpedo), TORPEDO_COLOR);
+        assert_eq!(arrow_color(EdgeIndicatorKind::Candidate), CANDIDATE_COLOR);
     }
 
     #[test]
