@@ -24,8 +24,9 @@ function currentSlug(base: string): string | null {
     const path = window.location.pathname;
     const rel = path.startsWith(base) ? path.slice(base.length) : path;
     const segs = rel.split("/").filter(Boolean);
-    // /wiki/<slug>/ -> slug; /wiki/ -> null (the index).
-    return segs[0] === "wiki" && segs[1] ? segs[1] : null;
+    // /wiki/<slug>/ -> slug (multi-segment for child pages, e.g.
+    // /wiki/sections/hull/ -> "sections/hull"); /wiki/ -> null (the index).
+    return segs[0] === "wiki" && segs[1] ? segs.slice(1).join("/") : null;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -54,6 +55,32 @@ function haystack(p: WikiPage): string {
 }
 
 // ---- sidebar + search -----------------------------------------------------
+
+// One sidebar entry. Coming-soon pages have no HTML yet, so they render as a
+// non-navigable span (a link would 404) - still searchable. A parent counts as
+// active when the current page is one of its children.
+function makeNavLink(
+    p: WikiPage,
+    base: string,
+    active: string | null
+): HTMLElement {
+    const soon = !!p.comingSoon;
+    const link = el(soon ? "span" : "a", "wiki-nav__link", p.title);
+    if (!soon) (link as HTMLAnchorElement).href = pageUrl(base, p.slug);
+    link.dataset.search = haystack(p);
+    const isActive =
+        active === p.slug ||
+        (active !== null && active.startsWith(p.slug + "/"));
+    if (isActive) {
+        link.classList.add("is-active");
+        if (active === p.slug) link.setAttribute("aria-current", "page");
+    }
+    if (soon) {
+        link.classList.add("is-soon");
+        link.appendChild(el("span", "wiki-nav__soon", "soon"));
+    }
+    return link;
+}
 
 function renderSidebar(
     nav: HTMLElement,
@@ -85,23 +112,23 @@ function renderSidebar(
         group.appendChild(heading);
 
         const items: HTMLElement[] = [];
-        for (const p of pages) {
-            // Coming-soon pages have no HTML yet, so render them as a
-            // non-navigable span (a link would 404) - still searchable.
-            const soon = !!p.comingSoon;
-            const link = el(soon ? "span" : "a", "wiki-nav__link", p.title);
-            if (!soon) (link as HTMLAnchorElement).href = pageUrl(base, p.slug);
-            link.dataset.search = haystack(p);
-            if (p.slug === active) {
-                link.classList.add("is-active");
-                link.setAttribute("aria-current", "page");
-            }
-            if (soon) {
-                link.classList.add("is-soon");
-                link.appendChild(el("span", "wiki-nav__soon", "soon"));
-            }
+        // Top-level pages, then their children nested beneath.
+        for (const p of pages.filter((x) => !x.parent)) {
+            const link = makeNavLink(p, base, active);
             group.appendChild(link);
             items.push(link);
+
+            const kids = WIKI_PAGES.filter((c) => c.parent === p.slug);
+            if (kids.length > 0) {
+                const sub = el("div", "wiki-nav__sub");
+                for (const c of kids) {
+                    const clink = makeNavLink(c, base, active);
+                    clink.classList.add("wiki-nav__child");
+                    sub.appendChild(clink);
+                    items.push(clink);
+                }
+                group.appendChild(sub);
+            }
         }
         nav.appendChild(group);
         groups.push({ heading, items });
@@ -187,7 +214,10 @@ function renderSeeAlso(
 
 function renderIndex(container: HTMLElement, base: string): void {
     for (const category of WIKI_CATEGORIES) {
-        const pages = WIKI_PAGES.filter((p) => p.category === category);
+        // Top-level pages only - children live on their parent's overview page.
+        const pages = WIKI_PAGES.filter(
+            (p) => p.category === category && !p.parent
+        );
         if (pages.length === 0) continue;
 
         container.appendChild(el("h2", "wiki-index__cat", category));
@@ -212,6 +242,38 @@ function renderIndex(container: HTMLElement, base: string): void {
     }
 }
 
+// ---- parent overview: child grid ------------------------------------------
+
+// Renders a parent page's children as an icon+title grid (e.g. the five ship
+// sections on the "Ship sections" page). The icon is a placeholder frame naming
+// the asset to capture, until the real icon exists.
+function renderChildrenGrid(
+    container: HTMLElement,
+    base: string,
+    parentSlug: string
+): void {
+    const kids = WIKI_PAGES.filter((p) => p.parent === parentSlug);
+    if (kids.length === 0) return;
+
+    const grid = el("div", "wiki-children");
+    for (const c of kids) {
+        const card = el("a", "wiki-child");
+        card.href = pageUrl(base, c.slug);
+
+        const icon = el("span", "wiki-child__icon");
+        if (c.icon) icon.title = c.icon;
+        card.appendChild(icon);
+
+        const body = el("span", "wiki-child__body");
+        body.appendChild(el("span", "wiki-child__title", c.title));
+        body.appendChild(el("span", "wiki-child__sum", c.summary));
+        card.appendChild(body);
+
+        grid.appendChild(card);
+    }
+    container.appendChild(grid);
+}
+
 // ---- boot -----------------------------------------------------------------
 
 const base = basePath();
@@ -231,4 +293,7 @@ if (slug) {
         const seeAlsoHost = document.getElementById("wiki-seealso");
         if (seeAlsoHost) renderSeeAlso(seeAlsoHost, base, page);
     }
+    // Overview pages (parents) render their children as a grid.
+    const childrenHost = document.getElementById("wiki-children");
+    if (childrenHost) renderChildrenGrid(childrenHost, base, slug);
 }

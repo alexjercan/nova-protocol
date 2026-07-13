@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Turret - Nova Protocol Wiki</title>
+        <meta
+            name="description"
+            content="The Nova Protocol turret section: an articulated mount that aims with intercept lead and fires bullets."
+        />
+        <link
+            rel="icon"
+            href="<%= htmlWebpackPlugin.options.basePath %>favicon.svg"
+        />
+    </head>
+    <body>
+        <div id="header"></div>
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="<%= htmlWebpackPlugin.options.basePath %>wiki/"
+                            >Wiki</a
+                        >
+                        /
+                        <a
+                            href="<%= htmlWebpackPlugin.options.basePath %>wiki/sections/"
+                            >Ship sections</a
+                        >
+                        / Turret
+                    </p>
+                    <h1>Turret</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+
+                    <figure class="figure">
+                        <!-- Capture: assets/icon-turret.png (or a full shot) -->
+                        <div class="figure__placeholder">
+                            <span class="figure__placeholder-tag"
+                                >Screenshot needed</span
+                            >
+                            <span class="figure__placeholder-name"
+                                >assets/wiki-section-turret.png</span
+                            >
+                            <span class="figure__placeholder-note"
+                                >A turret tracking a target, barrel led ahead of
+                                it, aim pip on the intercept point.</span
+                            >
+                        </div>
+                    </figure>
+
+                    <p>
+                        A turret is an <strong>articulated mount</strong> -
+                        base, yaw, pitch and barrel - that aims at the current
+                        combat lock with true intercept lead and fires bullet
+                        projectiles. Its coverage is bounded by its yaw and
+                        pitch limits, and its output by its fire rate.
+                    </p>
+                    <p>
+                        Turrets draw their aim from the combat lock and prefer a
+                        fine-locked section if you have one, falling back to
+                        live structure and then the camera ray.
+                    </p>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <div id="footer"></div>
+    </body>
+</html>

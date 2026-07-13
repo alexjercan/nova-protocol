@@ -26,7 +26,17 @@ const page = (chunk, template, filename) =>
 // wiki.ts + wiki-pages.ts). To add a page: author the HTML, add a manifest
 // entry in src/wiki-pages.ts, and add its slug here. Keep this list in sync
 // with wiki-pages.ts.
-const WIKI_SLUGS = ["sections", "keybinds"];
+// Children before their parent so the dev-server rewrites match the more
+// specific path first (/wiki/sections/hull before /wiki/sections).
+const WIKI_SLUGS = [
+    "sections/hull",
+    "sections/controller",
+    "sections/thruster",
+    "sections/turret",
+    "sections/torpedo-bay",
+    "sections",
+    "keybinds",
+];
 const wikiPage = (slug) =>
     page("wiki", `src/wiki/${slug}.html`, `wiki/${slug}/index.html`);
 

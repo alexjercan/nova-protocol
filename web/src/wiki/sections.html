@@ -39,7 +39,10 @@
                         the hull, carries its own mass and health, and
                         contributes exactly one behavior to the whole ship.
                         Knock a section off and the ship loses that capability
-                        but keeps flying on whatever is left.
+                        but keeps flying on whatever is left, which is what
+                        makes damage feel local: shoot the turret off and it
+                        stops shooting; take out the controller and it can no
+                        longer steer.
                     </p>
 
                     <figure class="figure">
@@ -52,9 +55,10 @@
                                 >assets/wiki-sections.png</span
                             >
                             <span class="figure__placeholder-note"
-                                >An exploded or labelled view of a ship showing
-                                the hull, controller, thruster, turret and
-                                torpedo-bay sections.</span
+                                >A built ship with its hull, controller,
+                                thruster, turret and torpedo-bay sections called
+                                out - ideally labelled or lightly
+                                exploded.</span
                             >
                         </div>
                         <figcaption class="figure__caption">
@@ -63,59 +67,12 @@
                         </figcaption>
                     </figure>
 
-                    <h2 id="hull">Hull</h2>
+                    <h2>The sections</h2>
                     <p>
-                        Passive structure and armor. It provides hitpoints and
-                        the connective backbone the other sections mount to. A
-                        hull has no active behavior of its own - it is what the
-                        rest of the ship is built around.
+                        Pick a section for the details - what it does, why it
+                        matters, and how it ties into the rest of the ship.
                     </p>
-
-                    <h2 id="controller">Controller</h2>
-                    <p>
-                        The steering system: a proportional-derivative attitude
-                        controller that rotates the ship toward a target
-                        heading. It is <strong>required</strong> for any ship a
-                        player or AI can fly - with no live controller, the hull
-                        cannot steer itself, so destroying it disables a ship
-                        without destroying it outright.
-                    </p>
-
-                    <h2 id="thruster">Thruster</h2>
-                    <p>
-                        Produces forward thrust and drives the exhaust plume.
-                        Throttle is analog, so a build's thrust authority comes
-                        from each thruster's magnitude and how many you fit. The
-                        flight computer balances thrust through the live center
-                        of mass, so off-axis or battle-damaged thruster layouts
-                        still fly straight (see
-                        <a
-                            href="<%= htmlWebpackPlugin.options.basePath %>wiki/flight-autopilot/"
-                            >Flight &amp; autopilot</a
-                        >).
-                    </p>
-
-                    <h2 id="turret">Turret</h2>
-                    <p>
-                        An articulated mount (base / yaw / pitch / barrel) that
-                        aims at a locked target with true intercept lead and
-                        fires bullet projectiles, bounded by its yaw and pitch
-                        limits and its fire rate. Turrets draw their aim from
-                        the combat lock - see
-                        <a
-                            href="<%= htmlWebpackPlugin.options.basePath %>wiki/combat-weapons/"
-                            >Combat &amp; weapons</a
-                        >.
-                    </p>
-
-                    <h2 id="torpedo-bay">Torpedo bay</h2>
-                    <p>
-                        Fires guided torpedoes that home with
-                        proportional-navigation guidance and deal blast
-                        (area-of-effect) damage on detonation. A torpedo is a
-                        section like any other, so it inherits the same physics
-                        and mounting rules as the rest of the build.
-                    </p>
+                    <div id="wiki-children"></div>
 
                     <div id="wiki-seealso"></div>
                 </article>

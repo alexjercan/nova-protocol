@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Torpedo bay - Nova Protocol Wiki</title>
+        <meta
+            name="description"
+            content="The Nova Protocol torpedo bay section: fires guided, proportional-navigation torpedoes with blast damage."
+        />
+        <link
+            rel="icon"
+            href="<%= htmlWebpackPlugin.options.basePath %>favicon.svg"
+        />
+    </head>
+    <body>
+        <div id="header"></div>
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="<%= htmlWebpackPlugin.options.basePath %>wiki/"
+                            >Wiki</a
+                        >
+                        /
+                        <a
+                            href="<%= htmlWebpackPlugin.options.basePath %>wiki/sections/"
+                            >Ship sections</a
+                        >
+                        / Torpedo bay
+                    </p>
+                    <h1>Torpedo bay</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+
+                    <figure class="figure">
+                        <!-- Capture: assets/icon-torpedo-bay.png (or a full shot) -->
+                        <div class="figure__placeholder">
+                            <span class="figure__placeholder-tag"
+                                >Screenshot needed</span
+                            >
+                            <span class="figure__placeholder-name"
+                                >assets/wiki-section-torpedo-bay.png</span
+                            >
+                            <span class="figure__placeholder-note"
+                                >A torpedo launching from the bay, guidance
+                                trail curving onto a target.</span
+                            >
+                        </div>
+                    </figure>
+
+                    <p>
+                        The torpedo bay fires
+                        <strong>guided torpedoes</strong> that home on the
+                        combat lock with proportional-navigation guidance and
+                        deal <strong>blast (area-of-effect) damage</strong> on
+                        detonation. An arming gate keeps a torpedo from going
+                        off in your own lap.
+                    </p>
+                    <p>
+                        A torpedo is a section like any other, so it inherits
+                        the same physics and mounting rules as the rest of the
+                        build. Where turret fire is precise and pointed,
+                        torpedoes are about zoning and catching clustered or
+                        fragile targets.
+                    </p>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <div id="footer"></div>
+    </body>
+</html>

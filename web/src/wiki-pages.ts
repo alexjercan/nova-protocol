@@ -21,6 +21,12 @@ export interface WikiPage {
     headings: string[];
     // Not yet written - rendered as a muted, non-navigable "coming soon" entry.
     comingSoon?: boolean;
+    // Slug of the parent page, for two-level pages (e.g. each ship section is a
+    // child of "sections"). Children nest under their parent in the sidebar and
+    // appear as an icon+title grid on the parent's overview page.
+    parent?: string;
+    // Icon asset for the parent's child grid (placeholder until captured).
+    icon?: string;
 }
 
 // Sidebar group order.
@@ -43,6 +49,66 @@ export const WIKI_PAGES: WikiPage[] = [
             "The modular parts a ship is built from - hull, controller, thruster, turret and torpedo bay - each with its own mass, health and one behavior.",
         related: ["combat-weapons", "flight-autopilot", "hud"],
         headings: ["Hull", "Controller", "Thruster", "Turret", "Torpedo bay"],
+    },
+    {
+        slug: "sections/hull",
+        title: "Hull",
+        category: "Ships & building",
+        parent: "sections",
+        icon: "assets/icon-hull.png",
+        tags: ["ships"],
+        summary:
+            "Passive structure and armor - the backbone the other sections mount to.",
+        related: ["sections", "combat-weapons"],
+        headings: [],
+    },
+    {
+        slug: "sections/controller",
+        title: "Controller",
+        category: "Ships & building",
+        parent: "sections",
+        icon: "assets/icon-controller.png",
+        tags: ["ships"],
+        summary:
+            "The PD attitude controller that steers the ship; required to fly.",
+        related: ["sections", "flight-autopilot"],
+        headings: [],
+    },
+    {
+        slug: "sections/thruster",
+        title: "Thruster",
+        category: "Ships & building",
+        parent: "sections",
+        icon: "assets/icon-thruster.png",
+        tags: ["ships"],
+        summary:
+            "Produces forward thrust and drives the exhaust plume; analog throttle.",
+        related: ["sections", "flight-autopilot"],
+        headings: [],
+    },
+    {
+        slug: "sections/turret",
+        title: "Turret",
+        category: "Ships & building",
+        parent: "sections",
+        icon: "assets/icon-turret.png",
+        tags: ["ships", "combat"],
+        summary:
+            "An articulated mount that aims with intercept lead and fires bullets.",
+        related: ["sections", "combat-weapons", "targeting-radar"],
+        headings: [],
+    },
+    {
+        slug: "sections/torpedo-bay",
+        title: "Torpedo bay",
+        category: "Ships & building",
+        parent: "sections",
+        icon: "assets/icon-torpedo-bay.png",
+        tags: ["ships", "combat"],
+        summary:
+            "Fires guided, proportional-navigation torpedoes that deal blast damage.",
+        related: ["sections", "combat-weapons"],
+        headings: [],
     },
     {
         slug: "keybinds",
