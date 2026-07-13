@@ -10,13 +10,16 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 
 ## Process lessons
 
-- `diagnostic-first` (x8): trace the exact reported scenario, with real
-  numbers, before theorizing a mechanism. 20260711-140241, 20260712-172035.
+- `diagnostic-first` (x9): trace the exact reported scenario, with real
+  numbers, before theorizing a mechanism. 20260711-140241, 20260712-172035,
+  20260711-183417.
 - `fail-first-regression-ab` (x10, PROMOTED 2026-07-11 -> work skill): prove a
   bug fix by failing its test against the pre-fix behavior; record the numbers.
   20260711-180426.
-- `delivery-guards-on-null-assertions` (x5, PROMOTED 2026-07-11 -> review
-  skill): "nothing happens" tests need proof the stimulus fired. 20260710-231931.
+- `delivery-guards-on-null-assertions` (x6, PROMOTED 2026-07-11 -> review
+  skill): "nothing happens" tests need proof the stimulus fired, IN the same
+  test - a cross-test guard through a shared helper does not count.
+  20260710-231931, 20260711-183417.
 - `verify-first-plan-steps` (x7, PROMOTED 2026-07-11 -> plan skill): plan steps
   that state a mechanism, formula, ordering, API shape, or "system Y will
   accept X" must cite the verifying file; follow data into the consumer's
@@ -153,9 +156,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `would-it-fail-without-it` (x4): a verification that cannot fail with the
   mechanism deleted proves nothing; copied tests inherit vacuousness.
   20260711-180426, 20260711-212521.
-- `out-of-context-review-pass` (positive, x10): a fresh-context review of a
+- `out-of-context-review-pass` (positive, x11): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
-  load-bearing claims instead of trusting them. 20260712-133343.
+  load-bearing claims instead of trusting them - including checking cited
+  evidence IS the spawn site, not a consumer. 20260712-133343, 20260711-183417.
 - `required-component-in-shared-query` (x2): a required fetch added to an
   existing query narrows its membership and every gate computed from it; fetch
   `Option<&T>` or use a separate query. New `Res<T>` params also panic every
@@ -188,6 +192,18 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `spike-reuse-over-new-infra` (x1, positive): when a request implies new
   infrastructure, first check whether an existing substrate covers the real
   need. 20260712-131348.
+- `trace-vehicle-timeline-first` (x1): pick a runtime-evidence rig by its
+  script TIMELINE (when does the stimulus fire, inside the window?), not by
+  scene content; for idle-scene targets the plain app beats any harnessed
+  example. 20260711-183417.
+- `silent-tool-missing-in-pipeline` (x1): a missing launcher (xvfb-run) dies
+  with 127 that a trailing pipeline swallows, reading as a clean empty run;
+  `which` host tools before the first long run and keep launcher exit codes
+  out of pipelines. 20260711-183417.
+- `no-source-edits-during-inflight-builds` (x1): cargo reads a crate's source
+  when it COMPILES it, minutes into a cold build - a tree edited mid-build
+  yields an indeterminate evidence binary; quiesce the tree (or file-copy)
+  for A/B runs. 20260711-183417.
 
 ## Domain lessons (nova-protocol specific)
 
