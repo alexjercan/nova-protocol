@@ -124,4 +124,12 @@ Direction-level tasks this spike seeded, for `/plan` to break into steps:
 
 ## Fix record
 
-(Multi-task spike; each implementing task appends its landing here.)
+- 20260713-225324 (infra) LANDED: `wiki-pages.ts` manifest + `wiki.ts` chrome
+  injector (sidebar, live search, tag chips, see-also), wiki-layout CSS, the
+  manifest-rendered index, and a `wikiPage()` webpack helper. Shipped the index
+  + two real sub-pages (Ship sections, Keybinds); the other eight are coming-soon
+  stubs (non-navigable) for the content tasks to fill. See
+  tasks/20260713-225324/TASK.md.
+- 20260713-225333 (tutorial trim): pending.
+- 20260713-225338 (gameplay pages): pending.
+- 20260713-225353 (world/meta pages): pending.

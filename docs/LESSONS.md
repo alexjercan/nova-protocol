@@ -80,6 +80,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `declared-but-not-loaded` (x1): a resource named in config/markup (font stack,
   asset URL, class hook) is not proof it is wired; grep for where it is actually
   imported/served before assuming it renders. 20260713-222025.
+- `generated-links-need-real-targets` (x1): links rendered from a data manifest
+  must be gated on the target existing (or marked unavailable), or they 404;
+  a coming-soon flag rendered planned-but-unbuilt pages as non-links.
+  20260713-225324.
+- `ci-skips-client-render` (x1): a build-only CI proves the bundle compiles, not
+  that client-rendered UI works; DOM logic needs a runtime check (headless DOM
+  or an eyeball), which a green build does not give. 20260713-225324.
 - `one-cargo-test-filter` (x4): `cargo test` takes one filter and one `-p` per
   invocation; separate runs otherwise. 20260713-082324.
 - `check-all-targets-for-struct-field` (x1): a new non-Default field breaks
