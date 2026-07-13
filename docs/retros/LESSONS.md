@@ -77,11 +77,15 @@ retros.
   headless frame of a loaded scene, inject a `Screenshot::primary_window`
   from the autopilot script at a settled moment (~+2 s) instead.
   20260710-104421.
-- `registered-system-for-change-detection` (x1): run_system_once builds a
+- `registered-system-for-change-detection` (x2): run_system_once builds a
   FRESH system every call, so Changed<T>/Added<T> filters see everything as
   changed and tick-dependent logic false-fires; register the system once
   (world.register_system) and reuse the SystemId. 20260713-082330 (the
-  allegiance-flip clear tests).
+  allegiance-flip clear tests). MessageReader variant: a fresh system also
+  resets the reader CURSOR, so the same message is re-read on the next run
+  (deny-flash test false-failed); any test driving a system with
+  Changed/Added/MessageReader state should register it FROM THE START.
+  20260713-110311.
 - `observer-over-spawn-site` (x1): to attach a derived/flag component to every
   entity of a kind, use an `On<Add, KindMarker>` observer (the repo's
   `on_add_entity_with` pattern) instead of hunting/editing spawn sites - it is

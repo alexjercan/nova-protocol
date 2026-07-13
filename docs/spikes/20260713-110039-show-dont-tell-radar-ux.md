@@ -262,4 +262,20 @@ Direction-level tasks this spike seeded, for /plan to break into steps:
 
 ## Fix record
 
-(appended by the implementing tasks as they land)
+- 20260713-110330 (LANDED 0c99f92, 2026-07-13): live radar lock shipped -
+  slot latched at the Hold threshold from the CURRENT stance (Q1a; the
+  same-frame RMB+CTRL edge is retired), written live every held frame
+  (keep-last Q2a; combat sweeps pin CombatDecay at zero, F12), release
+  observers reduced to teardown. RadarLockAcquired fires once per gesture.
+  Pause pins rephrased for the live model (a pre-pause acquisition
+  sticks). 468 tests; the gesture e2e rig now drives the REAL picker.
+- 20260713-110311 (LANDED 95eb7bb, 2026-07-13): show-don't-tell HUD
+  shipped - inset-on-lock viewfinder (NO-SIGNAL across beacons, Q4a),
+  frame red + armed ticks while hot (Q5a; lead pips color-only, the
+  documented exception), caption name+distance gesture-time only (Q6a,
+  applied literally), status text block deleted, unlatch ghosts + LockOn/
+  LockOff/SafetyOn/RadarDeny placeholder cues (Q3a/Q7a/Q8a; the F7 deny
+  gap actually closed; the 082337 safety blip absorbed from 090653). The
+  inset panel also moved below the bcs status bar (user playtest note,
+  top 12 -> 44 px). 471 tests; 12_hud_range asserts the viewfinder
+  mid-sweep.
