@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-07-13
+
 ### Fixed
 
 - The web build no longer quits with a fatal render validation error on New Game / editor Play: the target inset's render target used a view-format override (`view_formats`), which WebGL2 does not support; it is now a plain sRGB target
@@ -141,7 +143,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic spaceship sections
 - Editor and simulation scenes
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.5.0...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/alexjercan/nova-protocol/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/alexjercan/nova-protocol/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/alexjercan/nova-protocol/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/alexjercan/nova-protocol/compare/v0.3.1...v0.4.0
