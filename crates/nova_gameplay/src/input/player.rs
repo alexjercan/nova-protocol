@@ -384,7 +384,6 @@ fn update_turret_target_input(
             Entity,
             Option<&CombatLock>,
             Option<&ComponentLock>,
-            Option<&WeaponsRaised>,
         ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
@@ -396,7 +395,7 @@ fn update_turret_target_input(
     q_section_position: Query<&GlobalTransform, With<SectionMarker>>,
 ) {
     let point_rotation = point_rotation.into_inner();
-    let (transform, com, spaceship, lock, component, raised) = spaceship.into_inner();
+    let (transform, com, spaceship, lock, component) = spaceship.into_inner();
     let lock = lock.and_then(|lock| lock.0);
     let component_section = component.and_then(|component| component.section);
 
@@ -434,18 +433,13 @@ fn update_turret_target_input(
         let forward = **point_rotation * Vec3::NEG_Z;
         (position + forward * 100.0, Vec3::ZERO)
     };
-    // Manual gunnery (deliberate-radar spike 20260713-082207, manual-wins):
-    // while the weapons are RAISED (RMB held) the turrets follow the look ray
-    // instead of the auto-fire lock tiers - the side-shot on a second target
-    // without giving up the lock. Release -> the lock tiers take over again.
-    // Re-keyed from the retired CTRL free-aim (CTRL is the radar now); the
-    // full stance semantics land in 20260713-082337.
-    let manual = raised.is_some_and(|raised| raised.0);
-    let (target_point, target_velocity) = if manual {
-        ray_tier
-    } else {
-        component_tier.or(lock_tier).unwrap_or(ray_tier)
-    };
+    // LOCK-WINS routing (playtest verdict 2026-07-13, task 20260713-121605,
+    // flipping the manual-wins knob from spike 20260713-082207): a combat
+    // lock holds the turrets even while RAISED - moving the cursor must not
+    // pull them off the target; tap CTRL (clearing the lock) is the explicit
+    // road back to manual. With NO lock, the ray tier IS the raised manual
+    // aim, so no stance special-case remains - the pure three-tier feed.
+    let (target_point, target_velocity) = component_tier.or(lock_tier).unwrap_or(ray_tier);
 
     for (mut turret, mut velocity, _) in q_turret
         .iter_mut()
@@ -1937,11 +1931,12 @@ mod tests {
     }
 
     #[test]
-    fn raised_manual_aim_wins_over_the_lock() {
-        // Manual gunnery (deliberate-radar spike, manual-wins): while the
-        // weapons are RAISED the turret ignores the lock - even a component
-        // lock, the strongest tier - and tracks the look ray. Would fail if
-        // the feed still let the lock tiers win while raised.
+    fn the_combat_lock_holds_the_turrets_even_while_raised() {
+        // LOCK-WINS routing (playtest verdict 2026-07-13, task
+        // 20260713-121605, flipping the manual-wins knob): while RAISED with
+        // a combat lock, moving the cursor must NOT pull the turrets off the
+        // target - the lock tiers win. This test fails against the retired
+        // manual-wins feed by construction (it asserted the look ray here).
         let (mut world, ship, turret, _, section) = turret_feed_world();
         world.get_mut::<ComponentLock>(ship).unwrap().section = Some(section);
         world.entity_mut(ship).insert(WeaponsRaised(true));
@@ -1949,27 +1944,30 @@ mod tests {
         let (point, velocity) = turret_feed(&mut world, turret);
         assert_eq!(
             point,
+            Some(Vec3::new(1.0, 0.5, -199.0)),
+            "raised with a lock: the turrets stay on the locked section"
+        );
+        assert_eq!(
+            velocity,
+            Vec3::new(7.0, 0.0, 0.0),
+            "the lock tier carries the target's lead velocity"
+        );
+
+        // Tap-clear (the lock and its fine-lock go away): still raised, the
+        // turrets hand over to the cursor - manual gunnery is the NO-LOCK
+        // stance now.
+        world.get_mut::<CombatLock>(ship).unwrap().0 = None;
+        world.get_mut::<ComponentLock>(ship).unwrap().section = None;
+        let (point, velocity) = turret_feed(&mut world, turret);
+        assert_eq!(
+            point,
             Some(Vec3::new(0.0, 0.0, -100.0)),
-            "raised detaches the turret to the look ray, not the locked section"
+            "clearing the lock hands the turrets to the look ray"
         );
         assert_eq!(
             velocity,
             Vec3::ZERO,
             "manual aim commands a point, no lead velocity"
-        );
-
-        // Lowering snaps back to the lock feed (the component tier).
-        world.entity_mut(ship).insert(WeaponsRaised(false));
-        let (point, velocity) = turret_feed(&mut world, turret);
-        assert_eq!(
-            point,
-            Some(Vec3::new(1.0, 0.5, -199.0)),
-            "lowering resumes the component lock"
-        );
-        assert_eq!(
-            velocity,
-            Vec3::new(7.0, 0.0, 0.0),
-            "lock root velocity is back"
         );
     }
 }

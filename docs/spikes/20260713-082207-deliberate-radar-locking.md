@@ -84,6 +84,12 @@ second target without giving up the lock, the job CTRL free-aim used to do);
 with RMB released and a combat lock held, turrets auto-track the lock (the
 existing three-tier feed).
 
+> PLAYTEST VERDICT (2026-07-13, task 20260713-121605): FLIPPED to
+> lock-wins. Moving the cursor while raised pulled the guns off the lock,
+> which read as a bug in play; the combat lock now holds the turrets even
+> while RMB is held, and tap-CTRL (clearing the lock) is the road back to
+> manual. The side-shot trade was accepted knowingly.
+
 ### Pools and ranges
 
 Anything lockable is eligible for BOTH locks ("combat mode is combat mode" -
@@ -174,6 +180,7 @@ not sections. The travel lock gets no dwell/inset.
   caught a candidate clears instead of locking - acceptable? (Deliberate
   radar takes longer than a tap by construction.)
 - Turret routing default (manual-wins-while-RMB-held) - confirm in playtest.
+  ANSWERED 2026-07-13: flipped to lock-wins (task 20260713-121605).
 - Safety gating torpedo launch (default: yes) - or launch-anytime?
 - Range knob values (asteroid ~200 m, debris ~5 m examples) - tune against
   04_asteroids and the shakedown scenario.
