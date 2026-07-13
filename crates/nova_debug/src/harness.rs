@@ -163,6 +163,17 @@ fn assert_scenario_loaded_payload(
         loaded.scenario_id, loaded.handler_count, loaded.object_count
     );
 
+    // The smoke contract covers the FIRST load only: the app must boot
+    // into the expected scenario with real content. LATER loads are
+    // legitimate gameplay (completing an objective advances to the next
+    // scenario, which may be an object-less epilogue) - an assertion that
+    // stays armed panics the whole app on the player's first success
+    // (playtest 2026-07-13: finishing asteroid_field crashed on the
+    // asteroid_next transition).
+    if assertion.fired {
+        return;
+    }
+
     assert_eq!(
         loaded.scenario_id, assertion.expected_id,
         "smoke: ScenarioLoaded reported scenario id {:?}, expected {:?}",
@@ -191,4 +202,39 @@ fn assert_scenario_loaded_fired(assertion: Res<ScenarioLoadAssertion>) {
         "smoke: reached Playing but ScenarioLoaded for {:?} never fired -- scenario init silently failed",
         assertion.expected_id
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The smoke assertion covers the FIRST load only: a later legitimate
+    /// scenario transition (completing an objective -> an object-less
+    /// epilogue scenario) must NOT panic the app (playtest 2026-07-13:
+    /// finishing asteroid_field crashed on the asteroid_next load).
+    #[test]
+    fn a_second_scenario_load_is_not_the_smoke_contract() {
+        let mut world = World::new();
+        world.insert_resource(ScenarioLoadAssertion {
+            expected_id: "asteroid_field".to_string(),
+            fired: false,
+        });
+        world.add_observer(assert_scenario_loaded_payload);
+
+        // The boot load: matches the contract, arms `fired`.
+        world.trigger(ScenarioLoaded {
+            scenario_id: "asteroid_field".to_string(),
+            handler_count: 5,
+            object_count: 12,
+        });
+        assert!(world.resource::<ScenarioLoadAssertion>().fired);
+
+        // The gameplay transition: different id, ZERO objects - both would
+        // have tripped the old always-armed asserts. Must be a no-op.
+        world.trigger(ScenarioLoaded {
+            scenario_id: "asteroid_next".to_string(),
+            handler_count: 1,
+            object_count: 0,
+        });
+    }
 }

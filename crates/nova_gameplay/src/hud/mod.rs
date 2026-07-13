@@ -357,8 +357,12 @@ fn remove_screen_indicator_camera(
     mut commands: Commands,
 ) {
     debug!("remove_screen_indicator_camera: entity {:?}", remove.entity);
+    // try_remove, not remove: get_entity only proves the entity exists at
+    // QUEUE time - a scenario teardown despawns the camera in the same
+    // command flush, and the plain remove then warns "entity despawned"
+    // (playtest 2026-07-13, the asteroid_next transition).
     if let Ok(mut camera) = commands.get_entity(remove.entity) {
-        camera.remove::<ScreenIndicatorCamera>();
+        camera.try_remove::<ScreenIndicatorCamera>();
     }
 }
 
