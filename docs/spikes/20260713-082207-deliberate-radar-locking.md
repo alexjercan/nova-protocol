@@ -345,6 +345,36 @@ the travel gesture tax (one deliberate hold+release per designation); the
 componentization/respawn inheritance; every spike code citation spot-checked
 accurate.
 
+## Decisions on the adversarial round (2026-07-13, user)
+
+- **D1 ACCEPTED**: radar release with no candidate is a NO-OP - the old lock
+  survives; "sweep off and release" is the radar abort gesture.
+- **D2 ACCEPTED**: the commit slot is LATCHED at CTRL press; the provisional
+  hollow crosshair renders in the latched slot's color (white/red) for the
+  whole hold. Same-frame CTRL+RMB races resolve by the latch.
+- **D3 ACCEPTED as (a) staged clear**: tap clears the combat lock if one
+  exists; a second tap clears the travel lock (and disengages an engaged
+  GOTO). In combat mode (RMB held) tap clears the combat lock only, as
+  before. A "LOCKS CLEARED"-style toast names what was cleared.
+- **D4 ACCEPTED with tuning**: the combat lock decays - safety back ON - after
+  **30 s without combat activity** (const knob; activity = raised or firing).
+  Plus the loud weapons-hot indicator.
+- **D5 ACCEPTED as (a)**: ammo-HUD commit readout ("TORP -> <target>" /
+  "TORP: DUMB").
+- **D6 DEFERRED**: do not stress gamepad ergonomics now; keybind improvement +
+  customizable bindings in settings are backlog (existing tasks
+  20260710-231927 and 20260711-180511 extended with the radar/pad notes -
+  press-toggle radar is the candidate remedy when picked up).
+- **D7 ACCEPTED** (folded, no veto): incumbent hysteresis on the provisional
+  candidate + a name label on the hollow crosshair.
+- **D8 ACCEPTED**: GOTO captures its target at [G]; the GOTO row shows the
+  actual destination name; re-designating the travel lock does not re-route
+  an engaged autopilot.
+- **D9 ACCEPTED**: the ranked tracker survives as the always-on threat set
+  (edge arrows keep working); the on-screen candidate list HUD is retired.
+- Shakedown rework/polish (teach the radar, text updates, lock capability)
+  filed as its own post-family task.
+
 ## Fix record
 
-(tasks not started yet; decision list D1-D9 pending user)
+(tasks planned 2026-07-13 with the decisions folded in; not started)

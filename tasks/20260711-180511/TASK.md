@@ -13,3 +13,9 @@ Notes:
 - Spike: docs/spikes/20260711-180500-main-menu.md
 - Parent task: 20260711-174915
 
+
+- 2026-07-13 (deliberate-radar spike 20260713-082207, decision D6): keybinds
+  in settings should cover the radar-era bindings (radar hold/tap, raise,
+  wheel section-cycle) and gamepad alternatives (press-toggle radar) - see
+  task 20260710-231927 for the remap mechanics; this task owns the settings
+  UI surface.
