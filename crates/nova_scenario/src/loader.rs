@@ -144,6 +144,12 @@ impl Plugin for ScenarioLoaderPlugin {
         // rings at max(clearance band, engage radius).
         app.register_type::<OrbitHold>();
         app.add_systems(Update, track_orbit_holds.run_if(scenario_is_live));
+
+        // The player-lock bridge behind `EventConfig::OnTravelLock` /
+        // `OnCombatLock` (beat-sheet-v2 spike 20260713-140742): lock
+        // lessons tick the instant the lock lands.
+        app.register_type::<LockEcho>();
+        app.add_systems(Update, track_player_locks.run_if(scenario_is_live));
     }
 }
 
@@ -241,6 +247,105 @@ fn track_orbit_holds(
                     held_secs: 0.0,
                 });
             }
+        }
+    }
+}
+
+/// Re-fire period (seconds) for a HELD lock. Acquisition fires immediately;
+/// while the lock stays on the same target the event RECURS on this period
+/// - the orbit-hold rationale (review R1.1 of 20260712-110730): a one-shot
+/// event consumed under a rejecting beat guard is gone for good, and a
+/// scenario whose beat advances while the lock is already held would
+/// soft-lock. Beat-gated handlers make the repeats no-ops.
+const LOCK_REFIRE_SECS: f32 = 5.0;
+
+/// Bookkeeping for the player-lock bridge: per slot, the last target the
+/// bridge saw and the seconds since it last fired for it.
+#[derive(Component, Clone, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct LockEcho {
+    travel: Option<(Entity, f32)>,
+    combat: Option<(Entity, f32)>,
+}
+
+/// One lock slot's tick: returns `Some(target)` when the bridge should
+/// fire this frame - on ACQUISITION (the slot's value changed onto a
+/// target; the slot writers are equality-skipped, so a held live-radar
+/// lock does not churn this) and again every [`LOCK_REFIRE_SECS`] while
+/// the same target stays held. Pure for the unit tests.
+fn tick_lock_slot(
+    state: &mut Option<(Entity, f32)>,
+    current: Option<Entity>,
+    delta_secs: f32,
+) -> Option<Entity> {
+    match (current, state.as_mut()) {
+        (None, _) => {
+            *state = None;
+            None
+        }
+        (Some(target), Some((held, secs))) if *held == target => {
+            *secs += delta_secs;
+            if *secs >= LOCK_REFIRE_SECS {
+                *secs = 0.0;
+                Some(target)
+            } else {
+                None
+            }
+        }
+        (Some(target), _) => {
+            *state = Some((target, 0.0));
+            Some(target)
+        }
+    }
+}
+
+/// Fire [`OnTravelLockEvent`]/[`OnCombatLockEvent`] when the PLAYER's lock
+/// slots land on scenario objects. Player-scoped on purpose: the AI combat
+/// mirror (nova_gameplay input/ai.rs) writes `CombatLock` on every engaged
+/// AI ship, and an unscoped bridge would fire for all of them. The event's
+/// `id` is the locked TARGET's scenario id (a target without one - debris,
+/// editor previews - fires nothing; the re-fire window retries, mirroring
+/// the orbit tracker's R1.2), `other` is the player ship - OnEnter's
+/// (area, other) shape, so filters compose identically.
+fn track_player_locks(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut q_ships: Query<
+        (
+            Entity,
+            &TravelLock,
+            &CombatLock,
+            Option<&mut LockEcho>,
+            &EntityId,
+            &EntityTypeName,
+        ),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
+    q_ids: Query<&EntityId>,
+) {
+    for (ship, travel, combat, echo, ship_id, ship_type_name) in &mut q_ships {
+        let Some(mut echo) = echo else {
+            // First sight of this player ship: arm the bookkeeping; the
+            // next frame ticks it (an already-held lock then reads as an
+            // acquisition, which is the honest interpretation on spawn).
+            commands.entity(ship).insert(LockEcho::default());
+            continue;
+        };
+        let fired_travel = tick_lock_slot(&mut echo.travel, travel.0, time.delta_secs());
+        let fired_combat = tick_lock_slot(&mut echo.combat, combat.0, time.delta_secs());
+        if let Some(target_id) = fired_travel.and_then(|target| q_ids.get(target).ok()) {
+            commands.fire::<OnTravelLockEvent>(OnTravelLockEventInfo {
+                id: target_id.0.clone(),
+                other_id: ship_id.0.clone(),
+                other_type_name: ship_type_name.0.clone(),
+            });
+        }
+        if let Some(target_id) = fired_combat.and_then(|target| q_ids.get(target).ok()) {
+            commands.fire::<OnCombatLockEvent>(OnCombatLockEventInfo {
+                id: target_id.0.clone(),
+                other_id: ship_id.0.clone(),
+                other_type_name: ship_type_name.0.clone(),
+            });
         }
     }
 }
@@ -722,6 +827,159 @@ mod tests {
             3.0,
             "a fresh engagement fires on a fresh clock"
         );
+    }
+
+    // -- the player-lock bridge (beat-sheet-v2 spike 20260713-140742) --
+
+    #[test]
+    fn a_lock_slot_fires_on_acquisition_then_echoes_per_window() {
+        let a = Entity::from_raw_u32(1).unwrap();
+        let b = Entity::from_raw_u32(2).unwrap();
+        let mut state = None;
+
+        // Acquisition fires immediately.
+        assert_eq!(tick_lock_slot(&mut state, Some(a), 0.1), Some(a));
+        // Held: quiet until the echo window elapses, then one re-fire.
+        assert_eq!(tick_lock_slot(&mut state, Some(a), 2.0), None);
+        assert_eq!(tick_lock_slot(&mut state, Some(a), 2.0), None);
+        assert_eq!(
+            tick_lock_slot(&mut state, Some(a), 2.0),
+            Some(a),
+            "a held lock echoes once per window (the anti-soft-lock recurrence)"
+        );
+        assert_eq!(tick_lock_slot(&mut state, Some(a), 2.0), None);
+        // A live-radar retarget is a fresh acquisition on a fresh clock.
+        assert_eq!(tick_lock_slot(&mut state, Some(b), 0.1), Some(b));
+        assert_eq!(tick_lock_slot(&mut state, Some(b), 2.0), None);
+        // Clearing re-arms: the next lock is an acquisition again.
+        assert_eq!(tick_lock_slot(&mut state, None, 0.1), None);
+        assert_eq!(tick_lock_slot(&mut state, Some(b), 0.1), Some(b));
+    }
+
+    /// The bridge end to end through the real event pipeline: a travel
+    /// lock ticks a travel handler, a combat lock a combat handler, an AI
+    /// ship's combat lock ticks NOTHING, and a target without a scenario
+    /// id is quiet (delivery-guarded by the fires before it).
+    #[test]
+    fn player_locks_fire_their_events_and_ai_locks_never_do() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+        use bevy_common_systems::prelude::{EventHandler, GameEventsPlugin, GameObjectives};
+        use nova_gameplay::prelude::{
+            CombatLock, PlayerSpaceshipMarker, SpaceshipRootMarker, TravelLock,
+        };
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            0.2,
+        )));
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
+        app.add_systems(Update, track_player_locks.run_if(scenario_is_live));
+
+        // Counting handlers: one per slot, filtered on the beacon's id.
+        let count_into = |key: &str| -> EventActionConfig {
+            EventActionConfig::VariableSet(VariableSetActionConfig {
+                key: key.to_string(),
+                expression: VariableExpressionNode::new_add(
+                    VariableTermNode::new_factor(VariableFactorNode::new_name(key.to_string())),
+                    VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
+                    )),
+                ),
+            })
+        };
+        for (config, key) in [
+            (EventConfig::OnTravelLock, "travel_locks"),
+            (EventConfig::OnCombatLock, "combat_locks"),
+        ] {
+            let mut handler = EventHandler::<NovaEventWorld>::from(config);
+            handler.add_filter(EventFilterConfig::Entity(EntityFilterConfig {
+                id: Some("beacon_3".to_string()),
+                other_id: Some("player_spaceship".to_string()),
+                ..default()
+            }));
+            handler.add_action(count_into(key));
+            app.world_mut().spawn(handler);
+            app.world_mut()
+                .resource_mut::<NovaEventWorld>()
+                .insert_variable(key.to_string(), VariableLiteral::Number(0.0));
+        }
+        let count = |app: &App, key: &str| -> f64 {
+            match app.world().resource::<NovaEventWorld>().get_variable(key) {
+                Some(VariableLiteral::Number(n)) => *n,
+                other => panic!("{key} variable missing: {:?}", other),
+            }
+        };
+
+        let beacon = app
+            .world_mut()
+            .spawn(EntityId::new("beacon_3".to_string()))
+            .id();
+        let unnamed = app.world_mut().spawn_empty().id();
+        let player = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                EntityId::new("player_spaceship".to_string()),
+                EntityTypeName::new("spaceship".to_string()),
+                TravelLock(None),
+                CombatLock(None),
+            ))
+            .id();
+        // An AI ship with a combat lock on the SAME beacon (the combat
+        // mirror writes these constantly): must never fire.
+        app.world_mut().spawn((
+            SpaceshipRootMarker,
+            EntityId::new("scavenger".to_string()),
+            EntityTypeName::new("spaceship".to_string()),
+            TravelLock(None),
+            CombatLock(Some(beacon)),
+        ));
+        // Arm the echo bookkeeping (first frame inserts it).
+        app.update();
+        app.update();
+
+        // Travel acquisition: one travel fire, no combat fire.
+        app.world_mut().get_mut::<TravelLock>(player).unwrap().0 = Some(beacon);
+        app.update();
+        app.update();
+        assert_eq!(count(&app, "travel_locks"), 1.0, "travel lock ticks");
+        assert_eq!(count(&app, "combat_locks"), 0.0);
+
+        // Combat acquisition on the same target: the combat handler ticks.
+        app.world_mut().get_mut::<CombatLock>(player).unwrap().0 = Some(beacon);
+        app.update();
+        app.update();
+        assert_eq!(count(&app, "combat_locks"), 1.0, "combat lock ticks");
+
+        // Holding both under the echo window: quiet (once per acquisition).
+        for _ in 0..5 {
+            app.update();
+        }
+        assert_eq!(count(&app, "travel_locks"), 1.0);
+        assert_eq!(count(&app, "combat_locks"), 1.0);
+
+        // A target with no scenario id: quiet (the fires above are the
+        // delivery guard that the pipeline works).
+        app.world_mut().get_mut::<TravelLock>(player).unwrap().0 = Some(unnamed);
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(
+            count(&app, "travel_locks"),
+            1.0,
+            "an id-less target fires nothing"
+        );
+
+        // The AI ship's lock sat on beacon_3 the whole test: still zero
+        // fires beyond the player's own (the player-scope pin).
+        assert_eq!(count(&app, "combat_locks"), 1.0, "AI locks never fire");
     }
 
     #[test]

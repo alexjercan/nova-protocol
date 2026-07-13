@@ -19,6 +19,13 @@ pub enum EventConfig {
     /// window (the orbit-hold tracker in loader.rs fires it once per
     /// engagement). Filters like OnEnter: id = the well, other = the ship.
     OnOrbit,
+    /// The player's TRAVEL lock landed on a scenario object (the lock
+    /// bridge in loader.rs fires it once per acquisition). Filters like
+    /// OnEnter: id = the locked target, other = the player ship.
+    OnTravelLock,
+    /// The player's COMBAT lock landed on a scenario object. Same contract
+    /// as OnTravelLock.
+    OnCombatLock,
 }
 
 impl From<EventConfig> for EventHandler<NovaEventWorld> {
@@ -30,6 +37,8 @@ impl From<EventConfig> for EventHandler<NovaEventWorld> {
             EventConfig::OnEnter => EventHandler::new::<OnEnterEvent>(),
             EventConfig::OnExit => EventHandler::new::<OnExitEvent>(),
             EventConfig::OnOrbit => EventHandler::new::<OnOrbitEvent>(),
+            EventConfig::OnTravelLock => EventHandler::new::<OnTravelLockEvent>(),
+            EventConfig::OnCombatLock => EventHandler::new::<OnCombatLockEvent>(),
         }
     }
 }

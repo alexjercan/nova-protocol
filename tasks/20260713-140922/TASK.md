@@ -1,8 +1,25 @@
 # OnLock scenario event: bridge the lock components into the event vocabulary
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.5.0,scenario,events,spike
+
+## Outcome (CLOSED 2026-07-13)
+
+Shipped per plan with ONE deliberate deviation: the bridge is NOT
+once-per-acquisition - acquisition fires immediately AND a held lock
+echoes every LOCK_REFIRE_SECS (5 s), following the orbit tracker's R1.1
+rationale (a one-shot consumed under a rejecting beat guard soft-locks
+any scenario whose beat advances while the lock is already held;
+beat-gated handlers make repeats no-ops). Implemented as a pure
+`tick_lock_slot` (unit-tested: acquire/echo/retarget/clear-re-arm) driven
+by `track_player_locks` with a `LockEcho` component - poll-and-compare
+instead of Changed filters, so the dedup is explicit state. Player-scoped
+(the AI mirror writes CombatLock on AI ships; pinned by the e2e test:
+an AI lock on the same target never fires). Id-less targets fire nothing
+(the echo retries, orbit R1.2 parity). E2e through the real pipeline:
+travel and combat handlers tick their variables, filters compose like
+OnEnter. 37 nova_scenario tests green; fmt + workspace check clean.
 
 ## Goal
 
@@ -15,13 +32,13 @@ unchanged; one loader bridge fires both.
 
 ## Steps
 
-- [ ] nova_events: add `OnTravelLockEvent`/`OnTravelLockEventInfo` and
+- [x] nova_events: add `OnTravelLockEvent`/`OnTravelLockEventInfo` and
       `OnCombatLockEvent`/`OnCombatLockEventInfo`, both `{ id, other_id,
       other_type_name }` - the exact `OnOrbitEventInfo` shape
       (nova_events/src/lib.rs:94); export via the prelude.
-- [ ] nova_scenario events.rs: `EventConfig::OnTravelLock` / `OnCombatLock`
+- [x] nova_scenario events.rs: `EventConfig::OnTravelLock` / `OnCombatLock`
       variants mapping to `EventHandler::new::<...>()` (events.rs:27 match).
-- [ ] loader.rs: `track_player_locks` bridge - query the PLAYER ship's
+- [x] loader.rs: `track_player_locks` bridge - query the PLAYER ship's
       `TravelLock` + `CombatLock` with `Changed<...>` filters, scoped
       `With<PlayerSpaceshipMarker>` (VERIFY-FIRST constraint: the AI combat
       mirror writes CombatLock on AI ships every engagement change,
@@ -32,14 +49,14 @@ unchanged; one loader bridge fires both.
       player ship's. Once-per-acquisition falls out of change detection:
       the slot writers are equality-skipped (targeting.rs radar search),
       so a held live-lock on the same target does not re-fire.
-- [ ] Register beside `track_orbit_holds` with `run_if(scenario_is_live)`
+- [x] Register beside `track_orbit_holds` with `run_if(scenario_is_live)`
       (loader.rs:146 production, :631 test wiring).
-- [ ] Tests (loader.rs, the orbit-hold test shapes): acquisition fires the
+- [x] Tests (loader.rs, the orbit-hold test shapes): acquisition fires the
       right variant once with the right ids; a live-radar retarget onto a
       SECOND id fires for it; re-designating the SAME target is quiet
       (delivery-guarded by the first fire); an AI ship's CombatLock write
       never fires; a lock on a body without an EntityId is quiet.
-- [ ] fmt + check; nova_scenario suite.
+- [x] fmt + check; nova_scenario suite.
 
 ## Notes
 
