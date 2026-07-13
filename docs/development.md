@@ -111,8 +111,8 @@ profile (it does not support custom cargo profiles). The GitHub Pages deploy is 
 
 ## Versioning and release
 
-- Workspace version lives in root `Cargo.toml` under `workspace.package.version`
-  (currently `0.3.1`); crates inherit it via `version = { workspace = true }`.
+- Workspace version lives in root `Cargo.toml` under `workspace.package.version`;
+  crates inherit it via `version = { workspace = true }`.
 - `nova_info::APP_VERSION` is set at build time from the `APP_VERSION` env var
   (wired through `build.rs`).
 - Native packaging assets (Windows icon/installer, macOS `.app`/iconset) are under
@@ -124,15 +124,23 @@ Releases are driven entirely by git tags. Pushing a tag matching `v[0-9]+.[0-9]+
 triggers the `release-flow` workflow (`.github/workflows/release.yaml`), which builds and
 publishes the platform artifacts. Steps, done on `master`:
 
-1. Bump `workspace.package.version` in root `Cargo.toml` (e.g. `0.3.0` -> `0.3.1`).
-2. Refresh `Cargo.lock` so the workspace crates pick up the new version
-   (`cargo metadata --format-version 1 >/dev/null`, or any build).
+1. Bump `workspace.package.version` in root `Cargo.toml` (e.g. `0.4.1` -> `0.5.0`).
+2. Refresh `Cargo.lock` so the workspace crates pick up the new version:
+   `cargo metadata --format-version 1 >/dev/null` (or any build).
 3. Update `CHANGELOG.md` (Keep a Changelog format, entries attributed like
-   `@alexjercan ...`): promote `[Unreleased]` to `[<version>] - <YYYY-MM-DD>` and leave a
-   fresh empty `[Unreleased]` on top.
-4. Commit the bump (`chore(release): vX.Y.Z`).
+   `@alexjercan ...`):
+   - promote `[Unreleased]` to `[<version>] - <YYYY-MM-DD>` and leave a fresh empty
+     `## [Unreleased]` heading on top;
+   - merge any duplicate section headings that accumulated under `[Unreleased]`
+     during the cycle (a long cycle tends to grow a second `### Changed`);
+   - update the compare links at the bottom of the file: repoint `[unreleased]` to
+     `compare/v<version>...HEAD` and add a `[<version>]` compare line below it.
+4. Commit exactly those three files as `chore(release): vX.Y.Z`:
+   `git add Cargo.toml Cargo.lock CHANGELOG.md && git commit -m "chore(release): vX.Y.Z"`.
 5. Tag it: `git tag vX.Y.Z` (the tag name is what CI reads for the release name).
 6. Push both: `git push origin master && git push origin vX.Y.Z`.
+7. Watch the run until the assets land: `gh run watch` (or
+   `gh run list --workflow=release.yaml`), then check the GitHub release page.
 
 CI then runs four jobs off the tagged commit and uploads the assets to a GitHub release
 named after the tag:
