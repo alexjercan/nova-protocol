@@ -5,7 +5,7 @@
 - TAGS: v0.4.0,audio,juice,bug,spike
 
 Spike: docs/spikes/20260709-091536-combat-cue-propagation-dedup.md
-Source: PR #54 review F1/F3/F4 (docs/reviews/20260709-pr54-combat-juice.md);
+Source: PR #54 review F1/F3/F4 (tasks/20260708-162013/REVIEW.md);
 supersedes the "key by IntegrityRoot" note in CLOSED task 20260708-215922 and
 PR #53 review F3.
 

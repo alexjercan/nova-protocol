@@ -20,7 +20,9 @@ Each folder has a README indexing its files. Files are named
   [retros/LESSONS.md](retros/LESSONS.md) is the distilled lessons ledger - read it before starting work.
 - [spikes/](spikes/README.md) - exploratory research that landed on a direction.
 - [plans/](plans/README.md) - long-form plans spanning multiple tasks.
-- [reviews/](reviews/README.md) - standalone review notes (task reviews live in `tasks/<id>/REVIEW.md`).
+
+Reviews are not kept here: every review lives next to its task as
+`tasks/<id>/REVIEW.md` (PR-level reviews go on the PR's primary task).
 
 ## After a meaningful change
 

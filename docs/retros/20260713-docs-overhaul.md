@@ -25,6 +25,10 @@ easy to read for both humans and LLMs.
   `worktree-shares-main-target`, which recommended sharing `CARGO_TARGET_DIR`
   with the main checkout - the thing 20260709-131502 proved unsafe.
 
+- Follow-up the same day: `docs/reviews/` removed; the two PR-level reviews
+  were appended to their primary task's `tasks/<id>/REVIEW.md`, so ALL reviews
+  now live next to their task.
+
 ## Difficulties
 
 - The /compound skill hardcodes `docs/retros/LESSONS.md` and lives in a

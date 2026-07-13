@@ -81,7 +81,8 @@ States: `GameStates::{Loading, MainMenu, Playing}` and
 ## Docs, tasks, versioning
 
 - `docs/README.md` indexes all documentation: architecture, scenario system,
-  sections, development (build/web/release), plus retros, reviews, spikes, plans.
+  sections, development (build/web/release), plus retros, spikes, plans.
+  Reviews live next to their task as `tasks/<id>/REVIEW.md`.
 - Tasks: `tatr` CLI, markdown files under `tasks/`. Check the backlog before
   starting, close tasks when done. Skills: /plan, /work, /review, /compound, /flow.
 - Version lives in root `Cargo.toml` (`workspace.package.version`). Notable

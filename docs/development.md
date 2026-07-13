@@ -111,4 +111,4 @@ Work items: `tatr` CLI, markdown under `tasks/`. Check the backlog before
 starting, close tasks when done. The plan-work-review-retro loop is the
 `/plan`, `/work`, `/review`, `/compound` skills (plus `/flow` for the whole
 cycle). Retros land in `docs/retros/`, spikes in `docs/spikes/`, plans in
-`docs/plans/`, review notes in `docs/reviews/`.
+`docs/plans/`; reviews live next to their task as `tasks/<id>/REVIEW.md`.
