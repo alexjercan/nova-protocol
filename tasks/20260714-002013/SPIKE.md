@@ -233,4 +233,9 @@ their authoritative content):
 
 ## Fix record
 
-(Content authored per page will be recorded by the implementing tasks.)
+- 20260713-225338 LANDED: HUD, Flight & autopilot, Targeting & radar, Combat &
+  weapons, Gravity wells authored from this spike; fixed the flight manifest
+  summary (manual is Newtonian, autopilot is the assist - no FA toggle/Z/RCS).
+- 20260713-225353 LANDED: Factions, Scenarios, Modding authored; Modding is a
+  live "code-only today, RON planned" page. All coming-soon flags cleared - the
+  whole wiki (11 pages) is now live with no dead links.
