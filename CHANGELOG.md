@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - The thruster hum now attenuates with distance per ship: another ship's (or a torpedo's) burn no longer plays at full volume in your ear from anywhere in the scene. Your own ship is exempt, so the hum does not fade when the camera pulls back (orbit survey). Side effect: the main-menu backdrop ship's hum now fades with its orbit distance instead of droning at full throttle gain
+- Scenario teardown no longer logs an "Entity despawned" command error when a ship despawns with its autopilot engaged: the telemetry-cleanup observer queued a remove against the very entity whose despawn triggered it; it now uses the fallible variant. The two suspected cross-entity variants of the race (camera handover, dominant-well strip) were probed and refuted - regression tests pin the command ordering that keeps them safe
 
 ## [0.5.1] - 2026-07-13
 

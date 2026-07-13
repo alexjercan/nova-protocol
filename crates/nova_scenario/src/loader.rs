@@ -579,6 +579,15 @@ fn on_player_spaceship_destroyed(
 
     let camera = camera.into_inner();
 
+    // Plain remove/insert are safe here even during the unload sweep: this
+    // observer's commands apply BEFORE the queue's remaining despawns
+    // (probed in 20260712-115902 - see
+    // `a_player_ships_despawn_does_not_race_the_cameras`, which pins that
+    // ordering), and the `Single` only resolves a live camera; when the
+    // camera's despawn applied first, the observer skips entirely. Only
+    // commands targeting the entity whose OWN despawn triggered the
+    // observer race - that is remove_maneuver_telemetry's case, not this
+    // one.
     commands
         .entity(camera)
         .remove::<SpaceshipCameraController>()
@@ -588,6 +597,103 @@ fn on_player_spaceship_destroyed(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// In-memory log sink for asserting on command warns (duplicate of
+    /// nova_gameplay's crate-private `test_log::CapturedLog` - a shared
+    /// test-util crate is not worth one 20-line helper). `remove`/`despawn`
+    /// bake in the WARN handler at queue time, so warns are only observable
+    /// through the log (task 20260712-115902).
+    #[derive(Clone, Default)]
+    struct CapturedLog(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+    impl CapturedLog {
+        fn contents(&self) -> String {
+            String::from_utf8_lossy(&self.0.lock().unwrap()).into_owned()
+        }
+        fn clear(&self) {
+            self.0.lock().unwrap().clear();
+        }
+    }
+
+    impl std::io::Write for CapturedLog {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// ORDERING PIN (task 20260712-115902): cross-entity observer commands
+    /// do NOT race the unload sweep. Sweep-style queue [despawn(ship),
+    /// despawn(camera)]: the ship's despawn fires
+    /// `on_player_spaceship_destroyed` while the camera is still live, and
+    /// bevy applies the observer's remove+insert BEFORE the camera's
+    /// pending despawn - probed by sabotage during the task: the plain
+    /// commands produced NO warn in this exact rig, refuting the assumed
+    /// race (and when the camera despawns first, the `Single` fails and
+    /// the observer skips). The plain commands in the observer are
+    /// therefore correct; if bevy ever moves observer commands behind the
+    /// pending queue (breadth-first), this test fails with "Entity
+    /// despawned" and the observer needs try_ variants.
+    #[test]
+    fn a_player_ships_despawn_does_not_race_the_cameras() {
+        use bevy::log::tracing_subscriber::{self, util::SubscriberInitExt};
+
+        let log = CapturedLog::default();
+        let writer = log.clone();
+        let _guard = tracing_subscriber::fmt()
+            .with_writer(move || writer.clone())
+            .set_default();
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_observer(on_player_spaceship_spawned);
+        app.add_observer(on_player_spaceship_destroyed);
+
+        // Delivery guard 1: the capture sees this warn class.
+        let stale = app.world_mut().spawn_empty().id();
+        app.world_mut().entity_mut(stale).despawn();
+        app.world_mut()
+            .commands()
+            .entity(stale)
+            .remove::<SpaceshipCameraController>();
+        app.update();
+        assert!(
+            log.contents().contains("Entity despawned"),
+            "the log capture must see a deliberate stale-command warn; got: {}",
+            log.contents()
+        );
+
+        // A WASD camera hands control to the ship camera on player spawn
+        // (delivery guard 2: both observers demonstrably rewire a LIVE
+        // camera).
+        let camera = app
+            .world_mut()
+            .spawn((ScenarioCameraMarker, WASDCameraController))
+            .id();
+        app.update();
+        let ship = app.world_mut().spawn(PlayerSpaceshipMarker).id();
+        app.update();
+        assert!(
+            app.world()
+                .get::<SpaceshipCameraController>(camera)
+                .is_some(),
+            "player spawn hands the camera to the ship controller"
+        );
+
+        // The race: sweep-style queued despawns, ship first, camera second.
+        log.clear();
+        app.world_mut().commands().entity(ship).despawn();
+        app.world_mut().commands().entity(camera).despawn();
+        app.update();
+        assert!(
+            !log.contents().contains("Entity despawned"),
+            "teardown must not race stale camera commands; got: {}",
+            log.contents()
+        );
+    }
 
     fn spawn_object_action() -> EventActionConfig {
         EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {

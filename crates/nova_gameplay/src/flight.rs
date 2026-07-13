@@ -247,9 +247,16 @@ pub struct ManeuverTelemetry {
 }
 
 /// Disengaging ends the leg: drop its published numbers with it.
+///
+/// `try_remove`, not `remove`: this observer also fires while the ship is
+/// being DESPAWNED (the scenario unload sweep, ship death), and the
+/// `get_entity` guard only proves liveness at observer time - the queued
+/// remove lands after the despawn completes in the same flush and warns
+/// "Entity despawned" (2026-07-12 playtest, task 20260712-115902). The
+/// fallible variant makes end-of-leg cleanup and teardown commute.
 fn remove_maneuver_telemetry(remove: On<Remove, Autopilot>, mut commands: Commands) {
     if let Ok(mut ship) = commands.get_entity(remove.entity) {
-        ship.remove::<ManeuverTelemetry>();
+        ship.try_remove::<ManeuverTelemetry>();
     }
 }
 
@@ -3610,6 +3617,100 @@ mod tests {
         assert!(
             app.world().get::<ManeuverTelemetry>(ship).is_none(),
             "telemetry dies with the leg"
+        );
+    }
+
+    use crate::test_log::CapturedLog;
+
+    /// The 2026-07-12 playtest warn (task 20260712-115902): scenario teardown
+    /// despawns a ship with an engaged autopilot, `On<Remove, Autopilot>`
+    /// fires mid-flush, and the remove it queues lands after the despawn in
+    /// the same queue - "Encountered an error in command ... Entity
+    /// despawned". The test drives that exact path (a QUEUED despawn; a
+    /// direct `World::despawn` does not reproduce it - the entity is already
+    /// gone at observer-queue time, `get_entity` bails, nothing is queued)
+    /// and asserts the warn does not fire, with two delivery guards: the
+    /// observer's command demonstrably lands on a live disengage, and the
+    /// log capture demonstrably sees this exact warn class.
+    #[test]
+    fn despawning_an_autopiloting_ship_queues_no_stale_telemetry_command() {
+        use bevy::log::tracing_subscriber::{self, util::SubscriberInitExt};
+
+        let log = CapturedLog::default();
+        let writer = log.clone();
+        let _guard = tracing_subscriber::fmt()
+            .with_writer(move || writer.clone())
+            .set_default();
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_observer(remove_maneuver_telemetry);
+
+        let telemetry = ManeuverTelemetry {
+            goal: Vec3::new(0.0, 0.0, -300.0),
+            goal_entity: None,
+            park_point: Vec3::new(0.0, 0.0, -290.0),
+            distance: 300.0,
+            closing_speed: 5.0,
+            brake_accel: 1.0,
+            flip_point: None,
+            seconds_to_flip: None,
+            eta: Some(60.0),
+        };
+
+        // Delivery guard 1: the capture sees exactly this warn class - a
+        // deliberately stale plain `remove` must log "Entity despawned".
+        let stale = app.world_mut().spawn_empty().id();
+        app.world_mut().entity_mut(stale).despawn();
+        app.world_mut()
+            .commands()
+            .entity(stale)
+            .remove::<ManeuverTelemetry>();
+        app.update();
+        assert!(
+            log.contents().contains("Entity despawned"),
+            "the log capture must see a deliberate stale-command warn; got: {}",
+            log.contents()
+        );
+        log.clear();
+
+        // Delivery guard 2: on a LIVE ship the observer fires and its queued
+        // command really lands.
+        let live = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                Autopilot::engage(AutopilotAction::Stop),
+                telemetry,
+            ))
+            .id();
+        app.update();
+        app.world_mut().entity_mut(live).remove::<Autopilot>();
+        app.update();
+        assert!(
+            app.world().get::<ManeuverTelemetry>(live).is_none(),
+            "the observer clears telemetry on a live disengage"
+        );
+
+        // The race: despawn the ship WITH the autopilot engaged, through a
+        // QUEUED despawn, the way the unload sweep does. Pre-fix the
+        // observer's remove lands on the despawned ship and warns.
+        let doomed = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                Autopilot::engage(AutopilotAction::Stop),
+                telemetry,
+            ))
+            .id();
+        app.update();
+        log.clear();
+        app.world_mut().commands().entity(doomed).despawn();
+        app.update();
+        assert!(
+            !log.contents().contains("Entity despawned"),
+            "teardown must not race a stale telemetry remove; got: {}",
+            log.contents()
         );
     }
 

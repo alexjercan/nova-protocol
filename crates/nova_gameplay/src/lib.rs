@@ -21,6 +21,38 @@ pub mod sections;
 
 pub use bevy_common_systems;
 
+/// Test-only helper for asserting on log output: a shared in-memory sink
+/// installed as the thread's tracing subscriber. `EntityCommands::remove` and
+/// `despawn` bake in the WARN handler at queue time (bevy_ecs
+/// commands/mod.rs `queue_handled(_, warn)`), so a `FallbackErrorHandler`
+/// swap can never see them - a "no stale command" regression test must
+/// assert on the log itself (tasks 20260712-115902, 20260713-175352).
+#[cfg(test)]
+pub(crate) mod test_log {
+    /// Cloneable in-memory log sink; every clone shares the same buffer.
+    #[derive(Clone, Default)]
+    pub(crate) struct CapturedLog(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+    impl CapturedLog {
+        pub(crate) fn contents(&self) -> String {
+            String::from_utf8_lossy(&self.0.lock().unwrap()).into_owned()
+        }
+        pub(crate) fn clear(&self) {
+            self.0.lock().unwrap().clear();
+        }
+    }
+
+    impl std::io::Write for CapturedLog {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+}
+
 pub mod prelude {
     // Re-export bevy_common_systems prelude
     pub use bevy_common_systems::prelude::*;

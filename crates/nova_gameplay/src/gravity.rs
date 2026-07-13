@@ -241,6 +241,13 @@ fn remove_dominant_well_on_well_removed(
 ) {
     for (entity, dominant) in &q_dominant {
         if **dominant == remove.entity {
+            // Plain remove is safe here even during the unload sweep: this
+            // observer's commands apply BEFORE the queue's remaining
+            // despawns (probed in 20260712-115902 - see
+            // `a_wells_death_does_not_race_its_holders_despawn`, which pins
+            // that ordering), and the query only yields live holders. Only
+            // commands targeting the entity whose OWN despawn triggered the
+            // observer race (that entity is already gone when they apply).
             commands.entity(entity).remove::<DominantWell>();
         }
     }
@@ -428,6 +435,80 @@ mod tests {
         // Fade band starts at 0.85 * 80 = 68; below it the real formula holds.
         assert_eq!(accel_at(50.0), MU / 2500.0);
         assert_eq!(accel_at(68.0), MU / (68.0 * 68.0));
+    }
+
+    /// ORDERING PIN (task 20260712-115902): cross-entity observer commands
+    /// do NOT race the unload sweep. Sweep-style queue [despawn(well),
+    /// despawn(holder)]: the well's despawn fires
+    /// `remove_dominant_well_on_well_removed` while the holder is still
+    /// visible, and bevy applies the observer's strip BEFORE the holder's
+    /// pending despawn - probed by sabotage during the task: the plain
+    /// `remove` produced NO warn in this exact rig, refuting the assumed
+    /// race. The plain command in the observer is therefore correct; if
+    /// bevy ever moves observer commands behind the pending queue
+    /// (breadth-first), this test fails with "Entity despawned" and the
+    /// observer needs `try_remove`. Asserted on the log because `remove`
+    /// bakes in the WARN handler at queue time (see `crate::test_log`).
+    #[test]
+    fn a_wells_death_does_not_race_its_holders_despawn() {
+        use bevy::log::tracing_subscriber::{self, util::SubscriberInitExt};
+
+        use crate::test_log::CapturedLog;
+
+        let log = CapturedLog::default();
+        let writer = log.clone();
+        let _guard = tracing_subscriber::fmt()
+            .with_writer(move || writer.clone())
+            .set_default();
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_observer(remove_dominant_well_on_well_removed);
+
+        let well = || GravityWell {
+            mu: MU,
+            body_radius: BODY,
+            soi_radius: SOI,
+        };
+
+        // Delivery guard 1: the capture sees exactly this warn class.
+        let stale = app.world_mut().spawn_empty().id();
+        app.world_mut().entity_mut(stale).despawn();
+        app.world_mut()
+            .commands()
+            .entity(stale)
+            .remove::<DominantWell>();
+        app.update();
+        assert!(
+            log.contents().contains("Entity despawned"),
+            "the log capture must see a deliberate stale-command warn; got: {}",
+            log.contents()
+        );
+
+        // Delivery guard 2: on a LIVE holder the strip really lands.
+        let live_well = app.world_mut().spawn(well()).id();
+        let live_holder = app.world_mut().spawn(DominantWell(live_well)).id();
+        app.update();
+        app.world_mut().entity_mut(live_well).despawn();
+        app.update();
+        assert!(
+            app.world().get::<DominantWell>(live_holder).is_none(),
+            "a dead well's handle is stripped from a live holder"
+        );
+
+        // The race: sweep-style queued despawns, well first, holder second.
+        let doomed_well = app.world_mut().spawn(well()).id();
+        let doomed_holder = app.world_mut().spawn(DominantWell(doomed_well)).id();
+        app.update();
+        log.clear();
+        app.world_mut().commands().entity(doomed_well).despawn();
+        app.world_mut().commands().entity(doomed_holder).despawn();
+        app.update();
+        assert!(
+            !log.contents().contains("Entity despawned"),
+            "the sweep must not race a stale DominantWell strip; got: {}",
+            log.contents()
+        );
     }
 
     #[test]
