@@ -26,8 +26,9 @@ Scope when picked up (/plan then):
   (safety-on/off moments, staged tap-clear discoverability, toasts/hints).
 - Inherited from 082337: the context-sensitive keybind-cluster rows for the
   radar gestures ("[CTRL] hold: radar / tap: clear" + a raise hint on RMB),
-  the audio blip on the safety OFF->ON edge (needs a sound asset), and a live
-  verification that the scavenger still fires under the managed safety gate.
+  and a live verification that the scavenger still fires under the managed
+  safety gate. (The safety OFF->ON audio blip moved to 20260713-110311,
+  which owns the whole lock/safety sfx batch - spike 20260713-110039.)
 
 ## Notes
 
