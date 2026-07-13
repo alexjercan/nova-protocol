@@ -40,6 +40,11 @@ Shipped per plan, with these notes:
 - Audio blip on the OFF->ON edge deferred (needs a sound asset; the visual
   status block covers the cue) - noted for the shakedown/polish pass.
 - HOLD_FIRE_DURING_RADAR const (default false) gates the press path only.
+- Honesty note on the Safety+gesture HUD step: the weapons-hot indicator and
+  torpedo readout shipped; the context-sensitive CTRL/raise HINT ROWS in the
+  keybind cluster did NOT (the cluster only lost the dead target-cycle row).
+  Deferred to the shakedown/keybind polish (20260713-090653 owns teaching the
+  gestures; the cluster rows belong with that pass).
 
 Verified: 463 nova_gameplay tests (safety truth table, trigger-interrupt with
 delivery guard, AI mirror incl. PD override and disengage-safes, GOTO capture);

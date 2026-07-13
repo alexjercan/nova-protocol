@@ -24,6 +24,10 @@ Scope when picked up (/plan then):
   speed-governor release).
 - General playtest polish of beat pacing under the new input model
   (safety-on/off moments, staged tap-clear discoverability, toasts/hints).
+- Inherited from 082337: the context-sensitive keybind-cluster rows for the
+  radar gestures ("[CTRL] hold: radar / tap: clear" + a raise hint on RMB),
+  the audio blip on the safety OFF->ON edge (needs a sound asset), and a live
+  verification that the scavenger still fires under the managed safety gate.
 
 ## Notes
 
