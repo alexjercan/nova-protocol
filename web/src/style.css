@@ -738,6 +738,60 @@ main {
     color: var(--text-muted);
 }
 
+/* ---- PromptFont button glyphs -------------------------------------------
+   Self-hosted PromptFont (by Yukari "Shinmera" Hafner, SIL Open Font License -
+   see assets/promptfont-LICENSE.txt). Each glyph is drawn from the font via a
+   ::before codepoint. We only declare the handful of buttons the keybind tables
+   use (mouse, scroll, triggers, D-Pad); keyboard keys stay as styled <kbd> and
+   gamepad face buttons stay as generic position text. */
+@font-face {
+    font-family: "PromptFont";
+    src: url("assets/promptfont.woff2") format("woff2");
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+.pf {
+    font-family: "PromptFont";
+    font-weight: 900;
+    font-style: normal;
+    line-height: 1;
+    display: inline-block;
+}
+.pf-mouse-1::before {
+    content: "\278A";
+}
+.pf-mouse-2::before {
+    content: "\278B";
+}
+.pf-mouse-scroll::before {
+    content: "\27F2";
+}
+.pf-trigger-left::before {
+    content: "\2196";
+}
+.pf-trigger-right::before {
+    content: "\2197";
+}
+.pf-dpad-up::before {
+    content: "\219F";
+}
+.pf-dpad-down::before {
+    content: "\21A1";
+}
+.pf-dpad-left::before {
+    content: "\219E";
+}
+.pf-dpad-right::before {
+    content: "\21A0";
+}
+/* In the keybind tables, tint and size the glyphs to sit with the text. */
+.controls .pf {
+    color: var(--cyan-bright);
+    font-size: 1.4em;
+    vertical-align: -0.16em;
+}
+
 /* ---- key/value control table -------------------------------------------- */
 .controls {
     width: 100%;
