@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - The web build no longer quits with a fatal render validation error on New Game / editor Play: the target inset's render target used a view-format override (`view_formats`), which WebGL2 does not support; it is now a plain sRGB target
+- The skybox cubemap's `.meta` loader settings now actually apply in the shipped app: `AssetMetaCheck::Never` had silently ignored them on every platform since the fix landed, resurrecting the oversized-upload race on GPUs with a 16384 texture limit (and the "single layer image" warning); the app now reads meta files for exactly the cubemap's path
 
 ## [0.5.0] - 2026-07-13
 

@@ -1,18 +1,13 @@
-//! Loads the real `textures/cubemap.png` through a headless asset server and
-//! asserts its `.meta` loader settings reinterpret the stacked image into a
-//! 6 layer array at load time.
+//! Loads the real `textures/cubemap.png` through the app's actual asset
+//! configuration (`nova_core::assets_plugin`) and asserts its `.meta` loader
+//! settings reinterpret the stacked image into a 6 layer array at load time.
 //!
-//! This guards the skybox upload race: the renderer eagerly uploads every
-//! loaded image, and the raw stacked form (24576 px tall) exceeds the 16384
-//! texture limit of smaller GPUs, turning into a fatal render validation
-//! error. Reinterpreting in the loader means the oversized 2D form never
-//! exists. If someone deletes or breaks `cubemap.png.meta`, this test fails.
-//!
-//! It proves the meta FILE, not the app: this rig uses `AssetPlugin`'s
-//! default `meta_check` (Always), while the shipped app reads metas per-path
-//! (`nova_core::assets_plugin`). The test that guards the real app's config
-//! is nova_core/tests/cubemap_meta_app_config.rs - the gap between the two
-//! is exactly how the meta shipped ignored (task 20260713-175416).
+//! The sibling test in nova_assets (tests/cubemap_meta.rs) proves the meta
+//! file itself works, but it builds its own `AssetPlugin` with default
+//! settings - which is how the original fix shipped verified while the app's
+//! `AssetMetaCheck::Never` ignored every meta on every platform (the v0.5.0
+//! web build logged the single-layer canary warning). This test pins the app
+//! config: if `assets_plugin()` stops reading the cubemap's meta, it fails.
 
 use std::time::{Duration, Instant};
 
@@ -23,7 +18,7 @@ use bevy::{
 };
 
 #[test]
-fn cubemap_meta_loads_six_layer_array() {
+fn app_asset_config_loads_cubemap_as_six_layer_array() {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
@@ -31,7 +26,7 @@ fn cubemap_meta_loads_six_layer_array() {
             // Tests run with the crate root as cwd; the asset folder lives at
             // the workspace root.
             file_path: "../../assets".to_string(),
-            ..default()
+            ..nova_core::assets_plugin()
         },
     ));
     app.init_asset::<Image>();
@@ -59,7 +54,7 @@ fn cubemap_meta_loads_six_layer_array() {
     assert_eq!(
         image.texture_descriptor.array_layer_count(),
         6,
-        "cubemap.png.meta should reinterpret the stacked image into 6 layers"
+        "the app's meta_check must apply cubemap.png.meta's array_layout"
     );
     assert_eq!(
         image.height(),

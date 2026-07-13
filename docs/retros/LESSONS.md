@@ -89,9 +89,17 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   the original symptom before interpreting old traces. 20260709-125640.
 - `spike-fix-record` (positive, PROMOTED 2026-07-11 -> spike skill): multi-task
   spikes keep a living fix-record section. 20260711-103527.
-- `tatr-same-second-collision` (x5): consecutive `tatr new` calls in one second
+- `tatr-same-second-collision` (x6): consecutive `tatr new` calls in one second
   silently share an ID; one call per tool invocation, never chained.
-  20260712-143832.
+  20260712-143832, 20260713-175415.
+- `bg-session-authors-on-branch` (x1): background sessions cannot Write in the
+  shared checkout, and parallel sessions sweep loose files there; author task
+  and doc content inside the first sprouted worktree, only `tatr new` stubs
+  touch the main checkout. 20260713-175415.
+- `copied-pattern-weakest-target` (x1): a rendering pattern copied from an
+  upstream example carries implicit device requirements; check its downlevel
+  flags/limits against the weakest shipped platform (WebGL2) before adopting.
+  20260713-175415.
 - `state-diff-aliases-reset` (x1): deriving events by diffing state makes a
   reset look like a batch of events; guard the non-event transitions
   (teardown, load, clear). 20260712-125342.
@@ -190,7 +198,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 
 - `sweep-then-delete` (x5) -> work skill: the three-way grep rule (symbols,
   describing words, observers/queries) before closing any delete/move/swap.
-- `tatr-same-second-collision` (x5) -> mechanical fix: teach `tatr new` to
+- `tatr-same-second-collision` (x6) -> mechanical fix: teach `tatr new` to
   disambiguate same-second IDs, or an AGENTS.md rule "never chain tatr new".
 - `landing-checkout-not-yours` (x3) -> flow/work skills: branch check before
   every commit; prefer a real worktree when asked for a branch.

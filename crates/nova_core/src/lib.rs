@@ -213,9 +213,24 @@ fn log_filter_str<'a>() -> &'a str {
     }
 }
 
-fn assets_plugin() -> AssetPlugin {
+/// The app's asset configuration. Public so tests can load assets through the
+/// exact config the game ships (a hand-rolled `AssetPlugin` once masked a bug
+/// here: the cubemap meta fix was verified against default settings while the
+/// app ignored metas entirely, task 20260713-175416).
+///
+/// Meta files are read only for the paths listed here. `Never` silently
+/// defeated `cubemap.png.meta`'s `array_layout`, resurrecting the skybox
+/// upload race (docs/retros/20260710-skybox-cubemap-upload-race.md); `Always`
+/// would fire an HTTP request per asset on wasm just to 404 on the missing
+/// metas. Per-path opt-in gives the cubemap its loader settings at no cost to
+/// the rest.
+pub fn assets_plugin() -> AssetPlugin {
     AssetPlugin {
-        meta_check: bevy::asset::AssetMetaCheck::Never,
+        meta_check: bevy::asset::AssetMetaCheck::Paths(
+            bevy::platform::collections::HashSet::from_iter([bevy::asset::AssetPath::from(
+                "textures/cubemap.png",
+            )]),
+        ),
         ..default()
     }
 }
