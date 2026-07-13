@@ -49,7 +49,7 @@ follow-up).
       a side thruster kills a lateral crumb inside the deadband; destroying
       the retro group falls back to flip-and-burn; existing suite (bound
       thrusters, cool-on-release, GOTO arrival) stays green.
-- [x] Update `docs/2026-07-09-diegetic-autopilot.md` (group planner section,
+- [x] Update `docs/retros/20260709-diegetic-autopilot.md` (group planner section,
       knob list, torque non-goal).
 - [x] Verify: cargo check + fmt + targeted flight tests only (full suite and
       clippy are CI's job per AGENTS.md).
@@ -57,7 +57,7 @@ follow-up).
 ## Notes
 
 - Relevant: crates/nova_gameplay/src/flight.rs (autopilot_system, settings,
-  tests), docs/2026-07-09-diegetic-autopilot.md.
+  tests), docs/retros/20260709-diegetic-autopilot.md.
 - The keybind exclusion stays manual-only (settled last cycle); in autopilot
   every engine is the computer's.
 - 20260709-095043 (retune) additionally owns rotation_bias and

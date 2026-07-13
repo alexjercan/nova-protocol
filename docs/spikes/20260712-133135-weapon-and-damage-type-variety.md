@@ -226,7 +226,7 @@ be closed pointing here.
   authored Kinetic amount; torpedoes use a nova `NovaBlast` (Explosive) that owns
   its falloff + trigger, leaving bcs's blast observer dormant (torpedo-blast-typing
   open question resolved). Feel-preserving at Kinetic 1.0. Details + reflection:
-  docs/2026-07-12-typed-damage-core.md.
+  docs/retros/20260712-typed-damage-core.md.
 - **20260712-133349 (bullet-type slot) LANDED, scoped to the foundation.** Per
   user direction, phase 2 shipped as the seam, not the full system: a per-turret
   `LoadedBullet { kind, damage }` runtime slot (seeded from a new config
@@ -235,7 +235,7 @@ be closed pointing here.
   cyan / Explosive red-orange). `SectionAmmo` stays a single pool; AmmoKind ==
   DamageType. DEFERRED to future ship-management: per-type magazine pools,
   in-game reload, and editor/scenario/station switching (all just mutate the
-  slot / grow the pool). Details: docs/2026-07-12-bullet-type-slot.md.
+  slot / grow the pool). Details: docs/retros/20260712-bullet-type-slot.md.
 - **20260712-133356 (alt-fire) DEFERRED to v0.6.0 (user, 2026-07-12).** Phase 3
   of the recommendation is not being pursued for now: one bullet type per weapon
   is enough, and the near-term direction for changing a weapon's type is a

@@ -126,7 +126,7 @@ to ~0 for the bullet.
 Landed as `crates/nova_gameplay/src/damage.rs` (types, `const fn resistance`,
 `apply_typed_damage`, `NovaBlast` + observer, `NovaDamagePlugin`) plus the weapon
 callsite edits. Full write-up, decisions, difficulties and reflection:
-docs/2026-07-12-typed-damage-core.md. Fix record appended to spike
+docs/retros/20260712-typed-damage-core.md. Fix record appended to spike
 20260712-133135.
 
 Deviations from the plan as written:

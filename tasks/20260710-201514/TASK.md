@@ -54,7 +54,7 @@ shader with a yellow tint. Present only while a DominantWell exists.
       pure magnitude helper; holo module tests still green minus the
       shell.
 - [x] fmt + check --workspace --examples + affected modules (hud, flight,
-      gravity); document in docs/2026-07-10-gravity-indicator.md
+      gravity); document in docs/retros/20260710-gravity-indicator.md
       (including the removal rationale).
 
 ## Notes
@@ -77,4 +77,4 @@ gravity variant points down the dominant well's pull with magnitude
 normalized by the strength cap and hides in flat space, and the SOI shell
 is fully removed. 3 new tests; hud/holo/velocity modules green; the
 05_directional example updated; fmt + check --workspace --examples clean.
-Details: docs/2026-07-10-gravity-indicator.md.
+Details: docs/retros/20260710-gravity-indicator.md.

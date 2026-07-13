@@ -6,7 +6,7 @@
 
 ## Goal
 
-Finding F2 from the PR #53 review (`docs/reviews/2026-07-08-pr53-audio-sfx.md`):
+Finding F2 from the PR #53 review (`docs/reviews/20260708-pr53-audio-sfx.md`):
 every audio test today is a pure-function unit test (throttle, engine_volume,
 distance_attenuation, area_cell). Nothing exercises the event->sound wiring end
 to end, so a future refactor of the observers or the plugin could silently break

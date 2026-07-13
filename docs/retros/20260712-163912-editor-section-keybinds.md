@@ -4,7 +4,7 @@
 - BRANCH: feature/editor-section-keybinds (landed as 640aaca)
 - REVIEW ROUNDS: 1 (APPROVE, 2 NITs; 1 addressed)
 
-What/why: TASK.md. Implementation write-up: docs/2026-07-12-editor-section-keybinds.md.
+What/why: TASK.md. Implementation write-up: docs/retros/20260712-editor-section-keybinds.md.
 Process only here.
 
 ## What went well

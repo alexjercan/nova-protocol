@@ -1,7 +1,7 @@
 # Camera twitch when flying: fixed-tick stair-steps under the smoothed camera
 
 Task: `tasks/20260709-160753`. Playtest report on the flight-feel retune
-(`docs/2026-07-09-flight-feel-retune.md`): the camera weight felt right, but
+(`docs/retros/20260709-flight-feel-retune.md`): the camera weight felt right, but
 the view twitched when moving - suspected transform-sync / frame-lag issue.
 
 ## Mechanism (why it appeared only now)

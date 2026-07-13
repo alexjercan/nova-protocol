@@ -83,8 +83,8 @@ phases) + an orbit-available cue on the screen-indicator substrate.
       (SectionInactiveMarker on all thrusters) disengage, dead controller
       disengages - same as STOP/GOTO.
 - [x] fmt + check (workspace AND --examples per the gravity retro) + the
-      new tests; update docs/2026-07-10-gravity-wells.md's companion doc or
-      a new docs/2026-07-10-orbit-verb.md with decisions, deviations,
+      new tests; update docs/retros/20260710-gravity-wells.md's companion doc or
+      a new docs/retros/20260710-orbit-verb.md with decisions, deviations,
       difficulties, self-reflection.
 
 ## Notes
@@ -122,4 +122,4 @@ burn". Prerequisite playtest fix folded in: static well sources are
 lockable again (targeting.rs). Verification: 12 new tests + all affected
 modules green (51 flight / 14 gravity / 25 targeting / 7 HUD), fmt +
 check --workspace --examples clean; full suite and clippy on CI per
-project policy. Details: docs/2026-07-10-orbit-verb.md.
+project policy. Details: docs/retros/20260710-orbit-verb.md.

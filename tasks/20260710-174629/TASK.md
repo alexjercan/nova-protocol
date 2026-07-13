@@ -53,7 +53,7 @@ geometry (a gate on the path).
       shell (inside SOI, on approach, gone in flat space).
 - [x] fmt + check --workspace --examples + affected modules (flight incl.
       input::ai per the signature rule, hud); document in
-      docs/2026-07-10-holo-expansion.md.
+      docs/retros/20260710-holo-expansion.md.
 
 ## Notes (planning)
 
@@ -76,4 +76,4 @@ segments), the flip gate, and the SOI shell (wire globe of three tori,
 dominant-well-inside or nearest-on-approach), all despawned with the
 player HUD. 5 new tests + 1 updated; flight/hud/input modules green; fmt +
 check --workspace --examples clean. Details:
-docs/2026-07-10-holo-expansion.md.
+docs/retros/20260710-holo-expansion.md.

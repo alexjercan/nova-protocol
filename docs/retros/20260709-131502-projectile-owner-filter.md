@@ -6,7 +6,7 @@
   answered; round 2 APPROVE)
 
 What shipped and why is in the task's Resolution and
-`docs/2026-07-09-projectile-owner-collision-filter.md`; this is about the
+`docs/retros/20260709-projectile-owner-collision-filter.md`; this is about the
 process.
 
 ## What went well

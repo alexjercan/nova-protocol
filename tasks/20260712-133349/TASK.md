@@ -99,7 +99,7 @@ that type's color; proven in headless tests.
 Landed: `LoadedBullet` slot + `bullet_kind` config in turret_section.rs, fire
 stamps from the slot, `damage_type_color` in damage.rs, per-type coloring in
 ammo_readout.rs `drive_ammo_readouts`. Write-up + reflection:
-docs/2026-07-12-bullet-type-slot.md. Fix record appended to spike 20260712-133135.
+docs/retros/20260712-bullet-type-slot.md. Fix record appended to spike 20260712-133135.
 
 Deviations from the plan as written:
 

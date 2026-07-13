@@ -5,7 +5,7 @@
 - REVIEW ROUNDS: 1 (APPROVE, three NITs, all addressed)
 
 Short retro for a smooth, single-round cycle. What shipped is in the task's
-Resolution and `docs/2026-07-09-torpedo-launch-particles.md`.
+Resolution and `docs/retros/20260709-torpedo-launch-particles.md`.
 
 ## What went well
 

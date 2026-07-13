@@ -7,7 +7,7 @@
   round 2 APPROVE)
 
 What shipped is in the task's Resolution and
-docs/2026-07-09-screen-indicator-widget.md.
+docs/retros/20260709-screen-indicator-widget.md.
 
 ## What went well
 

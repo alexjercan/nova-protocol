@@ -4,7 +4,7 @@
 - BRANCH: feature/inset-zoomable-scope (landed 4aa02d8)
 - REVIEW ROUNDS: 2 (round 1 APPROVE + one NIT; round 2 APPROVE)
 
-Process notes only; details in TASK.md and docs/2026-07-12-target-inset-view.md.
+Process notes only; details in TASK.md and docs/retros/20260712-target-inset-view.md.
 
 ## What went well
 

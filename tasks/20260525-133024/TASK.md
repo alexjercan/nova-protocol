@@ -49,4 +49,4 @@ config-supplied `launch_effect` overrides it. Hanabi-only, wasm-gated.
 Verified with `cargo check -p nova_gameplay` and the `06_torpedo_range`
 autopilot smoke test (reached Playing, repeated fired, cycle complete no panic,
 exit 0). Visual look is a playtest item. See
-`docs/2026-07-09-torpedo-launch-particles.md`.
+`docs/retros/20260709-torpedo-launch-particles.md`.

@@ -71,7 +71,7 @@ working.
       impacts are gone, cycle intact, exit 0 both runs.
 - [x] Document the decision (owner filter is permanent, turret parity; why a
       state-dependent/arming-gated filter was rejected) in the task resolution and
-      `docs/2026-07-09-projectile-owner-collision-filter.md` (retro follows via
+      `docs/retros/20260709-projectile-owner-collision-filter.md` (retro follows via
       /compound). Also added a CHANGELOG entry under Fixed.
 
 ## Resolution
@@ -120,7 +120,7 @@ Reflection: reading avian's hook semantics up front (one hook type per app,
 either-collider activation, broad-phase-time filtering) shaped the design
 correctly on the first try; the A/B example run was the cheapest, clearest
 evidence of the fix and is worth repeating for physics bugs with an existing
-range example. Details in `docs/2026-07-09-projectile-owner-collision-filter.md`.
+range example. Details in `docs/retros/20260709-projectile-owner-collision-filter.md`.
 
 ## Notes
 

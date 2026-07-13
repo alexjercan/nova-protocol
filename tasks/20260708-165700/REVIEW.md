@@ -17,7 +17,7 @@ against bevy_ui 0.19 source: `UiTransform::compute_affine` applies
 `Mat2::from(rotation)` directly in y-down UI coordinates, which matches the
 derivation and the unit test. Behavior deltas from the migration are real,
 deliberate, and honestly enumerated per consumer in
-docs/2026-07-09-screen-indicator-widget.md. Spec check: every ticked step in
+docs/retros/20260709-screen-indicator-widget.md. Spec check: every ticked step in
 TASK.md is actually delivered. Honest skips (full local suite, clippy) match
 the user's standing instruction.
 

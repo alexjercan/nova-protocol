@@ -60,4 +60,4 @@ teleported into the hull aggregate.
   crates (nova_debug, nova_events, nova_gameplay, nova_scenario), plus a new
   physics regression test (`overkill_on_one_section_does_not_kill_the_ship`) and
   an updated `aggregate_ship_health` doc. `integrity::glue` tests (9) green
-  against the real dependency. See docs/2026-07-09-section-overkill-propagation.md.
+  against the real dependency. See docs/retros/20260709-section-overkill-propagation.md.

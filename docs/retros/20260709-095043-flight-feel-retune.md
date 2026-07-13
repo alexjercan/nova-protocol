@@ -6,7 +6,7 @@
   round 2 APPROVE)
 
 What shipped is in the task's Resolution and
-`docs/2026-07-09-flight-feel-retune.md`. First REQUEST_CHANGES round of these
+`docs/retros/20260709-flight-feel-retune.md`. First REQUEST_CHANGES round of these
 cycles - and every MAJOR was earned.
 
 ## What went well

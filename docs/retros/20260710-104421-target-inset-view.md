@@ -5,7 +5,7 @@
 - REVIEW ROUNDS: 2 (round 1 APPROVE + one MINOR; round 2 APPROVE after the fix)
 
 Process notes only; what/why/evidence live in TASK.md and
-docs/2026-07-12-target-inset-view.md.
+docs/retros/20260712-target-inset-view.md.
 
 ## What went well
 

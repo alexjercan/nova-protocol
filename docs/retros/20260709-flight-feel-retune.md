@@ -1,9 +1,9 @@
 # Flight feel retune: torque-budget turn rates, camera weight
 
 Task: `tasks/20260709-095043`. Builds on the diegetic autopilot
-(`docs/2026-07-09-diegetic-autopilot.md`) and executes the torque-budget
+(`docs/retros/20260709-diegetic-autopilot.md`) and executes the torque-budget
 decision from the COM investigation
-(`docs/2026-07-09-com-section-destroy.md`): ship mass should be legible in
+(`docs/retros/20260709-com-section-destroy.md`): ship mass should be legible in
 handling - a stripped hull snaps, a full build lumbers.
 
 ## What changed and why

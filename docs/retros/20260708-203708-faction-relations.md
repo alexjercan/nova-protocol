@@ -5,7 +5,7 @@
 - REVIEW ROUNDS: 1 (APPROVE, 1 MINOR + 1 NIT, both addressed)
 
 What shipped is in the task's Resolution and
-docs/2026-07-09-faction-relations.md. First task of the AI combat arc
+docs/retros/20260709-faction-relations.md. First task of the AI combat arc
 (docs/spikes/20260709-225508-ai-combat-behaviors.md); a clean cycle.
 
 ## What went well

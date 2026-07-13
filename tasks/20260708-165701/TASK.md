@@ -44,7 +44,7 @@ docs/spikes/20260709-164502-screen-indicator-architecture.md.
       the section is disabled (mandatory expects, asserted-at-exit guard).
 - [x] Verify: `cargo fmt`, `cargo check --workspace`, run only the newly
       written tests (skip full suite per user instruction; report skips).
-- [x] Extend `docs/2026-07-09-screen-indicator-widget.md` with the pip
+- [x] Extend `docs/retros/20260709-screen-indicator-widget.md` with the pip
       consumer section.
 
 ## Notes
@@ -62,7 +62,7 @@ turret's `TurretSectionAimPoint`, Point-anchored on the screen-indicator
 widget), layer observers in hud/mod.rs, 4 behavioral tests, pip stages in
 `examples/12_hud_range.rs` (PASS: pip on the projected aim point at 0.0 px
 drift, hidden after the section is disabled). Doc section added to
-docs/2026-07-09-screen-indicator-widget.md.
+docs/retros/20260709-screen-indicator-widget.md.
 
 Deviation from plan: pip membership is a reconcile system rather than
 add/remove observers - turrets can be destroyed mid-fight and sections can

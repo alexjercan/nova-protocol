@@ -5,7 +5,7 @@
 - REVIEW ROUNDS: 2 (round 1 APPROVE with 2 MINOR + 3 NIT; round 2 APPROVE)
 
 A tight cycle: playtest report to landed two-component fix in one sitting.
-Mechanism and fix in `docs/2026-07-09-camera-twitch-interpolation.md`.
+Mechanism and fix in `docs/retros/20260709-camera-twitch-interpolation.md`.
 
 ## What went well
 

@@ -40,7 +40,7 @@ the body filling the screen.
   autopilot signature change) but hud + flight smoke: `cargo test -p
   nova_gameplay --lib camera_controller:: flight::` and `cargo check
   --workspace --examples`.
-- [x] Docs: docs/2026-07-10-orbit-survey-zoom.md; close TASK.md with the
+- [x] Docs: docs/retros/20260710-orbit-survey-zoom.md; close TASK.md with the
   resolution.
 
 ## Notes

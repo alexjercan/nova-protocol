@@ -4,7 +4,7 @@ Task: tasks/20260710-214316 - review finding R1.4 of 20260710-202408: the
 trajectory ribbon drew its last segment to the target CENTER, so on a big
 body it visually plunged radius + standoff past where the arrival
 actually stops (the surface-relative standoff geometry of
-docs/2026-07-10-surface-relative-standoff.md).
+docs/retros/20260710-surface-relative-standoff.md).
 
 ## What changed
 

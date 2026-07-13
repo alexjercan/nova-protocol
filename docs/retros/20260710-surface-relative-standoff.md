@@ -12,7 +12,7 @@ surface.
   object - the surface the arrival standoff measures from. Originally
   authored from `config.radius`; superseded same day by the
   collider-derived version (the noise-displaced mesh reaches past the
-  nominal radius - see docs/2026-07-10-collider-derived-body-radius.md).
+  nominal radius - see docs/retros/20260710-collider-derived-body-radius.md).
 - The GOTO arm of `autopilot_system` resolves the target's radius as
   `max(BodyRadius, GravityWell::body_radius)` from whichever components
   the target carries - max is conservative if they ever disagree; unsized

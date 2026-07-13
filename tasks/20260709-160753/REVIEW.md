@@ -19,7 +19,7 @@ verified; flight/autopilot read raw avian Position/Rotation in FixedUpdate;
 integrity graph, blast overlap, HUD projections and both examples'
 assertions are unaffected or consistently eased.
 
-- [x] R1.1 (MINOR) docs/2026-07-09-camera-twitch-interpolation.md - "Physics
+- [x] R1.1 (MINOR) docs/retros/20260709-camera-twitch-interpolation.md - "Physics
   is untouched" oversells: projectile spawn points (both
   shoot_spawn_projectile systems compute the muzzle from current Transforms
   in Update) and the torpedo arming/fuze/PN loop now operate on the eased

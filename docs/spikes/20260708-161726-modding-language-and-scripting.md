@@ -209,7 +209,7 @@ retagged/annotated rather than duplicated where they already exist.
 
 ### 0.4.0 pull-ins (retag v0.5.0 -> v0.4.0)
 
-0.4.0 ("sections polish + testability", `docs/2026-07-07-v0.4.0-plan.md`) is
+0.4.0 ("sections polish + testability", `docs/plans/20260707-v0.4.0-plan.md`) is
 essentially shipped. Pull in only the section-visual-polish items that *finish*
 that theme; leave the feature epics in 0.5.0.
 

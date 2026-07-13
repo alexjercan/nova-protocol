@@ -41,7 +41,7 @@ separate, larger step (noted below), not this task.
       `cargo test --workspace`, and a headless `BCS_AUTOPILOT=1 10_gameplay`
       autopilot run (reaches Playing, no panic, no sound asset errors). Use the
       shared `CARGO_TARGET_DIR` (see docs/development.md) for the worktree build.
-- [x] Update `docs/2026-07-08-audio-sfx-system.md`: note the attenuation model,
+- [x] Update `docs/retros/20260708-audio-sfx-system.md`: note the attenuation model,
       the tunable NEAR/FAR constants, the listener = camera choice, and that true
       stereo panning (bevy spatial audio: `SpatialListener` + `spatial: true`)
       remains a future step.
@@ -73,7 +73,7 @@ is still identity on the spawn frame). The thruster hum stays un-attenuated.
 Verified: fmt, clippy --all-targets (clean), cargo test --workspace (5 audio unit
 tests incl. the new rolloff test), headless 10_gameplay autopilot reached Playing
 with no panic/asset errors. Full model documented in
-docs/2026-07-08-audio-sfx-system.md.
+docs/retros/20260708-audio-sfx-system.md.
 
 Reviewed by self (focused refinement of an already-reviewed module); no findings.
 Deliberately left as a future step: true stereo panning via bevy spatial audio

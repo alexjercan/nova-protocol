@@ -4,7 +4,7 @@
 - BRANCH: feature/typed-damage-core (landed as d355299)
 - REVIEW ROUNDS: 1 (APPROVE, two NITs)
 
-See TASK.md for what/why and docs/2026-07-12-typed-damage-core.md for the
+See TASK.md for what/why and docs/retros/20260712-typed-damage-core.md for the
 implementation write-up. This is process only.
 
 ## What went well

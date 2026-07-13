@@ -25,7 +25,7 @@ even across the whole range, still reaching exactly zero at FAR.
       it drops below the old linear line - the whole point).
 - [x] Verify: fmt, clippy --all-targets, cargo test --workspace, headless
       10_gameplay autopilot (reaches Playing, no panic). Shared CARGO_TARGET_DIR.
-- [x] Update the attenuation paragraph in `docs/2026-07-08-audio-sfx-system.md`
+- [x] Update the attenuation paragraph in `docs/retros/20260708-audio-sfx-system.md`
       (linear -> geometric/perceptual, why, and the tunable floor).
 
 ## Notes

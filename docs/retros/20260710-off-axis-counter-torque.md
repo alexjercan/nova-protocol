@@ -1,7 +1,7 @@
 # Off-axis counter-torque: recruiting laterals for a damage-shifted drive
 
 Task: `tasks/20260709-224518`. Closes the "recruit off-axis thrusters" boundary
-left by the thrust-balancing task (`docs/2026-07-09-thrust-balancing.md`,
+left by the thrust-balancing task (`docs/retros/20260709-thrust-balancing.md`,
 "Scope and boundaries").
 
 ## The problem

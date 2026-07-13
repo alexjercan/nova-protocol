@@ -47,7 +47,7 @@ docs/spikes/20260709-164502-screen-indicator-architecture.md.
       asserted-at-exit guard).
 - [x] Verify: `cargo fmt`, `cargo check --workspace`, run only the newly
       written tests (skip full suite per user instruction; report skips).
-- [x] Extend `docs/2026-07-09-screen-indicator-widget.md` with the readout
+- [x] Extend `docs/retros/20260709-screen-indicator-widget.md` with the readout
       consumer section.
 
 ## Notes

@@ -5,7 +5,7 @@
 - TAGS: v0.4.0, handling, physics
 
 Follow-up to the thrust-balancing task (20260709-155920,
-docs/2026-07-09-thrust-balancing.md). That task balances torque by differential
+docs/retros/20260709-thrust-balancing.md). That task balances torque by differential
 throttle *within the firing set* - the engines already pushing toward the burn.
 It cannot help the most common damage case: a ship with one centered main drive
 that loses a side section, so the COM shifts and the lone drive is now
@@ -39,7 +39,7 @@ ALL live engines against a desired wrench, not just the forward set.
       `lateral` (penalized off-axis force per unit input) and `primary` (the
       firing set); recruits enter the demand equality with forward = 0 and
       their whole thrust vector in the penalty (see
-      docs/2026-07-10-off-axis-counter-torque.md for why). Both
+      docs/retros/20260710-off-axis-counter-torque.md for why). Both
       `autopilot_system` and `manual_burn_system` now allocate over all live
       engines.
 - [x] Physics test: a single main drive on a damage-shifted hull holds its
@@ -52,7 +52,7 @@ ALL live engines against a desired wrench, not just the forward set.
 ## Notes
 
 - The firing-set-only boundary is documented in
-  docs/2026-07-09-thrust-balancing.md ("Scope and boundaries").
+  docs/retros/20260709-thrust-balancing.md ("Scope and boundaries").
 - Watch fuel/thrust honesty: a recruited lateral spends thrust that does not go
   toward the goal - that cost should stay legible, not hidden.
 

@@ -67,7 +67,7 @@ queued tasks are done (camera jumps 20260711-125225, zoom cap
   identify the wobble issue and fix it"); bullet pop 20260711-121839 and
   torpedo clock 20260711-114640 proceed via /flow alongside the two
   tasks this spike seeded.
-- Context: docs/2026-07-09-flight-feel-retune.md,
+- Context: docs/retros/20260709-flight-feel-retune.md,
   docs/retros/20260709-125640-residual-roll-release.md (PD conditioning
   history - deadbands interact with everything that retro fixed),
   tasks/20260711-121701 (the hull is provably steady; "not pixel perfect"

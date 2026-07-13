@@ -17,7 +17,7 @@ as a backlog item - explicitly NOT for the v0.4.0 sprint.
 ## Context
 
 The component fine-lock arc (spike 20260709-192358, doc
-docs/2026-07-09-component-lock.md) already shipped everything the inset would
+docs/retros/20260709-component-lock.md) already shipped everything the inset would
 sit on top of:
 
 - **Lock + fine-lock state exists.** `SpaceshipPlayerTargetLock`,
@@ -128,7 +128,7 @@ range.
   per-camera components, and every camera query in the codebase is
   marker-filtered so an unmarked second camera trips no `Single<Camera>`.
   Option A shipped as planned (Option B not needed). Details in
-  docs/2026-07-12-target-inset-view.md. WASM/WebGL2 is standard RTT territory
+  docs/retros/20260712-target-inset-view.md. WASM/WebGL2 is standard RTT territory
   but was not profiled in-browser here (follow-up if it ever feels heavy).
 
 ## Open questions

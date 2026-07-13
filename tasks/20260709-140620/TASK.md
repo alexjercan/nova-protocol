@@ -57,7 +57,7 @@ structure. Steps as executed:
       (camera_controller.rs) plus a camera-anchor-on-COM assertion in the
       `11_com_range` headless script. Regression: `06_torpedo_range` smoke
       still green.
-- [x] Document in `docs/2026-07-09-com-section-destroy.md`; CHANGELOG entries
+- [x] Document in `docs/retros/20260709-com-section-destroy.md`; CHANGELOG entries
       under Fixed and Added.
 - [ ] Deferred, needs a user decision: the handling-feel fork. Even with
       correct physics, rotation cannot feel lighter - the bcs PD controller

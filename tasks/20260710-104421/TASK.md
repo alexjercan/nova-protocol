@@ -44,7 +44,7 @@ Difficulties / notes:
   to avoid a from-scratch Bevy rebuild.
 - Deferred: phase 2 (click-picking in the inset); WASM/WebGL2 perf unmeasured.
 
-Full design record: docs/2026-07-12-target-inset-view.md.
+Full design record: docs/retros/20260712-target-inset-view.md.
 
 ## Goal
 

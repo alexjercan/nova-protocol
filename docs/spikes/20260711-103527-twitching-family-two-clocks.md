@@ -16,7 +16,7 @@ high speed makes the ship twitch and sometimes flip.
 
 ## The mechanism: two pose clocks since the 2026-07-09 interpolation fix
 
-`docs/2026-07-09-camera-twitch-interpolation.md` opted every dynamic body
+`docs/retros/20260709-camera-twitch-interpolation.md` opted every dynamic body
 into avian's `TransformInterpolation`. Since then the game has TWO pose
 representations that tick on different clocks:
 

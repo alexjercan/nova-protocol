@@ -34,7 +34,7 @@ Playing, runs N seconds, no panic", and can emit a screenshot for docs.
       plugins already env-gate in `Plugin::build` and exit via `AppExit::Success`.
 - [x] Add the per-example input closure hook - `nova_autopilot().input(|world, t| ...)`
       passes straight through to the bcs builder (documented, gate input to Playing).
-- [x] Document the invocation in `docs/2026-07-07-example-harness-wiring.md`.
+- [x] Document the invocation in `docs/retros/20260707-example-harness-wiring.md`.
 - [x] Prove it on 03_scenario: `BCS_AUTOPILOT=1 cargo run --example 03_scenario --features debug`
       reaches Playing and exits with no panic (verified under Xvfb).
 
@@ -45,7 +45,7 @@ Wired the bevy_common_systems env-gated harness into nova via a new
 re-exported through the nova_debug/nova_core/nova-protocol `debug`-gated preludes.
 Example `03_scenario` adds both under `#[cfg(feature = "debug")]`. `DebugPlugin`
 emits `nova harness: reached Playing` under the autopilot so a stalled run fails
-instead of falsely passing. Documented in `docs/2026-07-07-example-harness-wiring.md`.
+instead of falsely passing. Documented in `docs/retros/20260707-example-harness-wiring.md`.
 
 Key design call: nova's `Loading -> Playing` is asset-gated, so `nova_autopilot`
 holds `Loading` on a single step and lets the loader reach `Playing` rather than

@@ -9,7 +9,7 @@ budget cut (max_torque 100 -> 40) the flight computer can only hold roughly
 `max_torque / 64` units of lateral lever arm per unit thruster magnitude
 (~0.6 units): an asymmetric editor build, or a damage-shifted COM, pulls or
 pinwheels under burn. Documented as diegetic in
-docs/2026-07-09-flight-feel-retune.md and pinned by the
+docs/retros/20260709-flight-feel-retune.md and pinned by the
 `off_center_burn_pulls_but_a_centered_drive_is_held` test - but a real flight
 computer would balance thrust, not fight it with RCS.
 
@@ -40,7 +40,7 @@ computer would balance thrust, not fight it with RCS.
 ## Resolution
 
 Implemented torque-aware allocation (differential throttle) in `flight.rs`.
-Design and rationale: `docs/2026-07-09-thrust-balancing.md`.
+Design and rationale: `docs/retros/20260709-thrust-balancing.md`.
 
 - New pure helper `balance_throttles` (+ `project_onto_demand`,
   `BalanceEngine`): a tiny convex QP that splits the commanded thrust demand

@@ -37,7 +37,7 @@ What exists today, and what it constrains:
   destroy -> despawn pipeline. A component fine-lock is literally an `Entity`
   reference to a section.
 - **The HUD substrate fits.** The screen-indicator widget
-  (docs/2026-07-09-screen-indicator-widget.md) renders an entity-anchored,
+  (docs/retros/20260709-screen-indicator-widget.md) renders an entity-anchored,
   ApparentSize-scaled marker per section with zero new projection code -
   component markers are just more consumers, in a different color and size.
 - **No faction model yet** (20260708-203708): for the player, "enemy" is

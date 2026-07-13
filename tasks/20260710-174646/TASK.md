@@ -55,7 +55,7 @@ a Display impl; the first Keyboard binding gives the label.
       absorbs the resource (in-well/orbiting/outside states); goto cue
       follows the lock and hides while engaged.
 - [x] fmt + check --workspace --examples + affected modules (input,
-      hud); document in docs/2026-07-10-keybind-hints.md.
+      hud); document in docs/retros/20260710-keybind-hints.md.
 
 ## Notes (planning)
 
@@ -74,4 +74,4 @@ Shipped per plan: FlightVerbHints resolver in the input layer (live-binding
 labels, availability truth table, anchors), hud/keybind_hints.rs cluster +
 anchored cues, the hand-placed [O] ORBIT cue absorbed and the [G] GOTO cue
 added. 6 new tests; hud/input/flight modules green; fmt + check
---workspace --examples clean. Details: docs/2026-07-10-keybind-hints.md.
+--workspace --examples clean. Details: docs/retros/20260710-keybind-hints.md.

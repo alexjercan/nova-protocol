@@ -194,7 +194,7 @@ first.
 - 20260712-203345 (inset scope) LANDED: `InsetZoomable` opt-in flag on
   ships/torpedoes/asteroids (not beacons); inset gated on it; framing
   generalized to a collider-AABB union for section-less bodies; ALL-HUD-mode
-  only. See its TASK.md + docs/2026-07-12-target-inset-view.md.
+  only. See its TASK.md + docs/retros/20260712-target-inset-view.md.
 - 20260712-203349 (no-torpedo-autolock) CLOSED won't-do: superseded by B5.
 - 20260712-203353 (sticky lock) LANDED: B5 sticky-from-acquisition, SHIP LOCKS
   ONLY (review R1.1 - the lock is also the nav designator, so asteroids/beacons

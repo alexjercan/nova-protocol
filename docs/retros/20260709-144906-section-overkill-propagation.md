@@ -6,7 +6,7 @@
   drove the landing steps manually)
 
 What shipped is in the task's Resolution and
-`docs/2026-07-09-section-overkill-propagation.md`. The headline: a two-line
+`docs/retros/20260709-section-overkill-propagation.md`. The headline: a two-line
 clamp in the shared crate's damage propagation, but the cycle's real work was
 proving the mechanism and threading a two-repo, git-rev-pinned dependency.
 
@@ -70,5 +70,5 @@ proving the mechanism and threading a two-repo, git-rev-pinned dependency.
       float accumulation (3rd occurrence across retros - proposed to the user,
       pending their OK to edit the global file).
 - [x] Documented the cross-repo verify-via-local-patch pattern in
-      docs/2026-07-09-section-overkill-propagation.md for the next git-rev-pinned
+      docs/retros/20260709-section-overkill-propagation.md for the next git-rev-pinned
       dependency fix.

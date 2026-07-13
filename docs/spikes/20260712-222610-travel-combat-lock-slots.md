@@ -59,7 +59,7 @@ what are the sharp edges, and how do we sequence it? The model as stated:
   in combat view" is HUD affordance, not mechanism.
 - Range gates are the LockSignature scanner model (ships/wells 20 km, signed
   rocks signature*30/u, committed torpedoes 2500, unsigned debris 15;
-  docs/2026-07-10-signature-lock.md) - still sound, and "cone at ANY
+  docs/retros/20260710-signature-lock.md) - still sound, and "cone at ANY
   distance" reads as "no extra cone-range cap for signed/notable bodies",
   not as repealing the signature model (debris at 500 m stays unlockable,
   which the user explicitly wanted in spike 20260712-215256).

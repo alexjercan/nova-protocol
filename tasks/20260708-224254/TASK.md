@@ -6,7 +6,7 @@
 
 ## Goal
 
-Finding F1 from the PR #53 review (`docs/reviews/2026-07-08-pr53-audio-sfx.md`):
+Finding F1 from the PR #53 review (`docs/reviews/20260708-pr53-audio-sfx.md`):
 the distance-attenuation listener is `q_camera.iter().next()` over
 `Query<&GlobalTransform, With<Camera3d>>`, which assumes exactly one `Camera3d`.
 It holds today, but ECS query order is not guaranteed, so if a second `Camera3d`
@@ -16,7 +16,7 @@ between cameras frame to frame and the SFX attenuation would jitter. Make the
 listener explicit and stable.
 
 Scope extended by the PR #54 review (F2,
-`docs/reviews/2026-07-09-pr54-combat-juice.md`): `juice.rs` added more call
+`docs/reviews/20260709-pr54-combat-juice.md`): `juice.rs` added more call
 sites with the same "first/any Camera3d" assumption - its own
 `listener_position`, `ensure_camera_shake` (attaches `CameraShake` to *any*
 `Camera3d`, including the editor camera; not state-gated), the ring-facing

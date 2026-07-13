@@ -5,7 +5,7 @@
 - REVIEW ROUNDS: 1 (APPROVE, no findings)
 
 Closes the component-lock arc. What shipped is in the task's Resolution and
-docs/2026-07-09-component-lock.md.
+docs/retros/20260709-component-lock.md.
 
 ## What went well
 

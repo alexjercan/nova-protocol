@@ -6,10 +6,10 @@
 
 ## Outcome (CLOSED 2026-07-13)
 
-Swept: supersession/reframe banners on docs/2026-07-09-component-lock.md
+Swept: supersession/reframe banners on docs/retros/20260709-component-lock.md
 (acquisition superseded, fine-lock layer stands), docs/2026-07-10-signature-
 lock.md (range model now gates the RADAR picker; 15->5 debris retune noted)
-and docs/2026-07-12-target-inset-view.md (CombatLock components, deliberate
+and docs/retros/20260712-target-inset-view.md (CombatLock components, deliberate
 acquisition); CHANGELOG Unreleased coherence (the CTRL free-aim entry carries
 its supersession note; the main radar entry landed with 082330; released
 sections left historical); shakedown minimal text fix ("Hold [CTRL], look at
@@ -28,9 +28,9 @@ docs so nothing asserts the dead models as current.
 
 - [x] Supersession banners / acquisition-section updates on the docs that
       describe passive acquisition or scroll cycling as current:
-      docs/2026-07-10-signature-lock.md (the range MODEL survives as the radar
+      docs/retros/20260710-signature-lock.md (the range MODEL survives as the radar
       picker's gate - reframe, don't delete), the component-lock doc
-      (docs/2026-07-09-component-lock.md), docs/2026-07-12-target-inset-view.md
+      (docs/retros/20260709-component-lock.md), docs/retros/20260712-target-inset-view.md
       (inset now keys off the CombatLock component), and any spike still
       marked RECOMMENDED that recommends scroll cycling.
 - [x] CHANGELOG.md: the Unreleased section now contains contradictory

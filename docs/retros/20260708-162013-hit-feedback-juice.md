@@ -5,7 +5,7 @@
 - REVIEW ROUNDS: 1 (APPROVE with 2 MINORs + 1 NIT; both MINORs addressed before merge)
 
 See `tasks/20260708-162013/TASK.md` for what shipped and
-`docs/2026-07-09-hit-feedback-juice.md` for the design. This retro is about how the
+`docs/retros/20260709-hit-feedback-juice.md` for the design. This retro is about how the
 working went.
 
 ## What went well

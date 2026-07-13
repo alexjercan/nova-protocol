@@ -55,5 +55,5 @@ Effects:
 - [x] Pure helpers (`distance_falloff`, throttle, `flash_radius`, `flash_alpha`) with
       unit tests, observer-level integration tests, and a "settings defaults" guard.
 - [x] `cargo fmt`, `cargo clippy --all-targets`, `cargo test --workspace` all green.
-- [x] Design note in `docs/2026-07-09-hit-feedback-juice.md`.
+- [x] Design note in `docs/retros/20260709-hit-feedback-juice.md`.
 </content>

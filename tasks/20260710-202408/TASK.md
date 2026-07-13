@@ -50,7 +50,7 @@ current behavior for everything unsized.
   unchanged.
 - [x] Run flight, input::ai, hud, nova_scenario tests and `cargo check
   --workspace --examples`.
-- [x] Docs: docs/2026-07-10-surface-relative-standoff.md; close TASK.md.
+- [x] Docs: docs/retros/20260710-surface-relative-standoff.md; close TASK.md.
 
 ## Notes
 
@@ -81,7 +81,7 @@ The first strict bound (-10u) failed at 78.9u vs the 90u park point: the
 release fires at near-rest and the 1+ u/s^2 pull drags the parked ship
 inward - pre-existing release behavior, not this task's geometry, and
 exactly what 20260710-195954 (park into ORBIT) exists to fix. Recorded in
-docs/2026-07-10-surface-relative-standoff.md Known limits.
+docs/retros/20260710-surface-relative-standoff.md Known limits.
 
 Review round 1: APPROVE with 2 MINOR + 2 NIT fixed in-round (max-
 preference test added - flight is 56; published surface distance clamped

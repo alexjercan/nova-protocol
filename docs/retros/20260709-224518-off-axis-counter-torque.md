@@ -26,7 +26,7 @@
   "forward = -0.0017 against a zero-slack equality" in one run, and the fix
   (recruits bill their whole force vector to the penalty, forward = 0) fell
   out of the diagnosis. The model correction is documented in
-  docs/2026-07-10-off-axis-counter-torque.md.
+  docs/retros/20260710-off-axis-counter-torque.md.
 - **Seeding choice replaced a regularizer.** Seeding the solver at the
   primary-set uniform throttle makes the seed a stationary point on balanced
   ships, so idle laterals stay exactly dark with no effort-penalty term - old

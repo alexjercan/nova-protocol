@@ -19,7 +19,7 @@ cone and in range resolves to the cone pick (tested). The old resource name
 carried the TODO from closed task 20260706-162913; this rename+move is that
 refactor, and the Resolution says so.
 
-- [x] R1.1 (MINOR) docs/2026-07-09-screen-indicator-widget.md - the living
+- [x] R1.1 (MINOR) docs/retros/20260709-screen-indicator-widget.md - the living
   widget doc still names `SpaceshipPlayerTorpedoTargetEntity` in its
   consumer descriptions; the type no longer exists. Update the name (the
   dated spike docs are historical decision records and stay as written).

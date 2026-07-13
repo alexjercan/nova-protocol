@@ -6,7 +6,7 @@
 - REVIEW ROUNDS: 1 (APPROVE, two NITs addressed)
 
 See `tasks/20260707-100002/TASK.md` for what changed and
-`docs/2026-07-07-example-harness-wiring.md` for the design writeup; this retro is
+`docs/retros/20260707-example-harness-wiring.md` for the design writeup; this retro is
 only about how the working went.
 
 ## What went well

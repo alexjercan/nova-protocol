@@ -69,7 +69,7 @@ the FLIP marker and ETA too.
 - [x] Run the input::ai test module (autopilot_system signature changes -
   standing lesson) plus flight, hud and `cargo check --workspace
   --examples`.
-- [x] Docs: docs/2026-07-10-gravity-aware-arrival.md (what changed, the
+- [x] Docs: docs/retros/20260710-gravity-aware-arrival.md (what changed, the
   formula, the degradation path); close TASK.md with the resolution.
 
 ## Notes
@@ -110,4 +110,4 @@ from the owning system's actual code caught this before it became a bug).
 Difficulties: none of substance; the honesty check (force-zero the budget,
 watch the integration test reproduce the 12u crash) was cheap and worth
 keeping as a pattern for physics fixes. Docs:
-docs/2026-07-10-gravity-aware-arrival.md.
+docs/retros/20260710-gravity-aware-arrival.md.

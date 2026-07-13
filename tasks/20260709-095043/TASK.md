@@ -56,7 +56,7 @@ decisions, not defaults - juice retro).
       `hull_turn_rate_makes_mass_legible` (flight.rs - stripped out-turns
       full, clamps, degenerate inputs).
 - [x] Playtest handoff prepared: all knobs and their reasoning tabled in
-      docs/2026-07-09-flight-feel-retune.md; the live session with the user
+      docs/retros/20260709-flight-feel-retune.md; the live session with the user
       happens on master (checklist: flip a full vs stripped ship, watch the
       camera lean under burn, shake/flash overlap under burn, deadband
       twitch). Feedback lands as direct retunes of the documented constants.
@@ -78,7 +78,7 @@ binds without regressing the flagship's familiar rate (~88 deg/s; remnants
 pin the 240 ceiling). Camera: gameplay modes get
 smoothing 0.15 and a burn push-back driven by the spooled main drive, with
 the per-mode rigs extracted to one source of truth. Values and reasoning in
-docs/2026-07-09-flight-feel-retune.md; the live playtest with the user
+docs/retros/20260709-flight-feel-retune.md; the live playtest with the user
 happens post-merge and adjusts the documented constants directly.
 
 Honest scope: 110 nova_gameplay unit tests + both smokes run locally and

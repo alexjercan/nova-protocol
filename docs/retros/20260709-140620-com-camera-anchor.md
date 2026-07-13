@@ -6,7 +6,7 @@
   all addressed; round 2 APPROVE)
 
 What shipped is in the task's Resolution and
-`docs/2026-07-09-com-section-destroy.md`. The headline: two hours of physics
+`docs/retros/20260709-com-section-destroy.md`. The headline: two hours of physics
 suspicion ended in a one-expression camera fix - the physics was right, the
 viewpoint lied.
 

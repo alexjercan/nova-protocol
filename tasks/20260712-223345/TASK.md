@@ -14,7 +14,7 @@ or superseded in place.
 
 ## Steps
 
-- [ ] Write docs/2026-07-12-travel-combat-locks.md: the shipped model as the
+- [ ] Write docs/retros/20260712-travel-combat-locks.md: the shipped model as the
       current source of truth - TravelLock/CombatLock components on the
       ship root, travel auto-cast + sticky + scroll cycling, seed-on-raise,
       combat enemy ordering, fire gating, unlock key, HostileContacts,
@@ -35,11 +35,11 @@ or superseded in place.
 - [ ] docs/spikes/20260712-222610-travel-combat-lock-slots.md: append Fix
       record entries per landed task; resolve its open questions with the
       playtest verdicts known by then.
-- [ ] docs/2026-07-09-component-lock.md: fix cone range 2000 m -> 20 km
+- [ ] docs/retros/20260709-component-lock.md: fix cone range 2000 m -> 20 km
       (`TARGETING_MAX_RANGE`, targeting.rs:119), "nearest AI ship" fallback
       -> hostile-relation gate, and the scroll gesture change; re-read the
       rest against the code.
-- [ ] docs/2026-07-10-signature-lock.md: verify against the code (expected
+- [ ] docs/retros/20260710-signature-lock.md: verify against the code (expected
       accurate; range gates unchanged by the slot split).
 - [ ] Sweep README/CHANGELOG for targeting/input behavior claims the new
       model invalidates (CHANGELOG entries are dated records - only fix

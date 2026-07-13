@@ -5,7 +5,7 @@
 - REVIEW ROUNDS: 1 (APPROVE, 2 NITs, both addressed)
 
 What shipped is in the task's Resolution and
-`docs/2026-07-09-thrust-balancing.md`. A smooth cycle; the design work was the
+`docs/retros/20260709-thrust-balancing.md`. A smooth cycle; the design work was the
 substance, the review was clean.
 
 ## What went well
@@ -63,7 +63,7 @@ substance, the review was clean.
   damage case (one centered main drive, a side section lost -> COM shifts ->
   the lone drive is now off-center with nothing in the firing set to trim
   against). Documented as a deliberate boundary in
-  `docs/2026-07-09-thrust-balancing.md`.
+  `docs/retros/20260709-thrust-balancing.md`.
 - [ ] The "one cargo test filter" rule now has two occurrences across retros;
   if it recurs a third time, promote it from retro-lore to an AGENTS.md testing
   note rather than relying on memory.

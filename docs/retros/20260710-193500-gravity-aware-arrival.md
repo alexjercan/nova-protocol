@@ -61,5 +61,5 @@
   playtests show sloppy stops near wells.
 - [x] Tasks 20260710-202408 (surface-relative standoff) and
   20260710-195954 (GOTO parks into ORBIT) touch this same arrival region
-  and should re-read docs/2026-07-10-gravity-aware-arrival.md first -
+  and should re-read docs/retros/20260710-gravity-aware-arrival.md first -
   already noted in 202408's own task notes.

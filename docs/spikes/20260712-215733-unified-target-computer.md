@@ -62,7 +62,7 @@ State is RESOURCES today, not components:
   a hostile BEHIND the player (entries are not facing-gated).
 - Range gating by `LockSignature` (ships/wells 20 km, signed rocks
   signature*30, debris 15 m, committed torpedoes 2500) sits at candidate
-  collection and stays as-is; docs/2026-07-10-signature-lock.md is accurate.
+  collection and stays as-is; docs/retros/20260710-signature-lock.md is accurate.
 
 ### Divergence table (desired vs shipped)
 
@@ -172,10 +172,10 @@ and GOTO works on it.
 - docs/spikes/20260712-215256-combat-travel-lock-separation.md: A1's
   non-sticky nav entries - add a note that the sticky unified list supersedes
   A1 while C1/B stay parked.
-- docs/2026-07-09-component-lock.md: cone range says 2000 m, code says 20 km
+- docs/retros/20260709-component-lock.md: cone range says 2000 m, code says 20 km
   (`TARGETING_MAX_RANGE`, targeting.rs:119); fallback described as "nearest
   AI ship", code gates on hostile relation. Correct in place.
-- docs/2026-07-10-signature-lock.md: still accurate; no change.
+- docs/retros/20260710-signature-lock.md: still accurate; no change.
 - Retros are dated records of what happened and are NOT rewritten.
 
 ## Combat vs travel separation - is it worth it? (user question, 2026-07-12)

@@ -5,7 +5,7 @@
 - REVIEW ROUNDS: 1 (APPROVE, one NIT raised and addressed)
 
 What shipped is in the task's Resolution and
-`docs/2026-07-09-disabled-controller-torque.md`. A one-line
+`docs/retros/20260709-disabled-controller-torque.md`. A one-line
 `Without<SectionInactiveMarker>` filter; the cycle's value was in proving it was
 correct, complete, and non-vacuously tested. A smooth cycle - short retro.
 

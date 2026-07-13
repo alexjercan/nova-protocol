@@ -13,7 +13,7 @@ corrected or superseded in place.
 
 ## Steps
 
-- [ ] Write docs/2026-07-12-unified-target-computer.md: the shipped model as
+- [ ] Write docs/retros/20260712-unified-target-computer.md: the shipped model as
       the current source of truth - component state on the ship root, list
       membership (wide cone, all classes), ranking, auto-pick policy
       (hostiles-first / nav-in-tight-cone / signature fallback), universal
@@ -29,11 +29,11 @@ corrected or superseded in place.
 - [ ] docs/spikes/20260712-215256-combat-travel-lock-separation.md and
       docs/spikes/20260712-215733-unified-target-computer.md: append Fix
       record entries (what shipped, task pointers).
-- [ ] docs/2026-07-09-component-lock.md: fix cone range 2000 m -> 20 km
+- [ ] docs/retros/20260709-component-lock.md: fix cone range 2000 m -> 20 km
       (`TARGETING_MAX_RANGE`, targeting.rs:119) and "nearest AI ship"
       fallback -> hostile-relation gate; re-read the rest against the code
       while there.
-- [ ] docs/2026-07-10-signature-lock.md: verify against the code (expected
+- [ ] docs/retros/20260710-signature-lock.md: verify against the code (expected
       accurate; the range-gate model did not change).
 - [ ] Sweep README/CHANGELOG for targeting behavior claims that the unified
       model invalidates (CHANGELOG entries are dated records - only fix

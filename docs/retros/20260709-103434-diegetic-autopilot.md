@@ -5,7 +5,7 @@
 - REVIEW ROUNDS: 1 (APPROVE, 3 NITs recorded, none blocking)
 
 See `tasks/20260709-103434/TASK.md` for what shipped and
-`docs/2026-07-09-diegetic-autopilot.md` for the design. This cycle REPLACED
+`docs/retros/20260709-diegetic-autopilot.md` for the design. This cycle REPLACED
 the velocity-servo flight assist merged the same morning (52b582d) after the
 user rejected its model; that context is most of what this retro is about.
 
