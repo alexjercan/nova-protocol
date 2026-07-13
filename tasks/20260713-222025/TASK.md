@@ -1,6 +1,6 @@
 # Sharpen the web visual design to an industrial HUD-panel style
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 20
 - TAGS: spike,web,design
 
@@ -40,30 +40,30 @@ look on the landing page, a devlog post, and the tutorial.
 
 ## Steps
 
-- [ ] Foundation: add `--radius` (~2px), `--bevel` (inset top-highlight +
+- [x] Foundation: add `--radius` (~2px), `--bevel` (inset top-highlight +
       bottom-shade) and `--shadow-hard` tokens; retire `--shadow-glow-cyan` and
       soften `--shadow-panel`. Confirm Rajdhani / JetBrains Mono actually load
       (add the webfont `<link>`/`@font-face` if they are silently falling back).
-- [ ] Header: drop `backdrop-filter` blur for a solid opaque `--space-0` bar
+- [x] Header: drop `backdrop-filter` blur for a solid opaque `--space-0` bar
       with a strong bottom border + thin cyan accent; square the nav items and
       give the active/hover state a bracket or underline instead of a pill.
-- [ ] Buttons: flat solid cyan primary / transparent amber ghost, 1px border,
+- [x] Buttons: flat solid cyan primary / transparent amber ghost, 1px border,
       near-square corners, a keycap-style `:active` press; remove the hover
       `translateY` lift and the gradient/glow.
-- [ ] Cards + grids: crisp 1px border + machined bevel, `--radius` corners,
+- [x] Cards + grids: crisp 1px border + machined bevel, `--radius` corners,
       hover = border-brighten + accent (no float). Add a mono kicker/number
       treatment hook for the feature cards.
-- [ ] Hero + sections: shrink the hero-art radius and drop its cyan halo; tame
+- [x] Hero + sections: shrink the hero-art radius and drop its cyan halo; tame
       the amber radial wash; add structural framing (mono eyebrows, hairline
       section dividers, a couple of restrained corner-tick accents on hero /
       section heads only).
-- [ ] Content surfaces: apply the sharper radii/borders (glow -> hard
+- [x] Content surfaces: apply the sharper radii/borders (glow -> hard
       definition) to `.figure`, `.video-embed`, `.prose blockquote/code/kbd`,
       `.post-footer`, `.controls`, `.post-list`, `.site-footer`.
-- [ ] Markup: replace the emoji card icons in `index.html` with mono index
+- [x] Markup: replace the emoji card icons in `index.html` with mono index
       numbers / kicker labels; wire any header/footer/section accent hooks the
       new CSS needs. Keep the banner art.
-- [ ] Build + verify: `cd web && npm run ci` green; render and eyeball the
+- [x] Build + verify: `cd web && npm run ci` green; render and eyeball the
       landing page, a devlog post, and the tutorial for the sharper look.
 
 ## Notes
