@@ -580,7 +580,7 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                 spawn(beacon(ID_BEACON_3, "BEACON 3", BEACON_3_POS)),
                 objective(
                     OBJ_B4,
-                    "Cargo secured. Lock BEACON 3 and press [G] - let the computer fly. Then press [O] and hold the orbit over the planetoid.",
+                    "Cargo secured. Hold [CTRL], look at BEACON 3, release to lock it, then press [G] - let the computer fly. Then press [O] and hold the orbit over the planetoid.",
                 ),
                 // The crates despawned with their pickups (markers went
                 // with them); the marker moves to the beat-4 lock target

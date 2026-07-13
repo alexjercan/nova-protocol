@@ -1,5 +1,12 @@
 # Signature-gated lock: long-range lock only acquires large objects
 
+> REFRAMED (2026-07-13, deliberate-radar spike 20260713-082207): the
+> signature RANGE MODEL below is unchanged and still authoritative, but it now
+> gates the RADAR PICKER (what the held CTRL search can see) instead of a
+> passive acquisition pass - nothing locks without the deliberate gesture.
+> `unsigned_lock_range` was retuned 15 -> 5 (debris only radar-visible
+> point-blank).
+
 - TASK: 20260710-195952
 - MODULE: crates/nova_gameplay/src/input/targeting.rs (+ asteroid
   authoring in nova_scenario)

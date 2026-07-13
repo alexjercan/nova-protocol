@@ -1,5 +1,11 @@
 # Target inset view (render-to-texture scope of the locked ship)
 
+> UPDATED CONTEXT (2026-07-13, deliberate-radar spike 20260713-082207): the
+> inset now keys off the ship-root `CombatLock` + `LockFocus` components (the
+> player resources named below are gone), and a combat lock is taken
+> DELIBERATELY via the CTRL radar rather than by aim-assist. Everything else
+> here - the RTT probe findings, framing, `InsetZoomable` scope - stands.
+
 Task: 20260710-104421. Spike: docs/spikes/20260710-104011-target-inset-view.md
 (Option A, RECOMMENDED). Phase 1 (view-only inset + in-scene section
 highlight).

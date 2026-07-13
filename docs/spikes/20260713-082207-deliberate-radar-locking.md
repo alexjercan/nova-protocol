@@ -377,4 +377,16 @@ accurate.
 
 ## Fix record
 
-(tasks planned 2026-07-13 with the decisions folded in; not started)
+- 20260713-082324 LANDED (a123f36): derived camera mode + WeaponsRaised +
+  outgoing-rig seeding + ActiveLookRay; acquisition and the section snap read
+  the live ray. See its TASK.md.
+- 20260713-082330 LANDED (9e655d1): the core - ship-root lock components,
+  CTRL radar gestures (hold/commit/tap-staged-clear per D1/D2/D3a), natural
+  clears + 30 s decay (D4), threat set (D9), FlightVerb::Lock, crosshair HUD,
+  12_hud_range drives the REAL gesture live. Same-frame RMB+CTRL latch edge
+  recorded in its TASK.md.
+- 20260713-082337 LANDED (74238e1): WeaponsHot safety (3-layer enforcement),
+  AI combat mirror, weapons status HUD + torpedo readout (D5a), GOTO capture
+  pinned (D8). Audio blip + gesture hint rows deferred to 20260713-090653.
+- 20260713-082344 LANDED: this docs sweep (banners on the component-lock,
+  signature and inset docs; CHANGELOG coherence; shakedown minimal text fix).

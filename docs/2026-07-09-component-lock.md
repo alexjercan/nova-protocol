@@ -1,5 +1,15 @@
 # Component fine-lock on turret auto-lock (VATS-lite)
 
+> SUPERSEDED IN PART (2026-07-13, deliberate-radar spike 20260713-082207,
+> tasks 20260713-082324/-082330/-082337): ACQUISITION changed - there is no
+> aim-assist cone pick or close-range signature auto-lock anymore; the combat
+> lock is taken deliberately (raise RMB, hold CTRL radar, release to commit)
+> and lives in the ship-root `CombatLock` component (the
+> `SpaceshipPlayerTargetLock`/`...ComponentLock` resources are gone). The
+> section FINE-LOCK layer this doc describes - focus dwell, snap with
+> hysteresis, wheel/bracket cycling, pin window, HUD markers - survives
+> unchanged on top of the combat lock.
+
 - TASKS: 20260709-150711 (live-structure anchor), 20260709-192503 (targeting
   module + hybrid acquisition), 20260709-192522 (focus dwell + fine-lock),
   20260709-173700 (turret feed), 20260709-192523 (HUD)
