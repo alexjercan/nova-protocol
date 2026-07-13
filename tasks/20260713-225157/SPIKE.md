@@ -130,6 +130,12 @@ Direction-level tasks this spike seeded, for `/plan` to break into steps:
   + two real sub-pages (Ship sections, Keybinds); the other eight are coming-soon
   stubs (non-navigable) for the content tasks to fill. See
   tasks/20260713-225324/TASK.md.
-- 20260713-225333 (tutorial trim): pending.
+- 20260713-225333 (tutorial trim) LANDED: cut the four reference tables from
+  the tutorial (they live in the wiki Keybinds page) and pointed to the wiki;
+  the tutorial now reads as a guided first hour (intro, menu, Shakedown Run).
+  Follow-on: audited the real gamepad bindings from the input code and corrected
+  the Keybinds page (burn = right bumper, free look = left bumper, combat also
+  binds left trigger, turret/torpedo fire is editor-rebindable, not "RT2") while
+  giving every gamepad control a PromptFont glyph.
 - 20260713-225338 (gameplay pages): pending.
 - 20260713-225353 (world/meta pages): pending.
