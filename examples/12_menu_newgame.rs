@@ -11,12 +11,17 @@
 //!   preview-teardown -> play-test transition.
 //!
 //! Under `BCS_AUTOPILOT` the ECS fallback error handler is swapped to panic,
-//! so any command error - e.g. a system queuing a command on an entity the
-//! menu/scenario teardown already despawned - fails the smoke run instead of
-//! scrolling by as a WARN. This pins the investigation of task
-//! 20260713-175352 (an "Entity despawned" command error on this transition in
-//! the v0.5.0 web build, not reproduced natively in 6 newgame + 3 editorplay
-//! runs): if the race exists natively and ever fires, CI catches it.
+//! so an UNHANDLED command error (e.g. a plain `insert` on an entity the
+//! menu/scenario teardown already despawned) aborts the smoke run. (Bevy
+//! 0.19's default severity already panics these; the explicit swap pins the
+//! contract against upstream default changes.) Coverage caveat (task 20260713-203709): `remove`/`despawn`
+//! bake in the WARN handler at queue time, so their errors never reach this
+//! handler - the smoke suite's stderr grep for "Encountered an error in
+//! command" is what gates that flavor. Together they pin the investigation
+//! of task 20260713-175352 (an "Entity despawned" command error on this
+//! transition in the v0.5.0 web build, not reproduced natively in 6 newgame
+//! + 3 editorplay runs): if the race exists natively and ever fires, CI
+//! catches it.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text

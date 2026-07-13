@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The examples are a testable curriculum now - sections (01 controller PD, 02 thruster burn + plume, 03 hull damage pipeline, 04 turret range, 05 torpedo range, 06 guidance, 07 COM), scenario language (08: variables, filters, actions asserted live), editor (09), and playable (10: lock, gun kill, GOTO, arrival driven through the real input pipeline and watched by the scenario's own handlers; 11 HUD range with the velocity sphere; 12 the boot flow) - every one self-drives under BCS_AUTOPILOT with behavior assertions and a completion backstop, and the CI smoke list runs all twelve
+- The example smoke suite now fails on ANY logged command error ("Encountered an error in command"), closing the gap where handled remove/despawn warns - the stale-entity teardown race class - sailed past the panic gate
 - The weapon test ranges fire again: the weapons safety had silently disarmed both (a cold press never latches and a held key never re-edges); their scripts and controls now raise the stance first, and new outcome assertions pin the fire -> hit chain so it cannot regress quietly
 
 ### Fixed

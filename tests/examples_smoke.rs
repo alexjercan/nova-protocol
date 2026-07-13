@@ -7,7 +7,12 @@
 //! failure), and exits cleanly with `AppExit::Success`, logging
 //! `nova harness: reached Playing` and `autopilot: cycle complete, no panic`. This
 //! test runs each one headless and asserts on exactly that - turning the examples'
-//! built-in harness into an automated regression check.
+//! built-in harness into an automated regression check. It also FAILS any run
+//! whose stderr contains "Encountered an error in command": the
+//! fallback-to-panic handler swap only escalates unhandled commands, while
+//! `remove`/`despawn` bake in the WARN handler at queue time - the grep is
+//! what makes handled command warns (stale-entity teardown races) gate CI
+//! (task 20260713-203709).
 //!
 //! The examples open a real window (they use `DefaultPlugins`), so a display is
 //! required. In CI set up a virtual one, e.g. `Xvfb :99 & export DISPLAY=:99`. With
@@ -80,6 +85,28 @@ fn harnessed_examples_reach_playing_without_panic() {
         assert!(
             stderr.contains("autopilot: cycle complete, no panic"),
             "example {example} did not complete the autopilot cycle\n--- stderr tail ---\n{}",
+            tail(&stderr),
+        );
+        // Command errors gate the run too (task 20260713-203709): the
+        // fallback-to-panic handler swap (12_menu_newgame) only escalates
+        // UNHANDLED commands - `remove`/`despawn` bake in the WARN handler
+        // at queue time (bevy_ecs commands/mod.rs `queue_handled(_, warn)`),
+        // so their "Entity despawned" errors log a warn and sail past the
+        // panic gate. This grep is the stable prefix both flavors share
+        // (bevy_ecs error/handler.rs), so a teardown-race regression fails
+        // the suite instead of scrolling by (the 2026-07-12 playtest warn
+        // class, fixed in 20260712-115902, would NOT have failed CI).
+        // Print the matching lines themselves above the tail: this error
+        // class fires early (load/teardown), and a chatty run can push it
+        // out of the 48 KB tail (review R1.1).
+        let command_errors: Vec<&str> = stderr
+            .lines()
+            .filter(|line| line.contains("Encountered an error in command"))
+            .collect();
+        assert!(
+            command_errors.is_empty(),
+            "example {example} logged a command error (stale entity command?)\n--- matching lines ---\n{}\n--- stderr tail ---\n{}",
+            command_errors.join("\n"),
             tail(&stderr),
         );
     }
