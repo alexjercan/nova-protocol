@@ -76,6 +76,9 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `does-the-old-element-survive` (x2): when a design adds an element
   overlapping an existing one, decide explicitly what happens to the old one.
   20260711-000547.
+- `declared-but-not-loaded` (x1): a resource named in config/markup (font stack,
+  asset URL, class hook) is not proof it is wired; grep for where it is actually
+  imported/served before assuming it renders. 20260713-222025.
 - `one-cargo-test-filter` (x4): `cargo test` takes one filter and one `-p` per
   invocation; separate runs otherwise. 20260713-082324.
 - `check-all-targets-for-struct-field` (x1): a new non-Default field breaks
