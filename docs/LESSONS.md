@@ -151,8 +151,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   alpha implicates the rig's math, not the timing under test. 20260711-121839.
 - `ab-toggle-via-vcs-not-sed` (x1): toggle a fix off via stash/checkout, not by
   sed-editing source. 20260711-121839.
-- `confounded-knob-experiment` (x1): before concluding a knob A/B, grep every
-  reader of the knob. 20260711-140234.
+- `confounded-knob-experiment` (x2): before concluding a knob A/B - or
+  attributing the effects of a held input key - grep every reader of the
+  knob/binding (Space drives fire AND the global burn; the "torpedo drift
+  physics bug" was the ship's own engine). 20260711-140234, 20260713-203709.
 - `recompute-both-sides-of-a-band` (x1): changing one side of a guard, band, or
   inequality (clearance floor, hysteresis pair, arrival margin) requires
   recomputing the OTHER side with realistic in-game magnitudes; when a value's
