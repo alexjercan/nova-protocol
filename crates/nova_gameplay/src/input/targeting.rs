@@ -6,9 +6,13 @@
 //! - [`CombatLock`] (red crosshair): what guns/torpedoes/focus/inset read.
 //! - Hold CTRL ([`RadarHoldInput`], a `Hold` condition) = radar on: the
 //!   picker live-retargets to the best body on the ACTIVE look ray
-//!   ([`ActiveLookRay`]); releasing past the threshold COMMITS the candidate
-//!   into the slot LATCHED at press (combat while [`WeaponsRaised`], else
-//!   travel). Releasing onto empty space is a NO-OP - the radar abort.
+//!   ([`ActiveLookRay`]). At the hold THRESHOLD the destination slot is
+//!   latched from the CURRENT raised stance (combat while [`WeaponsRaised`],
+//!   else travel - Q1a, spike 20260713-110039) and written LIVE with the
+//!   candidate every held frame (keep-last: sweeping over empty space never
+//!   drops the lock, Q2a). Releasing just ends the search - the lock
+//!   sticks. A hold that never resolves a candidate leaves the slots
+//!   untouched (D1).
 //! - Tap CTRL ([`RadarClearInput`], a `Tap` condition) = staged clear: the
 //!   combat lock first, then the travel lock (disengaging an engaged GOTO);
 //!   while raised, only ever the combat lock.
@@ -34,8 +38,9 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         targeting_state, CombatLock, ComponentLock, ComponentLockMode, LockClearedToast, LockFocus,
-        LockSignature, RadarState, SpaceshipTargetingPlugin, SpaceshipTargetingSystems,
-        TargetingSettings, ThreatContacts, TravelLock, WeaponsHot, RADAR_TAP_SECS,
+        LockSignature, RadarLockAcquired, RadarSlot, RadarState, SpaceshipTargetingPlugin,
+        SpaceshipTargetingSystems, TargetingSettings, ThreatContacts, TravelLock, WeaponsHot,
+        RADAR_TAP_SECS,
     };
 }
 
@@ -102,17 +107,36 @@ pub struct TravelLock(pub Option<Entity>);
 #[reflect(Component)]
 pub struct CombatLock(pub Option<Entity>);
 
+/// The radar's destination slot, latched at the hold THRESHOLD from the
+/// raised stance current at that moment (Q1a, spike 20260713-110039). The
+/// old press-time latch carried a same-frame RMB+CTRL edge - the raised
+/// flag derives in Update while the radar Start observer runs PreUpdate -
+/// which the threshold latch retires: by then the stance has settled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect)]
+pub enum RadarSlot {
+    /// Writing the [`TravelLock`] (white crosshair).
+    Travel,
+    /// Writing the [`CombatLock`] (red crosshair).
+    Combat,
+}
+
 /// Live radar search state, present on the player ship root ONLY while the
-/// radar gesture is held. The destination slot is LATCHED at press (decision
-/// D2): a mid-hold RMB change cannot re-route the commit.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Reflect)]
+/// radar gesture is held. Inside the tap window nothing is latched or
+/// written (a sub-threshold release is the Tap clear, not a lock); from the
+/// threshold on, the engaged slot is written live every frame the candidate
+/// resolves.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Default, Reflect)]
 #[reflect(Component)]
 pub struct RadarState {
-    /// Commit into the combat slot (latched from [`WeaponsRaised`] at press).
-    pub combat: bool,
-    /// The current best candidate under the look ray (with hysteresis); what
-    /// a release right now would commit. `None` = searching empty space.
+    /// The latched destination slot; `None` until the hold threshold.
+    pub engaged: Option<RadarSlot>,
+    /// The current best candidate under the look ray (with hysteresis).
+    /// `None` = searching empty space; the engaged slot keeps its last
+    /// target (keep-last, Q2a).
     pub candidate: Option<Entity>,
+    /// Whether this gesture has acquired yet - first-write bookkeeping for
+    /// the once-per-gesture [`RadarLockAcquired`] cue (Q3a).
+    pub acquired: bool,
 }
 
 /// The weapons safety, derived every frame on any ship carrying a
@@ -176,6 +200,18 @@ pub(crate) struct RadarHoldInput;
 #[action_output(bool)]
 pub(crate) struct RadarClearInput;
 
+/// One radar gesture acquired its first target - fired the first frame the
+/// engaged slot RESOLVES a candidate (re-acquiring the target the slot
+/// already held is still an acquisition; the slot write itself is an
+/// equality-skip then), once per gesture (acquire-only, Q3a of spike
+/// 20260713-110039), never on the live retargets that follow. The LockOn
+/// cue reads this (consumer lands with task 20260713-110311).
+#[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RadarLockAcquired {
+    /// True when the combat slot acquired (red), false for travel (white).
+    pub combat: bool,
+}
+
 /// Toast message for the HUD: what a tap-clear just cleared, so the
 /// mode-scoped gesture is legible (adversarial finding UX15).
 #[derive(Message, Debug, Clone)]
@@ -204,12 +240,14 @@ impl Plugin for SpaceshipTargetingPlugin {
         app.register_type::<TravelLock>();
         app.register_type::<CombatLock>();
         app.register_type::<RadarState>();
+        app.register_type::<RadarSlot>();
         app.register_type::<CombatDecay>();
         app.register_type::<ThreatContacts>();
         app.register_type::<WeaponsHot>();
         app.register_type::<LockFocus>();
         app.register_type::<ComponentLock>();
         app.add_message::<LockClearedToast>();
+        app.add_message::<RadarLockAcquired>();
 
         // The state bundle rides the player marker wherever ships spawn
         // (observer-over-spawn-site).
@@ -569,27 +607,53 @@ fn update_contacts_and_locks(
     }
 }
 
-/// The radar search: while a [`RadarState`] exists (the hold gesture is
-/// active), live-retarget the provisional candidate to the best body on the
-/// look ray, with incumbent hysteresis (decision D7) so two near-collinear
-/// bodies do not strobe the pick. The candidate is PROVISIONAL - it never
-/// touches the lock slots or the focus dwell; only the commit does.
+/// The radar search AND the live lock (spike 20260713-110039, strand A1):
+/// while a [`RadarState`] exists (the hold gesture is active), live-retarget
+/// the candidate to the best body on the look ray, with incumbent hysteresis
+/// (decision D7) so two near-collinear bodies do not strobe the pick. Once
+/// the hold crosses its threshold (the action reports `Fired`), the
+/// destination slot is latched from the CURRENT raised stance (Q1a) and
+/// written with the candidate every frame it resolves - the lock is LIVE
+/// under the sweep; releasing merely stops the retargeting. A `None`
+/// candidate never writes (keep-last, Q2a), so the tap window (pre-Fired)
+/// and an empty sweep both leave the slots alone. Runs inside the
+/// pause-gated input set, so a pause freezes the writes while the release
+/// observers still tear the search down.
+#[allow(clippy::type_complexity)]
 fn update_radar_search(
     look_ray: ActiveLookRay,
     settings: Res<TargetingSettings>,
     q_candidates: LockableQuery,
+    q_hold: Query<&TriggerState, With<Action<RadarHoldInput>>>,
+    mut acquired_cue: MessageWriter<RadarLockAcquired>,
     mut spaceship: Query<
         (
             &Transform,
             Option<&ComputedCenterOfMass>,
             Entity,
             Option<&Allegiance>,
+            Option<&WeaponsRaised>,
             &mut RadarState,
+            &mut TravelLock,
+            &mut CombatLock,
+            &mut CombatDecay,
         ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
 ) {
-    for (transform, com, ship, ship_allegiance, mut radar) in &mut spaceship {
+    let hold_fired = q_hold.iter().any(|&state| state == TriggerState::Fired);
+    for (
+        transform,
+        com,
+        ship,
+        ship_allegiance,
+        raised,
+        mut radar,
+        mut travel,
+        mut combat,
+        mut decay,
+    ) in &mut spaceship
+    {
         let Some(aim_rotation) = look_ray.rotation() else {
             continue;
         };
@@ -612,6 +676,45 @@ fn update_radar_search(
         );
         if radar.candidate != picked {
             radar.candidate = picked;
+        }
+
+        // Tap window: nothing latches, nothing writes.
+        if !hold_fired {
+            continue;
+        }
+        let slot = *radar.engaged.get_or_insert_with(|| {
+            if raised.is_some_and(|raised| raised.0) {
+                RadarSlot::Combat
+            } else {
+                RadarSlot::Travel
+            }
+        });
+        // An engaged combat sweep IS combat activity: hold the decay at zero
+        // even across equality-skip frames (F12 - a long sweep must not
+        // cross the decay boundary mid-gesture).
+        if slot == RadarSlot::Combat && decay.0 != 0.0 {
+            decay.0 = 0.0;
+        }
+        let Some(candidate) = radar.candidate else {
+            continue;
+        };
+        match slot {
+            RadarSlot::Combat => {
+                if combat.0 != Some(candidate) {
+                    combat.0 = Some(candidate);
+                }
+            }
+            RadarSlot::Travel => {
+                if travel.0 != Some(candidate) {
+                    travel.0 = Some(candidate);
+                }
+            }
+        }
+        if !radar.acquired {
+            radar.acquired = true;
+            acquired_cue.write(RadarLockAcquired {
+                combat: slot == RadarSlot::Combat,
+            });
         }
     }
 }
@@ -717,10 +820,10 @@ fn ship_grants_lock(
         .any(|(ChildOf(parent), verbs)| *parent == ship && verbs.granted(FlightVerb::Lock))
 }
 
-/// Start of the radar hold: latch the destination slot from the RAISED
-/// stance (decision D2 - a mid-hold RMB change cannot re-route the commit)
-/// and open the search. Gated on the computer's Lock capability and, like
-/// every intent observer, on the pause overlay.
+/// Start of the radar hold: open the search. The destination slot is NOT
+/// decided here - it latches at the hold threshold, in the live search
+/// (Q1a). Gated on the computer's Lock capability and, like every intent
+/// observer, on the pause overlay.
 #[allow(clippy::type_complexity)]
 fn on_radar_start(
     _: On<Start<RadarHoldInput>>,
@@ -733,10 +836,7 @@ fn on_radar_start(
             Without<SectionInactiveMarker>,
         ),
     >,
-    q_ship: Query<
-        (Entity, Option<&WeaponsRaised>),
-        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
-    >,
+    q_ship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
 ) {
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up. Releases stay ungated so held keys clear cleanly
@@ -744,66 +844,57 @@ fn on_radar_start(
     if *pause.get() == crate::PauseStates::Paused {
         return;
     }
-    for (ship, raised) in &q_ship {
+    for ship in &q_ship {
         if !ship_grants_lock(ship, &q_controllers) {
             // No Lock capability on this computer: the radar simply does not
-            // come on (deny cue lands with the HUD task 20260713-082337).
+            // come on (deny cue lands with the HUD task 20260713-110311).
             continue;
         }
-        commands.entity(ship).insert(RadarState {
-            combat: raised.is_some_and(|raised| raised.0),
-            candidate: None,
-        });
+        commands.entity(ship).insert(RadarState::default());
     }
 }
 
-/// Radar release past the hold threshold: COMMIT the provisional candidate
-/// into the latched slot. Empty candidate = no-op (the abort, decision D1);
-/// same-entity re-commit changes nothing (the focus dwell and component
-/// fine-lock survive - equality writes are skipped). A release during pause
-/// drops the commit but still closes the search (deliberate gestures do not
-/// survive a pause).
-#[allow(clippy::type_complexity)]
+/// Radar teardown, shared by both release paths: with the lock written live
+/// under the sweep (strand A1), a release has nothing to commit - it only
+/// closes the search. Deliberately not pause-gated: state cleanup must
+/// always run, like the release observers elsewhere.
+fn close_radar_search(
+    commands: &mut Commands,
+    q_ship: &Query<
+        Entity,
+        (
+            With<SpaceshipRootMarker>,
+            With<PlayerSpaceshipMarker>,
+            With<RadarState>,
+        ),
+    >,
+) {
+    for ship in q_ship {
+        commands.entity(ship).remove::<RadarState>();
+    }
+}
+
+/// Radar release past the hold threshold (`Complete`): the lock already
+/// holds whatever the sweep last resolved - it sticks; just close the
+/// search.
 fn on_radar_commit(
     _: On<Complete<RadarHoldInput>>,
     mut commands: Commands,
-    pause: Res<State<crate::PauseStates>>,
-    mut q_ship: Query<
+    q_ship: Query<
+        Entity,
         (
-            Entity,
-            Option<&RadarState>,
-            &mut TravelLock,
-            &mut CombatLock,
+            With<SpaceshipRootMarker>,
+            With<PlayerSpaceshipMarker>,
+            With<RadarState>,
         ),
-        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
 ) {
-    for (ship, radar, mut travel, mut combat) in &mut q_ship {
-        let Some(radar) = radar.copied() else {
-            // No open search (capability denied, or state lost mid-hold).
-            continue;
-        };
-        commands.entity(ship).remove::<RadarState>();
-        if *pause.get() == crate::PauseStates::Paused {
-            continue;
-        }
-        let Some(candidate) = radar.candidate else {
-            continue;
-        };
-        if radar.combat {
-            if combat.0 != Some(candidate) {
-                combat.0 = Some(candidate);
-            }
-        } else if travel.0 != Some(candidate) {
-            travel.0 = Some(candidate);
-        }
-    }
+    close_radar_search(&mut commands, &q_ship);
 }
 
-/// Radar release BEFORE the hold threshold (`Cancel`): just close the
-/// search - the same physical release fires the Tap clear separately.
-/// Deliberately not pause-gated: state cleanup must always run, like the
-/// release observers elsewhere.
+/// Radar release BEFORE the hold threshold (`Cancel`): nothing was latched
+/// or written yet; close the search - the same physical release fires the
+/// Tap clear separately.
 fn on_radar_cancel(
     _: On<ActionCancel<RadarHoldInput>>,
     mut commands: Commands,
@@ -816,9 +907,7 @@ fn on_radar_cancel(
         ),
     >,
 ) {
-    for ship in &q_ship {
-        commands.entity(ship).remove::<RadarState>();
-    }
+    close_radar_search(&mut commands, &q_ship);
 }
 
 /// The tap clear (decision D3a, staged): lowered - the combat lock first,
@@ -1323,6 +1412,7 @@ mod tests {
         let mut world = World::new();
         world.insert_resource(Time::<()>::default());
         world.init_resource::<TargetingSettings>();
+        world.init_resource::<Messages<RadarLockAcquired>>();
         world.spawn((
             SpaceshipCameraInputMarker,
             SpaceshipCameraNormalInputMarker,
@@ -1340,10 +1430,10 @@ mod tests {
                 PlayerSpaceshipMarker,
                 Transform::IDENTITY,
                 targeting_state(),
-                RadarState {
-                    combat: false,
-                    candidate: None,
-                },
+                // An open search still inside the tap window (nothing
+                // engaged): these tests exercise the PICKER; the live-write
+                // paths have their own rig below.
+                RadarState::default(),
             ))
             .id();
         (world, player)
@@ -2069,13 +2159,21 @@ mod tests {
 
     // -- the radar gesture end to end --
 
-    /// The full gesture pipeline: real InputPlugin + EnhancedInput + the
-    /// production flight rig, with `TimeUpdateStrategy::ManualDuration`
-    /// driving the REAL clock the Hold/Tap conditions tick on (50 ms steps:
-    /// 5 updates = the exact 250 ms threshold). The radar picker is
-    /// unit-tested above; here the provisional candidate is written directly
-    /// so the OBSERVER wiring (Start latch, Complete commit, Cancel, Tap
-    /// staged clear) is what is under test.
+    /// Count of [`RadarLockAcquired`] cues seen, drained by a test-local
+    /// reader system so the once-per-gesture contract is observable across
+    /// frames (Messages double-buffer per update).
+    #[derive(Resource, Default)]
+    struct AcquiredCueCount(usize);
+
+    /// Real input -> real `Hold`/`Tap` conditions -> the REAL radar search:
+    /// the full gesture e2e on the production flight rig, with
+    /// `TimeUpdateStrategy::ManualDuration` driving the clock the conditions
+    /// tick on (50 ms steps: 5 updates = the exact 250 ms threshold) and the
+    /// production split camera rig (ACTIVE normal rig, dormant turret decoy
+    /// 90 degrees off - reading the wrong rig fails loudly) feeding
+    /// `update_radar_search`, which under the live-lock model (spike
+    /// 20260713-110039) owns the threshold latch and the slot writes.
+    /// Nothing is stuffed: bodies are picked off the real look ray.
     fn gesture_app() -> (App, Entity) {
         use bevy::input::InputPlugin;
 
@@ -2088,12 +2186,43 @@ mod tests {
         app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
             Duration::from_millis(50),
         ));
+        app.init_resource::<TargetingSettings>();
+        app.init_resource::<AcquiredCueCount>();
         app.add_input_context::<FlightInputMarker>();
         app.add_observer(on_radar_start);
         app.add_observer(on_radar_commit);
         app.add_observer(on_radar_cancel);
         app.add_observer(on_lock_clear_tap);
         app.add_message::<LockClearedToast>();
+        app.add_message::<RadarLockAcquired>();
+        // The live search runs inside the pause-gated input set, exactly as
+        // the production plugin wires it.
+        app.add_systems(
+            Update,
+            update_radar_search.in_set(crate::input::SpaceshipInputSystems),
+        );
+        crate::plugin::configure_pause_gating(&mut app);
+        app.add_systems(
+            Update,
+            |mut cues: MessageReader<RadarLockAcquired>, mut count: ResMut<AcquiredCueCount>| {
+                count.0 += cues.read().count();
+            },
+        );
+
+        // The production split camera rig: the ACTIVE normal rig looks down
+        // -Z; the dormant turret decoy points 90 degrees off so a system
+        // reading the wrong rig picks the wrong bodies and fails loudly.
+        app.world_mut().spawn((
+            SpaceshipCameraInputMarker,
+            SpaceshipCameraNormalInputMarker,
+            SpaceshipRotationInputActiveMarker,
+            PointRotationOutput(Quat::IDENTITY),
+        ));
+        app.world_mut().spawn((
+            SpaceshipCameraInputMarker,
+            SpaceshipCameraTurretInputMarker,
+            PointRotationOutput(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)),
+        ));
 
         // A player ship whose computer grants Lock (the default loadout).
         let ship = app
@@ -2121,6 +2250,31 @@ mod tests {
         (app, ship)
     }
 
+    /// A radar-pickable ship body at `position` (ships are intrinsic-class:
+    /// full scanner range).
+    fn spawn_ship(app: &mut App, position: Vec3) -> Entity {
+        app.world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                RigidBody::Dynamic,
+                GlobalTransform::from_translation(position),
+            ))
+            .id()
+    }
+
+    /// Point the ACTIVE normal rig's look ray (identity = -Z).
+    fn aim_look(app: &mut App, rotation: Quat) {
+        let rig = app
+            .world_mut()
+            .query_filtered::<Entity, With<SpaceshipRotationInputActiveMarker>>()
+            .iter(app.world())
+            .next()
+            .expect("active rig");
+        app.world_mut()
+            .entity_mut(rig)
+            .insert(PointRotationOutput(rotation));
+    }
+
     fn press_ctrl(app: &mut App) {
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
@@ -2139,91 +2293,166 @@ mod tests {
     }
 
     #[test]
-    fn radar_hold_commits_into_the_latched_slot_on_release() {
+    fn radar_locks_at_the_threshold_and_retargets_while_held() {
         let (mut app, ship) = gesture_app();
-        let target = app.world_mut().spawn(SpaceshipRootMarker).id();
+        let ahead = spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
+        // A second body 90 degrees left (identity-look rotated +PI/2 about Y
+        // maps -Z onto -X).
+        let left = spawn_ship(&mut app, Vec3::new(-100.0, 0.0, 0.0));
 
-        // Press: the search opens, latched to TRAVEL (lowered).
+        // Tap window: the search is open and the picker may already see the
+        // body, but NOTHING latches or writes before the hold threshold.
         press_ctrl(&mut app);
-        app.update();
-        let radar = *app.world().get::<RadarState>(ship).expect("search opened");
-        assert!(!radar.combat, "lowered press latches the travel slot");
-
-        // The picker (stand-in) finds a candidate; hold past the threshold.
-        app.world_mut()
-            .get_mut::<RadarState>(ship)
-            .unwrap()
-            .candidate = Some(target);
-        for _ in 0..6 {
+        for _ in 0..3 {
             app.update();
         }
-        release_ctrl(&mut app);
+        let radar = *app.world().get::<RadarState>(ship).expect("search open");
+        assert_eq!(radar.engaged, None, "nothing latches inside the tap window");
+        assert_eq!(
+            radar.candidate,
+            Some(ahead),
+            "the picker sees the body dead ahead (guard: the write test below is live)"
+        );
+        assert_eq!(
+            travel_of(&app, ship),
+            None,
+            "no write inside the tap window"
+        );
+
+        // Cross the threshold: the slot latches (lowered = travel) and the
+        // lock is written WHILE STILL HELD - no release needed.
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(
+            app.world().get::<RadarState>(ship).unwrap().engaged,
+            Some(RadarSlot::Travel),
+            "the threshold latches the slot"
+        );
+        assert_eq!(
+            travel_of(&app, ship),
+            Some(ahead),
+            "the lock is live under the sweep"
+        );
+
+        // Sweep to the second body: the lock retargets instantly, still held.
+        aim_look(&mut app, Quat::from_rotation_y(std::f32::consts::FRAC_PI_2));
         app.update();
         assert_eq!(
             travel_of(&app, ship),
-            Some(target),
-            "release past the threshold commits the travel lock"
+            Some(left),
+            "the live lock follows the sweep"
         );
-        assert_eq!(combat_of(&app, ship), None, "the latched slot only");
+
+        // Release: the lock sticks, the search closes.
+        release_ctrl(&mut app);
+        app.update();
+        assert_eq!(travel_of(&app, ship), Some(left), "release = it sticks");
         assert!(
             app.world().get::<RadarState>(ship).is_none(),
             "the search closes on release"
         );
-
-        // RAISED press latches the combat slot (the 082324 derivation is
-        // stood in for by inserting the flag directly).
-        let enemy = app.world_mut().spawn(SpaceshipRootMarker).id();
-        app.world_mut().entity_mut(ship).insert(WeaponsRaised(true));
-        press_ctrl(&mut app);
-        app.update();
-        assert!(
-            app.world().get::<RadarState>(ship).unwrap().combat,
-            "raised press latches the combat slot (D2)"
-        );
-        app.world_mut()
-            .get_mut::<RadarState>(ship)
-            .unwrap()
-            .candidate = Some(enemy);
-        for _ in 0..6 {
-            app.update();
-        }
-        release_ctrl(&mut app);
-        app.update();
-        assert_eq!(combat_of(&app, ship), Some(enemy));
-        assert_eq!(
-            travel_of(&app, ship),
-            Some(target),
-            "the travel designation survives a combat commit"
-        );
+        assert_eq!(combat_of(&app, ship), None, "the engaged slot only");
     }
 
     #[test]
-    fn empty_release_is_a_no_op_and_quick_release_clears_staged() {
+    fn raising_inside_the_tap_window_latches_the_combat_slot() {
+        // Q1a (threshold latch): CTRL pressed lowered, RMB raised 100 ms
+        // later - by the threshold the stance is combat, so the COMBAT slot
+        // engages. Under the retired press-time latch this gesture wrote the
+        // TRAVEL lock (the recorded same-frame RMB+CTRL sharp edge); this
+        // test fails against that model by construction.
         let (mut app, ship) = gesture_app();
-        let target = app.world_mut().spawn(SpaceshipRootMarker).id();
-        let enemy = app.world_mut().spawn(SpaceshipRootMarker).id();
+        let enemy = spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
+
+        press_ctrl(&mut app);
+        app.update();
+        app.update();
+        app.world_mut().entity_mut(ship).insert(WeaponsRaised(true));
+        for _ in 0..4 {
+            app.update();
+        }
+        assert_eq!(
+            app.world().get::<RadarState>(ship).unwrap().engaged,
+            Some(RadarSlot::Combat),
+            "the threshold latches the CURRENT stance (Q1a)"
+        );
+        assert_eq!(combat_of(&app, ship), Some(enemy));
+        assert_eq!(
+            travel_of(&app, ship),
+            None,
+            "press-time latching would have routed this to travel"
+        );
+        release_ctrl(&mut app);
+        app.update();
+        assert_eq!(combat_of(&app, ship), Some(enemy), "sticks");
+    }
+
+    #[test]
+    fn an_empty_sweep_keeps_the_last_target() {
+        // Q2a (keep-last): once acquired, sweeping over empty space never
+        // drops the lock - tap is the only clear.
+        let (mut app, ship) = gesture_app();
+        let ahead = spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
+
+        press_ctrl(&mut app);
+        for _ in 0..6 {
+            app.update();
+        }
+        assert_eq!(travel_of(&app, ship), Some(ahead), "acquired (guard)");
+
+        // Sweep to empty space (90 degrees right: nothing there).
+        aim_look(
+            &mut app,
+            Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
+        );
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(
+            app.world().get::<RadarState>(ship).unwrap().candidate,
+            None,
+            "the picker sees empty space (guard: keep-last is exercised)"
+        );
+        assert_eq!(
+            travel_of(&app, ship),
+            Some(ahead),
+            "keep-last: the empty sweep does not drop the lock"
+        );
+        release_ctrl(&mut app);
+        app.update();
+        assert_eq!(travel_of(&app, ship), Some(ahead));
+    }
+
+    #[test]
+    fn a_hold_that_never_resolves_leaves_the_locks_alone() {
+        // D1 rephrased for the live model: a hold over empty space latches a
+        // slot but never writes it - pre-existing locks survive.
+        let (mut app, ship) = gesture_app();
+        let target = spawn_ship(&mut app, Vec3::new(0.0, 0.0, 100.0));
+        let enemy = spawn_ship(&mut app, Vec3::new(0.0, 100.0, 0.0));
         app.world_mut()
             .entity_mut(ship)
             .insert((TravelLock(Some(target)), CombatLock(Some(enemy))));
 
-        // Hold past the threshold onto EMPTY space, release: both locks
-        // survive (D1 - the radar abort).
         press_ctrl(&mut app);
         for _ in 0..7 {
             app.update();
         }
         release_ctrl(&mut app);
         app.update();
-        assert_eq!(
-            travel_of(&app, ship),
-            Some(target),
-            "abort keeps the travel lock"
-        );
-        assert_eq!(
-            combat_of(&app, ship),
-            Some(enemy),
-            "abort keeps the combat lock"
-        );
+        assert_eq!(travel_of(&app, ship), Some(target), "travel survives");
+        assert_eq!(combat_of(&app, ship), Some(enemy), "combat survives");
+    }
+
+    #[test]
+    fn quick_taps_clear_staged_and_disengage_goto() {
+        let (mut app, ship) = gesture_app();
+        let target = spawn_ship(&mut app, Vec3::new(0.0, 0.0, 100.0));
+        let enemy = spawn_ship(&mut app, Vec3::new(0.0, 100.0, 0.0));
+        app.world_mut()
+            .entity_mut(ship)
+            .insert((TravelLock(Some(target)), CombatLock(Some(enemy))));
 
         // A quick tap (2 frames = 100 ms < threshold): staged clear - the
         // combat lock first, travel survives...
@@ -2258,10 +2487,10 @@ mod tests {
     }
 
     #[test]
-    fn raised_tap_clears_combat_only_and_boundary_release_commits() {
+    fn raised_tap_clears_combat_only_and_the_boundary_release_sticks() {
         let (mut app, ship) = gesture_app();
-        let target = app.world_mut().spawn(SpaceshipRootMarker).id();
-        let enemy = app.world_mut().spawn(SpaceshipRootMarker).id();
+        let target = spawn_ship(&mut app, Vec3::new(0.0, 0.0, 100.0));
+        let enemy = spawn_ship(&mut app, Vec3::new(0.0, 100.0, 0.0));
         app.world_mut().entity_mut(ship).insert((
             TravelLock(Some(target)),
             CombatLock(Some(enemy)),
@@ -2280,26 +2509,90 @@ mod tests {
             "a raised tap never touches the travel lock"
         );
 
-        // Boundary frame: released at EXACTLY the shared threshold (5 x 50 ms)
-        // the Hold has fired and the Tap has expired - commit, no clear.
-        let enemy2 = app.world_mut().spawn(SpaceshipRootMarker).id();
+        // Boundary frame: at EXACTLY the shared threshold (5 x 50 ms) the
+        // Hold has fired - the lock is ALREADY live - and the Tap has
+        // expired, so the release sticks the lock and clears nothing.
+        let enemy2 = spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
         press_ctrl(&mut app);
-        app.update();
-        app.world_mut()
-            .get_mut::<RadarState>(ship)
-            .unwrap()
-            .candidate = Some(enemy2);
-        for _ in 0..4 {
+        for _ in 0..5 {
             app.update();
         }
+        assert_eq!(
+            combat_of(&app, ship),
+            Some(enemy2),
+            "the lock is live at the boundary frame"
+        );
         release_ctrl(&mut app);
         app.update();
         assert_eq!(
             combat_of(&app, ship),
             Some(enemy2),
-            "the boundary release commits (one shared threshold, no gap)"
+            "the boundary release sticks (one shared threshold, no gap)"
         );
         assert_eq!(travel_of(&app, ship), Some(target), "and does not clear");
+    }
+
+    #[test]
+    fn an_engaged_combat_sweep_holds_the_decay_at_zero() {
+        // F12: an engaged combat sweep IS combat activity - a long sweep
+        // must not cross the 30 s decay boundary mid-gesture.
+        let (mut app, ship) = gesture_app();
+        spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
+        app.world_mut().entity_mut(ship).insert(WeaponsRaised(true));
+
+        press_ctrl(&mut app);
+        for _ in 0..6 {
+            app.update();
+        }
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(CombatDecay(COMBAT_DECAY_SECS - 0.01));
+        app.update();
+        assert_eq!(
+            app.world().get::<CombatDecay>(ship).unwrap().0,
+            0.0,
+            "the engaged combat sweep resets the decay every frame"
+        );
+    }
+
+    #[test]
+    fn the_acquired_cue_fires_once_per_gesture() {
+        // Q3a (acquire-only): one cue at the first write, silence across the
+        // live retargets; a new gesture earns a new cue.
+        let (mut app, ship) = gesture_app();
+        spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
+        let left = spawn_ship(&mut app, Vec3::new(-100.0, 0.0, 0.0));
+
+        press_ctrl(&mut app);
+        for _ in 0..6 {
+            app.update();
+        }
+        assert_eq!(app.world().resource::<AcquiredCueCount>().0, 1, "acquired");
+
+        // Retarget: no new cue.
+        aim_look(&mut app, Quat::from_rotation_y(std::f32::consts::FRAC_PI_2));
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(
+            travel_of(&app, ship),
+            Some(left),
+            "guard: the retarget happened"
+        );
+        assert_eq!(
+            app.world().resource::<AcquiredCueCount>().0,
+            1,
+            "retargets are silent (Q3a)"
+        );
+
+        // Release, re-hold: the next gesture cues again.
+        release_ctrl(&mut app);
+        app.update();
+        press_ctrl(&mut app);
+        for _ in 0..6 {
+            app.update();
+        }
+        assert_eq!(app.world().resource::<AcquiredCueCount>().0, 2);
     }
 
     #[test]
@@ -2340,33 +2633,49 @@ mod tests {
     }
 
     #[test]
-    fn a_release_during_pause_drops_the_commit() {
+    fn a_pause_freezes_the_live_lock_but_the_search_still_closes() {
+        // Live-lock pause semantics: what was acquired BEFORE the pause was
+        // a completed acquisition and sticks (there is no pending commit to
+        // drop any more); while paused the gated search neither latches nor
+        // retargets; a release during the pause still tears the search down.
         let (mut app, ship) = gesture_app();
-        let target = app.world_mut().spawn(SpaceshipRootMarker).id();
+        let ahead = spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
+        let left = spawn_ship(&mut app, Vec3::new(-100.0, 0.0, 0.0));
 
         press_ctrl(&mut app);
-        app.update();
-        app.world_mut()
-            .get_mut::<RadarState>(ship)
-            .unwrap()
-            .candidate = Some(target);
         for _ in 0..6 {
             app.update();
         }
+        assert_eq!(travel_of(&app, ship), Some(ahead), "acquired pre-pause");
+
         app.world_mut()
             .resource_mut::<NextState<crate::PauseStates>>()
             .set(crate::PauseStates::Paused);
         app.update();
-        release_ctrl(&mut app);
-        app.update();
+
+        // A sweep during the pause retargets nothing (delivery guard: the
+        // same sweep DID retarget in the live test above).
+        aim_look(&mut app, Quat::from_rotation_y(std::f32::consts::FRAC_PI_2));
+        for _ in 0..3 {
+            app.update();
+        }
         assert_eq!(
             travel_of(&app, ship),
-            None,
-            "a deliberate gesture does not survive a pause"
+            Some(ahead),
+            "the paused radar does not retarget"
         );
+        let _ = left;
+
+        release_ctrl(&mut app);
+        app.update();
         assert!(
             app.world().get::<RadarState>(ship).is_none(),
-            "the search still closes"
+            "the search still closes during a pause"
+        );
+        assert_eq!(
+            travel_of(&app, ship),
+            Some(ahead),
+            "the pre-pause acquisition sticks"
         );
     }
 }

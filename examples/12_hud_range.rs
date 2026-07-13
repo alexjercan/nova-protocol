@@ -333,18 +333,18 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
         script.done,
     );
 
-    // Deliberate-radar model (spike 20260713-082207): NOTHING locks
-    // passively. The script performs the REAL gesture through the live input
-    // pipeline: raise (RMB) + hold CTRL - the radar must find the ship dead
-    // ahead by itself - then release to commit the COMBAT lock. Everything
-    // downstream (dwell, meter, markers, reticle, turret feed, inset) then
-    // flows exactly as a player drive would.
+    // Deliberate-radar model, live-lock revision (spike 20260713-110039):
+    // NOTHING locks passively. The script performs the REAL gesture through
+    // the live input pipeline: raise (RMB) + hold CTRL - at the hold
+    // threshold the radar latches the COMBAT slot and the lock goes LIVE
+    // under the sweep; releasing just sticks it. Everything downstream
+    // (dwell, meter, markers, reticle, turret feed, inset) then flows
+    // exactly as a player drive would.
     if t > 0.2 && !world.resource::<HudRangeScript>().locked_target {
         world.resource_mut::<HudRangeScript>().locked_target = true;
-        // Raise FIRST, radar a beat later: the raised flag derives in Update
-        // (camera chain) while the radar's Start observer fires in PreUpdate,
-        // so a SAME-frame RMB+CTRL press would latch the travel slot (a
-        // recorded sharp edge - humanly the raise always precedes the radar).
+        // Raise first, radar a beat later - the natural human order. (The
+        // old press-time latch made a SAME-frame RMB+CTRL press a recorded
+        // sharp edge; the threshold latch retired it, Q1a.)
         world
             .resource_mut::<ButtonInput<MouseButton>>()
             .press(MouseButton::Right);
@@ -363,23 +363,31 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
         world.resource_mut::<HudRangeScript>().committed_lock = true;
         let player = player_root(world);
         let target = target_root(world).expect("hud range: no target ship");
-        // The LIVE radar must have latched the combat slot (raised) and
-        // found the target ship dead ahead on its own.
+        // The LIVE radar must have latched the COMBAT slot at its threshold
+        // (raised stance) and found the target ship dead ahead on its own.
         let radar = world
             .entity(player)
             .get::<RadarState>()
             .copied()
             .expect("hud range: the radar never opened on the CTRL hold");
-        assert!(
-            radar.combat,
-            "hud range: raised press must latch the combat slot"
+        assert_eq!(
+            radar.engaged,
+            Some(RadarSlot::Combat),
+            "hud range: the threshold must latch the combat slot (raised)"
         );
         assert_eq!(
             radar.candidate,
             Some(target),
             "hud range: the live radar did not find the ship dead ahead"
         );
-        // Release: commit; lower the stance; set the travel designation for
+        // The live-lock pin: the combat lock is ALREADY written while CTRL
+        // is still held - releasing only sticks it (strand A1).
+        assert_eq!(
+            world.entity(player).get::<CombatLock>().unwrap().0,
+            Some(target),
+            "hud range: the lock must be live under the sweep, before release"
+        );
+        // Release: stick; lower the stance; set the travel designation for
         // the GOTO stage directly (its gesture is the same, already proven).
         world
             .resource_mut::<ButtonInput<KeyCode>>()
@@ -388,7 +396,7 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
             .resource_mut::<ButtonInput<MouseButton>>()
             .release(MouseButton::Right);
         world.entity_mut(player).get_mut::<TravelLock>().unwrap().0 = Some(target);
-        info!("hud range: radar released - combat lock committing");
+        info!("hud range: radar released - the live combat lock sticks");
     }
 
     if t > 1.7 && !asserted_meter {

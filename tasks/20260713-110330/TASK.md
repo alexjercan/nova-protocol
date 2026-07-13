@@ -1,8 +1,38 @@
 # Live radar lock: lock at threshold, retarget while held, stick on release
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.5.0,targeting,input,spike
+
+## Outcome (CLOSED 2026-07-13)
+
+Shipped per plan. The latch and the writes live in `update_radar_search`
+(TriggerState::Fired read via the action_held pattern); `RadarState` is now
+`{ engaged: Option<RadarSlot>, candidate, acquired }`; the release
+observers collapsed into one shared teardown (`close_radar_search`).
+Notes against the plan:
+
+- Pause semantics REPHRASED for the live model: the old pin "a release
+  during pause drops the commit" has no commit to drop any more - the new
+  pin is "paused radar neither latches nor retargets (set gating, verified
+  run_if(Unpaused) via configure_pause_gating); a pre-pause acquisition was
+  a completed acquisition and sticks; release during pause still tears
+  down".
+- The Q1a A/B (raise-inside-the-tap-window latches COMBAT) is fail-first BY
+  CONSTRUCTION, not executed against the old code: press-latching had no
+  `engaged` field to compile against; the test documents that the old model
+  routed this gesture to TRAVEL (the retired same-frame edge).
+- The gesture e2e rig got MORE production-faithful as a side effect: the
+  old rig stuffed `RadarState.candidate` by hand; the writes moving into
+  the search forced real bodies + the real split-camera look ray through
+  the REAL picker in every gesture test.
+- An engaged combat sweep holds CombatDecay at zero every frame (not just
+  on changed writes) - the strongest reading of F12.
+- 12_hud_range now pins the lock LIVE under the sweep (before release).
+
+Verified: 468 nova_gameplay lib tests (41 targeting, incl. 10 gesture e2e);
+fmt + check clean; 12_hud_range / 10_gameplay / 03_scenario autopilots
+exit 0.
 
 ## Goal
 
@@ -19,15 +49,15 @@ Q2a keep-last).
 
 ## Steps
 
-- [ ] Rework `RadarState` (targeting.rs:110): replace `combat: bool` with
+- [x] Rework `RadarState` (targeting.rs:110): replace `combat: bool` with
       `engaged: Option<RadarSlot>` (new `enum RadarSlot { Travel, Combat }`;
       `None` = inside the tap window, nothing latched) plus
       `acquired: bool` (first-write-of-gesture bookkeeping for the LockOn
       cue). Update the D2 press-latch doc comments to the threshold model.
-- [ ] `on_radar_start` (targeting.rs:725): stop reading `WeaponsRaised`;
+- [x] `on_radar_start` (targeting.rs:725): stop reading `WeaponsRaised`;
       insert `RadarState::default()`. Capability + pause gates unchanged
       (the deny CUE and its stale comment stay with 20260713-110311).
-- [ ] `update_radar_search` (targeting.rs:577) absorbs the commit: add
+- [x] `update_radar_search` (targeting.rs:577) absorbs the commit: add
       `Query<&TriggerState, With<Action<RadarHoldInput>>>` (the
       `action_held` pattern, camera_controller.rs:762) plus
       `Option<&WeaponsRaised>` and `&mut TravelLock`/`&mut CombatLock`/
@@ -40,20 +70,20 @@ Q2a keep-last).
       on the FIRST write of the gesture emit a new
       `RadarLockAcquired { combat: bool }` message (consumer lands in
       110311) and set `acquired`.
-- [ ] Verify `update_radar_search` does not run while paused (the
+- [x] Verify `update_radar_search` does not run while paused (the
       pause-drop guarantee moves from the commit observer to system gating;
       check the set it runs in), and that release observers still tear down
       during pause.
-- [ ] Shrink `on_radar_commit` (targeting.rs:767) to teardown only and
+- [x] Shrink `on_radar_commit` (targeting.rs:767) to teardown only and
       collapse it with `on_radar_cancel` (targeting.rs:807) into one shared
       teardown helper observed on both `Complete` and `Cancel` - no slot
       writes remain in observers.
-- [ ] Minimal HUD adaptation (lock_crosshairs.rs:206
+- [x] Minimal HUD adaptation (lock_crosshairs.rs:206
       `drive_radar_candidate` + module doc): the box shows only while
       `engaged` is `Some`, colored by the engaged slot (the full F11
       visual rework - adornment around the solid crosshair - is 110311's).
       Grep for other `RadarState` field readers and adapt.
-- [ ] Tests (rewrite the gesture family in targeting.rs, one filter per
+- [x] Tests (rewrite the gesture family in targeting.rs, one filter per
       run): threshold writes the slot while still held; retarget follows
       the look mid-hold; release changes nothing and removes `RadarState`;
       empty sweep keeps the last target (Q2a); tap never writes and still
@@ -63,9 +93,9 @@ Q2a keep-last).
       no-op (D1); a retarget write resets `CombatDecay` (F12);
       `RadarLockAcquired` fires exactly once per gesture; no writes while
       paused; capability-denied hold stays inert (existing test green).
-- [ ] Re-pin the 12_hud_range radar stage: assert the lock exists while
+- [x] Re-pin the 12_hud_range radar stage: assert the lock exists while
       CTRL is still held (threshold-commit), keep the safety asserts.
-- [ ] cargo fmt + cargo check; new/rewritten test filters; the three
+- [x] cargo fmt + cargo check; new/rewritten test filters; the three
       autopilots (12_hud_range, 10_gameplay, 03_scenario).
 
 ## Notes

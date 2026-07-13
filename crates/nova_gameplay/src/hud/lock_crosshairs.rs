@@ -6,10 +6,10 @@
 //!   COMBAT crosshair (the existing reticle in hud/torpedo_target.rs, kept
 //!   slightly SMALLER so the two overlap cleanly on one body) stays
 //!   relation-tinted - red on hostiles, the common case.
-//! - A HOLLOW bordered box on the radar's provisional candidate while the
-//!   search is held, colored by the LATCHED destination slot (white = travel,
-//!   red = combat - decision D2 makes the routing visible before release),
-//!   with the candidate's name so the release is informed (decision D7).
+//! - A HOLLOW bordered box on the radar's live pick while a gesture is
+//!   ENGAGED (past the hold threshold - the lock is live under the sweep,
+//!   spike 20260713-110039), colored by the engaged slot (white = travel,
+//!   red = combat), with the candidate's name so the sweep is informed.
 //! - A transient toast line naming what a tap-clear cleared (adversarial
 //!   finding UX15 - the mode-scoped tap is invisible otherwise).
 
@@ -199,9 +199,12 @@ fn drive_travel_crosshair(
     }
 }
 
-/// Point the hollow box at the radar's provisional candidate, colored by the
-/// latched slot, labeled with the candidate's `Name` (falls back to the
-/// entity id - modded bodies without names still get a cue).
+/// Point the hollow box at the radar's live pick while a gesture is ENGAGED
+/// (past the hold threshold - inside the tap window nothing renders, spike
+/// 20260713-110039 F11), colored by the engaged slot, labeled with the
+/// candidate's `Name` (falls back to the entity id - modded bodies without
+/// names still get a cue). The full radar-active adornment rework is task
+/// 20260713-110311; this keeps the box honest against the live-lock model.
 #[allow(clippy::type_complexity)]
 fn drive_radar_candidate(
     q_player: Query<Option<&RadarState>, With<PlayerSpaceshipMarker>>,
@@ -212,12 +215,17 @@ fn drive_radar_candidate(
     >,
     mut q_label: Query<(&mut Text, &mut TextColor), With<RadarCandidateLabelMarker>>,
 ) {
-    let radar = q_player.iter().next().flatten().copied();
+    let radar = q_player
+        .iter()
+        .next()
+        .flatten()
+        .copied()
+        .filter(|radar| radar.engaged.is_some());
     for (mut anchor, mut border, children) in &mut q_box {
         let candidate = radar.and_then(|radar| radar.candidate);
         **anchor = candidate.map(ScreenIndicatorAnchorKind::Entity);
-        let color = match radar {
-            Some(RadarState { combat: true, .. }) => RADAR_COMBAT_COLOR,
+        let color = match radar.and_then(|radar| radar.engaged) {
+            Some(RadarSlot::Combat) => RADAR_COMBAT_COLOR,
             _ => RADAR_TRAVEL_COLOR,
         };
         *border = BorderColor::all(color);
@@ -394,15 +402,18 @@ mod tests {
     }
 
     #[test]
-    fn radar_box_colors_by_the_latched_slot_and_labels_the_candidate() {
+    fn radar_box_shows_only_engaged_colors_by_slot_and_labels_the_pick() {
         let mut world = World::new();
         let candidate_entity = world.spawn(Name::new("SCAVENGER")).id();
         let player = world
             .spawn((
                 PlayerSpaceshipMarker,
+                // An open search still inside the tap window: nothing may
+                // render yet (spike 20260713-110039 F11).
                 RadarState {
-                    combat: false,
+                    engaged: None,
                     candidate: Some(candidate_entity),
+                    acquired: false,
                 },
             ))
             .id();
@@ -425,17 +436,25 @@ mod tests {
         world.run_system_once(drive_radar_candidate).unwrap();
         assert_eq!(
             **world.entity(boxed).get::<ScreenIndicatorAnchor>().unwrap(),
+            None,
+            "inside the tap window nothing renders (F11)"
+        );
+
+        // Engaged travel: the box rides the pick, white, named.
+        world.get_mut::<RadarState>(player).unwrap().engaged = Some(RadarSlot::Travel);
+        world.run_system_once(drive_radar_candidate).unwrap();
+        assert_eq!(
+            **world.entity(boxed).get::<ScreenIndicatorAnchor>().unwrap(),
             Some(ScreenIndicatorAnchorKind::Entity(candidate_entity))
         );
         assert_eq!(
             world.entity(label).get::<Text>().unwrap().0,
             "SCAVENGER",
-            "the release is informed by the candidate's name (D7)"
+            "the sweep is informed by the pick's name"
         );
 
-        // Raised latch: the cue turns combat-red (D2 - routing visible
-        // before release).
-        world.get_mut::<RadarState>(player).unwrap().combat = true;
+        // Engaged combat: the cue turns combat-red.
+        world.get_mut::<RadarState>(player).unwrap().engaged = Some(RadarSlot::Combat);
         world.run_system_once(drive_radar_candidate).unwrap();
         let border = *world.entity(boxed).get::<BorderColor>().unwrap();
         assert_eq!(border, BorderColor::all(RADAR_COMBAT_COLOR));
