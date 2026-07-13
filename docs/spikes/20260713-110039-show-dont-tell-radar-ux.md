@@ -146,15 +146,102 @@ Two tasks, gesture first (it changes what the HUD must show), HUD second.
 Everything visual/audio lands behind the existing playtest loop; the knobs
 below are expected to move.
 
-## Open questions (playtest knobs)
+## Adversarial round (2026-07-13, code-checked)
 
-- Keep-last vs follow-to-none on empty sweep (default keep-last).
-- Does the inset-as-viewfinder feel right during fast sweeps, or does it need
-  a small retarget debounce?
-- Is the name label while sweeping enough target confirmation, or does the
-  travel lock (no inset by design) also want a transient name readout?
-- Distance numeral on the inset frame: wanted at all, or is the edge
-  indicator + reticle enough?
+User confirmed inset-on-lock before this round. Attacks run against the
+recommendation; defused ones are recorded so nobody re-derives them.
+
+- **F1 - slot latch timing (opportunity).** Live-lock moves the first slot
+  write from release to threshold, which makes PRESS-time latching
+  (`on_radar_start`, targeting.rs:725, reads `WeaponsRaised` at Start) worse
+  than it needs to be: the recorded same-frame RMB+CTRL sharp edge exists
+  precisely because raised derives in Update while the radar Start observer
+  runs PreUpdate. Latching the slot AT THE THRESHOLD instead (0.25 s later,
+  raised state long settled) kills that edge entirely and matches intent
+  ("raise and radar together" = combat lock). -> Q1.
+- **F2 - LockOn sfx spam.** Under live-lock the slot is written per retarget;
+  a LockOn cue naively tied to "lock written" machine-guns during a sweep.
+  The cue needs an explicit granularity decision. -> Q3.
+- **F3 - retarget churn: DEFUSED, verified.** No system reads
+  `Changed<TravelLock>`/`Changed<CombatLock>` or observes lock inserts
+  (grep 2026-07-13); consumers poll. The focus dwell resets by comparison
+  (`tick_lock_focus`, targeting.rs:925-931), toasts fire only from the
+  tap-clear observer. Per-frame slot writes are safe.
+- **F4 - hot cue with NO lock.** Raised-manual (RMB held, no combat lock) is
+  weapons-hot with no lock crosshair and no inset on screen. The armed cue
+  must also live on the turret-view aim surface (hud/turret_lead.rs), or the
+  hot state is invisible exactly when the player is free-aiming. Folded into
+  110311 scope as a necessity, not a question.
+- **F5 - non-zoomable flicker.** Sweeping across a beacon (lockable, not
+  `InsetZoomable`) blanks the viewfinder camera and panel, then it reappears
+  on the next ship - a flicker in the middle of the marquee feature. -> Q4.
+- **F6 - RTT cost: DEFUSED, verified.** The inset is a 256 px render target
+  (INSET_PANEL_PX, target_inset.rs:55) and today's steady state already
+  renders it continuously while a lock is focused; inset-on-lock adds only
+  the 1.5 s dwell head start and sweep time. No new steady-state cost.
+- **F7 - capability deny cue never landed (gap).** `on_radar_start`'s deny
+  branch comments that the cue "lands with the HUD task 20260713-082337" -
+  it did not (grep: no deny cue in lock_crosshairs.rs or player.rs). A
+  lock-less computer holding CTRL is a silent no-op today. Fold a non-text
+  deny cue (buzz sfx + brief radar-adornment flash) into 110311 and fix the
+  stale comment. -> Q8 for the style.
+- **F8 - sweep text is still text.** The name label + distance numeral run
+  against the less-text goal; they are defensible as transient gesture-time
+  info, but the user should own the call. -> Q6.
+- **F9 - boundary re-pin (test cost).** With the lock written mid-gesture,
+  the exact-boundary e2e must re-pin: sub-threshold release (tap) fires
+  clear having never written; threshold-frame release must not both lock and
+  clear. Known cost, owned by 110330.
+- **F10 - GOTO disengage loses its words.** Travel tap-clear disengages an
+  engaged GOTO; with the toast retired, the cues are the unlatch pop + the
+  mode chip change. Probably enough; flagged for playtest, owned by 110311.
+- **F11 - provisional visuals collapse.** Pre-threshold, the candidate box
+  is visible for at most 250 ms - sub-perceptual. Default chosen in-task: no
+  candidate visual inside the tap window; past threshold the hollow radar
+  box becomes the radar-active adornment around the SOLID crosshair, gone on
+  release. Feel knob, not a questionnaire item.
+- **F12 - decay interplay.** A retarget write should reset the 30 s
+  `CombatDecay` (any lock write = combat activity), or a long sweep could
+  cross the decay boundary mid-gesture. Plan detail, owned by 110330.
+
+## Questionnaire (technical decisions, awaiting answers)
+
+Recommended option first and bolded.
+
+- **Q1 - combat/travel slot latch timing.** **(a) latch at the Hold
+  threshold** (kills the F1 same-frame edge; raised state settled; matches
+  intent) / (b) keep latching at CTRL press (status quo, keeps the recorded
+  sharp edge).
+- **Q2 - sweeping over empty space after acquiring.** **(a) keep-last** (the
+  lock stays on the last valid target; tap is the only clear) / (b)
+  follow-to-none (sweeping to empty clears the slot).
+- **Q3 - LockOn sfx granularity.** **(a) acquire-only** (one cue at the
+  threshold acquisition, silence during retargets) / (b) acquire + a subtle
+  per-retarget tick (radar-like, risks noise) / (c) acquire + a stick-confirm
+  on release (three-phase, most audio).
+- **Q4 - non-zoomable target in the viewfinder (beacon mid-sweep).**
+  **(a) NO-SIGNAL placeholder** (panel stays up showing text-free static /
+  noise, camera torn down) / (b) hide the panel (status quo behavior,
+  accepts the F5 flicker) / (c) freeze the last frame (stale info, listed
+  for completeness).
+- **Q5 - safety-hot cue style (inset frame + reticles).** **(a) shape +
+  color** (armed corner-ticks appear AND the tint shifts red - redundant
+  encoding, colorblind-safe) / (b) color-only / (c) shape-only.
+- **Q6 - gesture-time text.** **(a) name + distance numeral while the radar
+  is held only** (transient, info-dense moment) / (b) name only / (c) fully
+  text-free.
+- **Q7 - lock-cleared toast retirement.** **(a) remove now** (unlatch
+  animation + LockOff sfx replace it in the same task) / (b) keep the text
+  toast behind a playtest knob during a transition period.
+- **Q8 - capability deny cue (F7).** **(a) deny buzz sfx + brief red flash
+  of the radar adornment** / (b) leave silent (status quo no-op).
+
+## Open questions (playtest knobs, non-blocking)
+
+- Does the inset-as-viewfinder feel right during fast sweeps, or does it
+  need a small retarget debounce?
+- Does the travel lock (no inset by design) also want a transient name
+  readout beyond the sweep-time label?
 - Does dropping "TORP: DUMB" lose anything in practice (ammo-gauge pip is
   the reserved fallback)?
 - Placeholder sfx tone/mix once heard in-game.
