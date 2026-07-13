@@ -118,14 +118,19 @@ impl Plugin for NovaMenuPlugin {
     }
 }
 
-/// ESC toggles the pause overlay. Plain press-to-toggle; no existing Escape
-/// binding anywhere in the repo (checked 2026-07-11).
+/// ESC (or the gamepad Start button) toggles the pause overlay. Plain
+/// press-to-toggle; no existing Escape binding anywhere in the repo
+/// (checked 2026-07-11).
 fn toggle_pause(
     keys: Res<ButtonInput<KeyCode>>,
+    gamepad: Option<Res<ButtonInput<GamepadButton>>>,
     current: Res<State<PauseStates>>,
     mut next: ResMut<NextState<PauseStates>>,
 ) {
-    if keys.just_pressed(KeyCode::Escape) {
+    let pad = gamepad
+        .map(|g| g.just_pressed(GamepadButton::Start))
+        .unwrap_or(false);
+    if keys.just_pressed(KeyCode::Escape) || pad {
         next.set(match current.get() {
             PauseStates::Unpaused => PauseStates::Paused,
             PauseStates::Paused => PauseStates::Unpaused,

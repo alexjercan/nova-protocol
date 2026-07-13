@@ -813,6 +813,16 @@ main {
 .pf-stick-right::before {
     content: "\21CC";
 }
+.pf-stick-left-click::before {
+    content: "\21BA";
+}
+/* Menu buttons. */
+.pf-select::before {
+    content: "\21F7";
+}
+.pf-start::before {
+    content: "\21F8";
+}
 /* In the keybind tables, tint and size the glyphs to sit with the text. */
 .controls .pf {
     color: var(--cyan-bright);

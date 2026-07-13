@@ -268,10 +268,18 @@ fn style_objective_lines(mut commands: Commands, q_lines: Query<Entity, Added<Ob
     }
 }
 
-/// Cycle the HUD level on grave/tilde. Press-to-cycle, no hold gesture (the
-/// spike's call: three states are at most two presses away).
-fn cycle_hud_visibility(keys: Res<ButtonInput<KeyCode>>, mut level: ResMut<HudVisibility>) {
-    if keys.just_pressed(KeyCode::Backquote) {
+/// Cycle the HUD level on grave/tilde (or the gamepad Select button).
+/// Press-to-cycle, no hold gesture (the spike's call: three states are at most
+/// two presses away).
+fn cycle_hud_visibility(
+    keys: Res<ButtonInput<KeyCode>>,
+    gamepad: Option<Res<ButtonInput<GamepadButton>>>,
+    mut level: ResMut<HudVisibility>,
+) {
+    let pad = gamepad
+        .map(|g| g.just_pressed(GamepadButton::Select))
+        .unwrap_or(false);
+    if keys.just_pressed(KeyCode::Backquote) || pad {
         let next = level.next();
         info!("hud visibility: {:?} -> {:?}", *level, next);
         *level = next;

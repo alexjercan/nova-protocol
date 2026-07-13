@@ -179,11 +179,15 @@ fn setup_scenario(
 
 fn switch_scene_editor(
     keys: Res<ButtonInput<KeyCode>>,
+    gamepad: Option<Res<ButtonInput<GamepadButton>>>,
     mut state: ResMut<NextState<ExampleStates>>,
     mut commands: Commands,
 ) {
-    if keys.just_pressed(KeyCode::F1) {
-        debug!("switch_scene_editor: F1 pressed, switching to Editor state.");
+    let pad = gamepad
+        .map(|g| g.just_pressed(GamepadButton::LeftThumb))
+        .unwrap_or(false);
+    if keys.just_pressed(KeyCode::F1) || pad {
+        debug!("switch_scene_editor: F1/L3 pressed, switching to Editor state.");
         state.set(ExampleStates::Editor);
         commands.trigger(UnloadScenario);
     }
