@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Devlog #1: modular ships and first combat - Nova Protocol</title>
+        <meta
+            name="description"
+            content="How Nova Protocol v0.1.0 came together: thruster-driven modular ships, a PD-controlled mouse steering section, turrets that shoot, and a health system that blows sections into chunks."
+        />
+        <link
+            rel="icon"
+            href="/nova-protocol/favicon.svg"
+        />
+    <script defer src="/nova-protocol/post.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <article class="prose">
+                <p class="prose__meta">
+                    <a href="/nova-protocol/blog/"
+                        >&larr; Devlog</a
+                    >
+                    &nbsp;//&nbsp; 2025-10-21 &nbsp;//&nbsp; v0.1.0
+                </p>
+                <h1>Devlog #1: modular ships and first combat</h1>
+
+                <p>
+                    This is where Nova Protocol started. The pitch was simple
+                    (and slightly delusional): watch a bit of
+                    <em>The Expanse</em>, decide "I can make a game like this",
+                    and then spend the next few weeks discovering exactly how
+                    much space sim hides behind that sentence. v0.1.0 is the
+                    first playable answer - modular ships you can build, fly on
+                    real thrusters, and pull apart with turret fire.
+                </p>
+
+                <div class="video-embed">
+                    <iframe
+                        src="https://www.youtube-nocookie.com/embed/AJcAMyJ0S3Y"
+                        title="Nova Protocol Devlog #1"
+                        loading="lazy"
+                        allow="
+                            accelerometer;
+                            autoplay;
+                            clipboard-write;
+                            encrypted-media;
+                            gyroscope;
+                            picture-in-picture;
+                        "
+                        allowfullscreen
+                    ></iframe>
+                </div>
+                <span class="video-embed__caption"
+                    >Devlog #1 - the full v0.1.0 walkthrough on YouTube.</span
+                >
+
+                <h2>Space, then a ship that moves</h2>
+                <p>
+                    To make a space sim you first need some space. That meant a
+                    test scene with a
+                    <a
+                        href="https://tools.wwwtyro.net/space-3d/index.html"
+                        target="_blank"
+                        rel="noopener"
+                        >generated skybox</a
+                    >
+                    and a scatter of objects standing in for asteroids and
+                    debris. The player ship started life as the least glamorous
+                    thing possible: a default cube.
+                </p>
+                <p>
+                    A cube that cannot move is not much of a ship, so the first
+                    real mechanic was the <strong>thruster section</strong> - a
+                    cylinder that applies an impulse in the direction it faces.
+                    Hook it to the <kbd>W</kbd> key and suddenly the ship drifts
+                    forward (and, on the first try, straight into a rock -
+                    <em>boom</em>). But forward-only is not flight. Because the
+                    physics engine is already doing the work, rotation is just
+                    more thrusters bound to more keys, placed to generate
+                    torque. Bolt a few on and you get a slightly cursed ship
+                    that can actually turn.
+                </p>
+
+                <h2>Steering that does not fight you</h2>
+                <p>
+                    Flying purely on hand-placed thrusters is fun for about a
+                    minute and then it is just hard. So v0.1.0 introduced a
+                    dedicated steering section that reads the mouse delta and
+                    turns it into a target rotation, driven by a
+                    <strong>proportional-derivative controller</strong> that
+                    applies torque to slew the hull smoothly instead of
+                    snapping. The first pass flew like a shopping trolley; after
+                    tuning the constants it started to feel like a spaceship.
+                    This is the seed of what later became the flight computer.
+                </p>
+
+                <h2>Making it look less like cubes</h2>
+                <p>
+                    With movement solid I let myself do some visuals: a proper
+                    hull model out of Blender (still fundamentally a cube, now
+                    with ridges) mostly to prove the engine could import meshes
+                    at all, and a shader for the thruster exhaust so you can
+                    actually see when a drive is firing. Small things, but the
+                    exhaust plume is the first moment the game reads as a ship
+                    rather than a physics demo.
+                </p>
+
+                <h2>Turrets, and the math tax</h2>
+                <p>
+                    Then: combat. The <strong>turret section</strong> is a model
+                    that sits on the hull with a yaw base and a tilt head so it
+                    can track in two axes. It aims at whatever the ship's
+                    "brain" designates - which in v0.1.0 is barely a brain at
+                    all, but it is enough to point the guns.
+                </p>
+                <p>
+                    Getting the angles right was the hard part. Anyone who says
+                    programming does not need math has not tried to aim a
+                    turret. After a healthy amount of <code>atan2</code> and
+                    vector algebra it finally pointed where it should - and I
+                    learned to clamp its slew rate, because an unclamped turret
+                    snaps around like it is possessed. Firing spawns a muzzle
+                    flash and a projectile that flies forward and raycasts each
+                    tick to see what it hit.
+                </p>
+
+                <h2>Health, damage, and satisfying destruction</h2>
+                <p>
+                    Projectiles are only fun if hitting things means something,
+                    so every ship section carries its own
+                    <strong>health component</strong>. Damage comes from turret
+                    rounds and from ramming - the impact scales with collision
+                    velocity - and when a section's health hits zero, it does
+                    not just vanish. A <strong>mesh slicer</strong> breaks it
+                    into chunks that physics flings apart, so a kill looks like
+                    a real explosion instead of a disappearing box. Because
+                    health lives per section, damage is already local: shoot the
+                    turret off and the ship keeps flying but stops shooting.
+                </p>
+
+                <h2>A HUD you can orient by</h2>
+                <p>
+                    UI is my least favourite part of game dev, so the health
+                    readout got an honest ugly text box and I moved on. The
+                    orientation HUD got more care. Flat 2D arrows never conveyed
+                    depth or a real sense of heading, so I landed on an idea
+                    that stuck: a sphere around the ship with HUD elements
+                    living
+                    <em>on</em> it in 3D. The first inhabitant is a velocity
+                    cone (same shader as the exhaust) that rides the sphere and
+                    points where you are actually moving. It is a work in
+                    progress here, but it is the direction the instrument
+                    cluster grew from.
+                </p>
+
+                <h2>Shipping v0.1.0</h2>
+                <p>
+                    Add collision damage, wire a simple ship editor onto the
+                    front, drop it all into a demo scene, and that is version
+                    0.1.0: build a modular ship, fly it on real thrusters, and
+                    blow things (including yourself) up. It is rough, but every
+                    later system - the diegetic autopilot, the section-based
+                    combat model, the spherical HUD - is already visible in
+                    outline here.
+                </p>
+                <p>
+                    Next devlog: objectives, the first enemy AI, and asteroids
+                    that stop being spheres. In the meantime you can
+                    <a href="/nova-protocol/play/"
+                        >go fly something</a
+                    >.
+                </p>
+            </article>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

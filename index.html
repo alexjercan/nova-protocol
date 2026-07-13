@@ -1,148 +1,198 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
     <head>
-        <meta charset="utf-8"/>
-        <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-        <title>Nova Protocol</title>
-        
-        
-        
-        <link rel="icon" href="icon.ico">
-        <style>body, html {
-    height: 100%;
-}
-
-body {
-    background-color: lightgray;
-    margin: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.game-container {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.lds-dual-ring {
-    display: inline-block;
-    position: absolute;
-    left: 0;
-    right: 0;
-    margin: auto;
-    width: 80px;
-    height: 80px;
-}
-
-.lds-dual-ring:after {
-    content: " ";
-    display: block;
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
-    border: 6px solid #fff;
-    border-color: #fff transparent #fff transparent;
-    animation: lds-dual-ring 1.2s linear infinite;
-}
-
-@keyframes lds-dual-ring {
-    0% {
-        transform: rotate(0deg);
-    }
-    100% {
-        transform: rotate(360deg);
-    }
-}
-
-#bevy {
-    z-index: 2;
-}
-</style>
-    <link rel="modulepreload" href="./nova-protocol-ce6b4a08d921e114.js" crossorigin="anonymous" integrity="sha384-ZUz7mBBpHVenYxuAW82NHbii6Igj7CeOnRo22T1Dr++IDbHb2U2ucmjjNsksK6DT"><link rel="preload" href="./nova-protocol-ce6b4a08d921e114_bg.wasm" crossorigin="anonymous" integrity="sha384-uEb3wGZ0aXwwdj4smbF6PN5/yEezzT8yzGn4xRSeM0+6Mp5BeX5296OYwO6f9GSX" as="fetch" type="application/wasm"></head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>
+            Nova Protocol - build modular ships, fly them through space
+        </title>
+        <meta
+            name="description"
+            content="Nova Protocol is a 3D space shooter: build ships out of modular sections and fly them through asteroid fields, gravity wells and combat scenarios. Play in your browser."
+        />
+        <link
+            rel="icon"
+            href="/nova-protocol/favicon.svg"
+        />
+    <script defer src="/nova-protocol/index.js"></script></head>
     <body>
-        <script>// Insert hack to make sound autoplay on Chrome as soon as the user interacts with the tab:
-// https://developers.google.com/web/updates/2018/11/web-audio-autoplay#moving-forward
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
 
-// the following function keeps track of all AudioContexts and resumes them on the first user
-// interaction with the page. If the function is called and all contexts are already running,
-// it will remove itself from all event listeners.
-(function () {
-    // An array of all contexts to resume on the page
-    const audioContextList = [];
+        <main>
+            <section class="hero">
+                <img
+                    class="hero__art"
+                    src="/nova-protocol/assets/banner.png"
+                    alt="Nova Protocol"
+                    width="768"
+                    height="512"
+                />
+                <p class="hero__tagline">
+                    A 3D space shooter built with
+                    <a
+                        href="https://bevyengine.org"
+                        target="_blank"
+                        rel="noopener"
+                        >Bevy</a
+                    >. Build ships out of modular sections, then fly them
+                    through asteroid fields and gravity wells with a diegetic
+                    autopilot that flies on real thrusters.
+                </p>
+                <div class="hero__cta">
+                    <a
+                        href="/nova-protocol/play/"
+                        class="btn btn--primary"
+                        >Play in browser</a
+                    >
+                    <a
+                        href="/nova-protocol/tutorial/"
+                        class="btn btn--ghost"
+                        >How to play</a
+                    >
+                </div>
+            </section>
 
-    // An array of various user interaction events we should listen for
-    const userInputEventNames = [
-        "click",
-        "contextmenu",
-        "auxclick",
-        "dblclick",
-        "mousedown",
-        "mouseup",
-        "pointerup",
-        "touchend",
-        "keydown",
-        "keyup",
-    ];
+            <section class="section" id="features">
+                <div class="container">
+                    <p class="section__eyebrow">// Systems online</p>
+                    <h2 class="section__title">
+                        What you do in
+                        <span class="glow-cyan">Nova Protocol</span>
+                    </h2>
+                    <p class="section__lead">
+                        Assemble a ship, take it into a scenario, and fly it for
+                        real - every autopilot maneuver moves the hull and burns
+                        the thrusters you bolted on.
+                    </p>
+                    <div class="grid grid--3">
+                        <article class="card">
+                            <div class="card__icon">&#128296;</div>
+                            <h3 class="card__title">Modular ship editor</h3>
+                            <p class="card__body">
+                                Bolt together hull, controller, thruster, turret
+                                and torpedo-bay sections. Each section carries
+                                its own mass and health and contributes its
+                                behavior to the whole ship.
+                            </p>
+                        </article>
+                        <article class="card">
+                            <div class="card__icon">&#129517;</div>
+                            <h3 class="card__title">Diegetic autopilot</h3>
+                            <p class="card__body">
+                                GOTO, ORBIT and STOP verbs fly the ship through
+                                its real actuators - you watch the hull swing
+                                and the plume light up. Any manual input takes
+                                back control instantly.
+                            </p>
+                        </article>
+                        <article class="card">
+                            <div class="card__icon">&#127756;</div>
+                            <h3 class="card__title">Gravity wells</h3>
+                            <p class="card__body">
+                                Large asteroids pull ships and torpedoes with
+                                real inverse-square gravity. Park into a stable
+                                circular orbit around the dominant well with a
+                                single key.
+                            </p>
+                        </article>
+                        <article class="card">
+                            <div class="card__icon">&#127919;</div>
+                            <h3 class="card__title">Locks &amp; turrets</h3>
+                            <p class="card__body">
+                                An angular aim-assist cone locks the nearest
+                                hostile; turrets compute intercept lead and
+                                paint aim pips, while torpedo bays fire guided,
+                                blast-damage warheads.
+                            </p>
+                        </article>
+                        <article class="card">
+                            <div class="card__icon">&#128165;</div>
+                            <h3 class="card__title">Combat you can feel</h3>
+                            <p class="card__body">
+                                Trauma camera shake, expanding hit rings and
+                                distance-attenuated audio sell every impact and
+                                section that gets blown off a hull.
+                            </p>
+                        </article>
+                        <article class="card">
+                            <div class="card__icon">&#128421;</div>
+                            <h3 class="card__title">Cinematic HUD</h3>
+                            <p class="card__body">
+                                Cycle the HUD from full chrome to
+                                instruments-only to a clean screen for capturing
+                                shots - every widget knows its tier.
+                            </p>
+                        </article>
+                    </div>
+                </div>
+            </section>
 
-    // A proxy object to intercept AudioContexts and
-    // add them to the array for tracking and resuming later
-    self.AudioContext = new Proxy(self.AudioContext, {
-        construct(target, args) {
-            const result = new target(...args);
-            audioContextList.push(result);
-            return result;
-        },
-    });
+            <section class="section" id="learn" style="padding-top: 0">
+                <div class="container">
+                    <div class="grid grid--3">
+                        <a
+                            class="card card--link"
+                            href="/nova-protocol/tutorial/"
+                        >
+                            <h3 class="card__title">Tutorial &rarr;</h3>
+                            <p class="card__body">
+                                Controls, the editor-to-scenario loop, and the
+                                autopilot verbs. Start here.
+                            </p>
+                        </a>
+                        <a
+                            class="card card--link"
+                            href="/nova-protocol/wiki/"
+                        >
+                            <h3 class="card__title">Wiki &rarr;</h3>
+                            <p class="card__body">
+                                Reference for ship sections, scenarios, gravity
+                                wells and factions.
+                            </p>
+                        </a>
+                        <a
+                            class="card card--link"
+                            href="/nova-protocol/blog/"
+                        >
+                            <h3 class="card__title">Devlog &rarr;</h3>
+                            <p class="card__body">
+                                Notes from building the game - what shipped and
+                                why.
+                            </p>
+                        </a>
+                    </div>
+                </div>
+            </section>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
 
-    // To resume all AudioContexts being tracked
-    function resumeAllContexts(_event) {
-        let count = 0;
-
-        audioContextList.forEach((context) => {
-            if (context.state !== "running") {
-                context.resume();
-            } else {
-                count++;
-            }
-        });
-
-        // If all the AudioContexts have now resumed then we unbind all
-        // the event listeners from the page to prevent unnecessary resume attempts
-        // Checking count > 0 ensures that the user interaction happens AFTER the game started up
-        if (count > 0 && count === audioContextList.length) {
-            userInputEventNames.forEach((eventName) => {
-                document.removeEventListener(eventName, resumeAllContexts);
-            });
-        }
-    }
-
-    // We bind the resume function for each user interaction
-    // event on the page
-    userInputEventNames.forEach((eventName) => {
-        document.addEventListener(eventName, resumeAllContexts);
-    });
-})();
-</script>
-        <div class="game-container">
-            <div class="lds-dual-ring"></div>
-            <canvas id="bevy">
-                Javascript and support for canvas is required
-            </canvas>
-        </div>
-    
-<script type="module">
-import init, * as bindings from './nova-protocol-ce6b4a08d921e114.js';
-const wasm = await init({ module_or_path: './nova-protocol-ce6b4a08d921e114_bg.wasm' });
-
-
-window.wasmBindings = bindings;
-
-
-dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
-
-</script></body>
+    </body>
 </html>
