@@ -1,4 +1,4 @@
-//! 08_turret_range: a focused test range for the PDC turret section.
+//! 04_turret_section: a focused test range for the PDC turret section.
 //!
 //! One player ship carrying a single turret sits at the origin. A spread of
 //! asteroid "gates" sits in the turret's firing arc, and one gate sweeps back and
@@ -25,18 +25,19 @@
 //!   speed, pitch limits, fire rate, muzzle speed - so you can retune while
 //!   watching the aim-error readout instead of editing the config and re-running.
 //!
-//! Controls: Space (or right trigger) fires. Aiming is automatic (tracks the
+//! Controls: hold right mouse to raise weapons (the safety keeps a lowered
+//! ship cold), Space (or right trigger) fires. Aiming is automatic (tracks the
 //! moving gate); in the full game you aim with the mouse. Drag the sliders to
 //! retune the turret live (they are inert headless under the autopilot).
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 08_turret_range --features debug
+//! BCS_AUTOPILOT=1 cargo run --example 04_turret_section --features debug
 //! # look for: `nova harness: reached Playing`, `turret: aim error ...`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
-#[path = "08_turret_range/slider.rs"]
+#[path = "04_turret_section/slider.rs"]
 mod slider;
 
 use avian3d::prelude::*;
@@ -51,7 +52,7 @@ use nova_protocol::prelude::*;
 use slider::{slider, SliderWidgetPlugin};
 
 #[derive(Parser)]
-#[command(name = "08_turret_range")]
+#[command(name = "04_turret_section")]
 #[command(version = "1.0.0")]
 #[command(about = "A test range for the PDC turret section in nova_protocol", long_about = None)]
 struct Cli;
@@ -63,12 +64,30 @@ fn main() {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
-    // Headless smoke-test harness: inert in a normal run. Scene is built on
-    // `GameAssetsStates::Loaded` so the screenshot's forced Playing does not
-    // re-run setup.
+    // Headless smoke-test harness: inert in a normal run. Under BCS_AUTOPILOT
+    // it holds the fire key and asserts the range's PURPOSE before the window
+    // closes: rounds left the barrel and a gate actually took hits (task
+    // 20260712-211352 - reach-Playing alone let a turret that never connects
+    // pass). Scene is built on `GameAssetsStates::Loaded` so the screenshot's
+    // forced Playing does not re-run setup.
     #[cfg(feature = "debug")]
     {
-        app.add_plugins(nova_autopilot().input(autopilot_fire));
+        app.init_resource::<RangeOutcome>();
+        app.add_observer(
+            |_: On<Add, TurretBulletProjectileMarker>, mut outcome: ResMut<RangeOutcome>| {
+                outcome.fired = true;
+            },
+        );
+        app.add_observer(
+            |damage: On<HealthApplyDamage>,
+             q_gate: Query<(), With<RangeGateMarker>>,
+             mut outcome: ResMut<RangeOutcome>| {
+                if q_gate.contains(damage.entity) {
+                    outcome.gate_damaged = true;
+                }
+            },
+        );
+        app.add_plugins(nova_autopilot().input(autopilot_fire_and_assert));
         app.add_plugins(nova_screenshot());
     }
 
@@ -367,15 +386,59 @@ fn report_status(
     );
 }
 
-/// Autopilot input: hold the fire key while in Playing so the range fires headless.
+/// What the headless range run has observed so far; asserted complete just
+/// before the autopilot window closes.
 #[cfg(feature = "debug")]
-fn autopilot_fire(world: &mut World, _elapsed: f32) {
+#[derive(Resource, Default)]
+struct RangeOutcome {
+    fired: bool,
+    gate_damaged: bool,
+    asserted: bool,
+}
+
+/// Autopilot input: hold the fire key while in Playing so the range fires
+/// headless, and just before the window closes assert rounds were fired and
+/// a gate took hits (the nearest gate sits ~55 u out; the PDC stream reaches
+/// it in about a second, so the chain completes well inside the window).
+#[cfg(feature = "debug")]
+fn autopilot_fire_and_assert(world: &mut World, elapsed: f32) {
     if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
         return;
     }
+    // Raise the combat stance (RMB held) and only then press fire: the
+    // weapons safety (task 20260713-082337) derives WeaponsHot from the
+    // HELD combat input, DENIES a press that arrives while cold, and a
+    // held key produces no fresh Start edge once hot - so pressing fire
+    // before the stance settles latches nothing, forever. The outcome
+    // assertion below caught exactly that: both ranges fired nothing
+    // since the safety landed (task 20260712-211352). Mirror a real
+    // player: raise, wait until hot, then hold fire.
     world
-        .resource_mut::<ButtonInput<KeyCode>>()
-        .press(KeyCode::Space);
+        .resource_mut::<ButtonInput<MouseButton>>()
+        .press(MouseButton::Right);
+    let hot = {
+        let mut q_hot = world.query_filtered::<&WeaponsHot, With<PlayerSpaceshipMarker>>();
+        q_hot.single(world).is_ok_and(|hot| hot.0)
+    };
+    if hot {
+        world
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::Space);
+    }
+
+    if elapsed > nova_protocol::nova_debug::harness::NOVA_AUTOPILOT_SECS - 0.5 {
+        let mut outcome = world.resource_mut::<RangeOutcome>();
+        if outcome.asserted {
+            return;
+        }
+        outcome.asserted = true;
+        assert!(outcome.fired, "range: no turret round fired in the window");
+        assert!(
+            outcome.gate_damaged,
+            "range: no gate took turret hits in the window"
+        );
+        info!("range: fired -> gate damaged, all observed");
+    }
 }
 
 // --- Live tuning sliders -----------------------------------------------------

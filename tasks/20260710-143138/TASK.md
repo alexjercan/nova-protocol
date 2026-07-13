@@ -5,7 +5,8 @@
 - TAGS: v0.5.2, ci, testing, bug
 
 The `examples_smoke` test step in `.github/workflows/ci.yaml` is currently
-`continue-on-error: true` because `03_scenario` deterministically panics on
+`continue-on-error: true` because the scenario-loading example (03_scenario
+then; rebuilt as `08_scenario` in 20260712-211352) deterministically panics on
 GitHub's ubuntu-latest runners with:
 
 ```
@@ -56,6 +57,7 @@ Steps:
   then stop and ask before the first push. The qemu-user `-cpu EPYC`
   reproduction attempt is the one experiment that runs locally.
 - If the panic stays unexplained after the experiment budget, the fallback
-  is an explicit containment: keep 03_scenario out of the blocking set with
+  is an explicit containment: keep the panicking example out of the blocking
+  set with
   a written justification, gate the rest, and leave this task's NOTES.md as
   the investigation record - do not leave the whole suite non-blocking.

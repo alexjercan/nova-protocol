@@ -1,6 +1,6 @@
 # Rework the examples to make more sense and to have better testing capabilities
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
 - TAGS: v0.5.2,refactor,examples,tests
 
@@ -25,40 +25,52 @@ AutopilotPlugin timelines instead of `nova_autopilot()`). 01_scene,
 02_thruster_shader, 04_asteroids, 05_directional, 07b_slicer have no harness
 at all (07b is marked "TODO: move to bevy_common_systems").
 
-## Steps
+## Steps (v2 - user-directed structure, 2026-07-13)
 
-- [ ] Audit: one keep / merge / remove / harness decision per example,
-      written to this task's NOTES.md with a sentence of reasoning each.
-      Inputs: what each demonstrates today, overlap (01_scene vs
-      04_asteroids), and whether an interactive-only example still earns
-      its keep. Checkpoint the audit table with the user in the progress
-      report before executing removals.
-- [ ] Find out why 11_com_range and 12_hud_range are not in
-      HARNESSED_EXAMPLES (git log / task notes; likely just their custom
-      timeline predating the const), then add them or record the blocker
-      in NOTES.md.
-- [ ] Execute the audit: fold/remove the examples decided against, and
-      re-describe the survivors so the sequence reads as a curriculum
-      (docs/development.md lists them).
-- [ ] Harness every kept example that lacks one, each with at least one
-      behavior assertion in its autopilot script - not just reach-Playing
-      (presence-vs-behavior lesson).
-- [ ] Establish the bug-pin convention: document in docs/development.md how
-      a fixed bug becomes an example-level pin (13_menu_newgame /
-      20260713-175352 is the precedent), and add pins for the two v0.5.2
-      bug fixes where an example-level pin adds coverage beyond their unit
-      tests (audio hum attenuation 20260711-183417, teardown despawn race
-      20260712-115902 - the latter may already be covered by the
-      error-handler-to-panic examples once a scenario unload happens under
-      one; verify rather than assume).
-- [ ] Update HARNESSED_EXAMPLES, docs/development.md's example list, and
-      every other doc that enumerates examples
-      (additions-join-doc-indexes lesson - grep docs/ for a sibling's
-      name).
-- [ ] Full check suite + the smoke test locally (Xvfb) over the reworked
-      set.
-- [ ] CHANGELOG.md entry under Unreleased if examples change
-      names/behavior visibly.
+The user redirected the round-1 audit (which had kept/harnessed the old set
+1:1): the curriculum is sections first, then scenario loading, then the
+editor, then a playable scenario - and everything must be testable. Round-1
+work that survives: the outcome-assertion pattern, 11/12 joining the smoke
+list, the 07b removal, the docs/bug-pin sections. Round-1 work dropped: the
+bespoke harnesses for 02_thruster_shader / 04_asteroids / 05_directional
+(examples deleted; their assertion subjects fold into the new set).
+
+- [x] Restructure moves: 08_turret_range -> 04_turret_section,
+      06_torpedo_range -> 05_torpedo_section, 07_torpedo_guidance ->
+      06_torpedo_guidance, 11_com_range -> 07_com_range, 03_scenario ->
+      08_scenario, 12_hud_range -> 11_hud_range, 13_menu_newgame ->
+      12_menu_newgame; deleted 01_scene, 02_thruster_shader, 04_asteroids,
+      05_directional, 10_gameplay (07b already removed in round 1). All
+      internal names/paths updated; HARNESSED_EXAMPLES names the final
+      twelve.
+- [x] Fix the fire-dead ranges (found by the new outcome assertions): the
+      v0.5.0 weapons safety denies a press on a cold ship and a held key
+      never re-edges, so both ranges fired NOTHING (headless and
+      interactive) since 20260713-082337 landed. Scripts now raise the
+      combat stance (RMB) and only press fire once WeaponsHot; controls
+      docs teach the same gesture.
+- [x] NEW 01_controller_section: PD attitude - command a rotation through
+      the controller section's input seam, assert the hull converges.
+- [x] NEW 02_thruster_section: burn -> velocity grows along ship forward;
+      exhaust shader input follows throttle (absorbs the old shader-knob
+      assertion).
+- [x] NEW 03_hull_section: damage -> health drops -> disable -> destroy ->
+      integrity graph reacts (absorbs 10_gameplay's destruction content).
+- [x] 08_scenario: enrich from bare named-load to "variables and lots of
+      things": scenario with variables, several event kinds, filters and
+      actions; assert the load-level machinery (payload counts + variables
+      present with expected initial values + a variable-gated handler
+      fires). Absorbs 01_scene's programmatic-config content.
+- [x] NEW 10_playable: play a scenario - GOTO a beacon, raise + fire at a
+      target, complete an objective beat; assert the scenario reacted
+      (variable/objective advanced).
+- [x] 11_hud_range: fold in a velocity-sphere tracking stage (from the
+      deleted 05_directional).
+- [x] Update docs/development.md's curriculum list + ci.yaml's smoke-step
+      comment (it names 03_scenario); sweep all old example names
+      (sweep-then-delete).
+- [x] Full check suite + the full smoke run locally (Xvfb) over the final
+      set; CHANGELOG updated.
 
 ## Notes
 
@@ -72,3 +84,36 @@ at all (07b is marked "TODO: move to bevy_common_systems").
   docs/development.md.
 - Removing an example must sweep every reference (sweep-then-delete):
   docs/, HARNESSED_EXAMPLES, CI comments, other examples' comments.
+
+
+## Record (2026-07-13)
+
+What changed: the examples are a four-block curriculum (sections ->
+scenario -> editor -> playable), every one self-driving under BCS_AUTOPILOT
+(ten of twelve with panic-on-failure behavior assertions + completion
+backstops; 06/09 assert at load/reach-gameplay level); the CI smoke list
+runs all twelve (full suite green locally in ~130 s under Xvfb). Round 1
+harnessed the old set 1:1; the user redirected the structure at the
+checkpoint and round 2 rebuilt it (moves, merges, five removals, three new
+section examples, the scenario-language example, the playable). Full audit
+v2, the four bugs the assertions flushed out, and per-decision reasoning in
+NOTES.md; two follow-up tasks filed (20260713-220512 torpedo-volley ship
+drift; 20260713-203709 was already filed by the teardown task).
+
+Difficulties (the playable took five iterations to stabilize): the radar
+pick is purely angular so the collinear beacon outranked the prey (fixed by
+off-axis geometry + a lock-identity assert); wall-clock beat staging broke
+under suite load twice (fixed by making every beat event-driven on the
+game state it produces); and full area-arrival proved untestable in-suite
+(llvmpipe throttles unfocused windows, so a multi-second flight leg gets
+too few sim seconds) - the headless contract was rescoped to
+"GOTO engaged and closing", documented in the example.
+
+Self-reflection: the round-1 audit optimized for keeping the existing set
+and got redirected - checkpointing the table BEFORE implementing round 1's
+harnesses would have saved the three discarded ones (the checkpoint came
+with work already done). The event-driven-beats principle should have been
+the starting point, not the third fix: every timing flake in this task was
+a wall-clock stage racing game state. On the win side: outcome assertions
+immediately caught two real shipped bugs (fire-dead ranges, torpedo-volley
+drift) - the task's thesis paid for itself on day one.

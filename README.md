@@ -49,7 +49,7 @@ X11/wayland, trunk).
 ```sh
 cargo run                       # run the game (boots into the main menu)
 cargo run --features dev        # dev build (inspector, wireframe, debug tooling)
-cargo run --example 03_scenario # run one of the examples in examples/
+cargo run --example 08_scenario # run one of the examples in examples/
 trunk serve                     # web build, served on :8080
 cargo build --release           # release profile
 ```

@@ -1,4 +1,4 @@
-//! 06_torpedo_range: a focused test range for the torpedo bay section.
+//! 05_torpedo_section: a focused test range for the torpedo bay section.
 //!
 //! One player ship carrying a single torpedo bay sits at the origin facing a
 //! spread of asteroid "gates" - near, mid and far straight ahead, one off to the
@@ -21,11 +21,12 @@
 //! the mouse and the player targeting picks the target instead.
 //!
 //! Controls:
+//! - Right mouse (held): raise weapons - the safety keeps a lowered ship cold.
 //! - Space (or right trigger): fire a torpedo. Held, it fires at the bay's rate.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 06_torpedo_range --features debug
+//! BCS_AUTOPILOT=1 cargo run --example 05_torpedo_section --features debug
 //! # look for: `nova harness: reached Playing`, `range: torpedo fired`,
 //! #           `range: torpedo ... armed`, `autopilot: cycle complete, no panic`
 //! ```
@@ -36,7 +37,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "06_torpedo_range")]
+#[command(name = "05_torpedo_section")]
 #[command(version = "1.0.0")]
 #[command(about = "A test range for the torpedo bay section in nova_protocol", long_about = None)]
 struct Cli;
@@ -49,17 +50,56 @@ fn main() {
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
     // Headless smoke-test harness: inert in a normal run. Under BCS_AUTOPILOT it
-    // drives Loading -> Playing, holds the fire key, and exits without panic;
-    // under BCS_SHOT it captures a PNG. The scene is built on
-    // `GameAssetsStates::Loaded` (below) so the screenshot's forced Playing does
-    // not re-run setup.
+    // drives Loading -> Playing, holds the fire key, and asserts the range's
+    // PURPOSE before the window closes: a torpedo fired, armed, detonated, and
+    // its blast damaged a gate (task 20260712-211352 - reach-Playing alone let
+    // a silently dud torpedo pass). Under BCS_SHOT it captures a PNG. The
+    // scene is built on `GameAssetsStates::Loaded` (below) so the screenshot's
+    // forced Playing does not re-run setup.
     #[cfg(feature = "debug")]
     {
-        app.add_plugins(nova_autopilot().input(autopilot_fire));
+        app.init_resource::<RangeOutcome>();
+        app.add_observer(
+            |_: On<Add, TorpedoProjectileMarker>, mut outcome: ResMut<RangeOutcome>| {
+                outcome.fired = true;
+            },
+        );
+        app.add_observer(|_: On<Add, NovaBlast>, mut outcome: ResMut<RangeOutcome>| {
+            outcome.detonated = true;
+        });
+        app.add_observer(
+            |damage: On<HealthApplyDamage>,
+             q_gate: Query<(), With<RangeGateMarker>>,
+             mut outcome: ResMut<RangeOutcome>| {
+                if q_gate.contains(damage.entity) {
+                    outcome.gate_damaged = true;
+                }
+            },
+        );
+        app.add_systems(
+            Update,
+            |q_armed: Query<&TorpedoArming, With<TorpedoProjectileMarker>>,
+             mut outcome: ResMut<RangeOutcome>| {
+                outcome.armed |= q_armed.iter().any(|arming| arming.is_armed());
+            },
+        );
+        app.add_plugins(nova_autopilot().input(autopilot_fire_and_assert));
         app.add_plugins(nova_screenshot());
     }
 
     app.run();
+}
+
+/// What the headless range run has observed so far; asserted complete just
+/// before the autopilot window closes.
+#[cfg(feature = "debug")]
+#[derive(Resource, Default)]
+struct RangeOutcome {
+    fired: bool,
+    armed: bool,
+    detonated: bool,
+    gate_damaged: bool,
+    asserted: bool,
 }
 
 fn custom_plugin(app: &mut App) {
@@ -377,13 +417,52 @@ fn assert_no_owner_pair_damage(
 }
 
 /// Autopilot input: hold the fire key while in Playing so the range fires
-/// torpedoes headlessly.
+/// torpedoes headlessly, and just before the window closes assert the full
+/// fired -> armed -> detonated -> gate-damaged chain was observed. The near
+/// gate sits 30 u out (~1.5 s of flight after a ~0.5 s arm), so the chain
+/// completes with seconds to spare in the 6 s window.
 #[cfg(feature = "debug")]
-fn autopilot_fire(world: &mut World, _elapsed: f32) {
+fn autopilot_fire_and_assert(world: &mut World, elapsed: f32) {
     if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
         return;
     }
+    // Raise the combat stance (RMB held) and only then press fire: the
+    // weapons safety (task 20260713-082337) derives WeaponsHot from the
+    // HELD combat input, DENIES a press that arrives while cold, and a
+    // held key produces no fresh Start edge once hot - so pressing fire
+    // before the stance settles latches nothing, forever. The outcome
+    // assertion below caught exactly that: both ranges fired nothing
+    // since the safety landed (task 20260712-211352). Mirror a real
+    // player: raise, wait until hot, then hold fire.
     world
-        .resource_mut::<ButtonInput<KeyCode>>()
-        .press(KeyCode::Space);
+        .resource_mut::<ButtonInput<MouseButton>>()
+        .press(MouseButton::Right);
+    let hot = {
+        let mut q_hot = world.query_filtered::<&WeaponsHot, With<PlayerSpaceshipMarker>>();
+        q_hot.single(world).is_ok_and(|hot| hot.0)
+    };
+    if hot {
+        world
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::Space);
+    }
+
+    if elapsed > nova_protocol::nova_debug::harness::NOVA_AUTOPILOT_SECS - 0.5 {
+        let mut outcome = world.resource_mut::<RangeOutcome>();
+        if outcome.asserted {
+            return;
+        }
+        outcome.asserted = true;
+        assert!(outcome.fired, "range: no torpedo fired in the window");
+        assert!(outcome.armed, "range: no torpedo armed in the window");
+        assert!(
+            outcome.detonated,
+            "range: no torpedo detonated in the window"
+        );
+        assert!(
+            outcome.gate_damaged,
+            "range: no gate took blast damage in the window"
+        );
+        info!("range: fired -> armed -> detonated -> gate damaged, all observed");
+    }
 }

@@ -1,8 +1,10 @@
 //! Smoke-tests the autopilot-harnessed examples as a `cargo test` target.
 //!
-//! Each of these examples wires `nova_debug::harness::nova_autopilot`, so under
-//! `BCS_AUTOPILOT` it drives itself Loading -> Playing, exercises a few seconds of
-//! gameplay, and exits cleanly with `AppExit::Success`, logging
+//! Each of these examples drives itself under `BCS_AUTOPILOT` - via the
+//! `nova_debug::harness::nova_autopilot` preset or its own staged
+//! `AutopilotPlugin` timeline (11/12) - Loading -> Playing, exercises a few
+//! seconds of gameplay (many with in-example behavior assertions that panic on
+//! failure), and exits cleanly with `AppExit::Success`, logging
 //! `nova harness: reached Playing` and `autopilot: cycle complete, no panic`. This
 //! test runs each one headless and asserts on exactly that - turning the examples'
 //! built-in harness into an automated regression check.
@@ -14,15 +16,22 @@
 
 use std::process::Command;
 
-/// The examples that wire `nova_autopilot` (grep `nova_autopilot` in `examples/`).
+/// The examples that drive themselves under `BCS_AUTOPILOT` - the
+/// `nova_autopilot()` preset or a custom staged `AutopilotPlugin` (11/12).
+/// Every example that gains a harness joins this list (task 20260712-211352).
 const HARNESSED_EXAMPLES: &[&str] = &[
-    "03_scenario",
-    "06_torpedo_range",
-    "07_torpedo_guidance",
-    "08_turret_range",
+    "01_controller_section",
+    "02_thruster_section",
+    "03_hull_section",
+    "04_turret_section",
+    "05_torpedo_section",
+    "06_torpedo_guidance",
+    "07_com_range",
+    "08_scenario",
     "09_editor",
-    "10_gameplay",
-    "13_menu_newgame",
+    "10_playable",
+    "11_hud_range",
+    "12_menu_newgame",
 ];
 
 /// Run each harnessed example headless and assert it reaches gameplay and exits

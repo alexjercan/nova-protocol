@@ -41,7 +41,7 @@ Nightly toolchain (`rust-toolchain.toml`). On NixOS: `nix develop`.
 ```sh
 cargo run                        # the game (boots into the main menu)
 cargo run --features dev         # + debug tooling (inspector, wireframe)
-cargo run --example 03_scenario  # examples are the fastest way to test a subsystem
+cargo run --example 08_scenario  # examples are the fastest way to test a subsystem
 trunk serve                      # web build on :8080
 cargo check && cargo fmt         # do this before committing
 ```

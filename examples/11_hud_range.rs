@@ -1,4 +1,4 @@
-//! 12_hud_range: verify the screen-projected HUD indicators, live.
+//! 11_hud_range: verify the screen-projected HUD indicators, live.
 //!
 //! Tasks 20260708-165700/165701/165702: the torpedo-lock reticle, the
 //! locked-target readout, the autopilot destination marker and the turret
@@ -18,7 +18,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 12_hud_range --features debug
+//! BCS_AUTOPILOT=1 cargo run --example 11_hud_range --features debug
 //! # scripted (relative to entering Playing): at +0.2s the script SETS the
 //! # combat+travel locks (the radar stand-in - nothing locks passively in
 //! # the deliberate-radar model); at +0.7s assert the focus meter is filling
@@ -46,7 +46,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "12_hud_range")]
+#[command(name = "11_hud_range")]
 #[command(version = "1.0.0")]
 #[command(about = "A test range for the screen-projected HUD indicators", long_about = None)]
 struct Cli;
@@ -137,7 +137,7 @@ fn hud_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
     player_sections.push(SpaceshipSectionConfig {
         id: "player_turret".to_string(),
         position: Vec3::new(0.0, 0.0, -1.0),
-        // Matches the turret placement in 08_turret_range so the base sits
+        // Matches the turret placement in 04_turret_section so the base sits
         // upright.
         rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
         config: section("better_turret_section"),
@@ -742,6 +742,35 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
              burning toward the target"
         );
         info!("hud range: GOTO destination marker OK (drift {drift:.1} px, '{closing_text}')");
+
+        // Velocity sphere (folded in from the retired 05_directional, task
+        // 20260712-211352): under the same approach burn, the sphere widget
+        // the production HUD mounted on the player must point its orbit
+        // output along the ship's actual velocity.
+        let player = player_root(world);
+        let ship_velocity = world
+            .entity(player)
+            .get::<avian3d::prelude::LinearVelocity>()
+            .expect("hud range: the player ship has a velocity")
+            .0;
+        let orbit_direction = {
+            let mut q = world.query_filtered::<(
+                &DirectionalSphereOrbitOutput,
+                &VelocityHudTargetEntity,
+            ), With<VelocityHudMarker>>();
+            q.iter(world)
+                .find(|(_, target)| ***target == player)
+                .map(|(output, _)| output.0)
+                .expect("hud range: the player's velocity sphere widget must exist")
+        };
+        let alignment = orbit_direction
+            .normalize_or_zero()
+            .dot(ship_velocity.normalize_or_zero());
+        assert!(
+            alignment > 0.95,
+            "hud range: the velocity sphere direction {orbit_direction:?} does not follow the ship velocity {ship_velocity:?} (dot {alignment:.3})"
+        );
+        info!("hud range: velocity sphere tracks the burn (dot {alignment:.3})");
 
         // The pinned tail section's marker must carry the highlight style.
         let player = player_root(world);

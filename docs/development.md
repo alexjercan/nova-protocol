@@ -12,7 +12,7 @@
 ```sh
 cargo run                         # the game (boots into the main menu)
 cargo run --features dev          # + debug tooling (inspector, wireframe)
-cargo run --example 03_scenario   # run an example
+cargo run --example 08_scenario   # run an example
 cargo build --release             # release profile: opt=s, lto, stripped
 cargo check && cargo fmt          # before committing
 cargo test --workspace            # full suite (CI runs this; skip locally unless asked)
@@ -56,12 +56,49 @@ Debug-only CLI flags (`src/main.rs`): `--norender` (no rendering) and
 ## Examples
 
 `examples/` exercises one subsystem each, end to end; this repo prefers
-runnable examples over isolated unit tests. Current set: `01_scene`,
-`02_thruster_shader`, `03_scenario`, `04_asteroids`, `05_directional`,
-`06_torpedo_range`, `07_torpedo_guidance`, `07b_slicer`, `08_turret_range`,
-`09_editor`, `10_gameplay`, `11_com_range`, `12_hud_range`,
-`13_menu_newgame`. When adding a substantial feature, consider adding an
-example that drives it.
+runnable examples over isolated unit tests. The set reads as a curriculum in
+four blocks (task 20260712-211352):
+
+- Sections: `01_controller_section` (PD attitude), `02_thruster_section`
+  (burn -> thrust + plume shader), `03_hull_section` (damage -> destroy ->
+  ship survives), `04_turret_section` and `05_torpedo_section` (the weapon
+  test ranges), `06_torpedo_guidance` (PN deep-dive), `07_com_range` (mass
+  properties under section destruction).
+- Scenario: `08_scenario` (the scenario language - variables, events,
+  filters, actions - built in code and asserted live).
+- Editor: `09_editor` (the shipped editor flow).
+- Playable: `10_playable` (a scenario played through the real input
+  pipeline: lock, kill, GOTO, arrive - watched by its own handlers),
+  `11_hud_range` (screen-projected HUD indicators, velocity sphere
+  included), `12_menu_newgame` (the shipped boot flow).
+
+When adding a substantial feature, add or extend the example that drives it.
+(Removed in the same task: 01_scene/03_scenario merged into 08_scenario;
+02_thruster_shader into 02_thruster_section; 05_directional into
+11_hud_range; 10_gameplay into 03_hull_section + 10_playable; 07b_slicer's
+subject lives in bevy-common-systems - see the promotions backlog, task
+20260706-151804; 04_asteroids' slider tuning tool was dropped.)
+
+Every example is HARNESSED: it drives itself under `BCS_AUTOPILOT=1`, and
+`tests/examples_smoke.rs` (the `HARNESSED_EXAMPLES` list) runs the full set
+headless as a regression suite. Ten of the twelve carry panic-on-failure
+behavior assertions with completion backstops (a stalled script fails
+instead of passing vacuously); `06_torpedo_guidance` and `09_editor` assert
+at the scenario-load / reach-gameplay level only. Keep list and disk in
+sync: a new example joins the list with a harness, or it does not merge.
+
+### Examples as bug pins
+
+When a bug is fixed, prefer pinning it where it lives: a unit/App test for a
+system-level mechanism, an example assertion when the bug only manifests in a
+composed scene (the 20260713-175352 precedent: `12_menu_newgame` runs the
+shipped boot flow with the ECS fallback error handler swapped to panic, so
+unhandled command errors on those transitions fail CI). An example pin is an
+autopilot-script assertion (`.input(...)` closure, staged by elapsed time -
+see `07_com_range`/`11_hud_range` for the style); the smoke suite runs it on
+every push. Caveat: the handler swap does NOT catch `remove`/`despawn`
+command warns (they bake in the WARN handler at queue time) - extending the
+smoke suite to grep stderr for those is task 20260713-203709.
 
 ## Web build
 

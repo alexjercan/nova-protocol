@@ -6,6 +6,8 @@ use bevy::{
 };
 use nova_assets::prelude::*;
 #[cfg(feature = "debug")]
+pub use nova_debug;
+#[cfg(feature = "debug")]
 use nova_debug::DebugPlugin;
 pub use nova_editor;
 use nova_editor::prelude::*;

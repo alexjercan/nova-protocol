@@ -49,7 +49,7 @@
 //! Run it headless:
 //!
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 03_scenario --features debug
+//! BCS_AUTOPILOT=1 cargo run --example 08_scenario --features debug
 //! # look for: `nova harness: reached Playing`
 //! #           `autopilot: cycle complete, no panic`
 //! ```
@@ -89,7 +89,7 @@ pub fn nova_autopilot() -> AutopilotPlugin<GameStates> {
 /// Unlike [`nova_autopilot`], this force-advances to `Playing` on the first
 /// frame, so it is best used with examples that set their scene up in
 /// `OnEnter(GameAssetsStates::Loaded)` (the nova scenario convention, e.g.
-/// `03_scenario`) rather than `OnEnter(GameStates::Playing)`, which the early
+/// `08_scenario`) rather than `OnEnter(GameStates::Playing)`, which the early
 /// forced transition would run before `GameAssets` is ready.
 pub fn nova_screenshot() -> ScreenshotPlugin<GameStates> {
     ScreenshotPlugin::new(GameStates::Playing).settle_frames(NOVA_SCREENSHOT_SETTLE_FRAMES)

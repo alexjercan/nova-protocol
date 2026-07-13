@@ -83,7 +83,9 @@ jobs:
 
       # The windowed examples smoke test: spawns each harnessed example under
       # BCS_AUTOPILOT/Xvfb (lavapipe renders) and asserts it reaches gameplay
-      # and exits without panic. Currently NON-BLOCKING: 03_scenario panics
+      # and exits without panic. Currently NON-BLOCKING: the scenario example
+      # (03_scenario when observed; rebuilt as 08_scenario in 20260712-211352,
+      # so re-verify against the new suite) panics
       # inside taffy (resolve.rs unreachable) only on GitHub's runners - it
       # does not reproduce on an identical Ubuntu 24.04 + Mesa/LLVM stack
       # locally, pointing at the runner hardware (llvmpipe JIT on AMD EPYC).

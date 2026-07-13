@@ -6,7 +6,7 @@
 
 ## Goal
 
-The 20260713-175352 pin (examples/13_menu_newgame.rs) swaps
+The 20260713-175352 pin (examples/12_menu_newgame.rs, nee 13_menu_newgame) swaps
 `FallbackErrorHandler` to panic and claims "any command error on these
 transitions now fails CI". Discovered during 20260712-115902: that is only
 true for UNHANDLED commands (e.g. `insert`). `EntityCommands::remove` and
@@ -24,7 +24,7 @@ errors log a warn and sail past the pin - the exact class of the
 - [ ] Prove it bites (would-it-fail-without-it): a deliberate stale
       `remove` sabotage in one example must fail the smoke test; record the
       run, then revert the sabotage (commit first).
-- [ ] Update examples/13_menu_newgame.rs's module doc (and the
+- [ ] Update examples/12_menu_newgame.rs's module doc (and the
       20260713-175352 pin-claim language it inherited) to state the real
       coverage: panics + unhandled command errors via the handler swap,
       handled warns via the stderr grep.
