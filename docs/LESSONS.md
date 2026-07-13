@@ -119,6 +119,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `additions-join-doc-indexes` (x1): adding an artifact of an enumerated kind
   (example, crate) must update the doc list that enumerates its kind; grep
   docs/ for a sibling's name before committing. 20260713-175352.
+- `insert-cluster-must-be-removed-as-a-cluster` (x1): a component insert can
+  bring requires and hook-inserted companions; the matching remove must strip
+  the whole cluster (requires do not cascade on removal) - and code copied
+  from a context that never exercised a branch is unproven on that branch.
+  20260712-201603.
 - `event-driven-autopilot-beats` (x1): headless harness scripts stage each
   gesture on the game state it produces (locks, variables, components),
   never wall-clock windows - llvmpipe stutter collapses time windows into
@@ -179,11 +184,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   mechanism deleted proves nothing; copied tests inherit vacuousness - and a
   sabotage that refuses to go red refutes the assumed mechanism itself.
   20260711-180426, 20260711-212521, 20260712-115902.
-- `out-of-context-review-pass` (positive, x13): a fresh-context review of a
+- `out-of-context-review-pass` (positive, x14): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
   load-bearing claims instead of trusting them - checking cited evidence IS
-  the spawn site, re-running the sabotage or the whole smoke suite itself.
-  20260712-133343, 20260711-183417, 20260712-115902, 20260712-211352.
+  the spawn site, re-running the sabotage or the whole smoke suite, reading
+  the DEPENDENCY's source for composition hazards. 20260712-133343,
+  20260711-183417, 20260712-115902, 20260712-211352, 20260712-201603.
 - `required-component-in-shared-query` (x2): a required fetch added to an
   existing query narrows its membership and every gate computed from it; fetch
   `Option<&T>` or use a separate query. New `Res<T>` params also panic every
