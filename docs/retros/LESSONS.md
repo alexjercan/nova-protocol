@@ -142,11 +142,12 @@ retros.
 - `does-the-old-element-survive` (x2): when a design adds an element
   overlapping an existing one, the spike/plan must ask what happens to
   the old one. 20260711-000547, 20260711-125226.
-- `one-cargo-test-filter` (x3): `cargo test a b c` errors after the slow
+- `one-cargo-test-filter` (x4): `cargo test a b c` errors after the slow
   compile; one substring filter or a module prefix per run. The multi-package
   form is the same trap: `cargo test -p A f1 -p B f2` errors with "unexpected
   argument 'f2'" - one `-p` + one filter per invocation, separate runs for
-  separate packages. 20260709-155922, 20260709-155920, 20260712-143832.
+  separate packages. 20260709-155922, 20260709-155920, 20260712-143832,
+  20260713-082324 (two filters -> silently empty grep output, one lost cycle).
 - `check-all-targets-for-struct-field` (x1): adding a non-`Default` field to
   a widely-constructed struct (config structs especially) breaks every
   initializer, but `cargo check --workspace` compiles only libs+bins - it
