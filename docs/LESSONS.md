@@ -153,13 +153,15 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `set-gates-miss-observers` (x1): gating a SystemSet does not touch observers;
   enumerate systems + observers + hooks before claiming a gate covers "input".
   20260711-185156.
-- `would-it-fail-without-it` (x4): a verification that cannot fail with the
-  mechanism deleted proves nothing; copied tests inherit vacuousness.
-  20260711-180426, 20260711-212521.
-- `out-of-context-review-pass` (positive, x11): a fresh-context review of a
+- `would-it-fail-without-it` (x5): a verification that cannot fail with the
+  mechanism deleted proves nothing; copied tests inherit vacuousness - and a
+  sabotage that refuses to go red refutes the assumed mechanism itself.
+  20260711-180426, 20260711-212521, 20260712-115902.
+- `out-of-context-review-pass` (positive, x12): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
-  load-bearing claims instead of trusting them - including checking cited
-  evidence IS the spawn site, not a consumer. 20260712-133343, 20260711-183417.
+  load-bearing claims instead of trusting them - checking cited evidence IS
+  the spawn site, re-running the sabotage itself. 20260712-133343,
+  20260711-183417, 20260712-115902.
 - `required-component-in-shared-query` (x2): a required fetch added to an
   existing query narrows its membership and every gate computed from it; fetch
   `Option<&T>` or use a separate query. New `Res<T>` params also panic every
@@ -169,9 +171,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `authored-vs-derived-values` (x2): author content against measured runtime
   values exported as consts, not nominal constants or folklore ranges.
   20260711-180455, 20260711-180506.
-- `verify-engine-guarantees-in-source` (x1): read the engine's docs/source
-  before designing around an ordering guarantee (observer order between
-  observers of one event is arbitrary). 20260525-133004.
+- `verify-engine-guarantees-in-source` (x2): read the engine's source (or
+  write a five-line probe) before designing around an ordering guarantee -
+  observer order is arbitrary; observer-queued commands apply BEFORE the
+  queue's remaining pending commands, not after. A subagent's reasoned
+  verdict about engine semantics is a hypothesis, not evidence.
+  20260525-133004, 20260712-115902.
 - `advertised-but-unwired` (x3): a config surface is not a capability until its
   producer/consumer wiring, data source, and runtime preconditions are
   verified in the new context. 20260712-093044, 20260712-093831.
@@ -204,6 +209,14 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   when it COMPILES it, minutes into a cold build - a tree edited mid-build
   yields an indeterminate evidence binary; quiesce the tree (or file-copy)
   for A/B runs. 20260711-183417.
+- `borrowed-rig-coverage-check` (x1): a rig/pattern borrowed from another
+  task's record inherits that record's overclaims; verify its coverage
+  against the NEW failure mode before prescribing it (the handler-swap pin
+  cannot see baked-in remove/despawn warns). 20260712-115902.
+- `refutation-invalidates-earlier-prose` (x1): when a probe overturns the
+  working theory mid-task, re-read every artifact written under the old
+  theory (notes, comments, records) in one pass; the review found the dead
+  model still taught as fact. 20260712-115902.
 
 ## Domain lessons (nova-protocol specific)
 
