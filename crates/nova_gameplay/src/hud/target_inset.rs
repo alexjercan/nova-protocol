@@ -40,8 +40,8 @@ pub mod prelude {
     pub use super::{
         target_inset_hud, InsetZoomable, TargetInsetArmedTickMarker, TargetInsetCameraMarker,
         TargetInsetCaptionMarker, TargetInsetHighlightAssets, TargetInsetHighlightMarker,
-        TargetInsetHudMarker, TargetInsetHudPlugin, TargetInsetNoSignalMarker,
-        TargetInsetRenderTarget,
+        TargetInsetHudMarker, TargetInsetHudPlugin, TargetInsetKillCam, TargetInsetLastFramed,
+        TargetInsetNoSignalMarker, TargetInsetRenderTarget,
     };
 }
 
@@ -149,6 +149,33 @@ pub struct TargetInsetArmedTickMarker;
 /// of the information the retired reticle relation-tint carried).
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TargetInsetCaptionMarker;
+
+/// The panel's memory of the last camera-framed target and pose - the kill
+/// cam's source material. Lives ON the panel entity (not a Local), so a
+/// HUD respawn starts clean and a player-death teardown takes it along.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct TargetInsetLastFramed {
+    /// The target that was framed.
+    pub target: Entity,
+    /// The camera pose it was framed with.
+    pub pose: Transform,
+}
+
+/// The kill cam (spike 20260713-154023, option B): the framed target DIED,
+/// so the panel holds this frozen pose while the fragments fly, then
+/// closes. Presentation-only.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct TargetInsetKillCam {
+    /// The frozen final camera pose.
+    pub pose: Transform,
+    /// Seconds of linger left.
+    pub remaining: f32,
+}
+
+/// How long the kill cam holds the final shot (seconds). A feel knob:
+/// long enough to watch the fragments scatter, short enough that the
+/// panel never feels stuck.
+const KILL_CAM_SECS: f32 = 2.0;
 
 /// Marker for the offscreen inset camera. Deliberately carries none of the
 /// scene-camera markers (SpaceshipCameraController, ScenarioCameraMarker,
@@ -337,6 +364,8 @@ impl Plugin for TargetInsetHudPlugin {
         app.register_type::<TargetInsetNoSignalMarker>();
         app.register_type::<TargetInsetArmedTickMarker>();
         app.register_type::<TargetInsetCaptionMarker>();
+        app.register_type::<TargetInsetLastFramed>();
+        app.register_type::<TargetInsetKillCam>();
 
         // Author the zoomable flag on the kinds worth scoping as they spawn
         // (ships, committed torpedoes). Asteroids get it in nova_scenario;
@@ -421,6 +450,19 @@ fn inset_camera_bundle(image: Handle<Image>, pose: Transform) -> impl Bundle {
     )
 }
 
+/// What the panel should do this frame, resolved before any side effects.
+enum InsetPanelState {
+    /// Live camera framing on a lock.
+    Live { target: Entity, anchor: Vec3 },
+    /// A lock on a non-zoomable body: panel holds with NO-SIGNAL.
+    NoSignal,
+    /// The framed target DIED: hold the frozen final shot (spike
+    /// 20260713-154023 option B).
+    KillCam { pose: Transform },
+    /// Nothing to show.
+    Hidden,
+}
+
 /// Spawn/despawn the inset camera and show/hide the panel with the COMBAT
 /// LOCK (inset-on-lock, spike 20260713-110039 B1, user-confirmed: presence
 /// of the inset IS the "not dumb-fire" signal, and during a radar sweep it
@@ -430,13 +472,20 @@ fn inset_camera_bundle(image: Handle<Image>, pose: Transform) -> impl Bundle {
 /// converges; folding the lifecycle and the pose together avoids a
 /// one-frame default-pose flash on spawn.
 ///
-/// Three states: no lock (or chrome hidden) = panel hidden, camera gone;
+/// Four states: no lock (or chrome hidden) = panel hidden, camera gone;
 /// lock on a zoomable, resolvable body = panel + live camera; lock on a
 /// NON-zoomable body (a beacon) = panel with the NO-SIGNAL overlay, camera
-/// gone (Q4a - the panel must not blink as a sweep crosses a beacon).
+/// gone (Q4a); and the KILL CAM (spike 20260713-154023): when the framed
+/// target dies - it is DESPAWNED, the discriminator against tap-clear /
+/// decay / allegiance-flip clears, whose targets remain alive - the panel
+/// and camera hold the frozen final pose for [`KILL_CAM_SECS`], filming
+/// the explosion fragments, then close. A fresh framable lock preempts the
+/// linger instantly; hiding the HUD chrome tears everything down at once.
+/// Presentation-only: no lock/safety/turret state is touched.
 #[allow(clippy::type_complexity)]
 fn drive_inset_camera(
     mut commands: Commands,
+    time: Res<Time>,
     hud_visibility: Res<super::HudVisibility>,
     render_target: Res<TargetInsetRenderTarget>,
     q_anchor: Query<
@@ -457,8 +506,17 @@ fn drive_inset_camera(
     >,
     q_children: Query<&Children>,
     q_aabb: Query<&ColliderAabb, Without<Sensor>>,
+    q_alive: Query<Entity>,
     mut q_camera: Query<(Entity, &mut Transform), With<TargetInsetCameraMarker>>,
-    mut q_panel: Query<&mut Visibility, With<TargetInsetHudMarker>>,
+    mut q_panel: Query<
+        (
+            Entity,
+            &mut Visibility,
+            Option<&TargetInsetLastFramed>,
+            Option<&mut TargetInsetKillCam>,
+        ),
+        With<TargetInsetHudMarker>,
+    >,
     mut q_no_signal: Query<
         &mut Visibility,
         (
@@ -467,28 +525,83 @@ fn drive_inset_camera(
         ),
     >,
 ) {
+    let chrome = hud_visibility.shows(HudTier::Chrome);
     let lock = q_player
         .iter()
         .next()
         .and_then(|(_, _, lock)| lock.0)
-        .filter(|_| hud_visibility.shows(HudTier::Chrome));
+        .filter(|_| chrome);
     // `Some(Some(anchor))` = camera framing; `Some(None)` = NO-SIGNAL;
-    // `None` = hidden.
+    // `None` = teardown-eligible.
     let framed = lock.map(|target| match q_anchor.get(target) {
         Ok((transform, com, true)) => Some((target, live_structure_anchor(transform, com))),
         // Not zoomable (beacon) or unresolved: the panel holds, no camera.
         _ => None,
     });
 
-    let panel_visibility = if framed.is_some() {
-        Visibility::Visible
-    } else {
-        Visibility::Hidden
+    let Some((panel, mut panel_visibility, last_framed, mut kill_cam)) = q_panel.iter_mut().next()
+    else {
+        return;
     };
-    for mut visibility in &mut q_panel {
-        visibility.set_if_neq(panel_visibility);
+
+    let state = match framed {
+        Some(Some((target, anchor))) => InsetPanelState::Live { target, anchor },
+        Some(None) => InsetPanelState::NoSignal,
+        None => {
+            if !chrome {
+                // Chrome hidden: everything down at once, including a
+                // running kill cam and the frame memory.
+                InsetPanelState::Hidden
+            } else if let Some(kill_cam) = kill_cam.as_mut() {
+                kill_cam.remaining -= time.delta_secs();
+                if kill_cam.remaining > 0.0 {
+                    InsetPanelState::KillCam {
+                        pose: kill_cam.pose,
+                    }
+                } else {
+                    InsetPanelState::Hidden
+                }
+            } else if let Some(last) = last_framed.filter(|last| !q_alive.contains(last.target)) {
+                // The framed target is GONE from the world: the death
+                // discriminator (a cleared-but-alive target closes as
+                // always). Enter the kill cam on its final pose.
+                commands.entity(panel).insert(TargetInsetKillCam {
+                    pose: last.pose,
+                    remaining: KILL_CAM_SECS,
+                });
+                InsetPanelState::KillCam { pose: last.pose }
+            } else {
+                InsetPanelState::Hidden
+            }
+        }
+    };
+
+    // State bookkeeping: the frame memory exists only while live-framed
+    // (stale memory must not resurrect a linger later); the kill cam ends
+    // whenever anything other than KillCam is showing.
+    match &state {
+        InsetPanelState::Live { .. } => {
+            if kill_cam.is_some() {
+                commands.entity(panel).remove::<TargetInsetKillCam>();
+            }
+        }
+        InsetPanelState::KillCam { .. } => {}
+        InsetPanelState::NoSignal | InsetPanelState::Hidden => {
+            if kill_cam.is_some() {
+                commands.entity(panel).remove::<TargetInsetKillCam>();
+            }
+            if last_framed.is_some() {
+                commands.entity(panel).remove::<TargetInsetLastFramed>();
+            }
+        }
     }
-    let overlay_visibility = if matches!(framed, Some(None)) {
+
+    panel_visibility.set_if_neq(if matches!(state, InsetPanelState::Hidden) {
+        Visibility::Hidden
+    } else {
+        Visibility::Visible
+    });
+    let overlay_visibility = if matches!(state, InsetPanelState::NoSignal) {
         Visibility::Visible
     } else {
         Visibility::Hidden
@@ -497,24 +610,31 @@ fn drive_inset_camera(
         visibility.set_if_neq(overlay_visibility);
     }
 
-    let Some(Some((target, target_anchor))) = framed else {
-        // Hidden or NO-SIGNAL: tear the camera down so the scene is not
-        // rendered a second time for nothing.
-        for (camera, _) in &q_camera {
-            commands.entity(camera).despawn();
+    let pose = match state {
+        InsetPanelState::Live { target, anchor } => {
+            let player_anchor = q_player
+                .iter()
+                .next()
+                .map(|(transform, com, ..)| live_structure_anchor(transform, com))
+                // No player anchor (teardown): fall back to a fixed bearing
+                // so the pose stays finite rather than degenerate.
+                .unwrap_or(anchor + Vec3::Z);
+            let radius = zoomable_framing_radius(target, anchor, &q_children, &q_aabb);
+            let pose = inset_camera_pose(anchor, player_anchor, radius);
+            commands
+                .entity(panel)
+                .insert(TargetInsetLastFramed { target, pose });
+            pose
         }
-        return;
+        InsetPanelState::KillCam { pose } => pose,
+        InsetPanelState::NoSignal | InsetPanelState::Hidden => {
+            // No second render: tear the camera down.
+            for (camera, _) in &q_camera {
+                commands.entity(camera).despawn();
+            }
+            return;
+        }
     };
-
-    let player_anchor = q_player
-        .iter()
-        .next()
-        .map(|(transform, com, ..)| live_structure_anchor(transform, com))
-        // No player anchor (teardown): fall back to a fixed bearing so the pose
-        // stays finite rather than degenerate.
-        .unwrap_or(target_anchor + Vec3::Z);
-    let radius = zoomable_framing_radius(target, target_anchor, &q_children, &q_aabb);
-    let pose = inset_camera_pose(target_anchor, player_anchor, radius);
 
     if let Ok((_, mut transform)) = q_camera.single_mut() {
         *transform = pose;
@@ -681,6 +801,7 @@ mod tests {
     /// sections. Returns (world, player, target).
     fn rig(n: usize) -> (World, Entity, Entity) {
         let mut world = World::new();
+        world.insert_resource(Time::<()>::default());
         world.insert_resource(super::super::HudVisibility::All);
         world.insert_resource(TargetInsetRenderTarget(Some(Handle::default())));
         world.spawn((Name::new("panel"), TargetInsetHudMarker, Visibility::Hidden));
@@ -869,6 +990,161 @@ mod tests {
         assert_eq!(camera_count(&mut world), 1);
         assert_eq!(panel_visibility(&mut world), Visibility::Visible);
         assert_eq!(overlay_visibility(&mut world), Visibility::Hidden);
+    }
+
+    fn panel_entity(world: &mut World) -> Entity {
+        world
+            .query_filtered::<Entity, With<TargetInsetHudMarker>>()
+            .iter(world)
+            .next()
+            .expect("panel exists")
+    }
+
+    fn camera_pose(world: &mut World) -> Transform {
+        *world
+            .query_filtered::<&Transform, With<TargetInsetCameraMarker>>()
+            .iter(world)
+            .next()
+            .expect("inset camera exists")
+    }
+
+    #[test]
+    fn the_kill_cam_holds_the_final_shot_when_the_target_dies() {
+        // Spike 20260713-154023 option B: the framed target DYING (it is
+        // despawned) freezes the panel on its final pose for
+        // KILL_CAM_SECS instead of slamming shut, then closes.
+        let (mut world, player, target) = rig(3);
+        world.run_system_once(drive_inset_camera).unwrap();
+        let final_pose = camera_pose(&mut world);
+        let panel = panel_entity(&mut world);
+
+        // The kill: the target despawns and the validity clear empties the
+        // lock in the same breath (production ordering verified in the
+        // plan: targeting runs before the HUD).
+        world.despawn(target);
+        world.get_mut::<CombatLock>(player).unwrap().0 = None;
+        world.run_system_once(drive_inset_camera).unwrap();
+
+        assert_eq!(
+            panel_visibility(&mut world),
+            Visibility::Visible,
+            "the panel holds through the death"
+        );
+        assert_eq!(camera_count(&mut world), 1, "the camera keeps filming");
+        assert_eq!(
+            camera_pose(&mut world),
+            final_pose,
+            "the shot is FROZEN at the final pose"
+        );
+        assert_eq!(
+            overlay_visibility(&mut world),
+            Visibility::Hidden,
+            "no NO-SIGNAL during the kill cam"
+        );
+        assert!(
+            world.get::<TargetInsetKillCam>(panel).is_some(),
+            "the kill cam is armed"
+        );
+
+        // A second frame mid-linger: still holding (the countdown needs
+        // real time; the rig's clock has zero delta).
+        world.run_system_once(drive_inset_camera).unwrap();
+        assert_eq!(panel_visibility(&mut world), Visibility::Visible);
+
+        // Expiry (forced, the ghost-test shape): everything closes.
+        world
+            .get_mut::<TargetInsetKillCam>(panel)
+            .unwrap()
+            .remaining = -1.0;
+        world.run_system_once(drive_inset_camera).unwrap();
+        assert_eq!(panel_visibility(&mut world), Visibility::Hidden);
+        assert_eq!(camera_count(&mut world), 0, "expiry tears the camera down");
+        // The state components clear (the removes are deferred one run).
+        world.run_system_once(drive_inset_camera).unwrap();
+        assert!(world.get::<TargetInsetKillCam>(panel).is_none());
+        assert!(world.get::<TargetInsetLastFramed>(panel).is_none());
+    }
+
+    #[test]
+    fn a_cleared_but_alive_target_does_not_linger() {
+        // The discriminator: tap-clear / decay / allegiance-flip leave the
+        // target ALIVE - the panel closes as it always did (the death case
+        // above is the delivery guard that the linger machinery works).
+        let (mut world, player, target) = rig(3);
+        world.run_system_once(drive_inset_camera).unwrap();
+        let panel = panel_entity(&mut world);
+
+        world.get_mut::<CombatLock>(player).unwrap().0 = None;
+        world.run_system_once(drive_inset_camera).unwrap();
+
+        assert_eq!(
+            panel_visibility(&mut world),
+            Visibility::Hidden,
+            "a cleared-but-alive target closes immediately"
+        );
+        assert_eq!(camera_count(&mut world), 0);
+        assert!(world.get::<TargetInsetKillCam>(panel).is_none());
+        let _ = target;
+    }
+
+    #[test]
+    fn a_fresh_lock_preempts_the_kill_cam() {
+        let (mut world, player, target) = rig(3);
+        world.run_system_once(drive_inset_camera).unwrap();
+        let panel = panel_entity(&mut world);
+
+        world.despawn(target);
+        world.get_mut::<CombatLock>(player).unwrap().0 = None;
+        world.run_system_once(drive_inset_camera).unwrap();
+        assert!(
+            world.get::<TargetInsetKillCam>(panel).is_some(),
+            "delivery guard: the kill cam was running"
+        );
+
+        // The live viewfinder always wins: a fresh zoomable lock re-frames.
+        let next = world
+            .spawn((
+                SpaceshipRootMarker,
+                InsetZoomable,
+                Transform::from_xyz(10.0, 0.0, -30.0),
+            ))
+            .id();
+        world.get_mut::<CombatLock>(player).unwrap().0 = Some(next);
+        world.run_system_once(drive_inset_camera).unwrap();
+
+        assert_eq!(camera_count(&mut world), 1);
+        assert_eq!(panel_visibility(&mut world), Visibility::Visible);
+        // The removes/inserts are deferred: settle one run, then the state
+        // reflects the new framing.
+        world.run_system_once(drive_inset_camera).unwrap();
+        assert!(world.get::<TargetInsetKillCam>(panel).is_none());
+        assert_eq!(
+            world
+                .get::<TargetInsetLastFramed>(panel)
+                .map(|last| last.target),
+            Some(next),
+            "the frame memory follows the new lock"
+        );
+    }
+
+    #[test]
+    fn hiding_the_chrome_ends_the_kill_cam_immediately() {
+        let (mut world, player, target) = rig(3);
+        world.run_system_once(drive_inset_camera).unwrap();
+        let panel = panel_entity(&mut world);
+
+        world.despawn(target);
+        world.get_mut::<CombatLock>(player).unwrap().0 = None;
+        world.run_system_once(drive_inset_camera).unwrap();
+        assert!(
+            world.get::<TargetInsetKillCam>(panel).is_some(),
+            "delivery guard: the kill cam was running"
+        );
+
+        world.insert_resource(super::super::HudVisibility::None);
+        world.run_system_once(drive_inset_camera).unwrap();
+        assert_eq!(panel_visibility(&mut world), Visibility::Hidden);
+        assert_eq!(camera_count(&mut world), 0, "chrome-hide is immediate");
     }
 
     #[test]

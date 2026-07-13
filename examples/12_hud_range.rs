@@ -829,15 +829,18 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
             "hud range: component markers survived their target's death"
         );
 
-        // The lock died with the target, so the inset camera tears down and the
-        // panel hides - the scene is not rendered a second time for nothing.
+        // The KILL CAM (spike 20260713-154023): the target died while
+        // framed, so the panel and camera HOLD the frozen final shot for
+        // KILL_CAM_SECS - this assert runs ~0.4s after the kill, inside
+        // the linger (expiry-closes is unit-tested; the 6s autopilot
+        // window ends before the linger does).
         let inset_cameras = world
             .query_filtered::<(), With<TargetInsetCameraMarker>>()
             .iter(world)
             .count();
         assert_eq!(
-            inset_cameras, 0,
-            "hud range: the target-inset camera survived its target's death"
+            inset_cameras, 1,
+            "hud range: the kill cam must keep filming after the target's death"
         );
         let panel_visibility = *world
             .query_filtered::<&Visibility, With<TargetInsetHudMarker>>()
@@ -846,8 +849,8 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
             .expect("hud range: no target-inset panel node");
         assert_eq!(
             panel_visibility,
-            Visibility::Hidden,
-            "hud range: the target-inset panel is still visible after its target died"
+            Visibility::Visible,
+            "hud range: the kill cam must hold the panel open on the final shot"
         );
         // The dead lock cleared (upkeep) and the stance is lowered: the
         // weapons safety re-engages by itself.
