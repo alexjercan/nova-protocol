@@ -204,9 +204,12 @@ recommendation; defused ones are recorded so nobody re-derives them.
   `CombatDecay` (any lock write = combat activity), or a long sweep could
   cross the decay boundary mid-gesture. Plan detail, owned by 110330.
 
-## Questionnaire (technical decisions, awaiting answers)
+## Questionnaire (technical decisions - ANSWERED 2026-07-13: all recommended)
 
-Recommended option first and bolded.
+User decision 2026-07-13: **all recommended** - Q1a threshold latch, Q2a
+keep-last, Q3a acquire-only LockOn, Q4a NO-SIGNAL placeholder, Q5a
+shape+color hot cue, Q6a name+distance while held, Q7a toast removed now,
+Q8a deny buzz + flash. Recommended option first and bolded.
 
 - **Q1 - combat/travel slot latch timing.** **(a) latch at the Hold
   threshold** (kills the F1 same-frame edge; raised state settled; matches
