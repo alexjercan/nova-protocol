@@ -7,7 +7,8 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use bevy_common_systems::prelude::*;
+#[cfg(test)]
+use bevy_common_systems::prelude::PointRotationOutput;
 use bevy_enhanced_input::prelude::*;
 
 use crate::prelude::*;
@@ -311,13 +312,11 @@ fn pick_target(
 /// the signature fallback (nearest hostile inside
 /// [`TARGETING_SIGNATURE_RANGE`], see [`pick_signature_target`]).
 fn update_spaceship_target_input(
-    point_rotation: Single<
-        &PointRotationOutput,
-        (
-            With<SpaceshipCameraInputMarker>,
-            With<SpaceshipCameraTurretInputMarker>,
-        ),
-    >,
+    // The LIVE look ray (the rig currently holding the active marker), not a
+    // pinned rig: the turret rig's output freezes the moment Turret view is
+    // left, so acquisition in Normal/FreeLook used to compare against a stale
+    // ray (task 20260713-082324).
+    look_ray: ActiveLookRay,
     // Turret bullets are excluded outright: they are dynamic bodies that stream
     // straight down the aim ray, so without this the lock would constantly snap
     // onto the player's own gunfire instead of the enemy behind it.
@@ -349,14 +348,18 @@ fn update_spaceship_target_input(
     mut res_target: ResMut<SpaceshipPlayerTargetLock>,
     mut res_candidates: ResMut<SpaceshipPlayerTargetCandidates>,
 ) {
-    let point_rotation = point_rotation.into_inner();
+    // No camera rig at all (menu states, rig-less tests): skip, exactly like
+    // the old Single param did.
+    let Some(aim_rotation) = look_ray.rotation() else {
+        return;
+    };
     let (ship_transform, ship_com, ship_entity, ship_allegiance) = spaceship.into_inner();
 
     // Cone origin on the live structure, not the root origin, so the lock
     // cone agrees with the COM-anchored camera crosshair after losing
     // sections (task 20260709-150711).
     let origin = live_structure_anchor(ship_transform, ship_com);
-    let aim = (**point_rotation * Vec3::NEG_Z).normalize();
+    let aim = (aim_rotation * Vec3::NEG_Z).normalize();
     let min_cos = TARGETING_CONE_HALF_ANGLE_DEG.to_radians().cos();
 
     // Collected once because both pickers walk it (the cone pick first, then
@@ -666,15 +669,10 @@ fn update_component_lock(
     focus: Res<SpaceshipPlayerLockFocus>,
     mut component: ResMut<SpaceshipPlayerComponentLock>,
     q_sections: Query<(Entity, &ChildOf, &GlobalTransform), With<SectionMarker>>,
-    point_rotation: Option<
-        Single<
-            &PointRotationOutput,
-            (
-                With<SpaceshipCameraInputMarker>,
-                With<SpaceshipCameraTurretInputMarker>,
-            ),
-        >,
-    >,
+    // The LIVE look ray (active rig), so the snap follows the crosshair in
+    // every view instead of the turret rig's frozen output (task
+    // 20260713-082324).
+    look_ray: ActiveLookRay,
     spaceship: Option<
         Single<
             (&Transform, Option<&ComputedCenterOfMass>),
@@ -720,14 +718,14 @@ fn update_component_lock(
     if component.mode != ComponentLockMode::Snap {
         return;
     }
-    let (Some(point_rotation), Some(spaceship)) = (point_rotation, spaceship) else {
+    let (Some(aim_rotation), Some(spaceship)) = (look_ray.rotation(), spaceship) else {
         // No aim rig (menu states, headless tests): hold the current
         // selection rather than guessing.
         return;
     };
     let (ship_transform, ship_com) = spaceship.into_inner();
     let origin = live_structure_anchor(ship_transform, ship_com);
-    let dir = (***point_rotation * Vec3::NEG_Z).normalize();
+    let dir = (aim_rotation * Vec3::NEG_Z).normalize();
     let candidates: Vec<(Entity, f32)> = sections
         .iter()
         .map(|&(entity, position)| (entity, ray_distance(origin, dir, position)))
@@ -1025,10 +1023,18 @@ mod tests {
         world.insert_resource(SpaceshipPlayerTargetLock(None));
         world.insert_resource(SpaceshipPlayerTargetCandidates::default());
         world.init_resource::<TargetingSettings>();
+        // Faithful split rigs: the ACTIVE normal rig carries the aim; a
+        // dormant turret decoy points elsewhere (see spawn_acquisition_rig).
+        world.spawn((
+            SpaceshipCameraInputMarker,
+            SpaceshipCameraNormalInputMarker,
+            SpaceshipRotationInputActiveMarker,
+            PointRotationOutput(Quat::IDENTITY),
+        ));
         world.spawn((
             SpaceshipCameraInputMarker,
             SpaceshipCameraTurretInputMarker,
-            PointRotationOutput(Quat::IDENTITY),
+            PointRotationOutput(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)),
         ));
         world.spawn((
             SpaceshipRootMarker,
@@ -1088,7 +1094,13 @@ mod tests {
         assert_eq!(picked, None, "beyond signature range needs deliberate aim");
     }
 
-    /// Spawn the camera-input rig + player the acquisition system needs.
+    /// Spawn the camera-input rigs + player the acquisition system needs.
+    /// FAITHFUL SPLIT RIGS (production spawns one rig per mode, only one
+    /// holding the active marker - a single both-marker rig masks exactly the
+    /// frozen-ray bug class, task 20260713-082324): the ACTIVE normal rig
+    /// aims down -Z, and a DORMANT turret rig points 90 degrees off as a
+    /// decoy - any test that passes while the picker reads the decoy is
+    /// reading the wrong rig.
     fn spawn_acquisition_rig(world: &mut World) {
         world.insert_resource(Time::<()>::default());
         world.insert_resource(SpaceshipPlayerTargetLock(None));
@@ -1096,14 +1108,71 @@ mod tests {
         world.init_resource::<TargetingSettings>();
         world.spawn((
             SpaceshipCameraInputMarker,
-            SpaceshipCameraTurretInputMarker,
+            SpaceshipCameraNormalInputMarker,
+            SpaceshipRotationInputActiveMarker,
             PointRotationOutput(Quat::IDENTITY),
+        ));
+        world.spawn((
+            SpaceshipCameraInputMarker,
+            SpaceshipCameraTurretInputMarker,
+            PointRotationOutput(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)),
         ));
         world.spawn((
             SpaceshipRootMarker,
             PlayerSpaceshipMarker,
             Transform::IDENTITY,
         ));
+    }
+
+    /// Ray-liveness regression (task 20260713-082324): the acquisition cone
+    /// follows the ACTIVE rig's live output. Pre-fix, the picker pinned the
+    /// TURRET rig, whose output froze outside Turret view - swiveling the
+    /// look in Normal view could never move the cone. Delivery-guarded: the
+    /// side body is provably NOT lockable before the swivel.
+    #[test]
+    fn acquisition_follows_the_live_active_ray() {
+        let mut world = World::new();
+        spawn_acquisition_rig(&mut world);
+        // A ship 90 degrees off the initial -Z aim (at -X), well outside the
+        // 18-degree cone. Neutral, so the hostile fallback cannot acquire it.
+        let side = world
+            .spawn((
+                SpaceshipRootMarker,
+                Allegiance::Neutral,
+                RigidBody::Dynamic,
+                GlobalTransform::from_translation(Vec3::new(-100.0, 0.0, 0.0)),
+            ))
+            .id();
+
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            None,
+            "delivery guard: the side body is outside the cone while aiming -Z"
+        );
+
+        // Swivel the ACTIVE rig 90 degrees toward the body (the dormant
+        // turret decoy stays where it was - reading it would keep None).
+        let active = world
+            .query_filtered::<Entity, With<SpaceshipRotationInputActiveMarker>>()
+            .iter(&world)
+            .next()
+            .expect("an active rig exists");
+        world
+            .entity_mut(active)
+            .insert(PointRotationOutput(Quat::from_rotation_y(
+                std::f32::consts::FRAC_PI_2,
+            )));
+        world
+            .run_system_once(update_spaceship_target_input)
+            .unwrap();
+        assert_eq!(
+            **world.resource::<SpaceshipPlayerTargetLock>(),
+            Some(side),
+            "the cone must follow the live active ray"
+        );
     }
 
     #[test]
@@ -1599,10 +1668,18 @@ mod tests {
     fn focused_world() -> (World, Entity, [Entity; 3]) {
         let mut world = World::new();
         world.insert_resource(Time::<()>::default());
+        // Faithful split rigs (see spawn_acquisition_rig): active normal rig
+        // on -Z, dormant turret decoy 90 degrees off.
+        world.spawn((
+            SpaceshipCameraInputMarker,
+            SpaceshipCameraNormalInputMarker,
+            SpaceshipRotationInputActiveMarker,
+            PointRotationOutput(Quat::IDENTITY),
+        ));
         world.spawn((
             SpaceshipCameraInputMarker,
             SpaceshipCameraTurretInputMarker,
-            PointRotationOutput(Quat::IDENTITY),
+            PointRotationOutput(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)),
         ));
         world.spawn((
             SpaceshipRootMarker,

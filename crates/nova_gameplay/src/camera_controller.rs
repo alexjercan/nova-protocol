@@ -7,10 +7,10 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        NovaCameraSystems, SpaceshipCameraControlMode, SpaceshipCameraController,
+        ActiveLookRay, NovaCameraSystems, SpaceshipCameraControlMode, SpaceshipCameraController,
         SpaceshipCameraControllerPlugin, SpaceshipCameraFreeLookInputMarker,
         SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker,
-        SpaceshipCameraTurretInputMarker, SpaceshipRotationInputActiveMarker,
+        SpaceshipCameraTurretInputMarker, SpaceshipRotationInputActiveMarker, WeaponsRaised,
     };
 }
 
@@ -36,18 +36,18 @@ impl Plugin for SpaceshipCameraControllerPlugin {
 
         app.add_observer(on_rotation_input);
         app.add_observer(on_rotation_input_completed);
-        app.add_observer(on_free_mode_input_started);
-        app.add_observer(on_free_mode_input_completed);
-        app.add_observer(on_combat_input_started);
-        app.add_observer(on_combat_input_completed);
+
+        app.register_type::<WeaponsRaised>();
 
         app.add_systems(
             Update,
-            // Fully chained: the rig system owns every ChaseCamera field and
-            // must run after the mode switch (whose markers decide the rig)
-            // AND after the input write, because its velocity lead is
-            // expressed in this frame's anchor rotation frame.
+            // Fully chained: the mode (and raised flag) is derived from the
+            // held inputs first, then the rig system owns every ChaseCamera
+            // field and must run after the mode switch (whose markers decide
+            // the rig) AND after the input write, because its velocity lead
+            // is expressed in this frame's anchor rotation frame.
             (
+                derive_control_mode_and_raised,
                 update_chase_camera_input,
                 sync_spaceship_control_mode,
                 update_camera_rig,
@@ -76,12 +76,68 @@ impl Plugin for SpaceshipCameraControllerPlugin {
 pub struct SpaceshipCameraController;
 
 /// The mode that the camera is currently in for controlling the spaceship.
-#[derive(Resource, Default, Clone, Debug)]
+///
+/// Derived each frame from the HELD state of the mode inputs (Turret while
+/// RMB/CombatInput is held, else FreeLook while Alt/FreeLookInput is held,
+/// else Normal - task 20260713-082324). Memoryless by design: any
+/// press/release order in any nesting lands on the right mode, which the old
+/// four last-writer-wins observers could not guarantee (Alt-release while RMB
+/// was held used to stomp the mode back to Normal). `PartialEq` +
+/// `set_if_neq` keep `is_changed()` meaningful for the rig-sync system.
+#[derive(Resource, Default, Clone, Debug, PartialEq, Eq)]
 pub enum SpaceshipCameraControlMode {
     #[default]
     Normal,
     FreeLook,
     Turret,
+}
+
+/// Weapons-raised: the gameplay-facing flag for "the player is holding the
+/// combat stance" (RMB/CombatInput held), derived each frame onto the PLAYER
+/// ship root alongside the camera mode. Gameplay consumers (the radar slot
+/// latch, the weapons safety, manual turret aim - deliberate-radar spike
+/// 20260713-082207) read THIS component, never the camera enum: the enum is a
+/// camera concern, and routing gameplay off it is the round-3 M2 bug class.
+/// Living on the ship root means a respawn starts lowered for free.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
+#[reflect(Component)]
+pub struct WeaponsRaised(pub bool);
+
+/// The live look ray: the [`PointRotationOutput`] of whichever camera rig
+/// currently holds [`SpaceshipRotationInputActiveMarker`] - Normal, FreeLook
+/// or Turret. Consumers that need "where is the player looking RIGHT NOW"
+/// (the targeting picker, the radar) read this instead of pinning a specific
+/// rig, whose output freezes the moment its mode is left (the frozen-ray bug,
+/// task 20260713-082324).
+///
+/// Press-frame property: on the frame a mode transition begins, the active
+/// marker still sits on the OUTGOING rig (marker moves are command-flushed
+/// after the sync system), so this accessor is the live look at press time.
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct ActiveLookRay<'w, 's> {
+    query: Query<
+        'w,
+        's,
+        &'static PointRotationOutput,
+        (
+            With<SpaceshipCameraInputMarker>,
+            With<SpaceshipRotationInputActiveMarker>,
+        ),
+    >,
+}
+
+impl ActiveLookRay<'_, '_> {
+    /// The active rig's rotation, or `None` when no rig exists (menu states,
+    /// headless tests without a camera).
+    pub fn rotation(&self) -> Option<Quat> {
+        self.query.iter().next().map(|output| **output)
+    }
+
+    /// The active look direction (unit vector), if a rig exists.
+    pub fn direction(&self) -> Option<Vec3> {
+        self.rotation()
+            .map(|rotation| (rotation * Vec3::NEG_Z).normalize())
+    }
 }
 
 /// General Marker for the rotation input of the spaceship camera.
@@ -572,10 +628,20 @@ fn sync_spaceship_control_mode(
     mut commands: Commands,
     mode: Res<SpaceshipCameraControlMode>,
     _spaceship: Single<&Transform, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
-    spaceship_input_rotation: Single<
-        (Entity, &PointRotationOutput),
-        With<SpaceshipCameraNormalInputMarker>,
+    // The OUTGOING rig: the marker still sits on the rig being left this
+    // frame (marker moves below are command-flushed), so its output is the
+    // live look at transition time - the seed for the incoming rig. Seeding
+    // unconditionally from the NORMAL rig was the round-3 B3 bug: raising out
+    // of FreeLook snapped the aim to wherever the normal rig last pointed
+    // instead of the flanker being looked at (task 20260713-082324).
+    active_output: Query<
+        &PointRotationOutput,
+        (
+            With<SpaceshipCameraInputMarker>,
+            With<SpaceshipRotationInputActiveMarker>,
+        ),
     >,
+    spaceship_input_rotation: Single<Entity, With<SpaceshipCameraNormalInputMarker>>,
     spaceship_input_free_look: Single<Entity, With<SpaceshipCameraFreeLookInputMarker>>,
     spaceship_input_turret: Single<Entity, With<SpaceshipCameraTurretInputMarker>>,
 ) {
@@ -583,11 +649,19 @@ fn sync_spaceship_control_mode(
         return;
     }
 
-    let (spaceship_input_rotation, point_rotation) = spaceship_input_rotation.into_inner();
+    let seed = active_output
+        .iter()
+        .next()
+        .map(|output| **output)
+        .unwrap_or_default();
+    let spaceship_input_rotation = spaceship_input_rotation.into_inner();
     let spaceship_input_free_look = spaceship_input_free_look.into_inner();
     let spaceship_input_combat = spaceship_input_turret.into_inner();
 
     match *mode {
+        // The NORMAL rig is deliberately never re-seeded on return: it drives
+        // the SHIP's PD rotation, and seeding it from a free-look/turret
+        // direction would steer the hull to wherever the player was looking.
         SpaceshipCameraControlMode::Normal => {
             commands
                 .entity(spaceship_input_rotation)
@@ -606,7 +680,7 @@ fn sync_spaceship_control_mode(
             commands
                 .entity(spaceship_input_free_look)
                 .insert(PointRotation {
-                    initial_rotation: **point_rotation,
+                    initial_rotation: seed,
                 })
                 .insert(SpaceshipRotationInputActiveMarker);
             commands
@@ -623,7 +697,7 @@ fn sync_spaceship_control_mode(
             commands
                 .entity(spaceship_input_combat)
                 .insert(PointRotation {
-                    initial_rotation: **point_rotation,
+                    initial_rotation: seed,
                 })
                 .insert(SpaceshipRotationInputActiveMarker);
         }
@@ -682,32 +756,56 @@ fn on_rotation_input_completed(
     }
 }
 
-fn on_free_mode_input_started(
-    _: On<Start<FreeLookInput>>,
-    mut mode: ResMut<SpaceshipCameraControlMode>,
-) {
-    *mode = SpaceshipCameraControlMode::FreeLook;
+/// Whether a held bool action currently fires, read from its action entity's
+/// state (the `cycle_modifier_held` pattern - a plain Down-conditioned action
+/// reports `Fired` while its key is held).
+fn action_held<A: InputAction>(q: &Query<&TriggerState, With<Action<A>>>) -> bool {
+    q.iter().any(|&state| state == TriggerState::Fired)
 }
 
-fn on_free_mode_input_completed(
-    _: On<Complete<FreeLookInput>>,
+/// Derive the camera control mode AND the weapons-raised flag from the HELD
+/// state of the mode inputs, each frame: Turret while CombatInput is held
+/// (priority), else FreeLook while FreeLookInput is held, else Normal.
+/// Replaces the four last-writer-wins observers (task 20260713-082324):
+/// memoryless, so nested holds (Alt during RMB, either release order) always
+/// land on the right mode, and a press+release entirely inside a pause leaves
+/// no trace - the state after unpause is a function of what is held NOW.
+/// Deliberately not pause-gated, like the camera chain it heads: the mode is
+/// a camera concern, and every gameplay consumer of [`WeaponsRaised`] is
+/// pause-gated itself.
+fn derive_control_mode_and_raised(
+    mut commands: Commands,
     mut mode: ResMut<SpaceshipCameraControlMode>,
+    q_combat: Query<&TriggerState, With<Action<CombatInput>>>,
+    q_free_look: Query<&TriggerState, With<Action<FreeLookInput>>>,
+    mut q_ship: Query<
+        (Entity, Option<&mut WeaponsRaised>),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
 ) {
-    *mode = SpaceshipCameraControlMode::Normal;
-}
+    let combat_held = action_held(&q_combat);
+    let next = if combat_held {
+        SpaceshipCameraControlMode::Turret
+    } else if action_held(&q_free_look) {
+        SpaceshipCameraControlMode::FreeLook
+    } else {
+        SpaceshipCameraControlMode::Normal
+    };
+    mode.set_if_neq(next);
 
-fn on_combat_input_started(
-    _: On<Start<CombatInput>>,
-    mut mode: ResMut<SpaceshipCameraControlMode>,
-) {
-    *mode = SpaceshipCameraControlMode::Turret;
-}
-
-fn on_combat_input_completed(
-    _: On<Complete<CombatInput>>,
-    mut mode: ResMut<SpaceshipCameraControlMode>,
-) {
-    *mode = SpaceshipCameraControlMode::Normal;
+    // The raised flag mirrors the combat hold onto the player ship root
+    // (self-healing insert: a fresh ship starts lowered and gains the flag on
+    // its first frame).
+    for (ship, raised) in &mut q_ship {
+        match raised {
+            Some(mut raised) => {
+                raised.set_if_neq(WeaponsRaised(combat_held));
+            }
+            None => {
+                commands.entity(ship).insert(WeaponsRaised(combat_held));
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1256,6 +1354,296 @@ mod tests {
         assert!(
             (fast - slow).length() < 0.5,
             "framing must not depend on cruise speed: slow {slow}, fast {fast}"
+        );
+    }
+
+    // -- mode derivation + transition seeding (task 20260713-082324) --
+
+    use bevy::input::InputPlugin;
+
+    /// Distinct per-rig rotations so a seed from the WRONG rig fails loudly.
+    fn rot(deg: f32) -> Quat {
+        Quat::from_rotation_y(deg.to_radians())
+    }
+
+    /// A mode-derivation app with the REAL input stack (InputPlugin +
+    /// EnhancedInput + the production action bindings) and FAITHFUL SPLIT
+    /// RIGS - one entity per mode, only one holding the active marker, each
+    /// with its own distinct PointRotationOutput (a single both-marker rig
+    /// masks exactly the frozen-ray/seeding bug class this task fixes).
+    /// Returns (app, normal, freelook, turret, ship).
+    fn mode_app() -> (App, Entity, Entity, Entity, Entity) {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<crate::PauseStates>();
+        app.init_resource::<SpaceshipCameraControlMode>();
+        app.add_input_context::<PlayerInputMarker>();
+        app.add_systems(
+            Update,
+            (derive_control_mode_and_raised, sync_spaceship_control_mode).chain(),
+        );
+
+        let normal = app
+            .world_mut()
+            .spawn((
+                SpaceshipCameraInputMarker,
+                SpaceshipCameraNormalInputMarker,
+                SpaceshipRotationInputActiveMarker,
+                PointRotation::default(),
+                PointRotationOutput(rot(0.0)),
+            ))
+            .id();
+        let freelook = app
+            .world_mut()
+            .spawn((
+                SpaceshipCameraInputMarker,
+                SpaceshipCameraFreeLookInputMarker,
+                PointRotationOutput(rot(45.0)),
+            ))
+            .id();
+        let turret = app
+            .world_mut()
+            .spawn((
+                SpaceshipCameraInputMarker,
+                SpaceshipCameraTurretInputMarker,
+                PointRotationOutput(rot(90.0)),
+            ))
+            .id();
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::IDENTITY,
+            ))
+            .id();
+        // The context registry finalizes in App::finish, so run the plugin
+        // lifecycle BEFORE spawning the action rig, like the production app
+        // does (same sequencing as the wheel-routing e2e test).
+        app.finish();
+        app.cleanup();
+        app.update();
+        // The production action rig (insert_player_input's shape), so the
+        // derivation reads REAL TriggerStates driven by device input.
+        app.world_mut().spawn((
+            PlayerInputMarker,
+            actions!(
+                PlayerInputMarker[
+                    (
+                        Action::<FreeLookInput>::new(),
+                        bindings![KeyCode::AltLeft, GamepadButton::LeftTrigger]
+                    ),
+                    (
+                        Action::<CombatInput>::new(),
+                        bindings![MouseButton::Right, GamepadButton::LeftTrigger2]
+                    ),
+                ]
+            ),
+        ));
+        app.update();
+        (app, normal, freelook, turret, ship)
+    }
+
+    fn mode_of(app: &App) -> SpaceshipCameraControlMode {
+        app.world().resource::<SpaceshipCameraControlMode>().clone()
+    }
+
+    fn active_rig(app: &mut App) -> Entity {
+        let mut rigs: Vec<Entity> = app
+            .world_mut()
+            .query_filtered::<Entity, With<SpaceshipRotationInputActiveMarker>>()
+            .iter(app.world())
+            .collect();
+        assert_eq!(rigs.len(), 1, "exactly one rig holds the active marker");
+        rigs.pop().unwrap()
+    }
+
+    fn raised(app: &App, ship: Entity) -> bool {
+        app.world()
+            .get::<WeaponsRaised>(ship)
+            .map(|raised| raised.0)
+            .unwrap_or(false)
+    }
+
+    fn seed_of(app: &App, rig: Entity) -> Quat {
+        app.world()
+            .get::<PointRotation>(rig)
+            .expect("rig has a PointRotation")
+            .initial_rotation
+    }
+
+    fn press_rmb(app: &mut App) {
+        app.world_mut()
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Right);
+    }
+    fn release_rmb(app: &mut App) {
+        app.world_mut()
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .release(MouseButton::Right);
+    }
+    fn press_alt(app: &mut App) {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::AltLeft);
+    }
+    fn release_alt(app: &mut App) {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(KeyCode::AltLeft);
+    }
+
+    /// The full nested-hold transition matrix: every press/release order
+    /// lands on the derived mode, the marker follows, and the raised flag
+    /// mirrors the combat hold. The old four last-writer-wins observers
+    /// failed the "release Alt while RMB held" step (mode stomped to Normal
+    /// while raised - the manual-aim-on-a-frozen-ray bug).
+    #[test]
+    fn nested_holds_always_land_on_the_derived_mode() {
+        let (mut app, normal, freelook, turret, ship) = mode_app();
+        assert!(matches!(mode_of(&app), SpaceshipCameraControlMode::Normal));
+        assert_eq!(active_rig(&mut app), normal);
+        assert!(!raised(&app, ship), "spawn state is lowered");
+
+        // RMB -> Turret, raised.
+        press_rmb(&mut app);
+        app.update();
+        assert!(matches!(mode_of(&app), SpaceshipCameraControlMode::Turret));
+        assert_eq!(active_rig(&mut app), turret);
+        assert!(raised(&app, ship));
+
+        // Alt pressed WHILE RMB held: Turret has priority; nothing moves.
+        press_alt(&mut app);
+        app.update();
+        assert!(matches!(mode_of(&app), SpaceshipCameraControlMode::Turret));
+        assert_eq!(active_rig(&mut app), turret);
+        assert!(raised(&app, ship));
+
+        // RMB released while Alt held: FreeLook (NOT Normal - the old bug),
+        // and lowered.
+        release_rmb(&mut app);
+        app.update();
+        assert!(matches!(
+            mode_of(&app),
+            SpaceshipCameraControlMode::FreeLook
+        ));
+        assert_eq!(active_rig(&mut app), freelook);
+        assert!(!raised(&app, ship));
+
+        // Alt released: back to Normal.
+        release_alt(&mut app);
+        app.update();
+        assert!(matches!(mode_of(&app), SpaceshipCameraControlMode::Normal));
+        assert_eq!(active_rig(&mut app), normal);
+
+        // The other release order: Alt first, then RMB joins, then Alt
+        // releases - Turret must SURVIVE the Alt release (old bug: Normal).
+        press_alt(&mut app);
+        app.update();
+        assert!(matches!(
+            mode_of(&app),
+            SpaceshipCameraControlMode::FreeLook
+        ));
+        press_rmb(&mut app);
+        app.update();
+        assert!(matches!(mode_of(&app), SpaceshipCameraControlMode::Turret));
+        release_alt(&mut app);
+        app.update();
+        assert!(
+            matches!(mode_of(&app), SpaceshipCameraControlMode::Turret),
+            "releasing Alt while RMB is held must keep Turret"
+        );
+        assert_eq!(active_rig(&mut app), turret);
+        assert!(raised(&app, ship));
+        release_rmb(&mut app);
+        app.update();
+        assert!(matches!(mode_of(&app), SpaceshipCameraControlMode::Normal));
+    }
+
+    /// Transition seeding takes the OUTGOING rig's live output: raising out
+    /// of FreeLook aims where the free look pointed (45 deg here), NOT where
+    /// the normal rig last pointed (0 deg - the pre-fix source; distinct
+    /// rotations make the wrong source fail). Returning to Normal never
+    /// re-seeds the normal rig (it steers the SHIP).
+    #[test]
+    fn transitions_seed_from_the_outgoing_rig() {
+        let (mut app, normal, freelook, turret, _ship) = mode_app();
+        let normal_seed_before = seed_of(&app, normal);
+
+        // Normal -> FreeLook: seeded from the normal rig's output (0 deg).
+        press_alt(&mut app);
+        app.update();
+        assert!(seed_of(&app, freelook).angle_between(rot(0.0)) < 1e-4);
+
+        // Simulate free-looking at a flanker: the freelook rig's LIVE output
+        // moves to 45 deg (already its spawn value; make it explicit).
+        app.world_mut()
+            .entity_mut(freelook)
+            .insert(PointRotationOutput(rot(45.0)));
+
+        // FreeLook -> Turret (raise while free-looking): the turret rig must
+        // seed from the FREELOOK output (45 deg), not the normal rig (0 deg).
+        press_rmb(&mut app);
+        app.update();
+        assert!(
+            seed_of(&app, turret).angle_between(rot(45.0)) < 1e-4,
+            "raising out of FreeLook must aim at the flanker being looked at"
+        );
+
+        // Back to Normal: the normal rig is deliberately NOT re-seeded.
+        release_rmb(&mut app);
+        release_alt(&mut app);
+        app.update();
+        assert_eq!(
+            seed_of(&app, normal),
+            normal_seed_before,
+            "the ship-steering rig must never be seeded from a look direction"
+        );
+    }
+
+    /// A press+release entirely inside a pause leaves NO trace after
+    /// unpause (memoryless derivation - the state is a function of what is
+    /// held NOW), and a press HELD through the unpause is honored. The
+    /// delivery guard is the held case: the same gesture demonstrably CAN
+    /// raise, so the no-trace assertion is not vacuous.
+    #[test]
+    fn pause_gestures_leave_no_trace_after_unpause() {
+        let (mut app, _normal, _freelook, _turret, ship) = mode_app();
+        app.world_mut()
+            .resource_mut::<NextState<crate::PauseStates>>()
+            .set(crate::PauseStates::Paused);
+        app.update();
+
+        // Press AND release inside the pause.
+        press_rmb(&mut app);
+        app.update();
+        release_rmb(&mut app);
+        app.update();
+        app.world_mut()
+            .resource_mut::<NextState<crate::PauseStates>>()
+            .set(crate::PauseStates::Unpaused);
+        app.update();
+        assert!(matches!(mode_of(&app), SpaceshipCameraControlMode::Normal));
+        assert!(
+            !raised(&app, ship),
+            "a paused press+release leaves no trace"
+        );
+
+        // Press inside the pause, HELD through unpause: honored.
+        app.world_mut()
+            .resource_mut::<NextState<crate::PauseStates>>()
+            .set(crate::PauseStates::Paused);
+        app.update();
+        press_rmb(&mut app);
+        app.update();
+        app.world_mut()
+            .resource_mut::<NextState<crate::PauseStates>>()
+            .set(crate::PauseStates::Unpaused);
+        app.update();
+        assert!(
+            raised(&app, ship),
+            "a hold surviving the pause reflects real current intent"
         );
     }
 }
