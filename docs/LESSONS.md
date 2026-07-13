@@ -214,19 +214,18 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-- `sweep-then-delete` (x5) -> work skill: the three-way grep rule (symbols,
-  describing words, observers/queries) before closing any delete/move/swap.
-- `tatr-same-second-collision` (x6) -> mechanical fix: teach `tatr new` to
-  disambiguate same-second IDs, or an AGENTS.md rule "never chain tatr new".
-- `landing-checkout-not-yours` (x3) -> flow/work skills: branch check before
-  every commit; prefer a real worktree when asked for a branch.
-- `would-it-fail-without-it` (x4) -> work/review skills: every verification
-  must be able to fail.
-- `one-cargo-test-filter` (x4) -> now noted in docs/development.md.
-- `record-the-exact-rig` (x3) -> work skill's close-the-task step.
+(none)
 
 ## Promoted (kept for history)
 
+- 2026-07-13: `sweep-then-delete` + `would-it-fail-without-it` +
+  `record-the-exact-rig` + `landing-checkout-not-yours` -> work skill (the
+  last also in flow's landing and compound's commit steps);
+  `would-it-fail-without-it` also -> review skill;
+  `tatr-same-second-collision` -> sharpened "never chain tatr new" in the
+  tatr/plan/spike skills; `one-cargo-test-filter` -> docs/development.md.
+  Same date: skills now write task-folder records (SPIKE.md, RETRO.md,
+  NOTES.md next to TASK.md) and the ledger moved to docs/LESSONS.md.
 - 2026-07-11: `verify-first-plan-steps` -> plan skill; `fail-first-regression-ab`,
   `commit-before-sabotage`, `production-faithful-rigs` -> work skill;
   `delivery-guards-on-null-assertions` -> review skill; `landing-no-cd` -> flow

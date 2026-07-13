@@ -1,5 +1,11 @@
 # SDLC skill suggestions from the twitching-family session (2026-07-11)
 
+> APPLIED: items 1, 3-9, 11-14, 16 landed in the skills on 2026-07-11; the
+> remaining ledger promotions and the task-folder record convention
+> (SPIKE.md/RETRO.md/NOTES.md, ledger at docs/LESSONS.md) landed 2026-07-13
+> (nix.dotfiles, `docs(skills):` commits). Items 2, 15, 17, 18 needed no
+> change.
+
 Source material: one long /flow session that ran nine full
 plan-work-review-compound cycles (the five twitching-family tasks plus four
 playtest follow-ups), two falsification-only cycles, one family spike, and
