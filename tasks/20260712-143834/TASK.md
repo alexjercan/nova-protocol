@@ -4,7 +4,7 @@
 - PRIORITY: 43
 - TAGS: v0.5.0, scenario, shakedown, verbs, spike
 
-Spike: docs/spikes/20260712-143551-controller-provided-verb-flags.md
+Spike: tasks/20260712-143551/SPIKE.md
 
 Use the controller verb flags to ship GOTO disabled from scenario start and
 re-enable it when the pilot clears the first objective, in

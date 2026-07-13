@@ -111,7 +111,7 @@ armed in the `SectionChoice::None` click arm and consumed by
 `apply_section_rebind` (Escape cancels; updates the live binding component AND
 `PlayerSpaceshipConfig::inputs`; preserves a non-keyboard bind). Hold-to-bind
 placement path untouched. Write-up + reflection:
-docs/retros/20260712-editor-section-keybinds.md.
+tasks/20260712-163912/NOTES.md.
 
 Decisions: editor-local projection over the gameplay `screen_indicator` (whose
 `ScreenIndicatorCamera` is only on the chase camera, absent in the editor);

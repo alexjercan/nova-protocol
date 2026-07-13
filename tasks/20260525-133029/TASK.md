@@ -6,7 +6,7 @@
 
 Data-driven scenario definition. Legacy #101.
 
-Spike: docs/spikes/20260708-161726-modding-language-and-scripting.md
+Spike: tasks/20260708-161726/SPIKE.md
 
 Phase 1 of the modding-language direction: add `serde` to the existing config
 model (`ScenarioConfig`/`EventConfig`/`EventActionConfig`/`EventFilterConfig` and

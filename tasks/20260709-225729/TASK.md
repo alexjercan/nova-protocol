@@ -5,7 +5,7 @@
 - TAGS: v0.4.0,ai,spike,handling
 
 
-Spike: docs/spikes/20260709-225508-ai-combat-behaviors.md (wave 2)
+Spike: tasks/20260709-225508/SPIKE.md (wave 2)
 
 Goal: replace pure pursuit (which converges to point-blank parking or ramming)
 with a standoff envelope in the Engage state: approach when far, hold/orbit at

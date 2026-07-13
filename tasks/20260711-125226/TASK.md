@@ -26,7 +26,7 @@ copy is redundant. Drop it.
 ## Notes
 
 - Filed from user feedback mid-flow (2026-07-11). Precedent for the
-  shape of this change: docs/retros/20260711-000547-remove-orbit-ring-chip.md
+  shape of this change: tasks/20260711-000547/RETRO.md
   (same "two readouts of one number in the same screen area" call, same
   sweep-then-delete discipline).
 - The ship speed chip is the diegetic flight status one

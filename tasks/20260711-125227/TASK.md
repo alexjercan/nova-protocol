@@ -51,7 +51,7 @@ queued tasks are done (camera jumps 20260711-125225, zoom cap
       0.6 and 0.75 (terminal rms 0.38 -> 0.12 -> 0.03 rad/s, release
       spin 0.44 -> 0.09 -> 0.05, lateral tracking unchanged), and the
       same-tick handoff A/B (phantom error 0.22 -> 0.003 rad).
-- [x] Write docs/spikes/20260711-140234-feel-filtering.md and seed tatr
+- [x] Write tasks/20260711-140234/SPIKE.md and seed tatr
       tasks 20260711-140234 (settle deadband, P58) + 20260711-140241
       (handoff clock fix, P56). Guards under the wider band answered in
       the doc: release-spin guard GAINS margin, AI settle bound
@@ -67,15 +67,15 @@ queued tasks are done (camera jumps 20260711-125225, zoom cap
   identify the wobble issue and fix it"); bullet pop 20260711-121839 and
   torpedo clock 20260711-114640 proceed via /flow alongside the two
   tasks this spike seeded.
-- Context: docs/retros/20260709-flight-feel-retune.md,
-  docs/retros/20260709-125640-residual-roll-release.md (PD conditioning
+- Context: tasks/20260709-095043/NOTES.md,
+  tasks/20260709-125640/RETRO.md (PD conditioning
   history - deadbands interact with everything that retro fixed),
   tasks/20260711-121701 (the hull is provably steady; "not pixel perfect"
   is about small commanded corrections, not spurious torque).
 
 ## Resolution
 
-Spike complete: docs/spikes/20260711-140234-feel-filtering.md. The GOTO
+Spike complete: tasks/20260711-140234/SPIKE.md. The GOTO
 wobble is a terminal attitude hunt caused by the settle deadband being
 tuned below the doorstep-brake residual; secondary find, the rotation
 command handoff crosses clocks (Update copy between two FixedUpdate

@@ -5,7 +5,7 @@
 - TAGS: v0.4.0,ai,spike,targeting
 
 
-Spike: docs/spikes/20260709-225508-ai-combat-behaviors.md (wave 1)
+Spike: tasks/20260709-225508/SPIKE.md (wave 1)
 
 Goal: replace the hardcoded player Single in input/ai.rs with a per-ship
 AITarget(Option<Entity>) picked over hostiles via the relation model

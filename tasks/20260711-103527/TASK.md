@@ -14,7 +14,7 @@ lever arms from the raw pose (flight.rs) and its comment claims both use
 the same point; they no longer do. The mismatch grows linearly with
 velocity, so hard decel from high speed produces uncompensated torque:
 the ship twitches and sometimes flips (umbrella 20260711-094915 symptom).
-Root-cause analysis: docs/spikes/20260711-103527-twitching-family-two-clocks.md.
+Root-cause analysis: tasks/20260711-103527/SPIKE.md.
 
 ## Steps
 

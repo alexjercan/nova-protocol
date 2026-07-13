@@ -4,7 +4,7 @@
 - PRIORITY: 0
 - TAGS: v0.6.0,example,scenario
 
-Spike: docs/spikes/20260708-203517-roadmap-reprioritization-and-juice.md
+Spike: tasks/20260708-203517/SPIKE.md
 
 North-star demo for the "shippable game" identity: one real capital-combat fight
 that dogfoods every juice + combat system end to end, rather than the isolated

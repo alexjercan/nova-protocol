@@ -4,7 +4,7 @@
 - PRIORITY: 10
 - TAGS: v0.5.0, hud, spike
 
-Spike: docs/spikes/20260708-165647-weapons-hud.md
+Spike: tasks/20260708-165647/SPIKE.md
 
 Phase 3. When a locked target or an incoming threat (e.g. a hostile torpedo) is off
 the screen, show a direction arrow clamped to the screen edge pointing at it, so the
@@ -16,7 +16,7 @@ hostiles); scope that during planning - a first cut can just point at the curren
 lock and at committed enemy torpedoes.
 
 Note (20260711): the multi-target spike
-docs/spikes/20260711-163800-multi-target-cycle.md makes the candidate set built
+tasks/20260711-163800/SPIKE.md makes the candidate set built
 for 20260708-165705 the intended data source here - edge indicators point at
 off-screen candidates, the active lock, and committed hostile torpedoes
 (relation Hostile via relations.rs).
@@ -59,7 +59,7 @@ the widget's `ClampToEdge` + `ScreenIndicatorArrowMarker` path.
       candidate churn, torpedo commit/death; a `place`-level assertion is NOT
       needed (widget already tested) - test only the reconcile + styling.
 - [x] Full check suite; append what shipped to the weapons-hud spike doc
-      (docs/spikes/20260708-165647-weapons-hud.md) Fix record.
+      (tasks/20260708-165647/SPIKE.md) Fix record.
 
 ## Notes
 

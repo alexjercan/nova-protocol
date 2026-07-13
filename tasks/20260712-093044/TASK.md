@@ -73,7 +73,7 @@ despawning a scenario object by id.
 
 ## Notes
 
-- Spike: docs/spikes/20260712-092926-starter-scenario.md
+- Spike: tasks/20260712-092926/SPIKE.md
 - Blocks: 20260711-180506 (Shakedown Run scenario uses both objects)
 - Verified at plan time: no despawn action existed (actions.rs enum);
   ObjectivesPlugin (bevy-common-systems ui/objectives.rs) rebuilds the

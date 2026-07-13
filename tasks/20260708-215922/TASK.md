@@ -38,7 +38,7 @@ collapsing a single source's burst.
       re-fires after it; `area_cell` groups nearby / separates distant positions.
 - [x] Verify: fmt, clippy --all-targets, cargo test --workspace, headless
       10_gameplay autopilot (Playing, no panic). Shared CARGO_TARGET_DIR.
-- [x] Update `docs/retros/20260708-audio-sfx-system.md` (throttle is per-source:
+- [x] Update `tasks/20260708-162011/NOTES.md` (throttle is per-source:
       turret by entity, area cues by world cell; note the area-cell heuristic).
 
 ## Notes

@@ -55,7 +55,7 @@ player.rs:584). Bodies rewritten clean post-round-4 per user directive.
 
 ## Notes
 
-- Spike: docs/spikes/20260712-222610-travel-combat-lock-slots.md (rounds
+- Spike: tasks/20260712-222610/SPIKE.md (rounds
   2c, 3 deltas 4/7/8/11).
 - Depends on: 20260712-223035 (slots + raised state + pools).
 - MMB stays unbound (reserved if playtest finds a "safe the guns while

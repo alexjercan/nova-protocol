@@ -8,7 +8,7 @@
 
 Playtest bug (user, 2026-07-10): HUD text anchored to moving objects
 twitches - most visibly the velocity/speed text at the ship. Root cause
-(docs/spikes/20260711-103527-twitching-family-two-clocks.md): screen
+(tasks/20260711-103527/SPIKE.md): screen
 indicators project in Update with the camera pose from the PREVIOUS frame
 (the bcs chase camera moves later, in PostUpdate), so HUD nodes lag the
 rendered world by one frame of camera motion; additionally Point anchors

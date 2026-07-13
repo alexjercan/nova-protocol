@@ -179,7 +179,7 @@ when raised), tap = staged clear. All aim-assist auto-acquisition dies.
 
 ## Notes
 
-- Spike: docs/spikes/20260713-082207-deliberate-radar-locking.md (design,
+- Spike: tasks/20260713-082207/SPIKE.md (design,
   adversarial round, decisions D1-D9).
 - Depends on: 20260713-082324 (active look ray + raised flag).
 - The free-aim raw CTRL read (player.rs:434) is re-keyed to the RAISED flag

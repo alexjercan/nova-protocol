@@ -37,7 +37,7 @@ Verifications performed (not taken on trust):
   Resolution, and the (pending) retro. A one-line filter arguably does not need a
   standalone doc, but add a short one if you want to keep the per-fix docs
   convention uniform. Non-blocking.
-  - Response: Added docs/retros/20260709-disabled-controller-torque.md (what changed,
+  - Response: Added tasks/20260709-155922/NOTES.md (what changed,
     why nova-side only, and the verification) to keep the per-fix convention
     uniform.
 

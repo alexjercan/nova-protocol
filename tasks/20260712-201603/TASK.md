@@ -55,4 +55,4 @@ camera. That fully resolves the symptom, but the root cause is in bcs.
   `crates/nova_debug/src/lib.rs` (`keep_inspector_on_window_camera` - the
   workaround to remove once upstream is fixed).
 - Discovered during task 20260710-104421 (target inset view); see
-  docs/retros/20260712-target-inset-view.md ("Adjacent fix").
+  tasks/20260710-104421/NOTES.md ("Adjacent fix").

@@ -31,7 +31,7 @@ on real spawn/damage/destroy events, which only occur inside the (gated)
       example reaches Playing, no panic (SpaceshipSectionSystems runs there,
       ungated). Confirm the editor example (`09_editor`) still boots headless.
 - [x] fmt, clippy --all-targets, cargo test --workspace. Shared CARGO_TARGET_DIR.
-- [x] Update `docs/retros/20260708-audio-sfx-system.md`: note the hum is gated into
+- [x] Update `tasks/20260708-162011/NOTES.md`: note the hum is gated into
       `SpaceshipSectionSystems` so it is silent outside the running simulation
       (e.g. the editor build state); the one-shots are event-driven and need no
       gating.

@@ -4,8 +4,8 @@
 - PRIORITY: 85
 - TAGS: v0.4.0, handling, juice
 
-Spike: docs/spikes/20260709-094731-flight-feel-assisted-newtonian.md (design)
-Roadmap: docs/spikes/20260708-203517-roadmap-reprioritization-and-juice.md
+Spike: tasks/20260709-094731/SPIKE.md (design)
+Roadmap: tasks/20260708-203517/SPIKE.md
 
 ## Goal
 

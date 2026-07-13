@@ -155,7 +155,7 @@ gate, tutorial, wiki, and a blog (index + one seed post), themed from
 and combines them: the webpack site at the Pages root (`/nova-protocol/`) and the
 Trunk game under `/nova-protocol/play/`, with `.nojekyll`. README rewritten (banner
 embedded), CHANGELOG entry added, `nodejs_22` added to the flake dev shell, and a
-reflection note at docs/retros/20260712-web-landing-site.md.
+reflection note at tasks/20260712-093048/NOTES.md.
 
 Verification: `npm run build` (5 pages, partials injected, banner + favicon
 copied), `format:check` and `lint` clean; a `PUBLIC_PATH=/nova-protocol/` build
@@ -173,6 +173,6 @@ match the reference stack. See REVIEW.md.
 Not merged: left on `feat/web-landing-page` per the user's "continue on the same
 branch" instruction; landing to master + push is the user's call.
 
-Follow-ups (see docs/retros/20260712-web-landing-site.md): wire `web/` checks into CI;
+Follow-ups (see tasks/20260712-093048/NOTES.md): wire `web/` checks into CI;
 optional limited "Try"/demo mode (game-side URL-param gate); real screenshots/gifs
 on the landing page; build-time markdown for the blog if it grows.

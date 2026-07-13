@@ -74,11 +74,11 @@ torn down).
 - [x] Run check/fmt + new tests; Xvfb screenshot of the pause overlay over
       a running scenario.
 - [x] Docs: CHANGELOG; architecture.md States section gains PauseStates;
-      Fix record line in docs/spikes/20260711-180500-main-menu.md.
+      Fix record line in tasks/20260711-180500/SPIKE.md.
 
 ## Notes
 
-- Spike: docs/spikes/20260711-180500-main-menu.md (menu family)
+- Spike: tasks/20260711-180500/SPIKE.md (menu family)
 - Parent task: 20260711-174915
 - Depends on: 20260711-180426 (main menu, CLOSED - landed 8504948)
 - Verified this session: no Escape binding exists anywhere (repo grep);

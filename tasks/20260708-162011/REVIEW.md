@@ -89,7 +89,7 @@ attenuation, a perceptual rolloff curve, a per-source throttle bugfix, and
 editor-state gating). Playback reuses `bevy_common_systems` (`SfxPlugin`,
 `SoundBank`); only the Nova-specific event->sound mapping lives in the new
 `crates/nova_gameplay/src/audio.rs`. Design rationale is in
-`docs/retros/20260708-audio-sfx-system.md`; the per-task history is in the five
+`tasks/20260708-162011/NOTES.md`; the per-task history is in the five
 `tasks/*/TASK.md` files (task 162011 also has a `REVIEW.md`).
 
 ### Verification (re-run at branch tip)

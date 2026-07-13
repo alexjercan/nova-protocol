@@ -48,7 +48,7 @@ states (Engage/Evade) override and the orbit resumes when calm returns.
 - [x] Verify: cargo check + fmt, run the newly written tests.
 
 ## Notes
-- Spike: docs/spikes/20260711-212358-live-ship-systems-outside-editor-scenario.md
+- Spike: tasks/20260711-212358/SPIKE.md
 - Second of three seeded tasks; the menu payoff task 20260711-212504 needs
   this and 20260711-212519.
 - Open question resolved: kept two config fields (orbit: Option<String>

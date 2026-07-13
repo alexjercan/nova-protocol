@@ -45,7 +45,7 @@ produce "gold and white" unreadability; address both:
 
 - Playtest verdict (2026-07-12, user): conveyance visuals approved
   except gold text readability - this task is the only follow-up.
-- Design spike: docs/spikes/20260712-140842-objective-conveyance-visuals.md
+- Design spike: tasks/20260712-140842/SPIKE.md
 - Follows: 20260712-093831 (landed 63293fd)
 - Constraint: keep the four-hue language (gold = do this now); the fix is
   contrast/purity, not a color change.

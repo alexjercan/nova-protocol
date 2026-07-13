@@ -95,7 +95,7 @@ it with a test rather than new code.
 
 ## Notes
 
-- Spike: docs/spikes/20260712-203235-lock-stickiness-and-inset-scope.md
+- Spike: tasks/20260712-203235/SPIKE.md
   (Part 1 A2, Refinement).
 - Relevant files: `crates/nova_gameplay/src/hud/target_inset.rs`
   (`drive_inset_camera` gate + `ship_framing_radius`), ship/torpedo/asteroid

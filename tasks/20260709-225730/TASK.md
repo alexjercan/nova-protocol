@@ -5,7 +5,7 @@
 - TAGS: v0.4.0,ai,spike,handling
 
 
-Spike: docs/spikes/20260709-225508-ai-combat-behaviors.md (wave 2)
+Spike: tasks/20260709-225508/SPIKE.md (wave 2)
 
 Goal: make AI ships placeable in scenarios before combat starts. Patrol state:
 fly a waypoint loop, reusing the GOTO autopilot / FlightIntent machinery

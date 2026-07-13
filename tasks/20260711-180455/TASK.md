@@ -53,11 +53,11 @@ is cinematic.
       screenshot harness that the menu renders over the ambient scene with
       the ship in frame.
 - [x] Docs: CHANGELOG.md entry; append a Fix record line to
-      docs/spikes/20260711-180500-main-menu.md.
+      tasks/20260711-180500/SPIKE.md.
 
 ## Notes
 
-- Spike: docs/spikes/20260711-180500-main-menu.md
+- Spike: tasks/20260711-180500/SPIKE.md
 - Parent task: 20260711-174915
 - Depends on: 20260711-180426 (main menu state + panel)
 - Related: 20260711-180501 (HUD visibility levels) - the NONE level is the

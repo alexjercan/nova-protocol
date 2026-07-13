@@ -86,7 +86,7 @@ Decide from the playtest.
 
 ## Notes
 
-- Spike: docs/spikes/20260712-203235-lock-stickiness-and-inset-scope.md
+- Spike: tasks/20260712-203235/SPIKE.md
   (Part 2, options B1 + optional B3).
 - Relevant files: `crates/nova_gameplay/src/input/targeting.rs`
   (`update_spaceship_target_input` `pinned` gate at ~line 447-482;

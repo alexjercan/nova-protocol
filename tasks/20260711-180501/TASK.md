@@ -70,12 +70,12 @@ instruments survive Minimal; None hides everything.
       All screenshot must show the chrome the Minimal one lacks.
 - [x] Docs: CHANGELOG entry; short section in docs/architecture.md or the
       hud module doc on HudVisibility/HudTier; Fix record line in
-      docs/spikes/20260711-180500-main-menu.md; update the nova_menu
+      tasks/20260711-180500/SPIKE.md; update the nova_menu
       comment that pointed at this task.
 
 ## Notes
 
-- Spike: docs/spikes/20260711-180500-main-menu.md (gesture choice: plain
+- Spike: tasks/20260711-180500/SPIKE.md (gesture choice: plain
   press-to-cycle, no hold).
 - Parent task: 20260711-174915.
 - Research inventory (2026-07-11 session): all HUD modules spawn via

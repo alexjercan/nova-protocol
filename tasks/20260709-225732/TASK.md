@@ -4,7 +4,7 @@
 - PRIORITY: 66
 - TAGS: v0.4.0, ai, spike, torpedo
 
-Spike: docs/spikes/20260709-225508-ai-combat-behaviors.md (wave 3)
+Spike: tasks/20260709-225508/SPIKE.md (wave 3)
 
 Goal: AI ships fire their torpedo bays. From Engage, write
 TorpedoSectionInput when inside a launch envelope: range band, rough

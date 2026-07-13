@@ -82,7 +82,7 @@ GOTO) stays aim-driven and separate (do NOT make it sticky - review R1.1 of
 
 ## Notes
 
-- Spike: docs/spikes/20260712-203235-lock-stickiness-and-inset-scope.md
+- Spike: tasks/20260712-203235/SPIKE.md
   (this completes the sticky-lock direction per the user's clarified model).
 - Auto-turrets fire at `SpaceshipPlayerTargetLock` (input/player.rs turret aim
   feed); there is no independent point defense, so locking the torpedo IS how

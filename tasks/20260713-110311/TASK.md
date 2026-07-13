@@ -113,7 +113,7 @@ flash).
 
 ## Notes
 
-- Spike: docs/spikes/20260713-110039-show-dont-tell-radar-ux.md (strands
+- Spike: tasks/20260713-110039/SPIKE.md (strands
   B1 + C1, adversarial F2/F4/F5/F6/F7/F10/F11, questionnaire Q3-Q8 -
   answered).
 - Depends on: 20260713-110330 (RadarState.engaged, RadarLockAcquired).

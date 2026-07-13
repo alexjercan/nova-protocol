@@ -28,9 +28,9 @@ Non-blocking findings:
   HUD pips), but no docs/ page records the model's semantics (Own/Hostile/
   Neutral matrix, the requires wiring, copy-at-spawn). Repo convention
   (AGENTS.md, thrust-balancing precedent) keeps such decisions in docs/.
-  Suggested: a short docs/retros/20260709-faction-relations.md covering the
+  Suggested: a short tasks/20260708-203708/NOTES.md covering the
   matrix, where allegiance comes from, and the two consumers.
-  - Response: fixed in 2cea663 - added docs/retros/20260709-faction-relations.md
+  - Response: fixed in 2cea663 - added tasks/20260708-203708/NOTES.md
     (matrix, allegiance sources, consumers, alternatives considered).
 - [x] R1.2 (NIT) crates/nova_gameplay/src/sections/turret_section.rs:1710 -
   `spawned_projectile_allegiance` queries `(Entity, Option<&Allegiance>)`

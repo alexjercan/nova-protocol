@@ -5,7 +5,7 @@
 - TAGS: v0.4.0,ai,spike,turret
 
 
-Spike: docs/spikes/20260709-225508-ai-combat-behaviors.md (wave 1)
+Spike: tasks/20260709-225508/SPIKE.md (wave 1)
 
 Goal: make AI gunnery honest instead of a continuous aligned-spray. Feed the
 target root's LinearVelocity into TurretSectionTargetVelocity so AI turrets

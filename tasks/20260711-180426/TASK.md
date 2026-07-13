@@ -71,11 +71,11 @@ examples keep working.
       suite/clippy per repo policy; CI covers it).
 - [x] Docs: update docs/architecture.md (crate map row for nova_menu, the
       States section) and CHANGELOG.md; append a Fix record line to
-      docs/spikes/20260711-180500-main-menu.md.
+      tasks/20260711-180500/SPIKE.md.
 
 ## Notes
 
-- Spike: docs/spikes/20260711-180500-main-menu.md
+- Spike: tasks/20260711-180500/SPIKE.md
 - Parent task: 20260711-174915
 - Only two OnEnter(GameStates::Playing) hooks exist today: nova_core
   AppBuilder (status UI, actually registered on Loaded) and nova_editor

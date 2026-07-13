@@ -1,0 +1,58 @@
+# Retro: Web landing site (play gate, blog, tutorial, wiki)
+
+- TASK: 20260712-093048
+- BRANCH: feat/web-landing-page
+- REVIEW ROUNDS: 1 (APPROVE)
+
+See [TASK.md](../../tasks/20260712-093048/TASK.md) for what shipped and
+[the docs note](../tasks/20260712-093048/NOTES.md) for the design decisions.
+This retro is process-only.
+
+## What went well
+
+- **Copying a known-good reference stack wholesale.** Lifting football-guessr's
+  `webpack-partials.js`, eslint/prettier/tsconfig and the multi-page webpack
+  shape verbatim meant the scaffold built on the first try and the review found
+  zero config bugs. Reusing a working project beat authoring a toolchain from
+  scratch.
+- **Extracting game copy from source before writing prose.** A dedicated
+  content-extraction pass (controls from `input/player.rs`, sections from
+  `docs/sections.md`) fed the tutorial/wiki, and the reviewer's spot-check
+  against the same files found every keybind accurate. No invented facts.
+- **Verifying at the altitude of the risk.** The real risk was base-path
+  breakage under the `/nova-protocol/` subpath, so the verification was a
+  `PUBLIC_PATH=/nova-protocol/` build with a link/asset grep, plus a chromium
+  screenshot for the theme - not just "npm run build passed".
+
+## What went wrong
+
+- **R1.1 (active-nav highlighted Home on every page under the subpath).** Root
+  cause: `site.ts` was written and screenshot-verified only at local dev root
+  (`/`), where its `isHome === ""` assumption happens to hold. The one code path
+  with environment-dependent behavior was tested in exactly the environment that
+  hid the bug. The production subpath was verified for *static* links (grep) but
+  not for the *client-side* logic that consumes `window.location.pathname`.
+- **R1.2 (no `.nojekyll`).** Minor omission - a static-site deploy convention I
+  did not carry over from general Pages practice because the reference project
+  (served without the game subdir) never needed it.
+- **A prose typo ("Three ship today") reached the draft.** Caught on my own
+  re-read, not by any tool - prose pages have no test.
+
+## What to improve next time
+
+- When a helper's behavior depends on the deploy base path, verify it in a
+  base-path-faithful way, not just at local root. For client-side path logic a
+  cheap deterministic simulation across the real page URLs (which is how the fix
+  was ultimately confirmed) beats a single root-served screenshot.
+- Treat `.nojekyll` as part of the default checklist for any GitHub Pages deploy
+  of pre-built static output.
+
+## Action items
+
+- [x] R1.1 fixed (subpath-correct active-nav, verified by simulation) and R1.2
+      fixed (`.nojekyll`); see REVIEW.md.
+- [ ] Follow-ups filed in the docs note (not yet tatr tasks): wire `web/`
+      format+lint+build into CI; optional limited "Try"/demo mode (game-side
+      URL-param gate); real screenshots/gifs on the landing page. Create tasks
+      when prioritized.
+- [x] Lessons ledger updated (`verify-at-deploy-base-path`, `reuse-known-good-stack`).

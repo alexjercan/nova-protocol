@@ -4,7 +4,7 @@
 - PRIORITY: 100
 - TAGS: v0.5.0, physics, gravity, spike
 
-Spike: docs/spikes/20260709-193147-gravity-wells-orbital-mechanics.md
+Spike: tasks/20260709-193147/SPIKE.md
 
 ## Goal
 
@@ -82,7 +82,7 @@ acceleration), not mass-derived. Prerequisite for the ORBIT verb
       body and ownership does not flicker at the boundary; (5) a well source
       itself never accelerates, even when misconfigured as affected.
 - [x] Run fmt + check + the new tests; document the implementation in
-      `docs/retros/20260710-gravity-wells.md`.
+      `tasks/20260709-193338/NOTES.md`.
 - [x] Review round 1 fixes: well sources on rails (`RigidBody::Static`
       inserted with the well), `On<Remove, GravityWell>` cleanup of
       `DominantWell`, placeholder-Position candidate gate, tests through the
@@ -99,7 +99,7 @@ acceleration), not mass-derived. Prerequisite for the ORBIT verb
   crates/nova_scenario/src/objects/asteroid.rs (config + designation
   observer), crates/nova_assets/src/scenario.rs (Gravity Rock),
   crates/nova_scenario/src/loader.rs + crates/nova_editor/src/lib.rs
-  (AsteroidConfig field), docs/retros/20260710-gravity-wells.md.
+  (AsteroidConfig field), tasks/20260709-193338/NOTES.md.
 - Well sources are put on rails at designation time (review R1.1): the
   observer inserts `RigidBody::Static` with the well, so nothing can shove
   an SOI around. Well-less field rocks keep the base bundle's Dynamic body.
@@ -127,4 +127,4 @@ gravity.rs + 2 in asteroid.rs, all passing; cargo fmt + cargo check
 policy. Difficulties: none material. Reflection: checking the physics API
 and the spike's Static-bodies assumption against the real code before
 implementing avoided both a needless ComputedMass dependency and a false
-no-clump premise; details in docs/retros/20260710-gravity-wells.md.
+no-clump premise; details in tasks/20260709-193338/NOTES.md.

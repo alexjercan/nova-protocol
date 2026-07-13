@@ -45,11 +45,11 @@ goes away.
       covers the same claim without a fragile mega-fixture.)
 - [x] Close the originating spike task 20260711-185440 (STATUS: CLOSED with
       outcome note) and append the fix record to
-      docs/spikes/20260711-212358-live-ship-systems-outside-editor-scenario.md.
+      tasks/20260711-212358/SPIKE.md.
 - [x] Verify: cargo check + fmt, run the newly written tests.
 
 ## Notes
-- Spike: docs/spikes/20260711-212358-live-ship-systems-outside-editor-scenario.md
+- Spike: tasks/20260711-212358/SPIKE.md
 - Third of three seeded tasks; depends on 20260711-212519 (gate re-scope)
   and 20260711-212521 (AI orbit directive) - both landed.
 

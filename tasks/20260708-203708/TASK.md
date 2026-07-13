@@ -4,11 +4,11 @@
 - PRIORITY: 62
 - TAGS: v0.4.0,factions,ai,hud
 
-Spike: docs/spikes/20260708-203517-roadmap-reprioritization-and-juice.md
+Spike: tasks/20260708-203517/SPIKE.md
 
 Enabling task: both the smarter-AI work (20260708-162012) and reticle-by-relation
 colouring in the weapons HUD (flagged as an open question in
-docs/spikes/20260708-165647-weapons-hud.md) need a notion the game does not have
+tasks/20260708-165647/SPIKE.md) need a notion the game does not have
 yet - who is hostile to whom. There is no faction/relation concept today.
 
 Goal: a minimal, lightweight relation model - hostile / neutral / your-own -

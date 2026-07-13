@@ -13,8 +13,8 @@ projection + visibility + off-screen handling. Migrate both existing bespoke
 overlays (torpedo reticle, autopilot destination marker) onto it in this task.
 
 Architecture is settled - do not re-litigate:
-docs/spikes/20260709-164502-screen-indicator-architecture.md (and the earlier
-direction spike docs/spikes/20260708-165647-weapons-hud.md).
+tasks/20260709-164502/SPIKE.md (and the earlier
+direction spike tasks/20260708-165647/SPIKE.md).
 
 ## Steps
 
@@ -71,7 +71,7 @@ direction spike docs/spikes/20260708-165647-weapons-hud.md).
 - [x] Verify: `cargo fmt`, `cargo check --workspace`, run only the newly
       written tests (user instruction: skip the full local test/clippy suite;
       report the skips honestly).
-- [x] Document in `docs/retros/20260709-screen-indicator-widget.md`: what/why,
+- [x] Document in `tasks/20260708-165700/NOTES.md`: what/why,
       alternatives from the spike, migration notes. Any "behavior unchanged"
       claim must be written from an enumeration of the actual consumers
       (retro lesson), and numbers must name their config.
@@ -102,7 +102,7 @@ driver-only consumers, camera glue observers in hud/mod.rs, 24 new
 unit/behavioral tests (fabricated-camera projection tests included), scripted
 range `examples/12_hud_range.rs` (PASS: reticle drift 0.0 px, GOTO marker
 drift 0.1 px, both hide on target death). Full write-up with behavior deltas:
-docs/retros/20260709-screen-indicator-widget.md.
+tasks/20260708-165700/NOTES.md.
 
 Deliberate behavior deltas: behind-camera / dead-entity anchors now hide the
 reticle instead of freezing it; laterally off-screen destinations hide

@@ -4,7 +4,7 @@
 - PRIORITY: 88
 - TAGS: v0.4.0,polish,destruction
 
-Spike: docs/spikes/20260708-161726-modding-language-and-scripting.md (roadmap)
+Spike: tasks/20260708-161726/SPIKE.md (roadmap)
 
 The destruction pipeline already spawns mesh fragments, but there is little
 moment-to-moment feedback when a shot lands or the player takes damage. Add
@@ -55,5 +55,5 @@ Effects:
 - [x] Pure helpers (`distance_falloff`, throttle, `flash_radius`, `flash_alpha`) with
       unit tests, observer-level integration tests, and a "settings defaults" guard.
 - [x] `cargo fmt`, `cargo clippy --all-targets`, `cargo test --workspace` all green.
-- [x] Design note in `docs/retros/20260709-hit-feedback-juice.md`.
+- [x] Design note in `tasks/20260708-162013/NOTES.md`.
 </content>

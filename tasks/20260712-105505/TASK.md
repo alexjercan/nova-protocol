@@ -10,7 +10,7 @@ torpedoes already do. Today only ship roots and torpedo projectiles opt into
 
 ## Spike outcome (read first)
 
-Spike: docs/spikes/20260712-112113-bullets-affected-by-gravity.md
+Spike: tasks/20260712-112113/SPIKE.md
 (RECOMMENDED - conditional). It measured the curvature and settled the scope:
 
 - Curvature is perceptible ONLY on close grazing passes near a strong well
@@ -137,7 +137,7 @@ Spike: docs/spikes/20260712-112113-bullets-affected-by-gravity.md
 - Out of scope: debris gravity (stays deferred); the gravity-aware turret
   intercept term C2 (target + bullet feedforward in `lead_intercept_point`) -
   file as its own follow-up if the playtest asks for it.
-- Spike: docs/spikes/20260712-112113-bullets-affected-by-gravity.md
+- Spike: tasks/20260712-112113/SPIKE.md
 
 ## Outcome
 

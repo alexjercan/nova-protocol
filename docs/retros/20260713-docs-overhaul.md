@@ -28,6 +28,12 @@ easy to read for both humans and LLMs.
 - Follow-up the same day: `docs/reviews/` removed; the two PR-level reviews
   were appended to their primary task's `tasks/<id>/REVIEW.md`, so ALL reviews
   now live next to their task.
+- Second follow-up: retros and spikes moved the same way - `tasks/<id>/RETRO.md`
+  and `tasks/<id>/SPIKE.md`, with date-only design records as
+  `tasks/<id>/NOTES.md`. 48 pruned task folders were recreated as CLOSED
+  archive-stub `TASK.md`s (a folder without `TASK.md` breaks `tatr ls`,
+  verified empirically). Only `docs/plans/`, the LESSONS.md ledger, and a few
+  task-less records stay under `docs/`.
 
 ## Difficulties
 

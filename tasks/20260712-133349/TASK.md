@@ -70,7 +70,7 @@ that type's color; proven in headless tests.
 
 ## Notes
 
-- Spike: docs/spikes/20260712-133135 (architecture), 20260712-160505 (taxonomy /
+- Spike: tasks/20260712-133135/SPIKE.md (architecture), 20260712-160505 (taxonomy /
   the four types + their intent). This is that spike's phase-2, scoped to the
   foundation.
 - SectionAmmo (sections/ammo.rs) is UNCHANGED - still one pool. The "type" (slot)
@@ -99,7 +99,7 @@ that type's color; proven in headless tests.
 Landed: `LoadedBullet` slot + `bullet_kind` config in turret_section.rs, fire
 stamps from the slot, `damage_type_color` in damage.rs, per-type coloring in
 ammo_readout.rs `drive_ammo_readouts`. Write-up + reflection:
-docs/retros/20260712-bullet-type-slot.md. Fix record appended to spike 20260712-133135.
+tasks/20260712-133349/NOTES.md. Fix record appended to spike 20260712-133135.
 
 Deviations from the plan as written:
 

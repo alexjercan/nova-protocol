@@ -4,7 +4,7 @@
 - PRIORITY: 90
 - TAGS: v0.4.0,audio
 
-Spike: docs/spikes/20260708-161726-modding-language-and-scripting.md (roadmap)
+Spike: tasks/20260708-161726/SPIKE.md (roadmap)
 
 ## Goal
 
@@ -65,7 +65,7 @@ asset-load errors, wasm still serves the sounds, checks green.
       unit tests + `harnessed_examples_reach_playing_without_panic`). Headless
       `BCS_AUTOPILOT=1 10_gameplay --features debug`: reached Playing, scenario
       loaded, `SfxPlugin` built, no sound asset-load error, no panic.
-- [x] Documented in `docs/retros/20260708-audio-sfx-system.md` (seams, the
+- [x] Documented in `tasks/20260708-162011/NOTES.md` (seams, the
       SfxPlugin-generic / nova-owns-the-map boundary, thruster-loop tradeoff,
       difficulties, swap-in path).
 
@@ -107,7 +107,7 @@ fire, torpedo launch, thruster loop) wired off existing gameplay seams, playing
 through the reusable bcs `SfxPlugin`/`SoundBank`. Placeholder WAVs are generated
 by `scripts/gen-placeholder-sounds.py` and committed so it runs out of the box;
 real audio drops in by overwriting files. Full write-up in
-`docs/retros/20260708-audio-sfx-system.md`.
+`tasks/20260708-162011/NOTES.md`.
 
 ### What changed and why
 

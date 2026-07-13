@@ -16,8 +16,8 @@ CHANGELOG sections were left untouched (history is history). Remaining known
 stale surfaces are deliberate: the tutorial's PEDAGOGY (090653) and the
 superseded spike docs, which already carry banners.
 
-- [ ] R1.1 (NIT) docs/retros/20260709-screen-indicator-widget.md and docs/
-  20260709-diegetic-autopilot.md contain passing mentions of the old lock
+- [ ] R1.1 (NIT) tasks/20260708-165700/NOTES.md and docs/
+  tasks/20260709-103434/NOTES.md contain passing mentions of the old lock
   language ("aim-assist lock") in narration; not load-bearing, banner-worthy
   only if touched again.
   - Response: acknowledged; left for a future touch.

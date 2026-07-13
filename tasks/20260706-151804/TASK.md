@@ -25,7 +25,7 @@ policy in docs/architecture.md).
 
 ## Progress
 
-Spike: docs/spikes/20260708-110317-promotion-eligible-systems.md. The generic code was
+Spike: tasks/20260708-110317/SPIKE.md. The generic code was
 added to bevy_common_systems (PRs #2 and #3 there, master 34b3f0a).
 
 Migrated here (this branch): bumped the bcs git rev to 34b3f0a in all four crates and

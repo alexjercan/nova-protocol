@@ -84,8 +84,8 @@ distances). Ends with New Game loading it instead of asteroid_field.
 
 ## Notes
 
-- Spike (design, beat sheet): docs/spikes/20260712-092926-starter-scenario.md
-- Spike (parent direction): docs/spikes/20260711-180500-main-menu.md
+- Spike (design, beat sheet): tasks/20260712-092926/SPIKE.md
+- Spike (parent direction): tasks/20260711-180500/SPIKE.md
 - Parent task: 20260711-174915
 - Depends on: 20260711-180426 (CLOSED), 20260712-093044 (CLOSED)
 - Conveyance is layer 0/1 by design; task 20260712-093831 upgrades

@@ -36,7 +36,7 @@ Reference the crate-boundary policy in `docs/architecture.md` and the existing
 bevy-common-systems module layout in `~/personal/bevy-common-systems/src`.
 
 Spike (decided catalog, Tier A-D + marker convention):
-`docs/spikes/20260708-110317-promotion-eligible-systems.md`. The remaining steps of this
+`tasks/20260708-110317/SPIKE.md`. The remaining steps of this
 task (apply `PROMOTE(bevy-common-systems)` markers to the Tier A/B/C items and write
 `docs/promotion-candidates.md`) execute that catalog. The Tier-B seam design is split out
 to task 20260708-110449; the cross-repo moves stay under task 20260706-151804.

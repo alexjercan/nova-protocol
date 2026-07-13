@@ -4,9 +4,9 @@
 - PRIORITY: 85
 - TAGS: v0.4.0, handling, autopilot, spike
 
-Spike: docs/spikes/20260709-103324-diegetic-autopilot.md (design calls settled
+Spike: tasks/20260709-103324/SPIKE.md (design calls settled
 with the user; supersedes the velocity-servo model from
-docs/spikes/20260709-094731-flight-feel-assisted-newtonian.md)
+tasks/20260709-094731/SPIKE.md)
 
 ## Goal
 
@@ -68,7 +68,7 @@ hands the ship back without a lurch.
 - [x] Verify: fmt, clippy --all-targets, cargo test --workspace, wasm32
       check. Shared CARGO_TARGET_DIR, heavy builds in background.
 - [x] Rewrite `docs/2026-07-09-flight-assist.md` as the autopilot design note
-      (or replace with `docs/retros/20260709-diegetic-autopilot.md` and update
+      (or replace with `tasks/20260709-103434/NOTES.md` and update
       references), documenting the maneuver machine, authority handover, and
       what was removed and why.
 
@@ -97,7 +97,7 @@ autopilot_system (one rule: face the velocity error, burn when aligned),
 X/G/Z engagement observers, Without<Autopilot> gates on manual rotation copy
 and manual burn, disengage re-seed observer in camera_controller, HUD status
 line + projected cyan destination marker, design note
-docs/retros/20260709-diegetic-autopilot.md (flight-assist note deleted). 12 flight
+tasks/20260709-103434/NOTES.md (flight-assist note deleted). 12 flight
 tests + 1 camera re-seed test.
 
 Two flight-dynamics bugs found BY the physics tests, not review:

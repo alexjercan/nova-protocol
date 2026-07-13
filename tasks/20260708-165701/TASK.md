@@ -13,8 +13,8 @@ A HUD pip at that projected point shows the player the lead the turret is
 taking. Pure rendering off existing data, wasm-safe, first fresh consumer of
 the screen-indicator widget.
 
-Spikes: docs/spikes/20260708-165647-weapons-hud.md,
-docs/spikes/20260709-164502-screen-indicator-architecture.md.
+Spikes: tasks/20260708-165647/SPIKE.md,
+tasks/20260709-164502/SPIKE.md.
 
 ## Steps
 
@@ -44,7 +44,7 @@ docs/spikes/20260709-164502-screen-indicator-architecture.md.
       the section is disabled (mandatory expects, asserted-at-exit guard).
 - [x] Verify: `cargo fmt`, `cargo check --workspace`, run only the newly
       written tests (skip full suite per user instruction; report skips).
-- [x] Extend `docs/retros/20260709-screen-indicator-widget.md` with the pip
+- [x] Extend `tasks/20260708-165700/NOTES.md` with the pip
       consumer section.
 
 ## Notes
@@ -62,7 +62,7 @@ turret's `TurretSectionAimPoint`, Point-anchored on the screen-indicator
 widget), layer observers in hud/mod.rs, 4 behavioral tests, pip stages in
 `examples/12_hud_range.rs` (PASS: pip on the projected aim point at 0.0 px
 drift, hidden after the section is disabled). Doc section added to
-docs/retros/20260709-screen-indicator-widget.md.
+tasks/20260708-165700/NOTES.md.
 
 Deviation from plan: pip membership is a reconcile system rather than
 add/remove observers - turrets can be destroyed mid-fight and sections can

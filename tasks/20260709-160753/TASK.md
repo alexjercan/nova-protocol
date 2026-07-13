@@ -54,7 +54,7 @@ the ship root did not, and the new camera smoothing was the first consumer to
 sample the ship at render rate. Fixed at the shared spawn seam
 (`base_scenario_object` - ships, asteroids, gates) plus the torpedo root.
 Pinned by a bundle unit test and a wiring assertion in the 11_com_range
-smoke; mechanism documented in docs/retros/20260709-camera-twitch-interpolation.md.
+smoke; mechanism documented in tasks/20260709-160753/NOTES.md.
 
 Honest scope: nova_scenario + nova_gameplay tests and both smokes run
 locally, green; fmt + cargo check green; full suite/clippy deferred per

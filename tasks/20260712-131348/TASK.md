@@ -80,7 +80,7 @@ debug mode. Firing a finite weapon visibly drains its readout.
 
 ## Notes
 
-- Spike: docs/spikes/20260712-143113-diegetic-ammo-readout.md (Option B,
+- Spike: tasks/20260712-143113/SPIKE.md (Option B,
   fully settled - do not re-litigate the substrate).
 - Substrate: `crates/nova_gameplay/src/hud/screen_indicator.rs` -
   `screen_indicator`, `screen_indicator_layer`, `ScreenIndicatorConfig`,

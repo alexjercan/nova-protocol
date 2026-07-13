@@ -60,7 +60,7 @@ not who is flying.
 
 ## Notes
 
-- Spike: docs/spikes/20260710-234019-diegetic-flight-status.md
+- Spike: tasks/20260710-234019/SPIKE.md
 - Palette colors are baked into the two child materials at spawn by the
   On<Add> observers; each widget owns unique material instances (one
   `materials.add` per child), so mutating them tints only that widget.

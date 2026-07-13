@@ -41,7 +41,7 @@ to ~0 for the bullet.
   without matching five markers.
 - [x] Add the resistance table as a `const fn resistance(class: SectionDamageClass,
   kind: DamageType) -> f32` in `damage.rs`, with EXACTLY the values from
-  docs/spikes/20260712-160505 (Kinetic column all 1.0; AP Hull 1.5 / Thruster
+  tasks/20260712-160505/SPIKE.md (Kinetic column all 1.0; AP Hull 1.5 / Thruster
   0.75 / Controller 1.0 / Turret 1.75 / Torpedo 1.0; EMP Hull 0.1 / Thruster 0.25
   / Controller 3.0 / Turret 1.5 / Torpedo 1.25; Explosive Hull 1.0 / Thruster 1.5
   / Controller 1.0 / Turret 0.5 / Torpedo 1.25). Document each row's intent in a
@@ -101,8 +101,8 @@ to ~0 for the bullet.
 
 ## Notes
 
-- Spikes: docs/spikes/20260712-133135 (architecture: own-the-trigger, why an
-  observer would race) and docs/spikes/20260712-160505 (the four types,
+- Spikes: tasks/20260712-133135/SPIKE.md (architecture: own-the-trigger, why an
+  observer would race) and tasks/20260712-160505/SPIKE.md (the four types,
   AmmoKind==DamageType decision, the resistance table + per-type intent).
 - Do NOT modify bcs (git dep, rev a35b74c). Neutralize/route around it only.
 - Relevant files: crates/nova_gameplay/src/sections/turret_section.rs
@@ -126,7 +126,7 @@ to ~0 for the bullet.
 Landed as `crates/nova_gameplay/src/damage.rs` (types, `const fn resistance`,
 `apply_typed_damage`, `NovaBlast` + observer, `NovaDamagePlugin`) plus the weapon
 callsite edits. Full write-up, decisions, difficulties and reflection:
-docs/retros/20260712-typed-damage-core.md. Fix record appended to spike
+tasks/20260712-133343/NOTES.md. Fix record appended to spike
 20260712-133135.
 
 Deviations from the plan as written:

@@ -111,7 +111,7 @@ deterministic; conventions and commit hygiene hold.
   - Response: fixed - the lag test asserts one frame advances exactly one
     hull_turn_rate step (15% tolerance), pinning the derivation; the module
     keeps its own harness with a comment on why it sits beside `tests`.
-- [x] R1.12 (NIT) docs/retros/20260709-121842-multi-thruster-autopilot.md -
+- [x] R1.12 (NIT) tasks/20260709-121842/RETRO.md -
   the "[ ] 20260709-095043 ... est_turn_rate_deg" action item is now
   deliverable; annotate it.
   - Response: fixed - the multi-thruster retro action item is ticked with a

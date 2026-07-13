@@ -5,7 +5,7 @@
 - TAGS: v0.4.0,ai,spike,torpedo,turret
 
 
-Spike: docs/spikes/20260709-225508-ai-combat-behaviors.md (wave 3)
+Spike: tasks/20260709-225508/SPIKE.md (wave 3)
 
 Goal: the AI defends itself against torpedoes. Detect a hostile torpedo
 whose target is me; prioritize it as a turret target (PDC role - this should

@@ -107,7 +107,7 @@ five landed changes):
 
 ## Notes
 
-- Spike: docs/spikes/20260713-082207-deliberate-radar-locking.md
+- Spike: tasks/20260713-082207/SPIKE.md
   (adversarial round, tutorial findings) + 20260713-110039 (live lock).
 - The minimal "must not lie" text fix landed in 20260713-082344; this
   task owns pedagogy and flow.

@@ -37,7 +37,7 @@ autopilot-to-manual handback the same smoothing.
   the live rig output with the component removed.
 - [x] Run camera_controller + flight tests and `cargo check --workspace
   --examples`.
-- [x] Docs: docs/retros/20260710-camera-handback-blend.md; close TASK.md.
+- [x] Docs: tasks/20260710-222517/NOTES.md; close TASK.md.
 
 ## Notes
 

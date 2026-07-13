@@ -44,7 +44,7 @@ Difficulties / notes:
   to avoid a from-scratch Bevy rebuild.
 - Deferred: phase 2 (click-picking in the inset); WASM/WebGL2 perf unmeasured.
 
-Full design record: docs/retros/20260712-target-inset-view.md.
+Full design record: tasks/20260710-104421/NOTES.md.
 
 ## Goal
 
@@ -57,7 +57,7 @@ range. Phase 1 is view-only: the inset plus an in-scene emissive highlight of
 the fine-locked section. Selection stays on the existing snap/cycle mechanic;
 direct click-picking in the inset is deferred (phase 2, separate decision).
 
-Scoped from spike docs/spikes/20260710-104011-target-inset-view.md (Option A,
+Scoped from spike tasks/20260710-104011/SPIKE.md (Option A,
 RECOMMENDED). Consumes existing targeting state only; no new mechanics.
 
 ## Steps

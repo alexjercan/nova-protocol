@@ -3,7 +3,7 @@
 Branch: fix/ribbon-park-point, commits 53d26f3..f9fef5e.
 Scope: ManeuverTelemetry.park_point (flight.rs), ribbon endpoint
 (hud/holo_instruments.rs), test-helper literals
-(hud/maneuver_instruments.rs), docs/retros/20260711-ribbon-park-point.md.
+(hud/maneuver_instruments.rs), tasks/20260710-214316/NOTES.md.
 
 ## Round 1 (2026-07-11)
 

@@ -45,7 +45,7 @@ clears the lock and hands the turrets back to the cursor).
 
 ## Notes
 
-- Spike: docs/spikes/20260713-082207-deliberate-radar-locking.md (the
+- Spike: tasks/20260713-082207/SPIKE.md (the
   routing default was "confirm in playtest" - this IS the verdict).
 - The side-shot use case the old default preserved is deliberately traded
   away: tap-clear is the explicit road back to manual.

@@ -55,7 +55,7 @@ request (20260711-121711).
       here).
 ## Notes
 
-- Related: docs/spikes/20260711-103527-twitching-family-two-clocks.md
+- Related: tasks/20260711-103527/SPIKE.md
   (falsified: physical hull wobble - the hull is provably steady, see
   tasks/20260711-121701), tasks/20260711-121711 (zoom cap + decel zoom
   slew), tasks/20260711-125227 (feel-smoothing spike, queued last).

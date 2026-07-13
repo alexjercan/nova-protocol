@@ -37,7 +37,7 @@ I would start by creating the needed tasks to implement the main menu and
 adding them to v0.5.0; stuff that can be defered for later can go into v0.6.0
 
 Resolution (spike, 20260711): researched and closed. Direction and reasoning
-in docs/spikes/20260711-180500-main-menu.md. Seeded tasks:
+in tasks/20260711-180500/SPIKE.md. Seeded tasks:
 
 - 20260711-180426: main menu state, panel UI, mode wiring (v0.5.0, p45)
 - 20260711-180455: ambient menu background scenario (v0.5.0, p44)

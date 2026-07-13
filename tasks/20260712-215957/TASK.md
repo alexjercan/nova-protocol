@@ -53,7 +53,7 @@ test keeps passing with mechanical query rewrites only.
 
 ## Notes
 
-- Spike: docs/spikes/20260712-215733-unified-target-computer.md.
+- Spike: tasks/20260712-215733/SPIKE.md.
 - Why components: the user wants the target computer to be entity state
   ("store the target and the available targets as components"); it unbakes
   the player-singleton assumption from 7 files and opens the door to AI
@@ -72,7 +72,7 @@ test keeps passing with mechanical query rewrites only.
 ## Closure (2026-07-12, superseded - no code shipped)
 
 Superseded by the travel/combat lock-slot model (spike
-docs/spikes/20260712-222610-travel-combat-lock-slots.md) before any code
+tasks/20260712-222610/SPIKE.md) before any code
 was written. Componentization itself is still happening, but straight to
 the end-state shape: task 20260712-223035 ports the resources directly to
 TravelLock + CombatLock (+ AvailableTargets, HostileContacts) instead of a

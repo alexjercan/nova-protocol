@@ -5,7 +5,7 @@
 - TAGS: v0.4.0,ai,spike
 
 
-Spike: docs/spikes/20260709-225508-ai-combat-behaviors.md (wave 1)
+Spike: tasks/20260709-225508/SPIKE.md (wave 1)
 
 Goal: give the AI brain (crates/nova_gameplay/src/input/ai.rs) a small
 behavior-state skeleton the other AI tasks plug into: an AIBehaviorState enum

@@ -64,7 +64,7 @@ travel.
 
 - Context: tasks/20260710-231930 (the spawn rewrite; documents the
   intentional render-vs-physics offset this task now polishes away),
-  docs/spikes/20260711-103527-twitching-family-two-clocks.md.
+  tasks/20260711-103527/SPIKE.md.
 - Cosmetic (one frame), hence P60; do not regress stream linearity or
   cadence (regressions must stay green).
 

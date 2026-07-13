@@ -63,9 +63,9 @@ construction (no LockSignature at range).
 
 ## Notes
 
-- Spikes: docs/spikes/20260712-215733-unified-target-computer.md (the model,
+- Spikes: tasks/20260712-215733/SPIKE.md (the model,
   auto-pick policy, cone knob, open questions);
-  docs/spikes/20260712-215256-combat-travel-lock-separation.md (Part A -
+  tasks/20260712-215256/SPIKE.md (Part A -
   original motivation: flick to a far body you cannot pixel-aim).
 - Depends on: 20260712-215957 (componentized TargetLock/AvailableTargets).
 - 2026-07-12 steer: this task originally implemented option A1 from the
@@ -94,7 +94,7 @@ construction (no LockSignature at range).
 ## Closure (2026-07-12, superseded - no code shipped)
 
 Superseded by the travel/combat lock-slot model (user steer, spike
-docs/spikes/20260712-222610-travel-combat-lock-slots.md) before
+tasks/20260712-222610/SPIKE.md) before
 implementation started. This task's scope was redistributed:
 
 - cone list computation + angle ranking -> 20260712-223035 (travel slot)

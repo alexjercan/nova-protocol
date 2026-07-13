@@ -100,7 +100,7 @@ Q2a keep-last).
 
 ## Notes
 
-- Spike: docs/spikes/20260713-110039-show-dont-tell-radar-ux.md (strand A1,
+- Spike: tasks/20260713-110039/SPIKE.md (strand A1,
   adversarial F1/F3/F9/F12, questionnaire Q1/Q2 - answered).
 - Retarget churn verified safe (F3): no Changed<lock> reactors; consumers
   poll; the focus dwell resets by comparison (tick_lock_focus,

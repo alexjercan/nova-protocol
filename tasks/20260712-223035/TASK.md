@@ -110,7 +110,7 @@ Builds on the 20260712-231141 infrastructure.
 
 ## Notes
 
-- Spike: docs/spikes/20260712-222610-travel-combat-lock-slots.md; rounds
+- Spike: tasks/20260712-222610/SPIKE.md; rounds
   2b (incumbent rule), 2c (raised gating), 3 (adversarial deltas), 4
   (questionnaire - FINAL). Bodies rewritten clean post-round-4 per user
   directive; history lives in git and the spike.

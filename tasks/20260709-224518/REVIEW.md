@@ -42,7 +42,7 @@ and clippy deferred to CI per project practice.
     now contains only flight.rs, the two docs, and this task's folder; the
     three re-prioritization edits are back to uncommitted working-tree
     changes. Verified with `git diff master...HEAD --stat` and `git status`.
-- [x] R1.2 (MINOR) docs/retros/20260709-thrust-balancing.md:110 - the
+- [x] R1.2 (MINOR) tasks/20260709-155920/NOTES.md:110 - the
   "Full-throttle asymmetric burns still pull" boundary bullet is now stale:
   on a ship with a usable off-axis engine a full-stick burn no longer pulls
   (the recruit's trim budget is its own throttle box - the new doc's
@@ -69,7 +69,7 @@ Verified against the rebuilt branch:
   and this task's folder; the three re-prioritization edits are uncommitted
   working-tree changes again. Confirmed resolved.
 - R1.2: the full-throttle boundary bullet in
-  docs/retros/20260709-thrust-balancing.md carries a dated UPDATE scoping the pull
+  tasks/20260709-155920/NOTES.md carries a dated UPDATE scoping the pull
   to ships with no usable off-axis engine left. Confirmed resolved.
 - R1.3: flight.rs:505 now reads "keeping bounded the sideways force that
   nulling costs". Confirmed resolved.

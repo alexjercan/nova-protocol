@@ -120,7 +120,7 @@ AI ships.
 
 ## Notes
 
-- Spike: docs/spikes/20260713-082207-deliberate-radar-locking.md (decisions
+- Spike: tasks/20260713-082207/SPIKE.md (decisions
   D4/D5a/D8 + the fire-gate and AI caveats in the adversarial round).
 - Depends on: 20260713-082330 (slots + radar), which depends on -082324.
 - Section-side gating chosen deliberately so ONE rule covers player + AI;

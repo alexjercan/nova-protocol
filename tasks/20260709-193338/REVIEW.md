@@ -8,7 +8,7 @@
 - VERDICT: REQUEST_CHANGES
 
 Reviewed commit 24a9030 against master, spec (TASK.md + spike
-docs/spikes/20260709-193147-gravity-wells-orbital-mechanics.md), with an
+tasks/20260709-193147/SPIKE.md), with an
 independent adversarial pass over the diff and the avian 0.7 source for the
 force/Position semantics. The math core, hysteresis, one-way invariant,
 scheduling, and test assertions are sound (details at the end). Two findings

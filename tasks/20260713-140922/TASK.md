@@ -60,7 +60,7 @@ unchanged; one loader bridge fires both.
 
 ## Notes
 
-- Spike: docs/spikes/20260713-140742-shakedown-beat-sheet-v2.md (option C;
+- Spike: tasks/20260713-140742/SPIKE.md (option C;
   option D's wider vocabulary deliberately rejected).
 - Two variants (not one event + bool field) because EntityFilterConfig
   matches only the string fields in the info data map - a bool field would

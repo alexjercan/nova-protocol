@@ -38,7 +38,7 @@ No BLOCKER/MAJOR findings. NITs below are take-it-or-leave-it.
   - Response: Fixed - prelude now exports only `nova_autopilot` / `nova_screenshot`;
     the plugin types stay reachable via `nova_debug::harness::`. Rebuilt with
     `--features debug`, green.
-- [x] R1.2 (NIT) docs/retros/20260707-example-harness-wiring.md:44 - the input-closure
+- [x] R1.2 (NIT) tasks/20260707-100002/NOTES.md:44 - the input-closure
   snippet uses bare `GameStates` without showing the `use nova_gameplay::GameStates;`
   import that the equivalent rustdoc in `harness.rs` includes. Cosmetic; add the
   import line for copy-paste fidelity.

@@ -5,7 +5,7 @@
 - TAGS: v0.6.0,weapons,spike
 
 
-Spike: docs/spikes/20260712-133135-weapon-and-damage-type-variety.md
+Spike: tasks/20260712-133135/SPIKE.md
 
 DEFERRED to v0.6.0 (user, 2026-07-12): not pursuing alt-fire for now. One bullet
 type per weapon is enough; the intended way to change a weapon's loaded type is at

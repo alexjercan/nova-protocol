@@ -4,7 +4,7 @@
 - PRIORITY: 9
 - TAGS: v0.5.0, hud, spike
 
-Spike: docs/spikes/20260708-165647-weapons-hud.md
+Spike: tasks/20260708-165647/SPIKE.md
 
 Phase 3. Track several lockable candidates at once (the aim-assist in
 `update_spaceship_target_input` already enumerates them, but keeps only the best),
@@ -16,14 +16,14 @@ Direction: promote the transient best-pick into a maintained candidate set (a
 resource or per-candidate marker), render the set, and drive an explicit cycle input
 alongside the existing look-to-aim behaviour.
 
-Design spike (20260711): docs/spikes/20260711-163800-multi-target-cycle.md -
+Design spike (20260711): tasks/20260711-163800/SPIKE.md -
 candidate set resource (top-5 hostile ships, ranked), dim bracket markers via
 the screen-indicator widget, CTRL+scroll cycle (plus CTRL+brackets, dpad
 up/down) with a ~4 s lock pin mirroring the component pin, and new
 bottom-left hint rows [SCROLL] COMPONENT / [CTRL+SCROLL] TARGET.
 
 Narrowed (20260709) by
-docs/spikes/20260709-192358-component-lock-vats-lite.md: the subtarget-cycle
+tasks/20260709-192358/SPIKE.md: the subtarget-cycle
 half lands with the component fine-lock (tatr 20260709-192522/192523). This
 task keeps the multi-target half only: maintaining and rendering the candidate
 SET of lockable ships and cycling the active ship lock between them.

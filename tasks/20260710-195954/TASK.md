@@ -37,7 +37,7 @@ where to go.
   release - the contrast case.
 - [x] Run flight, input::ai, hud tests and `cargo check --workspace
   --examples`.
-- [x] Docs: docs/retros/20260710-goto-parks-into-orbit.md (handoff rule,
+- [x] Docs: tasks/20260710-195954/NOTES.md (handoff rule,
   breakout semantics unchanged, no-toggle default per the user request);
   close TASK.md.
 

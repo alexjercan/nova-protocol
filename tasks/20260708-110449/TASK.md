@@ -22,6 +22,6 @@ cross-repo move.
 
 ## Notes
 
-Spike: docs/spikes/20260708-110317-promotion-eligible-systems.md (Tier B / Tier C and the
+Spike: tasks/20260708-110317/SPIKE.md (Tier B / Tier C and the
 Open questions). Downstream move: task 20260706-151804. Catalog + markers: task
 20260707-095020.

@@ -50,7 +50,7 @@ auto-acquire fallback both respect it. Tunables in one reflected tree.
       lockable at long range (unchanged); asteroid bundle carries the
       signature (nova_scenario test).
 - [x] fmt + check --workspace --examples + affected modules (input, hud
-      consumers compile); document in docs/retros/20260710-signature-lock.md.
+      consumers compile); document in tasks/20260710-195952/NOTES.md.
 
 ## Notes
 
@@ -74,4 +74,4 @@ lock consumers inherit), asteroids author signature = radius. Ships and
 committed torpedoes deliberately keep full range (sensors task owns
 ships; point defense needs torpedoes). 3 new + 2 adjusted targeting
 tests, scenario assert; all affected modules green; fmt + check
---workspace --examples clean. Details: docs/retros/20260710-signature-lock.md.
+--workspace --examples clean. Details: tasks/20260710-195952/NOTES.md.

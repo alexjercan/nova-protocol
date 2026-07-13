@@ -59,7 +59,7 @@ swing) for 3-5 seconds at the end of EVERY GOTO leg. STOP is immune: its
 error decreases monotonically through the deadband once, nose-on-error,
 and the done gate releases at 0.2 u/s.
 
-Spike: docs/spikes/20260711-140234-feel-filtering.md (mechanism, traces,
+Spike: tasks/20260711-140234/SPIKE.md (mechanism, traces,
 measured variants). Measured on the shipped 5-section rig (PD 4/4/40,
 single rear drive, GotoPos 30 deg off-nose over ~670 u):
 

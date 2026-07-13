@@ -194,7 +194,7 @@ are real and got follow-up tasks.
   settings-menu follow-up already recorded in the task/docs, not a gap.
 - TASK.md's `Spike:` header line points at the modding-language spike for the
   roadmap; the reprioritization that made this task the p88 headliner is
-  `docs/spikes/20260708-203517-roadmap-reprioritization-and-juice.md`.
+  `tasks/20260708-203517/SPIKE.md`.
   Pre-existing on master, cosmetic, not part of this diff.
 
 ### In this PR or follow-ups?
@@ -208,7 +208,7 @@ own tests either way.
 
 ### Follow-ups (filed on this branch)
 
-- Spike: `docs/spikes/20260709-091536-combat-cue-propagation-dedup.md` -
+- Spike: `tasks/20260709-091536/SPIKE.md` -
   weighs original-target guard vs IntegrityRoot keying vs shared cue seam.
 - tatr 20260709-091756: dedup `HealthApplyDamage` propagation in audio + juice
   observers (F1), with hierarchy + attenuation observer tests (F3) and the doc

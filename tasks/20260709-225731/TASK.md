@@ -4,7 +4,7 @@
 - PRIORITY: 68
 - TAGS: v0.4.0, ai, spike, handling
 
-Spike: docs/spikes/20260709-225508-ai-combat-behaviors.md (wave 3)
+Spike: tasks/20260709-225508/SPIKE.md (wave 3)
 
 Goal: the AI reacts to being shot. A cheap threat model (received
 HealthApplyDamage recently; a hostile within range is aiming at me) drives

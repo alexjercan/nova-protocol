@@ -8,7 +8,7 @@
 
 Playtest bug (user, 2026-07-10): bullets look funky - they twitch really
 badly and "spew out" non-linearly at high spaceship velocity. Root cause
-(docs/spikes/20260711-103527-twitching-family-two-clocks.md): bullets spawn
+(tasks/20260711-103527/SPIKE.md): bullets spawn
 in Update from the EASED muzzle pose with RAW inherited velocity, the fire
 timer quantizes shots to render frames, the only compensation is a static
 `muzzle_exit_velocity * 0.01`, and a mid-frame-spawned bullet freezes until

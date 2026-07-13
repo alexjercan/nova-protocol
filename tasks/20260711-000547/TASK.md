@@ -36,7 +36,7 @@ speed. Remove the ring chip entirely; the holo ring itself stays.
 ## Notes
 
 - Follow-up to 20260710-231926; spike
-  docs/spikes/20260710-234019-diegetic-flight-status.md (the spike had
+  tasks/20260710-234019/SPIKE.md (the spike had
   kept the ring chip "as-is" - the user's playtest overruled that once
   the spoke existed, since the two chips read as duplicates in the same
   screen area).

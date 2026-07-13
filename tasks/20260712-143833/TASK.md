@@ -4,7 +4,7 @@
 - PRIORITY: 44
 - TAGS: v0.5.0, scenario, controller, verbs, spike
 
-Spike: docs/spikes/20260712-143551-controller-provided-verb-flags.md
+Spike: tasks/20260712-143551/SPIKE.md
 
 Add a scenario action that flips one flight-verb flag on a ship's controller
 section at runtime, shaped like `SetSpeedCapActionConfig`

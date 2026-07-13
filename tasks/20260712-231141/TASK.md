@@ -69,7 +69,7 @@ it.
 
 ## Notes
 
-- Spike: docs/spikes/20260712-222610-travel-combat-lock-slots.md (round 3
+- Spike: tasks/20260712-222610/SPIKE.md (round 3
   deltas 1-2; user directive round 4: fix it properly, do not route
   around it).
 - No dependency on 20260712-223034 (parallel-safe); 20260712-223035

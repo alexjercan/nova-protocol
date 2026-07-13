@@ -6,7 +6,7 @@
 
 Store all scenarios as a resource. Legacy #99.
 
-Spike: docs/spikes/20260708-161726-modding-language-and-scripting.md
+Spike: tasks/20260708-161726/SPIKE.md
 
 Rides on 133029 (RON format + AssetLoader): once scenarios are RON assets, load
 them into the `GameScenarios` resource from `assets/scenarios/` instead of

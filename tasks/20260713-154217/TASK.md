@@ -86,7 +86,7 @@ changes - locks, safety and turrets behave exactly as today.
 
 ## Notes
 
-- Spike: docs/spikes/20260713-154023-inset-kill-cam.md (options B vs C/D,
+- Spike: tasks/20260713-154023/SPIKE.md (options B vs C/D,
   the free safety-click composition).
 - Open question resolved at plan time: an active radar SEARCH (no lock
   yet) does NOT end the linger early - only a landed lock re-frames; the

@@ -15,14 +15,14 @@ retrograde from high speed (fixed via 20260711-103527). Investigated
 pose clocks (raw fixed-tick `Position`/`Rotation` vs render-eased
 `Transform`/`GlobalTransform`) introduced by the 2026-07-09 interpolation
 change. Full analysis, falsified hypotheses and fix plan:
-docs/spikes/20260711-103527-twitching-family-two-clocks.md.
+tasks/20260711-103527/SPIKE.md.
 
 This task closes LAST, as the family-level verification.
 
 ## Steps
 
 - [x] Investigate the family and document the shared mechanism
-      (docs/spikes/20260711-103527-twitching-family-two-clocks.md).
+      (tasks/20260711-103527/SPIKE.md).
 - [x] Member tasks CLOSED: 20260711-103527 (thruster application point),
       20260710-231931 (ship twitch re-test), 20260710-231930 (bullets),
       20260710-231928 (HUD text), 20260710-231929 (crosshair). Plus the

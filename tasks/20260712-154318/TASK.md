@@ -38,7 +38,7 @@ sensors are invisible volumes and must not count as "apparent" size.
 ## Notes
 
 - Playtest verdict recorded with the gold-text one in spike
-  docs/spikes/20260712-140842-objective-conveyance-visuals.md.
+  tasks/20260712-140842/SPIKE.md.
 - Same-class precedent: tasks/20260712-093831/REVIEW.md R1.1 (the crate
   bracket went to an authored WorldRadius; here the fix is the generic
   sensor exclusion, because the reticle must keep tracking SHIP hulls).

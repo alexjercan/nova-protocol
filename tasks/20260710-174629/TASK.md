@@ -4,7 +4,7 @@
 - PRIORITY: 40
 - TAGS: v0.5.0, hud, autopilot, spike
 
-Spike: docs/spikes/20260710-174523-diegetic-instruments-keybind-hints.md
+Spike: tasks/20260710-174523/SPIKE.md
 Depends on: 20260709-103454 (the ORBIT holo ring must prove the world-space
 language first)
 
@@ -53,7 +53,7 @@ geometry (a gate on the path).
       shell (inside SOI, on approach, gone in flat space).
 - [x] fmt + check --workspace --examples + affected modules (flight incl.
       input::ai per the signature rule, hud); document in
-      docs/retros/20260710-holo-expansion.md.
+      tasks/20260710-174629/NOTES.md.
 
 ## Notes (planning)
 
@@ -76,4 +76,4 @@ segments), the flip gate, and the SOI shell (wire globe of three tori,
 dominant-well-inside or nearest-on-approach), all despawned with the
 player HUD. 5 new tests + 1 updated; flight/hud/input modules green; fmt +
 check --workspace --examples clean. Details:
-docs/retros/20260710-holo-expansion.md.
+tasks/20260710-174629/NOTES.md.

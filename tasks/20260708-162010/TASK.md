@@ -4,7 +4,7 @@
 - PRIORITY: 0
 - TAGS: v0.6.0,modding,spike
 
-Spike: docs/spikes/20260708-161726-modding-language-and-scripting.md
+Spike: tasks/20260708-161726/SPIKE.md
 
 Phase 2 of the modding-language direction, and itself a prototype/spike task (do
 NOT commit to it before the prototype). Gated on phase 1 (RON scenario format,

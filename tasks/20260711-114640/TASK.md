@@ -55,7 +55,7 @@ for consistency when touching the torpedo section next.
 
 ## Notes
 
-- Context: docs/spikes/20260711-103527-twitching-family-two-clocks.md
+- Context: tasks/20260711-103527/SPIKE.md
   (the two-clocks rule of thumb) and the turret fix in
   tasks/20260710-231930.
 - Not part of the twitching-family umbrella's playtest symptoms; do not

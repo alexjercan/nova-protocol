@@ -52,7 +52,7 @@ IS a loaded scenario.
       runs the suite).
 
 ## Notes
-- Spike: docs/spikes/20260711-212358-live-ship-systems-outside-editor-scenario.md
+- Spike: tasks/20260711-212358/SPIKE.md
 - First of three seeded tasks; blocks the menu payoff task 20260711-212504.
 - Pause gating (configure_pause_gating) composes by AND; do not disturb it.
 - Watch-out: ambience scenarios must not contain Player-controlled ships

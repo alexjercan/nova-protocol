@@ -8,7 +8,7 @@
 
 Playtest bug (user, 2026-07-10): the turret crosshair (orange square pip)
 jitters while tracking. Root cause
-(docs/spikes/20260711-103527-twitching-family-two-clocks.md): the pip
+(tasks/20260711-103527/SPIKE.md): the pip
 anchors are driven in Update (turret_lead.rs:78-84) from
 `TurretSectionAimPoint`, which is computed in PostUpdate
 (turret_section.rs:245-255) - the pip always shows the PREVIOUS frame's

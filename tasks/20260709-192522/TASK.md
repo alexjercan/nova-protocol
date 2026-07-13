@@ -4,7 +4,7 @@
 - PRIORITY: 56
 - TAGS: v0.4.0, targeting, gameplay, spike
 
-Spike: docs/spikes/20260709-192358-component-lock-vats-lite.md
+Spike: tasks/20260709-192358/SPIKE.md
 
 The core mechanic: a focus timer that accumulates while the ship lock stays on
 the same entity (focused when >= FOCUS_TIME, reset on lock change/break), and

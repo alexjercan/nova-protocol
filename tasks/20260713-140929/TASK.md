@@ -91,7 +91,7 @@ LOCK stays withheld through beats 1-3; the grant stays with its lesson.
 
 ## Notes
 
-- Spike: docs/spikes/20260713-140742-shakedown-beat-sheet-v2.md (beat
+- Spike: tasks/20260713-140742/SPIKE.md (beat
   sheet + design rules: one gesture per objective, failure-free new
   beats).
 - Depends on: 20260713-140922 (OnTravelLock/OnCombatLock events).

@@ -1,7 +1,8 @@
 # Lessons ledger
 
-One or two lines per lesson: slug, count, one sentence, a retro id or two.
-/compound appends new lessons or bumps counts. At three occurrences a lesson
+One or two lines per lesson: slug, count, one sentence, a retro id or two
+(an id resolves to `tasks/<id>/RETRO.md`). /compound appends new lessons or
+bumps counts. At three occurrences a lesson
 moves to Pending promotions for the user to fold into AGENTS.md or a skill;
 promoted lessons stay listed with their date. Keep entries SHORT - when a new
 occurrence adds a variant, sharpen the one sentence instead of appending a
@@ -168,7 +169,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   render-rate consumers read eased Transform/GlobalTransform; one computation
   uses one clock from one frame, and consumers of PostUpdate-written state
   must slot after their producer. Full rule and fix record:
-  docs/spikes/20260711-103527-twitching-family-two-clocks.md.
+  tasks/20260711-103527/SPIKE.md.
 - `global-transform-stale-in-fixedupdate` (family): GlobalTransform in
   FixedUpdate is last frame's propagation; avian child-collider poses are one
   tick stale. See the two-clocks spike.

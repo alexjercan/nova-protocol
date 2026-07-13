@@ -49,8 +49,8 @@ point).
 
 ## Notes
 
-- Context: docs/spikes/20260711-103527-twitching-family-two-clocks.md
-  (fix record), docs/retros/20260709-125640-residual-roll-release.md
+- Context: tasks/20260711-103527/SPIKE.md
+  (fix record), tasks/20260709-125640/RETRO.md
   (trace-first discipline, falsified-theory bookkeeping).
 - Related guards that must stay green:
   high_speed_stop_settles_without_tumbling (settle bound),

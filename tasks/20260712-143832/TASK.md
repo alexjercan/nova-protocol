@@ -4,7 +4,7 @@
 - PRIORITY: 45
 - TAGS: v0.5.0, input, controller, verbs, spike
 
-Spike: docs/spikes/20260712-143551-controller-provided-verb-flags.md
+Spike: tasks/20260712-143551/SPIKE.md
 
 Make the flight verbs a capability the controller SECTION grants, with per-verb
 enable/disable flags living on that section. Add a reflected `ControllerVerbs`

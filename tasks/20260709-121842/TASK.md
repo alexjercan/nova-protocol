@@ -4,7 +4,7 @@
 - PRIORITY: 85
 - TAGS: v0.4.0, handling, autopilot, spike
 
-Spike: docs/spikes/20260709-121746-multi-thruster-autopilot.md (design calls
+Spike: tasks/20260709-121746/SPIKE.md (design calls
 settled with the user)
 
 ## Goal
@@ -49,7 +49,7 @@ follow-up).
       a side thruster kills a lateral crumb inside the deadband; destroying
       the retro group falls back to flip-and-burn; existing suite (bound
       thrusters, cool-on-release, GOTO arrival) stays green.
-- [x] Update `docs/retros/20260709-diegetic-autopilot.md` (group planner section,
+- [x] Update `tasks/20260709-103434/NOTES.md` (group planner section,
       knob list, torque non-goal).
 - [x] Verify: cargo check + fmt + targeted flight tests only (full suite and
       clippy are CI's job per AGENTS.md).
@@ -57,7 +57,7 @@ follow-up).
 ## Notes
 
 - Relevant: crates/nova_gameplay/src/flight.rs (autopilot_system, settings,
-  tests), docs/retros/20260709-diegetic-autopilot.md.
+  tests), tasks/20260709-103434/NOTES.md.
 - The keybind exclusion stays manual-only (settled last cycle); in autopilot
   every engine is the computer's.
 - 20260709-095043 (retune) additionally owns rotation_bias and
@@ -77,7 +77,7 @@ switched to a section-local -Z check; engineless ships disengage. Squash
 commit 26d7c3b; review round 1 APPROVE (1 NIT deferred to the torque-aware
 follow-up).
 
-Lessons already captured in docs/retros/20260709-121842-multi-thruster-autopilot.md.
+Lessons already captured in tasks/20260709-121842/RETRO.md.
 Process note for the record: chaining `grep -c` with `&&` broke this task's
 original close-out (grep -c exits 1 on zero matches) - the ticks, status and
 close record were all lost while the commit still landed.

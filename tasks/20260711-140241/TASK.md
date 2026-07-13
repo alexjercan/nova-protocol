@@ -47,7 +47,7 @@
 
 ## Goal
 
-Found by the feel spike (docs/spikes/20260711-140234-feel-filtering.md)
+Found by the feel spike (tasks/20260711-140234/SPIKE.md)
 while hunting the GOTO wobble; matches the playtest note "the PD
 controller doesn't sync that well with the game".
 
@@ -116,7 +116,7 @@ buys arrival stability that would otherwise need an explicit mechanism.
 
 ## Notes
 
-- Spike: docs/spikes/20260711-140234-feel-filtering.md. The `#[ignore]`d
+- Spike: tasks/20260711-140234/SPIKE.md. The `#[ignore]`d
   `goto_wobble_diagnostic` in flight.rs contains the probe and both
   wirings; reuse, then delete per the diagnostic convention (140234
   landed first and kept it for this task).

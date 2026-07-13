@@ -6,10 +6,10 @@
 
 ## Outcome (CLOSED 2026-07-13)
 
-Swept: supersession/reframe banners on docs/retros/20260709-component-lock.md
+Swept: supersession/reframe banners on tasks/20260709-192358/NOTES.md
 (acquisition superseded, fine-lock layer stands), docs/2026-07-10-signature-
 lock.md (range model now gates the RADAR picker; 15->5 debris retune noted)
-and docs/retros/20260712-target-inset-view.md (CombatLock components, deliberate
+and tasks/20260710-104421/NOTES.md (CombatLock components, deliberate
 acquisition); CHANGELOG Unreleased coherence (the CTRL free-aim entry carries
 its supersession note; the main radar entry landed with 082330; released
 sections left historical); shakedown minimal text fix ("Hold [CTRL], look at
@@ -28,9 +28,9 @@ docs so nothing asserts the dead models as current.
 
 - [x] Supersession banners / acquisition-section updates on the docs that
       describe passive acquisition or scroll cycling as current:
-      docs/retros/20260710-signature-lock.md (the range MODEL survives as the radar
+      tasks/20260710-195952/NOTES.md (the range MODEL survives as the radar
       picker's gate - reframe, don't delete), the component-lock doc
-      (docs/retros/20260709-component-lock.md), docs/retros/20260712-target-inset-view.md
+      (tasks/20260709-192358/NOTES.md), tasks/20260710-104421/NOTES.md
       (inset now keys off the CombatLock component), and any spike still
       marked RECOMMENDED that recommends scroll cycling.
 - [x] CHANGELOG.md: the Unreleased section now contains contradictory
@@ -50,7 +50,7 @@ docs so nothing asserts the dead models as current.
 
 ## Notes
 
-- Spike: docs/spikes/20260713-082207-deliberate-radar-locking.md.
+- Spike: tasks/20260713-082207/SPIKE.md.
 - Depends on: 20260713-082337 (family complete).
 - Replaces the dead docs task 20260712-223345 (closed wontdo); its file list
   is a starting inventory.

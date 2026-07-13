@@ -13,8 +13,8 @@ data is already queryable; rendering only, wasm-safe. The lock comes from
 `SpaceshipPlayerTorpedoTargetEntity`; the readout rides the same reticle
 indicator the widget task migrated.
 
-Spikes: docs/spikes/20260708-165647-weapons-hud.md,
-docs/spikes/20260709-164502-screen-indicator-architecture.md.
+Spikes: tasks/20260708-165647/SPIKE.md,
+tasks/20260709-164502/SPIKE.md.
 
 ## Steps
 
@@ -47,7 +47,7 @@ docs/spikes/20260709-164502-screen-indicator-architecture.md.
       asserted-at-exit guard).
 - [x] Verify: `cargo fmt`, `cargo check --workspace`, run only the newly
       written tests (skip full suite per user instruction; report skips).
-- [x] Extend `docs/retros/20260709-screen-indicator-widget.md` with the readout
+- [x] Extend `tasks/20260708-165700/NOTES.md` with the readout
       consumer section.
 
 ## Notes

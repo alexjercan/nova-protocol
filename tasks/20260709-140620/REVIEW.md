@@ -84,7 +84,7 @@ conventions match the sibling examples.
   - Response: fixed - the shrink check is replaced with sorted-principal
     comparisons against the analytic cuboid values ([1/3, 5/6, 5/6] before,
     1/6 across the board after, tolerance 0.02).
-- [x] R1.11 (NIT) docs/retros/20260709-com-section-destroy.md - the "~43 vs ~120
+- [x] R1.11 (NIT) tasks/20260709-140620/NOTES.md - the "~43 vs ~120
   rad/s^2" figures are not reproducible from this branch's ships (they assume
   inertia ~2.3); name the ship and axis or use figures from the 11_com_range
   ship.

@@ -4,9 +4,9 @@
 - PRIORITY: 70
 - TAGS: v0.5.0, hud, autopilot, spike
 
-Spike: docs/spikes/20260710-174523-diegetic-instruments-keybind-hints.md
+Spike: tasks/20260710-174523/SPIKE.md
 (design language decided there; original ask from
-docs/spikes/20260709-103324-diegetic-autopilot.md)
+tasks/20260709-103324/SPIKE.md)
 
 ## Goal
 
@@ -59,7 +59,7 @@ before the ribbon/shell expansion (task 20260710-174629).
       destination/flip/ring-chip drivers (flight_status.rs test style).
 - [x] fmt + check --workspace --examples + the new tests and the affected
       modules (flight, hud, input::ai - autopilot_system signature rule
-      from the orbit retro); document in docs/retros/20260710-flight-instruments.md.
+      from the orbit retro); document in tasks/20260709-103454/NOTES.md.
 
 ## Notes (planning)
 
@@ -91,5 +91,5 @@ disengage), hud/maneuver_instruments.rs with the destination readout, flip
 marker, ORBIT holo ring (first world-space instrument; headless-testable
 lifecycle) and ring chip. 7 new tests; flight/hud/AI-patrol modules green;
 fmt + check --workspace --examples clean, full suite on CI. Details:
-docs/retros/20260710-flight-instruments.md. Telemetry deliberately covers GOTO
+tasks/20260709-103454/NOTES.md. Telemetry deliberately covers GOTO
 legs only in v1 (STOP has no spatial goal, ORBIT has the ring).

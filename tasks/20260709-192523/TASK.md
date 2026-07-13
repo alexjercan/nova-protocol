@@ -4,7 +4,7 @@
 - PRIORITY: 52
 - TAGS: v0.4.0, hud, spike
 
-Spike: docs/spikes/20260709-192358-component-lock-vats-lite.md
+Spike: tasks/20260709-192358/SPIKE.md
 
 Consumer of the screen-indicator widget (no new substrate): small
 entity-anchored markers on the locked ship's live sections in a distinct
@@ -41,7 +41,7 @@ render).
       markers are gone.
 - [x] Verify: cargo fmt, cargo check --workspace, new + touched tests, one
       scripted 12_hud_range run under Xvfb (report skips).
-- [x] Write the arc doc `docs/retros/20260709-component-lock.md` (or dated when
+- [x] Write the arc doc `tasks/20260709-192358/NOTES.md` (or dated when
       it lands): the mechanic end to end, per-consumer behavior deltas
       (enumerated, per the retro lesson), tuning constants with their
       values, and what was deliberately deferred (ring visual, AI component
@@ -65,7 +65,7 @@ only while a lock is held and the dwell is incomplete), 6 new hud tests, and
 four new scripted stages in 12_hud_range (meter at 49% mid-dwell with zero
 markers; 3/3 markers and no meter after focus; a script-pinned tail section
 rendering the highlight; markers gone on target death) - full PASS. Arc doc:
-docs/retros/20260709-component-lock.md.
+tasks/20260709-192358/NOTES.md.
 
 Difficulties: `cargo run` insisted on rebuilding the whole dependency graph
 after a fresh `cargo build` of the same target in this worktree, eating the

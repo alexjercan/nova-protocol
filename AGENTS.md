@@ -76,13 +76,28 @@ States: `GameStates::{Loading, MainMenu, Playing}` and
   mistakes this repo has already paid for.
 - Worktrees come only from the sprout skill (used by /work and /flow). Never
   create one by hand. Otherwise work in the main checkout.
-- Document meaningful changes in `docs/`: what changed, why, and lessons.
+- Document meaningful changes: a `NOTES.md` or `RETRO.md` in the task's folder
+  (see below), or the relevant reference doc in `docs/`.
+
+## Where records go (/plan, /spike, /work, /review, /compound, /flow)
+
+Everything tied to one task lives in that task's folder - never as loose
+`.md` files under `docs/`:
+
+- `tasks/<id>/TASK.md` - the task (tatr).
+- `tasks/<id>/SPIKE.md` - the spike/research doc (/spike).
+- `tasks/<id>/REVIEW.md` - review rounds and verdict (/review); PR-level
+  reviews go on the PR's primary task.
+- `tasks/<id>/RETRO.md` - the retrospective (/compound).
+- `tasks/<id>/NOTES.md` - design/fix record for the shipped change.
+
+`docs/` keeps only: the reference docs, `docs/plans/` (multi-task plans), and
+`docs/retros/LESSONS.md` (the ledger /compound appends to).
 
 ## Docs, tasks, versioning
 
-- `docs/README.md` indexes all documentation: architecture, scenario system,
-  sections, development (build/web/release), plus retros, spikes, plans.
-  Reviews live next to their task as `tasks/<id>/REVIEW.md`.
+- `docs/README.md` is the index. Reference docs: `architecture.md`,
+  `scenario-system.md`, `sections.md`, `development.md` (build/web/release).
 - Tasks: `tatr` CLI, markdown files under `tasks/`. Check the backlog before
   starting, close tasks when done. Skills: /plan, /work, /review, /compound, /flow.
 - Version lives in root `Cargo.toml` (`workspace.package.version`). Notable

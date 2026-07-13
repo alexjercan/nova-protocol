@@ -10,7 +10,7 @@ and audio volume. Deferred to v0.6.0; the main menu task 20260711-180426
 ships only an empty panel with a Back button.
 
 Notes:
-- Spike: docs/spikes/20260711-180500-main-menu.md
+- Spike: tasks/20260711-180500/SPIKE.md
 - Parent task: 20260711-174915
 
 

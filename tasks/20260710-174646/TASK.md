@@ -4,7 +4,7 @@
 - PRIORITY: 65
 - TAGS: v0.5.0, hud, input, ux, spike
 
-Spike: docs/spikes/20260710-174523-diegetic-instruments-keybind-hints.md
+Spike: tasks/20260710-174523/SPIKE.md
 Depends on: 20260709-103454 (maneuver instruments v1 - the hint cluster
 docks with the instruments' status area)
 
@@ -55,7 +55,7 @@ a Display impl; the first Keyboard binding gives the label.
       absorbs the resource (in-well/orbiting/outside states); goto cue
       follows the lock and hides while engaged.
 - [x] fmt + check --workspace --examples + affected modules (input,
-      hud); document in docs/retros/20260710-keybind-hints.md.
+      hud); document in tasks/20260710-174646/NOTES.md.
 
 ## Notes (planning)
 
@@ -74,4 +74,4 @@ Shipped per plan: FlightVerbHints resolver in the input layer (live-binding
 labels, availability truth table, anchors), hud/keybind_hints.rs cluster +
 anchored cues, the hand-placed [O] ORBIT cue absorbed and the [G] GOTO cue
 added. 6 new tests; hud/input/flight modules green; fmt + check
---workspace --examples clean. Details: docs/retros/20260710-keybind-hints.md.
+--workspace --examples clean. Details: tasks/20260710-174646/NOTES.md.

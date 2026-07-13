@@ -4,7 +4,7 @@
 - PRIORITY: 0
 - TAGS: v0.6.0,hud,refactor,spike
 
-Spike: docs/spikes/20260709-164502-screen-indicator-architecture.md
+Spike: tasks/20260709-164502/SPIKE.md
 
 Once the weapons-HUD arc lands, `hud/screen_indicator.rs` has ~4 nova consumers
 (torpedo reticle, autopilot destination marker, turret lead pip, locked-target

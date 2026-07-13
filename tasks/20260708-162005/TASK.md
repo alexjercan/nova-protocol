@@ -4,7 +4,7 @@
 - PRIORITY: 46
 - TAGS: v0.5.0, weapons
 
-Spike: docs/spikes/20260708-161726-modding-language-and-scripting.md (roadmap)
+Spike: tasks/20260708-161726/SPIKE.md (roadmap)
 
 Only two weapons exist today (turret bullets, guided torpedoes), both single-mode.
 Direction: weapon and damage-type variety - alt-fire modes, damage types
@@ -16,7 +16,7 @@ coherent combat-depth pass rather than three disconnected knobs.
 
 ## Superseded by spike (2026-07-12)
 
-Explored in docs/spikes/20260712-133135-weapon-and-damage-type-variety.md and
+Explored in tasks/20260712-133135/SPIKE.md and
 split into three direction-level tasks:
 - 20260712-133343 - nova typed-damage core (foundation)
 - 20260712-133349 - multi-type magazines, reload, bullet-type switching

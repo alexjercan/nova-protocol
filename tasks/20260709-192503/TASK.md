@@ -4,7 +4,7 @@
 - PRIORITY: 58
 - TAGS: v0.4.0, targeting, gameplay, spike
 
-Spike: docs/spikes/20260709-192358-component-lock-vats-lite.md
+Spike: tasks/20260709-192358/SPIKE.md
 
 Extend `update_spaceship_target_input` (input/player.rs): keep the instant
 aim-cone pick; when the cone finds nothing, auto-acquire the nearest

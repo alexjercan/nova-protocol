@@ -17,7 +17,7 @@ is the brake group's. Inside an SOI the well adds up to
 `GravitySettings::max_surface_gravity` toward the body, which both eats
 into the effective braking acceleration (braking outward against the pull)
 and keeps adding speed during the un-braked lead window. The gravity spike
-(docs/spikes/20260709-193147, decision 6 and Open questions) accepted this
+(tasks/20260709-193147/SPIKE.md, decision 6 and Open questions) accepted this
 for v1 on the strength-guardrail argument and recorded "gravity
 feedforward in STOP/GOTO" as the follow-up - the playtest shows the error
 is not always small near big bodies.
@@ -69,7 +69,7 @@ the FLIP marker and ETA too.
 - [x] Run the input::ai test module (autopilot_system signature changes -
   standing lesson) plus flight, hud and `cargo check --workspace
   --examples`.
-- [x] Docs: docs/retros/20260710-gravity-aware-arrival.md (what changed, the
+- [x] Docs: tasks/20260710-193500/NOTES.md (what changed, the
   formula, the degradation path); close TASK.md with the resolution.
 
 ## Notes
@@ -90,7 +90,7 @@ the FLIP marker and ETA too.
 
 ## Resolution
 
-Implemented spike option (d) (docs/spikes/20260710-204802): the four pure
+Implemented spike option (d) (tasks/20260710-204802/SPIKE.md): the four pure
 arrival helpers take a `gravity_along` budget, evaluated at the leg's rest
 point against all wells, with the modified closed-form quadratic; g=0 is
 byte-for-byte the old rule (all 332 pre-existing tests pass with only the
@@ -110,4 +110,4 @@ from the owning system's actual code caught this before it became a bug).
 Difficulties: none of substance; the honesty check (force-zero the budget,
 watch the integration test reproduce the 12u crash) was cheap and worth
 keeping as a pattern for physics fixes. Docs:
-docs/retros/20260710-gravity-aware-arrival.md.
+tasks/20260710-193500/NOTES.md.

@@ -99,7 +99,7 @@ Pure infrastructure: no targeting-behavior change; the radar task
 
 ## Notes
 
-- Spike: docs/spikes/20260713-082207-deliberate-radar-locking.md (+ its
+- Spike: tasks/20260713-082207/SPIKE.md (+ its
   adversarial round: the infra is a hard prerequisite for MANUAL aim, not just
   radar-in-Normal).
 - Reincarnates closed task 20260712-231141 (wontdo with its family; its body

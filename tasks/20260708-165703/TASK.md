@@ -4,7 +4,7 @@
 - PRIORITY: 0
 - TAGS: v0.6.0,hud,torpedo,spike
 
-Spike: docs/spikes/20260708-165647-weapons-hud.md
+Spike: tasks/20260708-165647/SPIKE.md
 
 Phase 2 (needs a small mechanic + audio). Today the torpedo lock is instant
 (`update_spaceship_target_input` sets the target the moment a body is in the cone).
@@ -17,7 +17,7 @@ during planning whether the dwell replaces or augments the instant lock.
 </content>
 
 Superseded in part (20260709) by
-docs/spikes/20260709-192358-component-lock-vats-lite.md: the dwell mechanic
+tasks/20260709-192358/SPIKE.md: the dwell mechanic
 moved one level down - the SHIP lock stays instant, and the dwell/focus timer
 gates the component fine-lock layer instead (tatr 20260709-192522). What
 remains of this task is the acquire/lock audio-visual cue polish riding the

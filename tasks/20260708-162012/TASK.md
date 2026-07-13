@@ -4,7 +4,7 @@
 - PRIORITY: 80
 - TAGS: v0.4.0, ai
 
-Spike: docs/spikes/20260708-161726-modding-language-and-scripting.md (roadmap)
+Spike: tasks/20260708-161726/SPIKE.md (roadmap)
 
 Today the AI brain (`crates/nova_gameplay/src/input/ai.rs`) only targets and
 shoots the nearest asteroid; `input/player.rs` carries TODOs about needing a
@@ -17,7 +17,7 @@ inert asteroids, and pairs with the mission/objective work (133026-133029).
 
 ## Superseded (20260709)
 
-Split by spike docs/spikes/20260709-225508-ai-combat-behaviors.md into nine
+Split by spike tasks/20260709-225508/SPIKE.md into nine
 behavior-level tasks (20260709-225726 .. 20260709-225734) on a shared
 AIBehaviorState skeleton, with 20260708-203708 (factions) and
 20260709-155921 (AI rotation path) as the unchanged prerequisites. Closed as

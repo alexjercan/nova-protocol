@@ -12,7 +12,7 @@ segment to the target CENTER, so on a big body it visually plunges
 radius + standoff past the actual park point. Terminate the ribbon at the
 arrival park point instead: goal minus closing_dir * (arrival_standoff +
 resolved target radius) - the same surface-relative geometry the arrival
-now flies (docs/retros/20260710-surface-relative-standoff.md).
+now flies (tasks/20260710-202408/NOTES.md).
 
 ## Notes
 

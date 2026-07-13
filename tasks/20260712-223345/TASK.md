@@ -14,32 +14,32 @@ or superseded in place.
 
 ## Steps
 
-- [ ] Write docs/retros/20260712-travel-combat-locks.md: the shipped model as the
+- [ ] Write tasks/20260712-223345/NOTES.md: the shipped model as the
       current source of truth - TravelLock/CombatLock components on the
       ship root, travel auto-cast + sticky + scroll cycling, seed-on-raise,
       combat enemy ordering, fire gating, unlock key, HostileContacts,
       SHIFT+SCROLL components, HUD language. Written against the code as
       landed, not the spike's intentions; record where implementation
       diverged.
-- [ ] docs/spikes/20260711-163800-multi-target-cycle.md: SUPERSEDED banner
+- [ ] tasks/20260711-163800/SPIKE.md: SUPERSEDED banner
       (torpedo exclusion overturned by 20260712-212742; CTRL+scroll cycle
       replaced by view-routed SCROLL; resource state replaced by
       components), pointing at the new design doc.
-- [ ] docs/spikes/20260712-203235-lock-stickiness-and-inset-scope.md:
+- [ ] tasks/20260712-203235/SPIKE.md:
       banner on the stickiness half (B5 ship-only stickiness -> per-slot
       stickiness); the inset-scope half still stands.
-- [ ] docs/spikes/20260712-215256-combat-travel-lock-separation.md and
-      docs/spikes/20260712-215733-unified-target-computer.md: verify their
+- [ ] tasks/20260712-215256/SPIKE.md and
+      tasks/20260712-215733/SPIKE.md: verify their
       SUPERSEDED/addendum notes match what actually shipped; append Fix
       record entries (what shipped, task pointers).
-- [ ] docs/spikes/20260712-222610-travel-combat-lock-slots.md: append Fix
+- [ ] tasks/20260712-222610/SPIKE.md: append Fix
       record entries per landed task; resolve its open questions with the
       playtest verdicts known by then.
-- [ ] docs/retros/20260709-component-lock.md: fix cone range 2000 m -> 20 km
+- [ ] tasks/20260709-192358/NOTES.md: fix cone range 2000 m -> 20 km
       (`TARGETING_MAX_RANGE`, targeting.rs:119), "nearest AI ship" fallback
       -> hostile-relation gate, and the scroll gesture change; re-read the
       rest against the code.
-- [ ] docs/retros/20260710-signature-lock.md: verify against the code (expected
+- [ ] tasks/20260710-195952/NOTES.md: verify against the code (expected
       accurate; range gates unchanged by the slot split).
 - [ ] Sweep README/CHANGELOG for targeting/input behavior claims the new
       model invalidates (CHANGELOG entries are dated records - only fix
@@ -47,7 +47,7 @@ or superseded in place.
 
 ## Notes
 
-- Spike: docs/spikes/20260712-222610-travel-combat-lock-slots.md.
+- Spike: tasks/20260712-222610/SPIKE.md.
 - Depends on: 20260712-223034, 20260712-231141, 20260712-223035, 20260712-223036 (write
   docs LAST, against shipped code).
 - Replaces closed task 20260712-215958 (was scoped to the superseded

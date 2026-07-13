@@ -8,7 +8,7 @@
 
 Playtest bug (user, 2026-07-10): the spaceship itself renders twitchy at
 high velocity. Investigated 2026-07-11 as part of the twitching family:
-docs/spikes/20260711-103527-twitching-family-two-clocks.md. The camera and
+tasks/20260711-103527/SPIKE.md. The camera and
 interpolation wiring checked out sound (interpolation opt-ins present,
 exp-decay lerp frame-rate independent, anchor ordering correct), so the
 leading explanation is that the hull twitch is REAL attitude jitter caused

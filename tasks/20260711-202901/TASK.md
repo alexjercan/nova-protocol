@@ -30,7 +30,7 @@ Context for the spike:
   changes that calculus; retire or keep the generic bar for other games.
 
 Notes:
-- Spike first (docs/spikes/), then plan.
-- Related: docs/spikes/20260710-234019-diegetic-flight-status.md (the
+- Spike first (SPIKE.md in the task folder), then plan.
+- Related: tasks/20260710-234019/SPIKE.md (the
   chips this could join), crates/nova_gameplay/src/integrity/.
 

@@ -56,4 +56,4 @@ No BLOCKER or MAJOR findings. NITs below are the implementer's discretion.
   doc is split across a line break (`docs/spikes/20260712-\n112113`), which
   breaks click-to-open. Keep the path on one line.
   - Response: fixed - the full spike path now sits on its own line
-    (`Spike: docs/spikes/20260712-112113-bullets-affected-by-gravity.md`).
+    (`Spike: tasks/20260712-112113/SPIKE.md`).

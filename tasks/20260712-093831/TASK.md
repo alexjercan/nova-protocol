@@ -101,7 +101,7 @@ scenario data.
 
 Notes:
 - Design spike (all constants/choices):
-  docs/spikes/20260712-140842-objective-conveyance-visuals.md
+  tasks/20260712-140842/SPIKE.md
 - nova_scenario depends on nova_gameplay (Cargo.toml verified), so
   actions may insert nova_gameplay components / mutate its resources -
   the BeaconMarker pattern.
@@ -111,8 +111,8 @@ Notes:
   design.
 - Open questions parked in the spike: colorblind check and marker-vs-red-
   reticle on the pirate are playtest calls; do not pre-build.
-- Spike (design, this task): docs/spikes/20260712-140842-objective-conveyance-visuals.md
-- Spike (parent direction): docs/spikes/20260712-092926-starter-scenario.md
+- Spike (design, this task): tasks/20260712-140842/SPIKE.md
+- Spike (parent direction): tasks/20260712-092926/SPIKE.md
   (section "Conveying objectives: layered, degrades to text")
 - Enhances: 20260711-180506 (Shakedown Run works without this; each
   piece slots in via scenario data once available)

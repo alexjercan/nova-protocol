@@ -84,7 +84,7 @@ text node go away here - the goal is REPLACEMENT, not addition.
 
 ## Notes
 
-- Spike: docs/spikes/20260710-234019-diegetic-flight-status.md
+- Spike: tasks/20260710-234019/SPIKE.md
 - The destination marker (autopilot_destination_hud) in flight_status.rs
   stays untouched; examples/12_hud_range.rs asserts on it.
 - No consumers of flight_status_line/GravStatus outside flight.rs and
