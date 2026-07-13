@@ -139,8 +139,12 @@ Adding a devblog touches four places (mirror an existing post such as
 2. Register the page in `web/webpack.config.js`: add a `page("post", ...)`
    entry in `plugins` and a matching `historyApiFallback` rewrite (keep both
    lists newest-first, above the previous devlog).
-3. Add a card to `web/src/blog.html` at the top of `.post-list` (newest first),
-   with the date/version, title, and a one-line excerpt.
+3. Add a `.post-card` to `web/src/blog.html` at the top of `.post-grid` (newest
+   first): a media thumbnail plus the date/version, title, and one-line excerpt.
+   For the thumbnail, use the YouTube thumbnail
+   (`https://img.youtube.com/vi/<id>/hqdefault.jpg`) once the post has a video
+   embed; otherwise use the `.post-card__ph` placeholder naming
+   `assets/thumb-<slug>.png`.
 4. Rebuild and check it: `cd web && npm run ci` (format check, lint, build).
 
 ## Task tracking

@@ -16,112 +16,195 @@
     <body>
         <div id="header"></div>
         <main>
-            <article class="prose">
-                <h1>Devlog</h1>
-                <p class="prose__meta">Notes from building Nova Protocol</p>
-                <ul class="post-list">
-                    <li class="card">
-                        <a
-                            href="<%= htmlWebpackPlugin.options.basePath %>blog/devlog-5-radar-locking-shakedown-and-the-web/"
-                        >
-                            <span class="post-list__date"
-                                >2026-07-13 &nbsp;//&nbsp; v0.5.0</span
+            <section class="section">
+                <div class="container">
+                    <p class="section__eyebrow">Devlog</p>
+                    <h1 class="section__title">
+                        Notes from building
+                        <span class="glow-cyan">Nova Protocol</span>
+                    </h1>
+                    <p class="section__lead">
+                        A running series in the spirit of Factorio's Friday
+                        Facts - one issue per release, candid about what shipped
+                        and why.
+                    </p>
+
+                    <!-- Thumbnails: posts with a YouTube devlog use the video's
+                         thumbnail (img.youtube.com/vi/<id>/hqdefault.jpg); the
+                         rest carry a placeholder naming the screenshot to
+                         capture (assets/thumb-<slug>.png). -->
+                    <ul class="post-grid">
+                        <li class="post-card">
+                            <a
+                                class="post-card__link"
+                                href="<%= htmlWebpackPlugin.options.basePath %>blog/devlog-5-radar-locking-shakedown-and-the-web/"
                             >
-                            <h2 class="card__title">
-                                Devlog #5: radar locking, a tutorial, and a home
-                                on the web
-                            </h2>
-                            <p class="post-list__excerpt">
-                                Passive auto-targeting gives way to deliberate
-                                CTRL-to-sweep radar locking with a live target
-                                viewfinder and kill cam, the Shakedown Run
-                                tutorial teaches the first twelve minutes, typed
-                                damage meets per-section resistances, and the
-                                project gets a main menu and a landing site on
-                                the web.
-                            </p>
-                        </a>
-                    </li>
-                    <li class="card">
-                        <a
-                            href="<%= htmlWebpackPlugin.options.basePath %>blog/devlog-4-guided-torpedoes-targeting-and-enemy-ai/"
-                        >
-                            <span class="post-list__date"
-                                >2026-07-10 &nbsp;//&nbsp; v0.4.0</span
+                                <div class="post-card__media">
+                                    <div class="post-card__ph">
+                                        <span class="post-card__ph-tag"
+                                            >Thumbnail</span
+                                        >
+                                        <span class="post-card__ph-name"
+                                            >assets/thumb-devlog-5.png</span
+                                        >
+                                    </div>
+                                </div>
+                                <div class="post-card__body">
+                                    <span class="post-card__meta"
+                                        >2026-07-13 // v0.5.0</span
+                                    >
+                                    <h2 class="post-card__title">
+                                        Devlog #5: radar locking, a tutorial,
+                                        and a home on the web
+                                    </h2>
+                                    <p class="post-card__excerpt">
+                                        Passive auto-targeting gives way to
+                                        deliberate CTRL-to-sweep radar locking
+                                        with a live target viewfinder and kill
+                                        cam, the Shakedown Run tutorial teaches
+                                        the first twelve minutes, typed damage
+                                        meets per-section resistances, and the
+                                        project gets a main menu and a landing
+                                        site on the web.
+                                    </p>
+                                </div>
+                            </a>
+                        </li>
+                        <li class="post-card">
+                            <a
+                                class="post-card__link"
+                                href="<%= htmlWebpackPlugin.options.basePath %>blog/devlog-4-guided-torpedoes-targeting-and-enemy-ai/"
                             >
-                            <h2 class="card__title">
-                                Devlog #4: guided torpedoes, targeting and an
-                                enemy that fights back
-                            </h2>
-                            <p class="post-list__excerpt">
-                                The flight toy becomes a combat game:
-                                proportionally-navigated guided torpedoes, a
-                                targeting arc with per-section fine-lock, turret
-                                auto-aim with true intercept lead, an AI wave
-                                with a real behavior state machine, a
-                                center-of-mass flight-assist overhaul, and the
-                                game's first audio and combat juice.
-                            </p>
-                        </a>
-                    </li>
-                    <li class="card">
-                        <a
-                            href="<%= htmlWebpackPlugin.options.basePath %>blog/devlog-3-zones-torpedoes-and-blast-damage/"
-                        >
-                            <span class="post-list__date"
-                                >2025-11-29 &nbsp;//&nbsp; v0.3.0</span
+                                <div class="post-card__media">
+                                    <div class="post-card__ph">
+                                        <span class="post-card__ph-tag"
+                                            >Thumbnail</span
+                                        >
+                                        <span class="post-card__ph-name"
+                                            >assets/thumb-devlog-4.png</span
+                                        >
+                                    </div>
+                                </div>
+                                <div class="post-card__body">
+                                    <span class="post-card__meta"
+                                        >2026-07-10 // v0.4.0</span
+                                    >
+                                    <h2 class="post-card__title">
+                                        Devlog #4: guided torpedoes, targeting
+                                        and an enemy that fights back
+                                    </h2>
+                                    <p class="post-card__excerpt">
+                                        The flight toy becomes a combat game:
+                                        proportionally-navigated guided
+                                        torpedoes, a targeting arc with
+                                        per-section fine-lock, turret auto-aim
+                                        with true intercept lead, an AI wave
+                                        with a real behavior state machine, a
+                                        center-of-mass flight-assist overhaul,
+                                        and the game's first audio and combat
+                                        juice.
+                                    </p>
+                                </div>
+                            </a>
+                        </li>
+                        <li class="post-card">
+                            <a
+                                class="post-card__link"
+                                href="<%= htmlWebpackPlugin.options.basePath %>blog/devlog-3-zones-torpedoes-and-blast-damage/"
                             >
-                            <h2 class="card__title">
-                                Devlog #3: zones, torpedoes and blast damage
-                            </h2>
-                            <p class="post-list__excerpt">
-                                Lifecycle and zone-entry events for richer
-                                scenarios, the first area-of-effect weapon in
-                                the torpedo bay, a reworked per-section health
-                                model, and sharper directional and thruster
-                                shaders.
-                            </p>
-                        </a>
-                    </li>
-                    <li class="card">
-                        <a
-                            href="<%= htmlWebpackPlugin.options.basePath %>blog/devlog-2-objectives-enemy-ai-and-asteroids/"
-                        >
-                            <span class="post-list__date"
-                                >2025-11-08 &nbsp;//&nbsp; v0.2.0</span
+                                <div class="post-card__media">
+                                    <div class="post-card__ph">
+                                        <span class="post-card__ph-tag"
+                                            >Thumbnail</span
+                                        >
+                                        <span class="post-card__ph-name"
+                                            >assets/thumb-devlog-3.png</span
+                                        >
+                                    </div>
+                                </div>
+                                <div class="post-card__body">
+                                    <span class="post-card__meta"
+                                        >2025-11-29 // v0.3.0</span
+                                    >
+                                    <h2 class="post-card__title">
+                                        Devlog #3: zones, torpedoes and blast
+                                        damage
+                                    </h2>
+                                    <p class="post-card__excerpt">
+                                        Lifecycle and zone-entry events for
+                                        richer scenarios, the first
+                                        area-of-effect weapon in the torpedo
+                                        bay, a reworked per-section health
+                                        model, and sharper directional and
+                                        thruster shaders.
+                                    </p>
+                                </div>
+                            </a>
+                        </li>
+                        <li class="post-card">
+                            <a
+                                class="post-card__link"
+                                href="<%= htmlWebpackPlugin.options.basePath %>blog/devlog-2-objectives-enemy-ai-and-asteroids/"
                             >
-                            <h2 class="card__title">
-                                Devlog #2: objectives, enemy AI and better
-                                asteroids
-                            </h2>
-                            <p class="post-list__excerpt">
-                                A data-driven events/filters/actions system for
-                                objectives, the first (gloriously dumb) enemy
-                                AI, procedural asteroids, and a week-long fight
-                                with GlobalTransform. Video included.
-                            </p>
-                        </a>
-                    </li>
-                    <li class="card">
-                        <a
-                            href="<%= htmlWebpackPlugin.options.basePath %>blog/devlog-1-modular-ships-and-first-combat/"
-                        >
-                            <span class="post-list__date"
-                                >2025-10-21 &nbsp;//&nbsp; v0.1.0</span
+                                <div class="post-card__media">
+                                    <img
+                                        class="post-card__thumb"
+                                        src="https://img.youtube.com/vi/NBpRYDvL-jM/hqdefault.jpg"
+                                        alt="Devlog #2 video thumbnail"
+                                        loading="lazy"
+                                    />
+                                </div>
+                                <div class="post-card__body">
+                                    <span class="post-card__meta"
+                                        >2025-11-08 // v0.2.0</span
+                                    >
+                                    <h2 class="post-card__title">
+                                        Devlog #2: objectives, enemy AI and
+                                        better asteroids
+                                    </h2>
+                                    <p class="post-card__excerpt">
+                                        A data-driven events/filters/actions
+                                        system for objectives, the first
+                                        (gloriously dumb) enemy AI, procedural
+                                        asteroids, and a week-long fight with
+                                        GlobalTransform. Video included.
+                                    </p>
+                                </div>
+                            </a>
+                        </li>
+                        <li class="post-card">
+                            <a
+                                class="post-card__link"
+                                href="<%= htmlWebpackPlugin.options.basePath %>blog/devlog-1-modular-ships-and-first-combat/"
                             >
-                            <h2 class="card__title">
-                                Devlog #1: modular ships and first combat
-                            </h2>
-                            <p class="post-list__excerpt">
-                                Where it all started: thruster-driven modular
-                                ships, PD-controlled steering, turrets that
-                                shoot, and sections that shatter into chunks.
-                                Video included.
-                            </p>
-                        </a>
-                    </li>
-                </ul>
-            </article>
+                                <div class="post-card__media">
+                                    <img
+                                        class="post-card__thumb"
+                                        src="https://img.youtube.com/vi/AJcAMyJ0S3Y/hqdefault.jpg"
+                                        alt="Devlog #1 video thumbnail"
+                                        loading="lazy"
+                                    />
+                                </div>
+                                <div class="post-card__body">
+                                    <span class="post-card__meta"
+                                        >2025-10-21 // v0.1.0</span
+                                    >
+                                    <h2 class="post-card__title">
+                                        Devlog #1: modular ships and first
+                                        combat
+                                    </h2>
+                                    <p class="post-card__excerpt">
+                                        Where it all started: thruster-driven
+                                        modular ships, PD-controlled steering,
+                                        turrets that shoot, and sections that
+                                        shatter into chunks. Video included.
+                                    </p>
+                                </div>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </section>
         </main>
         <div id="footer"></div>
     </body>

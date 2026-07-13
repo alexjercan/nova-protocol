@@ -692,25 +692,125 @@ main {
     border-bottom: none;
 }
 
-/* ---- blog list ----------------------------------------------------------- */
-.post-list {
+/* ---- blog list (bevy.org/news-style card grid) --------------------------
+   Each post is a card with a 16:9 thumbnail on top (a real image - e.g. the
+   YouTube thumbnail for posts with a video - or the sharp placeholder frame)
+   and a body below (date // version, title, excerpt). */
+.post-grid {
     list-style: none;
     padding: 0;
-    margin: 0;
+    margin: 40px 0 0;
     display: grid;
-    gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
 }
-.post-list__date {
+.post-card {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--bevel);
+    overflow: hidden;
+    transition: border-color 0.12s ease;
+}
+/* Top cyan rail on hover, matching the feature cards. */
+.post-card::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 2px;
+    background: transparent;
+    transition: background 0.12s ease;
+    z-index: 1;
+}
+.post-card:hover {
+    border-color: var(--border-bright);
+}
+.post-card:hover::before {
+    background: var(--cyan);
+}
+.post-card__link {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    color: inherit;
+}
+.post-card__link:hover {
+    color: inherit;
+}
+.post-card__media {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-bottom: 1px solid var(--border);
+    background: var(--space-0);
+}
+.post-card__thumb {
     display: block;
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    letter-spacing: 0.08em;
-    color: var(--cyan);
-    margin-bottom: 6px;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
-.post-list__excerpt {
+/* In-card placeholder: the card already supplies the frame, so this is just
+   the hatched fill + the thumbnail file to capture. */
+.post-card__ph {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 100%;
+    height: 100%;
+    padding: 12px;
+    text-align: center;
+    background:
+        repeating-linear-gradient(
+            45deg,
+            rgba(92, 200, 255, 0.03) 0,
+            rgba(92, 200, 255, 0.03) 10px,
+            transparent 10px,
+            transparent 20px
+        ),
+        rgba(255, 255, 255, 0.015);
     color: var(--text-muted);
-    margin: 6px 0 0;
+    font-family: var(--font-mono);
+}
+.post-card__ph-tag {
+    font-size: 0.66rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--cyan);
+}
+.post-card__ph-name {
+    font-size: 0.78rem;
+    color: var(--text);
+    word-break: break-all;
+}
+.post-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px 18px 18px;
+}
+.post-card__meta {
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    letter-spacing: 0.06em;
+    color: var(--cyan);
+}
+.post-card__title {
+    font-size: 1.2rem;
+    margin: 0;
+    color: var(--text);
+}
+.post-card:hover .post-card__title {
+    color: var(--cyan-bright);
+}
+.post-card__excerpt {
+    color: var(--text-muted);
+    font-size: 0.94rem;
+    margin: 0;
 }
 
 /* ---- footer -------------------------------------------------------------- */
