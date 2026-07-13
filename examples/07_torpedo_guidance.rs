@@ -152,6 +152,7 @@ fn guidance_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scena
                 health: 100_000.0,
                 surface_gravity: None,
                 invulnerable: false,
+                lock_signature: None,
             }),
         },
     ];

@@ -50,6 +50,7 @@ pub fn test_scenario(game_assets: &GameAssets) -> ScenarioConfig {
                 health: 500.0,
                 surface_gravity: None,
                 invulnerable: false,
+                lock_signature: None,
             }),
         });
     }

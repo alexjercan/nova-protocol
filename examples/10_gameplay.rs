@@ -138,6 +138,7 @@ fn gameplay_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scena
             health: 30.0,
             surface_gravity: None,
             invulnerable: false,
+            lock_signature: None,
         }),
     };
 

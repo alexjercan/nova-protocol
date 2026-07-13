@@ -225,6 +225,7 @@ fn test_scenario(
                 health: 100.0,
                 surface_gravity: None,
                 invulnerable: false,
+                lock_signature: None,
             }),
         });
     }

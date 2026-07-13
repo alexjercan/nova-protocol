@@ -36,6 +36,11 @@ pub struct AsteroidConfig {
     /// planetoid shot to death takes the whole orbit beat with it).
     /// `health` is ignored when set.
     pub invulnerable: bool,
+    /// Radar signature override; `None` = the radius (a rock locks in
+    /// proportion to its size). A scenario body meant to be designated
+    /// from afar authors what it needs (the shakedown derelict, task
+    /// 20260713-150343).
+    pub lock_signature: Option<f32>,
 }
 
 pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
@@ -51,8 +56,9 @@ pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
         AsteroidSurfaceGravity(config.surface_gravity),
         // The lock scanner sees a rock in proportion to its size: field
         // rocks only lock up close, big bodies from afar (well sources
-        // are range-free in the targeting gate anyway).
-        LockSignature(config.radius),
+        // are range-free in the targeting gate anyway). An authored
+        // override wins (the shakedown derelict).
+        LockSignature(config.lock_signature.unwrap_or(config.radius)),
         // Asteroids are worth scoping in the target inset (a physical combat
         // body, unlike a nav beacon), so flag them zoomable (task
         // 20260712-203345).
@@ -728,6 +734,7 @@ mod tests {
                         health: 2000.0,
                         surface_gravity: Some(6.0),
                         invulnerable,
+                        lock_signature: None,
                     }),
                 ))
                 .id()
@@ -775,6 +782,7 @@ mod tests {
                     health: 100.0,
                     surface_gravity,
                     invulnerable: false,
+                    lock_signature: None,
                 }),
             ))
             .id()
@@ -802,6 +810,7 @@ mod tests {
                     health: 100.0,
                     surface_gravity,
                     invulnerable: false,
+                    lock_signature: None,
                 }),
                 // In the real pipeline the collider observer derives this
                 // from the generated mesh; the well tests stand in with a

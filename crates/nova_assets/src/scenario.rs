@@ -58,6 +58,7 @@ pub fn menu_ambience(game_assets: &super::GameAssets, sections: &GameSections) -
             health: 2000.0,
             surface_gravity: Some(6.0),
             invulnerable: true,
+            lock_signature: None,
         }),
     });
 
@@ -92,6 +93,7 @@ pub fn menu_ambience(game_assets: &super::GameAssets, sections: &GameSections) -
                 health: 100.0,
                 surface_gravity: None,
                 invulnerable: false,
+                lock_signature: None,
             }),
         });
     }
@@ -194,6 +196,7 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
                 health: 100.0,
                 surface_gravity: None,
                 invulnerable: false,
+                lock_signature: None,
             }),
         });
     }
@@ -218,6 +221,7 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
             health: 2000.0,
             surface_gravity: Some(6.0),
             invulnerable: true,
+            lock_signature: None,
         }),
     });
 

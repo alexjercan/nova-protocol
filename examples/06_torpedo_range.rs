@@ -154,6 +154,7 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
             health: 60.0,
             surface_gravity: None,
             invulnerable: false,
+            lock_signature: None,
         }),
     };
 

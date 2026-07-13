@@ -603,6 +603,7 @@ mod tests {
                 health: 1.0,
                 surface_gravity: None,
                 invulnerable: false,
+                lock_signature: None,
             }),
         })
     }

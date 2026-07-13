@@ -173,6 +173,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             health: 2000.0,
             surface_gravity: None,
             invulnerable: false,
+            lock_signature: None,
         }),
     };
 
@@ -211,6 +212,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                 health: 100_000.0,
                 surface_gravity: Some(10.0),
                 invulnerable: false,
+                lock_signature: None,
             }),
         },
     ];

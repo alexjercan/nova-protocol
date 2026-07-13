@@ -75,9 +75,13 @@ const BEACON_4_LOCK_SIGNATURE: f32 = 30.0;
 /// The gravity-coast ring: a planetoid-centered invisible trigger sphere.
 /// Entering it (drifting in from the beacon-4 park) is the coast beat;
 /// LEAVING it after the held orbit is the break-away beat. Outside the
-/// widest orbit ring, inside the smallest SOI, clear of beacon 4's
-/// trigger - all pinned below.
-const COAST_RING_RADIUS: f32 = 210.0;
+/// widest orbit ring, inside the smallest SOI, and just inside the nominal
+/// beacon-4 park so the coast is SHORT (playtest 2026-07-13: the 210u ring
+/// made the drift read as dead air) - all pinned below. A player somehow
+/// already inside when the ring spawns still advances: a spawned area
+/// fires OnEnter for bodies it lands on (pinned in nova_scenario's area
+/// tests, task 20260713-150343).
+const COAST_RING_RADIUS: f32 = 300.0;
 /// The live-fire rehearsal target: an inert hulk drifting near the old
 /// salvage field, OUTSIDE the worst-seed SOI (a dynamic body inside it
 /// would fall into the planetoid). Its combat-lock range is short
@@ -85,6 +89,10 @@ const COAST_RING_RADIUS: f32 = 210.0;
 const DERELICT_POS: Vec3 = Vec3::new(300.0, -40.0, 40.0);
 const DERELICT_RADIUS: f32 = 2.5;
 const DERELICT_HEALTH: f32 = 150.0;
+/// Authored radar signature (x30 u/unit = 450u combat-lock range): the hulk
+/// must be paintable well before gun range (playtest 2026-07-13 - at the
+/// size-derived ~75u the player shot it before they could ever lock it).
+const DERELICT_LOCK_SIGNATURE: f32 = 15.0;
 /// The pirate spawns back at the debris cluster once the rehearsal is
 /// done, and patrols it.
 const PIRATE_SPAWN: Vec3 = Vec3::new(380.0, 40.0, -100.0);
@@ -291,6 +299,7 @@ fn derelict(game_assets: &crate::GameAssets) -> ScenarioObjectConfig {
             health: DERELICT_HEALTH,
             surface_gravity: None,
             invulnerable: false,
+            lock_signature: Some(DERELICT_LOCK_SIGNATURE),
         }),
     }
 }
@@ -502,6 +511,7 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
             health: 2000.0,
             surface_gravity: Some(6.0),
             invulnerable: true,
+            lock_signature: None,
         }),
     });
     for (i, (offset, radius)) in ROCK_OFFSETS.iter().zip(ROCK_RADII).enumerate() {
@@ -518,6 +528,7 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                 health: 100.0,
                 surface_gravity: None,
                 invulnerable: false,
+                lock_signature: None,
             }),
         });
     }
@@ -785,15 +796,23 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
                 deemphasize("RADAR"),
             ],
         },
-        // Beat 11 -> 12: the hulk is dust. NOW the scavenger slips into
-        // the debris field - every gesture was rehearsed, so the fight is
-        // the exam, not the lesson: ONE line.
+        // The hulk is dust -> the fight, from ANY rehearsal beat (lt 12,
+        // not eq 11): the derelict is destructible the moment it spawns
+        // (beat 9), and a player who shoots it before locking it must SKIP
+        // ahead, not soft-lock on a consumed one-shot (playtest
+        // 2026-07-13: got stuck exactly there). Completing objectives that
+        // never posted is a no-op removal; clearing an unset emphasis
+        // likewise. Every gesture was rehearsed (or skipped by
+        // demonstration), so the fight is the exam: ONE line.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
-            filters: vec![destroyed(ID_DERELICT), eq_num(VAR_BEAT, 11.0)],
+            filters: vec![destroyed(ID_DERELICT), lt_num(VAR_BEAT, 12.0)],
             actions: vec![
                 set(VAR_BEAT, num(12.0)),
+                complete(OBJ_B9),
+                complete(OBJ_B10),
                 complete(OBJ_B11),
+                deemphasize("RADAR"),
                 spawn(pirate_ship(sections)),
                 objective(
                     OBJ_B12,
@@ -1060,10 +1079,22 @@ mod tests {
             set_verbs,
             vec!["RADAR".to_string(), "GOTO".to_string(), "RADAR".to_string()]
         );
+        // Clears may EXCEED sets: the derelict-kill catch-all carries a
+        // defensive RADAR clear for the skip path (clearing an unset
+        // emphasis is a no-op) - the invariant is that every set verb has
+        // a downstream clear, not a 1:1 pairing.
         assert_eq!(
             cleared_verbs,
-            vec!["RADAR".to_string(), "GOTO".to_string(), "RADAR".to_string()]
+            vec![
+                "RADAR".to_string(),
+                "GOTO".to_string(),
+                "RADAR".to_string(),
+                "RADAR".to_string(),
+            ]
         );
+        for verb in &set_verbs {
+            assert!(cleared_verbs.contains(verb));
+        }
     }
 
     /// The ambush choreography: the pirate is NOT part of the opening
@@ -1259,11 +1290,18 @@ mod tests {
             "beacon 4 ({beacon_4_distance:.0}u) clears the widest orbit ring \
              ({widest_ring:.0}u)"
         );
+        // The NOMINAL beacon-4 park (arrival_standoff on the approach
+        // side) must sit outside the ring so the coast exists on the
+        // happy path; a player who ends up inside the ring anyway still
+        // advances, because a SPAWNED area fires OnEnter for bodies it
+        // lands on (pinned in nova_scenario's area tests - the ring
+        // spawns with its beat).
+        let standoff = nova_gameplay::prelude::FlightSettings::default().arrival_standoff;
         assert!(
-            beacon_4_distance - BEACON_AREA_RADIUS > COAST_RING_RADIUS + 10.0,
-            "beacon 4's trigger inner edge ({:.0}u) stays outside the coast ring \
-             ({COAST_RING_RADIUS}u) - the already-inside trap",
-            beacon_4_distance - BEACON_AREA_RADIUS
+            COAST_RING_RADIUS < beacon_4_distance + standoff - 20.0,
+            "the coast ring ({COAST_RING_RADIUS}u) leaves the nominal park \
+             ({:.0}u) outside it",
+            beacon_4_distance + standoff
         );
         // The waypoint LEG must be lockable: beacon 4 authors its own
         // signature (BEACON_4_LOCK_SIGNATURE * 30u/unit, the range model).
@@ -1856,6 +1894,56 @@ mod tests {
             "the beat-12 kill completes the run, got: {:?}",
             objectives
         );
+    }
+
+    /// The out-of-order rehearsal (playtest 2026-07-13: the player shot
+    /// the hulk before ever locking it and the run soft-locked): killing
+    /// the derelict during ANY rehearsal beat skips straight to the fight
+    /// - lessons complete by demonstration, never dead-end.
+    #[test]
+    fn an_early_derelict_kill_skips_to_the_fight() {
+        let mut app = scripted_app();
+        boot(&mut app);
+        enter(&mut app, ID_BEACON_1);
+        enter(&mut app, ID_BEACON_2);
+        for crate_id in ["crate_1", "crate_2", "crate_3"] {
+            enter(&mut app, crate_id);
+            pulse(&mut app);
+        }
+        travel_lock(&mut app, ID_BEACON_3);
+        enter(&mut app, ID_BEACON_3);
+        enter(&mut app, ID_BEACON_4);
+        enter(&mut app, ID_COAST_RING);
+        orbit(&mut app, ID_PLANETOID);
+        exit(&mut app, ID_COAST_RING);
+        // Beat 10 (the paint lesson is up, RADAR pulsing): the player
+        // guns the hulk down WITHOUT locking it.
+        assert!(
+            app.world().resource::<HintEmphasis>().contains("RADAR"),
+            "delivery guard: the rehearsal was mid-lesson"
+        );
+        destroy(&mut app, ID_DERELICT);
+
+        let objectives = &app.world().resource::<GameObjectives>().objectives;
+        assert!(
+            objectives.iter().any(|objective| objective.id == OBJ_B12),
+            "the kill skips to the fight, got: {:?}",
+            objectives
+        );
+        assert!(
+            !objectives
+                .iter()
+                .any(|objective| objective.id == OBJ_B10 || objective.id == OBJ_B11),
+            "the skipped lessons are completed, not orphaned"
+        );
+        assert!(
+            !app.world().resource::<HintEmphasis>().contains("RADAR"),
+            "the skip retires the RADAR emphasis"
+        );
+        // The fight still ends the run.
+        destroy(&mut app, ID_PIRATE);
+        let objectives = &app.world().resource::<GameObjectives>().objectives;
+        assert!(objectives.iter().any(|objective| objective.id == OBJ_DONE));
     }
 
     /// The beat variable gates every non-setup handler: a stray re-entry
