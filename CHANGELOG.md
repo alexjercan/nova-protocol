@@ -7,10 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-07-14
+
+### Added
+
+- The web site grew a full wiki (gameplay systems, ship sections, a keybinds page with controller button glyphs, world and meta pages), two new devlogs, and a tutorial trimmed to first-scenario onboarding
+
 ### Changed
 
-- CI's example smoke suite is BLOCKING again: the GitHub-runner-only taffy panic did not survive the examples rework, so the 12-example suite (behavior assertions, command-error gate and all) now gates every push
+- Gamepad bindings rounded out: ORBIT moved to South, the scenario-advance confirm to DPadDown, and HUD cycle / pause / back-to-editor gained buttons
 
+- CI's example smoke suite is BLOCKING again: the GitHub-runner-only taffy panic did not survive the examples rework, so the 12-example suite (behavior assertions, command-error gate and all) now gates every push
 - The examples are a testable curriculum now - sections (01 controller PD, 02 thruster burn + plume, 03 hull damage pipeline, 04 turret range, 05 torpedo range, 06 guidance, 07 COM), scenario language (08: variables, filters, actions asserted live), editor (09), and playable (10: lock, gun kill, GOTO, arrival driven through the real input pipeline and watched by the scenario's own handlers; 11 HUD range with the velocity sphere; 12 the boot flow) - every one self-drives under BCS_AUTOPILOT with behavior assertions and a completion backstop, and the CI smoke list runs all twelve
 - The example smoke suite now fails on ANY logged command error ("Encountered an error in command"), closing the gap where handled remove/despawn warns - the stale-entity teardown race class - sailed past the panic gate
 - The weapon test ranges fire again: the weapons safety had silently disarmed both (a cold press never latches and a held key never re-edges); their scripts and controls now raise the stance first, and new outcome assertions pin the fire -> hit chain so it cannot regress quietly
@@ -18,7 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - The debug inspector's window-camera placement fix moved upstream into bevy-common-systems (rev bump to 4a743b2): the per-frame reconcile that keeps the egui context off render-to-texture cameras now ships with the plugin, and nova's local workaround is deleted - one implementation instead of two
-
 - The thruster hum now attenuates with distance per ship: another ship's (or a torpedo's) burn no longer plays at full volume in your ear from anywhere in the scene. Your own ship is exempt, so the hum does not fade when the camera pulls back (orbit survey). Side effect: the main-menu backdrop ship's hum now fades with its orbit distance instead of droning at full throttle gain
 - Scenario teardown no longer logs an "Entity despawned" command error when a ship despawns with its autopilot engaged: the telemetry-cleanup observer queued a remove against the very entity whose despawn triggered it; it now uses the fallible variant. The two suspected cross-entity variants of the race (camera handover, dominant-well strip) were probed and refuted - regression tests pin the command ordering that keeps them safe
 
@@ -158,7 +164,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic spaceship sections
 - Editor and simulation scenes
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.5.1...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/alexjercan/nova-protocol/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/alexjercan/nova-protocol/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/alexjercan/nova-protocol/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/alexjercan/nova-protocol/compare/v0.4.0...v0.4.1
