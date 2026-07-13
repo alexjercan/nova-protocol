@@ -57,6 +57,14 @@ retros.
   exercised the second consumer. Add a test per consumer, not just per
   producer. Review caught it by tracing the data into `AutopilotAction::Goto`.
   20260712-203353.
+- `landing-chain-and-stub-collision` (x1): the landing sequence must be one
+  `&&`-chain (merge --squash && commit && sprout rm) - a newline-separated
+  sequence ran `sprout rm` after the merge ABORTED, deleting the branch
+  before anything landed (recovered via the tip hash sprout rm prints:
+  squash-merge accepts a commit-ish). The abort itself came from an
+  uncommitted `tatr new` stub in the main checkout colliding with the
+  branch's committed task file - commit the stub on master before
+  sprouting, or create the task file only in the worktree. 20260713-121605.
 - `landing-no-cd` (x3, PROMOTED 2026-07-11 -> flow skill): the
   squash-merge is its own command, no `cd`, `pwd` first, from the main
   checkout. 20260709-160753, diegetic-autopilot retro, 20260711-125225
