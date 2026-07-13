@@ -127,8 +127,7 @@ publishes the platform artifacts. Steps, done on `master`:
 1. Bump `workspace.package.version` in root `Cargo.toml` (e.g. `0.4.1` -> `0.5.0`).
 2. Refresh `Cargo.lock` so the workspace crates pick up the new version:
    `cargo metadata --format-version 1 >/dev/null` (or any build).
-3. Update `CHANGELOG.md` (Keep a Changelog format, entries attributed like
-   `@alexjercan ...`):
+3. Update `CHANGELOG.md` (Keep a Changelog format, one concise line per entry):
    - promote `[Unreleased]` to `[<version>] - <YYYY-MM-DD>` and leave a fresh empty
      `## [Unreleased]` heading on top;
    - merge any duplicate section headings that accumulated under `[Unreleased]`
