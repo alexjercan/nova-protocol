@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The web build no longer quits with a fatal render validation error on New Game / editor Play: the target inset's render target used a view-format override (`view_formats`), which WebGL2 does not support; it is now a plain sRGB target
+
 ## [0.5.0] - 2026-07-13
 
 ### Added

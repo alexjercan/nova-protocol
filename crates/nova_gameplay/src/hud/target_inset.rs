@@ -224,16 +224,23 @@ pub fn highlight_material() -> StandardMaterial {
     }
 }
 
-/// Create the offscreen render target. Rgba8Unorm storage with an Rgba8UnormSrgb
-/// view is the Bevy 0.19 RTT convention (3d/render_to_texture example);
-/// `new_target_texture` sets the RENDER_ATTACHMENT | TEXTURE_BINDING | COPY_DST
-/// usages.
+/// Create the offscreen render target. Rgba8UnormSrgb with no view-format
+/// override; `new_target_texture` sets the RENDER_ATTACHMENT | TEXTURE_BINDING
+/// | COPY_DST usages.
+///
+/// Bevy's 3d/render_to_texture example uses Rgba8Unorm storage with an
+/// Rgba8UnormSrgb view instead, but a `Some` view format fills the texture's
+/// `view_formats`, and creating such a texture needs
+/// `DownlevelFlags::VIEW_FORMATS` - absent on WebGL2, where it is a fatal
+/// render validation error the moment the player HUD spawns. An sRGB-format
+/// target with the default view goes through the same Rgba8UnormSrgb view end
+/// to end, so native rendering is unchanged.
 pub fn create_render_target(images: &mut Assets<Image>) -> Handle<Image> {
     let image = Image::new_target_texture(
         INSET_TEXTURE_PX,
         INSET_TEXTURE_PX,
-        TextureFormat::Rgba8Unorm,
-        Some(TextureFormat::Rgba8UnormSrgb),
+        TextureFormat::Rgba8UnormSrgb,
+        None,
     );
     images.add(image)
 }
@@ -794,6 +801,33 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
+
+    // -- render target --
+
+    /// WebGL2-safe invariant of the inset render target (v0.5.0 web crash
+    /// regression): a non-empty `view_formats` needs
+    /// `DownlevelFlags::VIEW_FORMATS`, which WebGL2 lacks, so
+    /// `create_texture` fails validation and Bevy quits the app on game
+    /// start. The target must be born plain sRGB with the default view.
+    #[test]
+    fn render_target_is_webgl2_safe() {
+        let mut images = Assets::<Image>::default();
+        let handle = create_render_target(&mut images);
+        let image = images.get(&handle).expect("render target image exists");
+        assert_eq!(
+            image.texture_descriptor.format,
+            TextureFormat::Rgba8UnormSrgb,
+            "target renders and samples as sRGB"
+        );
+        assert!(
+            image.texture_descriptor.view_formats.is_empty(),
+            "non-empty view_formats is a fatal validation error on WebGL2"
+        );
+        assert!(
+            image.texture_view_descriptor.is_none(),
+            "no view override; the default view already has the sRGB format"
+        );
+    }
 
     // -- camera lifecycle --
 
