@@ -1,6 +1,6 @@
 # Wiki infrastructure: manifest, sidebar, search, tags, see-also, index
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: web,wiki,design
 

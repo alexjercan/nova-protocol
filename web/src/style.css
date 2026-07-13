@@ -894,6 +894,218 @@ main {
     margin: 0;
 }
 
+/* ---- wiki (manifest-driven: sidebar + content) --------------------------
+   Layout for the wiki index and every sub-page. The sidebar, search, tag chips
+   and see-also are rendered by wiki.ts from wiki-pages.ts into placeholder
+   elements; these styles frame them in the sharp panel language. */
+.wiki {
+    display: grid;
+    grid-template-columns: 232px 1fr;
+    gap: 40px;
+    align-items: start;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 48px 24px 72px;
+}
+.wiki__nav {
+    position: sticky;
+    top: 72px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel);
+    box-shadow: var(--bevel);
+    padding: 14px;
+    max-height: calc(100vh - 96px);
+    overflow-y: auto;
+}
+.wiki-search {
+    width: 100%;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    background: var(--space-0);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+}
+.wiki-search:focus-visible {
+    outline: 2px solid var(--cyan);
+    outline-offset: 1px;
+    border-color: var(--cyan-deep);
+}
+.wiki-nav__home {
+    display: block;
+    padding: 5px 8px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    border-left: 2px solid transparent;
+}
+.wiki-nav__group {
+    margin-top: 12px;
+}
+.wiki-nav__cat {
+    margin: 0 0 4px;
+    padding: 0 8px;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--cyan);
+}
+.wiki-nav__link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 5px 8px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    border-left: 2px solid transparent;
+}
+.wiki-nav__link:hover {
+    color: var(--text);
+    background: rgba(92, 200, 255, 0.06);
+}
+.wiki-nav__home.is-active,
+.wiki-nav__link.is-active {
+    color: var(--cyan-bright);
+    border-left-color: var(--cyan);
+    background: rgba(92, 200, 255, 0.06);
+}
+.wiki-nav__link.is-soon {
+    opacity: 0.7;
+}
+.wiki-nav__soon,
+.wiki-index__soon {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--amber);
+    border: 1px solid rgba(255, 184, 119, 0.4);
+    border-radius: var(--radius);
+    padding: 0 4px;
+}
+.wiki-nav__empty {
+    margin: 10px 8px 0;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+}
+/* The article column: reuse .prose typography but drop its centering/width so
+   it fills the grid column. */
+.wiki__body.prose {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+.wiki__crumb {
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin: 0 0 1em;
+}
+.wiki__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 1.6em;
+}
+.wiki-tag {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    color: var(--cyan);
+    background: rgba(92, 200, 255, 0.07);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2px 8px;
+}
+.wiki-tag::before {
+    content: "#";
+    opacity: 0.6;
+}
+.wiki-seealso__title {
+    font-size: 1.2rem;
+}
+.wiki-seealso__list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 8px;
+}
+.wiki-seealso__list li {
+    color: var(--text);
+}
+.wiki-seealso__sum {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+/* Wiki index: category sections of cards. */
+.wiki-index__cat {
+    font-size: 1.2rem;
+    color: var(--cyan-bright);
+    border-top: 1px solid var(--border);
+    padding-top: 0.5em;
+    margin-top: 1.8em;
+}
+.wiki-index__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 14px;
+}
+.wiki-index__card {
+    display: block;
+    color: inherit;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--bevel);
+    padding: 14px 16px;
+}
+a.wiki-index__card:hover {
+    border-color: var(--border-bright);
+}
+.wiki-index__card.is-soon {
+    opacity: 0.72;
+}
+.wiki-index__cardhead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+.wiki-index__cardtitle {
+    font-size: 1.05rem;
+    margin: 0;
+    color: var(--text);
+}
+a.wiki-index__card:hover .wiki-index__cardtitle {
+    color: var(--cyan-bright);
+}
+.wiki-index__cardsum {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+@media (max-width: 820px) {
+    .wiki {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    .wiki__nav {
+        position: static;
+        max-height: none;
+    }
+}
+
 /* ---- footer -------------------------------------------------------------- */
 .site-footer {
     flex-shrink: 0;

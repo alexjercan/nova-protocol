@@ -21,6 +21,15 @@ const page = (chunk, template, filename) =>
         basePath: publicPath,
     });
 
+// Wiki sub-pages: each is `src/wiki/<slug>.html` served at `/wiki/<slug>/`, and
+// all share the `wiki` chunk (the manifest-driven sidebar/search/see-also from
+// wiki.ts + wiki-pages.ts). To add a page: author the HTML, add a manifest
+// entry in src/wiki-pages.ts, and add its slug here. Keep this list in sync
+// with wiki-pages.ts.
+const WIKI_SLUGS = ["sections", "keybinds"];
+const wikiPage = (slug) =>
+    page("wiki", `src/wiki/${slug}.html`, `wiki/${slug}/index.html`);
+
 const config = {
     entry: {
         index: "./src/index.ts",
@@ -66,6 +75,7 @@ const config = {
         ),
         page("tutorial", "src/tutorial.html", "tutorial/index.html"),
         page("wiki", "src/wiki.html", "wiki/index.html"),
+        ...WIKI_SLUGS.map(wikiPage),
         new CopyPlugin({
             patterns: [
                 { from: "src/assets", to: "assets" },
@@ -135,6 +145,10 @@ const config = {
                 },
                 { from: /^\/blog/, to: "/blog/index.html" },
                 { from: /^\/tutorial/, to: "/tutorial/index.html" },
+                ...WIKI_SLUGS.map((slug) => ({
+                    from: new RegExp("^/wiki/" + slug),
+                    to: "/wiki/" + slug + "/index.html",
+                })),
                 { from: /^\/wiki/, to: "/wiki/index.html" },
             ],
         },
