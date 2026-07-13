@@ -77,6 +77,11 @@ retros.
   headless frame of a loaded scene, inject a `Screenshot::primary_window`
   from the autopilot script at a settled moment (~+2 s) instead.
   20260710-104421.
+- `registered-system-for-change-detection` (x1): run_system_once builds a
+  FRESH system every call, so Changed<T>/Added<T> filters see everything as
+  changed and tick-dependent logic false-fires; register the system once
+  (world.register_system) and reuse the SystemId. 20260713-082330 (the
+  allegiance-flip clear tests).
 - `observer-over-spawn-site` (x1): to attach a derived/flag component to every
   entity of a kind, use an `On<Add, KindMarker>` observer (the repo's
   `on_add_entity_with` pattern) instead of hunting/editing spawn sites - it is
@@ -88,10 +93,14 @@ retros.
   `CARGO_TARGET_DIR=<main-checkout>/target` for worktree builds. The
   session shell cwd also resets to the main checkout between commands, so
   use absolute paths or `cd <wt> && ...`. 20260710-104421.
-- `commit-before-sabotage` (x1 + scar, PROMOTED 2026-07-11 -> work
+- `commit-before-sabotage` (x2 + scar, PROMOTED 2026-07-11 -> work
   skill): commit the fix before A/B sabotage; file-level `git checkout`
   restores the branch base, not your uncommitted work. 20260710-231930
-  (~250 lines lost and redone).
+  (~250 lines lost and redone). Scripted-splice variant (20260713-082330):
+  the same rule covers big scripted refactors - a python splice anchored on
+  a NON-UNIQUE string (`#[cfg(test)]` matched a cfg'd import first)
+  duplicated ~600 lines; recovery was cheap only because of WIP commits.
+  Anchor splices on unique strings and compile immediately after.
 - `production-faithful-rigs` (x5, PROMOTED 2026-07-11 -> work skill):
   clock/schedule test rigs must mirror production scheduling components;
   a clean trace on a non-faithful rig is not evidence. 20260711-103527,
