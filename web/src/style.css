@@ -425,6 +425,69 @@ main {
     color: var(--cyan-bright);
 }
 
+/* ---- feature rows (bevy.org-style showcase) ------------------------------
+   Alternating two-column rows: a text column and a media column. The image
+   side flips every other row. Collapses to a single column (text over media)
+   on narrow screens. */
+.feature-list {
+    display: flex;
+    flex-direction: column;
+    gap: 56px;
+    margin-top: 44px;
+}
+.feature-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 44px;
+    align-items: center;
+}
+/* Flip the media to the left on even rows. */
+.feature-row:nth-child(even) .feature-row__media {
+    order: -1;
+}
+.feature-row__num {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: var(--cyan);
+    margin-bottom: 12px;
+}
+.feature-row__num::after {
+    content: "";
+    display: inline-block;
+    width: 22px;
+    height: 1px;
+    vertical-align: middle;
+    margin-left: 10px;
+    background: var(--border-bright);
+}
+.feature-row__title {
+    font-size: 1.7rem;
+    margin-bottom: 12px;
+    color: var(--text);
+}
+.feature-row__body {
+    color: var(--text-muted);
+    font-size: 1.02rem;
+    margin: 0;
+    max-width: 46ch;
+}
+/* The media column reuses the sharp placeholder frame (see .figure__*). */
+.feature-row__media {
+    margin: 0;
+}
+@media (max-width: 760px) {
+    .feature-row {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    .feature-row:nth-child(even) .feature-row__media {
+        order: 0;
+    }
+}
+
 /* ---- prose (content pages) ---------------------------------------------- */
 .prose {
     max-width: 74ch;
