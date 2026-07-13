@@ -41,6 +41,13 @@ pub struct TurretLeadPipMarker;
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct TurretLeadPipTurret(pub Entity);
 
+/// Hot-shifted pip tint (Q5a of spike 20260713-110039): while the player's
+/// weapons are HOT the aim pips go lock-red - raised-manual gunnery has no
+/// lock crosshair or inset on screen, so the pip the player is aiming with
+/// must carry the state (adversarial F4). Ticks would be noise at 8 px;
+/// color-only is the deliberate exception to shape+color here.
+const PIP_HOT_COLOR: Color = Color::srgba(1.0, 0.4, 0.3, 0.95);
+
 /// UI bundle for the pip layer. Pips are spawned under it by
 /// [`sync_turret_pips`], one per player turret.
 pub fn turret_lead_hud() -> impl Bundle {
@@ -81,11 +88,26 @@ impl Plugin for TurretLeadPlugin {
         // frame behind the solution, jittering against a moving target).
         app.add_systems(
             PostUpdate,
-            (sync_turret_pips, drive_pip_anchors)
+            (sync_turret_pips, drive_pip_anchors, drive_pip_hot_tint)
                 .chain()
                 .after(TurretSectionAimSystems)
                 .before(ScreenIndicatorSystems),
         );
+    }
+}
+
+/// Shift the pips to the hot tint while the player's weapons are HOT (F4:
+/// the manual-gunnery hot cue).
+fn drive_pip_hot_tint(
+    q_player: Query<&WeaponsHot, With<PlayerSpaceshipMarker>>,
+    mut q_pips: Query<&mut BackgroundColor, With<TurretLeadPipMarker>>,
+) {
+    let hot = q_player.iter().next().is_some_and(|hot| hot.0);
+    let color = if hot { PIP_HOT_COLOR } else { PIP_COLOR };
+    for mut pip in &mut q_pips {
+        if pip.0 != color {
+            pip.0 = color;
+        }
     }
 }
 

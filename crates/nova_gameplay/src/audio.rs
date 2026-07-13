@@ -52,12 +52,23 @@ pub enum NovaSfx {
     ObjectiveNew,
     /// An objective was completed (UI cue, non-positional).
     ObjectiveComplete,
+    /// A radar gesture acquired its first target (UI cue, once per gesture -
+    /// Q3a of spike 20260713-110039).
+    LockOn,
+    /// A tap-clear released a lock (UI cue; pairs with the unlatch ghost).
+    LockOff,
+    /// The weapons safety re-engaged - the player's hot -> cold edge (UI
+    /// cue; a held burst must not just silently stop).
+    SafetyOn,
+    /// A radar hold was denied - the computer grants no Lock capability
+    /// (UI cue, F7/Q8a).
+    RadarDeny,
 }
 
 /// The `(key, base-filename)` pairs Nova loads into its [`SoundBank`]. The bank
 /// applies the `sounds/<name>.wav` convention, so these map to
 /// `assets/sounds/<name>.wav`. Shared with `nova_assets`, which does the load.
-pub const NOVA_SFX_FILES: [(NovaSfx, &str); 7] = [
+pub const NOVA_SFX_FILES: [(NovaSfx, &str); 11] = [
     (NovaSfx::ThrusterLoop, "thruster_loop"),
     (NovaSfx::TurretFire, "turret_fire"),
     (NovaSfx::TorpedoLaunch, "torpedo_launch"),
@@ -65,6 +76,10 @@ pub const NOVA_SFX_FILES: [(NovaSfx, &str); 7] = [
     (NovaSfx::Impact, "impact"),
     (NovaSfx::ObjectiveNew, "objective_new"),
     (NovaSfx::ObjectiveComplete, "objective_complete"),
+    (NovaSfx::LockOn, "lock_on"),
+    (NovaSfx::LockOff, "lock_off"),
+    (NovaSfx::SafetyOn, "safety_on"),
+    (NovaSfx::RadarDeny, "radar_deny"),
 ];
 
 /// Per-cue *base* playback volumes (at point-blank; distance attenuation scales
@@ -75,6 +90,13 @@ const TURRET_FIRE_VOLUME: f32 = 0.10;
 const IMPACT_VOLUME: f32 = 0.22;
 const EXPLOSION_VOLUME: f32 = 0.40;
 const TORPEDO_LAUNCH_VOLUME: f32 = 0.45;
+
+/// UI (non-positional) volumes for the lock/safety cues - informational
+/// ticks, kept under the combat sounds.
+const LOCK_ON_VOLUME: f32 = 0.30;
+const LOCK_OFF_VOLUME: f32 = 0.28;
+const SAFETY_ON_VOLUME: f32 = 0.30;
+const RADAR_DENY_VOLUME: f32 = 0.26;
 
 /// Distance-attenuation rolloff for positional cues, in world units. A cue plays
 /// at full base volume within `SFX_NEAR_DISTANCE`, is inaudible beyond
@@ -268,6 +290,11 @@ impl Plugin for NovaAudioPlugin {
         app.add_observer(on_turret_fire_play_sfx);
         app.add_observer(on_torpedo_launch_play_sfx);
 
+        // Lock/safety UI cues (spike 20260713-110039): message-driven
+        // one-shots, so no gating needed - the writers (radar search, tap
+        // observer) are themselves pause-gated.
+        app.add_systems(Update, (play_lock_cues, play_safety_engaged_cue));
+
         // The thruster hum polls `ThrusterSectionInput`, so it must be gated to
         // the running simulation exactly like the thruster physics/shader. Joining
         // `SpaceshipSectionSystems` inherits whatever run condition consumers of
@@ -427,6 +454,60 @@ fn on_torpedo_launch_play_sfx(
         source.translation,
         listener_position(&q_camera),
     );
+}
+
+/// The lock-gesture UI cues (non-positional one-shots, like the objective
+/// cues): LockOn once per radar gesture ([`RadarLockAcquired`] already
+/// fires acquire-only, Q3a), LockOff per cleared lock, and the capability
+/// deny buzz ([`RadarDenied`], F7/Q8a). One cue per kind per frame - a
+/// staged double-clear in one frame plays one LockOff, not a chord.
+fn play_lock_cues(
+    mut commands: Commands,
+    bank: Option<Res<SoundBank<NovaSfx>>>,
+    mut acquired: MessageReader<RadarLockAcquired>,
+    mut cleared: MessageReader<LockClearedToast>,
+    mut denied: MessageReader<RadarDenied>,
+) {
+    let Some(bank) = bank else {
+        // No bank (headless tests, assets not loaded): drain quietly so the
+        // cursors do not replay stale messages once it appears.
+        acquired.read().for_each(|_| {});
+        cleared.read().for_each(|_| {});
+        denied.read().for_each(|_| {});
+        return;
+    };
+    // DRAIN each reader (count, not next): a leftover unread message would
+    // replay the cue on the NEXT frame.
+    if acquired.read().count() > 0 {
+        commands.play_sfx_volume(bank.get(NovaSfx::LockOn), LOCK_ON_VOLUME);
+    }
+    if cleared.read().count() > 0 {
+        commands.play_sfx_volume(bank.get(NovaSfx::LockOff), LOCK_OFF_VOLUME);
+    }
+    if denied.read().count() > 0 {
+        commands.play_sfx_volume(bank.get(NovaSfx::RadarDeny), RADAR_DENY_VOLUME);
+    }
+}
+
+/// The safety re-engage click on the PLAYER's hot -> cold edge (a held
+/// burst must not just silently stop - deferred from 20260713-082337, now
+/// that the sfx batch exists). Changed-gated; the Local remembers the last
+/// seen state so an unrelated change (spawn) cannot click.
+fn play_safety_engaged_cue(
+    mut commands: Commands,
+    bank: Option<Res<SoundBank<NovaSfx>>>,
+    q_player: Query<&WeaponsHot, (With<PlayerSpaceshipMarker>, Changed<WeaponsHot>)>,
+    mut was_hot: Local<bool>,
+) {
+    for hot in &q_player {
+        let is_hot = hot.0;
+        if *was_hot && !is_hot {
+            if let Some(bank) = &bank {
+                commands.play_sfx_volume(bank.get(NovaSfx::SafetyOn), SAFETY_ON_VOLUME);
+            }
+        }
+        *was_hot = is_hot;
+    }
 }
 
 /// Marker for the single looping engine-hum audio entity.

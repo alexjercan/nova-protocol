@@ -387,6 +387,40 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
             Some(target),
             "hud range: the lock must be live under the sweep, before release"
         );
+        // Inset-on-lock (spike 20260713-110039 B1): the viewfinder is up
+        // RIGHT NOW, mid-sweep, long before the 1.5 s focus dwell - one RTT
+        // camera and a visible panel.
+        let inset_cameras = world
+            .query_filtered::<(), With<TargetInsetCameraMarker>>()
+            .iter(world)
+            .count();
+        assert_eq!(
+            inset_cameras, 1,
+            "hud range: the viewfinder must be rendering the moment the lock exists"
+        );
+        let panel_visibility = *world
+            .query_filtered::<&Visibility, With<TargetInsetHudMarker>>()
+            .iter(world)
+            .next()
+            .expect("hud range: no target-inset panel node");
+        assert_eq!(
+            panel_visibility,
+            Visibility::Visible,
+            "hud range: the inset panel must show at lock time, not after the dwell"
+        );
+        // The frame carries the safety state (Q5a): hot right now (raised +
+        // lock), so the armed ticks are on.
+        let tick_visibility = *world
+            .query_filtered::<&Visibility, With<TargetInsetArmedTickMarker>>()
+            .iter(world)
+            .next()
+            .expect("hud range: no armed tick nodes on the inset frame");
+        assert_eq!(
+            tick_visibility,
+            Visibility::Inherited,
+            "hud range: the armed ticks must show while the weapons are hot"
+        );
+        info!("hud range: inset viewfinder up at lock time, frame armed");
         // Release: stick; lower the stance; set the travel designation for
         // the GOTO stage directly (its gesture is the same, already proven).
         world
@@ -591,8 +625,9 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
         assert_eq!(sections, 3, "hud range: the target ship has 3 sections");
         info!("hud range: component markers OK ({markers} of {sections} sections)");
 
-        // The target inset spawns with the focus dwell: exactly one RTT camera
-        // exists and the corner panel is visible while focused.
+        // The inset has been up since the LOCK (pinned at the commit stage);
+        // by now the dwell has also passed - still exactly one RTT camera
+        // and a visible panel (the reconcile never duplicated it).
         let inset_cameras = world
             .query_filtered::<(), With<TargetInsetCameraMarker>>()
             .iter(world)

@@ -16,14 +16,19 @@
 //!   camera's per-camera post-processing + skybox and trips none of the
 //!   marker-filtered `Single<Camera>` queries.
 //! - A corner [`ImageNode`] panel showing that texture, spawned with the player
-//!   HUD (hud/mod.rs observers) and shown only while a lock is focused.
+//!   HUD (hud/mod.rs observers) and shown whenever a COMBAT LOCK exists.
 //! - An in-scene emissive overlay on the fine-locked section, so the selection
 //!   reads in BOTH the main view and the inset with no projection code.
 //!
-//! The inset camera spawns/despawns and the panel shows/hides with the focus
-//! dwell ([`LockFocus::focused_on`] on the COMBAT lock); the camera is posed each
-//! frame on the locked ship's [`live_structure_anchor`] from a scope-like
-//! player-relative bearing.
+//! INSET-ON-LOCK (spike 20260713-110039 B1): the camera spawns/despawns and
+//! the panel shows/hides with the [`CombatLock`] itself - during a radar
+//! sweep the panel is the VIEWFINDER, and its presence is the "torpedoes
+//! are guided" signal. The focus dwell gates only the component fine-lock
+//! now. A lock on a non-zoomable body (beacon) holds the panel with the
+//! NO-SIGNAL overlay instead of blinking (Q4a); the frame color + armed
+//! corner ticks carry the weapons-safety state (Q5a). The camera is posed
+//! each frame on the locked ship's [`live_structure_anchor`] from a
+//! scope-like player-relative bearing.
 
 use avian3d::prelude::{ColliderAabb, ComputedCenterOfMass, Sensor};
 use bevy::{camera::RenderTarget, prelude::*, render::render_resource::TextureFormat};
@@ -33,8 +38,9 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        target_inset_hud, InsetZoomable, TargetInsetCameraMarker, TargetInsetHighlightAssets,
-        TargetInsetHighlightMarker, TargetInsetHudMarker, TargetInsetHudPlugin,
+        target_inset_hud, InsetZoomable, TargetInsetArmedTickMarker, TargetInsetCameraMarker,
+        TargetInsetCaptionMarker, TargetInsetHighlightAssets, TargetInsetHighlightMarker,
+        TargetInsetHudMarker, TargetInsetHudPlugin, TargetInsetNoSignalMarker,
         TargetInsetRenderTarget,
     };
 }
@@ -54,16 +60,40 @@ const INSET_TEXTURE_PX: u32 = 512;
 /// On-screen size (px) of the inset panel.
 const INSET_PANEL_PX: f32 = 256.0;
 
-/// Panel inset from the screen corner (px).
+/// Panel inset from the screen's right edge (px).
 const INSET_MARGIN_PX: f32 = 12.0;
+
+/// Panel inset from the screen's top edge (px): pushed below the bcs
+/// status bar (FPS/latency row, top-right at 10 px - bcs ui/status.rs),
+/// which the panel used to overlap (playtest, 2026-07-13). A feel knob.
+const INSET_TOP_PX: f32 = 44.0;
 
 /// Panel border thickness (px).
 const INSET_BORDER_PX: f32 = 2.0;
 
-/// Panel border tint: the hot-metal lock red the component markers use
-/// (`hud/component_lock.rs` MARKER_SELECTED_COLOR), so the inset reads as part
-/// of the targeting family.
-const INSET_BORDER_COLOR: Color = Color::srgba(1.0, 0.45, 0.3, 0.95);
+/// Panel border tint while the weapons are HOT: the hot-metal lock red the
+/// component markers use (`hud/component_lock.rs` MARKER_SELECTED_COLOR), so
+/// the inset reads as part of the targeting family. The frame carries the
+/// safety state (Q5a of spike 20260713-110039): this red + the armed corner
+/// ticks while hot, the neutral tint below while safe.
+const INSET_BORDER_HOT_COLOR: Color = Color::srgba(1.0, 0.45, 0.3, 0.95);
+
+/// Panel border tint while the weapons are SAFE: quiet steel.
+const INSET_BORDER_SAFE_COLOR: Color = Color::srgba(0.65, 0.7, 0.75, 0.8);
+
+/// Armed corner tick size and thickness (px): four bars that appear at the
+/// panel corners while the weapons are hot - the SHAPE half of the Q5a
+/// shape+color redundancy (colorblind-safe).
+const INSET_TICK_LEN_PX: f32 = 16.0;
+const INSET_TICK_THICK_PX: f32 = 4.0;
+
+/// NO-SIGNAL overlay (Q4a): shown when a combat lock exists on a body the
+/// inset cannot scope (a beacon - lockable, never zoomable), so the panel
+/// holds steady instead of blinking during a sweep across it. Text-free: a
+/// near-opaque dark cover with a pulsing hollow square.
+const NO_SIGNAL_COVER_COLOR: Color = Color::srgba(0.02, 0.02, 0.035, 0.96);
+const NO_SIGNAL_PULSE_HZ: f32 = 1.6;
+const NO_SIGNAL_BOX_PX: f32 = 48.0;
 
 /// Inset camera background (no skybox on the inset: a dark clear makes the
 /// locked ship stand out, and avoids plumbing the scenario cubemap handle into
@@ -95,6 +125,23 @@ const HIGHLIGHT_SCALE: f32 = 1.14;
 /// Marker for the inset panel root (the `ImageNode`).
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TargetInsetHudMarker;
+
+/// Marker for the NO-SIGNAL overlay child (Q4a).
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct TargetInsetNoSignalMarker;
+
+/// Marker for the pulsing hollow square inside the NO-SIGNAL overlay.
+#[derive(Component, Debug, Clone, Reflect)]
+struct TargetInsetNoSignalPulseMarker;
+
+/// Marker for one armed corner tick (four exist; visible while hot, Q5a).
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct TargetInsetArmedTickMarker;
+
+/// Marker for the viewfinder caption (target name + distance, shown ONLY
+/// while a combat radar gesture is engaged - Q6a).
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct TargetInsetCaptionMarker;
 
 /// Marker for the offscreen inset camera. Deliberately carries none of the
 /// scene-camera markers (SpaceshipCameraController, ScenarioCameraMarker,
@@ -157,10 +204,42 @@ pub fn create_render_target(images: &mut Assets<Image>) -> Handle<Image> {
     images.add(image)
 }
 
+/// One armed corner tick: a small bar hugging a panel corner, hidden until
+/// the weapons go hot (Q5a). `horizontal` picks the bar orientation;
+/// `(right, bottom)` pick the corner.
+fn armed_tick(horizontal: bool, right: bool, bottom: bool) -> impl Bundle {
+    let (width, height) = if horizontal {
+        (Val::Px(INSET_TICK_LEN_PX), Val::Px(INSET_TICK_THICK_PX))
+    } else {
+        (Val::Px(INSET_TICK_THICK_PX), Val::Px(INSET_TICK_LEN_PX))
+    };
+    let offset = Val::Px(2.0);
+    let auto = Val::Auto;
+    (
+        Name::new("ArmedTick"),
+        TargetInsetArmedTickMarker,
+        Node {
+            position_type: PositionType::Absolute,
+            left: if right { auto } else { offset },
+            right: if right { offset } else { auto },
+            top: if bottom { auto } else { offset },
+            bottom: if bottom { offset } else { auto },
+            width,
+            height,
+            ..default()
+        },
+        BackgroundColor(INSET_BORDER_HOT_COLOR),
+        Visibility::Hidden,
+    )
+}
+
 /// The inset panel bundle: a corner-anchored node showing the render target,
-/// starting Hidden (the focus-driven reconcile reveals it). `Chrome` tier +
-/// `HudSelfDrivenVisibility` so it follows the HUD level yet the focus reconcile
-/// owns its moment-to-moment visibility (the gravity-sphere pattern).
+/// starting Hidden (the lock-driven reconcile reveals it). `Chrome` tier +
+/// `HudSelfDrivenVisibility` so it follows the HUD level yet the lock
+/// reconcile owns its moment-to-moment visibility (the gravity-sphere
+/// pattern). Children: the NO-SIGNAL overlay (Q4a), eight armed corner
+/// ticks (Q5a - two per corner, an L each) and the viewfinder caption
+/// (Q6a).
 pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
     (
         Name::new("TargetInsetHUD"),
@@ -169,19 +248,69 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
         HudSelfDrivenVisibility,
         Node {
             position_type: PositionType::Absolute,
-            // Top-right corner: clear of the objectives column (mid-right), the
-            // keybind hints (bottom-left) and the dev inspector overlay
-            // (top-left). A feel knob.
+            // Top-right, below the status bar: clear of the FPS/latency row
+            // (top-right), the objectives column (mid-right), the keybind
+            // hints (bottom-left) and the dev inspector overlay (top-left).
             right: Val::Px(INSET_MARGIN_PX),
-            top: Val::Px(INSET_MARGIN_PX),
+            top: Val::Px(INSET_TOP_PX),
             width: Val::Px(INSET_PANEL_PX),
             height: Val::Px(INSET_PANEL_PX),
             border: UiRect::all(Val::Px(INSET_BORDER_PX)),
             ..default()
         },
-        BorderColor::all(INSET_BORDER_COLOR),
+        BorderColor::all(INSET_BORDER_SAFE_COLOR),
         ImageNode::new(image),
         Visibility::Hidden,
+        children![
+            (
+                Name::new("NoSignal"),
+                TargetInsetNoSignalMarker,
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(0.0),
+                    top: Val::Px(0.0),
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                BackgroundColor(NO_SIGNAL_COVER_COLOR),
+                Visibility::Hidden,
+                children![(
+                    Name::new("NoSignalPulse"),
+                    TargetInsetNoSignalPulseMarker,
+                    Node {
+                        width: Val::Px(NO_SIGNAL_BOX_PX),
+                        height: Val::Px(NO_SIGNAL_BOX_PX),
+                        border: UiRect::all(Val::Px(2.0)),
+                        ..default()
+                    },
+                    BorderColor::all(INSET_BORDER_SAFE_COLOR),
+                )],
+            ),
+            (
+                Name::new("InsetCaption"),
+                TargetInsetCaptionMarker,
+                Text::new(""),
+                TextFont::from_font_size(12.0),
+                TextColor(INSET_BORDER_SAFE_COLOR),
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(6.0),
+                    bottom: Val::Px(4.0),
+                    ..default()
+                },
+            ),
+            armed_tick(true, false, false),
+            armed_tick(false, false, false),
+            armed_tick(true, true, false),
+            armed_tick(false, true, false),
+            armed_tick(true, false, true),
+            armed_tick(false, false, true),
+            armed_tick(true, true, true),
+            armed_tick(false, true, true),
+        ],
     )
 }
 
@@ -198,6 +327,9 @@ impl Plugin for TargetInsetHudPlugin {
         app.register_type::<TargetInsetHighlightMarker>();
         app.register_type::<TargetInsetHighlightOf>();
         app.register_type::<InsetZoomable>();
+        app.register_type::<TargetInsetNoSignalMarker>();
+        app.register_type::<TargetInsetArmedTickMarker>();
+        app.register_type::<TargetInsetCaptionMarker>();
 
         // Author the zoomable flag on the kinds worth scoping as they spawn
         // (ships, committed torpedoes). Asteroids get it in nova_scenario;
@@ -208,7 +340,13 @@ impl Plugin for TargetInsetHudPlugin {
 
         app.add_systems(
             Update,
-            (drive_inset_camera, sync_section_highlight).in_set(super::NovaHudSystems),
+            (
+                drive_inset_camera,
+                drive_inset_frame_state,
+                pulse_no_signal,
+                sync_section_highlight,
+            )
+                .in_set(super::NovaHudSystems),
         );
     }
 }
@@ -276,11 +414,19 @@ fn inset_camera_bundle(image: Handle<Image>, pose: Transform) -> impl Bundle {
     )
 }
 
-/// Spawn/despawn the inset camera and show/hide the panel with the focus dwell,
-/// and pose the camera on the locked ship each frame while focused. One
-/// idempotent system (like the component-marker reconcile) so every ordering of
-/// lock/focus/section changes converges; folding the lifecycle and the pose
-/// together avoids a one-frame default-pose flash on spawn.
+/// Spawn/despawn the inset camera and show/hide the panel with the COMBAT
+/// LOCK (inset-on-lock, spike 20260713-110039 B1, user-confirmed: presence
+/// of the inset IS the "not dumb-fire" signal, and during a radar sweep it
+/// is the viewfinder). The focus dwell no longer gates the panel - it keeps
+/// gating only the component fine-lock. One idempotent system (like the
+/// component-marker reconcile) so every ordering of lock/section changes
+/// converges; folding the lifecycle and the pose together avoids a
+/// one-frame default-pose flash on spawn.
+///
+/// Three states: no lock (or chrome hidden) = panel hidden, camera gone;
+/// lock on a zoomable, resolvable body = panel + live camera; lock on a
+/// NON-zoomable body (a beacon) = panel with the NO-SIGNAL overlay, camera
+/// gone (Q4a - the panel must not blink as a sweep crosses a beacon).
 #[allow(clippy::type_complexity)]
 fn drive_inset_camera(
     mut commands: Commands,
@@ -295,12 +441,7 @@ fn drive_inset_camera(
         Without<TargetInsetCameraMarker>,
     >,
     q_player: Query<
-        (
-            &Transform,
-            Option<&ComputedCenterOfMass>,
-            &CombatLock,
-            &LockFocus,
-        ),
+        (&Transform, Option<&ComputedCenterOfMass>, &CombatLock),
         (
             With<SpaceshipRootMarker>,
             With<PlayerSpaceshipMarker>,
@@ -311,36 +452,47 @@ fn drive_inset_camera(
     q_aabb: Query<&ColliderAabb, Without<Sensor>>,
     mut q_camera: Query<(Entity, &mut Transform), With<TargetInsetCameraMarker>>,
     mut q_panel: Query<&mut Visibility, With<TargetInsetHudMarker>>,
+    mut q_no_signal: Query<
+        &mut Visibility,
+        (
+            With<TargetInsetNoSignalMarker>,
+            Without<TargetInsetHudMarker>,
+        ),
+    >,
 ) {
-    // The inset exists only while the focus dwell is complete on the current
-    // lock, the HUD is showing chrome (so hiding the HUD also stops the second
-    // render, not just the panel), the target is flagged InsetZoomable (a ship
-    // / torpedo / asteroid, NOT a beacon), and it still resolves to a real
-    // anchor. The inset panel is Chrome tier, so gating here keeps the RTT
-    // camera and the (tier-hidden) panel consistent.
     let lock = q_player
         .iter()
         .next()
-        .and_then(|(_, _, lock, focus)| lock.0.map(|target| (target, focus)));
-    let framed = match lock {
-        Some((target, focus))
-            if hud_visibility.shows(HudTier::Chrome) && focus.focused_on(target) =>
-        {
-            match q_anchor.get(target) {
-                Ok((transform, com, true)) => Some((target, live_structure_anchor(transform, com))),
-                // Not zoomable (beacon) or unresolved: no inset.
-                _ => None,
-            }
-        }
+        .and_then(|(_, _, lock)| lock.0)
+        .filter(|_| hud_visibility.shows(HudTier::Chrome));
+    // `Some(Some(anchor))` = camera framing; `Some(None)` = NO-SIGNAL;
+    // `None` = hidden.
+    let framed = lock.map(|target| match q_anchor.get(target) {
+        Ok((transform, com, true)) => Some((target, live_structure_anchor(transform, com))),
+        // Not zoomable (beacon) or unresolved: the panel holds, no camera.
         _ => None,
-    };
+    });
 
-    let Some((target, target_anchor)) = framed else {
-        // Not focused (or the target vanished): hide the panel and tear the
-        // camera down so the scene is not rendered a second time for nothing.
-        for mut visibility in &mut q_panel {
-            visibility.set_if_neq(Visibility::Hidden);
-        }
+    let panel_visibility = if framed.is_some() {
+        Visibility::Visible
+    } else {
+        Visibility::Hidden
+    };
+    for mut visibility in &mut q_panel {
+        visibility.set_if_neq(panel_visibility);
+    }
+    let overlay_visibility = if matches!(framed, Some(None)) {
+        Visibility::Visible
+    } else {
+        Visibility::Hidden
+    };
+    for mut visibility in &mut q_no_signal {
+        visibility.set_if_neq(overlay_visibility);
+    }
+
+    let Some(Some((target, target_anchor))) = framed else {
+        // Hidden or NO-SIGNAL: tear the camera down so the scene is not
+        // rendered a second time for nothing.
         for (camera, _) in &q_camera {
             commands.entity(camera).despawn();
         }
@@ -357,14 +509,100 @@ fn drive_inset_camera(
     let radius = zoomable_framing_radius(target, target_anchor, &q_children, &q_aabb);
     let pose = inset_camera_pose(target_anchor, player_anchor, radius);
 
-    for mut visibility in &mut q_panel {
-        visibility.set_if_neq(Visibility::Visible);
-    }
-
     if let Ok((_, mut transform)) = q_camera.single_mut() {
         *transform = pose;
     } else if let Some(image) = render_target.0.clone() {
         commands.spawn(inset_camera_bundle(image, pose));
+    }
+}
+
+/// The frame carries the safety state (Q5a, shape + color): hot = the lock
+/// red border + the armed corner ticks; safe = quiet steel, no ticks. The
+/// caption shows "<NAME> <dist>m" ONLY while a COMBAT radar gesture is
+/// engaged (Q6a - the sweep's confirmation readout; travel sweeps get the
+/// radar box label instead, the inset is combat-only by design).
+#[allow(clippy::type_complexity)]
+fn drive_inset_frame_state(
+    q_player: Query<
+        (
+            &Transform,
+            Option<&ComputedCenterOfMass>,
+            &WeaponsHot,
+            &CombatLock,
+            Option<&RadarState>,
+        ),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
+    q_names: Query<&Name>,
+    q_positions: Query<&GlobalTransform>,
+    mut q_frame: Query<&mut BorderColor, With<TargetInsetHudMarker>>,
+    mut q_ticks: Query<
+        &mut Visibility,
+        (
+            With<TargetInsetArmedTickMarker>,
+            Without<TargetInsetHudMarker>,
+        ),
+    >,
+    mut q_caption: Query<&mut Text, With<TargetInsetCaptionMarker>>,
+) {
+    let Some((transform, com, hot, lock, radar)) = q_player.iter().next() else {
+        return;
+    };
+
+    let border = if hot.0 {
+        INSET_BORDER_HOT_COLOR
+    } else {
+        INSET_BORDER_SAFE_COLOR
+    };
+    for mut frame in &mut q_frame {
+        let next = BorderColor::all(border);
+        if *frame != next {
+            *frame = next;
+        }
+    }
+    let tick_visibility = if hot.0 {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    };
+    for mut visibility in &mut q_ticks {
+        visibility.set_if_neq(tick_visibility);
+    }
+
+    let combat_sweep = radar.is_some_and(|radar| radar.engaged == Some(RadarSlot::Combat));
+    let caption = match lock.0.filter(|_| combat_sweep) {
+        Some(target) => {
+            let name = q_names
+                .get(target)
+                .map(|name| name.to_string())
+                .unwrap_or_else(|_| "CONTACT".to_string());
+            let distance = q_positions.get(target).ok().map(|target_transform| {
+                live_structure_anchor(transform, com).distance(target_transform.translation())
+            });
+            match distance {
+                Some(distance) => format!("{name} {distance:.0}m"),
+                None => name,
+            }
+        }
+        None => String::new(),
+    };
+    for mut text in &mut q_caption {
+        if text.0 != caption {
+            text.0 = caption.clone();
+        }
+    }
+}
+
+/// Pulse the NO-SIGNAL hollow square so the overlay reads as "scanning, no
+/// visual" rather than a stuck frame. Cheap alpha breathing on real time.
+fn pulse_no_signal(
+    time: Res<Time>,
+    mut q_pulse: Query<&mut BorderColor, With<TargetInsetNoSignalPulseMarker>>,
+) {
+    let phase = (time.elapsed_secs() * NO_SIGNAL_PULSE_HZ * std::f32::consts::TAU).sin();
+    let alpha = 0.35 + 0.4 * (0.5 + 0.5 * phase);
+    for mut border in &mut q_pulse {
+        *border = BorderColor::all(INSET_BORDER_SAFE_COLOR.with_alpha(alpha));
     }
 }
 
@@ -438,6 +676,11 @@ mod tests {
         world.insert_resource(super::super::HudVisibility::All);
         world.insert_resource(TargetInsetRenderTarget(Some(Handle::default())));
         world.spawn((Name::new("panel"), TargetInsetHudMarker, Visibility::Hidden));
+        world.spawn((
+            Name::new("no-signal"),
+            TargetInsetNoSignalMarker,
+            Visibility::Hidden,
+        ));
         let player = world
             .spawn((
                 SpaceshipRootMarker,
@@ -484,27 +727,49 @@ mod tests {
             .expect("panel exists")
     }
 
+    fn overlay_visibility(world: &mut World) -> Visibility {
+        *world
+            .query_filtered::<&Visibility, With<TargetInsetNoSignalMarker>>()
+            .iter(world)
+            .next()
+            .expect("overlay exists")
+    }
+
     #[test]
-    fn camera_and_panel_appear_only_while_focused() {
+    fn camera_and_panel_appear_the_moment_the_lock_exists() {
+        // Inset-on-lock (spike 20260713-110039 B1, user-confirmed): the
+        // panel is up whenever a combat lock exists - the focus dwell no
+        // longer gates it. The rig's dwell is stripped to zero to prove it
+        // (under the old focus gate this rig showed nothing for 1.5 s).
         let (mut world, player, target) = rig(3);
+        world.get_mut::<LockFocus>(player).unwrap().seconds = 0.0;
 
         world.run_system_once(drive_inset_camera).unwrap();
-        assert_eq!(camera_count(&mut world), 1, "focused: one inset camera");
+        assert_eq!(
+            camera_count(&mut world),
+            1,
+            "locked (dwell irrelevant): one inset camera"
+        );
         assert_eq!(
             panel_visibility(&mut world),
             Visibility::Visible,
-            "focused: panel shown"
+            "locked: panel shown at lock time"
+        );
+        assert_eq!(
+            overlay_visibility(&mut world),
+            Visibility::Hidden,
+            "a live camera framing needs no NO-SIGNAL overlay"
         );
 
-        // Delivery guard: losing the dwell tears the camera down and hides the
-        // panel (the positive state above proves the assertion can differ).
-        world.get_mut::<LockFocus>(player).unwrap().seconds = 0.0;
+        // Delivery guard: clearing the LOCK tears everything down (the
+        // positive state above proves the assertion can differ).
+        world.get_mut::<CombatLock>(player).unwrap().0 = None;
         world.run_system_once(drive_inset_camera).unwrap();
-        assert_eq!(camera_count(&mut world), 0, "unfocused: camera despawned");
+        assert_eq!(camera_count(&mut world), 0, "no lock: camera despawned");
         assert_eq!(
             panel_visibility(&mut world),
             Visibility::Hidden,
-            "unfocused: panel hidden"
+            "no lock: panel hidden"
         );
 
         let _ = target;
@@ -524,23 +789,20 @@ mod tests {
     }
 
     #[test]
-    fn camera_clears_when_the_lock_changes_before_the_dwell() {
+    fn a_fresh_lock_retargets_the_camera_a_sweep_never_blinks_the_panel() {
         let (mut world, player, _target) = rig(3);
         world.run_system_once(drive_inset_camera).unwrap();
         assert_eq!(camera_count(&mut world), 1);
 
-        // A fresh lock with no completed dwell: the inset must vanish.
+        // Re-lock to another ZOOMABLE body (a live sweep retarget): the one
+        // camera stays, the panel never blinks - the viewfinder.
         let other = world
-            .spawn((SpaceshipRootMarker, Transform::default()))
+            .spawn((SpaceshipRootMarker, InsetZoomable, Transform::default()))
             .id();
         world.get_mut::<CombatLock>(player).unwrap().0 = Some(other);
-        *world.get_mut::<LockFocus>(player).unwrap() = LockFocus {
-            target: Some(other),
-            seconds: 0.0,
-        };
         world.run_system_once(drive_inset_camera).unwrap();
-        assert_eq!(camera_count(&mut world), 0);
-        assert_eq!(panel_visibility(&mut world), Visibility::Hidden);
+        assert_eq!(camera_count(&mut world), 1, "retarget keeps one camera");
+        assert_eq!(panel_visibility(&mut world), Visibility::Visible);
     }
 
     #[test]
@@ -568,9 +830,10 @@ mod tests {
     }
 
     #[test]
-    fn inset_skips_non_zoomable_targets() {
-        // A focused target that is NOT flagged InsetZoomable (a beacon) must not
-        // open the inset, even though it is the current focused lock.
+    fn a_non_zoomable_lock_holds_the_panel_with_no_signal() {
+        // A locked body that is NOT flagged InsetZoomable (a beacon) gets no
+        // camera - but the panel HOLDS with the NO-SIGNAL overlay (Q4a), so
+        // a sweep crossing a beacon never blinks the viewfinder (F5).
         let (mut world, _player, target) = rig(3);
         world.entity_mut(target).remove::<InsetZoomable>();
 
@@ -578,16 +841,106 @@ mod tests {
         assert_eq!(
             camera_count(&mut world),
             0,
-            "a non-zoomable focused target (beacon) opens no inset"
+            "a non-zoomable lock (beacon) renders no second view"
         );
-        assert_eq!(panel_visibility(&mut world), Visibility::Hidden);
+        assert_eq!(
+            panel_visibility(&mut world),
+            Visibility::Visible,
+            "the panel holds through the beacon (Q4a)"
+        );
+        assert_eq!(
+            overlay_visibility(&mut world),
+            Visibility::Visible,
+            "NO-SIGNAL covers the stale render"
+        );
 
-        // Delivery guard: flagging it zoomable brings the inset up, so the
-        // assertion above is really gated on the flag.
+        // Delivery guard: flagging it zoomable swaps the overlay for the
+        // camera, so the assertions above are really gated on the flag.
         world.entity_mut(target).insert(InsetZoomable);
         world.run_system_once(drive_inset_camera).unwrap();
         assert_eq!(camera_count(&mut world), 1);
         assert_eq!(panel_visibility(&mut world), Visibility::Visible);
+        assert_eq!(overlay_visibility(&mut world), Visibility::Hidden);
+    }
+
+    #[test]
+    fn the_frame_carries_the_safety_state_and_the_sweep_caption() {
+        // Q5a (shape + color) + Q6a (caption only while a combat gesture is
+        // engaged).
+        let mut world = World::new();
+        let target = world
+            .spawn((
+                Name::new("SCAVENGER"),
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -100.0)),
+            ))
+            .id();
+        let player = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::IDENTITY,
+                WeaponsHot(false),
+                CombatLock(Some(target)),
+            ))
+            .id();
+        let frame = world
+            .spawn((
+                TargetInsetHudMarker,
+                BorderColor::all(INSET_BORDER_SAFE_COLOR),
+            ))
+            .id();
+        let tick = world
+            .spawn((TargetInsetArmedTickMarker, Visibility::Hidden))
+            .id();
+        let caption = world.spawn((TargetInsetCaptionMarker, Text::new(""))).id();
+
+        // Safe: neutral frame, no ticks, no caption (no gesture engaged).
+        world.run_system_once(drive_inset_frame_state).unwrap();
+        assert_eq!(
+            *world.entity(frame).get::<BorderColor>().unwrap(),
+            BorderColor::all(INSET_BORDER_SAFE_COLOR)
+        );
+        assert_eq!(
+            *world.entity(tick).get::<Visibility>().unwrap(),
+            Visibility::Hidden
+        );
+        assert_eq!(world.entity(caption).get::<Text>().unwrap().0, "");
+
+        // Hot + a combat sweep engaged: red frame, ticks on, caption reads
+        // name + distance.
+        world.entity_mut(player).insert((
+            WeaponsHot(true),
+            RadarState {
+                engaged: Some(RadarSlot::Combat),
+                candidate: Some(target),
+                acquired: true,
+            },
+        ));
+        world.run_system_once(drive_inset_frame_state).unwrap();
+        assert_eq!(
+            *world.entity(frame).get::<BorderColor>().unwrap(),
+            BorderColor::all(INSET_BORDER_HOT_COLOR),
+            "hot: the frame goes lock-red (Q5a color)"
+        );
+        assert_eq!(
+            *world.entity(tick).get::<Visibility>().unwrap(),
+            Visibility::Inherited,
+            "hot: the armed ticks appear (Q5a shape)"
+        );
+        assert_eq!(
+            world.entity(caption).get::<Text>().unwrap().0,
+            "SCAVENGER 100m",
+            "an engaged combat sweep captions the viewfinder (Q6a)"
+        );
+
+        // Release (search closes): the caption clears, the state remains.
+        world.entity_mut(player).remove::<RadarState>();
+        world.run_system_once(drive_inset_frame_state).unwrap();
+        assert_eq!(
+            world.entity(caption).get::<Text>().unwrap().0,
+            "",
+            "the caption is gesture-time only (Q6a)"
+        );
     }
 
     #[test]

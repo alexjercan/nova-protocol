@@ -1,17 +1,26 @@
-//! The two-lock crosshair language of the deliberate-radar model (spike
-//! 20260713-082207, task 20260713-082330), plus the radar's provisional cue
-//! and the tap-clear toast:
+//! The two-lock crosshair language of the deliberate-radar model (spikes
+//! 20260713-082207 + 20260713-110039): show, don't tell.
 //!
 //! - WHITE crosshair on the [`TravelLock`] target - the nav designation. The
 //!   COMBAT crosshair (the existing reticle in hud/torpedo_target.rs, kept
 //!   slightly SMALLER so the two overlap cleanly on one body) stays
-//!   relation-tinted - red on hostiles, the common case.
-//! - A HOLLOW bordered box on the radar's live pick while a gesture is
-//!   ENGAGED (past the hold threshold - the lock is live under the sweep,
-//!   spike 20260713-110039), colored by the engaged slot (white = travel,
-//!   red = combat), with the candidate's name so the sweep is informed.
-//! - A transient toast line naming what a tap-clear cleared (adversarial
-//!   finding UX15 - the mode-scoped tap is invisible otherwise).
+//!   relation-tinted and carries the armed ticks while hot.
+//! - A HOLLOW bordered box riding the live lock while a radar gesture is
+//!   ENGAGED (past the hold threshold; nothing renders inside the tap
+//!   window - F11), colored by the engaged slot. During a TRAVEL sweep it
+//!   also carries the pick's name + distance (Q6a; a combat sweep's caption
+//!   lives on the inset viewfinder instead - no doubled text).
+//! - An UNLATCH GHOST per tap-clear (Q7a): the crosshair visibly pops off
+//!   the target - scale up, fade out - in the slot's color; the staged
+//!   double tap reads as two distinct pops. Replaces the old text toast
+//!   (the LockOff cue in audio.rs is its sound).
+//! - A brief centered red flash when the radar is DENIED (no Lock
+//!   capability, F7/Q8a; pairs with the deny buzz).
+//!
+//! The old "WEAPONS HOT ..." status text block is GONE: the inset frame +
+//! reticle ticks carry the safety state, the inset's presence is the
+//! guided-torpedo signal, and "TORP: DUMB" died without replacement (the
+//! red reticle's presence anywhere IS the guided cue).
 
 use bevy::prelude::*;
 
@@ -19,8 +28,8 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        lock_crosshairs_hud, LockCrosshairsHudMarker, LockCrosshairsHudPlugin, LockToastMarker,
-        RadarCandidateMarker, TravelCrosshairMarker,
+        lock_crosshairs_hud, LockCrosshairsHudMarker, LockCrosshairsHudPlugin,
+        LockUnlatchGhostMarker, RadarCandidateMarker, RadarDenyFlashMarker, TravelCrosshairMarker,
     };
 }
 
@@ -32,56 +41,71 @@ const TRAVEL_CROSSHAIR_MIN_PX: f32 = 40.0;
 /// Travel-lock white.
 const TRAVEL_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.9);
 
-/// Provisional-candidate box size (px, fixed - the hollow cue is a searching
-/// aid, not a range readout).
+/// Radar box size (px, fixed - the hollow cue is a searching aid, not a
+/// range readout).
 const RADAR_BOX_PX: f32 = 48.0;
 
-/// Provisional cue colors by latched slot.
+/// Radar cue colors by engaged slot.
 const RADAR_TRAVEL_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.7);
 const RADAR_COMBAT_COLOR: Color = Color::srgba(1.0, 0.35, 0.25, 0.8);
 
-/// Toast lifetime (seconds) and fade.
-const TOAST_SECONDS: f32 = 2.0;
+/// Unlatch ghost: lifetime (s), how far it grows (fraction of its start
+/// size) and the start sizes per slot (matching the crosshair each ghost
+/// stands in for, so the pop starts exactly where the crosshair was).
+const GHOST_SECONDS: f32 = 0.7;
+const GHOST_GROWTH: f32 = 0.8;
+const GHOST_TRAVEL_PX: f32 = TRAVEL_CROSSHAIR_MIN_PX;
+const GHOST_COMBAT_PX: f32 = 32.0;
+
+/// Radar-denied flash: a centered hollow box, red, gone fast (Q8a).
+const DENY_FLASH_SECONDS: f32 = 0.35;
 
 /// Marker for the crosshairs layer root.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct LockCrosshairsHudMarker;
 
+/// The crosshair sprite the unlatch ghosts are stamped from, stored on the
+/// layer root at setup so runtime spawns need no asset plumbing.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct LockGhostSprite(pub Handle<Image>);
+
 /// Marker for the white travel crosshair node.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TravelCrosshairMarker;
 
-/// Marker for the hollow provisional radar-candidate box.
+/// Marker for the hollow radar box (the radar-active adornment).
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct RadarCandidateMarker;
 
-/// Marker for the radar box's name label.
+/// Marker for the radar box's travel-sweep label (name + distance).
 #[derive(Component, Debug, Clone, Reflect)]
 struct RadarCandidateLabelMarker;
 
-/// Marker for the toast stack node (review 082330 R1.3 - a marker beats the
-/// Name-string lookup).
+/// One unlatch ghost: `age` drives the grow-and-fade pop.
 #[derive(Component, Debug, Clone, Reflect)]
-struct LockToastStackMarker;
-
-/// Marker for the weapons-safety status block (hot/safe + torpedo commit).
-#[derive(Component, Debug, Clone, Reflect)]
-pub struct WeaponsStatusMarker;
-
-/// One fading tap-clear toast line; `age` drives the fade.
-#[derive(Component, Debug, Clone, Reflect)]
-pub struct LockToastMarker {
-    /// Seconds since the toast spawned.
+pub struct LockUnlatchGhostMarker {
+    /// Seconds since the ghost spawned.
     pub age: f32,
+    /// Which slot popped (drives color and start size).
+    pub combat: bool,
 }
 
-/// The crosshairs layer: the travel crosshair + the provisional radar box
-/// (both screen-indicator nodes, hidden while their anchors are `None`) and
-/// the toast stack.
+/// The centered radar-denied flash node; `remaining` counts down its life
+/// (zero or below = hidden).
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct RadarDenyFlashMarker {
+    /// Seconds of flash left.
+    pub remaining: f32,
+}
+
+/// The crosshairs layer: the travel crosshair + the radar box (both
+/// screen-indicator nodes, hidden while their anchors are `None`) and the
+/// deny flash. Unlatch ghosts are spawned into this layer at runtime.
 pub fn lock_crosshairs_hud(target_sprite: Handle<Image>) -> impl Bundle {
     (
         Name::new("LockCrosshairsHUD"),
         LockCrosshairsHudMarker,
+        LockGhostSprite(target_sprite.clone()),
         screen_indicator_layer(),
         children![
             (
@@ -106,8 +130,8 @@ pub fn lock_crosshairs_hud(target_sprite: Handle<Image>) -> impl Bundle {
                     offset: Vec2::ZERO,
                     offscreen: ScreenIndicatorOffscreen::Hide,
                 }),
-                // Hollow: a border-only box, so it reads as "provisional"
-                // against the solid committed crosshairs.
+                // Hollow: a border-only box around the solid committed
+                // crosshair - "the radar is live and retargeting".
                 BorderColor::all(RADAR_TRAVEL_COLOR),
                 children![(
                     Name::new("RadarCandidateLabel"),
@@ -124,34 +148,24 @@ pub fn lock_crosshairs_hud(target_sprite: Handle<Image>) -> impl Bundle {
                 )],
             ),
             (
-                Name::new("LockToasts"),
-                LockToastStackMarker,
+                Name::new("RadarDenyFlash"),
+                RadarDenyFlashMarker { remaining: 0.0 },
                 Node {
                     position_type: PositionType::Absolute,
                     left: Val::Percent(50.0),
-                    bottom: Val::Percent(30.0),
-                    flex_direction: FlexDirection::Column,
+                    top: Val::Percent(50.0),
+                    width: Val::Px(RADAR_BOX_PX),
+                    height: Val::Px(RADAR_BOX_PX),
+                    margin: UiRect {
+                        left: Val::Px(-RADAR_BOX_PX * 0.5),
+                        top: Val::Px(-RADAR_BOX_PX * 0.5),
+                        ..default()
+                    },
+                    border: UiRect::all(Val::Px(2.0)),
                     ..default()
                 },
-            ),
-            (
-                // The weapons-safety status (task 20260713-082337): loud
-                // "WEAPONS HOT" with the reason while the safety is off
-                // (adversarial finding: a silent perma-hot state is the
-                // risk), plus the torpedo commit target (decision D5a - the
-                // one weapon where a wrong target costs a munition must not
-                // be routed by invisible state). Hidden while safe.
-                Name::new("WeaponsStatus"),
-                WeaponsStatusMarker,
-                Text::new(""),
-                TextFont::from_font_size(13.0),
-                TextColor(RADAR_COMBAT_COLOR),
-                Node {
-                    position_type: PositionType::Absolute,
-                    left: Val::Percent(50.0),
-                    bottom: Val::Percent(24.0),
-                    ..default()
-                },
+                BorderColor::all(RADAR_COMBAT_COLOR),
+                Visibility::Hidden,
             ),
         ],
     )
@@ -171,16 +185,18 @@ pub struct LockCrosshairsHudPlugin;
 impl Plugin for LockCrosshairsHudPlugin {
     fn build(&self, app: &mut App) {
         debug!("LockCrosshairsHudPlugin: build");
-        app.register_type::<LockToastMarker>();
+        app.register_type::<LockUnlatchGhostMarker>();
+        app.register_type::<RadarDenyFlashMarker>();
+        app.register_type::<LockGhostSprite>();
         app.add_systems(
             Update,
             (
                 style_radar_box,
                 drive_travel_crosshair,
                 drive_radar_candidate,
-                drive_weapons_status,
-                spawn_lock_toasts,
-                fade_lock_toasts,
+                spawn_unlatch_ghosts,
+                fade_unlatch_ghosts,
+                flash_radar_deny,
             )
                 .in_set(super::NovaHudSystems),
         );
@@ -199,48 +215,79 @@ fn drive_travel_crosshair(
     }
 }
 
-/// Point the hollow box at the radar's live pick while a gesture is ENGAGED
-/// (past the hold threshold - inside the tap window nothing renders, spike
-/// 20260713-110039 F11), colored by the engaged slot, labeled with the
-/// candidate's `Name` (falls back to the entity id - modded bodies without
-/// names still get a cue). The full radar-active adornment rework is task
-/// 20260713-110311; this keeps the box honest against the live-lock model.
+/// The radar-active adornment: while a gesture is ENGAGED the hollow box
+/// rides the LIVE LOCK - the engaged slot's current target - not the raw
+/// candidate (keep-last means the candidate can be `None` over empty space
+/// while the lock still holds; the adornment must not blink there). Inside
+/// the tap window nothing renders (F11). During a TRAVEL sweep the label
+/// carries the pick's name + distance (Q6a); a combat sweep's caption lives
+/// on the inset viewfinder, so the label stays empty then.
 #[allow(clippy::type_complexity)]
 fn drive_radar_candidate(
-    q_player: Query<Option<&RadarState>, With<PlayerSpaceshipMarker>>,
+    q_player: Query<
+        (
+            &GlobalTransform,
+            Option<&RadarState>,
+            &TravelLock,
+            &CombatLock,
+        ),
+        With<PlayerSpaceshipMarker>,
+    >,
     q_names: Query<&Name>,
+    q_positions: Query<&GlobalTransform>,
     mut q_box: Query<
         (&mut ScreenIndicatorAnchor, &mut BorderColor, &Children),
         With<RadarCandidateMarker>,
     >,
     mut q_label: Query<(&mut Text, &mut TextColor), With<RadarCandidateLabelMarker>>,
 ) {
-    let radar = q_player
-        .iter()
-        .next()
-        .flatten()
-        .copied()
-        .filter(|radar| radar.engaged.is_some());
+    let player = q_player.iter().next();
+    let engaged = player
+        .and_then(|(_, radar, ..)| radar.copied())
+        .and_then(|radar| radar.engaged.map(|slot| (radar, slot)));
     for (mut anchor, mut border, children) in &mut q_box {
-        let candidate = radar.and_then(|radar| radar.candidate);
-        **anchor = candidate.map(ScreenIndicatorAnchorKind::Entity);
-        let color = match radar.and_then(|radar| radar.engaged) {
-            Some(RadarSlot::Combat) => RADAR_COMBAT_COLOR,
-            _ => RADAR_TRAVEL_COLOR,
+        let (target, color, travel_sweep) = match (player, engaged) {
+            (Some((_, _, travel, combat)), Some((radar, slot))) => {
+                let slot_target = match slot {
+                    RadarSlot::Travel => travel.0,
+                    RadarSlot::Combat => combat.0,
+                };
+                (
+                    radar.candidate.or(slot_target),
+                    match slot {
+                        RadarSlot::Combat => RADAR_COMBAT_COLOR,
+                        RadarSlot::Travel => RADAR_TRAVEL_COLOR,
+                    },
+                    slot == RadarSlot::Travel,
+                )
+            }
+            _ => (None, RADAR_TRAVEL_COLOR, false),
         };
+        **anchor = target.map(ScreenIndicatorAnchorKind::Entity);
         *border = BorderColor::all(color);
+        let label = match target.filter(|_| travel_sweep) {
+            Some(target) => {
+                let name = q_names
+                    .get(target)
+                    .map(|name| name.to_string())
+                    .unwrap_or_else(|_| format!("{target:?}"));
+                let distance = player.and_then(|(ship, ..)| {
+                    q_positions
+                        .get(target)
+                        .ok()
+                        .map(|pos| ship.translation().distance(pos.translation()))
+                });
+                match distance {
+                    Some(distance) => format!("{name} {distance:.0}m"),
+                    None => name,
+                }
+            }
+            None => String::new(),
+        };
         for &child in children {
             if let Ok((mut text, mut label_color)) = q_label.get_mut(child) {
-                let label = candidate
-                    .map(|candidate| {
-                        q_names
-                            .get(candidate)
-                            .map(|name| name.to_string())
-                            .unwrap_or_else(|_| format!("{candidate:?}"))
-                    })
-                    .unwrap_or_default();
                 if text.0 != label {
-                    text.0 = label;
+                    text.0 = label.clone();
                 }
                 label_color.0 = color;
             }
@@ -248,105 +295,101 @@ fn drive_radar_candidate(
     }
 }
 
-/// Spawn a fading toast line per tap-clear.
-fn spawn_lock_toasts(
+/// Spawn an unlatch ghost per tap-clear (Q7a): a crosshair stamp on the
+/// cleared target that grows and fades - the wordless "the lock let go".
+/// The toast message always carries the target (the tap only fires on a
+/// `Some` slot), so there is nothing to pop for a `None`.
+fn spawn_unlatch_ghosts(
     mut commands: Commands,
     mut toasts: MessageReader<LockClearedToast>,
-    q_stack: Query<Entity, With<LockToastStackMarker>>,
+    q_layer: Query<(Entity, &LockGhostSprite), With<LockCrosshairsHudMarker>>,
 ) {
-    let Some(stack) = q_stack.iter().next() else {
+    let Some((layer, sprite)) = q_layer.iter().next() else {
         // No player HUD: drain quietly.
         toasts.read().for_each(|_| {});
         return;
     };
     for toast in toasts.read() {
-        let (message, color) = if toast.combat {
-            ("COMBAT LOCK CLEARED", RADAR_COMBAT_COLOR)
-        } else {
-            ("NAV LOCK CLEARED", TRAVEL_COLOR)
+        let Some(target) = toast.target else {
+            continue;
         };
-        commands.entity(stack).with_child((
-            Name::new("LockToast"),
-            LockToastMarker { age: 0.0 },
-            Text::new(message),
-            TextFont::from_font_size(13.0),
-            TextColor(color),
+        let (color, size) = if toast.combat {
+            (RADAR_COMBAT_COLOR, GHOST_COMBAT_PX)
+        } else {
+            (TRAVEL_COLOR, GHOST_TRAVEL_PX)
+        };
+        commands.entity(layer).with_child((
+            Name::new("LockUnlatchGhost"),
+            LockUnlatchGhostMarker {
+                age: 0.0,
+                combat: toast.combat,
+            },
+            screen_indicator(ScreenIndicatorConfig {
+                anchor: Some(ScreenIndicatorAnchorKind::Entity(target)),
+                size: ScreenIndicatorSize::Fixed(Vec2::splat(size)),
+                offset: Vec2::ZERO,
+                offscreen: ScreenIndicatorOffscreen::Hide,
+            }),
+            ImageNode::new(sprite.0.clone()).with_color(color),
         ));
     }
 }
 
-/// Age and fade the toast lines, despawning them after [`TOAST_SECONDS`].
-fn fade_lock_toasts(
+/// Grow and fade the unlatch ghosts, despawning them after
+/// [`GHOST_SECONDS`]. The widget re-applies `ScreenIndicatorSize` to the
+/// node every frame, so the growth mutates the size component, not the
+/// node.
+fn fade_unlatch_ghosts(
     time: Res<Time>,
     mut commands: Commands,
-    mut q_toasts: Query<(Entity, &mut LockToastMarker, &mut TextColor)>,
+    mut q_ghosts: Query<(
+        Entity,
+        &mut LockUnlatchGhostMarker,
+        &mut ScreenIndicatorSize,
+        &mut ImageNode,
+    )>,
 ) {
-    for (toast, mut marker, mut color) in &mut q_toasts {
+    for (ghost, mut marker, mut size, mut image) in &mut q_ghosts {
         marker.age += time.delta_secs();
-        if marker.age >= TOAST_SECONDS {
-            commands.entity(toast).despawn();
+        let t = marker.age / GHOST_SECONDS;
+        if t >= 1.0 {
+            commands.entity(ghost).despawn();
             continue;
         }
-        let alpha = (1.0 - marker.age / TOAST_SECONDS).clamp(0.0, 1.0);
-        color.0 = color.0.with_alpha(alpha);
+        let start = if marker.combat {
+            GHOST_COMBAT_PX
+        } else {
+            GHOST_TRAVEL_PX
+        };
+        *size = ScreenIndicatorSize::Fixed(Vec2::splat(start * (1.0 + GHOST_GROWTH * t)));
+        let base = if marker.combat {
+            RADAR_COMBAT_COLOR
+        } else {
+            TRAVEL_COLOR
+        };
+        image.color = base.with_alpha(base.alpha() * (1.0 - t));
     }
 }
 
-/// Drive the weapons-safety status text: "WEAPONS HOT" + why (manual stance
-/// or the locked target's name and distance) + the torpedo commit line;
-/// empty while safe.
-#[allow(clippy::type_complexity)]
-fn drive_weapons_status(
-    q_player: Query<
-        (
-            &GlobalTransform,
-            &WeaponsHot,
-            Option<&WeaponsRaised>,
-            &CombatLock,
-        ),
-        With<PlayerSpaceshipMarker>,
-    >,
-    q_targets: Query<(Option<&Name>, &GlobalTransform)>,
-    q_torpedo_bays: Query<&ChildOf, (With<TorpedoSectionMarker>, Without<SectionInactiveMarker>)>,
-    mut q_status: Query<(Entity, &mut Text), With<WeaponsStatusMarker>>,
+/// Flash the centered deny box while [`RadarDenied`] burns down (Q8a): the
+/// visual half of the deny cue (the buzz is audio.rs's).
+fn flash_radar_deny(
+    time: Res<Time>,
+    mut denied: MessageReader<RadarDenied>,
+    mut q_flash: Query<(&mut RadarDenyFlashMarker, &mut Visibility, &mut BorderColor)>,
 ) {
-    let Some((ship_transform, hot, raised, lock)) = q_player.iter().next() else {
-        return;
-    };
-    for (_, mut text) in &mut q_status {
-        let next = if !hot.0 {
-            String::new()
+    let denied_now = denied.read().next().is_some();
+    for (mut flash, mut visibility, mut border) in &mut q_flash {
+        if denied_now {
+            flash.remaining = DENY_FLASH_SECONDS;
+        }
+        if flash.remaining > 0.0 {
+            flash.remaining -= time.delta_secs();
+            let alpha = (flash.remaining / DENY_FLASH_SECONDS).clamp(0.0, 1.0);
+            *border = BorderColor::all(RADAR_COMBAT_COLOR.with_alpha(alpha));
+            visibility.set_if_neq(Visibility::Visible);
         } else {
-            let reason = match lock.0.and_then(|target| q_targets.get(target).ok()) {
-                Some((name, target_transform)) => {
-                    let distance = ship_transform
-                        .translation()
-                        .distance(target_transform.translation());
-                    let name = name
-                        .map(|name| name.to_string())
-                        .unwrap_or_else(|| "TARGET".to_string());
-                    format!("lock {name} {distance:.0}m")
-                }
-                None => "manual".to_string(),
-            };
-            let raised = raised.is_some_and(|raised| raised.0);
-            let torpedo = if q_torpedo_bays.iter().next().is_some() {
-                match lock.0.and_then(|target| q_targets.get(target).ok()) {
-                    Some((name, _)) => format!(
-                        "\nTORP -> {}",
-                        name.map(|name| name.to_string())
-                            .unwrap_or_else(|| "TARGET".to_string())
-                    ),
-                    None => "\nTORP: DUMB".to_string(),
-                }
-            } else {
-                String::new()
-            };
-            let stance = if raised { " [RAISED]" } else { "" };
-            format!("WEAPONS HOT{stance}: {reason}{torpedo}")
-        };
-        if text.0 != next {
-            text.0 = next;
+            visibility.set_if_neq(Visibility::Hidden);
         }
     }
 }
@@ -401,20 +444,23 @@ mod tests {
         );
     }
 
-    #[test]
-    fn radar_box_shows_only_engaged_colors_by_slot_and_labels_the_pick() {
+    /// A world with a player (at the origin), the radar box + label, and
+    /// one named target 100 u ahead. Returns (world, player, target, box,
+    /// label).
+    fn box_world() -> (World, Entity, Entity, Entity, Entity) {
         let mut world = World::new();
-        let candidate_entity = world.spawn(Name::new("SCAVENGER")).id();
+        let target = world
+            .spawn((
+                Name::new("SCAVENGER"),
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -100.0)),
+            ))
+            .id();
         let player = world
             .spawn((
                 PlayerSpaceshipMarker,
-                // An open search still inside the tap window: nothing may
-                // render yet (spike 20260713-110039 F11).
-                RadarState {
-                    engaged: None,
-                    candidate: Some(candidate_entity),
-                    acquired: false,
-                },
+                GlobalTransform::IDENTITY,
+                TravelLock(None),
+                CombatLock(None),
             ))
             .id();
         let label = world
@@ -432,39 +478,162 @@ mod tests {
             ))
             .id();
         world.entity_mut(boxed).add_child(label);
+        (world, player, target, boxed, label)
+    }
 
+    fn box_anchor(world: &World, boxed: Entity) -> Option<ScreenIndicatorAnchorKind> {
+        **world.entity(boxed).get::<ScreenIndicatorAnchor>().unwrap()
+    }
+
+    #[test]
+    fn radar_box_rides_the_live_lock_and_labels_travel_sweeps() {
+        let (mut world, player, target, boxed, label) = box_world();
+
+        // Open search inside the tap window: nothing renders (F11).
+        world.entity_mut(player).insert(RadarState {
+            engaged: None,
+            candidate: Some(target),
+            acquired: false,
+        });
         world.run_system_once(drive_radar_candidate).unwrap();
         assert_eq!(
-            **world.entity(boxed).get::<ScreenIndicatorAnchor>().unwrap(),
+            box_anchor(&world, boxed),
             None,
             "inside the tap window nothing renders (F11)"
         );
 
-        // Engaged travel: the box rides the pick, white, named.
+        // Engaged travel sweep: the box rides the pick, white, and the
+        // label carries name + distance (Q6a).
         world.get_mut::<RadarState>(player).unwrap().engaged = Some(RadarSlot::Travel);
+        world.get_mut::<TravelLock>(player).unwrap().0 = Some(target);
         world.run_system_once(drive_radar_candidate).unwrap();
         assert_eq!(
-            **world.entity(boxed).get::<ScreenIndicatorAnchor>().unwrap(),
-            Some(ScreenIndicatorAnchorKind::Entity(candidate_entity))
+            box_anchor(&world, boxed),
+            Some(ScreenIndicatorAnchorKind::Entity(target))
         );
         assert_eq!(
             world.entity(label).get::<Text>().unwrap().0,
-            "SCAVENGER",
-            "the sweep is informed by the pick's name"
+            "SCAVENGER 100m",
+            "a travel sweep is informed by name + distance"
         );
 
-        // Engaged combat: the cue turns combat-red.
-        world.get_mut::<RadarState>(player).unwrap().engaged = Some(RadarSlot::Combat);
+        // Keep-last: the candidate drops over empty space but the lock
+        // holds - the adornment must ride the lock, not blink.
+        world.get_mut::<RadarState>(player).unwrap().candidate = None;
         world.run_system_once(drive_radar_candidate).unwrap();
-        let border = *world.entity(boxed).get::<BorderColor>().unwrap();
-        assert_eq!(border, BorderColor::all(RADAR_COMBAT_COLOR));
+        assert_eq!(
+            box_anchor(&world, boxed),
+            Some(ScreenIndicatorAnchorKind::Entity(target)),
+            "keep-last: the adornment rides the held lock over empty space"
+        );
+
+        // A combat sweep goes red and its label is EMPTY - the caption
+        // lives on the inset viewfinder (no doubled text).
+        world.get_mut::<RadarState>(player).unwrap().engaged = Some(RadarSlot::Combat);
+        world.get_mut::<RadarState>(player).unwrap().candidate = Some(target);
+        world.get_mut::<CombatLock>(player).unwrap().0 = Some(target);
+        world.run_system_once(drive_radar_candidate).unwrap();
+        assert_eq!(
+            *world.entity(boxed).get::<BorderColor>().unwrap(),
+            BorderColor::all(RADAR_COMBAT_COLOR)
+        );
+        assert_eq!(
+            world.entity(label).get::<Text>().unwrap().0,
+            "",
+            "combat sweeps caption on the inset, not the box"
+        );
 
         // Search closed: the box hides.
         world.entity_mut(player).remove::<RadarState>();
         world.run_system_once(drive_radar_candidate).unwrap();
+        assert_eq!(box_anchor(&world, boxed), None);
+    }
+
+    #[test]
+    fn unlatch_ghosts_pop_grow_and_expire() {
+        let mut world = World::new();
+        world.init_resource::<Messages<LockClearedToast>>();
+        world.insert_resource(Time::<()>::default());
+        let target = world.spawn_empty().id();
+        world.spawn((LockCrosshairsHudMarker, LockGhostSprite(Handle::default())));
+
+        world
+            .resource_mut::<Messages<LockClearedToast>>()
+            .write(LockClearedToast {
+                combat: true,
+                target: Some(target),
+            });
+        world.run_system_once(spawn_unlatch_ghosts).unwrap();
+
+        let (ghost, anchor, size) = {
+            let mut q = world.query::<(
+                Entity,
+                &ScreenIndicatorAnchor,
+                &ScreenIndicatorSize,
+                &LockUnlatchGhostMarker,
+            )>();
+            let (ghost, anchor, size, marker) = q.iter(&world).next().expect("a ghost spawned");
+            assert!(marker.combat);
+            (ghost, **anchor, *size)
+        };
         assert_eq!(
-            **world.entity(boxed).get::<ScreenIndicatorAnchor>().unwrap(),
-            None
+            anchor,
+            Some(ScreenIndicatorAnchorKind::Entity(target)),
+            "the ghost pops where the crosshair was"
+        );
+        assert_eq!(
+            size,
+            ScreenIndicatorSize::Fixed(Vec2::splat(GHOST_COMBAT_PX)),
+            "the ghost starts at the combat reticle size"
+        );
+
+        // Age it past its life: it despawns (the growth in between is the
+        // same code path; the terminal state is the contract).
+        world.get_mut::<LockUnlatchGhostMarker>(ghost).unwrap().age = GHOST_SECONDS + 0.01;
+        world.run_system_once(fade_unlatch_ghosts).unwrap();
+        assert!(
+            world.get_entity(ghost).is_err(),
+            "an expired ghost despawns"
+        );
+    }
+
+    #[test]
+    fn the_deny_flash_lights_and_burns_down() {
+        let mut world = World::new();
+        world.init_resource::<Messages<RadarDenied>>();
+        world.insert_resource(Time::<()>::default());
+        let flash = world
+            .spawn((
+                RadarDenyFlashMarker { remaining: 0.0 },
+                Visibility::Hidden,
+                BorderColor::all(RADAR_COMBAT_COLOR),
+            ))
+            .id();
+        // Registered ONCE so the MessageReader cursor persists across runs
+        // (run_system_once rebuilds the system and would re-read the same
+        // message - the registered-system lesson, LESSONS.md).
+        let system = world.register_system(flash_radar_deny);
+
+        world
+            .resource_mut::<Messages<RadarDenied>>()
+            .write(RadarDenied);
+        world.run_system(system).unwrap();
+        assert_eq!(
+            *world.entity(flash).get::<Visibility>().unwrap(),
+            Visibility::Visible,
+            "a denied hold flashes the box"
+        );
+
+        // Burn it down: with the message consumed and the timer forced out,
+        // the flash hides again (delivery guard above proves it lit).
+        world
+            .get_mut::<RadarDenyFlashMarker>(flash)
+            .unwrap()
+            .remaining = -1.0;
+        world.run_system(system).unwrap();
+        assert_eq!(
+            *world.entity(flash).get::<Visibility>().unwrap(),
+            Visibility::Hidden
         );
     }
 }

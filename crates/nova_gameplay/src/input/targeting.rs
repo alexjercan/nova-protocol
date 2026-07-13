@@ -38,9 +38,9 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         targeting_state, CombatLock, ComponentLock, ComponentLockMode, LockClearedToast, LockFocus,
-        LockSignature, RadarLockAcquired, RadarSlot, RadarState, SpaceshipTargetingPlugin,
-        SpaceshipTargetingSystems, TargetingSettings, ThreatContacts, TravelLock, WeaponsHot,
-        RADAR_TAP_SECS,
+        LockSignature, RadarDenied, RadarLockAcquired, RadarSlot, RadarState,
+        SpaceshipTargetingPlugin, SpaceshipTargetingSystems, TargetingSettings, ThreatContacts,
+        TravelLock, WeaponsHot, RADAR_TAP_SECS,
     };
 }
 
@@ -212,14 +212,24 @@ pub struct RadarLockAcquired {
     pub combat: bool,
 }
 
-/// Toast message for the HUD: what a tap-clear just cleared, so the
-/// mode-scoped gesture is legible (adversarial finding UX15).
-#[derive(Message, Debug, Clone)]
+/// A tap-clear just cleared a lock. The HUD's unlatch ghost (the crosshair
+/// visibly popping off the target - the wordless replacement for the old
+/// text toast, Q7a of spike 20260713-110039) and the LockOff cue read this.
+#[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LockClearedToast {
     /// True: the combat lock was cleared; false: the travel lock (and any
     /// engaged GOTO was disengaged with it).
     pub combat: bool,
+    /// The target the lock held, so the ghost can anchor where the
+    /// crosshair was (`None` only if the slot was somehow already empty).
+    pub target: Option<Entity>,
 }
+
+/// A radar hold was denied because the ship's computer grants no Lock
+/// capability (F7 - previously a silent no-op). The deny buzz + the radar
+/// adornment flash read this (Q8a).
+#[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RadarDenied;
 
 /// System set for the lock update, so consumers (torpedo commit, turret
 /// feed) can order after it.
@@ -248,6 +258,7 @@ impl Plugin for SpaceshipTargetingPlugin {
         app.register_type::<ComponentLock>();
         app.add_message::<LockClearedToast>();
         app.add_message::<RadarLockAcquired>();
+        app.add_message::<RadarDenied>();
 
         // The state bundle rides the player marker wherever ships spawn
         // (observer-over-spawn-site).
@@ -829,6 +840,7 @@ fn on_radar_start(
     _: On<Start<RadarHoldInput>>,
     mut commands: Commands,
     pause: Res<State<crate::PauseStates>>,
+    mut denied: MessageWriter<RadarDenied>,
     q_controllers: Query<
         (&ChildOf, &ControllerVerbs),
         (
@@ -846,8 +858,9 @@ fn on_radar_start(
     }
     for ship in &q_ship {
         if !ship_grants_lock(ship, &q_controllers) {
-            // No Lock capability on this computer: the radar simply does not
-            // come on (deny cue lands with the HUD task 20260713-110311).
+            // No Lock capability on this computer: the radar does not come
+            // on - and says so (deny buzz + adornment flash, F7/Q8a).
+            denied.write(RadarDenied);
             continue;
         }
         commands.entity(ship).insert(RadarState::default());
@@ -937,11 +950,17 @@ fn on_lock_clear_tap(
     for (ship, raised, mut travel, mut combat, autopilot) in &mut q_ship {
         let raised = raised.is_some_and(|raised| raised.0);
         if combat.0.is_some() {
-            combat.0 = None;
-            toasts.write(LockClearedToast { combat: true });
+            let target = combat.0.take();
+            toasts.write(LockClearedToast {
+                combat: true,
+                target,
+            });
         } else if !raised && travel.0.is_some() {
-            travel.0 = None;
-            toasts.write(LockClearedToast { combat: false });
+            let target = travel.0.take();
+            toasts.write(LockClearedToast {
+                combat: false,
+                target,
+            });
             // Clearing the designation disengages an engaged GOTO (decision
             // from the recap Q&A); other maneuvers (STOP/ORBIT) are not
             // lock-bound and keep flying.
@@ -2195,6 +2214,7 @@ mod tests {
         app.add_observer(on_lock_clear_tap);
         app.add_message::<LockClearedToast>();
         app.add_message::<RadarLockAcquired>();
+        app.add_message::<RadarDenied>();
         // The live search runs inside the pause-gated input set, exactly as
         // the production plugin wires it.
         app.add_systems(

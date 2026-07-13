@@ -44,6 +44,16 @@ SOUNDS = {
     "objective_new": ("sweep", 520.0, 560.0, 0.12, 0.20),
     # Objective completed: rising fifth, reads as success.
     "objective_complete": ("sweep", 440.0, 660.0, 0.22, 0.22),
+    # Radar lock acquired: quick rising chirp, higher and shorter than the
+    # objective blip so the two never blur (once per radar gesture).
+    "lock_on": ("sweep", 700.0, 980.0, 0.09, 0.22),
+    # Lock cleared: the falling mirror of lock_on.
+    "lock_off": ("sweep", 980.0, 640.0, 0.09, 0.20),
+    # Weapons safety re-engaging (hot -> cold): dull low click, deliberately
+    # unexciting - "the guns just went quiet".
+    "safety_on": ("sweep", 320.0, 180.0, 0.06, 0.22),
+    # Radar denied (computer grants no Lock capability): low flat buzz.
+    "radar_deny": ("tone", 110.0, 112.0, 0.16, 0.20),
 }
 
 

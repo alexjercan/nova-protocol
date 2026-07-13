@@ -53,6 +53,14 @@ const RETICLE_HOSTILE_COLOR: Color = Color::srgba(1.0, 0.35, 0.3, 1.0);
 const RETICLE_OWN_COLOR: Color = Color::srgba(0.35, 0.9, 0.55, 1.0);
 const RETICLE_NEUTRAL_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 1.0);
 
+/// Armed corner ticks on the reticle (Q5a of spike 20260713-110039, the
+/// SHAPE half of the hot cue): four small pips at the reticle corners,
+/// visible only while the player's weapons are HOT. This is the universal
+/// non-inset hot cue - a beacon lock or a reduced HUD tier has no inset
+/// frame to carry the state.
+const ARMED_TICK_PX: f32 = 6.0;
+const ARMED_TICK_COLOR: Color = Color::srgba(1.0, 0.45, 0.3, 0.95);
+
 pub mod prelude {
     pub use super::{
         torpedo_target_hud, TorpedoTargetFocusFillMarker, TorpedoTargetFocusMeterMarker,
@@ -227,16 +235,72 @@ pub struct TorpedoTargetHudPlugin;
 
 impl Plugin for TorpedoTargetHudPlugin {
     fn build(&self, app: &mut App) {
+        app.register_type::<TorpedoTargetArmedTickMarker>();
         app.add_systems(
             Update,
             (
+                spawn_reticle_armed_ticks,
                 drive_reticle_anchor,
                 update_reticle_relation_tint,
+                drive_reticle_armed_ticks,
                 update_target_readout,
                 update_focus_meter,
             )
                 .in_set(super::NovaHudSystems),
         );
+    }
+}
+
+/// Marker for one armed corner tick on the reticle.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct TorpedoTargetArmedTickMarker;
+
+/// Stamp the four armed corner ticks onto a freshly spawned reticle (the
+/// Added-styling pattern, like the radar box border): corner pips placed by
+/// percent so they track the reticle's ApparentSize scaling for free.
+fn spawn_reticle_armed_ticks(
+    mut commands: Commands,
+    q_reticle: Query<Entity, Added<TorpedoTargetReticleMarker>>,
+) {
+    for reticle in &q_reticle {
+        for (right, bottom) in [(false, false), (true, false), (false, true), (true, true)] {
+            let offset = Val::Px(-ARMED_TICK_PX - 1.0);
+            let auto = Val::Auto;
+            commands.entity(reticle).with_child((
+                Name::new("ReticleArmedTick"),
+                TorpedoTargetArmedTickMarker,
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: if right { auto } else { offset },
+                    right: if right { offset } else { auto },
+                    top: if bottom { auto } else { offset },
+                    bottom: if bottom { offset } else { auto },
+                    width: Val::Px(ARMED_TICK_PX),
+                    height: Val::Px(ARMED_TICK_PX),
+                    ..default()
+                },
+                BackgroundColor(ARMED_TICK_COLOR),
+                Pickable::IGNORE,
+                Visibility::Hidden,
+            ));
+        }
+    }
+}
+
+/// Show the armed ticks while the player's weapons are HOT (Q5a): shape +
+/// color redundancy with the reticle tint and the inset frame.
+fn drive_reticle_armed_ticks(
+    q_player: Query<&WeaponsHot, With<PlayerSpaceshipMarker>>,
+    mut q_ticks: Query<&mut Visibility, With<TorpedoTargetArmedTickMarker>>,
+) {
+    let hot = q_player.iter().next().is_some_and(|hot| hot.0);
+    let visibility = if hot {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    };
+    for mut tick in &mut q_ticks {
+        tick.set_if_neq(visibility);
     }
 }
 
