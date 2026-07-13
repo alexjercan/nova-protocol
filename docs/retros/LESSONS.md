@@ -102,6 +102,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   upstream example carries implicit device requirements; check its downlevel
   flags/limits against the weakest shipped platform (WebGL2) before adopting.
   20260713-175415.
+- `additions-join-doc-indexes` (x1): adding an artifact of an enumerated kind
+  (example, crate) must update the doc list that enumerates its kind; grep
+  docs/ for a sibling's name before committing. 20260713-175352.
+- `null-result-becomes-a-pin` (positive, x1): when an investigation lands on
+  "cannot reproduce", convert the evidence rig into a permanent harnessed pin
+  (error-handler-to-panic smoke example) so the non-behavior stays falsifiable
+  and the rig's cost buys coverage. 20260713-175352.
 - `state-diff-aliases-reset` (x1): deriving events by diffing state makes a
   reset look like a batch of events; guard the non-event transitions
   (teardown, load, clear). 20260712-125342.
