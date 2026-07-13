@@ -186,6 +186,51 @@
                     live inertia, so a stripped ship snaps around and a heavy
                     build lumbers.
                 </p>
+                <p>
+                    All of this rides on the same foundation the game started
+                    from: a ship is not a monolithic model but a root entity
+                    with a handful of <em>section</em> children - hull,
+                    controller, thruster, turret, torpedo bay - each carrying
+                    its own mass and health and contributing exactly one
+                    behavior. Because the flight computer drives those real
+                    actuators rather than scripting a position, it stays honest
+                    about the hull it is given.
+                </p>
+                <p>
+                    That honesty is the whole point of the
+                    <strong>diegetic autopilot</strong>. When you press GOTO,
+                    ORBIT or STOP, the computer does not slide the ship to a
+                    destination - it drives the same controller and thrusters
+                    you would, so you watch the hull physically swing to a new
+                    heading and the exhaust plume light up as it burns:
+                </p>
+                <ul>
+                    <li>
+                        <strong>GOTO</strong> burns toward your current lock,
+                        flips at the arrival curve, and decelerates to rest at a
+                        standoff distance.
+                    </li>
+                    <li>
+                        <strong>ORBIT</strong> parks you into a stable circular
+                        orbit around the dominant gravity well.
+                    </li>
+                    <li>
+                        <strong>STOP</strong> faces retrograde and burns until
+                        you are at rest.
+                    </li>
+                </ul>
+                <p>
+                    Because it flies through the real actuators, it is honest
+                    about the ship's limits - a sluggish, under-thrustered build
+                    takes longer to come around than a nimble one - and the
+                    moment you touch a control, the autopilot disengages and
+                    hands you back a ship that is already moving. ORBIT has
+                    something real to fly around, too: large asteroids carry
+                    gravity wells with genuine inverse-square pull, clamped near
+                    the surface and faded to nothing at the edge of their sphere
+                    of influence. That single mechanic is what turns "fly to a
+                    point" into "manage your orbit".
+                </p>
 
                 <h2>Sound and fury</h2>
                 <p>
