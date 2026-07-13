@@ -200,6 +200,151 @@ closed; where a new task inherits a dead task's analysis it says so.
   disengage-on-clear, guns/torps/focus/inset -> combat, AI parity).
 - tatr 20260713-082344: docs reconcile against the shipped radar model.
 
+## Adversarial review round (2026-07-13)
+
+Two independent adversarial reviewers were run on the design above - one UX
+(attacking with player scenarios), one feasibility (attacking against the code
+at file:line) - plus direct verification of the load-bearing claims in the main
+session (bevy_enhanced_input 0.26.0 condition semantics; the pause-ungated
+`CombatInput` observers; the latched fire input at player.rs:1053-1073 /
+turret_section.rs:948). Verdict frame: the design ships regardless; these are
+the sharp edges to spec before/at plan time. Findings condensed; severities
+kept.
+
+### State-machine gaps (design decisions needed - see the decision list)
+
+- **[D1] (UX BLOCKER) Radar release with no candidate is undefined.** Sweep
+  onto empty space and release: commit-None would silently destroy an existing
+  lock (and an engaged GOTO); keep-old means there is no radar abort. Proposed:
+  release-with-no-candidate = NO-OP (old lock survives) - "sweep off and
+  release" becomes the abort gesture.
+- **[D2] (UX MAJOR) Commit slot is routed by mode AT RELEASE**, so a
+  mid-gesture RMB change silently re-routes the commit (enemy lands as a white
+  travel lock with guns cold, or a beacon lands as a hot combat lock); the
+  same-frame CTRL+RMB release race is order-dependent. Proposed: LATCH the
+  destination slot at CTRL press and color the provisional crosshair by that
+  slot for the whole hold.
+- **[D3] (UX MAJOR x2) Tap = clear-ALL is the fast gesture with the biggest
+  blast radius** - a too-fast radar flick mid-GOTO clears both locks AND
+  disengages the autopilot; and the rule's own rationale inverts under GOTO
+  (safing a stale combat lock without killing the autopilot requires entering
+  combat mode - the exact thing clear-all was meant to avoid). Proposed
+  (fixes both): STAGED clear - tap clears the combat lock if one exists,
+  a second tap clears travel/GOTO - plus a "LOCKS CLEARED" toast; alternative:
+  keep clear-all but exempt an engaged GOTO (Z already exists for deliberate
+  disengage).
+- **[D4] (UX MAJOR) Stale combat lock = weapons perma-hot to 20 km.** Safety
+  OFF while any combat lock exists + sticky locks + 20 km ship lockability =
+  a fled enemy keeps your guns hot for minutes; the predecessor's accepted
+  mitigation (stale-lock decay ~20 s outside combat stance) was dropped by the
+  new truth table. Proposed: re-add the decay flag and/or a much shorter
+  combat out-of-range clear, and make the weapons-hot HUD loud ("HOT: lock on
+  X, 14.2 km").
+- **[D5] (UX MAJOR) Torpedoes ignore the manual-wins rule** turrets get: while
+  RMB is held the guns follow your look but a launch commits to the (possibly
+  off-screen) combat lock - the one weapon where a wrong target costs a
+  munition is routed by invisible state. Proposed: a commit-target readout on
+  the ammo HUD ("TORP -> SCAVENGER" / "TORP: DUMB"), or commit-only-if-lock-
+  in-view-cone else dumb-fire.
+- **[D6] (UX MAJOR) Gamepad: no free input fits hold+tap radar.** LB is
+  FreeLook (camera_controller.rs:225), LT2 is combat, stick clicks fight
+  precise aim, and DPadUp (the only freed button) takes the thumb off the
+  stick. Proposed: on pad, radar is a press-TOGGLE (press on / press commit /
+  long-press clear), or FreeLook moves to reclaim LB.
+- **[D7] (UX MAJOR) Candidate flicker at release commits a coin flip** -
+  worst for the torpedo-vs-launcher collinear pair in point defense. Proposed
+  (fold into 082330, likely no user call needed): incumbent hysteresis on the
+  provisional candidate (the existing cos-ratio band pattern) + a name label
+  on the hollow crosshair.
+- **[D8] (UX MINOR) GOTO reads the travel lock live or captured at [G]?**
+  Re-designating mid-flight either leaves the HUD lying or silently re-routes
+  the autopilot. Pick one and show the destination name on the GOTO row.
+  Proposed default: captured at [G].
+
+### Accepted implementation caveats (fold into the tasks; no user call)
+
+- **Fire gate must be a live predicate, not a press gate** (feasibility MAJOR,
+  verified): the trigger LATCHES `TurretSectionInput = true` on `Start`
+  (player.rs:1053-1073) and the section fires every cooldown tick while true
+  (turret_section.rs:948; torpedo same shape at :1127/torpedo mod.rs:488). A
+  safety flip mid-held-trigger must zero the section inputs or be re-checked
+  section-side - and a section-side check hits AI ships too, so decide which
+  layer owns the gate (082337).
+- **bevy_enhanced_input event mapping** (feasibility MAJOR, cross-verified):
+  Hold = Start(press) -> Fire(threshold, per-frame) -> **Complete**(release) =
+  commit; sub-threshold release emits **Cancel**, not Complete (commit
+  observer listens to Complete only). Tap fires **`Fire<Tap>`** once on quick
+  release (listen to Fire, not Complete; ignore its t=threshold Cancel). Two
+  actions on the same CTRL bindings coexist (consume_input: false). Route the
+  slot branch in observers by reading raised state (the `cycle_modifier_held`
+  pattern) - never as stacked conditions. Derive Tap release-time and Hold
+  threshold from ONE constant and test the boundary frame.
+- **Input timers tick on REAL time** (feasibility MAJOR): `TimeKind::Real`
+  default - thresholds advance while paused, and a release during pause fires
+  Complete into pause-gated observers, silently eating the commit. Decide
+  latch-vs-drop across pause for the commit AND the raised flag (082324/082330).
+- **The infra task (082324) is a hard prerequisite for MANUAL aim too**
+  (feasibility MAJOR, re-verified live): Alt-release while RMB is held sets
+  mode Normal (camera_controller.rs:692-697), which would deactivate the
+  turret rig while raised - manual gunnery tracking a frozen ray.
+- **Test/example rewrite budget** (feasibility MAJOR): ~20 of ~45 targeting
+  tests encode auto-acquire/sticky/pin/CTRL-cycle semantics and die or change
+  meaning; 12_hud_range's script asserts passive auto-lock + dwell fill and
+  needs scripted radar (or component writes); player.rs free-aim + hint tests
+  re-key. Pure helpers (pick_target, range gates, rank) survive as radar rules.
+- **Candidate-set consumers need a fate** (feasibility MAJOR -> decision
+  [D9]): `SpaceshipPlayerTargetCandidates` feeds the candidates HUD and the
+  edge-indicator threat arrows; killing the cycle orphans them. Proposed: keep
+  the ranked tracker always-on as the threat set (edge arrows survive), retire
+  or repurpose the on-screen candidate list.
+- **Commit reads last frame's candidate** (observers run PreUpdate, picker in
+  Update): store the provisional candidate on the ship root; never recompute
+  in the observer. One frame of staleness is fine.
+- **Respawn/death mid-gesture**: rigs despawn with the ship/camera and no
+  Complete fires - componentized state on the fresh ship root default-clears
+  (this is the respawn wart being fixed; do not reintroduce a resource).
+- **Lock capability**: mechanism verified (ControllerVerbs is compile-checked,
+  Rust-authored, no data migration), but verbs gate only the PLAYER today - AI
+  never checks them, so a lock-less AI needs its own AI-side check; and decide
+  whether Lock lives in ControllerVerbs (documented as "autopilot maneuvers")
+  or a sibling scanner-capability component (082330/082337).
+- **AI parity scope**: cheap as "components on ship roots + a thin mirror"
+  (ai.rs already keeps AITarget etc. on roots); expensive as "one code path"
+  (an AITarget->CombatLock unification drags ~30 test sites; the duplicated
+  player/AI torpedo commit is the natural first unification). Also spec: AI
+  acquisition timing (instant vs dwell-bound), HUD/audio cues filtered to the
+  player ship, and what a LOCK-LESS AI's turrets do (the three-tier feed reads
+  the lock - lock-less AI without manual-look gunnery is a harmlessness cliff,
+  not difficulty flavor) (082337).
+- **Dwell only on the COMMITTED lock**: keep the provisional radar candidate
+  in its own field/component so live retargeting neither accrues nor resets
+  focus dwell; same-entity re-commit is a NO-OP (lock/focus/component-lock
+  survive) (082330).
+- **Natural-clear list**: re-add allegiance-flip-to-non-hostile (the round-3
+  m5 carry-over that was dropped) (082330).
+- **Tutorial/scenario surface**: shakedown's "Lock BEACON 3 and press [G]"
+  (shakedown.rs:583) teaches the dead passive lock; combat locking is never
+  taught at all (beat 5 is pure manual gunnery). Add shakedown text + a
+  teach-the-radar beat to the docs task's scope; guarantee the tutorial ship's
+  computer has the lock capability (082344 + scenario).
+- **Smaller UX notes**: context-sensitive CTRL hint row + cleared-locks toast
+  (the mode-scoped tap is invisible otherwise); a safety-engaged cue on the
+  OFF->ON edge (lock death mid-burst silently cuts guns); optional hold-fire-
+  while-radar-active flag (sweeping with the trigger down rakes bystanders);
+  lowered turrets rest pose (cosmetic); point-defense time budget currently
+  viable (~15-25 s vs ~4-6 s of inputs) but COUPLED to torpedo speed/launch
+  range - re-run the arithmetic on any torpedo buff.
+
+### What held up under both attacks
+
+The safety truth table (no contradictions once clears are defined); slot
+independence (fight-while-fleeing works); combat-tap preserving the travel
+designation; manual-wins-while-raised absorbing free-aim; CTRL genuinely
+ceasing to be a modifier (tap/hold is an ordinary threshold, no Chord class);
+the travel gesture tax (one deliberate hold+release per designation); the
+componentization/respawn inheritance; every spike code citation spot-checked
+accurate.
+
 ## Fix record
 
-(tasks not started yet)
+(tasks not started yet; decision list D1-D9 pending user)
