@@ -1,6 +1,6 @@
 //! The torpedo-lock reticle and the locked-target info readout: a
 //! screen-projected indicator on the entity the player's aim-assist currently
-//! locks (`SpaceshipPlayerTargetLock`), with distance, closing speed
+//! locks (the ship-root `CombatLock`), with distance, closing speed
 //! and a health bar riding its edge (tasks 20260708-165700 / 165702).
 //!
 //! A thin consumer of the [`screen_indicator`](super::screen_indicator)
@@ -243,11 +243,12 @@ impl Plugin for TorpedoTargetHudPlugin {
 /// Point the reticle indicator at the current lock; `None` (no lock) hides it
 /// via the widget's anchor handling.
 fn drive_reticle_anchor(
-    res_target: Res<SpaceshipPlayerTargetLock>,
+    q_player: Query<&CombatLock, With<PlayerSpaceshipMarker>>,
     mut q_reticle: Query<&mut ScreenIndicatorAnchor, With<TorpedoTargetReticleMarker>>,
 ) {
+    let lock = q_player.iter().next().and_then(|lock| lock.0);
     for mut anchor in &mut q_reticle {
-        **anchor = (**res_target).map(ScreenIndicatorAnchorKind::Entity);
+        **anchor = lock.map(ScreenIndicatorAnchorKind::Entity);
     }
 }
 
@@ -264,12 +265,15 @@ fn reticle_color(relation: Relation) -> Color {
 /// hostile vs your-own(-torpedo) vs neutral. With no lock the tint is left
 /// alone - the widget hides the reticle anyway.
 fn update_reticle_relation_tint(
-    res_target: Res<SpaceshipPlayerTargetLock>,
-    player: Single<Option<&Allegiance>, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    player: Single<
+        (Option<&Allegiance>, &CombatLock),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
     q_allegiance: Query<Option<&Allegiance>>,
     mut q_reticle: Query<&mut ImageNode, With<TorpedoTargetReticleMarker>>,
 ) {
-    let Some(target) = **res_target else {
+    let (player, lock) = player.into_inner();
+    let Some(target) = lock.0 else {
         return;
     };
     let Ok(target_allegiance) = q_allegiance.get(target) else {
@@ -277,7 +281,7 @@ fn update_reticle_relation_tint(
         return;
     };
 
-    let color = reticle_color(relation(*player, target_allegiance));
+    let color = reticle_color(relation(player, target_allegiance));
     for mut image in &mut q_reticle {
         if image.color != color {
             image.color = color;
@@ -336,9 +340,8 @@ fn health_color(fraction: f32) -> Color {
 /// which the widget already hides.
 #[allow(clippy::type_complexity)]
 fn update_target_readout(
-    res_target: Res<SpaceshipPlayerTargetLock>,
     ship: Single<
-        (&GlobalTransform, Option<&LinearVelocity>),
+        (&GlobalTransform, Option<&LinearVelocity>, &CombatLock),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
     q_target: Query<(&GlobalTransform, Option<&LinearVelocity>, Option<&Health>)>,
@@ -346,7 +349,8 @@ fn update_target_readout(
     mut q_bar: Query<&mut Visibility, With<TorpedoTargetHealthBarMarker>>,
     mut q_fill: Query<(&mut Node, &mut BackgroundColor), With<TorpedoTargetHealthFillMarker>>,
 ) {
-    let Some(target) = **res_target else {
+    let (ship_transform, ship_vel, lock) = ship.into_inner();
+    let Some(target) = lock.0 else {
         return;
     };
     let Ok((target_transform, target_vel, target_health)) = q_target.get(target) else {
@@ -354,7 +358,6 @@ fn update_target_readout(
         // readout with it) is already hidden by the widget.
         return;
     };
-    let (ship_transform, ship_vel) = ship.into_inner();
 
     let ship_pos = ship_transform.translation();
     let target_pos = target_transform.translation();
@@ -402,13 +405,15 @@ fn update_target_readout(
 /// focus completes (the component markers appearing is the completion
 /// signal).
 fn update_focus_meter(
-    lock: Res<SpaceshipPlayerTargetLock>,
-    focus: Res<SpaceshipPlayerLockFocus>,
+    q_player: Query<(&CombatLock, &LockFocus), With<PlayerSpaceshipMarker>>,
     mut q_meter: Query<&mut Visibility, With<TorpedoTargetFocusMeterMarker>>,
     mut q_fill: Query<&mut Node, With<TorpedoTargetFocusFillMarker>>,
 ) {
-    let filling =
-        matches!(**lock, Some(target) if focus.target == Some(target) && !focus.focused_on(target));
+    let fraction = q_player.iter().next().and_then(|(lock, focus)| {
+        matches!(lock.0, Some(target) if focus.target == Some(target) && !focus.focused_on(target))
+            .then(|| focus.fraction())
+    });
+    let filling = fraction.is_some();
 
     for mut visibility in &mut q_meter {
         visibility.set_if_neq(if filling {
@@ -417,8 +422,8 @@ fn update_focus_meter(
             Visibility::Hidden
         });
     }
-    if filling {
-        let width = Val::Percent(focus.fraction() * 100.0);
+    if let Some(fraction) = fraction {
+        let width = Val::Percent(fraction * 100.0);
         for mut node in &mut q_fill {
             if node.width != width {
                 node.width = width;
@@ -480,9 +485,9 @@ mod tests {
     }
 
     #[test]
-    fn reticle_anchor_follows_the_lock_resource() {
+    fn reticle_anchor_follows_the_combat_lock() {
         let mut world = World::new();
-        world.insert_resource(SpaceshipPlayerTargetLock(None));
+        let player = world.spawn((PlayerSpaceshipMarker, CombatLock(None))).id();
         let reticle = world
             .spawn((
                 TorpedoTargetReticleMarker,
@@ -500,7 +505,7 @@ mod tests {
         );
 
         let target = world.spawn_empty().id();
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
+        world.get_mut::<CombatLock>(player).unwrap().0 = Some(target);
         world.run_system_once(drive_reticle_anchor).unwrap();
         assert_eq!(
             **world
@@ -510,7 +515,7 @@ mod tests {
             Some(ScreenIndicatorAnchorKind::Entity(target))
         );
 
-        world.insert_resource(SpaceshipPlayerTargetLock(None));
+        world.get_mut::<CombatLock>(player).unwrap().0 = None;
         world.run_system_once(drive_reticle_anchor).unwrap();
         assert_eq!(
             **world
@@ -572,14 +577,17 @@ mod tests {
 
     // -- readout system behavior --
 
-    fn spawn_readout_world(world: &mut World) {
+    fn spawn_readout_world(world: &mut World) -> Entity {
         world.spawn(torpedo_target_hud(TorpedoTargetHudConfig::default()));
-        world.spawn((
-            SpaceshipRootMarker,
-            PlayerSpaceshipMarker,
-            GlobalTransform::IDENTITY,
-            LinearVelocity(Vec3::ZERO),
-        ));
+        world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                GlobalTransform::IDENTITY,
+                LinearVelocity(Vec3::ZERO),
+                CombatLock(None),
+            ))
+            .id()
     }
 
     fn line_text(world: &mut World, which: TorpedoTargetReadoutLine) -> String {
@@ -594,7 +602,7 @@ mod tests {
     #[test]
     fn readout_fills_from_the_locked_target() {
         let mut world = World::new();
-        spawn_readout_world(&mut world);
+        let player = spawn_readout_world(&mut world);
         // 150 m dead ahead, flying toward the ship at 20 u/s, half health.
         let target = world
             .spawn((
@@ -606,7 +614,7 @@ mod tests {
                 },
             ))
             .id();
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
+        world.get_mut::<CombatLock>(player).unwrap().0 = Some(target);
 
         world.run_system_once(update_target_readout).unwrap();
 
@@ -635,14 +643,14 @@ mod tests {
     #[test]
     fn readout_degrades_without_velocity_or_health() {
         let mut world = World::new();
-        spawn_readout_world(&mut world);
+        let player = spawn_readout_world(&mut world);
         // A bare drifting body: transform only, no velocity, no health.
         let target = world
             .spawn(GlobalTransform::from_translation(Vec3::new(
                 0.0, 0.0, -80.0,
             )))
             .id();
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
+        world.get_mut::<CombatLock>(player).unwrap().0 = Some(target);
 
         world.run_system_once(update_target_readout).unwrap();
 
@@ -684,16 +692,18 @@ mod tests {
         let mut world = World::new();
         world.spawn(torpedo_target_hud(TorpedoTargetHudConfig::default()));
         let target = world.spawn_empty().id();
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
-        // Halfway through the dwell.
-        let mut focus = SpaceshipPlayerLockFocus::default();
-        focus.target = Some(target);
-        world.insert_resource(focus);
-        let half = {
-            let mut focus = world.resource_mut::<SpaceshipPlayerLockFocus>();
-            // fraction() is defined by FOCUS_TIME internally; drive through
-            // the public API by finding the seconds that yield 0.5.
-            focus.seconds = 0.0;
+        let player = world
+            .spawn((
+                PlayerSpaceshipMarker,
+                CombatLock(Some(target)),
+                LockFocus::default(),
+            ))
+            .id();
+        // Halfway through the dwell: drive through the public API by finding
+        // the seconds that yield fraction 0.5.
+        {
+            let mut focus = world.get_mut::<LockFocus>(player).unwrap();
+            focus.target = Some(target);
             let mut lo = 0.0_f32;
             let mut hi = 60.0_f32;
             for _ in 0..40 {
@@ -705,9 +715,7 @@ mod tests {
                     hi = mid;
                 }
             }
-            focus.seconds
-        };
-        let _ = half;
+        }
 
         world.run_system_once(update_focus_meter).unwrap();
 
@@ -725,19 +733,24 @@ mod tests {
     fn focus_meter_hides_without_a_lock_and_once_focused() {
         let mut world = World::new();
         world.spawn(torpedo_target_hud(TorpedoTargetHudConfig::default()));
-        world.insert_resource(SpaceshipPlayerTargetLock(None));
-        world.insert_resource(SpaceshipPlayerLockFocus::default());
+        let player = world
+            .spawn((
+                PlayerSpaceshipMarker,
+                CombatLock(None),
+                LockFocus::default(),
+            ))
+            .id();
 
         world.run_system_once(update_focus_meter).unwrap();
         assert_eq!(meter_state(&mut world).0, Visibility::Hidden);
 
         // Focused: the meter yields to the component markers.
         let target = world.spawn_empty().id();
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
-        world.insert_resource(SpaceshipPlayerLockFocus {
+        world.get_mut::<CombatLock>(player).unwrap().0 = Some(target);
+        *world.get_mut::<LockFocus>(player).unwrap() = LockFocus {
             target: Some(target),
             seconds: f32::MAX,
-        });
+        };
         world.run_system_once(update_focus_meter).unwrap();
         assert_eq!(meter_state(&mut world).0, Visibility::Hidden);
     }
@@ -759,23 +772,25 @@ mod tests {
         world.spawn(torpedo_target_hud(TorpedoTargetHudConfig::default()));
         // The player marker requires Allegiance::Player, so the rig gets the
         // relation model's player side for free.
-        world.spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
+        let player = world
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker, CombatLock(None)))
+            .id();
 
         // Hostile lock: an enemy-aligned body.
         let enemy = world.spawn(Allegiance::Enemy).id();
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(enemy)));
+        world.get_mut::<CombatLock>(player).unwrap().0 = Some(enemy);
         world.run_system_once(update_reticle_relation_tint).unwrap();
         assert_eq!(reticle_tint(&mut world), RETICLE_HOSTILE_COLOR);
 
         // Own lock: e.g. the player's own loitering torpedo.
         let own_torpedo = world.spawn(Allegiance::Player).id();
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(own_torpedo)));
+        world.get_mut::<CombatLock>(player).unwrap().0 = Some(own_torpedo);
         world.run_system_once(update_reticle_relation_tint).unwrap();
         assert_eq!(reticle_tint(&mut world), RETICLE_OWN_COLOR);
 
         // Neutral lock: an unmarked body (asteroid).
         let asteroid = world.spawn_empty().id();
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(asteroid)));
+        world.get_mut::<CombatLock>(player).unwrap().0 = Some(asteroid);
         world.run_system_once(update_reticle_relation_tint).unwrap();
         assert_eq!(reticle_tint(&mut world), RETICLE_NEUTRAL_COLOR);
     }

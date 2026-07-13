@@ -4,8 +4,7 @@ use bevy_common_systems::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
 use super::targeting::{
-    ComponentCycleNextInput, ComponentCyclePrevInput, TargetCycleModifierInput,
-    TargetCycleNextInput, TargetCyclePrevInput,
+    ComponentCycleNextInput, ComponentCyclePrevInput, RadarClearInput, RadarHoldInput,
 };
 use crate::prelude::*;
 
@@ -95,9 +94,6 @@ pub struct FlightVerbHints {
     /// Component fine-lock cycle (plain scroll). The key label is the fixed
     /// string "SCROLL" - a wheel binding has no keyboard label to read.
     pub component_cycle: VerbHint,
-    /// Ship-lock cycle through the candidate set (CTRL+scroll), fixed label
-    /// "CTRL+SCROLL" for the same reason.
-    pub target_cycle: VerbHint,
     /// Whether any maneuver is engaged right now - explicit, so consumers
     /// (the GOTO cue hides mid-maneuver) do not have to proxy it through
     /// another verb's availability.
@@ -156,11 +152,18 @@ pub fn binding_label(bindings: &[Binding]) -> String {
 #[expect(clippy::type_complexity, reason = "one query per private action type")]
 fn update_flight_verb_hints(
     mut hints: ResMut<FlightVerbHints>,
-    lock: Res<SpaceshipPlayerTargetLock>,
-    focus: Res<SpaceshipPlayerLockFocus>,
-    candidates: Res<SpaceshipPlayerTargetCandidates>,
     q_sections: Query<&ChildOf, With<SectionMarker>>,
-    q_ship: Query<(Entity, Option<&Autopilot>, Option<&DominantWell>), With<PlayerSpaceshipMarker>>,
+    q_ship: Query<
+        (
+            Entity,
+            Option<&Autopilot>,
+            Option<&DominantWell>,
+            Option<&TravelLock>,
+            Option<&CombatLock>,
+            Option<&LockFocus>,
+        ),
+        With<PlayerSpaceshipMarker>,
+    >,
     q_computer: Query<
         (&ChildOf, Option<&ControllerVerbs>),
         (
@@ -188,10 +191,14 @@ fn update_flight_verb_hints(
     };
 
     // Exactly one player ship, same rule as the Single-based observers.
-    let (ship, autopilot, dominant) = match q_ship.single() {
-        Ok((entity, autopilot, dominant)) => (Some(entity), autopilot, dominant),
-        Err(_) => (None, None, None),
+    let (ship, autopilot, dominant, travel, combat, focus) = match q_ship.single() {
+        Ok((entity, autopilot, dominant, travel, combat, focus)) => {
+            (Some(entity), autopilot, dominant, travel, combat, focus)
+        }
+        Err(_) => (None, None, None, None, None, None),
     };
+    let travel = travel.and_then(|travel| travel.0);
+    let combat = combat.and_then(|combat| combat.0);
     // The autopilot needs a live flight computer and at least one live
     // engine or it disengages on its next tick; a hint below that bar
     // would light a key that visibly does nothing.
@@ -229,8 +236,8 @@ fn update_flight_verb_hints(
         },
         goto: VerbHint {
             key: label(q_goto.single().ok()),
-            available: flyable && verb_granted(FlightVerb::Goto) && lock.is_some(),
-            anchor: **lock,
+            available: flyable && verb_granted(FlightVerb::Goto) && travel.is_some(),
+            anchor: travel,
         },
         orbit: VerbHint {
             key: label(q_orbit.single().ok()),
@@ -246,30 +253,20 @@ fn update_flight_verb_hints(
             available: engaged,
             anchor: None,
         },
-        // The wheel gestures carry fixed labels (no keyboard key to read),
+        // The wheel gesture carries a fixed label (no keyboard key to read),
         // gated on the rig existing to keep the "no rig, no keys, no hints"
-        // invariant (review R1.1). Component cycling needs the focus dwell
-        // complete and at least two attached sections to step between;
-        // target cycling needs a tracked candidate that is not already the
-        // lock.
+        // invariant (review R1.1). Component cycling needs the COMBAT focus
+        // dwell complete and at least two attached sections to step between.
         component_cycle: VerbHint {
             key: cycle_label("SCROLL", q_stop.single().is_ok()),
-            available: (**lock).is_some_and(|target| {
-                focus.focused_on(target)
+            available: combat.is_some_and(|target| {
+                focus.is_some_and(|focus| focus.focused_on(target))
                     && q_sections
                         .iter()
                         .filter(|&&ChildOf(parent)| parent == target)
                         .count()
                         >= 2
             }),
-            anchor: None,
-        },
-        target_cycle: VerbHint {
-            key: cycle_label("CTRL+SCROLL", q_stop.single().is_ok()),
-            available: candidates
-                .entries
-                .iter()
-                .any(|&candidate| Some(candidate) != **lock),
             anchor: None,
         },
         engaged,
@@ -375,12 +372,16 @@ fn update_turret_target_input(
         With<TurretSectionMarker>,
     >,
     spaceship: Single<
-        (&Transform, Option<&ComputedCenterOfMass>, Entity),
+        (
+            &Transform,
+            Option<&ComputedCenterOfMass>,
+            Entity,
+            Option<&CombatLock>,
+            Option<&ComponentLock>,
+            Option<&WeaponsRaised>,
+        ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
-    lock: Res<SpaceshipPlayerTargetLock>,
-    component: Res<SpaceshipPlayerComponentLock>,
-    keys: Res<ButtonInput<KeyCode>>,
     q_lock_target: Query<(
         &Transform,
         Option<&ComputedCenterOfMass>,
@@ -389,7 +390,9 @@ fn update_turret_target_input(
     q_section_position: Query<&GlobalTransform, With<SectionMarker>>,
 ) {
     let point_rotation = point_rotation.into_inner();
-    let (transform, com, spaceship) = spaceship.into_inner();
+    let (transform, com, spaceship, lock, component, raised) = spaceship.into_inner();
+    let lock = lock.and_then(|lock| lock.0);
+    let component_section = component.and_then(|component| component.section);
 
     // Base the aim ray on the live structure so the turret aim point matches
     // the COM-anchored camera crosshair after losing sections (task
@@ -403,7 +406,7 @@ fn update_turret_target_input(
     // commanded point, not a body, so its velocity is zero. A dead section or
     // lock falls through to the next tier the same frame (the targeting
     // systems clear the stale state on their next run).
-    let lock_tier = (**lock).and_then(|target| {
+    let lock_tier = lock.and_then(|target| {
         q_lock_target
             .get(target)
             .ok()
@@ -416,7 +419,7 @@ fn update_turret_target_input(
                 )
             })
     });
-    let component_tier = component.section.and_then(|section| {
+    let component_tier = component_section.and_then(|section| {
         let section_position = q_section_position.get(section).ok()?;
         let (_, lock_velocity) = lock_tier?;
         Some((section_position.translation(), lock_velocity))
@@ -425,14 +428,14 @@ fn update_turret_target_input(
         let forward = **point_rotation * Vec3::NEG_Z;
         (position + forward * 100.0, Vec3::ZERO)
     };
-    // Manual free-aim (task 20260712-164031): while CTRL is held the turret
-    // detaches from the lock and tracks the camera crosshair (= the mouse, since
-    // the camera is mouse-look), instead of the auto-fire lock tiers. Release ->
-    // the lock tiers take over again. Both CTRL keys, matching the ship-lock
-    // cycle modifier. (Note: that CTRL+scroll cycle and this free-aim share the
-    // CTRL hold - see the task's interaction note.)
-    let free_aim = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
-    let (target_point, target_velocity) = if free_aim {
+    // Manual gunnery (deliberate-radar spike 20260713-082207, manual-wins):
+    // while the weapons are RAISED (RMB held) the turrets follow the look ray
+    // instead of the auto-fire lock tiers - the side-shot on a second target
+    // without giving up the lock. Release -> the lock tiers take over again.
+    // Re-keyed from the retired CTRL free-aim (CTRL is the radar now); the
+    // full stance semantics land in 20260713-082337.
+    let manual = raised.is_some_and(|raised| raised.0);
+    let (target_point, target_velocity) = if manual {
         ray_tier
     } else {
         component_tier.or(lock_tier).unwrap_or(ray_tier)
@@ -466,10 +469,13 @@ fn update_torpedo_target_input(
             Without<TorpedoTargetChosen>,
         ),
     >,
-    spaceship: Single<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
-    res_target: Res<SpaceshipPlayerTargetLock>,
+    spaceship: Single<
+        (Entity, Option<&CombatLock>),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
 ) {
-    let spaceship = spaceship.into_inner();
+    let (spaceship, lock) = spaceship.into_inner();
+    let lock = lock.and_then(|lock| lock.0);
 
     for (torpedo, owner) in &q_torpedo {
         if **owner != spaceship {
@@ -478,12 +484,12 @@ fn update_torpedo_target_input(
 
         debug!(
             "update_torpedo_target_input: committing torpedo {:?} to target {:?}",
-            torpedo, **res_target
+            torpedo, lock
         );
 
         let mut torpedo_commands = commands.entity(torpedo);
         torpedo_commands.insert(TorpedoTargetChosen);
-        if let Some(target_entity) = **res_target {
+        if let Some(target_entity) = lock {
             torpedo_commands.insert(TorpedoTargetEntity(target_entity));
         }
     }
@@ -614,15 +620,41 @@ pub(crate) fn flight_input_rig() -> impl Bundle {
                     bindings![KeyCode::KeyZ, GamepadButton::West],
                 ),
                 (
-                    // The cycle-layer modifier: never observed, only its
-                    // TriggerState is read by the cycle dispatch.
-                    Name::new("Input: Target Cycle Modifier"),
-                    Action::<TargetCycleModifierInput>::new(),
+                    // The radar hold (deliberate-radar spike 20260713-082207):
+                    // Start = search opens (slot latched), Fire = active,
+                    // Complete = commit-on-release, Cancel = sub-threshold
+                    // release (no commit; the Tap below is that gesture).
+                    // Pad: DPadUp, freed by the target cycle's retirement -
+                    // a provisional binding until the keybind rework
+                    // (20260710-231927) picks the pad gesture properly.
+                    Name::new("Input: Radar Hold"),
+                    Action::<RadarHoldInput>::new(),
+                    Hold::new(RADAR_TAP_SECS),
                     ActionSettings {
                         consume_input: false,
                         ..default()
                     },
-                    bindings![KeyCode::ControlLeft, KeyCode::ControlRight],
+                    bindings![
+                        KeyCode::ControlLeft,
+                        KeyCode::ControlRight,
+                        GamepadButton::DPadUp
+                    ],
+                ),
+                (
+                    // The tap clear, same key + threshold const as the hold
+                    // so the boundary frame cannot fall between them.
+                    Name::new("Input: Radar Clear"),
+                    Action::<RadarClearInput>::new(),
+                    Tap::new(RADAR_TAP_SECS),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings![
+                        KeyCode::ControlLeft,
+                        KeyCode::ControlRight,
+                        GamepadButton::DPadUp
+                    ],
                 ),
                 (
                     Name::new("Input: Component Cycle Next"),
@@ -633,9 +665,7 @@ pub(crate) fn flight_input_rig() -> impl Bundle {
                     },
                     // Scroll up = next: the wheel is an axis (y = vertical),
                     // so swizzle y into the action value and clamp away the
-                    // opposite direction so only up-scrolls actuate. With
-                    // the CTRL modifier held the observer routes this
-                    // gesture to the ship-lock cycle instead.
+                    // opposite direction so only up-scrolls actuate.
                     bindings![
                         KeyCode::BracketRight,
                         GamepadButton::DPadRight,
@@ -661,30 +691,6 @@ pub(crate) fn flight_input_rig() -> impl Bundle {
                             Clamp::pos()
                         ),
                     ],
-                ),
-                (
-                    // Direct ship-lock cycle. Pad gets NEXT only: DPadDown
-                    // is ORBIT and left/right are the component cycle, and
-                    // a wrapping next reaches every candidate anyway.
-                    // CTRL+wheel/brackets arrive via the dispatch, not here.
-                    Name::new("Input: Target Cycle Next"),
-                    Action::<TargetCycleNextInput>::new(),
-                    ActionSettings {
-                        consume_input: false,
-                        ..default()
-                    },
-                    bindings![GamepadButton::DPadUp],
-                ),
-                (
-                    // No direct binding yet (a dedicated prev key can land
-                    // here); CTRL+scroll-down reaches it via the dispatch.
-                    Name::new("Input: Target Cycle Prev"),
-                    Action::<TargetCyclePrevInput>::new(),
-                    ActionSettings {
-                        consume_input: false,
-                        ..default()
-                    },
-                    bindings![],
                 ),
             ]
         ),
@@ -801,8 +807,7 @@ fn on_autopilot_stop_input(
 fn on_autopilot_goto_input(
     _: On<Start<AutopilotGotoInput>>,
     mut commands: Commands,
-    res_target: Res<SpaceshipPlayerTargetLock>,
-    ship: Single<(Entity, Option<&Autopilot>), With<PlayerSpaceshipMarker>>,
+    ship: Single<(Entity, Option<&Autopilot>, Option<&TravelLock>), With<PlayerSpaceshipMarker>>,
     q_verbs: ControllerVerbQuery,
     pause: Res<State<crate::PauseStates>>,
 ) {
@@ -813,7 +818,7 @@ fn on_autopilot_goto_input(
         return;
     }
 
-    let (entity, autopilot) = ship.into_inner();
+    let (entity, autopilot, travel) = ship.into_inner();
 
     // Already flying somewhere? G toggles the trip off. Disengage stays
     // ungated so a verb disabled mid-trip can never strand the ship in GOTO.
@@ -835,10 +840,12 @@ fn on_autopilot_goto_input(
         return;
     }
 
-    // A destination needs a lock; without one this is a no-op (the status
-    // line keeps reading MAN, which is the v1 hint).
-    let Some(target) = **res_target else {
-        debug!("on_autopilot_goto_input: no lock, nothing to fly to");
+    // A destination needs a TRAVEL lock (the deliberate-radar designation);
+    // without one this is a no-op (the status line keeps reading MAN). The
+    // target is CAPTURED here, at [G] (decision D8): re-designating the
+    // travel lock later does not re-route the engaged trip.
+    let Some(target) = travel.and_then(|travel| travel.0) else {
+        debug!("on_autopilot_goto_input: no travel lock, nothing to fly to");
         return;
     };
 
@@ -1275,9 +1282,6 @@ mod tests {
     fn hint_world() -> World {
         let mut world = World::new();
         world.init_resource::<FlightVerbHints>();
-        world.insert_resource(SpaceshipPlayerTargetLock(None));
-        world.insert_resource(SpaceshipPlayerLockFocus::default());
-        world.insert_resource(SpaceshipPlayerTargetCandidates::default());
         world.spawn((
             Action::<AutopilotStopInput>::new(),
             bindings![KeyCode::KeyX, GamepadButton::East],
@@ -1302,7 +1306,7 @@ mod tests {
     /// always carries [`ControllerVerbs`]; the hint pass and the observers both
     /// require it, so a controller without it would match nothing.
     fn spawn_flyable_ship(world: &mut World) -> (Entity, Entity) {
-        let ship = world.spawn(PlayerSpaceshipMarker).id();
+        let ship = world.spawn((PlayerSpaceshipMarker, targeting_state())).id();
         let controller = world
             .spawn((
                 ChildOf(ship),
@@ -1336,37 +1340,22 @@ mod tests {
     }
 
     #[test]
-    fn cycle_hints_track_focus_and_candidates() {
+    fn cycle_hints_track_the_combat_focus() {
         let mut world = hint_world();
-        spawn_flyable_ship(&mut world);
+        let (ship, _) = spawn_flyable_ship(&mut world);
 
-        // No candidates, no lock: both cycle rows present (fixed labels)
-        // but dim.
+        // No lock: the cycle row is present (fixed label) but dim.
         world.run_system_once(update_flight_verb_hints).unwrap();
         let hints = world.resource::<FlightVerbHints>().clone();
         assert_eq!(hints.component_cycle.key, "SCROLL");
-        assert_eq!(hints.target_cycle.key, "CTRL+SCROLL");
         assert!(!hints.component_cycle.available);
-        assert!(!hints.target_cycle.available);
 
-        // A tracked candidate that is not the lock lights TARGET.
-        let target = world.spawn_empty().id();
-        world.insert_resource(SpaceshipPlayerTargetCandidates {
-            entries: vec![target],
-            pinned_until: None,
-        });
-        world.run_system_once(update_flight_verb_hints).unwrap();
-        assert!(world.resource::<FlightVerbHints>().target_cycle.available);
-
-        // Locking that only candidate leaves nothing to switch to: dim.
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
-        world.run_system_once(update_flight_verb_hints).unwrap();
-        assert!(!world.resource::<FlightVerbHints>().target_cycle.available);
-
-        // COMPONENT lights once the dwell completes on a lock with at
+        // COMPONENT lights once the dwell completes on a combat lock with at
         // least two attached sections.
+        let target = world.spawn_empty().id();
         world.spawn((SectionMarker, ChildOf(target)));
         world.spawn((SectionMarker, ChildOf(target)));
+        world.get_mut::<CombatLock>(ship).unwrap().0 = Some(target);
         world.run_system_once(update_flight_verb_hints).unwrap();
         assert!(
             !world
@@ -1375,10 +1364,10 @@ mod tests {
                 .available,
             "no focus yet"
         );
-        world.insert_resource(SpaceshipPlayerLockFocus {
+        *world.get_mut::<LockFocus>(ship).unwrap() = LockFocus {
             target: Some(target),
             seconds: f32::MAX,
-        });
+        };
         world.run_system_once(update_flight_verb_hints).unwrap();
         assert!(
             world
@@ -1402,8 +1391,9 @@ mod tests {
         // A lock offers GOTO and anchors it; a dominant well offers ORBIT.
         let lock = world.spawn_empty().id();
         let well = world.spawn_empty().id();
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(lock)));
-        world.entity_mut(ship).insert(DominantWell(well));
+        world
+            .entity_mut(ship)
+            .insert((TravelLock(Some(lock)), DominantWell(well)));
         world.run_system_once(update_flight_verb_hints).unwrap();
         let hints = world.resource::<FlightVerbHints>().clone();
         assert!(hints.goto.available);
@@ -1454,14 +1444,16 @@ mod tests {
         // ORBIT would both light (as the neighbor test proves).
         let lock = world.spawn_empty().id();
         let well = world.spawn_empty().id();
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(lock)));
-        world.entity_mut(ship).insert(DominantWell(well));
+        world
+            .entity_mut(ship)
+            .insert((TravelLock(Some(lock)), DominantWell(well)));
 
         // Withhold GOTO and ORBIT on the controller; STOP stays granted.
         world.entity_mut(controller).insert(ControllerVerbs {
             stop: true,
             goto: false,
             orbit: false,
+            lock: true,
         });
         world.run_system_once(update_flight_verb_hints).unwrap();
         let hints = world.resource::<FlightVerbHints>().clone();
@@ -1510,9 +1502,12 @@ mod tests {
                 stop: true,
                 goto: false,
                 orbit: true,
+                lock: true,
             });
         let target = app.world_mut().spawn_empty().id();
-        app.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(TravelLock(Some(target)));
 
         // The context registry finalizes in App::finish; run the lifecycle
         // before spawning the rig, like the production app does.
@@ -1577,8 +1572,9 @@ mod tests {
         world.spawn((ChildOf(ship), ThrusterSectionMarker));
         let lock = world.spawn_empty().id();
         let well = world.spawn_empty().id();
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(lock)));
-        world.entity_mut(ship).insert(DominantWell(well));
+        world
+            .entity_mut(ship)
+            .insert((TravelLock(Some(lock)), DominantWell(well)));
 
         world.run_system_once(update_flight_verb_hints).unwrap();
         let hints = world.resource::<FlightVerbHints>().clone();
@@ -1592,12 +1588,11 @@ mod tests {
         // Regression: with no current lock, an un-targeted torpedo (e.g. one whose
         // target just died and had its link dropped) must keep flying, not vanish.
         let mut app = App::new();
-        app.insert_resource(SpaceshipPlayerTargetLock(None));
         app.add_systems(Update, update_torpedo_target_input);
 
         let ship = app
             .world_mut()
-            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker, CombatLock(None)))
             .id();
         let torpedo = app
             .world_mut()
@@ -1626,12 +1621,15 @@ mod tests {
         // is committed to it.
         let mut app = App::new();
         let target = app.world_mut().spawn_empty().id();
-        app.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
         app.add_systems(Update, update_torpedo_target_input);
 
         let ship = app
             .world_mut()
-            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                CombatLock(Some(target)),
+            ))
             .id();
         let torpedo = app
             .world_mut()
@@ -1657,12 +1655,11 @@ mod tests {
         // dumb-fire; a lock appearing later (e.g. the aim cast hitting a bullet
         // fired down the crosshair ray) must not be assigned to it.
         let mut app = App::new();
-        app.insert_resource(SpaceshipPlayerTargetLock(None));
         app.add_systems(Update, update_torpedo_target_input);
 
         let ship = app
             .world_mut()
-            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker, CombatLock(None)))
             .id();
         let torpedo = app
             .world_mut()
@@ -1673,9 +1670,9 @@ mod tests {
         app.update();
         assert!(app.world().get::<TorpedoTargetChosen>(torpedo).is_some());
 
-        // A "bullet" gets locked by the aim cast afterwards.
+        // A "bullet" gets combat-locked (deliberately) afterwards.
         let bullet = app.world_mut().spawn_empty().id();
-        app.insert_resource(SpaceshipPlayerTargetLock(Some(bullet)));
+        app.world_mut().get_mut::<CombatLock>(ship).unwrap().0 = Some(bullet);
 
         // Frame 2: the committed torpedo must NOT pick it up.
         app.update();
@@ -1691,12 +1688,15 @@ mod tests {
         // position frozen) keeps its commitment: a fresh lock must not re-target it.
         let mut app = App::new();
         let new_target = app.world_mut().spawn_empty().id();
-        app.insert_resource(SpaceshipPlayerTargetLock(Some(new_target)));
         app.add_systems(Update, update_torpedo_target_input);
 
         let ship = app
             .world_mut()
-            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                CombatLock(Some(new_target)),
+            ))
             .id();
         // Committed, un-targeted: the post-target-death state.
         let torpedo = app
@@ -1722,9 +1722,6 @@ mod tests {
         // it (task 20260709-150711), or the turret aim point keeps a
         // parallax against the COM-anchored crosshair.
         let mut world = World::new();
-        world.insert_resource(SpaceshipPlayerTargetLock(None));
-        world.insert_resource(SpaceshipPlayerComponentLock::default());
-        world.init_resource::<ButtonInput<KeyCode>>();
         world.spawn((
             SpaceshipCameraInputMarker,
             SpaceshipCameraTurretInputMarker,
@@ -1736,6 +1733,8 @@ mod tests {
                 PlayerSpaceshipMarker,
                 Transform::from_translation(Vec3::new(10.0, 0.0, 0.0)),
                 ComputedCenterOfMass(Vec3::new(2.0, 0.0, 0.0)),
+                CombatLock(None),
+                ComponentLock::default(),
             ))
             .id();
         let turret = world
@@ -1764,7 +1763,7 @@ mod tests {
     /// Player + aim rig + one turret, a locked target ship (moving, with a
     /// shifted COM) and one of its sections. Returns (turret, target,
     /// section).
-    fn turret_feed_world() -> (World, Entity, Entity, Entity) {
+    fn turret_feed_world() -> (World, Entity, Entity, Entity, Entity) {
         let mut world = World::new();
         world.spawn((
             SpaceshipCameraInputMarker,
@@ -1776,6 +1775,8 @@ mod tests {
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
                 Transform::IDENTITY,
+                CombatLock(None),
+                ComponentLock::default(),
             ))
             .id();
         let turret = world
@@ -1801,11 +1802,8 @@ mod tests {
                 ChildOf(target),
             ))
             .id();
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
-        world.insert_resource(SpaceshipPlayerComponentLock::default());
-        // The feed reads CTRL for free-aim; default = no keys held = normal.
-        world.init_resource::<ButtonInput<KeyCode>>();
-        (world, turret, target, section)
+        world.get_mut::<CombatLock>(ship).unwrap().0 = Some(target);
+        (world, ship, turret, target, section)
     }
 
     fn turret_feed(world: &mut World, turret: Entity) -> (Option<Vec3>, Vec3) {
@@ -1819,8 +1817,8 @@ mod tests {
 
     #[test]
     fn component_lock_feeds_the_section_position() {
-        let (mut world, turret, _, section) = turret_feed_world();
-        world.resource_mut::<SpaceshipPlayerComponentLock>().section = Some(section);
+        let (mut world, ship, turret, _, section) = turret_feed_world();
+        world.get_mut::<ComponentLock>(ship).unwrap().section = Some(section);
 
         let (point, velocity) = turret_feed(&mut world, turret);
 
@@ -1830,7 +1828,7 @@ mod tests {
 
     #[test]
     fn ship_lock_feeds_the_live_structure_anchor() {
-        let (mut world, turret, _, _) = turret_feed_world();
+        let (mut world, _ship, turret, _, _) = turret_feed_world();
 
         let (point, velocity) = turret_feed(&mut world, turret);
 
@@ -1841,8 +1839,8 @@ mod tests {
 
     #[test]
     fn no_lock_feeds_the_camera_ray_with_zero_velocity() {
-        let (mut world, turret, _, _) = turret_feed_world();
-        world.insert_resource(SpaceshipPlayerTargetLock(None));
+        let (mut world, ship, turret, _, _) = turret_feed_world();
+        world.get_mut::<CombatLock>(ship).unwrap().0 = None;
 
         let (point, velocity) = turret_feed(&mut world, turret);
 
@@ -1852,8 +1850,8 @@ mod tests {
 
     #[test]
     fn dead_section_falls_through_to_the_ship_lock() {
-        let (mut world, turret, _, section) = turret_feed_world();
-        world.resource_mut::<SpaceshipPlayerComponentLock>().section = Some(section);
+        let (mut world, ship, turret, _, section) = turret_feed_world();
+        world.get_mut::<ComponentLock>(ship).unwrap().section = Some(section);
         world.despawn(section);
 
         let (point, velocity) = turret_feed(&mut world, turret);
@@ -1864,7 +1862,7 @@ mod tests {
 
     #[test]
     fn dead_lock_falls_through_to_the_camera_ray() {
-        let (mut world, turret, target, _) = turret_feed_world();
+        let (mut world, _ship, turret, target, _) = turret_feed_world();
         world.despawn(target);
 
         let (point, velocity) = turret_feed(&mut world, turret);
@@ -1874,38 +1872,34 @@ mod tests {
     }
 
     #[test]
-    fn holding_ctrl_free_aims_at_the_camera_ray_over_the_lock() {
-        // Manual free-aim (task 20260712-164031): while CTRL is held the turret
-        // ignores the lock - even a component lock, the strongest tier - and
-        // tracks the camera crosshair. Would fail if the feed still let the lock
-        // tiers win with CTRL down.
-        let (mut world, turret, _, section) = turret_feed_world();
-        world.resource_mut::<SpaceshipPlayerComponentLock>().section = Some(section);
-        world
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .press(KeyCode::ControlLeft);
+    fn raised_manual_aim_wins_over_the_lock() {
+        // Manual gunnery (deliberate-radar spike, manual-wins): while the
+        // weapons are RAISED the turret ignores the lock - even a component
+        // lock, the strongest tier - and tracks the look ray. Would fail if
+        // the feed still let the lock tiers win while raised.
+        let (mut world, ship, turret, _, section) = turret_feed_world();
+        world.get_mut::<ComponentLock>(ship).unwrap().section = Some(section);
+        world.entity_mut(ship).insert(WeaponsRaised(true));
 
         let (point, velocity) = turret_feed(&mut world, turret);
         assert_eq!(
             point,
             Some(Vec3::new(0.0, 0.0, -100.0)),
-            "CTRL detaches the turret to the camera ray, not the locked section"
+            "raised detaches the turret to the look ray, not the locked section"
         );
         assert_eq!(
             velocity,
             Vec3::ZERO,
-            "free aim commands a point, no lead velocity"
+            "manual aim commands a point, no lead velocity"
         );
 
-        // Releasing CTRL snaps back to the lock feed (the component tier).
-        world
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .release(KeyCode::ControlLeft);
+        // Lowering snaps back to the lock feed (the component tier).
+        world.entity_mut(ship).insert(WeaponsRaised(false));
         let (point, velocity) = turret_feed(&mut world, turret);
         assert_eq!(
             point,
             Some(Vec3::new(1.0, 0.5, -199.0)),
-            "release resumes the component lock"
+            "lowering resumes the component lock"
         );
         assert_eq!(
             velocity,

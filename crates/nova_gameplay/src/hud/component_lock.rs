@@ -101,8 +101,7 @@ impl Plugin for ComponentLockHudPlugin {
 #[allow(clippy::type_complexity)]
 fn sync_component_markers(
     mut commands: Commands,
-    lock: Res<SpaceshipPlayerTargetLock>,
-    focus: Res<SpaceshipPlayerLockFocus>,
+    q_ship: Query<(&CombatLock, &LockFocus), With<PlayerSpaceshipMarker>>,
     q_layer: Query<Entity, With<ComponentLockHudMarker>>,
     q_sections: Query<(Entity, &ChildOf), With<SectionMarker>>,
     q_markers: Query<(Entity, &ComponentLockSectionTarget), With<ComponentLockSectionMarker>>,
@@ -112,11 +111,11 @@ fn sync_component_markers(
         return;
     };
 
-    // The marker set exists only while focused on the current lock.
-    let target = match **lock {
+    // The marker set exists only while focused on the current COMBAT lock.
+    let target = q_ship.iter().next().and_then(|(lock, focus)| match lock.0 {
         Some(target) if focus.focused_on(target) => Some(target),
         _ => None,
-    };
+    });
 
     // Despawn markers whose section died, left the ship, or whose focus
     // window closed.
@@ -149,7 +148,7 @@ fn sync_component_markers(
 /// Restyle the fine-locked section's marker: bigger and brighter than its
 /// siblings, reverted when the selection moves on.
 fn highlight_selected_marker(
-    component: Res<SpaceshipPlayerComponentLock>,
+    q_ship: Query<&ComponentLock, With<PlayerSpaceshipMarker>>,
     mut q_markers: Query<
         (
             &ComponentLockSectionTarget,
@@ -159,8 +158,9 @@ fn highlight_selected_marker(
         With<ComponentLockSectionMarker>,
     >,
 ) {
+    let selected_section = q_ship.iter().next().and_then(|component| component.section);
     for (section, mut size, mut color) in &mut q_markers {
-        let selected = component.section == Some(**section);
+        let selected = selected_section == Some(**section);
         let (want_px, want_color) = if selected {
             (MARKER_SELECTED_PX, MARKER_SELECTED_COLOR)
         } else {
@@ -182,20 +182,27 @@ mod tests {
 
     use super::*;
 
-    /// Layer + a locked, focused target ship with two sections.
+    /// Layer + a player ship combat-locked and focused on a target ship with
+    /// two sections. Returns (world, player, [sections]).
     fn focused_world() -> (World, Entity, [Entity; 2]) {
         let mut world = World::new();
         world.spawn(component_lock_hud());
         let target = world.spawn(SpaceshipRootMarker).id();
         let a = world.spawn((SectionMarker, ChildOf(target))).id();
         let b = world.spawn((SectionMarker, ChildOf(target))).id();
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
-        world.insert_resource(SpaceshipPlayerLockFocus {
-            target: Some(target),
-            seconds: f32::MAX,
-        });
-        world.insert_resource(SpaceshipPlayerComponentLock::default());
-        (world, target, [a, b])
+        let player = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                CombatLock(Some(target)),
+                LockFocus {
+                    target: Some(target),
+                    seconds: f32::MAX,
+                },
+                ComponentLock::default(),
+            ))
+            .id();
+        (world, player, [a, b])
     }
 
     fn marker_sections(world: &mut World) -> Vec<Entity> {
@@ -210,7 +217,7 @@ mod tests {
 
     #[test]
     fn markers_exist_only_while_focused() {
-        let (mut world, _, [a, b]) = focused_world();
+        let (mut world, player, [a, b]) = focused_world();
 
         world.run_system_once(sync_component_markers).unwrap();
         let mut expected = vec![a, b];
@@ -218,7 +225,7 @@ mod tests {
         assert_eq!(marker_sections(&mut world), expected);
 
         // Losing focus removes every marker.
-        world.resource_mut::<SpaceshipPlayerLockFocus>().seconds = 0.0;
+        world.get_mut::<LockFocus>(player).unwrap().seconds = 0.0;
         world.run_system_once(sync_component_markers).unwrap();
         assert!(marker_sections(&mut world).is_empty());
     }
@@ -236,13 +243,13 @@ mod tests {
 
     #[test]
     fn markers_clear_on_lock_change() {
-        let (mut world, _, _) = focused_world();
+        let (mut world, player, _) = focused_world();
         world.run_system_once(sync_component_markers).unwrap();
         assert_eq!(marker_sections(&mut world).len(), 2);
 
         // A new lock without a completed dwell shows nothing.
         let other = world.spawn(SpaceshipRootMarker).id();
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(other)));
+        world.get_mut::<CombatLock>(player).unwrap().0 = Some(other);
         world.run_system_once(sync_component_markers).unwrap();
 
         assert!(marker_sections(&mut world).is_empty());
@@ -250,9 +257,9 @@ mod tests {
 
     #[test]
     fn highlight_follows_the_component_lock() {
-        let (mut world, _, [a, b]) = focused_world();
+        let (mut world, player, [a, b]) = focused_world();
         world.run_system_once(sync_component_markers).unwrap();
-        world.resource_mut::<SpaceshipPlayerComponentLock>().section = Some(a);
+        world.get_mut::<ComponentLock>(player).unwrap().section = Some(a);
 
         world.run_system_once(highlight_selected_marker).unwrap();
 
@@ -280,7 +287,7 @@ mod tests {
         }
 
         // Selection moves on: the old highlight reverts.
-        world.resource_mut::<SpaceshipPlayerComponentLock>().section = Some(b);
+        world.get_mut::<ComponentLock>(player).unwrap().section = Some(b);
         world.run_system_once(highlight_selected_marker).unwrap();
         let (size, color) = world
             .query_filtered::<(

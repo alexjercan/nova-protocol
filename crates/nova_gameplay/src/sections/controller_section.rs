@@ -101,11 +101,15 @@ pub enum FlightVerb {
     Goto,
     /// ORBIT: circularize and station-keep in a gravity well.
     Orbit,
+    /// LOCK: the targeting radar - deliberate hold-to-search locking
+    /// (deliberate-radar spike 20260713-082207). Not a maneuver, but the same
+    /// computer-provided capability model: a ship without it cannot lock.
+    Lock,
 }
 
-/// Per-verb enable flags carried on a controller section: the flight verbs are
-/// a capability the controller provides, and each maneuver can be individually
-/// withheld while the controller is otherwise alive. A verb is available only
+/// Per-verb enable flags carried on a controller section: computer-provided
+/// capabilities (autopilot maneuvers plus the targeting radar), each
+/// individually withholdable while the controller is otherwise alive. A verb is available only
 /// if the ship has a live controller section AND that section's flag for the
 /// verb is set (layered on top of the existing physical `flyable` gate - a live
 /// controller plus a live thruster). Defaults to all verbs enabled. Written at
@@ -119,6 +123,8 @@ pub struct ControllerVerbs {
     pub goto: bool,
     /// Whether ORBIT (station-keep in a well) is granted.
     pub orbit: bool,
+    /// Whether LOCK (the targeting radar) is granted.
+    pub lock: bool,
 }
 
 impl Default for ControllerVerbs {
@@ -127,6 +133,7 @@ impl Default for ControllerVerbs {
             stop: true,
             goto: true,
             orbit: true,
+            lock: true,
         }
     }
 }
@@ -138,6 +145,7 @@ impl ControllerVerbs {
             FlightVerb::Stop => self.stop,
             FlightVerb::Goto => self.goto,
             FlightVerb::Orbit => self.orbit,
+            FlightVerb::Lock => self.lock,
         }
     }
 
@@ -147,6 +155,7 @@ impl ControllerVerbs {
             FlightVerb::Stop => self.stop = enabled,
             FlightVerb::Goto => self.goto = enabled,
             FlightVerb::Orbit => self.orbit = enabled,
+            FlightVerb::Lock => self.lock = enabled,
         }
     }
 }

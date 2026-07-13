@@ -259,10 +259,11 @@ fn arrow_color(kind: EdgeIndicatorKind, lock_relation: Relation) -> Color {
 #[allow(clippy::type_complexity)]
 fn sync_edge_indicators(
     mut commands: Commands,
-    lock: Res<SpaceshipPlayerTargetLock>,
-    candidates: Res<SpaceshipPlayerTargetCandidates>,
     q_layer: Query<Entity, With<EdgeIndicatorsHudMarker>>,
-    q_player: Query<&Allegiance, With<PlayerSpaceshipMarker>>,
+    q_player: Query<
+        (&Allegiance, Option<&CombatLock>, Option<&ThreatContacts>),
+        With<PlayerSpaceshipMarker>,
+    >,
     q_torpedoes: Query<
         (Entity, Option<&Allegiance>),
         (With<TorpedoProjectileMarker>, With<TorpedoTargetChosen>),
@@ -277,11 +278,14 @@ fn sync_edge_indicators(
         // No layer means no player HUD; its despawn removed the indicators.
         return;
     };
-    let player_allegiance = q_player.single().ok();
-
+    let (player_allegiance, lock, threats) = match q_player.single() {
+        Ok((allegiance, lock, threats)) => (Some(allegiance), lock, threats),
+        Err(_) => (None, None, None),
+    };
+    let empty = Vec::new();
     let wanted = tracked_entities(
-        **lock,
-        &candidates.entries,
+        lock.and_then(|lock| lock.0),
+        threats.map(|threats| &threats.entries).unwrap_or(&empty),
         q_torpedoes.iter().filter_map(|(torpedo, allegiance)| {
             (relation(player_allegiance, allegiance) == Relation::Hostile).then_some(torpedo)
         }),
@@ -380,10 +384,12 @@ mod tests {
 
     /// Layer + player + a locked hostile ship, a second candidate, and one
     /// committed torpedo per allegiance.
-    fn tracked_world() -> (World, Entity, Entity, Entity) {
+    fn tracked_world() -> (World, Entity, Entity, Entity, Entity) {
         let mut world = World::new();
         world.spawn(edge_indicators_hud());
-        world.spawn((PlayerSpaceshipMarker, GlobalTransform::IDENTITY));
+        let player = world
+            .spawn((PlayerSpaceshipMarker, GlobalTransform::IDENTITY))
+            .id();
         let locked = world
             .spawn((
                 SpaceshipRootMarker,
@@ -416,12 +422,13 @@ mod tests {
             TorpedoProjectileMarker,
             Allegiance::Enemy,
         ));
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(locked)));
-        world.insert_resource(SpaceshipPlayerTargetCandidates {
-            entries: vec![locked, other],
-            pinned_until: None,
-        });
-        (world, locked, other, enemy_torpedo)
+        world.entity_mut(player).insert((
+            CombatLock(Some(locked)),
+            ThreatContacts {
+                entries: vec![locked, other],
+            },
+        ));
+        (world, player, locked, other, enemy_torpedo)
     }
 
     fn indicators(world: &mut World) -> Vec<(Entity, EdgeIndicatorKind)> {
@@ -436,7 +443,7 @@ mod tests {
 
     #[test]
     fn tracks_lock_candidates_and_hostile_torpedoes_once_each() {
-        let (mut world, locked, other, enemy_torpedo) = tracked_world();
+        let (mut world, _player, locked, other, enemy_torpedo) = tracked_world();
 
         world.run_system_once(sync_edge_indicators).unwrap();
 
@@ -456,10 +463,10 @@ mod tests {
 
     #[test]
     fn lock_change_reassigns_kinds() {
-        let (mut world, locked, other, _) = tracked_world();
+        let (mut world, player, locked, other, _) = tracked_world();
         world.run_system_once(sync_edge_indicators).unwrap();
 
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(other)));
+        world.get_mut::<CombatLock>(player).unwrap().0 = Some(other);
         world.run_system_once(sync_edge_indicators).unwrap();
 
         let all = indicators(&mut world);
@@ -470,15 +477,13 @@ mod tests {
 
     #[test]
     fn dropped_entities_lose_their_indicator() {
-        let (mut world, locked, other, enemy_torpedo) = tracked_world();
+        let (mut world, player, locked, other, enemy_torpedo) = tracked_world();
         world.run_system_once(sync_edge_indicators).unwrap();
         assert_eq!(indicators(&mut world).len(), 3);
 
         // The torpedo dies and the other ship leaves the tracked set.
         world.despawn(enemy_torpedo);
-        world
-            .resource_mut::<SpaceshipPlayerTargetCandidates>()
-            .entries = vec![locked];
+        world.get_mut::<ThreatContacts>(player).unwrap().entries = vec![locked];
         world.run_system_once(sync_edge_indicators).unwrap();
 
         assert_eq!(
@@ -519,7 +524,7 @@ mod tests {
         // label driver mirrors that, so an indicator whose content is
         // exactly arrow + label renders nothing extra on-screen. Guard the
         // structure that property depends on.
-        let (mut world, locked, ..) = tracked_world();
+        let (mut world, _player, locked, ..) = tracked_world();
         world.run_system_once(sync_edge_indicators).unwrap();
 
         let indicator = world
@@ -552,7 +557,7 @@ mod tests {
 
     #[test]
     fn label_shows_distance_while_the_arrow_is_shown() {
-        let (mut world, locked, ..) = tracked_world();
+        let (mut world, _player, locked, ..) = tracked_world();
         world.run_system_once(sync_edge_indicators).unwrap();
 
         let indicator = world

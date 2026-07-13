@@ -19,10 +19,11 @@
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! BCS_AUTOPILOT=1 cargo run --example 12_hud_range --features debug
-//! # scripted (relative to entering Playing): at +0.5s assert the focus
-//! # meter is filling (lock held, dwell incomplete, no component markers
-//! # yet); at +2s assert the aim-assist
-//! # locked the target, the reticle is visible and centered on the target's
+//! # scripted (relative to entering Playing): at +0.2s the script SETS the
+//! # combat+travel locks (the radar stand-in - nothing locks passively in
+//! # the deliberate-radar model); at +0.7s assert the focus meter is filling
+//! # (dwell incomplete, no component markers yet); at +2.2s assert the
+//! # reticle is visible and centered on the locked target's
 //! # projection, the readout shows the real distance and a full health bar,
 //! # the turret auto-fire feed aims at the locked ship's live structure
 //! # (not the camera-ray point), and the turret lead pip is visible on the
@@ -87,6 +88,9 @@ fn custom_plugin(app: &mut App) {
 #[derive(Resource, Default)]
 struct HudRangeScript {
     playing_since: Option<f32>,
+    locked_target: bool,
+    radar_held: bool,
+    committed_lock: bool,
     asserted_meter: bool,
     asserted_lock: bool,
     engaged_goto: bool,
@@ -329,14 +333,76 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
         script.done,
     );
 
-    if t > 0.5 && !asserted_meter {
+    // Deliberate-radar model (spike 20260713-082207): NOTHING locks
+    // passively. The script performs the REAL gesture through the live input
+    // pipeline: raise (RMB) + hold CTRL - the radar must find the ship dead
+    // ahead by itself - then release to commit the COMBAT lock. Everything
+    // downstream (dwell, meter, markers, reticle, turret feed, inset) then
+    // flows exactly as a player drive would.
+    if t > 0.2 && !world.resource::<HudRangeScript>().locked_target {
+        world.resource_mut::<HudRangeScript>().locked_target = true;
+        // Raise FIRST, radar a beat later: the raised flag derives in Update
+        // (camera chain) while the radar's Start observer fires in PreUpdate,
+        // so a SAME-frame RMB+CTRL press would latch the travel slot (a
+        // recorded sharp edge - humanly the raise always precedes the radar).
+        world
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Right);
+        info!("hud range: raised (live gesture)");
+    }
+
+    if t > 0.5 && !world.resource::<HudRangeScript>().radar_held {
+        world.resource_mut::<HudRangeScript>().radar_held = true;
+        world
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::ControlLeft);
+        info!("hud range: radar held (live gesture)");
+    }
+
+    if t > 1.1 && !world.resource::<HudRangeScript>().committed_lock {
+        world.resource_mut::<HudRangeScript>().committed_lock = true;
+        let player = player_root(world);
+        let target = target_root(world).expect("hud range: no target ship");
+        // The LIVE radar must have latched the combat slot (raised) and
+        // found the target ship dead ahead on its own.
+        let radar = world
+            .entity(player)
+            .get::<RadarState>()
+            .copied()
+            .expect("hud range: the radar never opened on the CTRL hold");
+        assert!(
+            radar.combat,
+            "hud range: raised press must latch the combat slot"
+        );
+        assert_eq!(
+            radar.candidate,
+            Some(target),
+            "hud range: the live radar did not find the ship dead ahead"
+        );
+        // Release: commit; lower the stance; set the travel designation for
+        // the GOTO stage directly (its gesture is the same, already proven).
+        world
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(KeyCode::ControlLeft);
+        world
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .release(MouseButton::Right);
+        world.entity_mut(player).get_mut::<TravelLock>().unwrap().0 = Some(target);
+        info!("hud range: radar released - combat lock committing");
+    }
+
+    if t > 1.7 && !asserted_meter {
         world.resource_mut::<HudRangeScript>().asserted_meter = true;
 
-        // The lock exists from the first Playing frames; half a second in,
-        // the 1.5 s dwell is still filling: meter visible and partial, no
-        // component markers yet.
-        (**world.resource::<SpaceshipPlayerTargetLock>())
-            .expect("hud range: no lock at the meter stage");
+        // The lock was set at +0.2; half a second in, the 1.5 s dwell is
+        // still filling: meter visible and partial, no component markers yet.
+        let player = player_root(world);
+        world
+            .entity(player)
+            .get::<CombatLock>()
+            .unwrap()
+            .0
+            .expect("hud range: no combat lock at the meter stage");
         let meter_visibility = *world
             .query_filtered::<&Visibility, With<TorpedoTargetFocusMeterMarker>>()
             .iter(world)
@@ -370,11 +436,16 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
         info!("hud range: focus meter OK (fill {fill_percent:.0}%)");
     }
 
-    if t > 2.0 && !asserted_lock {
+    if t > 2.9 && !asserted_lock {
         world.resource_mut::<HudRangeScript>().asserted_lock = true;
 
-        let lock = (**world.resource::<SpaceshipPlayerTargetLock>())
-            .expect("hud range: the aim-assist never locked the target ship dead ahead");
+        let player = player_root(world);
+        let lock = world
+            .entity(player)
+            .get::<CombatLock>()
+            .unwrap()
+            .0
+            .expect("hud range: the combat lock was lost before the dwell completed");
         let target = target_root(world).expect("hud range: target ship vanished before the kill");
         assert_eq!(
             lock, target,
@@ -553,7 +624,7 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
         info!("hud range: inset screenshot requested (inset_shot.png)");
     }
 
-    if t > 2.5 && !engaged_goto {
+    if t > 3.2 && !engaged_goto {
         world.resource_mut::<HudRangeScript>().engaged_goto = true;
         let target = target_root(world).expect("hud range: target ship vanished before the GOTO");
         let player = player_root(world);
@@ -563,7 +634,7 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
         info!("hud range: GOTO engaged on the target ship");
     }
 
-    if t > 3.0 && !pinned_component {
+    if t > 3.6 && !pinned_component {
         world.resource_mut::<HudRangeScript>().pinned_component = true;
 
         let target = target_root(world).expect("hud range: target ship vanished before the pin");
@@ -578,13 +649,15 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
             .map(|(entity, _, _)| entity)
             .expect("hud range: target has sections to pin");
         let until = elapsed + 30.0;
-        let mut component = world.resource_mut::<SpaceshipPlayerComponentLock>();
+        let player = player_root(world);
+        let mut entity = world.entity_mut(player);
+        let mut component = entity.get_mut::<ComponentLock>().unwrap();
         component.section = Some(tail);
         component.mode = ComponentLockMode::Pinned { until };
         info!("hud range: pinned component lock on the tail section");
     }
 
-    if t > 3.5 && !asserted_goto {
+    if t > 4.0 && !asserted_goto {
         world.resource_mut::<HudRangeScript>().asserted_goto = true;
 
         let target = target_root(world).expect("hud range: target ship vanished before the kill");
@@ -620,8 +693,11 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
         info!("hud range: GOTO destination marker OK (drift {drift:.1} px, '{closing_text}')");
 
         // The pinned tail section's marker must carry the highlight style.
+        let player = player_root(world);
         let pinned = world
-            .resource::<SpaceshipPlayerComponentLock>()
+            .entity(player)
+            .get::<ComponentLock>()
+            .unwrap()
             .section
             .expect("hud range: the pinned component lock vanished");
         let (selected, others): (Vec<f32>, Vec<f32>) = world
@@ -657,7 +733,7 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
         );
     }
 
-    if t > 4.0 && !killed_target {
+    if t > 4.4 && !killed_target {
         world.resource_mut::<HudRangeScript>().killed_target = true;
         let target = target_root(world).expect("hud range: target ship vanished before the kill");
         world.entity_mut(target).despawn();
@@ -669,7 +745,7 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
         info!("hud range: target ship despawned, turret section disabled");
     }
 
-    if t > 4.5 && !done {
+    if t > 4.8 && !done {
         world.resource_mut::<HudRangeScript>().done = true;
 
         let (_, _, reticle_visibility) =

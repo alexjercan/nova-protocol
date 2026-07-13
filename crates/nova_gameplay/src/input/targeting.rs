@@ -1,23 +1,41 @@
-//! The player's target lock: angular aim-assist acquisition and the shared
-//! lock resource every targeting consumer reads (torpedo launches, the HUD
-//! reticle/readout, and - as of the component-lock arc - auto-mode turrets).
+//! The player's target locks: DELIBERATE radar acquisition onto two sticky
+//! ship-root lock slots (deliberate-radar spike 20260713-082207, task
+//! 20260713-082330).
 //!
-//! Extracted from input/player.rs (task 20260709-192503); the acquisition
-//! rule lives in pure helpers so it stays unit-testable.
+//! - [`TravelLock`] (white crosshair): the nav designation GOTO reads.
+//! - [`CombatLock`] (red crosshair): what guns/torpedoes/focus/inset read.
+//! - Hold CTRL ([`RadarHoldInput`], a `Hold` condition) = radar on: the
+//!   picker live-retargets to the best body on the ACTIVE look ray
+//!   ([`ActiveLookRay`]); releasing past the threshold COMMITS the candidate
+//!   into the slot LATCHED at press (combat while [`WeaponsRaised`], else
+//!   travel). Releasing onto empty space is a NO-OP - the radar abort.
+//! - Tap CTRL ([`RadarClearInput`], a `Tap` condition) = staged clear: the
+//!   combat lock first, then the travel lock (disengaging an engaged GOTO);
+//!   while raised, only ever the combat lock.
+//! - NOTHING locks passively: the old aim-assist cone auto-pick and the
+//!   close-range signature auto-acquire are gone. Locks clear naturally on
+//!   death/despawn, out-of-range, a hostile target turning non-hostile, and
+//!   the combat lock decays after [`COMBAT_DECAY_SECS`] without combat
+//!   activity.
+//!
+//! The scanner-wave RANGE model (LockSignature) survives as the radar
+//! picker's gate, and [`ThreatContacts`] keeps the ranked hostile set alive
+//! for the edge-indicator arrows. All state lives on the PLAYER ship root as
+//! components (respawn hygiene; AI parity in 20260713-082337).
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
 #[cfg(test)]
 use bevy_common_systems::prelude::PointRotationOutput;
-use bevy_enhanced_input::prelude::*;
+use bevy_enhanced_input::prelude::{Cancel as ActionCancel, *};
 
 use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        ComponentLockMode, LockSignature, SpaceshipPlayerComponentLock, SpaceshipPlayerLockFocus,
-        SpaceshipPlayerTargetCandidates, SpaceshipPlayerTargetLock, SpaceshipTargetingPlugin,
-        SpaceshipTargetingSystems, TargetingSettings,
+        targeting_state, CombatLock, ComponentLock, ComponentLockMode, LockClearedToast, LockFocus,
+        LockSignature, RadarState, SpaceshipTargetingPlugin, SpaceshipTargetingSystems,
+        TargetingSettings, ThreatContacts, TravelLock, RADAR_TAP_SECS,
     };
 }
 
@@ -42,7 +60,8 @@ pub struct TargetingSettings {
     /// enough not to steal mid-fight locks.
     pub signature_range_per_unit: f32,
     /// Lock range for bodies with no signature and no intrinsic class -
-    /// battle debris, loose fragments. Point-blank by design.
+    /// battle debris, loose fragments. Point-blank by design (retuned 15 -> 5
+    /// with the deliberate radar, spike 20260713-082207: debris at ~5 m).
     pub unsigned_lock_range: f32,
     /// The incumbent lock stays lockable this factor beyond its gate, so
     /// a body at its boundary cannot strobe the lock (and reset the focus
@@ -60,25 +79,105 @@ impl Default for TargetingSettings {
     fn default() -> Self {
         Self {
             signature_range_per_unit: 30.0,
-            unsigned_lock_range: 15.0,
+            unsigned_lock_range: 5.0,
             range_hysteresis: 1.15,
             torpedo_lock_range: 2500.0,
         }
     }
 }
 
-/// The player's current target lock. `None` means no lock (reticle hidden,
-/// torpedoes dumb-fire). Torpedo launches, the HUD and turret auto-fire all
-/// consume this one resource.
-#[derive(Resource, Debug, Clone, Deref, DerefMut, Default)]
-pub struct SpaceshipPlayerTargetLock(pub Option<Entity>);
+/// The travel (nav) lock slot on the player ship root: the designation GOTO
+/// reads. White crosshair. `None` = no designation. Sticky: only a radar
+/// commit, a staged tap-clear, or a natural clear (death/out-of-range) moves
+/// it.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
+#[reflect(Component)]
+pub struct TravelLock(pub Option<Entity>);
+
+/// The combat lock slot on the player ship root: guns, torpedo commit, focus
+/// dwell, component fine-lock and the target inset read it; while it is Some
+/// the weapons safety stays off (20260713-082337). Red crosshair. Sticky,
+/// plus the [`COMBAT_DECAY_SECS`] idle decay.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
+#[reflect(Component)]
+pub struct CombatLock(pub Option<Entity>);
+
+/// Live radar search state, present on the player ship root ONLY while the
+/// radar gesture is held. The destination slot is LATCHED at press (decision
+/// D2): a mid-hold RMB change cannot re-route the commit.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Reflect)]
+#[reflect(Component)]
+pub struct RadarState {
+    /// Commit into the combat slot (latched from [`WeaponsRaised`] at press).
+    pub combat: bool,
+    /// The current best candidate under the look ray (with hysteresis); what
+    /// a release right now would commit. `None` = searching empty space.
+    pub candidate: Option<Entity>,
+}
+
+/// Idle bookkeeping for the combat-lock decay (decision D4): seconds since
+/// the last combat activity while a combat lock exists. Reset by the raised
+/// stance (and by firing, once 20260713-082337 lands); at
+/// [`COMBAT_DECAY_SECS`] the combat lock clears and the safety follows.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Default, Reflect)]
+#[reflect(Component)]
+pub struct CombatDecay(pub f32);
+
+/// The always-on ranked hostile combat set (top [`TARGET_CANDIDATE_COUNT`]
+/// toward the look ray): the edge-indicator threat arrows read it (decision
+/// D9 - the on-screen candidate list HUD is retired, the tracker is not).
+#[derive(Component, Debug, Clone, PartialEq, Default, Reflect)]
+#[reflect(Component)]
+pub struct ThreatContacts {
+    /// Ranked hostile combat targets, best first.
+    pub entries: Vec<Entity>,
+}
+
+/// The targeting state bundle a player ship root carries (inserted by the
+/// plugin's observer on [`PlayerSpaceshipMarker`]; AI parity gives AI ships
+/// the lock/decay components in 20260713-082337).
+pub fn targeting_state() -> impl Bundle {
+    (
+        TravelLock::default(),
+        CombatLock::default(),
+        CombatDecay::default(),
+        LockFocus::default(),
+        ComponentLock::default(),
+        ThreatContacts::default(),
+    )
+}
+
+/// One radar gesture threshold (seconds), shared by the `Hold` (radar/commit)
+/// and `Tap` (clear) conditions on CTRL - deriving both from one constant is
+/// what keeps the boundary frame from falling in a gap between them.
+pub const RADAR_TAP_SECS: f32 = 0.25;
+
+/// Hold CTRL: radar on (live retarget); release past the threshold commits.
+#[derive(InputAction)]
+#[action_output(bool)]
+pub(crate) struct RadarHoldInput;
+
+/// Tap CTRL: staged lock clear.
+#[derive(InputAction)]
+#[action_output(bool)]
+pub(crate) struct RadarClearInput;
+
+/// Toast message for the HUD: what a tap-clear just cleared, so the
+/// mode-scoped gesture is legible (adversarial finding UX15).
+#[derive(Message, Debug, Clone)]
+pub struct LockClearedToast {
+    /// True: the combat lock was cleared; false: the travel lock (and any
+    /// engaged GOTO was disengaged with it).
+    pub combat: bool,
+}
 
 /// System set for the lock update, so consumers (torpedo commit, turret
 /// feed) can order after it.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SpaceshipTargetingSystems;
 
-/// Plugin owning the lock resource and its per-frame acquisition.
+/// Plugin owning the lock components, the radar gesture and the per-frame
+/// contact/validity upkeep.
 pub struct SpaceshipTargetingPlugin;
 
 impl Plugin for SpaceshipTargetingPlugin {
@@ -88,15 +187,24 @@ impl Plugin for SpaceshipTargetingPlugin {
         app.init_resource::<TargetingSettings>();
         app.register_type::<TargetingSettings>();
         app.register_type::<LockSignature>();
+        app.register_type::<TravelLock>();
+        app.register_type::<CombatLock>();
+        app.register_type::<RadarState>();
+        app.register_type::<CombatDecay>();
+        app.register_type::<ThreatContacts>();
+        app.register_type::<LockFocus>();
+        app.register_type::<ComponentLock>();
+        app.add_message::<LockClearedToast>();
 
-        app.insert_resource(SpaceshipPlayerTargetLock::default());
-        app.insert_resource(SpaceshipPlayerTargetCandidates::default());
-        app.insert_resource(SpaceshipPlayerLockFocus::default());
-        app.insert_resource(SpaceshipPlayerComponentLock::default());
+        // The state bundle rides the player marker wherever ships spawn
+        // (observer-over-spawn-site).
+        app.add_observer(insert_targeting_state);
+
         app.add_systems(
             Update,
             (
-                update_spaceship_target_input,
+                update_contacts_and_locks,
+                update_radar_search,
                 tick_lock_focus,
                 update_component_lock,
             )
@@ -104,10 +212,19 @@ impl Plugin for SpaceshipTargetingPlugin {
                 .in_set(SpaceshipTargetingSystems)
                 .in_set(super::SpaceshipInputSystems),
         );
+        app.add_observer(on_radar_start);
+        app.add_observer(on_radar_commit);
+        app.add_observer(on_radar_cancel);
+        app.add_observer(on_lock_clear_tap);
         app.add_observer(on_component_cycle_next);
         app.add_observer(on_component_cycle_prev);
-        app.add_observer(on_target_cycle_next);
-        app.add_observer(on_target_cycle_prev);
+    }
+}
+
+/// Give every player ship root its targeting state the moment it is marked.
+fn insert_targeting_state(add: On<Add, PlayerSpaceshipMarker>, mut commands: Commands) {
+    if let Ok(mut ship) = commands.get_entity(add.entity) {
+        ship.insert(targeting_state());
     }
 }
 
@@ -119,14 +236,24 @@ impl Plugin for SpaceshipTargetingPlugin {
 /// objects), see [`LockSignature`] and [`TargetingSettings`].
 const TARGETING_MAX_RANGE: f32 = 20_000.0;
 
-/// Half-angle (degrees) of the lock-on cone around the aim direction. Any lockable
-/// body whose bearing from the ship falls within this angle of where the player is
-/// aiming is eligible, and the one closest to the aim ray wins. This is the whole
-/// point of the aim-assist: a wide cone means the player only has to point roughly
-/// at a target instead of landing a pixel-perfect ray on it. Pan the view and the
-/// lock snaps to whichever eligible body is now nearest the center, so cycling
-/// between targets is just "look at the next one".
+/// Half-angle (degrees) of the RADAR cone around the look ray. While the
+/// radar is held, any lockable body within this angle of where the player is
+/// looking is a candidate and the one closest to the ray wins (with
+/// [`RADAR_PICK_HYSTERESIS`]); the wide cone means rough pointing suffices,
+/// no pixel-perfect ray needed.
 const TARGETING_CONE_HALF_ANGLE_DEG: f32 = 18.0;
+
+/// Provisional-candidate hysteresis (decision D7): while the radar is held,
+/// a challenger only steals the candidate when its angular distance to the
+/// ray (measured as `1 - cos`) is below this fraction of the incumbent's -
+/// otherwise two near-collinear bodies (a torpedo and its launcher) strobe
+/// the candidate and the release commits a coin flip.
+const RADAR_PICK_HYSTERESIS: f32 = 0.75;
+
+/// Seconds without combat activity (raised stance; firing joins in
+/// 20260713-082337) before a held combat lock decays and the weapons safety
+/// re-engages (decision D4, user-tuned). A const knob.
+const COMBAT_DECAY_SECS: f32 = 30.0;
 
 /// Seconds of continuous lock on the same target before the component layer
 /// unlocks (the WoT-style aim-in dwell from the component-lock spike,
@@ -142,18 +269,21 @@ const COMPONENT_PIN_WINDOW: f32 = 2.0;
 /// does not flicker between adjacent sections. A feel knob; tune in playtest.
 const SNAP_HYSTERESIS: f32 = 0.75;
 
-/// Focus: how long the current lock has been held on the same target.
+/// Focus: how long the COMBAT lock has been held on the same target.
 /// Component fine-locking unlocks at [`FOCUS_TIME`]; the HUD renders the
-/// fill fraction while it accumulates.
-#[derive(Resource, Debug, Clone, PartialEq, Default)]
-pub struct SpaceshipPlayerLockFocus {
-    /// The target the timer is accumulating on (mirrors the lock).
+/// fill fraction while it accumulates. On the player ship root; the
+/// provisional radar candidate never touches it - only a committed lock
+/// accrues dwell.
+#[derive(Component, Debug, Clone, PartialEq, Default, Reflect)]
+#[reflect(Component)]
+pub struct LockFocus {
+    /// The target the timer is accumulating on (mirrors the combat lock).
     pub target: Option<Entity>,
     /// Continuous seconds the lock has stayed on `target`.
     pub seconds: f32,
 }
 
-impl SpaceshipPlayerLockFocus {
+impl LockFocus {
     /// Focus completion in [0, 1], for the HUD meter.
     pub fn fraction(&self) -> f32 {
         (self.seconds / FOCUS_TIME).clamp(0.0, 1.0)
@@ -166,7 +296,7 @@ impl SpaceshipPlayerLockFocus {
 }
 
 /// How the component fine-lock is currently selected.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Reflect)]
 pub enum ComponentLockMode {
     /// Follow the live section nearest the crosshair ray (with hysteresis).
     #[default]
@@ -179,13 +309,15 @@ pub enum ComponentLockMode {
     },
 }
 
-/// The fine-locked section of the locked ship, only ever `Some` while the
-/// focus dwell is complete. Sections stay lockable while ATTACHED - a
+/// The fine-locked section of the combat-locked ship, only ever `Some` while
+/// the focus dwell is complete. Sections stay lockable while ATTACHED - a
 /// disabled-in-place section (`SectionInactiveMarker`) can still be targeted
 /// to blow it off the hull; despawn/detach clears the selection (decision
-/// from the component-lock spike, lockable-while-attached).
-#[derive(Resource, Debug, Clone, PartialEq, Default)]
-pub struct SpaceshipPlayerComponentLock {
+/// from the component-lock spike, lockable-while-attached). On the player
+/// ship root.
+#[derive(Component, Debug, Clone, PartialEq, Default, Reflect)]
+#[reflect(Component)]
+pub struct ComponentLock {
     /// The fine-locked section entity (a `SectionMarker` child of the lock).
     pub section: Option<Entity>,
     /// Snap or pinned-by-cycle selection.
@@ -202,169 +334,61 @@ pub(crate) struct ComponentCycleNextInput;
 #[action_output(bool)]
 pub(crate) struct ComponentCyclePrevInput;
 
-/// Cycle the ship lock to the next tracked candidate (ranked order).
-#[derive(InputAction)]
-#[action_output(bool)]
-pub(crate) struct TargetCycleNextInput;
-
-/// Cycle the ship lock to the previous tracked candidate (ranked order).
-#[derive(InputAction)]
-#[action_output(bool)]
-pub(crate) struct TargetCyclePrevInput;
-
-/// Held modifier that layers the cycle gesture one level up: while it fires,
-/// the wheel (and brackets) cycle the SHIP lock instead of components (spike
-/// docs/spikes/20260711-163800-multi-target-cycle.md).
-#[derive(InputAction)]
-#[action_output(bool)]
-pub(crate) struct TargetCycleModifierInput;
-
-/// How many candidate ships the tracker keeps for the HUD list and the cycle
-/// input. A feel knob; more would clutter the HUD.
+/// How many hostile contacts the threat tracker keeps for the edge
+/// indicators. A feel knob; more would clutter the HUD.
 const TARGET_CANDIDATE_COUNT: usize = 5;
 
-/// Seconds a cycle press pins the ship lock against the aim-driven picker.
-/// Longer than [`COMPONENT_PIN_WINDOW`]: re-aiming a whole ship is slower
-/// than re-snapping a section. A feel knob; tune in playtest.
-const TARGET_PIN_WINDOW: f32 = 4.0;
+/// A collected lockable body: entity, world position, hostile-to-player,
+/// combat-target (ship or committed torpedo).
+type Lockable = (Entity, Vec3, bool, bool);
 
-/// The maintained multi-target set: the top lockable hostile ships, ranked
-/// by angle to the aim ray then distance (best first), rebuilt each frame by
-/// the acquisition pass. The candidate HUD renders it, the target-cycle
-/// input walks it, and the edge-indicator overlay points at its off-screen
-/// members (spike docs/spikes/20260711-163800-multi-target-cycle.md).
-#[derive(Resource, Debug, Clone, PartialEq, Default)]
-pub struct SpaceshipPlayerTargetCandidates {
-    /// Ranked candidate ship roots, best first - also the cycle order.
-    pub entries: Vec<Entity>,
-    /// While `Some`, a cycle press pinned the lock until this elapsed-time
-    /// deadline: the aim-driven picker must not overwrite it, and `entries`
-    /// keeps a stable order (membership still updates) so repeated presses
-    /// walk a list that is not reshuffling under the player.
-    pub pinned_until: Option<f32>,
-}
+/// The scanner query every collection pass walks. Turret bullets are excluded
+/// outright: they are dynamic bodies that stream straight down the aim ray.
+type LockableQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static GlobalTransform,
+        &'static RigidBody,
+        Option<&'static GravityWell>,
+        Option<&'static LockSignature>,
+        Has<SpaceshipRootMarker>,
+        Option<&'static TorpedoProjectileMarker>,
+        Option<&'static TorpedoTargetChosen>,
+        Option<&'static Allegiance>,
+    ),
+    Without<TurretBulletProjectileMarker>,
+>;
 
-/// Range (m) of the close-in "signature" auto-acquisition: with nothing in
-/// the aim cone, the nearest hostile inside this range locks by itself, as if
-/// the ship's sensors picked up its heat signature. Deliberately well inside
-/// [`TARGETING_MAX_RANGE`], so long-range designation stays aim-driven
-/// (decided in docs/spikes/20260709-192358-component-lock-vats-lite.md).
-const TARGETING_SIGNATURE_RANGE: f32 = 550.0;
-
-/// Choose the closest hostile within `max_range` of `origin` - the signature
-/// fallback used when the aim cone is empty. Candidates carry an
-/// `is_hostile` flag (resolved by the relation model: [`relation`] vs the
-/// player is [`Relation::Hostile`]); non-hostiles are never auto-acquired,
-/// so asteroids, neutrals and stray torpedoes do not steal the lock.
+/// Collect every body the scanner can currently see from `origin`, applying
+/// the LockSignature range model at collection so every consumer (the radar
+/// pick, lock validity, the threat set) inherits it:
 ///
-/// Pure and camera/physics-free so the selection rule can be unit-tested
-/// directly.
-fn pick_signature_target(
+/// - Only physical, movable bodies are lockable. This skips static sensor
+///   volumes such as scenario trigger areas (`RigidBody::Static`), which are
+///   invisible and must never be locked. Two exceptions sit on rails (Static)
+///   yet are visible things the player navigates by: gravity-well sources and
+///   bodies with an AUTHORED LockSignature (nav beacons) - trigger areas
+///   never carry a signature, so the invisible-statics rule holds.
+/// - A freshly launched torpedo that has not committed its target yet is
+///   skipped (it spawns right on the aim ray); once committed it is a normal
+///   lockable body.
+/// - Range: well bodies and ships return a signature at any range; committed
+///   torpedoes at combat range; signed bodies at `signature * range/unit`
+///   (floored at the debris range); unsigned debris only point-blank.
+/// - `incumbents` (current locks / the radar candidate) hold a little beyond
+///   their gate ([`TargetingSettings::range_hysteresis`]) so a body at the
+///   boundary cannot strobe its lock as the ship drifts.
+fn collect_lockable(
+    q_candidates: &LockableQuery,
+    settings: &TargetingSettings,
     origin: Vec3,
-    max_range: f32,
-    candidates: impl Iterator<Item = (Entity, Vec3, bool)>,
-) -> Option<Entity> {
-    candidates
-        .filter_map(|(entity, position, is_hostile)| {
-            if !is_hostile {
-                return None;
-            }
-            let distance = origin.distance(position);
-            (distance <= max_range && distance > f32::EPSILON).then_some((entity, distance))
-        })
-        .min_by(|(_, a), (_, b)| a.total_cmp(b))
-        .map(|(entity, _)| entity)
-}
-
-/// Choose the best lock-on target from `candidates` (each an entity and its world
-/// position): the one whose bearing from `origin` is closest to the `aim`
-/// direction, as long as it is within `max_range` and inside the cone (bearing
-/// dot aim `>= min_cos`, i.e. `min_cos = cos(half_angle)`). Returns `None` when
-/// nothing qualifies - e.g. the player is looking at empty space - which drops the
-/// lock and hides the reticle.
-///
-/// Pure and camera/physics-free so the selection rule can be unit-tested directly.
-fn pick_target(
-    origin: Vec3,
-    aim: Vec3,
-    max_range: f32,
-    min_cos: f32,
-    candidates: impl Iterator<Item = (Entity, Vec3)>,
-) -> Option<Entity> {
-    candidates
-        .filter_map(|(entity, position)| {
-            let to_target = position - origin;
-            let distance = to_target.length();
-            if distance > max_range || distance < f32::EPSILON {
-                return None;
-            }
-            let cos_angle = to_target.normalize().dot(aim);
-            (cos_angle >= min_cos).then_some((entity, cos_angle))
-        })
-        // Largest cosine == smallest angle from the aim ray == closest to center.
-        .max_by(|(_, a), (_, b)| a.total_cmp(b))
-        .map(|(entity, _)| entity)
-}
-
-/// Update the player's target lock, hybrid-style: angular aim-assist first
-/// (enumerate the physical bodies in front of the ship and lock the one
-/// nearest the aim direction, see [`pick_target`]), and with an empty cone
-/// the signature fallback (nearest hostile inside
-/// [`TARGETING_SIGNATURE_RANGE`], see [`pick_signature_target`]).
-fn update_spaceship_target_input(
-    // The LIVE look ray (the rig currently holding the active marker), not a
-    // pinned rig: the turret rig's output freezes the moment Turret view is
-    // left, so acquisition in Normal/FreeLook used to compare against a stale
-    // ray (task 20260713-082324).
-    look_ray: ActiveLookRay,
-    // Turret bullets are excluded outright: they are dynamic bodies that stream
-    // straight down the aim ray, so without this the lock would constantly snap
-    // onto the player's own gunfire instead of the enemy behind it.
-    q_candidates: Query<
-        (
-            Entity,
-            &GlobalTransform,
-            &RigidBody,
-            Option<&GravityWell>,
-            Option<&LockSignature>,
-            Has<SpaceshipRootMarker>,
-            Option<&TorpedoProjectileMarker>,
-            Option<&TorpedoTargetChosen>,
-            Option<&Allegiance>,
-        ),
-        Without<TurretBulletProjectileMarker>,
-    >,
-    settings: Res<TargetingSettings>,
-    spaceship: Single<
-        (
-            &Transform,
-            Option<&ComputedCenterOfMass>,
-            Entity,
-            Option<&Allegiance>,
-        ),
-        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
-    >,
-    time: Res<Time>,
-    mut res_target: ResMut<SpaceshipPlayerTargetLock>,
-    mut res_candidates: ResMut<SpaceshipPlayerTargetCandidates>,
-) {
-    // No camera rig at all (menu states, rig-less tests): skip, exactly like
-    // the old Single param did.
-    let Some(aim_rotation) = look_ray.rotation() else {
-        return;
-    };
-    let (ship_transform, ship_com, ship_entity, ship_allegiance) = spaceship.into_inner();
-
-    // Cone origin on the live structure, not the root origin, so the lock
-    // cone agrees with the COM-anchored camera crosshair after losing
-    // sections (task 20260709-150711).
-    let origin = live_structure_anchor(ship_transform, ship_com);
-    let aim = (aim_rotation * Vec3::NEG_Z).normalize();
-    let min_cos = TARGETING_CONE_HALF_ANGLE_DEG.to_radians().cos();
-
-    // Collected once because both pickers walk it (the cone pick first, then
-    // the signature fallback), and the multi-target tracker filters it.
-    let candidates: Vec<(Entity, Vec3, bool, bool)> = q_candidates
+    ship_entity: Entity,
+    ship_allegiance: Option<&Allegiance>,
+    incumbents: &[Option<Entity>],
+) -> Vec<Lockable> {
+    q_candidates
         .iter()
         .filter_map(
             |(
@@ -378,14 +402,6 @@ fn update_spaceship_target_input(
                 torpedo_committed,
                 allegiance,
             )| {
-                // Only physical, movable bodies are lockable. This skips static sensor
-                // volumes such as scenario trigger areas (`RigidBody::Static`), which
-                // are invisible and must never be locked. Two exceptions sit on rails
-                // (Static) yet are visible things the player navigates by, so they stay
-                // lockable: gravity-well sources (big rocks the player GOTOs and orbits,
-                // Static since the gravity task) and bodies with an AUTHORED
-                // LockSignature (nav beacons, task 20260712-093044) - trigger areas
-                // never carry a signature, so the invisible-statics rule holds.
                 if !matches!(rigid_body, RigidBody::Dynamic)
                     && well.is_none()
                     && signature.is_none()
@@ -396,25 +412,9 @@ fn update_spaceship_target_input(
                 if entity == ship_entity {
                     return None;
                 }
-                // Skip a freshly launched torpedo that has not committed its
-                // launch-time target yet: it spawns right on the aim ray and would
-                // otherwise be picked as its own target. Once committed
-                // (`TorpedoTargetChosen`) a torpedo is a normal lockable body - e.g.
-                // you can lock and shoot down your own dumb-fired torpedo.
                 if is_torpedo.is_some() && torpedo_committed.is_none() {
                     return None;
                 }
-                // The scanner-wave gate: how far away this body can be
-                // locked from. Well bodies and ships (ships deferred to
-                // the sensor task 20260710-195953) return a signature at
-                // any range; committed torpedoes are small but hot
-                // (point defense needs them at combat range, not across
-                // the map); everything else is gated by its authored
-                // LockSignature - floored at the debris range, so an
-                // authored signature can never make a body stealthier
-                // than none - and unsigned bodies, debris, only
-                // point-blank. Gated here, at collection, so the cone
-                // pick and the heat-signature fallback both inherit it.
                 let mut max_range = if well.is_some() || is_ship {
                     TARGETING_MAX_RANGE
                 } else if is_torpedo.is_some() {
@@ -425,118 +425,225 @@ fn update_spaceship_target_input(
                             .max(settings.unsigned_lock_range)
                     })
                 };
-                // The incumbent lock holds a little beyond its gate, so a
-                // body at the boundary cannot strobe the lock and reset
-                // the focus dwell as the ship drifts.
-                if **res_target == Some(entity) {
+                if incumbents.contains(&Some(entity)) {
                     max_range *= settings.range_hysteresis.max(1.0);
                 }
                 let position = transform.translation();
                 if position.distance_squared(origin) > max_range * max_range {
                     return None;
                 }
-                // Hostility comes from the relation model, so an enemy's
-                // torpedo is auto-acquirable while the player's own is not.
                 let is_hostile = relation(ship_allegiance, allegiance) == Relation::Hostile;
-                // A COMBAT target - what the sticky lock holds and the
-                // CTRL+scroll cycle walks: ships and committed torpedoes
-                // (uncommitted torpedoes were already filtered out above, so any
-                // torpedo here is committed - point defense, task
-                // 20260712-212742). Nav bodies (asteroids/beacons/wells) are NOT
-                // combat targets: they stay aim-driven so GOTO re-designation
-                // by aiming keeps working (task 20260712-203353 review R1.1).
                 let is_combat_target = is_ship || is_torpedo.is_some();
                 Some((entity, position, is_hostile, is_combat_target))
             },
         )
-        .collect();
+        .collect()
+}
 
-    // A cycle press pinned the lock: the aim-driven picker stands down while
-    // the window is open and the pinned target is still collectible (range
-    // gates above, with the incumbent hysteresis). Expiry or target loss
-    // hands the lock back to the picker.
-    let pinned = match res_candidates.pinned_until {
-        Some(until) => {
-            let holds = time.elapsed_secs() < until
-                && res_target
-                    .is_some_and(|target| candidates.iter().any(|&(entity, ..)| entity == target));
-            if !holds {
-                res_candidates.pinned_until = None;
-            }
-            holds
+/// Per-frame lock upkeep, always on: hold the LOCKS only while their targets
+/// stay collectible (death/despawn and out-of-range clear them - stickiness
+/// never needs a re-pick because NOTHING re-picks), clear the combat lock
+/// when a hostile target turns non-hostile, tick the [`CombatDecay`] idle
+/// clock (decision D4), and maintain the ranked hostile [`ThreatContacts`]
+/// for the edge indicators (decision D9).
+#[allow(clippy::type_complexity)]
+fn update_contacts_and_locks(
+    time: Res<Time>,
+    look_ray: ActiveLookRay,
+    settings: Res<TargetingSettings>,
+    q_candidates: LockableQuery,
+    q_flipped: Query<(), Changed<Allegiance>>,
+    q_allegiances: Query<&Allegiance>,
+    mut spaceship: Query<
+        (
+            &Transform,
+            Option<&ComputedCenterOfMass>,
+            Entity,
+            Option<&Allegiance>,
+            &mut TravelLock,
+            &mut CombatLock,
+            &mut CombatDecay,
+            &mut ThreatContacts,
+            Option<&WeaponsRaised>,
+        ),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
+) {
+    for (
+        transform,
+        com,
+        ship,
+        ship_allegiance,
+        mut travel,
+        mut combat,
+        mut decay,
+        mut threats,
+        raised,
+    ) in &mut spaceship
+    {
+        // Cone origin on the live structure, not the root origin, so the
+        // scanner agrees with the COM-anchored crosshair after losing
+        // sections (task 20260709-150711).
+        let origin = live_structure_anchor(transform, com);
+        let candidates = collect_lockable(
+            &q_candidates,
+            &settings,
+            origin,
+            ship,
+            ship_allegiance,
+            &[travel.0, combat.0],
+        );
+
+        // Validity: a lock holds exactly while its target is collectible.
+        let still = |target: Option<Entity>| {
+            target.filter(|target| candidates.iter().any(|&(entity, ..)| entity == *target))
+        };
+        let travel_now = still(travel.0);
+        if travel.0 != travel_now {
+            travel.0 = travel_now;
         }
-        None => false,
-    };
+        let mut combat_now = still(combat.0);
 
-    // Sticky-from-acquisition, COMBAT TARGETS ONLY (task 20260712-203353 +
-    // 20260712-212742): once a combat target (ship or committed torpedo) is
-    // locked, the aim picker stands down while it is still a collectible
-    // candidate (in range, with the incumbent hysteresis applied above), so a
-    // body crossing the aim ray no longer steals the lock or resets the focus
-    // dwell. Deliberate switches go through the CTRL+scroll cycle
-    // (`step_target_lock`), which now walks ships AND committed torpedoes, so
-    // point defense works: flick to the incoming torpedo, the turrets (which
-    // fire at the lock) down it, and it reverts to the aim pick once it is gone.
-    //
-    // NON-combat locks (asteroids, beacons, wells) are NOT sticky: the lock
-    // doubles as the GOTO nav designator, and you re-designate a nav target by
-    // aiming at it - the cycle does not include nav bodies, so a sticky nav lock
-    // could not be switched off (review R1.1 of 20260712-203353). Only the
-    // `is_combat_target` flag in the candidate tuple makes a lock sticky.
-    let held = res_target.is_some_and(|target| {
-        candidates
-            .iter()
-            .any(|&(entity, _, _, is_combat_target)| entity == target && is_combat_target)
-    });
+        // A hostile combat target FLIPPING to non-hostile clears the lock (a
+        // scripted surrender must not keep the guns hot); a deliberate lock
+        // on an always-neutral body is untouched - only a CHANGE trips this.
+        combat_now = combat_now.filter(|target| {
+            !(q_flipped.get(*target).is_ok()
+                && relation(ship_allegiance, q_allegiances.get(*target).ok()) != Relation::Hostile)
+        });
 
-    if !pinned && !held {
-        // Aiming designates as always; with an empty cone the nearest hostile
-        // inside the signature range auto-acquires (the close-in
-        // heat-signature lock from the component-lock spike).
-        let cone_pick = pick_target(
+        // The idle decay (D4): combat activity (the raised stance; firing
+        // joins in 20260713-082337) resets the clock; at COMBAT_DECAY_SECS
+        // the lock lets go and the safety follows.
+        if combat_now.is_some() {
+            if raised.is_some_and(|raised| raised.0) {
+                decay.set_if_neq(CombatDecay(0.0));
+            } else {
+                decay.0 += time.delta_secs();
+                if decay.0 >= COMBAT_DECAY_SECS {
+                    combat_now = None;
+                    decay.set_if_neq(CombatDecay(0.0));
+                }
+            }
+        } else {
+            decay.set_if_neq(CombatDecay(0.0));
+        }
+        if combat.0 != combat_now {
+            combat.0 = combat_now;
+        }
+
+        // The threat set: hostile combat targets ranked toward the look ray
+        // (ship-forward fallback keeps the arrows meaningful rig-less).
+        let aim = look_ray
+            .direction()
+            .unwrap_or_else(|| (transform.rotation * Vec3::NEG_Z).normalize());
+        let ranked = rank_combat_targets(
             origin,
             aim,
-            TARGETING_MAX_RANGE,
-            min_cos,
             candidates
                 .iter()
+                .filter(|&&(_, _, is_hostile, is_combat)| is_hostile && is_combat)
                 .map(|&(entity, position, ..)| (entity, position)),
         );
-        **res_target = cone_pick.or_else(|| {
-            pick_signature_target(
-                origin,
-                TARGETING_SIGNATURE_RANGE,
-                candidates
-                    .iter()
-                    .map(|&(entity, position, is_hostile, _)| (entity, position, is_hostile)),
-            )
-        });
-    }
-
-    // Maintain the multi-target set: hostile COMBAT targets (ships + committed
-    // torpedoes) from the same range-gated collection, ranked toward the aim
-    // ray. This is the CTRL+scroll cycle set, the candidate HUD, and the
-    // edge-indicator overlay - so an incoming torpedo is now a cyclable,
-    // indicated threat, not just a silent one.
-    let ranked = rank_combat_targets(
-        origin,
-        aim,
-        candidates
-            .iter()
-            .filter(|&&(_, _, is_hostile, is_combat_target)| is_hostile && is_combat_target)
-            .map(|&(entity, position, ..)| (entity, position)),
-    );
-    let entries = maintain_candidates(&res_candidates.entries, &ranked, **res_target, pinned);
-    if res_candidates.entries != entries {
-        res_candidates.entries = entries;
+        let entries = maintain_contacts(&ranked, combat.0);
+        if threats.entries != entries {
+            threats.entries = entries;
+        }
     }
 }
 
+/// The radar search: while a [`RadarState`] exists (the hold gesture is
+/// active), live-retarget the provisional candidate to the best body on the
+/// look ray, with incumbent hysteresis (decision D7) so two near-collinear
+/// bodies do not strobe the pick. The candidate is PROVISIONAL - it never
+/// touches the lock slots or the focus dwell; only the commit does.
+fn update_radar_search(
+    look_ray: ActiveLookRay,
+    settings: Res<TargetingSettings>,
+    q_candidates: LockableQuery,
+    mut spaceship: Query<
+        (
+            &Transform,
+            Option<&ComputedCenterOfMass>,
+            Entity,
+            Option<&Allegiance>,
+            &mut RadarState,
+        ),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
+) {
+    for (transform, com, ship, ship_allegiance, mut radar) in &mut spaceship {
+        let Some(aim_rotation) = look_ray.rotation() else {
+            continue;
+        };
+        let origin = live_structure_anchor(transform, com);
+        let aim = (aim_rotation * Vec3::NEG_Z).normalize();
+        let candidates = collect_lockable(
+            &q_candidates,
+            &settings,
+            origin,
+            ship,
+            ship_allegiance,
+            &[radar.candidate],
+        );
+        let picked = radar_pick(
+            radar.candidate,
+            origin,
+            aim,
+            TARGETING_CONE_HALF_ANGLE_DEG.to_radians().cos(),
+            &candidates,
+        );
+        if radar.candidate != picked {
+            radar.candidate = picked;
+        }
+    }
+}
+
+/// The radar's pick rule: the body nearest the look ray inside the cone,
+/// except that an incumbent candidate
+/// holds unless the challenger is DECISIVELY nearer the ray - its angular
+/// distance (as `1 - cos`) under [`RADAR_PICK_HYSTERESIS`] of the
+/// incumbent's. Leaving the cone entirely drops the candidate (a release
+/// then commits nothing - the abort gesture, decision D1).
+///
+/// Pure so the hysteresis rule is unit-testable.
+fn radar_pick(
+    current: Option<Entity>,
+    origin: Vec3,
+    aim: Vec3,
+    min_cos: f32,
+    candidates: &[Lockable],
+) -> Option<Entity> {
+    let scored: Vec<(Entity, f32)> = candidates
+        .iter()
+        .filter_map(|&(entity, position, ..)| {
+            let to_target = position - origin;
+            let distance = to_target.length();
+            if distance < f32::EPSILON {
+                return None;
+            }
+            let cos_angle = to_target.normalize().dot(aim);
+            (cos_angle >= min_cos).then_some((entity, cos_angle))
+        })
+        .collect();
+    let (best, best_cos) = scored
+        .iter()
+        .copied()
+        .max_by(|(_, a), (_, b)| a.total_cmp(b))?;
+    if let Some(current) = current {
+        if let Some(&(_, current_cos)) = scored.iter().find(|(entity, _)| *entity == current) {
+            if best != current && (1.0 - best_cos) >= RADAR_PICK_HYSTERESIS * (1.0 - current_cos) {
+                return Some(current);
+            }
+        }
+    }
+    Some(best)
+}
+
 /// Rank the lockable hostile COMBAT targets (ships + committed torpedoes) for
-/// the multi-target set: nearest the aim ray first (largest cosine), distance
-/// as the tie-breaker. Not cone-gated - a hostile behind the player is still
-/// tracked (the edge-indicator overlay points at it); the cone only decides the
-/// aim PICK, not the SET.
+/// the threat set: nearest the look ray first (largest cosine), distance as
+/// the tie-breaker. Not cone-gated - a hostile behind the player is still
+/// tracked (the edge-indicator overlay points at it).
 ///
 /// Pure and camera/physics-free so the ranking rule can be unit-tested.
 fn rank_combat_targets(
@@ -557,43 +664,16 @@ fn rank_combat_targets(
     scored.into_iter().map(|(entity, ..)| entity).collect()
 }
 
-/// Compose this frame's candidate entries from the ranked pool.
-///
-/// Unpinned: the top [`TARGET_CANDIDATE_COUNT`] by rank. Pinned: membership
-/// still updates (dead or out-of-range ships drop, newcomers append by rank)
-/// but survivors keep their relative order, so a cycle in progress walks a
-/// stable list (the spike's frozen-snapshot rule). Either way the current
-/// lock stays a member while it is still a ranked ship, even when it falls
-/// out of the top N - the reticle target must never vanish from its own list.
-fn maintain_candidates(
-    prev: &[Entity],
-    ranked: &[Entity],
-    lock: Option<Entity>,
-    pinned: bool,
-) -> Vec<Entity> {
-    let mut entries: Vec<Entity> = if pinned {
-        let mut kept: Vec<Entity> = prev
-            .iter()
-            .copied()
-            .filter(|entity| ranked.contains(entity))
-            .collect();
-        for &entity in ranked {
-            if kept.len() >= TARGET_CANDIDATE_COUNT {
-                break;
-            }
-            if !kept.contains(&entity) {
-                kept.push(entity);
-            }
-        }
-        kept
-    } else {
-        ranked
-            .iter()
-            .copied()
-            .take(TARGET_CANDIDATE_COUNT)
-            .collect()
-    };
-    if let Some(lock) = lock {
+/// Compose the threat entries: the top [`TARGET_CANDIDATE_COUNT`] by rank,
+/// with the combat lock kept a member while it is still ranked (the arrow to
+/// your own target must never vanish).
+fn maintain_contacts(ranked: &[Entity], combat_lock: Option<Entity>) -> Vec<Entity> {
+    let mut entries: Vec<Entity> = ranked
+        .iter()
+        .copied()
+        .take(TARGET_CANDIDATE_COUNT)
+        .collect();
+    if let Some(lock) = combat_lock {
         if ranked.contains(&lock) && !entries.contains(&lock) {
             entries.pop();
             entries.push(lock);
@@ -602,20 +682,185 @@ fn maintain_candidates(
     entries
 }
 
-/// Accumulate focus while the lock stays on one target; any change (new
-/// target or lock lost) restarts the dwell from zero.
-fn tick_lock_focus(
-    time: Res<Time>,
-    lock: Res<SpaceshipPlayerTargetLock>,
-    mut focus: ResMut<SpaceshipPlayerLockFocus>,
+/// Whether `ship` has a live controller section granting `verb` - the
+/// computer-capability gate (mirrors player.rs's `ship_grants_verb`; the
+/// radar needs it here for the Lock capability).
+fn ship_grants_lock(
+    ship: Entity,
+    q_controllers: &Query<
+        (&ChildOf, &ControllerVerbs),
+        (
+            With<ControllerSectionMarker>,
+            Without<SectionInactiveMarker>,
+        ),
+    >,
+) -> bool {
+    q_controllers
+        .iter()
+        .any(|(ChildOf(parent), verbs)| *parent == ship && verbs.granted(FlightVerb::Lock))
+}
+
+/// Start of the radar hold: latch the destination slot from the RAISED
+/// stance (decision D2 - a mid-hold RMB change cannot re-route the commit)
+/// and open the search. Gated on the computer's Lock capability and, like
+/// every intent observer, on the pause overlay.
+#[allow(clippy::type_complexity)]
+fn on_radar_start(
+    _: On<Start<RadarHoldInput>>,
+    mut commands: Commands,
+    pause: Res<State<crate::PauseStates>>,
+    q_controllers: Query<
+        (&ChildOf, &ControllerVerbs),
+        (
+            With<ControllerSectionMarker>,
+            Without<SectionInactiveMarker>,
+        ),
+    >,
+    q_ship: Query<
+        (Entity, Option<&WeaponsRaised>),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
 ) {
-    if focus.target != **lock {
-        focus.target = **lock;
-        focus.seconds = 0.0;
+    // Observers bypass system-set gating; freeze intent changes while the
+    // pause overlay is up. Releases stay ungated so held keys clear cleanly
+    // during a pause.
+    if *pause.get() == crate::PauseStates::Paused {
         return;
     }
-    if focus.target.is_some() {
-        focus.seconds += time.delta_secs();
+    for (ship, raised) in &q_ship {
+        if !ship_grants_lock(ship, &q_controllers) {
+            // No Lock capability on this computer: the radar simply does not
+            // come on (deny cue lands with the HUD task 20260713-082337).
+            continue;
+        }
+        commands.entity(ship).insert(RadarState {
+            combat: raised.is_some_and(|raised| raised.0),
+            candidate: None,
+        });
+    }
+}
+
+/// Radar release past the hold threshold: COMMIT the provisional candidate
+/// into the latched slot. Empty candidate = no-op (the abort, decision D1);
+/// same-entity re-commit changes nothing (the focus dwell and component
+/// fine-lock survive - equality writes are skipped). A release during pause
+/// drops the commit but still closes the search (deliberate gestures do not
+/// survive a pause).
+#[allow(clippy::type_complexity)]
+fn on_radar_commit(
+    _: On<Complete<RadarHoldInput>>,
+    mut commands: Commands,
+    pause: Res<State<crate::PauseStates>>,
+    mut q_ship: Query<
+        (
+            Entity,
+            Option<&RadarState>,
+            &mut TravelLock,
+            &mut CombatLock,
+        ),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
+) {
+    for (ship, radar, mut travel, mut combat) in &mut q_ship {
+        let Some(radar) = radar.copied() else {
+            // No open search (capability denied, or state lost mid-hold).
+            continue;
+        };
+        commands.entity(ship).remove::<RadarState>();
+        if *pause.get() == crate::PauseStates::Paused {
+            continue;
+        }
+        let Some(candidate) = radar.candidate else {
+            continue;
+        };
+        if radar.combat {
+            if combat.0 != Some(candidate) {
+                combat.0 = Some(candidate);
+            }
+        } else if travel.0 != Some(candidate) {
+            travel.0 = Some(candidate);
+        }
+    }
+}
+
+/// Radar release BEFORE the hold threshold (`Cancel`): just close the
+/// search - the same physical release fires the Tap clear separately.
+/// Deliberately not pause-gated: state cleanup must always run, like the
+/// release observers elsewhere.
+fn on_radar_cancel(
+    _: On<ActionCancel<RadarHoldInput>>,
+    mut commands: Commands,
+    q_ship: Query<
+        Entity,
+        (
+            With<SpaceshipRootMarker>,
+            With<PlayerSpaceshipMarker>,
+            With<RadarState>,
+        ),
+    >,
+) {
+    for ship in &q_ship {
+        commands.entity(ship).remove::<RadarState>();
+    }
+}
+
+/// The tap clear (decision D3a, staged): lowered - the combat lock first,
+/// else the travel lock (disengaging an engaged GOTO with it); raised - only
+/// ever the combat lock. Emits [`LockClearedToast`] so the mode-scoped
+/// gesture is legible on the HUD.
+#[allow(clippy::type_complexity)]
+fn on_lock_clear_tap(
+    _: On<Fire<RadarClearInput>>,
+    mut commands: Commands,
+    pause: Res<State<crate::PauseStates>>,
+    mut toasts: MessageWriter<LockClearedToast>,
+    mut q_ship: Query<
+        (
+            Entity,
+            Option<&WeaponsRaised>,
+            &mut TravelLock,
+            &mut CombatLock,
+            Option<&Autopilot>,
+        ),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
+) {
+    if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+    for (ship, raised, mut travel, mut combat, autopilot) in &mut q_ship {
+        let raised = raised.is_some_and(|raised| raised.0);
+        if combat.0.is_some() {
+            combat.0 = None;
+            toasts.write(LockClearedToast { combat: true });
+        } else if !raised && travel.0.is_some() {
+            travel.0 = None;
+            toasts.write(LockClearedToast { combat: false });
+            // Clearing the designation disengages an engaged GOTO (decision
+            // from the recap Q&A); other maneuvers (STOP/ORBIT) are not
+            // lock-bound and keep flying.
+            if autopilot
+                .is_some_and(|autopilot| matches!(autopilot.action, AutopilotAction::Goto { .. }))
+            {
+                commands.entity(ship).remove::<Autopilot>();
+            }
+        }
+    }
+}
+
+/// Accumulate focus while the COMBAT lock stays on one target; any change
+/// (new target or lock lost) restarts the dwell from zero. Generic over any
+/// ship carrying the components (AI parity, 20260713-082337).
+fn tick_lock_focus(time: Res<Time>, mut q_ships: Query<(&CombatLock, &mut LockFocus)>) {
+    for (lock, mut focus) in &mut q_ships {
+        if focus.target != lock.0 {
+            focus.target = lock.0;
+            focus.seconds = 0.0;
+            continue;
+        }
+        if focus.target.is_some() {
+            focus.seconds += time.delta_secs();
+        }
     }
 }
 
@@ -665,74 +910,76 @@ fn cycle_order(sections: &mut [(Entity, Vec3)]) {
 #[allow(clippy::type_complexity)]
 fn update_component_lock(
     time: Res<Time>,
-    lock: Res<SpaceshipPlayerTargetLock>,
-    focus: Res<SpaceshipPlayerLockFocus>,
-    mut component: ResMut<SpaceshipPlayerComponentLock>,
     q_sections: Query<(Entity, &ChildOf, &GlobalTransform), With<SectionMarker>>,
     // The LIVE look ray (active rig), so the snap follows the crosshair in
     // every view instead of the turret rig's frozen output (task
     // 20260713-082324).
     look_ray: ActiveLookRay,
-    spaceship: Option<
-        Single<
-            (&Transform, Option<&ComputedCenterOfMass>),
-            (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
-        >,
+    mut q_ship: Query<
+        (
+            &Transform,
+            Option<&ComputedCenterOfMass>,
+            &CombatLock,
+            &LockFocus,
+            &mut ComponentLock,
+        ),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
 ) {
-    // The component layer only exists while focused on the current lock.
-    let target = match **lock {
-        Some(target) if focus.focused_on(target) => target,
-        _ => {
-            component.set_if_neq(SpaceshipPlayerComponentLock::default());
-            return;
+    for (ship_transform, ship_com, lock, focus, mut component) in &mut q_ship {
+        // The component layer only exists while focused on the combat lock.
+        let target = match lock.0 {
+            Some(target) if focus.focused_on(target) => target,
+            _ => {
+                component.set_if_neq(ComponentLock::default());
+                continue;
+            }
+        };
+
+        let sections: Vec<(Entity, Vec3)> = q_sections
+            .iter()
+            .filter(|(_, ChildOf(parent), _)| *parent == target)
+            .map(|(entity, _, transform)| (entity, transform.translation()))
+            .collect();
+        if sections.is_empty() {
+            component.set_if_neq(ComponentLock::default());
+            continue;
         }
-    };
 
-    let sections: Vec<(Entity, Vec3)> = q_sections
-        .iter()
-        .filter(|(_, ChildOf(parent), _)| *parent == target)
-        .map(|(entity, _, transform)| (entity, transform.translation()))
-        .collect();
-    if sections.is_empty() {
-        component.set_if_neq(SpaceshipPlayerComponentLock::default());
-        return;
-    }
-
-    // Detach/despawn invalidates the selection (inactive sections stay
-    // lockable - see SpaceshipPlayerComponentLock).
-    let current = component
-        .section
-        .filter(|section| sections.iter().any(|(entity, _)| entity == section));
-    if component.section != current {
-        component.section = current;
-    }
-
-    // A pin outlives neither its deadline nor its section.
-    if let ComponentLockMode::Pinned { until } = component.mode {
-        if component.section.is_none() || time.elapsed_secs() >= until {
-            component.mode = ComponentLockMode::Snap;
+        // Detach/despawn invalidates the selection (inactive sections stay
+        // lockable - see ComponentLock).
+        let current = component
+            .section
+            .filter(|section| sections.iter().any(|(entity, _)| entity == section));
+        if component.section != current {
+            component.section = current;
         }
-    }
 
-    if component.mode != ComponentLockMode::Snap {
-        return;
-    }
-    let (Some(aim_rotation), Some(spaceship)) = (look_ray.rotation(), spaceship) else {
-        // No aim rig (menu states, headless tests): hold the current
-        // selection rather than guessing.
-        return;
-    };
-    let (ship_transform, ship_com) = spaceship.into_inner();
-    let origin = live_structure_anchor(ship_transform, ship_com);
-    let dir = (aim_rotation * Vec3::NEG_Z).normalize();
-    let candidates: Vec<(Entity, f32)> = sections
-        .iter()
-        .map(|&(entity, position)| (entity, ray_distance(origin, dir, position)))
-        .collect();
-    let picked = snap_pick(component.section, &candidates);
-    if component.section != picked {
-        component.section = picked;
+        // A pin outlives neither its deadline nor its section.
+        if let ComponentLockMode::Pinned { until } = component.mode {
+            if component.section.is_none() || time.elapsed_secs() >= until {
+                component.mode = ComponentLockMode::Snap;
+            }
+        }
+
+        if component.mode != ComponentLockMode::Snap {
+            continue;
+        }
+        let Some(aim_rotation) = look_ray.rotation() else {
+            // No aim rig (menu states, headless tests): hold the current
+            // selection rather than guessing.
+            continue;
+        };
+        let origin = live_structure_anchor(ship_transform, ship_com);
+        let dir = (aim_rotation * Vec3::NEG_Z).normalize();
+        let candidates: Vec<(Entity, f32)> = sections
+            .iter()
+            .map(|&(entity, position)| (entity, ray_distance(origin, dir, position)))
+            .collect();
+        let picked = snap_pick(component.section, &candidates);
+        if component.section != picked {
+            component.section = picked;
+        }
     }
 }
 
@@ -742,12 +989,12 @@ fn update_component_lock(
 fn step_component_lock(
     direction: isize,
     time: &Time,
-    lock: &SpaceshipPlayerTargetLock,
-    focus: &SpaceshipPlayerLockFocus,
-    component: &mut SpaceshipPlayerComponentLock,
+    lock: &CombatLock,
+    focus: &LockFocus,
+    component: &mut ComponentLock,
     q_sections: &Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>,
 ) {
-    let target = match **lock {
+    let target = match lock.0 {
         Some(target) if focus.focused_on(target) => target,
         _ => return,
     };
@@ -780,28 +1027,14 @@ fn step_component_lock(
     };
 }
 
-/// Whether the CTRL cycle-layer modifier currently fires, read from its
-/// action entity's state. The wheel/bracket gestures are routed HERE, in
-/// the observers, rather than via input conditions: a binding-level Chord
-/// ignores the binding's own value (pressing CTRL alone cycled the lock,
-/// bug 20260711-173237), and pairing it with an explicit Down still leaves
-/// the unmodified gesture Ongoing, which triggers Start.
-fn cycle_modifier_held(
-    q_modifier: &Query<&TriggerState, With<Action<TargetCycleModifierInput>>>,
-) -> bool {
-    q_modifier.iter().any(|&state| state == TriggerState::Fired)
-}
-
-#[allow(clippy::too_many_arguments)]
 fn on_component_cycle_next(
     _: On<Start<ComponentCycleNextInput>>,
     time: Res<Time>,
-    q_modifier: Query<&TriggerState, With<Action<TargetCycleModifierInput>>>,
-    mut lock: ResMut<SpaceshipPlayerTargetLock>,
-    mut candidates: ResMut<SpaceshipPlayerTargetCandidates>,
-    focus: Res<SpaceshipPlayerLockFocus>,
-    mut component: ResMut<SpaceshipPlayerComponentLock>,
     q_sections: Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>,
+    mut q_ship: Query<
+        (&CombatLock, &LockFocus, &mut ComponentLock),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
     pause: Res<State<crate::PauseStates>>,
 ) {
     // Observers bypass system-set gating; freeze intent changes while the
@@ -810,89 +1043,19 @@ fn on_component_cycle_next(
     if *pause.get() == crate::PauseStates::Paused {
         return;
     }
-
-    if cycle_modifier_held(&q_modifier) {
-        step_target_lock(1, &time, &mut lock, &mut candidates);
-    } else {
-        step_component_lock(1, &time, &lock, &focus, &mut component, &q_sections);
+    for (lock, focus, mut component) in &mut q_ship {
+        step_component_lock(1, &time, lock, focus, &mut component, &q_sections);
     }
 }
 
-/// Shared body of the target-cycle observers: step the ship lock through the
-/// tracked candidates in ranked order and pin it for [`TARGET_PIN_WINDOW`]
-/// seconds against the aim-driven picker. No focus gate - switching ships is
-/// the fast loop, unlike the component cycle. A lock outside the list (an
-/// asteroid, a torpedo) is simply not in the order: next starts at the best
-/// candidate, prev at the worst.
-fn step_target_lock(
-    direction: isize,
-    time: &Time,
-    lock: &mut SpaceshipPlayerTargetLock,
-    candidates: &mut SpaceshipPlayerTargetCandidates,
-) {
-    let len = candidates.entries.len() as isize;
-    if len == 0 {
-        return;
-    }
-    let index = lock.and_then(|target| {
-        candidates
-            .entries
-            .iter()
-            .position(|&entity| entity == target)
-    });
-    let next = match index {
-        Some(index) => (index as isize + direction).rem_euclid(len) as usize,
-        None if direction >= 0 => 0,
-        None => (len - 1) as usize,
-    };
-    **lock = Some(candidates.entries[next]);
-    candidates.pinned_until = Some(time.elapsed_secs() + TARGET_PIN_WINDOW);
-}
-
-fn on_target_cycle_next(
-    _: On<Start<TargetCycleNextInput>>,
-    time: Res<Time>,
-    mut lock: ResMut<SpaceshipPlayerTargetLock>,
-    mut candidates: ResMut<SpaceshipPlayerTargetCandidates>,
-    pause: Res<State<crate::PauseStates>>,
-) {
-    // Observers bypass system-set gating; freeze intent changes while the
-    // pause overlay is up (review R1.1). Releases stay ungated so held keys
-    // clear cleanly during a pause.
-    if *pause.get() == crate::PauseStates::Paused {
-        return;
-    }
-
-    step_target_lock(1, &time, &mut lock, &mut candidates);
-}
-
-fn on_target_cycle_prev(
-    _: On<Start<TargetCyclePrevInput>>,
-    time: Res<Time>,
-    mut lock: ResMut<SpaceshipPlayerTargetLock>,
-    mut candidates: ResMut<SpaceshipPlayerTargetCandidates>,
-    pause: Res<State<crate::PauseStates>>,
-) {
-    // Observers bypass system-set gating; freeze intent changes while the
-    // pause overlay is up (review R1.1). Releases stay ungated so held keys
-    // clear cleanly during a pause.
-    if *pause.get() == crate::PauseStates::Paused {
-        return;
-    }
-
-    step_target_lock(-1, &time, &mut lock, &mut candidates);
-}
-
-#[allow(clippy::too_many_arguments)]
 fn on_component_cycle_prev(
     _: On<Start<ComponentCyclePrevInput>>,
     time: Res<Time>,
-    q_modifier: Query<&TriggerState, With<Action<TargetCycleModifierInput>>>,
-    mut lock: ResMut<SpaceshipPlayerTargetLock>,
-    mut candidates: ResMut<SpaceshipPlayerTargetCandidates>,
-    focus: Res<SpaceshipPlayerLockFocus>,
-    mut component: ResMut<SpaceshipPlayerComponentLock>,
     q_sections: Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>,
+    mut q_ship: Query<
+        (&CombatLock, &LockFocus, &mut ComponentLock),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
     pause: Res<State<crate::PauseStates>>,
 ) {
     // Observers bypass system-set gating; freeze intent changes while the
@@ -901,16 +1064,15 @@ fn on_component_cycle_prev(
     if *pause.get() == crate::PauseStates::Paused {
         return;
     }
-
-    if cycle_modifier_held(&q_modifier) {
-        step_target_lock(-1, &time, &mut lock, &mut candidates);
-    } else {
-        step_component_lock(-1, &time, &lock, &focus, &mut component, &q_sections);
+    for (lock, focus, mut component) in &mut q_ship {
+        step_component_lock(-1, &time, lock, focus, &mut component, &q_sections);
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
@@ -919,112 +1081,177 @@ mod tests {
         half_angle_deg.to_radians().cos()
     }
 
+    // -- pure pick rules --
+
     #[test]
-    fn pick_target_locks_the_body_nearest_the_aim_ray() {
-        // Two candidates in front: one slightly off-axis, one further off-axis.
-        // The nearer-to-center one wins even though it is further away.
+    fn radar_picks_the_body_nearest_the_aim_ray() {
         let origin = Vec3::ZERO;
         let aim = Vec3::NEG_Z;
         let near_center = Entity::from_raw_u32(1).unwrap();
         let off_center = Entity::from_raw_u32(2).unwrap();
         let candidates = [
-            (near_center, Vec3::new(2.0, 0.0, -100.0)), // ~1.1 deg off axis, far
-            (off_center, Vec3::new(3.0, 0.0, -20.0)),   // ~8.5 deg off axis, near
+            // ~1.1 deg off axis, far vs ~8.5 deg off axis, near: the
+            // nearer-to-center one wins even though it is further away.
+            (near_center, Vec3::new(2.0, 0.0, -100.0), false, true),
+            (off_center, Vec3::new(3.0, 0.0, -20.0), false, true),
         ];
-
-        let picked = pick_target(
-            origin,
-            aim,
-            TARGETING_MAX_RANGE,
-            cone_cos(18.0),
-            candidates.into_iter(),
-        );
+        let picked = radar_pick(None, origin, aim, cone_cos(18.0), &candidates);
         assert_eq!(picked, Some(near_center));
     }
 
     #[test]
-    fn pick_target_ignores_bodies_outside_the_cone() {
-        // A body 90 deg off the aim direction (straight to the side) is not lockable.
-        let picked = pick_target(
-            Vec3::ZERO,
-            Vec3::NEG_Z,
-            TARGETING_MAX_RANGE,
-            cone_cos(18.0),
-            [(Entity::from_raw_u32(1).unwrap(), Vec3::new(50.0, 0.0, 0.0))].into_iter(),
+    fn radar_ignores_bodies_outside_the_cone_or_behind() {
+        let side = [(
+            Entity::from_raw_u32(1).unwrap(),
+            Vec3::new(50.0, 0.0, 0.0),
+            false,
+            true,
+        )];
+        assert_eq!(
+            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, cone_cos(18.0), &side),
+            None,
+            "a body outside the cone must not be picked"
         );
-        assert_eq!(picked, None, "a body outside the cone must not be locked");
+        let behind = [(
+            Entity::from_raw_u32(1).unwrap(),
+            Vec3::new(0.0, 0.0, 100.0),
+            false,
+            true,
+        )];
+        assert_eq!(
+            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, cone_cos(18.0), &behind),
+            None,
+            "a body behind the ship must not be picked"
+        );
+        assert_eq!(
+            radar_pick(None, Vec3::ZERO, Vec3::NEG_Z, cone_cos(18.0), &[]),
+            None
+        );
+    }
+
+    /// D7: the provisional candidate holds against a marginally-nearer
+    /// challenger and yields to a decisively-nearer one; leaving the cone
+    /// drops it entirely (the release-abort).
+    #[test]
+    fn radar_pick_applies_angular_hysteresis() {
+        let a = Entity::from_raw_u32(1).unwrap();
+        let b = Entity::from_raw_u32(2).unwrap();
+        let origin = Vec3::ZERO;
+        let aim = Vec3::NEG_Z;
+        let min_cos = cone_cos(18.0);
+        // a at ~8 deg off-ray, b at ~7.4 deg: nearer, but NOT decisively
+        // ((1-cos7.4) ~ 0.0084 vs 0.75 * (1-cos8) ~ 0.0073).
+        let marginal = [
+            (a, Vec3::new(14.0, 0.0, -100.0), false, true),
+            (b, Vec3::new(13.0, 0.0, -100.0), false, true),
+        ];
+        assert_eq!(
+            radar_pick(Some(a), origin, aim, min_cos, &marginal),
+            Some(a),
+            "a marginally-nearer challenger must not steal the candidate"
+        );
+        // b dead on the ray: decisive.
+        let decisive = [
+            (a, Vec3::new(14.0, 0.0, -100.0), false, true),
+            (b, Vec3::new(0.1, 0.0, -100.0), false, true),
+        ];
+        assert_eq!(
+            radar_pick(Some(a), origin, aim, min_cos, &decisive),
+            Some(b),
+            "a decisively-nearer challenger takes the candidate"
+        );
+        // No incumbent: plain nearest wins.
+        assert_eq!(radar_pick(None, origin, aim, min_cos, &marginal), Some(b));
+        // Cone empty: candidate drops (the abort).
+        let outside = [(a, Vec3::new(100.0, 0.0, 0.0), false, true)];
+        assert_eq!(radar_pick(Some(a), origin, aim, min_cos, &outside), None);
     }
 
     #[test]
-    fn pick_target_ignores_bodies_behind_the_ship() {
-        // A body directly behind (dot with aim is negative) is never locked.
-        let picked = pick_target(
-            Vec3::ZERO,
-            Vec3::NEG_Z,
-            TARGETING_MAX_RANGE,
-            cone_cos(18.0),
-            [(Entity::from_raw_u32(1).unwrap(), Vec3::new(0.0, 0.0, 100.0))].into_iter(),
-        );
-        assert_eq!(picked, None, "a body behind the ship must not be locked");
-    }
-
-    #[test]
-    fn pick_target_ignores_bodies_beyond_max_range() {
-        // Dead ahead but past the range limit: not lockable.
-        let picked = pick_target(
-            Vec3::ZERO,
-            Vec3::NEG_Z,
-            100.0,
-            cone_cos(18.0),
-            [(
-                Entity::from_raw_u32(1).unwrap(),
-                Vec3::new(0.0, 0.0, -500.0),
-            )]
+    fn rank_orders_by_aim_angle_then_distance() {
+        let origin = Vec3::ZERO;
+        let aim = Vec3::NEG_Z;
+        let on_ray_far = Entity::from_raw_u32(1).unwrap();
+        let off_ray_near = Entity::from_raw_u32(2).unwrap();
+        let behind = Entity::from_raw_u32(3).unwrap();
+        let ranked = rank_combat_targets(
+            origin,
+            aim,
+            [
+                (behind, Vec3::new(0.0, 0.0, 100.0)),
+                (off_ray_near, Vec3::new(30.0, 0.0, -50.0)),
+                (on_ray_far, Vec3::new(1.0, 0.0, -500.0)),
+            ]
             .into_iter(),
         );
-        assert_eq!(picked, None, "a body beyond max range must not be locked");
+        assert_eq!(
+            ranked,
+            vec![on_ray_far, off_ray_near, behind],
+            "closest to the aim ray first; behind the ship ranks last but is still tracked"
+        );
     }
 
     #[test]
-    fn pick_target_locks_distant_bodies_for_designation() {
-        // The lock doubles as the GOTO/torpedo designator, so a body far
-        // down-range (well past the old 2 km limit) must still lock when
-        // aimed at (user report 20260710).
-        let asteroid = Entity::from_raw_u32(1).unwrap();
-        let picked = pick_target(
+    fn rank_breaks_angle_ties_by_distance() {
+        let near = Entity::from_raw_u32(1).unwrap();
+        let far = Entity::from_raw_u32(2).unwrap();
+        let ranked = rank_combat_targets(
             Vec3::ZERO,
             Vec3::NEG_Z,
-            TARGETING_MAX_RANGE,
-            cone_cos(18.0),
-            [(asteroid, Vec3::new(0.0, 0.0, -15_000.0))].into_iter(),
+            [
+                (far, Vec3::new(0.0, 0.0, -800.0)),
+                (near, Vec3::new(0.0, 0.0, -200.0)),
+            ]
+            .into_iter(),
         );
-        assert_eq!(picked, Some(asteroid), "distant designation must lock");
+        assert_eq!(ranked, vec![near, far]);
     }
 
     #[test]
-    fn pick_target_returns_none_with_no_candidates() {
-        let picked = pick_target(
-            Vec3::ZERO,
-            Vec3::NEG_Z,
-            TARGETING_MAX_RANGE,
-            cone_cos(18.0),
-            std::iter::empty(),
-        );
-        assert_eq!(picked, None);
+    fn maintain_contacts_keeps_the_top_n_and_the_locked_target() {
+        let entities: Vec<Entity> = (1..=7)
+            .map(|raw| Entity::from_raw_u32(raw).unwrap())
+            .collect();
+        // Top 5 of 7 by rank.
+        let entries = maintain_contacts(&entities, None);
+        assert_eq!(entries, entities[..5].to_vec());
+        // The combat lock ranked 7th stays a member (replaces the 5th).
+        let entries = maintain_contacts(&entities, Some(entities[6]));
+        assert_eq!(entries.len(), 5);
+        assert!(entries.contains(&entities[6]));
+        // An unranked lock (not collectible) is not forced in.
+        let stranger = Entity::from_raw_u32(99).unwrap();
+        let entries = maintain_contacts(&entities, Some(stranger));
+        assert!(!entries.contains(&stranger));
     }
 
     #[test]
-    fn lock_cone_originates_at_the_live_structure_anchor() {
-        // A candidate dead ahead of the ANCHOR but 33 degrees off the ROOT
-        // ORIGIN bearing: it locks only if the cone originates at the anchor
-        // (18 degree half-angle).
+    fn ray_distance_measures_perpendicular_and_clamps_behind() {
+        let origin = Vec3::ZERO;
+        let dir = Vec3::NEG_Z;
+        assert!((ray_distance(origin, dir, Vec3::new(3.0, 4.0, -10.0)) - 5.0).abs() < 1e-6);
+        assert!((ray_distance(origin, dir, Vec3::new(0.0, 0.0, 7.0)) - 7.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn snap_pick_applies_hysteresis() {
+        let a = Entity::from_raw_u32(1).unwrap();
+        let b = Entity::from_raw_u32(2).unwrap();
+        assert_eq!(snap_pick(None, &[]), None);
+        assert_eq!(snap_pick(None, &[(a, 5.0), (b, 3.0)]), Some(b));
+        assert_eq!(snap_pick(Some(a), &[(a, 5.0), (b, 4.0)]), Some(a));
+        assert_eq!(snap_pick(Some(a), &[(a, 5.0), (b, 1.0)]), Some(b));
+    }
+
+    // -- the radar search against the scanner range model --
+
+    /// Player + faithful split camera rigs (ACTIVE normal rig on -Z, dormant
+    /// turret decoy 90 degrees off - reading the wrong rig fails loudly) with
+    /// an OPEN radar search. Returns (world, player).
+    fn radar_world() -> (World, Entity) {
         let mut world = World::new();
         world.insert_resource(Time::<()>::default());
-        world.insert_resource(SpaceshipPlayerTargetLock(None));
-        world.insert_resource(SpaceshipPlayerTargetCandidates::default());
         world.init_resource::<TargetingSettings>();
-        // Faithful split rigs: the ACTIVE normal rig carries the aim; a
-        // dormant turret decoy points elsewhere (see spawn_acquisition_rig).
         world.spawn((
             SpaceshipCameraInputMarker,
             SpaceshipCameraNormalInputMarker,
@@ -1036,105 +1263,61 @@ mod tests {
             SpaceshipCameraTurretInputMarker,
             PointRotationOutput(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)),
         ));
-        world.spawn((
-            SpaceshipRootMarker,
-            PlayerSpaceshipMarker,
+        let player = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::IDENTITY,
+                targeting_state(),
+                RadarState {
+                    combat: false,
+                    candidate: None,
+                },
+            ))
+            .id();
+        (world, player)
+    }
+
+    fn candidate(world: &mut World, player: Entity) -> Option<Entity> {
+        world.get::<RadarState>(player).unwrap().candidate
+    }
+
+    fn search(world: &mut World) {
+        world.run_system_once(update_radar_search).unwrap();
+    }
+
+    #[test]
+    fn radar_cone_originates_at_the_live_structure_anchor() {
+        // A candidate dead ahead of the ANCHOR but 33 degrees off the ROOT
+        // ORIGIN bearing: it is picked only if the cone originates at the
+        // anchor (18 degree half-angle).
+        let (mut world, player) = radar_world();
+        world.entity_mut(player).insert((
             Transform::from_translation(Vec3::new(10.0, 0.0, 0.0)),
             ComputedCenterOfMass(Vec3::new(2.0, 0.0, 0.0)),
         ));
-        let candidate = world
+        let body = world
             .spawn((
                 RigidBody::Dynamic,
+                LockSignature(20.0),
                 GlobalTransform::from_translation(Vec3::new(12.0, 0.0, -3.0)),
             ))
             .id();
 
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-
+        search(&mut world);
         assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(candidate),
+            candidate(&mut world, player),
+            Some(body),
             "the cone must originate at the anchor, not the root origin"
         );
     }
 
+    /// Ray-liveness (task 20260713-082324): the radar follows the ACTIVE
+    /// rig's live output; the decoy turret rig points at the side body from
+    /// the start, so reading it would fail the delivery guard.
     #[test]
-    fn signature_picks_the_nearest_hostile_in_range() {
-        let near = Entity::from_raw_u32(1).unwrap();
-        let far = Entity::from_raw_u32(2).unwrap();
-        let candidates = [
-            (far, Vec3::new(0.0, 0.0, 400.0), true),
-            (near, Vec3::new(0.0, 0.0, -200.0), true),
-        ];
-
-        let picked = pick_signature_target(Vec3::ZERO, 550.0, candidates.into_iter());
-
-        assert_eq!(picked, Some(near), "nearest hostile wins, direction-blind");
-    }
-
-    #[test]
-    fn signature_never_acquires_non_hostiles() {
-        let rock = Entity::from_raw_u32(1).unwrap();
-        let candidates = [(rock, Vec3::new(0.0, 0.0, -50.0), false)];
-
-        let picked = pick_signature_target(Vec3::ZERO, 550.0, candidates.into_iter());
-
-        assert_eq!(picked, None, "asteroids and neutral bodies never auto-lock");
-    }
-
-    #[test]
-    fn signature_respects_the_range() {
-        let hostile = Entity::from_raw_u32(1).unwrap();
-        let candidates = [(hostile, Vec3::new(0.0, 0.0, -600.0), true)];
-
-        let picked = pick_signature_target(Vec3::ZERO, 550.0, candidates.into_iter());
-
-        assert_eq!(picked, None, "beyond signature range needs deliberate aim");
-    }
-
-    /// Spawn the camera-input rigs + player the acquisition system needs.
-    /// FAITHFUL SPLIT RIGS (production spawns one rig per mode, only one
-    /// holding the active marker - a single both-marker rig masks exactly the
-    /// frozen-ray bug class, task 20260713-082324): the ACTIVE normal rig
-    /// aims down -Z, and a DORMANT turret rig points 90 degrees off as a
-    /// decoy - any test that passes while the picker reads the decoy is
-    /// reading the wrong rig.
-    fn spawn_acquisition_rig(world: &mut World) {
-        world.insert_resource(Time::<()>::default());
-        world.insert_resource(SpaceshipPlayerTargetLock(None));
-        world.insert_resource(SpaceshipPlayerTargetCandidates::default());
-        world.init_resource::<TargetingSettings>();
-        world.spawn((
-            SpaceshipCameraInputMarker,
-            SpaceshipCameraNormalInputMarker,
-            SpaceshipRotationInputActiveMarker,
-            PointRotationOutput(Quat::IDENTITY),
-        ));
-        world.spawn((
-            SpaceshipCameraInputMarker,
-            SpaceshipCameraTurretInputMarker,
-            PointRotationOutput(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)),
-        ));
-        world.spawn((
-            SpaceshipRootMarker,
-            PlayerSpaceshipMarker,
-            Transform::IDENTITY,
-        ));
-    }
-
-    /// Ray-liveness regression (task 20260713-082324): the acquisition cone
-    /// follows the ACTIVE rig's live output. Pre-fix, the picker pinned the
-    /// TURRET rig, whose output froze outside Turret view - swiveling the
-    /// look in Normal view could never move the cone. Delivery-guarded: the
-    /// side body is provably NOT lockable before the swivel.
-    #[test]
-    fn acquisition_follows_the_live_active_ray() {
-        let mut world = World::new();
-        spawn_acquisition_rig(&mut world);
-        // A ship 90 degrees off the initial -Z aim (at -X), well outside the
-        // 18-degree cone. Neutral, so the hostile fallback cannot acquire it.
+    fn radar_follows_the_live_active_ray() {
+        let (mut world, player) = radar_world();
         let side = world
             .spawn((
                 SpaceshipRootMarker,
@@ -1144,17 +1327,13 @@ mod tests {
             ))
             .id();
 
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
+        search(&mut world);
         assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
+            candidate(&mut world, player),
             None,
-            "delivery guard: the side body is outside the cone while aiming -Z"
+            "delivery guard: the side body is outside the cone while looking -Z"
         );
 
-        // Swivel the ACTIVE rig 90 degrees toward the body (the dormant
-        // turret decoy stays where it was - reading it would keep None).
         let active = world
             .query_filtered::<Entity, With<SpaceshipRotationInputActiveMarker>>()
             .iter(&world)
@@ -1165,50 +1344,19 @@ mod tests {
             .insert(PointRotationOutput(Quat::from_rotation_y(
                 std::f32::consts::FRAC_PI_2,
             )));
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
+        search(&mut world);
         assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
+            candidate(&mut world, player),
             Some(side),
-            "the cone must follow the live active ray"
+            "the radar must follow the live active ray"
         );
     }
 
     #[test]
-    fn cone_pick_beats_the_signature_fallback() {
-        // A hostile BEHIND the player inside signature range, and a body dead
-        // ahead in the cone: aiming designates, so the cone target wins.
-        let mut world = World::new();
-        spawn_acquisition_rig(&mut world);
-        world.spawn((
-            AISpaceshipMarker,
-            RigidBody::Dynamic,
-            GlobalTransform::from_translation(Vec3::new(0.0, 0.0, 100.0)),
-        ));
-        let aimed = world
-            .spawn((
-                RigidBody::Dynamic,
-                // Signed so the scanner sees it at 300u (bare bodies are
-                // debris and gate out - see unsigned_debris test).
-                LockSignature(20.0),
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -300.0)),
-            ))
-            .id();
-
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-
-        assert_eq!(**world.resource::<SpaceshipPlayerTargetLock>(), Some(aimed));
-    }
-
-    #[test]
     fn small_signatures_only_lock_up_close() {
-        // A signed 2u rock (lock range 60u at the default 30/unit) dead
-        // ahead: invisible to the scanner at 200u, lockable at 40u.
-        let mut world = World::new();
-        spawn_acquisition_rig(&mut world);
+        // A signed 2u rock (range 60u at the default 30/unit) dead ahead:
+        // invisible to the radar at 200u, pickable at 40u.
+        let (mut world, player) = radar_world();
         let rock = world
             .spawn((
                 RigidBody::Dynamic,
@@ -1217,75 +1365,47 @@ mod tests {
             ))
             .id();
 
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            None,
-            "a small rock returns no signature at range"
-        );
+        search(&mut world);
+        assert_eq!(candidate(&mut world, player), None);
 
         world
             .entity_mut(rock)
             .insert(GlobalTransform::from_translation(Vec3::new(
                 0.0, 0.0, -40.0,
             )));
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(rock),
-            "close enough, the scanner sees it"
-        );
+        search(&mut world);
+        assert_eq!(candidate(&mut world, player), Some(rock));
     }
 
     #[test]
     fn unsigned_debris_is_point_blank_only() {
-        // A bare dynamic body (battle debris) dead ahead: never lockable
-        // at 50u, only inside the unsigned point-blank range.
-        let mut world = World::new();
-        spawn_acquisition_rig(&mut world);
+        // A bare dynamic body (battle debris): never pickable at ~8u, only
+        // inside the (retuned, ~5u) unsigned point-blank range.
+        let (mut world, player) = radar_world();
         let debris = world
             .spawn((
                 RigidBody::Dynamic,
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -50.0)),
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -8.0)),
             ))
             .id();
 
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
+        search(&mut world);
         assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
+            candidate(&mut world, player),
             None,
-            "debris must not steal mid-fight locks"
+            "debris at 8u must be invisible to the radar (range ~5u)"
         );
 
         world
             .entity_mut(debris)
-            .insert(GlobalTransform::from_translation(Vec3::new(
-                0.0, 0.0, -10.0,
-            )));
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(debris),
-            "point-blank debris is still designatable"
-        );
+            .insert(GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -4.0)));
+        search(&mut world);
+        assert_eq!(candidate(&mut world, player), Some(debris));
     }
 
-    /// A Static body with an AUTHORED LockSignature is lockable (a nav
-    /// beacon on rails, task 20260712-093044) at its signature range, while
-    /// a bare Static body (a scenario trigger area) stays invisible to the
-    /// scanner at any distance - the gate must tell them apart.
     #[test]
     fn static_beacons_lock_but_static_areas_never_do() {
-        let mut world = World::new();
-        spawn_acquisition_rig(&mut world);
+        let (mut world, player) = radar_world();
         let beacon = world
             .spawn((
                 RigidBody::Static,
@@ -1293,41 +1413,30 @@ mod tests {
                 GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -300.0)),
             ))
             .id();
-
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
+        search(&mut world);
         assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
+            candidate(&mut world, player),
             Some(beacon),
-            "a signed static body (nav beacon) is aim-lockable"
+            "a signed static body (nav beacon) is radar-pickable"
         );
 
-        // Same rig, but the static body carries no signature: a trigger
-        // area. Point-blank dead ahead and still never locked.
-        let mut world = World::new();
-        spawn_acquisition_rig(&mut world);
+        let (mut world, player) = radar_world();
         world.spawn((
             RigidBody::Static,
-            GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -10.0)),
+            GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -4.0)),
         ));
-
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
+        search(&mut world);
         assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
+            candidate(&mut world, player),
             None,
-            "an unsigned static body (trigger area) is never lockable"
+            "an unsigned static body (trigger area) is never pickable"
         );
     }
 
     #[test]
     fn ships_and_well_bodies_keep_their_long_range_lock() {
-        // The full-range classes: a well body across the field and a ship.
         for components in 0..2 {
-            let mut world = World::new();
-            spawn_acquisition_rig(&mut world);
+            let (mut world, player) = radar_world();
             let far = GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -5000.0));
             let target = match components {
                 0 => world
@@ -1342,23 +1451,18 @@ mod tests {
                     .id(),
             };
 
-            world
-                .run_system_once(update_spaceship_target_input)
-                .unwrap();
+            search(&mut world);
             assert_eq!(
-                **world.resource::<SpaceshipPlayerTargetLock>(),
+                candidate(&mut world, player),
                 Some(target),
-                "full-range class {components} must lock at range"
+                "full-range class {components} must be pickable at range"
             );
         }
     }
 
     #[test]
     fn committed_torpedoes_lock_at_combat_range_not_across_the_map() {
-        // Small but hot: well beyond every real point-defense engagement,
-        // but not the full designator range - the scanner fiction holds.
-        let mut world = World::new();
-        spawn_acquisition_rig(&mut world);
+        let (mut world, player) = radar_world();
         let torpedo = world
             .spawn((
                 TorpedoProjectileMarker,
@@ -1367,37 +1471,41 @@ mod tests {
                 GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -2000.0)),
             ))
             .id();
-
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(torpedo),
-            "point defense locks torpedoes at combat range"
-        );
+        search(&mut world);
+        assert_eq!(candidate(&mut world, player), Some(torpedo));
 
         world
             .entity_mut(torpedo)
             .insert(GlobalTransform::from_translation(Vec3::new(
                 0.0, 0.0, -5000.0,
             )));
-        world.insert_resource(SpaceshipPlayerTargetLock(None));
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
+        world.get_mut::<RadarState>(player).unwrap().candidate = None;
+        search(&mut world);
         assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
+            candidate(&mut world, player),
             None,
             "a torpedo is not visible across the map"
         );
     }
 
     #[test]
-    fn the_lock_holds_a_little_past_its_gate_but_fresh_locks_do_not() {
-        // A signed 2u rock gates at 60u. Fresh acquisition at 65u: refused.
-        let mut world = World::new();
-        spawn_acquisition_rig(&mut world);
+    fn an_authored_signature_never_gates_below_the_debris_floor() {
+        let (mut world, player) = radar_world();
+        let speck = world
+            .spawn((
+                RigidBody::Dynamic,
+                LockSignature(0.0),
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -4.0)),
+            ))
+            .id();
+        search(&mut world);
+        assert_eq!(candidate(&mut world, player), Some(speck));
+    }
+
+    #[test]
+    fn the_candidate_holds_a_little_past_its_gate_but_fresh_picks_do_not() {
+        // A signed 2u rock gates at 60u. Fresh pick at 65u: refused.
+        let (mut world, player) = radar_world();
         let rock = world
             .spawn((
                 RigidBody::Dynamic,
@@ -1405,271 +1513,262 @@ mod tests {
                 GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -65.0)),
             ))
             .id();
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(**world.resource::<SpaceshipPlayerTargetLock>(), None);
+        search(&mut world);
+        assert_eq!(candidate(&mut world, player), None);
 
-        // Locked inside the gate, then drifting to 65u (inside 1.15x):
-        // the incumbent holds - no strobing, the focus dwell survives.
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(rock)));
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(rock),
-            "the incumbent holds inside the hysteresis band"
-        );
+        // Held inside the gate, then drifting to 65u (inside 1.15x): holds.
+        world.get_mut::<RadarState>(player).unwrap().candidate = Some(rock);
+        search(&mut world);
+        assert_eq!(candidate(&mut world, player), Some(rock));
 
-        // Truly out (past 1.15x): released.
+        // Truly out (past 1.15x): dropped.
         world
             .entity_mut(rock)
             .insert(GlobalTransform::from_translation(Vec3::new(
                 0.0, 0.0, -80.0,
             )));
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(**world.resource::<SpaceshipPlayerTargetLock>(), None);
+        search(&mut world);
+        assert_eq!(candidate(&mut world, player), None);
     }
 
-    #[test]
-    fn a_held_lock_is_not_stolen_by_a_closer_body() {
-        // Sticky-from-acquisition (task 20260712-203353): once locked, a body
-        // closer to the aim ray must not steal the lock.
+    // -- lock upkeep: validity, decay, allegiance flip, threat set --
+
+    /// Player with the state bundle and both locks set; no camera rig (the
+    /// upkeep falls back to ship-forward for the threat ranking). Returns
+    /// (world, player, travel_target, combat_target).
+    fn locked_world() -> (World, Entity, Entity, Entity) {
         let mut world = World::new();
-        spawn_acquisition_rig(&mut world);
-        // A sits slightly off the aim ray (-Z); it is the only candidate, so
-        // aim acquires it.
-        let a = world
-            .spawn((
-                SpaceshipRootMarker,
-                RigidBody::Dynamic,
-                GlobalTransform::from_translation(Vec3::new(5.0, 0.0, -100.0)),
-            ))
-            .id();
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(a),
-            "aim acquires the first ship"
-        );
-
-        // A challenger dead ahead (closer to the aim ray) appears: a
-        // non-sticky picker would switch to it. The held lock must stay on A.
-        let b = world
-            .spawn((
-                SpaceshipRootMarker,
-                RigidBody::Dynamic,
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -100.0)),
-            ))
-            .id();
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(a),
-            "a held lock is not stolen by a closer body"
-        );
-
-        // Delivery guard: with A gone the picker re-acquires B, proving it CAN
-        // still move - the hold above was stickiness, not a wedged picker.
-        world.despawn(a);
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(b),
-            "the picker re-acquires after the held target leaves"
-        );
-    }
-
-    #[test]
-    fn a_non_ship_lock_is_not_sticky_so_nav_re_designates() {
-        // Review R1.1: stickiness is ship-only. A nav body (signed rock /
-        // beacon-like, NOT a ship) must stay aim-driven, so the GOTO designator
-        // can be re-pointed by aiming.
-        let mut world = World::new();
-        spawn_acquisition_rig(&mut world);
-        // Two signed rocks (nav bodies): A dead ahead, B just off-axis.
-        let a = world
-            .spawn((
-                RigidBody::Dynamic,
-                LockSignature(50.0),
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -100.0)),
-            ))
-            .id();
-        let b = world
-            .spawn((
-                RigidBody::Dynamic,
-                LockSignature(50.0),
-                GlobalTransform::from_translation(Vec3::new(3.0, 0.0, -100.0)),
-            ))
-            .id();
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(a),
-            "aim locks the dead-ahead rock"
-        );
-
-        // Move A off the aim ray so B is now nearest it. A non-ship lock is not
-        // sticky, so the picker re-designates to B - nav switching by aiming
-        // still works (unlike a ship lock, which would hold; see
-        // a_held_lock_is_not_stolen_by_a_closer_body).
-        world
-            .entity_mut(a)
-            .insert(GlobalTransform::from_translation(Vec3::new(
-                10.0, 0.0, -100.0,
-            )));
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(b),
-            "a non-ship lock is not sticky; aiming re-designates the nav target"
-        );
-    }
-
-    #[test]
-    fn an_authored_signature_never_gates_below_the_debris_floor() {
-        // LockSignature(0.0) would gate at zero range; the floor keeps it
-        // at least as visible as unsigned debris.
-        let mut world = World::new();
-        spawn_acquisition_rig(&mut world);
-        let speck = world
-            .spawn((
-                RigidBody::Dynamic,
-                LockSignature(0.0),
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -10.0)),
-            ))
-            .id();
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(speck),
-            "a zero signature still locks at the debris floor"
-        );
-    }
-
-    #[test]
-    fn a_static_gravity_well_source_is_lockable_but_a_static_sensor_is_not() {
-        // Well sources went on rails (RigidBody::Static) in the gravity
-        // task, which silently dropped them from the lockable set - the
-        // 2026-07-10 playtest could not GOTO the Gravity Rock. A static
-        // body with a GravityWell is a big visible rock, lockable; a bare
-        // static body (scenario trigger volume) stays unlockable.
-        let mut world = World::new();
-        spawn_acquisition_rig(&mut world);
-        world.spawn((
-            RigidBody::Static,
-            GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -200.0)),
-        ));
-        let rock = world
+        world.insert_resource(Time::<()>::default());
+        world.init_resource::<TargetingSettings>();
+        let travel_target = world
             .spawn((
                 RigidBody::Static,
-                GravityWell::from_surface_gravity(3.0, 20.0, &GravitySettings::default()),
+                LockSignature(20.0),
                 GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -300.0)),
             ))
             .id();
+        let combat_target = world
+            .spawn((
+                SpaceshipRootMarker,
+                AISpaceshipMarker,
+                RigidBody::Dynamic,
+                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -400.0)),
+            ))
+            .id();
+        let player = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::IDENTITY,
+                targeting_state(),
+            ))
+            .id();
+        // Register the upkeep ONCE so change detection (Changed<Allegiance>)
+        // is real across runs - run_system_once builds a fresh system each
+        // call, which would see EVERYTHING as changed, exactly the
+        // false-positive this rig must not have. Settle the spawn-frame
+        // Changed ticks before locking, as a live app would.
+        let upkeep_id = world.register_system(update_contacts_and_locks);
+        world.insert_resource(UpkeepSystem(upkeep_id));
+        world.run_system(upkeep_id).unwrap();
+        world.get_mut::<TravelLock>(player).unwrap().0 = Some(travel_target);
+        world.get_mut::<CombatLock>(player).unwrap().0 = Some(combat_target);
+        (world, player, travel_target, combat_target)
+    }
 
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
+    #[derive(Resource)]
+    struct UpkeepSystem(bevy::ecs::system::SystemId);
 
-        assert_eq!(**world.resource::<SpaceshipPlayerTargetLock>(), Some(rock));
+    fn upkeep(world: &mut World) {
+        let id = world.resource::<UpkeepSystem>().0;
+        world.run_system(id).unwrap();
     }
 
     #[test]
-    fn empty_cone_auto_acquires_the_close_hostile() {
-        // Nothing ahead; a hostile behind the player inside signature range
-        // locks by itself - the heat-signature acquisition.
-        let mut world = World::new();
-        spawn_acquisition_rig(&mut world);
-        let hostile = world
-            .spawn((
-                AISpaceshipMarker,
-                RigidBody::Dynamic,
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, 100.0)),
-            ))
-            .id();
+    fn locks_hold_while_collectible_and_clear_on_death_or_range() {
+        let (mut world, player, travel_target, combat_target) = locked_world();
 
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-
+        upkeep(&mut world);
         assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(hostile)
+            world.get::<TravelLock>(player).unwrap().0,
+            Some(travel_target),
+            "delivery guard: the travel lock holds while collectible"
+        );
+        assert_eq!(
+            world.get::<CombatLock>(player).unwrap().0,
+            Some(combat_target)
+        );
+
+        // The travel target leaves its signature range: cleared; the combat
+        // ship (full-range class) survives.
+        world
+            .entity_mut(travel_target)
+            .insert(GlobalTransform::from_translation(Vec3::new(
+                0.0, 0.0, -900.0,
+            )));
+        upkeep(&mut world);
+        assert_eq!(world.get::<TravelLock>(player).unwrap().0, None);
+        assert_eq!(
+            world.get::<CombatLock>(player).unwrap().0,
+            Some(combat_target)
+        );
+
+        // The combat target dies: cleared.
+        world.despawn(combat_target);
+        upkeep(&mut world);
+        assert_eq!(world.get::<CombatLock>(player).unwrap().0, None);
+    }
+
+    /// D4: the combat lock decays after COMBAT_DECAY_SECS idle; the raised
+    /// stance resets the clock (the delivery guard - the same span with
+    /// activity does NOT decay).
+    #[test]
+    fn combat_lock_decays_after_idle_and_raised_resets_the_clock() {
+        let (mut world, player, _travel, combat_target) = locked_world();
+
+        // 29 idle seconds: still locked.
+        world
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_secs_f32(29.0));
+        upkeep(&mut world);
+        assert_eq!(
+            world.get::<CombatLock>(player).unwrap().0,
+            Some(combat_target)
+        );
+
+        // Raised at the brink: the clock resets, another 29 s stays locked.
+        world.entity_mut(player).insert(WeaponsRaised(true));
+        world
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_secs_f32(2.0));
+        upkeep(&mut world);
+        world.entity_mut(player).insert(WeaponsRaised(false));
+        world
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_secs_f32(29.0));
+        upkeep(&mut world);
+        assert_eq!(
+            world.get::<CombatLock>(player).unwrap().0,
+            Some(combat_target),
+            "activity resets the decay clock"
+        );
+
+        // Two more idle seconds cross the threshold: cleared.
+        world
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_secs_f32(2.0));
+        upkeep(&mut world);
+        assert_eq!(
+            world.get::<CombatLock>(player).unwrap().0,
+            None,
+            "an idle combat lock decays at {COMBAT_DECAY_SECS} s"
+        );
+    }
+
+    /// A hostile combat target FLIPPING non-hostile clears the lock; a
+    /// deliberate lock on an always-neutral body is untouched.
+    #[test]
+    fn allegiance_flip_clears_the_combat_lock_but_deliberate_neutrals_hold() {
+        let (mut world, player, _travel, combat_target) = locked_world();
+        upkeep(&mut world);
+        assert_eq!(
+            world.get::<CombatLock>(player).unwrap().0,
+            Some(combat_target),
+            "delivery guard: locked while hostile"
+        );
+
+        // The scripted surrender: Enemy -> Neutral.
+        world.entity_mut(combat_target).insert(Allegiance::Neutral);
+        upkeep(&mut world);
+        assert_eq!(
+            world.get::<CombatLock>(player).unwrap().0,
+            None,
+            "a surrender must not keep the guns hot"
+        );
+
+        // A deliberate combat lock on an (unchanged) neutral holds.
+        world.get_mut::<CombatLock>(player).unwrap().0 = Some(combat_target);
+        upkeep(&mut world);
+        assert_eq!(
+            world.get::<CombatLock>(player).unwrap().0,
+            Some(combat_target),
+            "combat mode is combat mode - deliberate neutral locks are legal"
         );
     }
 
     #[test]
-    fn empty_cone_ignores_non_hostiles_and_far_hostiles() {
-        // A controller-less ship nearby and a hostile beyond signature range:
-        // neither auto-acquires, the lock stays empty.
-        let mut world = World::new();
-        spawn_acquisition_rig(&mut world);
-        world.spawn((
-            SpaceshipRootMarker,
-            RigidBody::Dynamic,
-            GlobalTransform::from_translation(Vec3::new(0.0, 0.0, 100.0)),
-        ));
-        world.spawn((
-            AISpaceshipMarker,
-            RigidBody::Dynamic,
-            GlobalTransform::from_translation(Vec3::new(0.0, 0.0, 900.0)),
-        ));
-
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-
-        assert_eq!(**world.resource::<SpaceshipPlayerTargetLock>(), None);
-    }
-
-    #[test]
-    fn empty_cone_never_auto_acquires_a_neutral_ship() {
-        // An explicitly Neutral ship close by is a bystander, not a threat:
-        // the signature fallback must leave it alone (task 20260708-203708).
-        let mut world = World::new();
-        spawn_acquisition_rig(&mut world);
+    fn threat_contacts_track_hostile_combat_targets() {
+        let (mut world, player, _travel, combat_target) = locked_world();
+        // A neutral ship and a hostile committed torpedo alongside.
         world.spawn((
             SpaceshipRootMarker,
             Allegiance::Neutral,
             RigidBody::Dynamic,
-            GlobalTransform::from_translation(Vec3::new(0.0, 0.0, 100.0)),
+            GlobalTransform::from_translation(Vec3::new(50.0, 0.0, -100.0)),
         ));
+        let torpedo = world
+            .spawn((
+                TorpedoProjectileMarker,
+                TorpedoTargetChosen,
+                Allegiance::Enemy,
+                RigidBody::Dynamic,
+                GlobalTransform::from_translation(Vec3::new(0.0, 10.0, -200.0)),
+            ))
+            .id();
 
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-
-        assert_eq!(**world.resource::<SpaceshipPlayerTargetLock>(), None);
+        upkeep(&mut world);
+        let entries = world.get::<ThreatContacts>(player).unwrap().entries.clone();
+        assert!(entries.contains(&combat_target));
+        assert!(
+            entries.contains(&torpedo),
+            "a committed hostile torpedo is a threat"
+        );
+        assert_eq!(entries.len(), 2, "neutrals and beacons stay out");
     }
 
     // -- focus dwell + component fine-lock --
 
-    use std::time::Duration;
+    #[test]
+    fn focus_accumulates_and_resets_on_lock_change() {
+        let mut world = World::new();
+        world.insert_resource(Time::<()>::default());
+        let a = world.spawn_empty().id();
+        let b = world.spawn_empty().id();
+        let ship = world
+            .spawn((CombatLock(Some(a)), LockFocus::default()))
+            .id();
 
-    /// A focused world: aim rig on -Z, player at the origin, a locked target
-    /// ship with three sections - one dead on the aim ray, two off to the
-    /// side - and the focus dwell already complete.
+        world.run_system_once(tick_lock_focus).unwrap();
+        world
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_secs_f32(1.0));
+        world.run_system_once(tick_lock_focus).unwrap();
+        let focus = world.get::<LockFocus>(ship).unwrap();
+        assert_eq!(focus.target, Some(a));
+        assert!((focus.seconds - 1.0).abs() < 1e-6);
+        assert!(!focus.focused_on(a));
+
+        world
+            .resource_mut::<Time>()
+            .advance_by(Duration::from_secs_f32(0.6));
+        world.run_system_once(tick_lock_focus).unwrap();
+        assert!(world.get::<LockFocus>(ship).unwrap().focused_on(a));
+
+        // Switching targets restarts the dwell - a radar re-commit of the
+        // SAME entity is equality and never lands here.
+        world.get_mut::<CombatLock>(ship).unwrap().0 = Some(b);
+        world.run_system_once(tick_lock_focus).unwrap();
+        let focus = world.get::<LockFocus>(ship).unwrap();
+        assert_eq!(focus.target, Some(b));
+        assert_eq!(focus.seconds, 0.0);
+    }
+
+    /// A player combat-locked and focused on a target ship with three
+    /// sections (one dead on the -Z aim ray, two off to the side), faithful
+    /// split rigs. Returns (world, player, [on_ray, near_ray, far_ray]).
     fn focused_world() -> (World, Entity, [Entity; 3]) {
         let mut world = World::new();
         world.insert_resource(Time::<()>::default());
-        // Faithful split rigs (see spawn_acquisition_rig): active normal rig
-        // on -Z, dormant turret decoy 90 degrees off.
         world.spawn((
             SpaceshipCameraInputMarker,
             SpaceshipCameraNormalInputMarker,
@@ -1681,14 +1780,7 @@ mod tests {
             SpaceshipCameraTurretInputMarker,
             PointRotationOutput(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)),
         ));
-        world.spawn((
-            SpaceshipRootMarker,
-            PlayerSpaceshipMarker,
-            Transform::IDENTITY,
-        ));
         let target = world.spawn(SpaceshipRootMarker).id();
-        // Local build order (z) deliberately different from spawn order, so
-        // the cycle-order sort is actually exercised.
         let on_ray = world
             .spawn((
                 SectionMarker,
@@ -1713,783 +1805,434 @@ mod tests {
                 ChildOf(target),
             ))
             .id();
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
-        world.insert_resource(SpaceshipPlayerLockFocus {
-            target: Some(target),
-            seconds: FOCUS_TIME,
-        });
-        world.insert_resource(SpaceshipPlayerComponentLock::default());
-        (world, target, [on_ray, near_ray, far_ray])
+        let player = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::IDENTITY,
+                CombatLock(Some(target)),
+                LockFocus {
+                    target: Some(target),
+                    seconds: FOCUS_TIME,
+                },
+                ComponentLock::default(),
+            ))
+            .id();
+        (world, player, [on_ray, near_ray, far_ray])
     }
 
     fn cycle(world: &mut World, direction: isize) {
         world
             .run_system_once(
                 move |time: Res<Time>,
-                      lock: Res<SpaceshipPlayerTargetLock>,
-                      focus: Res<SpaceshipPlayerLockFocus>,
-                      mut component: ResMut<SpaceshipPlayerComponentLock>,
-                      q_sections: Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>| {
-                    step_component_lock(
-                        direction,
-                        &time,
-                        &lock,
-                        &focus,
-                        &mut component,
-                        &q_sections,
-                    );
+                      q_sections: Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>,
+                      mut q_ship: Query<(&CombatLock, &LockFocus, &mut ComponentLock)>| {
+                    for (lock, focus, mut component) in &mut q_ship {
+                        step_component_lock(
+                            direction,
+                            &time,
+                            lock,
+                            focus,
+                            &mut component,
+                            &q_sections,
+                        );
+                    }
                 },
             )
             .unwrap();
     }
 
-    #[test]
-    fn focus_accumulates_and_resets_on_lock_change() {
-        let mut world = World::new();
-        world.insert_resource(Time::<()>::default());
-        let a = world.spawn_empty().id();
-        let b = world.spawn_empty().id();
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(a)));
-        world.insert_resource(SpaceshipPlayerLockFocus::default());
-
-        // First tick registers the new target (reset), then time accrues.
-        world.run_system_once(tick_lock_focus).unwrap();
-        world
-            .resource_mut::<Time>()
-            .advance_by(Duration::from_secs_f32(1.0));
-        world.run_system_once(tick_lock_focus).unwrap();
-        let focus = world.resource::<SpaceshipPlayerLockFocus>();
-        assert_eq!(focus.target, Some(a));
-        assert!((focus.seconds - 1.0).abs() < 1e-6);
-        assert!(!focus.focused_on(a));
-
-        world
-            .resource_mut::<Time>()
-            .advance_by(Duration::from_secs_f32(0.6));
-        world.run_system_once(tick_lock_focus).unwrap();
-        assert!(world.resource::<SpaceshipPlayerLockFocus>().focused_on(a));
-
-        // Switching targets restarts the dwell.
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(b)));
-        world.run_system_once(tick_lock_focus).unwrap();
-        let focus = world.resource::<SpaceshipPlayerLockFocus>();
-        assert_eq!(focus.target, Some(b));
-        assert_eq!(focus.seconds, 0.0);
-    }
-
-    #[test]
-    fn ray_distance_measures_perpendicular_and_clamps_behind() {
-        let origin = Vec3::ZERO;
-        let dir = Vec3::NEG_Z;
-        assert!((ray_distance(origin, dir, Vec3::new(3.0, 4.0, -10.0)) - 5.0).abs() < 1e-6);
-        // Behind the origin: distance to the origin itself, not the
-        // backward extension.
-        assert!((ray_distance(origin, dir, Vec3::new(0.0, 0.0, 7.0)) - 7.0).abs() < 1e-6);
-    }
-
-    #[test]
-    fn snap_pick_applies_hysteresis() {
-        let a = Entity::from_raw_u32(1).unwrap();
-        let b = Entity::from_raw_u32(2).unwrap();
-        assert_eq!(snap_pick(None, &[]), None);
-        // No incumbent: nearest wins.
-        assert_eq!(snap_pick(None, &[(a, 5.0), (b, 3.0)]), Some(b));
-        // Challenger at 0.8x of the incumbent: not decisive, keep a.
-        assert_eq!(snap_pick(Some(a), &[(a, 5.0), (b, 4.0)]), Some(a));
-        // Challenger well under the hysteresis fraction: switch.
-        assert_eq!(snap_pick(Some(a), &[(a, 5.0), (b, 2.0)]), Some(b));
-        // Dead incumbent (not in candidates): nearest wins.
-        assert_eq!(snap_pick(Some(a), &[(b, 9.0)]), Some(b));
-    }
-
-    #[test]
-    fn component_lock_requires_focus() {
-        let (mut world, _, [on_ray, _, _]) = focused_world();
-        world.resource_mut::<SpaceshipPlayerComponentLock>().section = Some(on_ray);
-        world.resource_mut::<SpaceshipPlayerLockFocus>().seconds = 0.5;
-
-        world.run_system_once(update_component_lock).unwrap();
-
-        assert_eq!(
-            *world.resource::<SpaceshipPlayerComponentLock>(),
-            SpaceshipPlayerComponentLock::default(),
-            "an incomplete dwell clears the fine lock"
-        );
+    fn selected(world: &mut World, player: Entity) -> Option<Entity> {
+        world.get::<ComponentLock>(player).unwrap().section
     }
 
     #[test]
     fn snap_selects_the_section_nearest_the_aim_ray() {
-        let (mut world, _, [on_ray, _, _]) = focused_world();
-
+        let (mut world, player, [on_ray, ..]) = focused_world();
         world.run_system_once(update_component_lock).unwrap();
+        assert_eq!(selected(&mut world, player), Some(on_ray));
+    }
 
-        assert_eq!(
-            world.resource::<SpaceshipPlayerComponentLock>().section,
-            Some(on_ray)
-        );
+    #[test]
+    fn component_lock_requires_focus() {
+        let (mut world, player, _) = focused_world();
+        world.get_mut::<LockFocus>(player).unwrap().seconds = 0.0;
+        world.run_system_once(update_component_lock).unwrap();
+        assert_eq!(selected(&mut world, player), None);
+    }
+
+    #[test]
+    fn lock_loss_clears_the_component_lock() {
+        let (mut world, player, [on_ray, ..]) = focused_world();
+        world.run_system_once(update_component_lock).unwrap();
+        assert_eq!(selected(&mut world, player), Some(on_ray));
+
+        world.get_mut::<CombatLock>(player).unwrap().0 = None;
+        world.run_system_once(update_component_lock).unwrap();
+        assert_eq!(selected(&mut world, player), None);
     }
 
     #[test]
     fn cycle_steps_the_stable_order_and_pins() {
-        let (mut world, _, [on_ray, near_ray, far_ray]) = focused_world();
+        let (mut world, player, [on_ray, near_ray, far_ray]) = focused_world();
 
-        // Stable order is by local z: near_ray (0), on_ray (1), far_ray (2).
+        // Local build order by z: near_ray (0), on_ray (1), far_ray (2).
         cycle(&mut world, 1);
-        let component = world.resource::<SpaceshipPlayerComponentLock>();
-        assert_eq!(component.section, Some(near_ray));
-        assert!(matches!(component.mode, ComponentLockMode::Pinned { .. }));
+        assert_eq!(selected(&mut world, player), Some(near_ray));
+        cycle(&mut world, 1);
+        assert_eq!(selected(&mut world, player), Some(on_ray));
+        cycle(&mut world, 1);
+        assert_eq!(selected(&mut world, player), Some(far_ray));
+        cycle(&mut world, 1);
+        assert_eq!(selected(&mut world, player), Some(near_ray), "wraps");
+        assert!(matches!(
+            world.get::<ComponentLock>(player).unwrap().mode,
+            ComponentLockMode::Pinned { .. }
+        ));
 
-        cycle(&mut world, 1);
-        assert_eq!(
-            world.resource::<SpaceshipPlayerComponentLock>().section,
-            Some(on_ray)
-        );
-        cycle(&mut world, 1);
-        assert_eq!(
-            world.resource::<SpaceshipPlayerComponentLock>().section,
-            Some(far_ray)
-        );
-        // Wraps.
-        cycle(&mut world, 1);
-        assert_eq!(
-            world.resource::<SpaceshipPlayerComponentLock>().section,
-            Some(near_ray)
-        );
-        // Prev from a fresh (unselected) state starts at the tail.
-        world.insert_resource(SpaceshipPlayerComponentLock::default());
-        cycle(&mut world, -1);
-        assert_eq!(
-            world.resource::<SpaceshipPlayerComponentLock>().section,
-            Some(far_ray)
-        );
+        // Pinned: the snap must NOT move the selection off near_ray even
+        // though on_ray sits on the aim ray.
+        world.run_system_once(update_component_lock).unwrap();
+        assert_eq!(selected(&mut world, player), Some(near_ray));
     }
 
     #[test]
     fn cycle_is_a_no_op_before_the_dwell_completes() {
-        let (mut world, _, _) = focused_world();
-        world.resource_mut::<SpaceshipPlayerLockFocus>().seconds = 0.5;
-
+        let (mut world, player, _) = focused_world();
+        world.get_mut::<LockFocus>(player).unwrap().seconds = 0.0;
         cycle(&mut world, 1);
-
-        assert_eq!(
-            *world.resource::<SpaceshipPlayerComponentLock>(),
-            SpaceshipPlayerComponentLock::default(),
-            "cycling before focus completes must not select anything"
-        );
+        assert_eq!(selected(&mut world, player), None);
     }
 
     #[test]
     fn pin_expires_back_to_snap() {
-        let (mut world, _, [on_ray, near_ray, _]) = focused_world();
+        let (mut world, player, [on_ray, near_ray, _]) = focused_world();
         cycle(&mut world, 1);
-        assert_eq!(
-            world.resource::<SpaceshipPlayerComponentLock>().section,
-            Some(near_ray),
-            "pinned to the first section in cycle order"
-        );
+        assert_eq!(selected(&mut world, player), Some(near_ray));
 
-        // The pin holds against snap while its window is open...
-        world.run_system_once(update_component_lock).unwrap();
-        assert_eq!(
-            world.resource::<SpaceshipPlayerComponentLock>().section,
-            Some(near_ray)
-        );
-
-        // ...and expires after COMPONENT_PIN_WINDOW, letting snap retake.
+        // Past the pin window the snap resumes and picks the on-ray section.
         world
             .resource_mut::<Time>()
-            .advance_by(Duration::from_secs_f32(COMPONENT_PIN_WINDOW + 0.5));
+            .advance_by(Duration::from_secs_f32(COMPONENT_PIN_WINDOW + 0.1));
         world.run_system_once(update_component_lock).unwrap();
-        let component = world.resource::<SpaceshipPlayerComponentLock>();
-        assert_eq!(component.mode, ComponentLockMode::Snap);
-        assert_eq!(component.section, Some(on_ray));
+        assert_eq!(selected(&mut world, player), Some(on_ray));
     }
 
     #[test]
     fn pinned_section_death_reverts_to_snap() {
-        let (mut world, _, [on_ray, near_ray, _]) = focused_world();
+        let (mut world, player, [on_ray, near_ray, _]) = focused_world();
         cycle(&mut world, 1);
-        assert_eq!(
-            world.resource::<SpaceshipPlayerComponentLock>().section,
-            Some(near_ray)
-        );
+        assert_eq!(selected(&mut world, player), Some(near_ray));
 
         world.despawn(near_ray);
         world.run_system_once(update_component_lock).unwrap();
-
-        let component = world.resource::<SpaceshipPlayerComponentLock>();
-        assert_eq!(component.mode, ComponentLockMode::Snap);
-        assert_eq!(
-            component.section,
-            Some(on_ray),
-            "the dead pin falls back to the ray-nearest section"
-        );
-    }
-
-    // -- multi-target candidate set + target cycle --
-
-    fn entity(raw: u32) -> Entity {
-        Entity::from_raw_u32(raw).unwrap()
-    }
-
-    #[test]
-    fn rank_orders_by_aim_angle_then_distance() {
-        let origin = Vec3::ZERO;
-        let aim = Vec3::NEG_Z;
-        let on_ray_far = entity(1);
-        let off_ray_near = entity(2);
-        let behind = entity(3);
-        let ranked = rank_combat_targets(
-            origin,
-            aim,
-            [
-                (behind, Vec3::new(0.0, 0.0, 100.0)),
-                (off_ray_near, Vec3::new(30.0, 0.0, -50.0)),
-                (on_ray_far, Vec3::new(1.0, 0.0, -500.0)),
-            ]
-            .into_iter(),
-        );
-        assert_eq!(
-            ranked,
-            vec![on_ray_far, off_ray_near, behind],
-            "closest to the aim ray first; behind the ship ranks last but is still tracked"
-        );
-    }
-
-    #[test]
-    fn rank_breaks_angle_ties_by_distance() {
-        let near = entity(1);
-        let far = entity(2);
-        let ranked = rank_combat_targets(
-            Vec3::ZERO,
-            Vec3::NEG_Z,
-            [
-                (far, Vec3::new(0.0, 0.0, -800.0)),
-                (near, Vec3::new(0.0, 0.0, -200.0)),
-            ]
-            .into_iter(),
-        );
-        assert_eq!(ranked, vec![near, far]);
-    }
-
-    #[test]
-    fn maintain_keeps_the_top_n_and_the_locked_ship() {
-        let ranked: Vec<Entity> = (1..=7).map(entity).collect();
-        // Unpinned, no lock: plain top N.
-        assert_eq!(
-            maintain_candidates(&[], &ranked, None, false),
-            ranked[..TARGET_CANDIDATE_COUNT].to_vec()
-        );
-        // The locked ship fell to rank 7: it replaces the worst entry.
-        let entries = maintain_candidates(&[], &ranked, Some(entity(7)), false);
-        assert_eq!(entries.len(), TARGET_CANDIDATE_COUNT);
-        assert_eq!(entries[..4], ranked[..4]);
-        assert_eq!(*entries.last().unwrap(), entity(7));
-        // A lock that is not a ranked ship (asteroid, torpedo) is not forced in.
-        assert_eq!(
-            maintain_candidates(&[], &ranked, Some(entity(99)), false),
-            ranked[..TARGET_CANDIDATE_COUNT].to_vec()
-        );
-    }
-
-    #[test]
-    fn maintain_is_order_stable_while_pinned() {
-        let a = entity(1);
-        let b = entity(2);
-        let c = entity(3);
-        let d = entity(4);
-        // The rank reshuffled (b overtook a) and c died; pinned keeps the
-        // survivors' order and appends the newcomer d at the tail.
-        let prev = [a, b, c];
-        let ranked = [b, a, d];
-        assert_eq!(
-            maintain_candidates(&prev, &ranked, Some(a), true),
-            vec![a, b, d]
-        );
-        // Unpinned, the same inputs re-rank freely.
-        assert_eq!(
-            maintain_candidates(&prev, &ranked, Some(a), false),
-            vec![b, a, d]
-        );
-    }
-
-    /// Player at the origin aiming down -Z with two hostile ships: one dead
-    /// ahead, one behind.
-    fn multi_target_world() -> (World, Entity, Entity) {
-        let mut world = World::new();
-        spawn_acquisition_rig(&mut world);
-        let ahead = world
-            .spawn((
-                SpaceshipRootMarker,
-                AISpaceshipMarker,
-                RigidBody::Dynamic,
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -400.0)),
-            ))
-            .id();
-        let behind = world
-            .spawn((
-                SpaceshipRootMarker,
-                AISpaceshipMarker,
-                RigidBody::Dynamic,
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, 400.0)),
-            ))
-            .id();
-        (world, ahead, behind)
-    }
-
-    #[test]
-    fn candidates_track_hostile_combat_targets_including_torpedoes() {
-        let (mut world, ahead, behind) = multi_target_world();
-        // A neutral ship: lockable but not a combat candidate. A hostile
-        // committed torpedo: now a COMBAT candidate so CTRL+scroll can reach it
-        // for point defense (task 20260712-212742).
-        world.spawn((
-            SpaceshipRootMarker,
-            Allegiance::Neutral,
-            RigidBody::Dynamic,
-            GlobalTransform::from_translation(Vec3::new(50.0, 0.0, -100.0)),
+        assert_eq!(selected(&mut world, player), Some(on_ray));
+        assert!(matches!(
+            world.get::<ComponentLock>(player).unwrap().mode,
+            ComponentLockMode::Snap
         ));
-        let torpedo = world
-            .spawn((
-                TorpedoProjectileMarker,
-                TorpedoTargetChosen,
-                Allegiance::Enemy,
-                RigidBody::Dynamic,
-                // Slightly off the aim ray: ranks between dead-ahead and behind.
-                GlobalTransform::from_translation(Vec3::new(0.0, 10.0, -200.0)),
-            ))
-            .id();
-
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-
-        assert_eq!(
-            world.resource::<SpaceshipPlayerTargetCandidates>().entries,
-            vec![ahead, torpedo, behind],
-            "hostile ships AND committed torpedoes ranked aim-first; neutrals stay out"
-        );
     }
 
-    #[test]
-    fn a_committed_torpedo_lock_is_sticky() {
-        // A committed hostile torpedo is a combat target (task 20260712-212742),
-        // so once locked it is sticky like a ship: a closer body does not steal
-        // it while the PDC downs it.
-        let mut world = World::new();
-        spawn_acquisition_rig(&mut world);
-        let torpedo = world
-            .spawn((
-                TorpedoProjectileMarker,
-                TorpedoTargetChosen,
-                Allegiance::Enemy,
-                RigidBody::Dynamic,
-                GlobalTransform::from_translation(Vec3::new(2.0, 0.0, -100.0)),
-            ))
-            .id();
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(torpedo),
-            "aim acquires the committed torpedo"
-        );
+    // -- the radar gesture end to end --
 
-        // A ship dead ahead (closer to the aim ray) must NOT steal the held
-        // torpedo lock.
-        let ship = world
-            .spawn((
-                SpaceshipRootMarker,
-                AISpaceshipMarker,
-                RigidBody::Dynamic,
-                GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -100.0)),
-            ))
-            .id();
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(torpedo),
-            "a committed-torpedo lock is sticky against a closer body"
-        );
-
-        // Delivery guard: with the torpedo gone the picker re-acquires the ship.
-        world.despawn(torpedo);
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(ship),
-            "re-acquires after the torpedo is downed"
-        );
-    }
-
-    #[test]
-    fn cycle_steps_the_candidates_wraps_and_pins() {
-        let (mut world, ahead, behind) = multi_target_world();
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(**world.resource::<SpaceshipPlayerTargetLock>(), Some(ahead));
-
-        let cycle = |world: &mut World, direction: isize| {
-            world
-                .run_system_once(
-                    move |time: Res<Time>,
-                          mut lock: ResMut<SpaceshipPlayerTargetLock>,
-                          mut candidates: ResMut<SpaceshipPlayerTargetCandidates>| {
-                        step_target_lock(direction, &time, &mut lock, &mut candidates);
-                    },
-                )
-                .unwrap();
-        };
-
-        cycle(&mut world, 1);
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(behind),
-            "next steps off the aim pick to the next candidate"
-        );
-        assert!(
-            world
-                .resource::<SpaceshipPlayerTargetCandidates>()
-                .pinned_until
-                .is_some(),
-            "a cycle press pins the lock"
-        );
-        cycle(&mut world, 1);
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(ahead),
-            "wraps around"
-        );
-        cycle(&mut world, -1);
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(behind)
-        );
-    }
-
-    #[test]
-    fn an_expired_pin_leaves_the_lock_sticky_not_re_aimed() {
-        // Under sticky-from-acquisition (task 20260712-203353), an expired pin
-        // does NOT hand the lock back to the aim pick: the pinned target is
-        // still a valid candidate, so it stays HELD. Only losing the target
-        // (death / out of range) returns the lock to the picker.
-        let (mut world, ahead, behind) = multi_target_world();
-        // Pin the lock on the ship BEHIND while aiming at the one ahead.
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(behind)));
-        world
-            .resource_mut::<SpaceshipPlayerTargetCandidates>()
-            .pinned_until = Some(TARGET_PIN_WINDOW);
-
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(behind),
-            "the pin holds against the cone pick"
-        );
-
-        // Past the deadline: the pin window clears, but the lock stays sticky
-        // on `behind` (still in range) rather than re-aiming to `ahead`.
-        world
-            .resource_mut::<Time>()
-            .advance_by(Duration::from_secs_f32(TARGET_PIN_WINDOW + 0.5));
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(behind),
-            "an expired pin leaves the lock sticky, not re-aimed"
-        );
-        assert_eq!(
-            world
-                .resource::<SpaceshipPlayerTargetCandidates>()
-                .pinned_until,
-            None,
-            "the pin window still clears at its deadline"
-        );
-
-        // Delivery guard: once the held target leaves, the aim pick re-acquires
-        // `ahead` - proving the stickiness above was a hold, not a wedged picker.
-        world.despawn(behind);
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(ahead),
-            "with the held target gone, the aim pick re-acquires"
-        );
-    }
-
-    #[test]
-    fn pin_dies_with_its_target() {
-        let (mut world, ahead, behind) = multi_target_world();
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(behind)));
-        world
-            .resource_mut::<SpaceshipPlayerTargetCandidates>()
-            .pinned_until = Some(TARGET_PIN_WINDOW);
-
-        world.despawn(behind);
-        world
-            .run_system_once(update_spaceship_target_input)
-            .unwrap();
-
-        assert_eq!(
-            **world.resource::<SpaceshipPlayerTargetLock>(),
-            Some(ahead),
-            "a dead pinned target releases the lock to the picker"
-        );
-        assert_eq!(
-            world
-                .resource::<SpaceshipPlayerTargetCandidates>()
-                .pinned_until,
-            None
-        );
-    }
-
-    #[test]
-    fn cycle_with_no_candidates_is_a_no_op() {
-        let mut world = World::new();
-        world.insert_resource(Time::<()>::default());
-        world.insert_resource(SpaceshipPlayerTargetLock(None));
-        world.insert_resource(SpaceshipPlayerTargetCandidates::default());
-
-        world
-            .run_system_once(
-                |time: Res<Time>,
-                 mut lock: ResMut<SpaceshipPlayerTargetLock>,
-                 mut candidates: ResMut<SpaceshipPlayerTargetCandidates>| {
-                    step_target_lock(1, &time, &mut lock, &mut candidates);
-                },
-            )
-            .unwrap();
-
-        assert_eq!(**world.resource::<SpaceshipPlayerTargetLock>(), None);
-        assert_eq!(
-            world
-                .resource::<SpaceshipPlayerTargetCandidates>()
-                .pinned_until,
-            None,
-            "an empty cycle must not pin"
-        );
-    }
-
-    /// End-to-end through the REAL flight rig and EnhancedInputPlugin with
-    /// simulated devices: the wheel gesture is routed by the CTRL modifier -
-    /// plain scroll steps the component fine-lock, CTRL+scroll steps the
-    /// ship lock, and holding CTRL alone does NOTHING (bug 20260711-173237:
-    /// a binding-level Chord ignores the binding's value, so the bare
-    /// modifier press cycled the lock the moment CTRL went down).
-    #[test]
-    fn ctrl_routes_the_wheel_between_component_and_target_cycle() {
-        use bevy::input::{
-            gamepad::{
-                GamepadConnection, GamepadConnectionEvent, RawGamepadButtonChangedEvent,
-                RawGamepadEvent,
-            },
-            mouse::{MouseScrollUnit, MouseWheel},
-            touch::TouchPhase,
-            InputPlugin,
-        };
+    /// The full gesture pipeline: real InputPlugin + EnhancedInput + the
+    /// production flight rig, with `TimeUpdateStrategy::ManualDuration`
+    /// driving the REAL clock the Hold/Tap conditions tick on (50 ms steps:
+    /// 5 updates = the exact 250 ms threshold). The radar picker is
+    /// unit-tested above; here the provisional candidate is written directly
+    /// so the OBSERVER wiring (Start latch, Complete commit, Cancel, Tap
+    /// staged clear) is what is under test.
+    fn gesture_app() -> (App, Entity) {
+        use bevy::input::InputPlugin;
 
         use crate::input::player::{flight_input_rig, FlightInputMarker};
 
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
-        // The cycle observers are pause-gated (task 20260711-185156).
         app.add_plugins(bevy::state::app::StatesPlugin);
         app.init_state::<crate::PauseStates>();
+        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+            Duration::from_millis(50),
+        ));
         app.add_input_context::<FlightInputMarker>();
-        app.add_observer(on_component_cycle_next);
-        app.add_observer(on_component_cycle_prev);
-        app.add_observer(on_target_cycle_next);
-        app.add_observer(on_target_cycle_prev);
+        app.add_observer(on_radar_start);
+        app.add_observer(on_radar_commit);
+        app.add_observer(on_radar_cancel);
+        app.add_observer(on_lock_clear_tap);
+        app.add_message::<LockClearedToast>();
 
-        // A focused lock with two sections, plus a second tracked candidate.
-        let locked = app.world_mut().spawn(SpaceshipRootMarker).id();
-        let section_a = app
+        // A player ship whose computer grants Lock (the default loadout).
+        let ship = app
             .world_mut()
             .spawn((
-                SectionMarker,
-                Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
-                ChildOf(locked),
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::IDENTITY,
+                targeting_state(),
             ))
             .id();
-        let section_b = app
-            .world_mut()
-            .spawn((
-                SectionMarker,
-                Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
-                ChildOf(locked),
-            ))
-            .id();
-        let other = app.world_mut().spawn(SpaceshipRootMarker).id();
-        app.insert_resource(SpaceshipPlayerTargetLock(Some(locked)));
-        app.insert_resource(SpaceshipPlayerLockFocus {
-            target: Some(locked),
-            seconds: FOCUS_TIME,
-        });
-        app.insert_resource(SpaceshipPlayerComponentLock::default());
-        app.insert_resource(SpaceshipPlayerTargetCandidates {
-            entries: vec![locked, other],
-            pinned_until: None,
-        });
+        app.world_mut().spawn((
+            ControllerSectionMarker,
+            ControllerVerbs::default(),
+            ChildOf(ship),
+        ));
 
-        // The context registry finalizes in App::finish, so run the plugin
-        // lifecycle before spawning the rig, like the production app does.
+        // The context registry finalizes in App::finish; run the lifecycle
+        // before spawning the rig, like the production app does.
         app.finish();
         app.cleanup();
         app.update();
         app.world_mut().spawn(flight_input_rig());
         app.update();
+        (app, ship)
+    }
 
-        let scroll_up = |app: &mut App| {
-            app.world_mut().write_message(MouseWheel {
-                unit: MouseScrollUnit::Line,
-                x: 0.0,
-                y: 1.0,
-                window: Entity::PLACEHOLDER,
-                // A mouse wheel always reports Moved (see bevy_input).
-                phase: TouchPhase::Moved,
-            });
-            app.update();
-            // Settle the impulse so the next scroll re-triggers Start.
-            app.update();
-        };
-
-        // Plain scroll: component cycle only (cycle order is by local z:
-        // section_a first), lock untouched.
-        scroll_up(&mut app);
-        assert_eq!(
-            app.world()
-                .resource::<SpaceshipPlayerComponentLock>()
-                .section,
-            Some(section_a),
-            "plain scroll steps the component fine-lock"
-        );
-        assert_eq!(
-            **app.world().resource::<SpaceshipPlayerTargetLock>(),
-            Some(locked),
-            "plain scroll must not touch the ship lock"
-        );
-
-        // Holding CTRL alone must change nothing (the reported bug). The
-        // delivery guard: the modifier action itself must be firing.
+    fn press_ctrl(app: &mut App) {
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
             .press(KeyCode::ControlLeft);
-        app.update();
-        app.update();
-        let modifier_fired = app
-            .world_mut()
-            .query_filtered::<&TriggerState, With<Action<TargetCycleModifierInput>>>()
-            .iter(app.world())
-            .any(|&state| state == TriggerState::Fired);
-        assert!(modifier_fired, "the CTRL modifier action must be firing");
-        assert_eq!(
-            **app.world().resource::<SpaceshipPlayerTargetLock>(),
-            Some(locked),
-            "CTRL alone must not cycle the ship lock"
-        );
-        assert_eq!(
-            app.world()
-                .resource::<SpaceshipPlayerTargetCandidates>()
-                .pinned_until,
-            None,
-            "CTRL alone must not pin"
-        );
-        assert_eq!(
-            app.world()
-                .resource::<SpaceshipPlayerComponentLock>()
-                .section,
-            Some(section_a),
-            "CTRL alone must not cycle components either"
-        );
-
-        // CTRL+scroll: the same gesture one level up - ship lock cycles and
-        // pins, the component selection stays put.
-        scroll_up(&mut app);
-        assert_eq!(
-            **app.world().resource::<SpaceshipPlayerTargetLock>(),
-            Some(other),
-            "CTRL+scroll cycles the ship lock"
-        );
-        assert!(
-            app.world()
-                .resource::<SpaceshipPlayerTargetCandidates>()
-                .pinned_until
-                .is_some(),
-            "the cycled lock is pinned"
-        );
-        assert_eq!(
-            app.world()
-                .resource::<SpaceshipPlayerComponentLock>()
-                .section,
-            Some(section_a),
-            "CTRL+scroll must not also cycle components"
-        );
-
-        // Releasing CTRL hands the wheel back to the component cycle - the
-        // lock stays where the cycle left it (the observers do not run the
-        // acquisition system here, so no re-pick interferes). The component
-        // step is a no-op because focus is on the OLD lock, which is the
-        // gate's job - the wheel routing itself must not move the ship lock.
+    }
+    fn release_ctrl(app: &mut App) {
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
             .release(KeyCode::ControlLeft);
-        app.update();
-        scroll_up(&mut app);
-        assert_eq!(
-            **app.world().resource::<SpaceshipPlayerTargetLock>(),
-            Some(other),
-            "plain scroll after release must not cycle targets"
-        );
-        let _ = section_b;
+    }
+    fn travel_of(app: &App, ship: Entity) -> Option<Entity> {
+        app.world().get::<TravelLock>(ship).unwrap().0
+    }
+    fn combat_of(app: &App, ship: Entity) -> Option<Entity> {
+        app.world().get::<CombatLock>(ship).unwrap().0
+    }
 
-        // The pad DPadUp binding cycles targets directly, no modifier held.
-        let pad = app.world_mut().spawn_empty().id();
-        app.world_mut().write_message(GamepadConnectionEvent::new(
-            pad,
-            GamepadConnection::Connected {
-                name: "test pad".into(),
-                vendor_id: None,
-                product_id: None,
-            },
-        ));
+    #[test]
+    fn radar_hold_commits_into_the_latched_slot_on_release() {
+        let (mut app, ship) = gesture_app();
+        let target = app.world_mut().spawn(SpaceshipRootMarker).id();
+
+        // Press: the search opens, latched to TRAVEL (lowered).
+        press_ctrl(&mut app);
         app.update();
+        let radar = *app.world().get::<RadarState>(ship).expect("search opened");
+        assert!(!radar.combat, "lowered press latches the travel slot");
+
+        // The picker (stand-in) finds a candidate; hold past the threshold.
         app.world_mut()
-            .write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent {
-                gamepad: pad,
-                button: GamepadButton::DPadUp,
-                value: 1.0,
-            }));
+            .get_mut::<RadarState>(ship)
+            .unwrap()
+            .candidate = Some(target);
+        for _ in 0..6 {
+            app.update();
+        }
+        release_ctrl(&mut app);
         app.update();
         assert_eq!(
-            **app.world().resource::<SpaceshipPlayerTargetLock>(),
-            Some(locked),
-            "DPadUp cycles targets with no modifier (wraps back)"
+            travel_of(&app, ship),
+            Some(target),
+            "release past the threshold commits the travel lock"
+        );
+        assert_eq!(combat_of(&app, ship), None, "the latched slot only");
+        assert!(
+            app.world().get::<RadarState>(ship).is_none(),
+            "the search closes on release"
+        );
+
+        // RAISED press latches the combat slot (the 082324 derivation is
+        // stood in for by inserting the flag directly).
+        let enemy = app.world_mut().spawn(SpaceshipRootMarker).id();
+        app.world_mut().entity_mut(ship).insert(WeaponsRaised(true));
+        press_ctrl(&mut app);
+        app.update();
+        assert!(
+            app.world().get::<RadarState>(ship).unwrap().combat,
+            "raised press latches the combat slot (D2)"
+        );
+        app.world_mut()
+            .get_mut::<RadarState>(ship)
+            .unwrap()
+            .candidate = Some(enemy);
+        for _ in 0..6 {
+            app.update();
+        }
+        release_ctrl(&mut app);
+        app.update();
+        assert_eq!(combat_of(&app, ship), Some(enemy));
+        assert_eq!(
+            travel_of(&app, ship),
+            Some(target),
+            "the travel designation survives a combat commit"
         );
     }
 
     #[test]
-    fn lock_loss_clears_the_component_lock() {
-        let (mut world, _, [on_ray, _, _]) = focused_world();
-        world.resource_mut::<SpaceshipPlayerComponentLock>().section = Some(on_ray);
+    fn empty_release_is_a_no_op_and_quick_release_clears_staged() {
+        let (mut app, ship) = gesture_app();
+        let target = app.world_mut().spawn(SpaceshipRootMarker).id();
+        let enemy = app.world_mut().spawn(SpaceshipRootMarker).id();
+        app.world_mut()
+            .entity_mut(ship)
+            .insert((TravelLock(Some(target)), CombatLock(Some(enemy))));
 
-        world.insert_resource(SpaceshipPlayerTargetLock(None));
-        world.run_system_once(update_component_lock).unwrap();
-
+        // Hold past the threshold onto EMPTY space, release: both locks
+        // survive (D1 - the radar abort).
+        press_ctrl(&mut app);
+        for _ in 0..7 {
+            app.update();
+        }
+        release_ctrl(&mut app);
+        app.update();
         assert_eq!(
-            *world.resource::<SpaceshipPlayerComponentLock>(),
-            SpaceshipPlayerComponentLock::default()
+            travel_of(&app, ship),
+            Some(target),
+            "abort keeps the travel lock"
+        );
+        assert_eq!(
+            combat_of(&app, ship),
+            Some(enemy),
+            "abort keeps the combat lock"
+        );
+
+        // A quick tap (2 frames = 100 ms < threshold): staged clear - the
+        // combat lock first, travel survives...
+        press_ctrl(&mut app);
+        app.update();
+        release_ctrl(&mut app);
+        app.update();
+        assert_eq!(
+            combat_of(&app, ship),
+            None,
+            "first tap clears the combat lock"
+        );
+        assert_eq!(travel_of(&app, ship), Some(target));
+
+        // ...the second tap clears the travel lock and disengages a GOTO.
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Goto { target }));
+        press_ctrl(&mut app);
+        app.update();
+        release_ctrl(&mut app);
+        app.update();
+        assert_eq!(
+            travel_of(&app, ship),
+            None,
+            "second tap clears the travel lock"
+        );
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "clearing the designation disengages the GOTO"
+        );
+    }
+
+    #[test]
+    fn raised_tap_clears_combat_only_and_boundary_release_commits() {
+        let (mut app, ship) = gesture_app();
+        let target = app.world_mut().spawn(SpaceshipRootMarker).id();
+        let enemy = app.world_mut().spawn(SpaceshipRootMarker).id();
+        app.world_mut().entity_mut(ship).insert((
+            TravelLock(Some(target)),
+            CombatLock(Some(enemy)),
+            WeaponsRaised(true),
+        ));
+
+        // Raised tap: combat only, never travel.
+        press_ctrl(&mut app);
+        app.update();
+        release_ctrl(&mut app);
+        app.update();
+        assert_eq!(combat_of(&app, ship), None);
+        assert_eq!(
+            travel_of(&app, ship),
+            Some(target),
+            "a raised tap never touches the travel lock"
+        );
+
+        // Boundary frame: released at EXACTLY the shared threshold (5 x 50 ms)
+        // the Hold has fired and the Tap has expired - commit, no clear.
+        let enemy2 = app.world_mut().spawn(SpaceshipRootMarker).id();
+        press_ctrl(&mut app);
+        app.update();
+        app.world_mut()
+            .get_mut::<RadarState>(ship)
+            .unwrap()
+            .candidate = Some(enemy2);
+        for _ in 0..4 {
+            app.update();
+        }
+        release_ctrl(&mut app);
+        app.update();
+        assert_eq!(
+            combat_of(&app, ship),
+            Some(enemy2),
+            "the boundary release commits (one shared threshold, no gap)"
+        );
+        assert_eq!(travel_of(&app, ship), Some(target), "and does not clear");
+    }
+
+    #[test]
+    fn a_lock_less_computer_cannot_radar() {
+        let (mut app, ship) = gesture_app();
+        // Withhold the Lock capability.
+        let controller = app
+            .world_mut()
+            .query_filtered::<Entity, With<ControllerSectionMarker>>()
+            .iter(app.world())
+            .next()
+            .unwrap();
+        app.world_mut()
+            .entity_mut(controller)
+            .insert(ControllerVerbs {
+                stop: true,
+                goto: true,
+                orbit: true,
+                lock: false,
+            });
+
+        press_ctrl(&mut app);
+        app.update();
+        assert!(
+            app.world().get::<RadarState>(ship).is_none(),
+            "no Lock capability: the radar does not come on"
+        );
+
+        // Delivery guard: granting it back opens the search on the next press.
+        release_ctrl(&mut app);
+        app.update();
+        app.world_mut()
+            .entity_mut(controller)
+            .insert(ControllerVerbs::default());
+        press_ctrl(&mut app);
+        app.update();
+        assert!(app.world().get::<RadarState>(ship).is_some());
+    }
+
+    #[test]
+    fn a_release_during_pause_drops_the_commit() {
+        let (mut app, ship) = gesture_app();
+        let target = app.world_mut().spawn(SpaceshipRootMarker).id();
+
+        press_ctrl(&mut app);
+        app.update();
+        app.world_mut()
+            .get_mut::<RadarState>(ship)
+            .unwrap()
+            .candidate = Some(target);
+        for _ in 0..6 {
+            app.update();
+        }
+        app.world_mut()
+            .resource_mut::<NextState<crate::PauseStates>>()
+            .set(crate::PauseStates::Paused);
+        app.update();
+        release_ctrl(&mut app);
+        app.update();
+        assert_eq!(
+            travel_of(&app, ship),
+            None,
+            "a deliberate gesture does not survive a pause"
+        );
+        assert!(
+            app.world().get::<RadarState>(ship).is_none(),
+            "the search still closes"
         );
     }
 }

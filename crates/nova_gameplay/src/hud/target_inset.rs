@@ -21,7 +21,7 @@
 //!   reads in BOTH the main view and the inset with no projection code.
 //!
 //! The inset camera spawns/despawns and the panel shows/hides with the focus
-//! dwell ([`SpaceshipPlayerLockFocus::focused_on`]); the camera is posed each
+//! dwell ([`LockFocus::focused_on`] on the COMBAT lock); the camera is posed each
 //! frame on the locked ship's [`live_structure_anchor`] from a scope-like
 //! player-relative bearing.
 
@@ -284,8 +284,6 @@ fn inset_camera_bundle(image: Handle<Image>, pose: Transform) -> impl Bundle {
 #[allow(clippy::type_complexity)]
 fn drive_inset_camera(
     mut commands: Commands,
-    lock: Res<SpaceshipPlayerTargetLock>,
-    focus: Res<SpaceshipPlayerLockFocus>,
     hud_visibility: Res<super::HudVisibility>,
     render_target: Res<TargetInsetRenderTarget>,
     q_anchor: Query<
@@ -297,7 +295,12 @@ fn drive_inset_camera(
         Without<TargetInsetCameraMarker>,
     >,
     q_player: Query<
-        (&Transform, Option<&ComputedCenterOfMass>),
+        (
+            &Transform,
+            Option<&ComputedCenterOfMass>,
+            &CombatLock,
+            &LockFocus,
+        ),
         (
             With<SpaceshipRootMarker>,
             With<PlayerSpaceshipMarker>,
@@ -315,8 +318,14 @@ fn drive_inset_camera(
     // / torpedo / asteroid, NOT a beacon), and it still resolves to a real
     // anchor. The inset panel is Chrome tier, so gating here keeps the RTT
     // camera and the (tier-hidden) panel consistent.
-    let framed = match **lock {
-        Some(target) if hud_visibility.shows(HudTier::Chrome) && focus.focused_on(target) => {
+    let lock = q_player
+        .iter()
+        .next()
+        .and_then(|(_, _, lock, focus)| lock.0.map(|target| (target, focus)));
+    let framed = match lock {
+        Some((target, focus))
+            if hud_visibility.shows(HudTier::Chrome) && focus.focused_on(target) =>
+        {
             match q_anchor.get(target) {
                 Ok((transform, com, true)) => Some((target, live_structure_anchor(transform, com))),
                 // Not zoomable (beacon) or unresolved: no inset.
@@ -341,7 +350,7 @@ fn drive_inset_camera(
     let player_anchor = q_player
         .iter()
         .next()
-        .map(|(transform, com)| live_structure_anchor(transform, com))
+        .map(|(transform, com, ..)| live_structure_anchor(transform, com))
         // No player anchor (teardown): fall back to a fixed bearing so the pose
         // stays finite rather than degenerate.
         .unwrap_or(target_anchor + Vec3::Z);
@@ -361,21 +370,23 @@ fn drive_inset_camera(
 
 /// Keep exactly one emissive highlight overlay on the fine-locked section, and
 /// none otherwise. The selection is already focus-gated by the targeting layer
-/// (`SpaceshipPlayerComponentLock.section` is only `Some` while focused), so
+/// (`ComponentLock.section` is only `Some` while focused), so
 /// this reconcile just mirrors it; a detached/despawned section drops its
 /// overlay (a despawned section takes its child overlay with it, but a
 /// re-selected sibling still needs the stale one cleared).
 fn sync_section_highlight(
     mut commands: Commands,
-    component: Res<SpaceshipPlayerComponentLock>,
+    q_player: Query<&ComponentLock, With<PlayerSpaceshipMarker>>,
     assets: Option<Res<TargetInsetHighlightAssets>>,
     q_highlights: Query<(Entity, &TargetInsetHighlightOf), With<TargetInsetHighlightMarker>>,
     q_sections: Query<(), With<SectionMarker>>,
 ) {
     // Only highlight a section that still exists (attached or inactive-in-place
     // both keep the SectionMarker; despawn/detach removes it).
-    let selected = component
-        .section
+    let selected = q_player
+        .iter()
+        .next()
+        .and_then(|component| component.section)
         .filter(|section| q_sections.get(*section).is_ok());
 
     // Drop overlays that no longer match the selection.
@@ -420,17 +431,20 @@ mod tests {
 
     // -- camera lifecycle --
 
-    /// Build the focused rig: panel + player + focused target with `n` sections.
-    fn rig(n: usize) -> (World, Entity) {
+    /// Build the focused rig: panel + player + focused target with `n`
+    /// sections. Returns (world, player, target).
+    fn rig(n: usize) -> (World, Entity, Entity) {
         let mut world = World::new();
         world.insert_resource(super::super::HudVisibility::All);
         world.insert_resource(TargetInsetRenderTarget(Some(Handle::default())));
         world.spawn((Name::new("panel"), TargetInsetHudMarker, Visibility::Hidden));
-        world.spawn((
-            SpaceshipRootMarker,
-            PlayerSpaceshipMarker,
-            Transform::from_xyz(0.0, 0.0, 0.0),
-        ));
+        let player = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::from_xyz(0.0, 0.0, 0.0),
+            ))
+            .id();
         let target = world
             .spawn((
                 SpaceshipRootMarker,
@@ -445,12 +459,14 @@ mod tests {
                 GlobalTransform::from_xyz(0.0, 0.0, -50.0 + i as f32),
             ));
         }
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(target)));
-        world.insert_resource(SpaceshipPlayerLockFocus {
-            target: Some(target),
-            seconds: f32::MAX,
-        });
-        (world, target)
+        world.entity_mut(player).insert((
+            CombatLock(Some(target)),
+            LockFocus {
+                target: Some(target),
+                seconds: f32::MAX,
+            },
+        ));
+        (world, player, target)
     }
 
     fn camera_count(world: &mut World) -> usize {
@@ -470,7 +486,7 @@ mod tests {
 
     #[test]
     fn camera_and_panel_appear_only_while_focused() {
-        let (mut world, target) = rig(3);
+        let (mut world, player, target) = rig(3);
 
         world.run_system_once(drive_inset_camera).unwrap();
         assert_eq!(camera_count(&mut world), 1, "focused: one inset camera");
@@ -482,7 +498,7 @@ mod tests {
 
         // Delivery guard: losing the dwell tears the camera down and hides the
         // panel (the positive state above proves the assertion can differ).
-        world.resource_mut::<SpaceshipPlayerLockFocus>().seconds = 0.0;
+        world.get_mut::<LockFocus>(player).unwrap().seconds = 0.0;
         world.run_system_once(drive_inset_camera).unwrap();
         assert_eq!(camera_count(&mut world), 0, "unfocused: camera despawned");
         assert_eq!(
@@ -496,7 +512,7 @@ mod tests {
 
     #[test]
     fn camera_does_not_duplicate_across_frames() {
-        let (mut world, _) = rig(3);
+        let (mut world, _player, _target) = rig(3);
         world.run_system_once(drive_inset_camera).unwrap();
         world.run_system_once(drive_inset_camera).unwrap();
         world.run_system_once(drive_inset_camera).unwrap();
@@ -509,7 +525,7 @@ mod tests {
 
     #[test]
     fn camera_clears_when_the_lock_changes_before_the_dwell() {
-        let (mut world, _) = rig(3);
+        let (mut world, player, _target) = rig(3);
         world.run_system_once(drive_inset_camera).unwrap();
         assert_eq!(camera_count(&mut world), 1);
 
@@ -517,11 +533,11 @@ mod tests {
         let other = world
             .spawn((SpaceshipRootMarker, Transform::default()))
             .id();
-        world.insert_resource(SpaceshipPlayerTargetLock(Some(other)));
-        world.insert_resource(SpaceshipPlayerLockFocus {
+        world.get_mut::<CombatLock>(player).unwrap().0 = Some(other);
+        *world.get_mut::<LockFocus>(player).unwrap() = LockFocus {
             target: Some(other),
             seconds: 0.0,
-        });
+        };
         world.run_system_once(drive_inset_camera).unwrap();
         assert_eq!(camera_count(&mut world), 0);
         assert_eq!(panel_visibility(&mut world), Visibility::Hidden);
@@ -529,7 +545,7 @@ mod tests {
 
     #[test]
     fn camera_absent_while_hud_chrome_is_hidden() {
-        let (mut world, _) = rig(3);
+        let (mut world, _player, _target) = rig(3);
 
         // Focused, but the HUD is hiding chrome (Minimal drops Chrome; None
         // drops everything): the inset panel is tier-hidden, so the second
@@ -555,7 +571,7 @@ mod tests {
     fn inset_skips_non_zoomable_targets() {
         // A focused target that is NOT flagged InsetZoomable (a beacon) must not
         // open the inset, even though it is the current focused lock.
-        let (mut world, target) = rig(3);
+        let (mut world, _player, target) = rig(3);
         world.entity_mut(target).remove::<InsetZoomable>();
 
         world.run_system_once(drive_inset_camera).unwrap();
@@ -596,7 +612,7 @@ mod tests {
 
     /// Build a world for the highlight reconcile: highlight assets (default
     /// handles, no real assets needed) + a focused target with `n` sections.
-    fn highlight_rig(n: usize) -> (World, Vec<Entity>) {
+    fn highlight_rig(n: usize) -> (World, Entity, Vec<Entity>) {
         let mut world = World::new();
         world.insert_resource(TargetInsetHighlightAssets {
             mesh: Handle::default(),
@@ -606,8 +622,14 @@ mod tests {
         let sections: Vec<Entity> = (0..n)
             .map(|_| world.spawn((SectionMarker, ChildOf(target))).id())
             .collect();
-        world.insert_resource(SpaceshipPlayerComponentLock::default());
-        (world, sections)
+        let player = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                ComponentLock::default(),
+            ))
+            .id();
+        (world, player, sections)
     }
 
     fn highlight_targets(world: &mut World) -> Vec<Entity> {
@@ -622,7 +644,7 @@ mod tests {
 
     #[test]
     fn highlight_follows_the_component_lock_and_reverts() {
-        let (mut world, sections) = highlight_rig(3);
+        let (mut world, player, sections) = highlight_rig(3);
         let (a, b) = (sections[0], sections[1]);
 
         // Nothing selected: no overlay.
@@ -630,20 +652,20 @@ mod tests {
         assert!(highlight_targets(&mut world).is_empty());
 
         // Select a: exactly one overlay, on a.
-        world.resource_mut::<SpaceshipPlayerComponentLock>().section = Some(a);
+        world.get_mut::<ComponentLock>(player).unwrap().section = Some(a);
         world.run_system_once(sync_section_highlight).unwrap();
         assert_eq!(highlight_targets(&mut world), vec![a]);
 
         // Move to b: the a overlay is dropped, one overlay on b.
-        world.resource_mut::<SpaceshipPlayerComponentLock>().section = Some(b);
+        world.get_mut::<ComponentLock>(player).unwrap().section = Some(b);
         world.run_system_once(sync_section_highlight).unwrap();
         assert_eq!(highlight_targets(&mut world), vec![b]);
     }
 
     #[test]
     fn highlight_does_not_duplicate_across_frames() {
-        let (mut world, sections) = highlight_rig(2);
-        world.resource_mut::<SpaceshipPlayerComponentLock>().section = Some(sections[0]);
+        let (mut world, player, sections) = highlight_rig(2);
+        world.get_mut::<ComponentLock>(player).unwrap().section = Some(sections[0]);
         world.run_system_once(sync_section_highlight).unwrap();
         world.run_system_once(sync_section_highlight).unwrap();
         assert_eq!(highlight_targets(&mut world), vec![sections[0]]);
@@ -651,9 +673,9 @@ mod tests {
 
     #[test]
     fn highlight_clears_when_its_section_dies() {
-        let (mut world, sections) = highlight_rig(2);
+        let (mut world, player, sections) = highlight_rig(2);
         let a = sections[0];
-        world.resource_mut::<SpaceshipPlayerComponentLock>().section = Some(a);
+        world.get_mut::<ComponentLock>(player).unwrap().section = Some(a);
         world.run_system_once(sync_section_highlight).unwrap();
         assert_eq!(highlight_targets(&mut world), vec![a]);
 

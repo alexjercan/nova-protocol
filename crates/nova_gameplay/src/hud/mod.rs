@@ -10,11 +10,11 @@ pub mod flight_status;
 pub mod holo_instruments;
 pub mod item_highlights;
 pub mod keybind_hints;
+pub mod lock_crosshairs;
 pub mod maneuver_instruments;
 pub mod objective_feedback;
 pub mod objective_markers;
 pub mod screen_indicator;
-pub mod target_candidates;
 pub mod target_inset;
 pub mod torpedo_target;
 pub mod turret_lead;
@@ -24,9 +24,9 @@ pub mod prelude {
     pub use super::{
         ammo_readout::prelude::*, beacon_chips::prelude::*, component_lock::prelude::*,
         edge_indicators::prelude::*, flight_status::prelude::*, holo_instruments::prelude::*,
-        item_highlights::prelude::*, keybind_hints::prelude::*, maneuver_instruments::prelude::*,
-        objective_feedback::prelude::*, objective_markers::prelude::*,
-        screen_indicator::prelude::*, target_candidates::prelude::*, target_inset::prelude::*,
+        item_highlights::prelude::*, keybind_hints::prelude::*, lock_crosshairs::prelude::*,
+        maneuver_instruments::prelude::*, objective_feedback::prelude::*,
+        objective_markers::prelude::*, screen_indicator::prelude::*, target_inset::prelude::*,
         torpedo_target::prelude::*, turret_lead::prelude::*, velocity::prelude::*,
         HudSelfDrivenVisibility, HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin,
         NovaHudSystems,
@@ -165,8 +165,8 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(turret_lead::TurretLeadPlugin);
         app.add_plugins(ammo_readout::AmmoReadoutPlugin);
         app.add_plugins(component_lock::ComponentLockHudPlugin);
+        app.add_plugins(lock_crosshairs::LockCrosshairsHudPlugin);
         app.add_plugins(target_inset::TargetInsetHudPlugin);
-        app.add_plugins(target_candidates::TargetCandidatesHudPlugin);
         app.add_plugins(edge_indicators::EdgeIndicatorsHudPlugin);
         app.add_plugins(beacon_chips::BeaconChipsHudPlugin);
         app.add_plugins(objective_markers::ObjectiveMarkersHudPlugin);
@@ -221,10 +221,10 @@ impl Plugin for NovaHudPlugin {
         app.add_observer(remove_hud_ammo_readout);
         app.add_observer(setup_hud_component_lock);
         app.add_observer(remove_hud_component_lock);
+        app.add_observer(setup_hud_lock_crosshairs);
+        app.add_observer(remove_hud_lock_crosshairs);
         app.add_observer(setup_hud_target_inset);
         app.add_observer(remove_hud_target_inset);
-        app.add_observer(setup_hud_target_candidates);
-        app.add_observer(remove_hud_target_candidates);
         app.add_observer(setup_hud_edge_indicators);
         app.add_observer(remove_hud_edge_indicators);
     }
@@ -671,6 +671,42 @@ fn remove_hud_component_lock(
     }
 }
 
+fn setup_hud_lock_crosshairs(
+    add: On<Add, PlayerSpaceshipMarker>,
+    mut commands: Commands,
+    q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    assets: Res<NovaHudAssets>,
+) {
+    let entity = add.entity;
+    debug!("setup_hud_lock_crosshairs: entity {:?}", entity);
+
+    let Ok(_spaceship) = q_spaceship.get(entity) else {
+        error!(
+            "setup_hud_lock_crosshairs: entity {:?} not found in q_spaceship",
+            entity
+        );
+        return;
+    };
+
+    commands.spawn((
+        HudTier::Instrument,
+        lock_crosshairs_hud(assets.target_sprite.clone()),
+    ));
+}
+
+fn remove_hud_lock_crosshairs(
+    remove: On<Remove, PlayerSpaceshipMarker>,
+    mut commands: Commands,
+    q_hud: Query<Entity, With<LockCrosshairsHudMarker>>,
+) {
+    let entity = remove.entity;
+    debug!("remove_hud_lock_crosshairs: entity {:?}", entity);
+
+    for hud_entity in &q_hud {
+        commands.entity(hud_entity).despawn();
+    }
+}
+
 /// Build the target-inset render target + highlight assets (Assets exist at
 /// runtime, not necessarily at plugin build) and spawn the corner panel Hidden.
 /// The inset camera itself spawns/despawns with the focus dwell
@@ -726,38 +762,6 @@ fn remove_hud_target_inset(
     }
     **render_target = None;
     commands.remove_resource::<TargetInsetHighlightAssets>();
-}
-
-fn setup_hud_target_candidates(
-    add: On<Add, PlayerSpaceshipMarker>,
-    mut commands: Commands,
-    q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
-) {
-    let entity = add.entity;
-    debug!("setup_hud_target_candidates: entity {:?}", entity);
-
-    let Ok(_spaceship) = q_spaceship.get(entity) else {
-        error!(
-            "setup_hud_target_candidates: entity {:?} not found in q_spaceship",
-            entity
-        );
-        return;
-    };
-
-    commands.spawn((HudTier::Chrome, target_candidates_hud()));
-}
-
-fn remove_hud_target_candidates(
-    remove: On<Remove, PlayerSpaceshipMarker>,
-    mut commands: Commands,
-    q_hud: Query<Entity, With<TargetCandidatesHudMarker>>,
-) {
-    let entity = remove.entity;
-    debug!("remove_hud_target_candidates: entity {:?}", entity);
-
-    for hud_entity in &q_hud {
-        commands.entity(hud_entity).despawn();
-    }
 }
 
 fn setup_hud_edge_indicators(
