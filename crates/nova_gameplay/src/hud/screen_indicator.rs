@@ -65,6 +65,12 @@ pub enum ScreenIndicatorSize {
     ApparentSize {
         /// Minimum indicator size (px), also the fallback size.
         min_px: f32,
+        /// Multiplier on the tracked extent (task 20260713-130305): two
+        /// indicators of the same anchor at scale 1.0 converge to the SAME
+        /// pixel size on big/close targets and shimmer over each other; a
+        /// distinct scale keeps them concentric rings. Applied to the
+        /// apparent extent only - `min_px` stays the absolute floor.
+        scale: f32,
     },
     /// Track the on-screen extent of an AUTHORED world-space bounding
     /// radius around the anchor, never shrinking below `min_px`. For
@@ -367,7 +373,7 @@ fn indicator_size(
 
     match size_mode {
         ScreenIndicatorSize::Fixed(size) => size,
-        ScreenIndicatorSize::ApparentSize { min_px } => {
+        ScreenIndicatorSize::ApparentSize { min_px, scale } => {
             let fallback = Vec2::splat(min_px);
             let (Some(entity), Some(center)) = (anchor_entity, projected) else {
                 return fallback;
@@ -375,7 +381,7 @@ fn indicator_size(
             let Some(aabb) = target_world_aabb(entity, q_children, q_aabb) else {
                 return fallback;
             };
-            let world_radius = aabb.size().length() * 0.5;
+            let world_radius = aabb.size().length() * 0.5 * scale;
             radius_to_px(world_radius, center, min_px).unwrap_or(fallback)
         }
         ScreenIndicatorSize::WorldRadius { radius, min_px } => {
@@ -1044,7 +1050,10 @@ mod tests {
         let indicator = world
             .spawn(screen_indicator(ScreenIndicatorConfig {
                 anchor: Some(ScreenIndicatorAnchorKind::Point(Vec3::new(0.0, 0.0, -10.0))),
-                size: ScreenIndicatorSize::ApparentSize { min_px: 32.0 },
+                size: ScreenIndicatorSize::ApparentSize {
+                    min_px: 32.0,
+                    scale: 1.0,
+                },
                 ..default()
             }))
             .id();
@@ -1073,7 +1082,10 @@ mod tests {
         let indicator = world
             .spawn(screen_indicator(ScreenIndicatorConfig {
                 anchor: Some(ScreenIndicatorAnchorKind::Entity(target)),
-                size: ScreenIndicatorSize::ApparentSize { min_px: 32.0 },
+                size: ScreenIndicatorSize::ApparentSize {
+                    min_px: 32.0,
+                    scale: 1.0,
+                },
                 ..default()
             }))
             .id();

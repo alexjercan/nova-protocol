@@ -87,6 +87,12 @@ const INSET_BORDER_SAFE_COLOR: Color = Color::srgba(0.65, 0.7, 0.75, 0.8);
 const INSET_TICK_LEN_PX: f32 = 16.0;
 const INSET_TICK_THICK_PX: f32 = 4.0;
 
+/// Faction-line colors (playtest 2026-07-13): the relation palette the
+/// retired reticle tint used, now living on the inset's rich surface.
+const FACTION_HOSTILE_COLOR: Color = Color::srgba(1.0, 0.35, 0.3, 1.0);
+const FACTION_OWN_COLOR: Color = Color::srgba(0.35, 0.9, 0.55, 1.0);
+const FACTION_NEUTRAL_COLOR: Color = Color::srgba(0.85, 0.88, 0.9, 0.9);
+
 /// NO-SIGNAL overlay (Q4a): shown when a combat lock exists on a body the
 /// inset cannot scope (a beacon - lockable, never zoomable), so the panel
 /// holds steady instead of blinking during a sweep across it. Text-free: a
@@ -138,8 +144,9 @@ struct TargetInsetNoSignalPulseMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TargetInsetArmedTickMarker;
 
-/// Marker for the viewfinder caption (target name + distance, shown ONLY
-/// while a combat radar gesture is engaged - Q6a).
+/// Marker for the viewfinder's faction line: the locked target's name +
+/// relation tag, colored by relation (playtest 2026-07-13 - the rich home
+/// of the information the retired reticle relation-tint carried).
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TargetInsetCaptionMarker;
 
@@ -290,7 +297,7 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
                 )],
             ),
             (
-                Name::new("InsetCaption"),
+                Name::new("InsetFactionLine"),
                 TargetInsetCaptionMarker,
                 Text::new(""),
                 TextFont::from_font_size(12.0),
@@ -518,23 +525,19 @@ fn drive_inset_camera(
 
 /// The frame carries the safety state (Q5a, shape + color): hot = the lock
 /// red border + the armed corner ticks; safe = quiet steel, no ticks. The
-/// caption shows "<NAME> <dist>m" ONLY while a COMBAT radar gesture is
-/// engaged (Q6a - the sweep's confirmation readout; travel sweeps get the
-/// radar box label instead, the inset is combat-only by design).
+/// caption is the FACTION line (playtest 2026-07-13, revising Q6a): the
+/// locked target's name + relation, colored by relation - restoring on the
+/// RICH surface the information the retired reticle relation-tint carried.
+/// The gesture-time name+distance caption is gone (it read as clutter);
+/// distance rides the radar box next to the bracket instead.
 #[allow(clippy::type_complexity)]
 fn drive_inset_frame_state(
     q_player: Query<
-        (
-            &Transform,
-            Option<&ComputedCenterOfMass>,
-            &WeaponsHot,
-            &CombatLock,
-            Option<&RadarState>,
-        ),
+        (Option<&Allegiance>, &WeaponsHot, &CombatLock),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
     q_names: Query<&Name>,
-    q_positions: Query<&GlobalTransform>,
+    q_allegiance: Query<Option<&Allegiance>>,
     mut q_frame: Query<&mut BorderColor, With<TargetInsetHudMarker>>,
     mut q_ticks: Query<
         &mut Visibility,
@@ -543,9 +546,9 @@ fn drive_inset_frame_state(
             Without<TargetInsetHudMarker>,
         ),
     >,
-    mut q_caption: Query<&mut Text, With<TargetInsetCaptionMarker>>,
+    mut q_caption: Query<(&mut Text, &mut TextColor), With<TargetInsetCaptionMarker>>,
 ) {
-    let Some((transform, com, hot, lock, radar)) = q_player.iter().next() else {
+    let Some((player_allegiance, hot, lock)) = q_player.iter().next() else {
         return;
     };
 
@@ -569,26 +572,31 @@ fn drive_inset_frame_state(
         visibility.set_if_neq(tick_visibility);
     }
 
-    let combat_sweep = radar.is_some_and(|radar| radar.engaged == Some(RadarSlot::Combat));
-    let caption = match lock.0.filter(|_| combat_sweep) {
+    let (caption, caption_color) = match lock.0 {
         Some(target) => {
             let name = q_names
                 .get(target)
                 .map(|name| name.to_string())
                 .unwrap_or_else(|_| "CONTACT".to_string());
-            let distance = q_positions.get(target).ok().map(|target_transform| {
-                live_structure_anchor(transform, com).distance(target_transform.translation())
-            });
-            match distance {
-                Some(distance) => format!("{name} {distance:.0}m"),
-                None => name,
-            }
+            let (tag, color) = match q_allegiance
+                .get(target)
+                .map(|allegiance| relation(player_allegiance, allegiance))
+            {
+                Ok(Relation::Hostile) => ("HOSTILE", FACTION_HOSTILE_COLOR),
+                Ok(Relation::Own) => ("OWN", FACTION_OWN_COLOR),
+                // A lock can outlive its entity by a frame; read as neutral.
+                Ok(Relation::Neutral) | Err(_) => ("NEUTRAL", FACTION_NEUTRAL_COLOR),
+            };
+            (format!("{name} - {tag}"), color)
         }
-        None => String::new(),
+        None => (String::new(), FACTION_NEUTRAL_COLOR),
     };
-    for mut text in &mut q_caption {
+    for (mut text, mut color) in &mut q_caption {
         if text.0 != caption {
             text.0 = caption.clone();
+        }
+        if color.0 != caption_color {
+            color.0 = caption_color;
         }
     }
 }
@@ -864,13 +872,15 @@ mod tests {
     }
 
     #[test]
-    fn the_frame_carries_the_safety_state_and_the_sweep_caption() {
-        // Q5a (shape + color) + Q6a (caption only while a combat gesture is
-        // engaged).
+    fn the_frame_carries_the_safety_state_and_the_faction_line() {
+        // Q5a (shape + color for the safety state) + the faction line
+        // (playtest 2026-07-13): name + relation tag, colored by relation,
+        // whenever a lock exists - gesture-independent.
         let mut world = World::new();
         let target = world
             .spawn((
                 Name::new("SCAVENGER"),
+                Allegiance::Enemy,
                 GlobalTransform::from_translation(Vec3::new(0.0, 0.0, -100.0)),
             ))
             .id();
@@ -892,9 +902,16 @@ mod tests {
         let tick = world
             .spawn((TargetInsetArmedTickMarker, Visibility::Hidden))
             .id();
-        let caption = world.spawn((TargetInsetCaptionMarker, Text::new(""))).id();
+        let caption = world
+            .spawn((
+                TargetInsetCaptionMarker,
+                Text::new(""),
+                TextColor(FACTION_NEUTRAL_COLOR),
+            ))
+            .id();
 
-        // Safe: neutral frame, no ticks, no caption (no gesture engaged).
+        // Safe, locked on an enemy: neutral frame, no ticks - but the
+        // faction line reads immediately (no gesture needed).
         world.run_system_once(drive_inset_frame_state).unwrap();
         assert_eq!(
             *world.entity(frame).get::<BorderColor>().unwrap(),
@@ -904,18 +921,19 @@ mod tests {
             *world.entity(tick).get::<Visibility>().unwrap(),
             Visibility::Hidden
         );
-        assert_eq!(world.entity(caption).get::<Text>().unwrap().0, "");
+        assert_eq!(
+            world.entity(caption).get::<Text>().unwrap().0,
+            "SCAVENGER - HOSTILE",
+            "the faction line shows at lock time, gesture-independent"
+        );
+        assert_eq!(
+            world.entity(caption).get::<TextColor>().unwrap().0,
+            FACTION_HOSTILE_COLOR,
+            "colored by relation"
+        );
 
-        // Hot + a combat sweep engaged: red frame, ticks on, caption reads
-        // name + distance.
-        world.entity_mut(player).insert((
-            WeaponsHot(true),
-            RadarState {
-                engaged: Some(RadarSlot::Combat),
-                candidate: Some(target),
-                acquired: true,
-            },
-        ));
+        // Hot: red frame, ticks on (Q5a).
+        world.entity_mut(player).insert(WeaponsHot(true));
         world.run_system_once(drive_inset_frame_state).unwrap();
         assert_eq!(
             *world.entity(frame).get::<BorderColor>().unwrap(),
@@ -927,20 +945,24 @@ mod tests {
             Visibility::Inherited,
             "hot: the armed ticks appear (Q5a shape)"
         );
-        assert_eq!(
-            world.entity(caption).get::<Text>().unwrap().0,
-            "SCAVENGER 100m",
-            "an engaged combat sweep captions the viewfinder (Q6a)"
-        );
 
-        // Release (search closes): the caption clears, the state remains.
-        world.entity_mut(player).remove::<RadarState>();
+        // A neutral lock reads NEUTRAL (delivery guard for the relation
+        // branch), and no lock clears the line.
+        let rock = world
+            .spawn(GlobalTransform::from_translation(Vec3::new(
+                0.0, 0.0, -50.0,
+            )))
+            .id();
+        world.get_mut::<CombatLock>(player).unwrap().0 = Some(rock);
         world.run_system_once(drive_inset_frame_state).unwrap();
         assert_eq!(
             world.entity(caption).get::<Text>().unwrap().0,
-            "",
-            "the caption is gesture-time only (Q6a)"
+            "CONTACT - NEUTRAL",
+            "an unnamed neutral body still gets a line"
         );
+        world.get_mut::<CombatLock>(player).unwrap().0 = None;
+        world.run_system_once(drive_inset_frame_state).unwrap();
+        assert_eq!(world.entity(caption).get::<Text>().unwrap().0, "");
     }
 
     #[test]

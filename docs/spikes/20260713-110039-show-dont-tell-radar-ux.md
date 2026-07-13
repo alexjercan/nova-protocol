@@ -286,3 +286,11 @@ Direction-level tasks this spike seeded, for /plan to break into steps:
   pips are retired (a visible combat reticle already implies weapons-hot).
   The edge-indicator lock arrow follows. Shape+color hot redundancy now
   lives on the inset frame only.
+- 20260713-130305 (2026-07-13, direct on master): playtest revised Q6a -
+  the gesture-time name+distance caption read as clutter and the
+  combat/travel label asymmetry as a bug; the sweep label is now DISTANCE
+  ONLY on the radar box for both slots, and the inset caption became the
+  relation-colored FACTION line (name + HOSTILE/OWN/NEUTRAL, lock-time,
+  gesture-independent). Also: [CTRL] RADAR hint row, and the travel
+  crosshair tracks apparent size at 1.35x so overlapped brackets stay
+  concentric (ApparentSize gained a scale knob).

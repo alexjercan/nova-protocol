@@ -126,6 +126,10 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
                 anchor: None,
                 size: ScreenIndicatorSize::ApparentSize {
                     min_px: MIN_RETICLE_PX,
+                    // The travel crosshair rides the same anchors at 1.35;
+                    // the combat reticle tracks true apparent size so the
+                    // pair stays concentric (playtest 2026-07-13).
+                    scale: 1.0,
                 },
                 offset: Vec2::ZERO,
                 offscreen: ScreenIndicatorOffscreen::Hide,

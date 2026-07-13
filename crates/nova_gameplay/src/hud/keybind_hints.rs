@@ -50,7 +50,7 @@ struct HudLevelHintRow;
 /// rows document the wheel gestures (task 20260708-165705): plain scroll
 /// steps the component fine-lock, CTRL+scroll steps the ship lock through
 /// the tracked candidates.
-const ROW_VERBS: [&str; 5] = ["STOP", "GOTO", "ORBIT", "CANCEL", "COMPONENT"];
+const ROW_VERBS: [&str; 6] = ["STOP", "GOTO", "ORBIT", "CANCEL", "RADAR", "COMPONENT"];
 
 /// Emphasis pulse rate and the alpha bands it sweeps. The emphasized row
 /// renders PURE OBJECTIVE_GOLD hue at all times and only its alpha
@@ -156,6 +156,7 @@ pub fn keybind_hint_cluster_hud() -> impl Bundle {
             row(2),
             row(3),
             row(4),
+            row(5),
             // Discoverability row for the HUD level cycle, driven by
             // update_hint_cluster (blank without a rig). It is chrome
             // itself: at Minimal the whole cluster is hidden, which is
@@ -238,6 +239,7 @@ fn row_hint(hints: &FlightVerbHints, index: usize) -> &VerbHint {
         1 => &hints.goto,
         2 => &hints.orbit,
         3 => &hints.cancel,
+        4 => &hints.radar,
         _ => &hints.component_cycle,
     }
 }
@@ -430,6 +432,11 @@ mod tests {
                 available: false,
                 anchor: None,
             },
+            radar: VerbHint {
+                key: "CTRL".into(),
+                available: true,
+                anchor: None,
+            },
             engaged,
         }
     }
@@ -457,8 +464,10 @@ mod tests {
         assert_eq!(text(rows[2]), "[O] ORBIT");
         assert_eq!(text(rows[3]), "[Z] CANCEL");
         assert_eq!(color(rows[3]), DIM_COLOR, "nothing engaged");
-        assert_eq!(text(rows[4]), "[SCROLL] COMPONENT");
-        assert_eq!(color(rows[4]), DIM_COLOR, "no focus, component cycle dim");
+        assert_eq!(text(rows[4]), "[CTRL] RADAR");
+        assert_eq!(color(rows[4]), NAV_CYAN, "the computer grants Lock");
+        assert_eq!(text(rows[5]), "[SCROLL] COMPONENT");
+        assert_eq!(color(rows[5]), DIM_COLOR, "no focus, component cycle dim");
     }
 
     #[test]

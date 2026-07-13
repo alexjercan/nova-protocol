@@ -11,9 +11,10 @@
 //!   weapons-hot).
 //! - A HOLLOW bordered box riding the live lock while a radar gesture is
 //!   ENGAGED (past the hold threshold; nothing renders inside the tap
-//!   window - F11), colored by the engaged slot. During a TRAVEL sweep it
-//!   also carries the pick's name + distance (Q6a; a combat sweep's caption
-//!   lives on the inset viewfinder instead - no doubled text).
+//!   window - F11), colored by the engaged slot, with a DISTANCE-ONLY label
+//!   identical for both slots (playtest 2026-07-13 revising Q6a: the name
+//!   read as clutter and the slot asymmetry as a bug; names live on the
+//!   inset's faction line and the readout).
 //! - An UNLATCH GHOST per tap-clear (Q7a): the crosshair visibly pops off
 //!   the target - scale up, fade out - in the slot's color; the staged
 //!   double tap reads as two distinct pops. Replaces the old text toast
@@ -41,6 +42,11 @@ pub mod prelude {
 /// LARGER than the combat reticle (`MIN_RETICLE_PX` 32) so an overlapped pair
 /// reads as two rings.
 const TRAVEL_CROSSHAIR_MIN_PX: f32 = 40.0;
+
+/// Apparent-size multiplier of the travel crosshair vs the combat reticle
+/// (which tracks at 1.0): keeps an overlapped pair concentric at any target
+/// size, not just at the min-px floor (playtest 2026-07-13). A feel knob.
+const TRAVEL_CROSSHAIR_SCALE: f32 = 1.35;
 
 /// Travel-lock white.
 const TRAVEL_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.9);
@@ -119,6 +125,12 @@ pub fn lock_crosshairs_hud(target_sprite: Handle<Image>) -> impl Bundle {
                     anchor: None,
                     size: ScreenIndicatorSize::ApparentSize {
                         min_px: TRAVEL_CROSSHAIR_MIN_PX,
+                        // Rendered a step LARGER than the combat reticle
+                        // (scale 1.0) so an overlapped pair on a big/close
+                        // body stays two concentric rings instead of two
+                        // same-size sprites shimmering over each other
+                        // (playtest 2026-07-13).
+                        scale: TRAVEL_CROSSHAIR_SCALE,
                     },
                     offset: Vec2::ZERO,
                     offscreen: ScreenIndicatorOffscreen::Hide,
@@ -223,9 +235,11 @@ fn drive_travel_crosshair(
 /// rides the LIVE LOCK - the engaged slot's current target - not the raw
 /// candidate (keep-last means the candidate can be `None` over empty space
 /// while the lock still holds; the adornment must not blink there). Inside
-/// the tap window nothing renders (F11). During a TRAVEL sweep the label
-/// carries the pick's name + distance (Q6a); a combat sweep's caption lives
-/// on the inset viewfinder, so the label stays empty then.
+/// the tap window nothing renders (F11). The label is DISTANCE ONLY and
+/// identical for both slots (playtest 2026-07-13: name + distance read as
+/// clutter, and combat/travel behaving differently read as a bug; the
+/// target's name lives on the inset viewfinder's faction line and the
+/// readout).
 #[allow(clippy::type_complexity)]
 fn drive_radar_candidate(
     q_player: Query<
@@ -237,7 +251,6 @@ fn drive_radar_candidate(
         ),
         With<PlayerSpaceshipMarker>,
     >,
-    q_names: Query<&Name>,
     q_positions: Query<&GlobalTransform>,
     mut q_box: Query<
         (&mut ScreenIndicatorAnchor, &mut BorderColor, &Children),
@@ -250,7 +263,7 @@ fn drive_radar_candidate(
         .and_then(|(_, radar, ..)| radar.copied())
         .and_then(|radar| radar.engaged.map(|slot| (radar, slot)));
     for (mut anchor, mut border, children) in &mut q_box {
-        let (target, color, travel_sweep) = match (player, engaged) {
+        let (target, color) = match (player, engaged) {
             (Some((_, _, travel, combat)), Some((radar, slot))) => {
                 let slot_target = match slot {
                     RadarSlot::Travel => travel.0,
@@ -262,32 +275,22 @@ fn drive_radar_candidate(
                         RadarSlot::Combat => RADAR_COMBAT_COLOR,
                         RadarSlot::Travel => RADAR_TRAVEL_COLOR,
                     },
-                    slot == RadarSlot::Travel,
                 )
             }
-            _ => (None, RADAR_TRAVEL_COLOR, false),
+            _ => (None, RADAR_TRAVEL_COLOR),
         };
         **anchor = target.map(ScreenIndicatorAnchorKind::Entity);
         *border = BorderColor::all(color);
-        let label = match target.filter(|_| travel_sweep) {
-            Some(target) => {
-                let name = q_names
-                    .get(target)
-                    .map(|name| name.to_string())
-                    .unwrap_or_else(|_| format!("{target:?}"));
-                let distance = player.and_then(|(ship, ..)| {
-                    q_positions
-                        .get(target)
-                        .ok()
-                        .map(|pos| ship.translation().distance(pos.translation()))
-                });
-                match distance {
-                    Some(distance) => format!("{name} {distance:.0}m"),
-                    None => name,
-                }
-            }
-            None => String::new(),
-        };
+        let label = target
+            .and_then(|target| {
+                let ship = player.map(|(ship, ..)| ship)?;
+                let position = q_positions.get(target).ok()?;
+                Some(format!(
+                    "{:.0}m",
+                    ship.translation().distance(position.translation())
+                ))
+            })
+            .unwrap_or_default();
         for &child in children {
             if let Ok((mut text, mut label_color)) = q_label.get_mut(child) {
                 if text.0 != label {
@@ -490,7 +493,7 @@ mod tests {
     }
 
     #[test]
-    fn radar_box_rides_the_live_lock_and_labels_travel_sweeps() {
+    fn radar_box_rides_the_live_lock_with_a_distance_only_label() {
         let (mut world, player, target, boxed, label) = box_world();
 
         // Open search inside the tap window: nothing renders (F11).
@@ -507,7 +510,8 @@ mod tests {
         );
 
         // Engaged travel sweep: the box rides the pick, white, and the
-        // label carries name + distance (Q6a).
+        // label is DISTANCE ONLY (playtest 2026-07-13 - the name read as
+        // clutter; it lives on the inset's faction line now).
         world.get_mut::<RadarState>(player).unwrap().engaged = Some(RadarSlot::Travel);
         world.get_mut::<TravelLock>(player).unwrap().0 = Some(target);
         world.run_system_once(drive_radar_candidate).unwrap();
@@ -517,8 +521,8 @@ mod tests {
         );
         assert_eq!(
             world.entity(label).get::<Text>().unwrap().0,
-            "SCAVENGER 100m",
-            "a travel sweep is informed by name + distance"
+            "100m",
+            "the sweep label is distance only"
         );
 
         // Keep-last: the candidate drops over empty space but the lock
@@ -531,8 +535,8 @@ mod tests {
             "keep-last: the adornment rides the held lock over empty space"
         );
 
-        // A combat sweep goes red and its label is EMPTY - the caption
-        // lives on the inset viewfinder (no doubled text).
+        // A combat sweep goes red with the SAME distance-only label - the
+        // slots no longer differ (the old asymmetry read as a bug).
         world.get_mut::<RadarState>(player).unwrap().engaged = Some(RadarSlot::Combat);
         world.get_mut::<RadarState>(player).unwrap().candidate = Some(target);
         world.get_mut::<CombatLock>(player).unwrap().0 = Some(target);
@@ -543,8 +547,8 @@ mod tests {
         );
         assert_eq!(
             world.entity(label).get::<Text>().unwrap().0,
-            "",
-            "combat sweeps caption on the inset, not the box"
+            "100m",
+            "combat sweeps carry the same distance-only label"
         );
 
         // Search closed: the box hides.

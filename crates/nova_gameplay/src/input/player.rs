@@ -100,6 +100,11 @@ pub struct FlightVerbHints {
     /// Component fine-lock cycle (plain scroll). The key label is the fixed
     /// string "SCROLL" - a wheel binding has no keyboard label to read.
     pub component_cycle: VerbHint,
+    /// The radar gesture (hold CTRL = radar, tap = clear). Fixed "CTRL"
+    /// label like the wheel rows (the binding spans both Control keys plus
+    /// a pad button); available while the computer grants Lock (playtest
+    /// 2026-07-13: CTRL was missing from the cluster entirely).
+    pub radar: VerbHint,
     /// Whether any maneuver is engaged right now - explicit, so consumers
     /// (the GOTO cue hides mid-maneuver) do not have to proxy it through
     /// another verb's availability.
@@ -273,6 +278,11 @@ fn update_flight_verb_hints(
                         .count()
                         >= 2
             }),
+            anchor: None,
+        },
+        radar: VerbHint {
+            key: cycle_label("CTRL", q_stop.single().is_ok()),
+            available: verb_granted(FlightVerb::Lock),
             anchor: None,
         },
         engaged,
