@@ -441,6 +441,77 @@ main {
     text-align: center;
 }
 
+/* Screenshot / diagram figure. Until the real capture exists, the figure ships
+   a dashed placeholder frame that names the file to drop in (see the list in
+   docs). To go live: capture the image into `web/src/assets/<name>`, then
+   replace the `.figure__placeholder` div with `<img class="figure__img" ...>`.
+   The frame and the img share the same 16:9 box so swapping one for the other
+   does not shift the layout. */
+.figure {
+    margin: 1.8em 0;
+}
+.figure__img,
+.figure__placeholder {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 12px;
+    box-shadow:
+        var(--shadow-panel),
+        0 0 40px rgba(92, 200, 255, 0.12);
+}
+.figure__img {
+    display: block;
+    object-fit: cover;
+    border: 1px solid var(--border);
+}
+.figure__placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5em;
+    padding: 1.5em;
+    text-align: center;
+    border: 1px dashed var(--border);
+    background:
+        repeating-linear-gradient(
+            45deg,
+            rgba(92, 200, 255, 0.03) 0,
+            rgba(92, 200, 255, 0.03) 10px,
+            transparent 10px,
+            transparent 20px
+        ),
+        rgba(255, 255, 255, 0.015);
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+.figure__placeholder-tag {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    opacity: 0.85;
+}
+.figure__placeholder-name {
+    font-size: 0.9rem;
+    color: var(--text);
+    word-break: break-all;
+}
+.figure__placeholder-note {
+    font-size: 0.8rem;
+    max-width: 48ch;
+    line-height: 1.5;
+}
+.figure__caption {
+    display: block;
+    margin-top: 0.7em;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    text-align: center;
+}
+
 /* ---- key/value control table -------------------------------------------- */
 .controls {
     width: 100%;

@@ -105,3 +105,27 @@ instead; the ledger is `docs/LESSONS.md`, never `docs/retros/LESSONS.md`.
 - Version lives in root `Cargo.toml` (`workspace.package.version`). Notable
   changes go to `CHANGELOG.md` (Keep a Changelog). Release steps:
   `docs/development.md`.
+
+## The website (`web/`)
+
+`web/` is the public site (landing, blog/devlog, tutorial, wiki): TypeScript +
+Webpack + Tailwind, deployed to GitHub Pages with the game served under
+`/play/`. It is content, not generated - it does not update itself, so keep it
+in sync by hand whenever a change makes something on it wrong or missing:
+
+- **Player-facing behavior changed** (controls, verbs, HUD, menu flow, the
+  tutorial/Shakedown Run): update `web/src/tutorial.html`. The old page drifting
+  behind the game is exactly the failure to avoid - if you change a keybind or a
+  targeting rule, fix the tutorial in the same task.
+- **A release went out**: write a devblog for the cycle. One devlog per minor
+  version, patch releases folded into it as a closing note. Full steps (the four
+  files a devblog touches) are in `docs/development.md` under "Writing the
+  release devblog".
+- **New feature or mechanic worth showing**: it can also earn a screenshot or
+  diagram on the site. Use the `.figure` component (see `web/src/style.css`); it
+  ships a dashed placeholder frame naming the image file to capture, so you can
+  land the slot and caption now and drop the real capture in later.
+
+Adding or renaming a page/post means editing `web/webpack.config.js` in two
+places (the `page(...)` plugin list and the `historyApiFallback` rewrites).
+Verify with `cd web && npm run ci` (format check, lint, build).

@@ -46,6 +46,16 @@ const config = {
         ),
         page(
             "post",
+            "src/posts/devlog-5-radar-locking-shakedown-and-the-web.html",
+            "blog/devlog-5-radar-locking-shakedown-and-the-web/index.html"
+        ),
+        page(
+            "post",
+            "src/posts/devlog-4-guided-torpedoes-targeting-and-enemy-ai.html",
+            "blog/devlog-4-guided-torpedoes-targeting-and-enemy-ai/index.html"
+        ),
+        page(
+            "post",
             "src/posts/devlog-3-zones-torpedoes-and-blast-damage.html",
             "blog/devlog-3-zones-torpedoes-and-blast-damage/index.html"
         ),
@@ -111,6 +121,14 @@ const config = {
                 {
                     from: /^\/blog\/building-nova-protocol/,
                     to: "/blog/building-nova-protocol/index.html",
+                },
+                {
+                    from: /^\/blog\/devlog-5-radar-locking-shakedown-and-the-web/,
+                    to: "/blog/devlog-5-radar-locking-shakedown-and-the-web/index.html",
+                },
+                {
+                    from: /^\/blog\/devlog-4-guided-torpedoes-targeting-and-enemy-ai/,
+                    to: "/blog/devlog-4-guided-torpedoes-targeting-and-enemy-ai/index.html",
                 },
                 {
                     from: /^\/blog\/devlog-3-zones-torpedoes-and-blast-damage/,

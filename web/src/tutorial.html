@@ -6,7 +6,7 @@
         <title>Tutorial - Nova Protocol</title>
         <meta
             name="description"
-            content="How to play Nova Protocol: controls, the editor-to-scenario loop, and the GOTO / ORBIT / STOP autopilot verbs."
+            content="How to play Nova Protocol: the Shakedown Run tutorial beat by beat, deliberate CTRL radar locking, the GOTO / ORBIT / STOP autopilot verbs, and the full v0.5.0 control reference."
         />
         <link
             rel="icon"
@@ -19,23 +19,47 @@
             <article class="prose">
                 <h1>How to play</h1>
                 <p class="prose__meta">
-                    Tutorial // getting off the launch pad
+                    Tutorial // the Shakedown Run and the controls behind it
                 </p>
 
                 <p>
-                    Nova Protocol is a build-and-fly space shooter. You assemble
-                    a ship out of modular sections and then take it into a
-                    scenario - an asteroid field with gravity wells and hostile
-                    ships. The flight computer can fly for you through real
-                    thrusters, but the moment you touch a control you take over.
+                    Nova Protocol is a build-and-fly space shooter. You take a
+                    modular ship into a scenario - an asteroid field with
+                    gravity wells, salvage, and hostile ships. The flight
+                    computer can fly for you through real thrusters, but the
+                    moment you touch a control you take over. The fastest way to
+                    learn all of that is the built-in tutorial: start a
+                    <strong>New Game</strong> and fly the
+                    <strong>Shakedown Run</strong>.
                 </p>
+
+                <figure class="figure">
+                    <!-- Capture: assets/tutorial-menu.png -->
+                    <div class="figure__placeholder">
+                        <span class="figure__placeholder-tag"
+                            >Screenshot needed</span
+                        >
+                        <span class="figure__placeholder-name"
+                            >assets/tutorial-menu.png</span
+                        >
+                        <span class="figure__placeholder-note"
+                            >The main menu with its live ambient backdrop (an AI
+                            ship flying a thruster orbit) and the New Game /
+                            Sandbox / Settings / Exit options.</span
+                        >
+                    </div>
+                    <figcaption class="figure__caption">
+                        The game boots into a main menu; New Game starts the
+                        Shakedown Run.
+                    </figcaption>
+                </figure>
 
                 <h2>The game loop</h2>
                 <p>The game boots into a main menu with four options:</p>
                 <ul>
                     <li>
-                        <strong>New Game</strong> - drops you straight into the
-                        asteroid-field scenario with a ready-made player ship.
+                        <strong>New Game</strong> - drops you into the Shakedown
+                        Run, a guided tutorial scenario with a ready-made ship.
                     </li>
                     <li>
                         <strong>Sandbox</strong> - opens the ship editor so you
@@ -53,6 +77,152 @@
                     editor (Sandbox only). In any scenario,
                     <kbd>Esc</kbd> pauses the game and gives you Resume / Back
                     to Main Menu / Exit.
+                </p>
+
+                <h2>The Shakedown Run, beat by beat</h2>
+                <p>
+                    The tutorial teaches one gesture at a time and hands you
+                    each verb only when you reach the beat that needs it - so a
+                    key that answers with a deny buzz early on just is not
+                    unlocked yet. Each beat completes the instant the gesture
+                    lands.
+                </p>
+
+                <h3>Part 1 - Burn and look</h3>
+                <ol>
+                    <li>
+                        <strong>Burn to Beacon 1.</strong> Hold <kbd>W</kbd> to
+                        burn, tap <kbd>X</kbd> to STOP. There is a gentle speed
+                        cap here that lifts once you arrive.
+                    </li>
+                    <li>
+                        <strong>Find Beacon 2.</strong> It is off your beam.
+                        Hold <kbd>Alt</kbd> to free-look around and spot it,
+                        then burn over.
+                    </li>
+                    <li>
+                        <strong>Recover 3 supply crates</strong> from the debris
+                        cluster - fly through each one to collect it.
+                    </li>
+                </ol>
+
+                <h3>Part 2 - Lock and let the computer fly</h3>
+                <figure class="figure">
+                    <!-- Capture: assets/tutorial-radar-lock.png -->
+                    <div class="figure__placeholder">
+                        <span class="figure__placeholder-tag"
+                            >Screenshot needed</span
+                        >
+                        <span class="figure__placeholder-name"
+                            >assets/tutorial-radar-lock.png</span
+                        >
+                        <span class="figure__placeholder-note"
+                            >The white NAV crosshair mid-sweep while holding
+                            CTRL, with the lock brackets snapping onto a
+                            beacon.</span
+                        >
+                    </div>
+                    <figcaption class="figure__caption">
+                        Radar locking is deliberate: hold CTRL and the radar
+                        locks whatever you look at.
+                    </figcaption>
+                </figure>
+                <ol start="4">
+                    <li>
+                        <strong>Lock Beacon 3.</strong> Your targeting computer
+                        comes online. Hold <kbd>Ctrl</kbd> on the beacon until
+                        the white NAV lock sticks. Radar locking is deliberate
+                        now: holding <kbd>Ctrl</kbd> sweeps and live-locks
+                        whatever your look ray is on.
+                    </li>
+                    <li>
+                        <strong>Press GOTO.</strong> With the beacon locked,
+                        press <kbd>G</kbd> and let the computer fly you there.
+                    </li>
+                    <li>
+                        <strong>On to Beacon 4.</strong> A new waypoint appears
+                        - lock it and press <kbd>G</kbd> again.
+                    </li>
+                </ol>
+
+                <h3>Part 3 - Gravity and orbit</h3>
+                <figure class="figure">
+                    <!-- Capture: assets/tutorial-orbit.png -->
+                    <div class="figure__placeholder">
+                        <span class="figure__placeholder-tag"
+                            >Screenshot needed</span
+                        >
+                        <span class="figure__placeholder-name"
+                            >assets/tutorial-orbit.png</span
+                        >
+                        <span class="figure__placeholder-note"
+                            >The ship flying a clean ORBIT circle around the
+                            planetoid, with the ORBIT radius spoke shown on the
+                            HUD.</span
+                        >
+                    </div>
+                    <figcaption class="figure__caption">
+                        Press ORBIT near a gravity well and the ship flies
+                        itself into a clean circle.
+                    </figcaption>
+                </figure>
+                <ol start="7">
+                    <li>
+                        <strong>Coast.</strong> You drift into the planetoid's
+                        pull - cut the burn and let gravity carry you.
+                    </li>
+                    <li>
+                        <strong>Press ORBIT.</strong> Press <kbd>O</kbd> and the
+                        ship parks itself into a clean orbit around the well.
+                    </li>
+                    <li>
+                        <strong>Break away.</strong> Press <kbd>Z</kbd> to
+                        cancel the autopilot and burn clear.
+                    </li>
+                </ol>
+
+                <h3>Part 4 - First blood</h3>
+                <figure class="figure">
+                    <!-- Capture: assets/tutorial-combat-lock.png -->
+                    <div class="figure__placeholder">
+                        <span class="figure__placeholder-tag"
+                            >Screenshot needed</span
+                        >
+                        <span class="figure__placeholder-name"
+                            >assets/tutorial-combat-lock.png</span
+                        >
+                        <span class="figure__placeholder-note"
+                            >Weapons raised (RMB): the red combat reticle locked
+                            on the derelict hulk, with the corner target
+                            viewfinder inset showing the magnified target.</span
+                        >
+                    </div>
+                    <figcaption class="figure__caption">
+                        Raise your weapons with RMB and the radar commits to a
+                        red combat lock; the viewfinder shows it live.
+                    </figcaption>
+                </figure>
+                <ol start="10">
+                    <li>
+                        <strong>Paint the derelict hulk.</strong> Hold the right
+                        mouse button to raise your weapons, keep <kbd>Ctrl</kbd>
+                        on the hulk, and watch the corner viewfinder. Raised
+                        weapons make the radar commit to a
+                        <em>red</em> combat lock instead of the white nav one.
+                    </li>
+                    <li>
+                        <strong>Open fire.</strong> Locked on, fire the turrets
+                        with the left mouse button.
+                    </li>
+                    <li>
+                        <strong>Drive off the scavenger.</strong> Destroying the
+                        hulk draws a scavenger picking through your debris field
+                        - put it down.
+                    </li>
+                </ol>
+                <p>
+                    Finish that and the Shakedown is complete. Tap
+                    <kbd>Ctrl</kbd> to stand your locks down. The belt is yours.
                 </p>
 
                 <h2>Flight controls</h2>
@@ -88,6 +258,17 @@
                 </table>
 
                 <h2>Targeting and camera</h2>
+                <p>
+                    Locking is deliberate. Hold <kbd>Ctrl</kbd> to sweep the
+                    radar - it live-locks whatever your look ray is on. Your
+                    stance picks the slot: weapons lowered gives a
+                    <strong>white NAV lock</strong> (feeds GOTO); weapons raised
+                    (right mouse button) gives a
+                    <strong>red combat lock</strong> (feeds turrets and
+                    torpedoes). A lock sticks until the target dies, leaves
+                    range, or goes cold. Tap <kbd>Ctrl</kbd> to clear locks in
+                    stages - combat first, then nav.
+                </p>
                 <table class="controls">
                     <tr>
                         <td>Aim / look</td>
@@ -98,17 +279,21 @@
                         <td><kbd>Alt</kbd> (hold) &nbsp;or&nbsp; LT</td>
                     </tr>
                     <tr>
-                        <td>Combat / turret mode</td>
-                        <td>Right mouse button &nbsp;or&nbsp; LT2</td>
+                        <td>Raise weapons (combat stance)</td>
+                        <td>Right mouse button (hold)</td>
                     </tr>
                     <tr>
-                        <td>Cycle locked ship</td>
+                        <td>Radar lock (hold to sweep)</td>
+                        <td><kbd>Ctrl</kbd> (hold) &nbsp;or&nbsp; D-Pad Up</td>
+                    </tr>
+                    <tr>
+                        <td>Clear lock (staged: combat, then nav)</td>
                         <td>
-                            <kbd>Ctrl</kbd> + scroll &nbsp;or&nbsp; D-Pad Up
+                            <kbd>Ctrl</kbd> (tap) &nbsp;or&nbsp; D-Pad Up (tap)
                         </td>
                     </tr>
                     <tr>
-                        <td>Cycle component</td>
+                        <td>Cycle fine-lock component</td>
                         <td>
                             <kbd>[</kbd> / <kbd>]</kbd> &nbsp;or&nbsp; D-Pad
                             Left / Right
@@ -125,15 +310,16 @@
                     <tr>
                         <td>Launch torpedo</td>
                         <td>
-                            Lock a target, then fire the committed torpedo bay
+                            Raise weapons, hold a red combat lock, then fire the
+                            torpedo bay
                         </td>
                     </tr>
                 </table>
                 <p>
-                    The aim-assist lock is an angular cone: it grabs the hostile
-                    nearest your aim, and panning the view re-targets to whoever
-                    is now closest to center. Turrets draw their lead from the
-                    lock and paint an amber pip on the intercept point.
+                    Turrets draw their lead from the combat lock and paint an
+                    amber pip on the intercept point; a fine-locked section
+                    focuses fire on that component. Torpedoes home on the lock
+                    with proportional navigation once armed.
                 </p>
 
                 <h2>Interface</h2>
@@ -153,9 +339,9 @@
                 </table>
 
                 <blockquote>
-                    New here? Hit <strong>ORBIT</strong> near the big rock and
-                    watch the ship fly itself into a clean circle - it is the
-                    fastest way to see the diegetic autopilot at work.
+                    New here? Just pick <strong>New Game</strong> and follow the
+                    Shakedown Run - it walks you through every verb on this page
+                    in order, one gesture at a time.
                 </blockquote>
 
                 <p style="margin-top: 2.5em">

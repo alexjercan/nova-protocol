@@ -101,10 +101,34 @@ Pushing a tag `v[0-9]+.[0-9]+.[0-9]+*` triggers `release-flow`
 6. `git push origin master && git push origin vX.Y.Z`.
 7. Watch the run (`gh run watch`), then check the GitHub release page and
    consider adding summarized release notes (`gh release edit vX.Y.Z --notes-file ...`).
+8. Write a devblog for the release cycle (see below) and land it in `web/`.
 
 The workflow uploads four assets to a release named after the tag: macOS
 universal `.dmg`, Linux `.tar.gz`, Windows `.zip`, and a wasm-opt'd web zip.
 It can also be re-run via `workflow_dispatch` with a `version` input.
+
+### Writing the release devblog
+
+Every release cycle also gets a devblog on the site, in `web/`. The devlogs
+are numbered (`#1`..`#N`) and track the minor versions: one devlog per minor
+release (`v0.4.0` -> Devlog #4, `v0.5.0` -> Devlog #5), with the cycle's patch
+releases folded into that same post as a short closing note rather than getting
+their own devlog. Source the content straight from the `CHANGELOG.md` sections
+for the versions in the cycle.
+
+Adding a devblog touches four places (mirror an existing post such as
+`devlog-3-zones-torpedoes-and-blast-damage`):
+
+1. Write the post at `web/src/posts/<slug>.html`. Copy an existing devlog for
+   the structure: the `prose__meta` line carries `<date> // v<X.Y.0>`, the
+   `<title>`/`<meta name="description">` summarize the release, and there is a
+   `<!-- Devlog video ... -->` placeholder for the recorded footage.
+2. Register the page in `web/webpack.config.js`: add a `page("post", ...)`
+   entry in `plugins` and a matching `historyApiFallback` rewrite (keep both
+   lists newest-first, above the previous devlog).
+3. Add a card to `web/src/blog.html` at the top of `.post-list` (newest first),
+   with the date/version, title, and a one-line excerpt.
+4. Rebuild and check it: `cd web && npm run ci` (format check, lint, build).
 
 ## Task tracking
 
