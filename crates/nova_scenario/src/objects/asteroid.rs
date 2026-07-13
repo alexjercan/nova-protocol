@@ -681,8 +681,12 @@ mod tests {
 
         let mut handler =
             EventHandler::<NovaEventWorld>::from(crate::events::EventConfig::OnDestroyed);
+        // Filter on BOTH the root's id and its type: the asteroid_field
+        // scenario (example 03) counts kills by type_name alone, so the
+        // fired info's type is part of the contract this pin owns.
         handler.add_filter(EventFilterConfig::Entity(EntityFilterConfig {
             id: Some("derelict".to_string()),
+            type_name: Some(ASTEROID_TYPE_NAME.to_string()),
             ..Default::default()
         }));
         handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
