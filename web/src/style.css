@@ -806,6 +806,13 @@ main {
 .pf-shoulder-right::before {
     content: "\2199";
 }
+/* Analog: mouse (for mouse-motion aim) and the right stick. */
+.pf-mouse-device::before {
+    content: "\243E";
+}
+.pf-stick-right::before {
+    content: "\21CC";
+}
 /* In the keybind tables, tint and size the glyphs to sit with the text. */
 .controls .pf {
     color: var(--cyan-bright);
