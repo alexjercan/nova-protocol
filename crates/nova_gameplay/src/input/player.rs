@@ -615,10 +615,10 @@ pub(crate) fn flight_input_rig() -> impl Bundle {
                         consume_input: false,
                         ..default()
                     },
-                    // Not South: the scenario-advance confirm (loader.rs)
-                    // lives there, and a pad press must never both skip the
-                    // scenario and toggle a parking maneuver.
-                    bindings![KeyCode::KeyO, GamepadButton::DPadDown],
+                    // South: the scenario-advance confirm (loader.rs) was moved
+                    // off South to DPadDown so this pad press cannot both skip
+                    // the scenario and toggle a parking maneuver.
+                    bindings![KeyCode::KeyO, GamepadButton::South],
                 ),
                 (
                     Name::new("Input: Autopilot Off"),
@@ -1336,7 +1336,7 @@ mod tests {
         ));
         world.spawn((
             Action::<AutopilotOrbitInput>::new(),
-            bindings![KeyCode::KeyO, GamepadButton::DPadDown],
+            bindings![KeyCode::KeyO, GamepadButton::South],
         ));
         world.spawn((
             Action::<AutopilotOffInput>::new(),

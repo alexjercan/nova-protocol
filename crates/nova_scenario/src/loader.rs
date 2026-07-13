@@ -476,7 +476,8 @@ fn on_load_scenario(
             ScenarioInputMarker[(
                 Name::new("Input: Next Scenario"),
                 Action::<NextScenarioInput>::new(),
-                bindings![KeyCode::Enter, GamepadButton::South]
+                // DPadDown: moved off South, which ORBIT now uses (player.rs).
+                bindings![KeyCode::Enter, GamepadButton::DPadDown]
             )]
         ),
     ));
