@@ -34,8 +34,11 @@ finished - the vacuous-pass guard 11/12 pioneered).
   in the range scripts (raise stance, wait for WeaponsHot, then press) and
   in the controls docs; the outcome assertions now pin the whole chain.
 - Firing a torpedo volley drifts the ship ~20 u/s with no engaged drive -
-  found by 10_playable's timeline probe, filed as task 20260713-220512
-  (10_playable ships with a turret loadout partly to stay robust to it).
+  found by 10_playable's timeline probe, filed as task 20260713-220512.
+  RESOLVED after landing: the user identified the real mechanism - the
+  global FlightBurnInput binds Space too, so the fire-hold also drove the
+  main drive; correct engine behavior, task closed wontdo (details in its
+  Record).
 - The radar pick is purely angular, so with the camera above the hull a
   FARTHER on-axis object outranks a near one on the same boresight -
   10_playable's collinear first geometry locked the beacon behind the
