@@ -1,6 +1,6 @@
 # Audio SFX: thruster hum audible from far away (attenuation bug)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.5.2,bug,audio,feedback
 
@@ -29,30 +29,49 @@ geometric rolloff), reading the `SfxListenerMarker` camera.
 
 ## Steps
 
-- [ ] Trace the reported scenario first (diagnostic-first): a rig with the
-      player idle and an AI ship thrusting beyond SFX_FAR_DISTANCE; log
-      avg_throttle and the sink volume to confirm the distant ship raises
-      the hum. Record the numbers in NOTES.md.
-- [ ] Fail-first regression test: same rig as an App-driven test - the hum
-      target volume must stay ~0 when only the far ship thrusts, and rise
-      when the player's ship thrusts. Confirm it fails against the current
-      code and record the failing numbers.
-- [ ] Fix in `update_thruster_loop_volume`: group active thrusters by ship
-      root (verify the actual ChildOf chain from `ThrusterSectionMarker` to
-      the ship root before coding against it), compute per-ship
-      `engine_volume(avg ship throttle) * distance_attenuation(listener ->
-      ship root)`, and take the max contribution as the loop target
-      (summing would pin the hum to max, per the existing comment). Reuse
-      `listener_position()`/`SfxListenerMarker`, not a new listener path.
-- [ ] Player's own ship: measure the SfxListenerMarker camera's distance to
-      the player ship root in a normal run; if it can exceed
-      SFX_NEAR_DISTANCE, exempt the player-controlled ship from attenuation
-      (its hum is cockpit-diegetic), otherwise no special case is needed.
-      Verify first what marks the player ship before relying on it, and
-      record the measured distance either way.
-- [ ] Keep the exponential smoothing (audio.rs:570-574), the "no thrusters
-      -> silent" behavior, and the existing audio tests green.
-- [ ] CHANGELOG.md entry under Unreleased (Fixed).
+- [x] Trace the reported scenario first (diagnostic-first): traced in the
+      SHIPPED app (main menu ambience scene, which is exactly a distant AI
+      ship burning: 4 min under Xvfb with a temp trace, pre-fix and
+      post-fix). Pre-fix: hum at 0.26/0.3 while the only burning thruster
+      was 341 u away (one-shot attenuation there: 0.0). Post-fix: 0.0
+      beyond FAR, 0.0033 at 258 u. Full rig + numbers in NOTES.md.
+- [x] Fail-first regression test: six App-driven tests over the production
+      system + markers (audio.rs tests, `hum_app` rig). Proven against the
+      pre-fix behavior by sabotage AFTER committing the fix
+      (commit-before-sabotage): reintroducing the global-average/no-
+      attenuation computation fails 4 of them -
+      a_distant_ships_burn_does_not_raise_the_hum (got 0.3, want 0.0 for a
+      ship 500 u away), a_midrange_ships_hum_is_scaled_by_distance_attenuation,
+      ships_combine_by_loudest_not_by_global_average,
+      a_rootless_thruster_attenuates_at_its_own_pose - while the two that
+      pin pre-fix-shared behavior (player exemption, smoothing) survive,
+      as expected. Restored via git checkout; 15/15 green after.
+- [x] Fix: `update_thruster_loop_volume` split into
+      `compute_thruster_hum_volume` (all logic, writes a new
+      `ThrusterHumVolume` resource; App-testable headless since an
+      `AudioSink` cannot be constructed without an audio device) and
+      `apply_thruster_loop_volume` (copies onto the sink). Grouping walks
+      `ChildOf` ancestors to the `SpaceshipRootMarker` (verified: ship
+      thrusters are one-hop children, input/player.rs:186; torpedo
+      thrusters hang off the projectile root instead,
+      torpedo_section/projectile.rs:260, and attribute to themselves ->
+      attenuate at their own pose). Per-source
+      `engine_volume(avg) * distance_attenuation`, loudest source wins,
+      reusing `listener_position()`/`SfxListenerMarker`.
+- [x] Player's own ship: answered statically from the camera rig constants
+      instead of a runtime measurement (camera_controller.rs is the single
+      source of truth for the rig): mode offsets are 20.6-31.6 u, already
+      past SFX_NEAR_DISTANCE = 20, and the orbit survey dolly stretches the
+      rig to SURVEY_MAX_DISTANCE = 250 u - so the player-controlled ship IS
+      exempt from attenuation (PlayerSpaceshipMarker sits on the root,
+      verified at input/player.rs:303 + require attribute). Pinned by test
+      `the_players_own_burn_is_never_attenuated` at the 250 u worst case.
+- [x] Keep the exponential smoothing (moved from the Local into the new
+      ThrusterHumVolume resource, pinned by
+      `the_hum_smooths_toward_its_target_instead_of_jumping`), the "no
+      thrusters -> silent" behavior, and the existing audio tests green
+      (15/15 pass).
+- [x] CHANGELOG.md entry under Unreleased (Fixed).
 
 ## Notes
 
@@ -63,3 +82,29 @@ geometric rolloff), reading the `SfxListenerMarker` camera.
 - Existing tests cover the pure math only (engine_volume_...,
   distance_attenuation_... in audio.rs tests); the new regression test is
   the first App-level one for the loop volume system.
+
+## Record (2026-07-13)
+
+What changed: `update_thruster_loop_volume` replaced by
+`compute_thruster_hum_volume` (per-ship attribution: ChildOf walk to the
+SpaceshipRootMarker ancestor or the thruster itself when rootless; per-source
+`engine_volume(avg) * distance_attenuation`; loudest source wins; player ship
+exempt; writes new `ThrusterHumVolume` resource) +
+`apply_thruster_loop_volume` (sink write). Six new App tests; changelog
+entry. Full mechanism, trace rig, A/B numbers, alternatives and behavior
+changes (menu ambience now fades with orbit distance; torpedo thrusters
+attenuate) in NOTES.md.
+
+Difficulties: no xvfb-run on this host (raw Xvfb only); the harnessed
+examples cannot exhibit the bug inside their 6 s autopilot windows (menu
+example clicks away before the ambience ship burns; torpedo range never
+fires in time) - the reliable trace rig is the plain app sitting on the main
+menu. A cold-worktree build also raced the first trace run's source edits;
+resolved with a file-copy A/B (details in NOTES.md).
+
+Self-reflection: should have checked the trace vehicle's timeline (when does
+anything BURN in this example?) before paying for full example runs - two
+runs were spent learning that; reading the autopilot scripts first would
+have picked the plain-menu rig immediately. The compute/apply split for
+sink-coupled systems is worth reusing anywhere audio volume logic needs
+tests.

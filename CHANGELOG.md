@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The thruster hum now attenuates with distance per ship: another ship's (or a torpedo's) burn no longer plays at full volume in your ear from anywhere in the scene. Your own ship is exempt, so the hum does not fade when the camera pulls back (orbit survey). Side effect: the main-menu backdrop ship's hum now fades with its orbit distance instead of droning at full throttle gain
+
 ## [0.5.1] - 2026-07-13
 
 ### Fixed

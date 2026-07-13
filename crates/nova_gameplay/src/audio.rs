@@ -23,7 +23,11 @@
 //! explosion is quieter than one next to you. This is a volume-only rolloff for
 //! the cinematic feel, not true spatialization - stereo panning would need bevy
 //! spatial audio (`SpatialListener` + `spatial: true`) and is a future step. The
-//! thruster hum is the player's own ship, so it is never attenuated.
+//! thruster hum attenuates per SHIP: each ship's throttle-driven contribution is
+//! scaled by its root's distance to the listener and the loudest wins, except
+//! the player's own ship, which is never attenuated (the camera rig sits 11-32 u
+//! out by mode and the orbit survey dolly stretches it to 250 u, deep in the
+//! rolloff band; see [`compute_thruster_hum_volume`]).
 //!
 //! The [`SoundBank<NovaSfx>`] resource is inserted by `nova_assets` once assets
 //! load; every system here degrades gracefully (does nothing) until it exists.
@@ -191,9 +195,10 @@ impl SfxThrottle {
 
 /// Map an average per-thruster throttle (0..1) to a linear engine-hum volume:
 /// silent at rest, scaling linearly to [`ENGINE_MAX_VOLUME`] at full throttle.
-/// The caller averages over the active thrusters rather than summing, so the hum
-/// tracks how hard the ship is burning instead of pinning to max the moment more
-/// than one thruster fires. The clamp guards out-of-range input. Pure for tests.
+/// The caller averages over each ship's active thrusters rather than summing, so
+/// the hum tracks how hard that ship is burning instead of pinning to max the
+/// moment more than one thruster fires. The clamp guards out-of-range input.
+/// Pure for tests.
 fn engine_volume(avg_throttle: f32) -> f32 {
     avg_throttle.clamp(0.0, 1.0) * ENGINE_MAX_VOLUME
 }
@@ -303,9 +308,14 @@ impl Plugin for NovaAudioPlugin {
         // loaded there) and plays wherever one is live, the main menu's ambience
         // backdrop included. (The one-shot cues need no gating: they fire on
         // spawn/damage/destroy events that only occur inside this same gated set.)
+        app.init_resource::<ThrusterHumVolume>();
         app.add_systems(
             Update,
-            (ensure_thruster_loop, update_thruster_loop_volume)
+            (
+                ensure_thruster_loop,
+                compute_thruster_hum_volume,
+                apply_thruster_loop_volume,
+            )
                 .chain()
                 .in_set(SpaceshipSectionSystems),
         );
@@ -515,7 +525,8 @@ fn play_safety_engaged_cue(
 struct ThrusterLoopSfx;
 
 /// Spawn the looping engine-hum entity once, after the sound bank exists. It
-/// starts silent; [`update_thruster_loop_volume`] raises its volume with thrust.
+/// starts silent; [`apply_thruster_loop_volume`] raises its volume with the
+/// thrust-driven target computed by [`compute_thruster_hum_volume`].
 /// `PlaybackSettings::LOOP` keeps it playing for the whole session.
 fn ensure_thruster_loop(
     bank: Option<Res<SoundBank<NovaSfx>>>,
@@ -535,43 +546,122 @@ fn ensure_thruster_loop(
     ));
 }
 
-/// Drive the engine-hum volume from how hard the ship is thrusting, smoothing
-/// toward the target so throttle changes fade rather than click.
+/// The live engine-hum volume, written by [`compute_thruster_hum_volume`] and
+/// read by [`apply_thruster_loop_volume`]. Split from the `AudioSink` write so
+/// the volume logic is App-testable headless - an `AudioSink` cannot be
+/// constructed without an audio output device.
+#[derive(Resource, Default, Debug)]
+struct ThrusterHumVolume {
+    /// Where the hum wants to be this frame: the loudest per-ship
+    /// contribution, each `engine_volume(avg throttle) * distance
+    /// attenuation`.
+    target: f32,
+    /// The smoothed volume actually applied to the sink, chasing `target`.
+    smoothed: f32,
+}
+
+/// The entity a thruster's hum contribution is attributed to: its
+/// [`SpaceshipRootMarker`] ancestor (one hum source per ship), or the thruster
+/// itself when the walk leaves the tree without finding one (torpedo
+/// thrusters hang off the projectile, not a ship root; bare rigs have no
+/// parent at all), so a rootless thruster attenuates at its own pose.
+fn hum_source_root(
+    thruster: Entity,
+    q_child_of: &Query<&ChildOf>,
+    q_is_root: &Query<(), With<SpaceshipRootMarker>>,
+) -> Entity {
+    let mut entity = thruster;
+    loop {
+        if q_is_root.contains(entity) {
+            return entity;
+        }
+        match q_child_of.get(entity) {
+            Ok(&ChildOf(parent)) => entity = parent,
+            Err(_) => return thruster,
+        }
+    }
+}
+
+/// Drive the engine-hum volume from how hard each ship is thrusting, scaled by
+/// how far that ship is from the listener, smoothing toward the target so
+/// throttle changes fade rather than click.
 ///
-/// The throttle is averaged over every active thruster in the world (a single
-/// hum for "the ship is burning"); per-ship attribution would need to relate
-/// each thruster to the player root and is left for when there is more than one
-/// audible ship. The `AudioSink` appears a frame or two after the entity spawns,
-/// so this no-ops until it is present.
-fn update_thruster_loop_volume(
+/// Per-ship attribution (task 20260711-183417): the throttle is averaged over
+/// each ship's own active thrusters (summing would pin to max the moment more
+/// than one fires), scaled by [`distance_attenuation`] from the listener to
+/// that ship's root, and the loudest ship wins - so a distant AI ship's burn
+/// no longer raises a full-volume hum in the player's ear. The global average
+/// this replaces predated multiple audible ships.
+///
+/// The PLAYER's ship is exempt from attenuation: the camera rig sits 11-32 u
+/// out depending on mode (Normal/FreeLook are already past
+/// `SFX_NEAR_DISTANCE`) and the orbit survey dolly stretches it to
+/// `SURVEY_MAX_DISTANCE` = 250 u, deep into the rolloff band - your own
+/// engines must not fade out because the camera pulled back for the shot. A
+/// missing listener falls back to no attenuation, mirroring
+/// [`play_positional`].
+fn compute_thruster_hum_volume(
     time: Res<Time>,
     q_thrusters: Query<
-        &ThrusterSectionInput,
+        (Entity, &ThrusterSectionInput),
         (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>),
     >,
+    q_child_of: Query<&ChildOf>,
+    q_is_root: Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    q_pose: Query<&GlobalTransform>,
+    q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
+    mut hum: ResMut<ThrusterHumVolume>,
+) {
+    let listener = listener_position(&q_camera);
+
+    // Group the active thrusters' throttle by hum source (ship root or
+    // rootless thruster): (sum, count) per source.
+    let mut per_source: HashMap<Entity, (f32, u32)> = HashMap::new();
+    for (thruster, input) in &q_thrusters {
+        let source = hum_source_root(thruster, &q_child_of, &q_is_root);
+        let slot = per_source.entry(source).or_insert((0.0, 0));
+        slot.0 += input.0.abs();
+        slot.1 += 1;
+    }
+
+    // Loudest ship wins. Max, not sum: distinct ships' hums do not stack the
+    // single loop past its per-ship ceiling.
+    let mut target = 0.0f32;
+    for (source, (sum, count)) in &per_source {
+        let avg_throttle = sum / *count as f32;
+        let attenuation = if q_is_player.contains(*source) {
+            1.0
+        } else {
+            match (listener, q_pose.get(*source)) {
+                (Some(l), Ok(pose)) => distance_attenuation(l.distance(pose.translation())),
+                // No listener or no pose: full volume, like play_positional.
+                _ => 1.0,
+            }
+        };
+        target = target.max(engine_volume(avg_throttle) * attenuation);
+    }
+    hum.target = target;
+
+    // Exponential smoothing, framerate-independent: ~8 units/s of catch-up.
+    let alpha = (time.delta_secs() * 8.0).clamp(0.0, 1.0);
+    hum.smoothed += (target - hum.smoothed) * alpha;
+}
+
+/// Copy the computed hum volume onto the loop's sink. The `AudioSink` appears
+/// a frame or two after the loop entity spawns, so this no-ops until then.
+/// One delta from the pre-split code: `smoothed` keeps advancing while the
+/// sink is absent, so a scene that loads with hot engines starts the loop at
+/// the caught-up volume instead of fading up from silence - those first
+/// frames have nothing to fade from, and a correct level beats a late ramp.
+fn apply_thruster_loop_volume(
+    hum: Res<ThrusterHumVolume>,
     mut q_sink: Query<&mut AudioSink, With<ThrusterLoopSfx>>,
-    mut smoothed: Local<f32>,
 ) {
     let Ok(mut sink) = q_sink.single_mut() else {
         return;
     };
-
-    // Average the throttle over the active thrusters so the hum tracks how hard
-    // the ship is burning; summing would pin it to max the moment more than one
-    // thruster fires (each input is a 0..1 throttle).
-    let (sum, count) = q_thrusters
-        .iter()
-        .fold((0.0f32, 0u32), |(sum, count), input| {
-            (sum + input.0.abs(), count + 1)
-        });
-    let avg_throttle = if count > 0 { sum / count as f32 } else { 0.0 };
-    let target = engine_volume(avg_throttle);
-
-    // Exponential smoothing, framerate-independent: ~8 units/s of catch-up.
-    let alpha = (time.delta_secs() * 8.0).clamp(0.0, 1.0);
-    *smoothed += (target - *smoothed) * alpha;
-
-    sink.set_volume(Volume::Linear(*smoothed));
+    sink.set_volume(Volume::Linear(hum.smoothed));
 }
 
 #[cfg(test)]
@@ -761,6 +851,196 @@ mod tests {
             .last
             .contains_key(&ThrottleKey::Impact(area_cell(Vec3::ZERO))));
         assert_eq!(throttle.last.len(), 1);
+    }
+
+    /// App rig for the hum-volume computation: the real
+    /// [`compute_thruster_hum_volume`] system over production markers, no
+    /// audio device needed (the sink-apply half is split off for exactly
+    /// this). Mirrors the production shape verified in the task's plan pass:
+    /// thruster sections are `ChildOf` children of a `SpaceshipRootMarker`
+    /// root (input/player.rs:186), torpedo thrusters are children of the
+    /// projectile root with their own `GlobalTransform`
+    /// (torpedo_section/projectile.rs).
+    fn hum_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.init_resource::<ThrusterHumVolume>();
+        app.add_systems(Update, compute_thruster_hum_volume);
+        app
+    }
+
+    fn spawn_listener_at(app: &mut App, pos: Vec3) {
+        app.world_mut().spawn((
+            SfxListenerMarker,
+            GlobalTransform::from(Transform::from_translation(pos)),
+        ));
+    }
+
+    /// A one-thruster ship at `pos`. The root carries the marker + pose; the
+    /// thruster is a plain child, like the shipped assembly.
+    fn spawn_burning_ship(app: &mut App, pos: Vec3, throttle: f32) -> Entity {
+        let root = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                GlobalTransform::from(Transform::from_translation(pos)),
+            ))
+            .id();
+        app.world_mut().spawn((
+            ThrusterSectionMarker,
+            ThrusterSectionInput(throttle),
+            ChildOf(root),
+        ));
+        root
+    }
+
+    fn hum_target(app: &mut App) -> f32 {
+        app.update();
+        app.world().resource::<ThrusterHumVolume>().target
+    }
+
+    #[test]
+    fn a_distant_ships_burn_does_not_raise_the_hum() {
+        // The 2026-07-11 playtest bug: an AI ship burning at full throttle
+        // beyond SFX_FAR_DISTANCE must contribute nothing, exactly like a
+        // one-shot from the same distance.
+        let mut app = hum_app();
+        spawn_listener_at(&mut app, Vec3::ZERO);
+        let ship = spawn_burning_ship(&mut app, Vec3::new(500.0, 0.0, 0.0), 1.0);
+
+        assert_eq!(
+            hum_target(&mut app),
+            0.0,
+            "a ship 500 u away (FAR = {SFX_FAR_DISTANCE}) must be inaudible"
+        );
+
+        // Delivery guard for the null assertion (R1.2): the SAME ship moved
+        // inside the rolloff band must be heard - proving the entity is
+        // visible to the system and the zero above is attenuation at work,
+        // not a rig the query never matched.
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(GlobalTransform::from(Transform::from_translation(
+                Vec3::new(100.0, 0.0, 0.0),
+            )));
+        assert!(
+            hum_target(&mut app) > 0.0,
+            "the same ship inside the band must be audible"
+        );
+    }
+
+    #[test]
+    fn a_midrange_ships_hum_is_scaled_by_distance_attenuation() {
+        // Expected value composed from the production helpers, not
+        // re-derived: engine_volume x distance_attenuation at the ship's
+        // distance.
+        let mut app = hum_app();
+        spawn_listener_at(&mut app, Vec3::ZERO);
+        spawn_burning_ship(&mut app, Vec3::new(170.0, 0.0, 0.0), 0.8);
+
+        let expected = engine_volume(0.8) * distance_attenuation(170.0);
+        let target = hum_target(&mut app);
+        assert!(
+            (target - expected).abs() < 1e-6,
+            "midrange ship: got {target}, expected {expected}"
+        );
+        // The rolloff must actually bite for the assertion to mean anything.
+        assert!(expected > 0.0 && expected < engine_volume(0.8));
+    }
+
+    #[test]
+    fn the_players_own_burn_is_never_attenuated() {
+        // The camera rig sits past SFX_NEAR_DISTANCE by design and the orbit
+        // survey dolly stretches it to 250 u - the player's own engines must
+        // not fade because the shot pulled back.
+        let mut app = hum_app();
+        spawn_listener_at(&mut app, Vec3::new(0.0, 0.0, 250.0));
+        let ship = spawn_burning_ship(&mut app, Vec3::ZERO, 1.0);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(PlayerSpaceshipMarker);
+
+        assert_eq!(
+            hum_target(&mut app),
+            ENGINE_MAX_VOLUME,
+            "player ship at survey-dolly distance must stay at full hum"
+        );
+    }
+
+    #[test]
+    fn ships_combine_by_loudest_not_by_global_average() {
+        // Two ships inside NEAR: a half-throttle player and a full-throttle
+        // AI. The old global average would read 0.75; per-ship max must read
+        // the full-throttle ship. Also pins that ships do not SUM past the
+        // per-ship ceiling.
+        let mut app = hum_app();
+        spawn_listener_at(&mut app, Vec3::ZERO);
+        let player = spawn_burning_ship(&mut app, Vec3::new(5.0, 0.0, 0.0), 0.5);
+        app.world_mut()
+            .entity_mut(player)
+            .insert(PlayerSpaceshipMarker);
+        spawn_burning_ship(&mut app, Vec3::new(0.0, 5.0, 0.0), 1.0);
+
+        let target = hum_target(&mut app);
+        assert_eq!(
+            target,
+            engine_volume(1.0),
+            "loudest ship wins; global averaging would give {}",
+            engine_volume(0.75)
+        );
+    }
+
+    #[test]
+    fn a_rootless_thruster_attenuates_at_its_own_pose() {
+        // Torpedo shape: the thruster hangs off a projectile root that is NOT
+        // a SpaceshipRootMarker, so it attributes to itself and attenuates at
+        // its own GlobalTransform. Far torpedo: silent.
+        let mut app = hum_app();
+        spawn_listener_at(&mut app, Vec3::ZERO);
+        let torpedo = app.world_mut().spawn(GlobalTransform::default()).id();
+        app.world_mut().spawn((
+            ThrusterSectionMarker,
+            ThrusterSectionInput(1.0),
+            ChildOf(torpedo),
+            GlobalTransform::from(Transform::from_translation(Vec3::new(400.0, 0.0, 0.0))),
+        ));
+        assert_eq!(hum_target(&mut app), 0.0, "far torpedo thruster: silent");
+
+        // And a near one is heard.
+        app.world_mut().spawn((
+            ThrusterSectionMarker,
+            ThrusterSectionInput(1.0),
+            GlobalTransform::from(Transform::from_translation(Vec3::new(10.0, 0.0, 0.0))),
+        ));
+        assert_eq!(
+            hum_target(&mut app),
+            engine_volume(1.0),
+            "near rootless thruster: full contribution"
+        );
+    }
+
+    #[test]
+    fn the_hum_smooths_toward_its_target_instead_of_jumping() {
+        // The smoothing moved from a Local into the resource with the
+        // compute/apply split; pin that it still eases instead of snapping.
+        let mut app = hum_app();
+        spawn_listener_at(&mut app, Vec3::ZERO);
+        spawn_burning_ship(&mut app, Vec3::ZERO, 1.0);
+
+        app.update(); // first frame: dt = 0, smoothed stays put
+        let mut last = app.world().resource::<ThrusterHumVolume>().smoothed;
+        for _ in 0..5 {
+            std::thread::sleep(std::time::Duration::from_millis(4));
+            app.update();
+            let hum = app.world().resource::<ThrusterHumVolume>();
+            assert!(
+                hum.smoothed >= last && hum.smoothed <= hum.target,
+                "smoothed must rise monotonically toward the target, got {} after {last}",
+                hum.smoothed
+            );
+            last = hum.smoothed;
+        }
+        assert!(last > 0.0, "smoothed must have started chasing the target");
     }
 
     #[test]
