@@ -512,6 +512,26 @@ main {
     text-align: center;
 }
 
+/* Devlog footer: the Friday-Facts-style closer. Every devlog ends with a
+   "tell us what you think" discussion prompt and a link back to the series. */
+.post-footer {
+    margin-top: 3em;
+    padding-top: 1.6em;
+    border-top: 1px solid var(--border);
+}
+.post-footer__discuss {
+    margin: 0 0 0.6em;
+    font-size: 1.02rem;
+    color: var(--text);
+}
+.post-footer__nav {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+}
+
 /* ---- key/value control table -------------------------------------------- */
 .controls {
     width: 100%;

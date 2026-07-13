@@ -116,13 +116,26 @@ releases folded into that same post as a short closing note rather than getting
 their own devlog. Source the content straight from the `CHANGELOG.md` sections
 for the versions in the cycle.
 
+The devlogs follow the spirit of Factorio's Friday Facts: a running numbered
+series, each issue broken into a handful of distinct topic sections, written
+candidly in the first person (the reasoning, the dead-ends, the "the piece I am
+proudest of"), leaning on screenshots and diagrams, and closing with a prompt to
+discuss. Match that tone; do not write terse release notes (the `CHANGELOG.md`
+already is those).
+
 Adding a devblog touches four places (mirror an existing post such as
-`devlog-3-zones-torpedoes-and-blast-damage`):
+`devlog-4-guided-torpedoes-targeting-and-enemy-ai`):
 
 1. Write the post at `web/src/posts/<slug>.html`. Copy an existing devlog for
-   the structure: the `prose__meta` line carries `<date> // v<X.Y.0>`, the
-   `<title>`/`<meta name="description">` summarize the release, and there is a
-   `<!-- Devlog video ... -->` placeholder for the recorded footage.
+   the structure:
+   - the `prose__meta` line carries `<date> // v<X.Y.0>`, and the
+     `<title>`/`<meta name="description">` summarize the release;
+   - a `<!-- Devlog video ... -->` placeholder for the recorded footage;
+   - one `<h2>` per topic, in the candid FFF voice described above;
+   - `.figure` blocks for screenshots/diagrams (they ship a dashed placeholder
+     naming the image to capture later - see the component in `web/src/style.css`);
+   - the standard `.post-footer` closer (the "discuss on GitHub Discussions"
+     prompt plus the "All devlogs" link) before `</article>`.
 2. Register the page in `web/webpack.config.js`: add a `page("post", ...)`
    entry in `plugins` and a matching `historyApiFallback` rewrite (keep both
    lists newest-first, above the previous devlog).

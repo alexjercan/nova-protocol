@@ -118,9 +118,11 @@ in sync by hand whenever a change makes something on it wrong or missing:
   behind the game is exactly the failure to avoid - if you change a keybind or a
   targeting rule, fix the tutorial in the same task.
 - **A release went out**: write a devblog for the cycle. One devlog per minor
-  version, patch releases folded into it as a closing note. Full steps (the four
-  files a devblog touches) are in `docs/development.md` under "Writing the
-  release devblog".
+  version, patch releases folded into it as a closing note. The devlogs follow
+  the Factorio Friday Facts spirit - a numbered series, multi-topic, candid and
+  first-person, image-heavy, each closing with a GitHub Discussions prompt. Full
+  steps (the four files a devblog touches) are in `docs/development.md` under
+  "Writing the release devblog".
 - **New feature or mechanic worth showing**: it can also earn a screenshot or
   diagram on the site. Use the `.figure` component (see `web/src/style.css`); it
   ships a dashed placeholder frame naming the image file to capture, so you can
