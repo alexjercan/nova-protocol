@@ -139,7 +139,6 @@ export const WIKI_PAGES: WikiPage[] = [
             "Locks and reticles",
             "Target viewfinder",
         ],
-        comingSoon: true,
     },
     {
         slug: "flight-autopilot",
@@ -147,7 +146,7 @@ export const WIKI_PAGES: WikiPage[] = [
         category: "Flying",
         tags: ["flight"],
         summary:
-            "How ships move: assisted and Newtonian flight, the RCS budget, center-of-mass thrust balancing, and the GOTO / ORBIT / STOP autopilot verbs.",
+            "How ships move: Newtonian manual flight, center-of-mass thrust balancing, mass-legible handling, and the GOTO / ORBIT / STOP autopilot verbs that fly the real hull.",
         related: ["gravity-wells", "sections", "keybinds"],
         headings: [
             "Flight assist",
@@ -157,7 +156,6 @@ export const WIKI_PAGES: WikiPage[] = [
             "ORBIT",
             "STOP",
         ],
-        comingSoon: true,
     },
     {
         slug: "targeting-radar",
@@ -173,7 +171,6 @@ export const WIKI_PAGES: WikiPage[] = [
             "Fine-lock",
             "Clearing locks",
         ],
-        comingSoon: true,
     },
     {
         slug: "combat-weapons",
@@ -190,7 +187,6 @@ export const WIKI_PAGES: WikiPage[] = [
             "Resistances",
             "Point defense",
         ],
-        comingSoon: true,
     },
     {
         slug: "gravity-wells",
@@ -205,7 +201,6 @@ export const WIKI_PAGES: WikiPage[] = [
             "Sphere of influence",
             "Dominant well",
         ],
-        comingSoon: true,
     },
     {
         slug: "factions",

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>HUD - Nova Protocol Wiki</title>
+        <meta
+            name="description"
+            content="The Nova Protocol HUD: visibility tiers, the diegetic flight readouts, lock brackets and reticles, and the target viewfinder inset."
+        />
+        <link
+            rel="icon"
+            href="<%= htmlWebpackPlugin.options.basePath %>favicon.svg"
+        />
+    </head>
+    <body>
+        <div id="header"></div>
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="<%= htmlWebpackPlugin.options.basePath %>wiki/"
+                            >Wiki</a
+                        >
+                        / HUD
+                    </p>
+                    <h1>HUD</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+
+                    <p>
+                        The heads-up display is diegetic - the instruments read
+                        the ship's real state, and every widget knows which
+                        visibility tier it belongs to so you can strip the
+                        screen down for a clean shot or a quiet cockpit.
+                    </p>
+
+                    <figure class="figure">
+                        <!-- Capture: assets/wiki-hud.png -->
+                        <div class="figure__placeholder">
+                            <span class="figure__placeholder-tag"
+                                >Screenshot needed</span
+                            >
+                            <span class="figure__placeholder-name"
+                                >assets/wiki-hud.png</span
+                            >
+                            <span class="figure__placeholder-note"
+                                >The full HUD in flight: velocity sphere, speed
+                                + mode chips, keybind cluster, a lock reticle
+                                and the corner target inset, ideally lightly
+                                annotated.</span
+                            >
+                        </div>
+                    </figure>
+
+                    <h2 id="visibility-tiers">Visibility tiers</h2>
+                    <p>
+                        Grave / tilde (or the gamepad Select button) cycles the
+                        whole display through three levels, in order:
+                    </p>
+                    <ul>
+                        <li>
+                            <strong>All</strong> - everything: instruments plus
+                            chrome (the learning aids and secondary overlays).
+                        </li>
+                        <li>
+                            <strong>Minimal</strong> - the flight and combat
+                            <em>instruments</em> only; the chrome drops away.
+                        </li>
+                        <li>
+                            <strong>None</strong> - a clean screen for cinematic
+                            captures.
+                        </li>
+                    </ul>
+                    <p>
+                        Every widget carries a tier: <strong>Instrument</strong>
+                        (velocity sphere, flight chips, autopilot marker,
+                        maneuver instruments, lead pips, lock crosshairs, the
+                        target inset - shown at All and Minimal) or
+                        <strong>Chrome</strong> (the keybind hint cluster, verb
+                        cues, the component-lock panel, edge indicators,
+                        objective markers - shown only at All).
+                    </p>
+
+                    <h2 id="flight-readouts">Flight readouts</h2>
+                    <p>
+                        The flight instruments sit around the ship, not in a
+                        status bar:
+                    </p>
+                    <ul>
+                        <li>
+                            <strong>Velocity sphere</strong> - an orbiting cone
+                            and shaded sphere driven by your linear velocity;
+                            white and blue in manual flight, cyan when the
+                            autopilot is flying. A yellow variant shows the
+                            local gravity pull, hidden in flat space.
+                        </li>
+                        <li>
+                            <strong>Speed and mode chips</strong> - a speed
+                            readout (<code>u/s</code>) always beside the sphere,
+                            and a mode chip reading
+                            <code>AP GOTO - BURN</code> (verb and phase:
+                            STOP/GOTO/ORBIT and ALIGN/BURN/HOLD) only while the
+                            autopilot is engaged.
+                        </li>
+                        <li>
+                            <strong>ORBIT ring and radius spoke</strong> - while
+                            you hold an orbit, a world-space ring marks the
+                            orbit plane and a thin spoke runs from the well to
+                            your ship with the current radius.
+                        </li>
+                        <li>
+                            <strong>Keybind hint cluster</strong> - a lower-left
+                            column of verb rows (STOP, GOTO, ORBIT, CANCEL,
+                            RADAR, COMPONENT) that only shows a row while its
+                            verb can actually do something, and pulses gold when
+                            a scenario wants you to use it.
+                        </li>
+                    </ul>
+
+                    <h2 id="locks-and-reticles">Locks and reticles</h2>
+                    <p>
+                        Locks are slot-coloured: a
+                        <strong>white crosshair</strong> is your travel (nav)
+                        lock, a <strong>red reticle</strong> is your combat
+                        lock. The combat reticle carries a readout riding its
+                        right edge - range to the target (<code>DST</code>),
+                        closing speed (<code>CLS</code>) and a health bar - plus
+                        a focus meter that fills as a fine-lock dwell
+                        accumulates. While you hold the radar gesture a hollow
+                        box shows, coloured by the slot it will land in;
+                        clearing a lock pops a brief "unlatch" ghost. See
+                        <a
+                            href="<%= htmlWebpackPlugin.options.basePath %>wiki/targeting-radar/"
+                            >Targeting &amp; radar</a
+                        >.
+                    </p>
+
+                    <h2 id="target-viewfinder">Target viewfinder</h2>
+                    <p>
+                        The corner inset renders a live, magnified 3D view of
+                        your combat lock through a second (offscreen) camera.
+                        Its frame glows hot-red while your weapons are hot and
+                        steel while safe, with corner ticks that appear only
+                        when hot; a caption names the target and its relation.
+                        Bodies that cannot be scoped (nav beacons) show a
+                        <strong>NO-SIGNAL</strong> panel instead. When the
+                        framed target dies the inset freezes the final pose for
+                        about two seconds - a <strong>kill cam</strong> - then
+                        closes. The fine-locked section glows in both the inset
+                        and the main view.
+                    </p>
+
+                    <h2 id="screen-substrate">The screen substrate</h2>
+                    <p>
+                        Every projected element - lock brackets, edge arrows,
+                        turret lead pips, objective markers - rides one shared
+                        system that anchors a UI node to a world point or
+                        entity, sizes it by fixed pixels or apparent (on-screen)
+                        size, and either hides off-screen targets or clamps them
+                        to the viewport edge with an arrow pointing back to
+                        them. Turret
+                        <strong>lead pips</strong> are small amber squares at
+                        each turret's computed intercept point, turning red when
+                        your weapons are hot.
+                    </p>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <div id="footer"></div>
+    </body>
+</html>

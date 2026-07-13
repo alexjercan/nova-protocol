@@ -1,6 +1,6 @@
 # Author the gameplay-system wiki pages (sections, keybinds, HUD, flight, targeting, combat, gravity)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 20
 - TAGS: web,wiki,content
 

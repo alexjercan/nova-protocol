@@ -36,6 +36,11 @@ const WIKI_SLUGS = [
     "sections/torpedo-bay",
     "sections",
     "keybinds",
+    "hud",
+    "flight-autopilot",
+    "targeting-radar",
+    "combat-weapons",
+    "gravity-wells",
 ];
 const wikiPage = (slug) =>
     page("wiki", `src/wiki/${slug}.html`, `wiki/${slug}/index.html`);
