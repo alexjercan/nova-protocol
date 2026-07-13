@@ -57,6 +57,14 @@ retros.
   exercised the second consumer. Add a test per consumer, not just per
   producer. Review caught it by tracing the data into `AutopilotAction::Goto`.
   20260712-203353.
+- `collider-needs-a-rigidbody` (x1): an avian Collider WITHOUT a RigidBody
+  registers no contact pair - SILENTLY (no warning, no events); a
+  spawned-around-a-body sensor test failed through FOUR hypotheses (missing
+  manual clock, plugin panic poisoning the rig, pair ordering, deep
+  containment) before copying the exact production bundle exposed the
+  missing RigidBody::Static. When a physics test is silent, diff the
+  bundle against a production spawn FIRST, not the mechanism theories.
+  20260713-150343 (the coast-ring spawn-inside pin).
 - `landing-chain-and-stub-collision` (x1): the landing sequence must be one
   `&&`-chain (merge --squash && commit && sprout rm) - a newline-separated
   sequence ran `sprout rm` after the merge ABORTED, deleting the branch
