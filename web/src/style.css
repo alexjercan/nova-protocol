@@ -56,6 +56,17 @@
 
 html {
     scroll-behavior: smooth;
+    /* Apple-style scroll handoff: the full-screen hero and the first content
+       section are snap points, so a scroll from the hero settles cleanly onto
+       "What you do". Proximity (not mandatory) so the tall sections below never
+       trap the scroll. */
+    scroll-snap-type: y proximity;
+}
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
+        scroll-snap-type: none;
+    }
 }
 
 body {
@@ -244,8 +255,64 @@ main {
     position: relative;
     overflow: hidden;
     text-align: center;
-    padding: 84px 24px 88px;
+    /* Full viewport, content centered, snaps to the top of the page. */
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 88px 24px 96px;
     border-bottom: 1px solid var(--border);
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+}
+/* The next section is the second snap point; its own top padding keeps the
+   heading clear of the sticky header once snapped. */
+#features {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+}
+/* Scroll affordance: a bobbing chevron + label pinned to the hero's bottom. */
+.hero__scroll {
+    position: absolute;
+    left: 50%;
+    bottom: 26px;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 9px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    z-index: 2;
+}
+.hero__scroll:hover {
+    color: var(--cyan);
+}
+.hero__scroll-chevron {
+    width: 11px;
+    height: 11px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg);
+    animation: hero-bob 1.8s ease-in-out infinite;
+}
+@keyframes hero-bob {
+    0%,
+    100% {
+        transform: rotate(45deg) translate(-2px, -2px);
+    }
+    50% {
+        transform: rotate(45deg) translate(2px, 2px);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .hero__scroll-chevron {
+        animation: none;
+    }
 }
 .hero::after {
     /* Restrained amber horizon wash, echoing the banner's sunrise arc. Kept
