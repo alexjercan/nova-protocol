@@ -1,6 +1,6 @@
 # Trim the tutorial to first-scenario onboarding only
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 25
 - TAGS: web,wiki,content
 
@@ -16,6 +16,21 @@ the wiki" pointer. The tutorial should read as a guided first-hour, not a manual
 
 Done when: the tutorial covers only getting-started + Shakedown, links to the
 wiki for reference, `cd web && npm run ci` is green.
+
+## Steps
+
+- [x] Keep the onboarding: intro, main-menu figure, the game-loop/menu
+      overview, the full Shakedown Run beat-by-beat (Parts 1-4 with figures),
+      and the closing.
+- [x] Remove the four reference sections and their tables (Flight controls,
+      Targeting and camera, Weapons, Interface) - that reference lives in the
+      wiki Keybinds page now.
+- [x] Replace them with a short "where to go next" pointer to the wiki
+      (Keybinds + the wiki generally), and fix the blockquote wording that
+      referenced "every verb on this page".
+- [x] Update the <title>/<meta description>/prose__meta so the page reads as a
+      first-hour guide, not a manual.
+- [x] Build + verify: cd web && npm run ci green; render-check the tutorial.
 
 ## Notes
 
