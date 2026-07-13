@@ -41,13 +41,13 @@ const config = {
         page("blog", "src/blog.html", "blog/index.html"),
         page(
             "post",
-            "src/posts/building-nova-protocol.html",
-            "blog/building-nova-protocol/index.html"
+            "src/posts/devlog-5-radar-locking-shakedown-and-the-web.html",
+            "blog/devlog-5-radar-locking-shakedown-and-the-web/index.html"
         ),
         page(
             "post",
-            "src/posts/devlog-5-radar-locking-shakedown-and-the-web.html",
-            "blog/devlog-5-radar-locking-shakedown-and-the-web/index.html"
+            "src/posts/building-nova-protocol.html",
+            "blog/building-nova-protocol/index.html"
         ),
         page(
             "post",
@@ -119,12 +119,12 @@ const config = {
         historyApiFallback: {
             rewrites: [
                 {
-                    from: /^\/blog\/building-nova-protocol/,
-                    to: "/blog/building-nova-protocol/index.html",
-                },
-                {
                     from: /^\/blog\/devlog-5-radar-locking-shakedown-and-the-web/,
                     to: "/blog/devlog-5-radar-locking-shakedown-and-the-web/index.html",
+                },
+                {
+                    from: /^\/blog\/building-nova-protocol/,
+                    to: "/blog/building-nova-protocol/index.html",
                 },
                 {
                     from: /^\/blog\/devlog-4-guided-torpedoes-targeting-and-enemy-ai/,
