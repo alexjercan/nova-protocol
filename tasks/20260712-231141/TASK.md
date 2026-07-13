@@ -1,8 +1,8 @@
 # Look-ray + camera-mode infrastructure: live aim in every view, robust Normal/FreeLook/Turret transitions
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 56
-- TAGS: v0.5.0, camera, input, refactor, spike
+- TAGS: v0.5.0, camera, input, refactor, spike, wontdo
 
 ## Goal
 

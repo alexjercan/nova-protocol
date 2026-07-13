@@ -1,8 +1,14 @@
 # Spike: Separate combat vs travel locks; widen the cyclable pool to asteroids
 
 - DATE: 20260712-215256
-- STATUS: RECOMMENDED
+- STATUS: SUPERSEDED (2026-07-13, by docs/spikes/20260713-082207-deliberate-radar-locking.md)
 - TAGS: spike, targeting, navigation, hud
+
+> SUPERSEDED: the cyclable-pool direction (A1, task 20260712-215402) was
+> closed wontdo by the user - scroll-based target cycling is out entirely.
+> The combat/travel separation question this spike opened was answered
+> through 20260712-215733 and 20260712-222610, and finally by the
+> deliberate-radar model (20260713-082207).
 
 ## Question
 

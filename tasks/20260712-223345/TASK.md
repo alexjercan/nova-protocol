@@ -1,8 +1,8 @@
 # Reconcile targeting docs with the two-slot lock model
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 45
-- TAGS: v0.5.0, targeting, docs, spike
+- TAGS: v0.5.0, targeting, docs, spike, wontdo
 
 ## Goal
 

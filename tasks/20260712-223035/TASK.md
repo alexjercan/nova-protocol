@@ -1,8 +1,8 @@
 # Travel/combat lock slots: TravelLock + CombatLock, seed-on-raise, view-routed consumers
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 55
-- TAGS: v0.5.0, targeting, input, hud, spike
+- TAGS: v0.5.0, targeting, input, hud, spike, wontdo
 
 ## Goal
 

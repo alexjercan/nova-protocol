@@ -1,8 +1,17 @@
 # Spike: Travel/combat lock slots - raise-to-combat, fire-gated-on-lock
 
 - DATE: 20260712-222610
-- STATUS: RECOMMENDED
+- STATUS: SUPERSEDED (2026-07-13, by docs/spikes/20260713-082207-deliberate-radar-locking.md)
 - TAGS: spike, targeting, input, hud, ux
+
+> SUPERSEDED: the user judged this model too complicated - the SCROLL
+> mechanic specifically - and closed its task family (20260712-223034,
+> -223035, -223036, -223345, -231141) as wontdo. The successor keeps the
+> two-slot + fire-gating core but replaces all scroll/raise selection with
+> deliberate radar locking (hold CTRL, lock on release, tap to clear). The
+> round-3 infrastructure findings (look-ray re-sourcing, raised-flag
+> routing, componentization port surface) CARRY OVER and are inherited by
+> the successor's tasks; the selection mechanics below do not.
 
 ## Question
 
