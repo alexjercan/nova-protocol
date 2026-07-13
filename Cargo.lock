@@ -805,7 +805,7 @@ dependencies = [
 [[package]]
 name = "bevy_common_systems"
 version = "0.0.1"
-source = "git+https://github.com/alexjercan/bevy-common-systems?rev=a35b74c460fb42879acd963bab45b7d88a9ba2cc#a35b74c460fb42879acd963bab45b7d88a9ba2cc"
+source = "git+https://github.com/alexjercan/bevy-common-systems?rev=4a743b2a91ac270cc689eb43c5ecc26c6b2f0897#4a743b2a91ac270cc689eb43c5ecc26c6b2f0897"
 dependencies = [
  "avian3d",
  "bevy",
@@ -824,7 +824,7 @@ dependencies = [
 [[package]]
 name = "bevy_common_systems_macros"
 version = "0.0.1"
-source = "git+https://github.com/alexjercan/bevy-common-systems?rev=a35b74c460fb42879acd963bab45b7d88a9ba2cc#a35b74c460fb42879acd963bab45b7d88a9ba2cc"
+source = "git+https://github.com/alexjercan/bevy-common-systems?rev=4a743b2a91ac270cc689eb43c5ecc26c6b2f0897#4a743b2a91ac270cc689eb43c5ecc26c6b2f0897"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4420,7 +4420,6 @@ version = "0.5.1"
 dependencies = [
  "avian3d",
  "bevy",
- "bevy-inspector-egui",
  "bevy_common_systems",
  "bevy_mod_debugdump",
  "itertools 0.15.0",
