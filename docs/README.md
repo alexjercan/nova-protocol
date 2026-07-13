@@ -1,31 +1,30 @@
 # Nova Protocol docs
 
-Project documentation lives here. It is the place future agent sessions (and humans)
-should look before touching a subsystem, and where new decisions get written down.
+All project documentation lives here. Look here before touching a subsystem;
+write new decisions down here.
 
-## Contents
+## Reference
 
-- [architecture.md](architecture.md) - workspace/crate layout, plugin wiring, app
-  states, and the frame flow.
-- [scenario-system.md](scenario-system.md) - the scenario/modding engine: events,
-  filters, actions, variables, objectives, and the event-world queue.
-- [sections.md](sections.md) - spaceship sections (hull/thruster/controller/turret/
-  torpedo) and the integrity/health/destruction system.
-- [development.md](development.md) - toolchain, build/run/test, features, web build,
-  and release.
-- [bevy-0.19-migration.md](bevy-0.19-migration.md) - the Bevy 0.17 -> 0.19 API
-  changes applied to the codebase.
-- `retros/` - retrospectives from completed tasks (see the `/compound` skill).
-- `spikes/` - exploratory research docs (see the `/spike` skill).
+- [architecture.md](architecture.md) - crate layout, plugin wiring, states, frame flow.
+- [scenario-system.md](scenario-system.md) - the scenario/modding engine: events, filters, actions, objects.
+- [sections.md](sections.md) - ship sections and the integrity/damage system.
+- [development.md](development.md) - toolchain, build/run/test, web build, release steps.
+- [bevy-0.19-migration.md](bevy-0.19-migration.md) - historical: the 0.17 -> 0.19 migration notes.
 
-## When you make a meaningful change
+## Records
 
-Per the repo conventions (see `AGENTS.md` and `~/AGENTS.md`), after a meaningful
-change record:
+Each folder has a README indexing its files. Files are named
+`YYYYMMDD-description.md` (a `-HHMMSS` in the middle is a tatr task id).
 
-1. **What changed and why** - the decision, alternatives considered, tradeoffs.
-2. **Difficulties** - bugs hit along the way, how they were diagnosed and fixed.
-3. **Self-reflection** - what could have gone better, what to do differently next time.
+- [retros/](retros/README.md) - per-task records: what changed, why, difficulties, lessons.
+  [retros/LESSONS.md](retros/LESSONS.md) is the distilled lessons ledger - read it before starting work.
+- [spikes/](spikes/README.md) - exploratory research that landed on a direction.
+- [plans/](plans/README.md) - long-form plans spanning multiple tasks.
+- [reviews/](reviews/README.md) - standalone review notes (task reviews live in `tasks/<id>/REVIEW.md`).
 
-Update the relevant doc above, or drop a retro under `retros/`. Keep the writing in
-plain ASCII punctuation (no em dashes, smart quotes, or arrows).
+## After a meaningful change
+
+Record, per `AGENTS.md`: what changed and why (alternatives, tradeoffs),
+difficulties and how they were diagnosed, and what to do differently next time.
+Update the relevant reference doc or add a retro; new recurring lessons go to
+the LESSONS.md ledger. Plain ASCII punctuation only.

@@ -1,0 +1,206 @@
+# Retros
+
+One file per finished task or meaningful change: what changed and why,
+difficulties hit along the way, and lessons. Written by the /compound skill or
+by hand. Named `YYYYMMDD-description.md`; the longer `YYYYMMDD-HHMMSS-...`
+form carries the tatr task id.
+
+Read [LESSONS.md](LESSONS.md) first: the distilled, deduplicated ledger of
+lessons these retros earned. Add an index line here when adding a file.
+
+## Index
+
+- [20260525-133004-variable-section-durability.md](20260525-133004-variable-section-durability.md) - Variable damage by section type
+- [20260525-133005-examples-as-tests.md](20260525-133005-examples-as-tests.md) - Examples as integration tests
+- [20260525-133008-destruction-pipeline-tests.md](20260525-133008-destruction-pipeline-tests.md) - Health + destruction pipeline tests
+- [20260525-133009-gameplay-minimal-example.md](20260525-133009-gameplay-minimal-example.md) - Minimal example for nova_gameplay crate
+- [20260525-133011-scenario-loaded-status.md](20260525-133011-scenario-loaded-status.md) - Add init status to ScenarioLoaded event
+- [20260525-133021-torpedo-pn-guidance.md](20260525-133021-torpedo-pn-guidance.md) - Torpedo proportional navigation guidance
+- [20260525-133022-torpedo-hud-aim-assist.md](20260525-133022-torpedo-hud-aim-assist.md) - Torpedo target reticle sizing + angular aim-assist lock-on
+- [20260525-133024-torpedo-launch-particles.md](20260525-133024-torpedo-launch-particles.md) - Torpedo bay launch particles
+- [20260525-133025-ammo-limit.md](20260525-133025-ammo-limit.md) - Implement ammo limit logic
+- [20260706-132936-nova-gameplay-boundary.md](20260706-132936-nova-gameplay-boundary.md) - finalize nova_gameplay crate boundary
+- [20260706-132937-nova-core-thin-wiring.md](20260706-132937-nova-core-thin-wiring.md) - extract editor into nova_editor
+- [20260706-132939-scene-switch-cleanup.md](20260706-132939-scene-switch-cleanup.md) - scene-switch entity cleanup
+- [20260706-132940-mesh-slicer-crash.md](20260706-132940-mesh-slicer-crash.md) - mesh slicer crash guard
+- [20260706-132941-camera-mode-switching.md](20260706-132941-camera-mode-switching.md) - camera mode switching
+- [20260706-132942-modding-error-handling.md](20260706-132942-modding-error-handling.md) - modding error handling & logging
+- [20260706-132946-base-game-object.md](20260706-132946-base-game-object.md) - base game object abstraction
+- [20260706-132947-spaceship-brain.md](20260706-132947-spaceship-brain.md) - spaceship brain cleanup
+- [20260706-132951-next-scenario-logic.md](20260706-132951-next-scenario-logic.md) - next_scenario logic cleanup
+- [20260706-132953-consistent-teardown.md](20260706-132953-consistent-teardown.md) - consistent scenario teardown
+- [20260706-132954-todo-sweep.md](20260706-132954-todo-sweep.md) - TODO sweep
+- [20260706-132955-required-plugins-check.md](20260706-132955-required-plugins-check.md) - required-plugins check
+- [20260706-162909-muzzle-inertia-tensor.md](20260706-162909-muzzle-inertia-tensor.md) - Projectiles inherit the ship's rotational muzzle velocity
+- [20260706-162912-blast-collision-ordering.md](20260706-162912-blast-collision-ordering.md) - Blast collision fires inconsistently (ordering bug)
+- [20260706-162913-torpedo-module-split.md](20260706-162913-torpedo-module-split.md) - Torpedo module split + config-driven blast
+- [20260706-212909-editor-preview-controller.md](20260706-212909-editor-preview-controller.md) - Editor preview controller spams PD 'root not found' errors
+- [20260706-212910-asteroid-husk.md](20260706-212910-asteroid-husk.md) - Asteroid RigidBody husk lingers after collider child explodes
+- [20260706-test-memory-profile.md](20260706-test-memory-profile.md) - test/build peak-memory fix (dev profile debuginfo)
+- [20260707-095008-turret-range.md](20260707-095008-turret-range.md) - PDC turret test range
+- [20260707-100001-torpedo-range.md](20260707-100001-torpedo-range.md) - Torpedo bay test range example
+- [20260707-100002-example-harness-wiring.md](20260707-100002-example-harness-wiring.md) - Wire BCS autopilot + screenshot harness into nova examples
+- [20260707-100003-torpedo-arming.md](20260707-100003-torpedo-arming.md) - Torpedo arming gate (self-detonate-on-spawn fix)
+- [20260707-100004-torpedo-target-loss.md](20260707-100004-torpedo-target-loss.md) - Torpedo target-loss fix (freeze instead of vanish)
+- [20260707-120608-torpedo-second-despawn.md](20260707-120608-torpedo-second-despawn.md) - Torpedo second despawn path (incomplete target-loss fix)
+- [20260707-143001-torpedo-target-commitment.md](20260707-143001-torpedo-target-commitment.md) - Torpedo target commitment (no re-targeting)
+- [20260707-150001-turret-aim-lead.md](20260707-150001-turret-aim-lead.md) - Turret aim lead (intercept aim)
+- [20260707-150002-turret-range-sliders.md](20260707-150002-turret-range-sliders.md) - Live tuning sliders for the turret range
+- [20260707-170001-physics-integrity-tests.md](20260707-170001-physics-integrity-tests.md) - Integrity physics-level tests
+- [20260707-example-harness-wiring.md](20260707-example-harness-wiring.md) - Example smoke-test harness wiring (autopilot + screenshot)
+- [20260708-093000-slider-thumb-tracking.md](20260708-093000-slider-thumb-tracking.md) - Turret range slider thumb does not track its value
+- [20260708-100000-editor-harness-example.md](20260708-100000-editor-harness-example.md) - Harnessed editor example for smoke testing
+- [20260708-113000-editor-autopilot-placement.md](20260708-113000-editor-autopilot-placement.md) - Drive section placement in the editor autopilot
+- [20260708-120000-camera-mode-origin-snap.md](20260708-120000-camera-mode-origin-snap.md) - Camera snaps to origin for one frame when switching camera modes
+- [20260708-162011-audio-sfx-system.md](20260708-162011-audio-sfx-system.md) - Audio/SFX system
+- [20260708-162013-hit-feedback-juice.md](20260708-162013-hit-feedback-juice.md) - Hit feedback / game juice (camera shake, hit flash, impact FX)
+- [20260708-165700-screen-indicator-substrate.md](20260708-165700-screen-indicator-substrate.md) - Screen-projected-indicator widget (HUD substrate)
+- [20260708-165701-turret-lead-pip.md](20260708-165701-turret-lead-pip.md) - Turret lead/intercept pip (HUD)
+- [20260708-165702-locked-target-readout.md](20260708-165702-locked-target-readout.md) - Locked-target info readout (HUD)
+- [20260708-165704-edge-indicators.md](20260708-165704-edge-indicators.md) - Off-screen target/threat edge indicators (HUD)
+- [20260708-165705-multi-target-cycle.md](20260708-165705-multi-target-cycle.md) - Multi-target tracking + subtarget cycle HUD
+- [20260708-194524-scenario-loaded-smoke-assert.md](20260708-194524-scenario-loaded-smoke-assert.md) - Assert on ScenarioLoaded payload in the smoke harness
+- [20260708-200001-scenario-assert-helper.md](20260708-200001-scenario-assert-helper.md) - Share the ScenarioLoaded smoke assertion across scenario examples
+- [20260708-203655-flight-assist.md](20260708-203655-flight-assist.md) - Spaceship handling / flight assist (velocity-command FCS)
+- [20260708-203708-faction-relations.md](20260708-203708-faction-relations.md) - Minimal faction/relation model (hostile/neutral/own)
+- [20260708-224254-sfx-listener-marker.md](20260708-224254-sfx-listener-marker.md) - Robust SFX/juice listener: dedicated camera marker
+- [20260708-audio-sfx-system.md](20260708-audio-sfx-system.md) - Audio / SFX system
+- [20260709-091756-one-hit-one-cue.md](20260709-091756-one-hit-one-cue.md) - One hit = one cue - dedup HealthApplyDamage propagation in audio + juice
+- [20260709-095043-flight-feel-retune.md](20260709-095043-flight-feel-retune.md) - Flight feel retune (torque-budget turn rates, camera weight)
+- [20260709-103434-diegetic-autopilot.md](20260709-103434-diegetic-autopilot.md) - Diegetic autopilot (STOP + GOTO through real actuators)
+- [20260709-103454-flight-instruments.md](20260709-103454-flight-instruments.md) - Maneuver instruments v1 (telemetry seam, chips, ORBIT holo ring)
+- [20260709-121842-multi-thruster-autopilot.md](20260709-121842-multi-thruster-autopilot.md) - Multi-thruster autopilot (fastest-path group planner)
+- [20260709-125640-residual-roll-release.md](20260709-125640-residual-roll-release.md) - residual roll after autopilot release
+- [20260709-131502-projectile-owner-filter.md](20260709-131502-projectile-owner-filter.md) - Torpedo launch self-damage fix (projectile owner collision filter)
+- [20260709-140620-com-camera-anchor.md](20260709-140620-com-camera-anchor.md) - Center of mass after section destruction (camera anchor fix)
+- [20260709-144906-section-overkill-propagation.md](20260709-144906-section-overkill-propagation.md) - Overkill damage no longer kills the whole ship
+- [20260709-150711-live-structure-anchor.md](20260709-150711-live-structure-anchor.md) - Live-structure aim anchor (AI + player + camera)
+- [20260709-155920-thrust-balancing.md](20260709-155920-thrust-balancing.md) - Thrust balancing via differential throttle
+- [20260709-155921-ai-rotation-slew.md](20260709-155921-ai-rotation-slew.md) - AI rotation path onto slew_rotation / hull_turn_rate
+- [20260709-155922-disabled-controller-torque.md](20260709-155922-disabled-controller-torque.md) - Disabled-in-place controller still torques toward its frozen command
+- [20260709-160753-camera-twitch-interpolation.md](20260709-160753-camera-twitch-interpolation.md) - Camera twitch (fixed-tick stair-step under the smoothed camera)
+- [20260709-173700-turret-lock-feed.md](20260709-173700-turret-lock-feed.md) - Three-tier turret auto-fire feed
+- [20260709-192503-signature-acquisition.md](20260709-192503-signature-acquisition.md) - Targeting module + signature auto-acquisition
+- [20260709-192522-component-fine-lock.md](20260709-192522-component-fine-lock.md) - Focus dwell + component fine-lock
+- [20260709-192523-component-lock-hud.md](20260709-192523-component-lock-hud.md) - Component-lock HUD (markers, highlight, focus meter)
+- [20260709-192828-ci-pr-checks.md](20260709-192828-ci-pr-checks.md) - CI PR checks
+- [20260709-193338-gravity-wells.md](20260709-193338-gravity-wells.md) - Gravity wells - bounded one-way gravity with sphere of influence
+- [20260709-193339-orbit-verb.md](20260709-193339-orbit-verb.md) - ORBIT autopilot verb - circularize and station-keep
+- [20260709-211701-shooter-frame-lead.md](20260709-211701-shooter-frame-lead.md) - Shooter-frame bullet lead
+- [20260709-211702-scrollwheel-cycle.md](20260709-211702-scrollwheel-cycle.md) - Scroll wheel component-cycle binding
+- [20260709-224518-off-axis-counter-torque.md](20260709-224518-off-axis-counter-torque.md) - Off-axis counter-torque for a damage-shifted single drive
+- [20260709-225726-ai-behavior-state.md](20260709-225726-ai-behavior-state.md) - AI behavior state machine skeleton
+- [20260709-225727-ai-target-selection.md](20260709-225727-ai-target-selection.md) - AI threat-tiered target selection
+- [20260709-225728-ai-fire-discipline.md](20260709-225728-ai-fire-discipline.md) - AI fire discipline
+- [20260709-225729-ai-standoff-flight.md](20260709-225729-ai-standoff-flight.md) - AI engagement flight: standoff orbit/strafe envelope
+- [20260709-225730-ai-patrol-idle.md](20260709-225730-ai-patrol-idle.md) - AI patrol and idle flight states
+- [20260709-225731-ai-evasion-under-fire.md](20260709-225731-ai-evasion-under-fire.md) - AI evasion under fire: threat model + jink maneuvers
+- [20260709-225732-ai-torpedo-usage.md](20260709-225732-ai-torpedo-usage.md) - AI torpedo usage from Engage: launch envelope + cooldown
+- [20260709-225733-ai-point-defense.md](20260709-225733-ai-point-defense.md) - AI point-defense turret priority
+- [20260709-camera-twitch-interpolation.md](20260709-camera-twitch-interpolation.md) - Camera twitch when flying: fixed-tick stair-steps under the smoothed camera
+- [20260709-com-section-destroy.md](20260709-com-section-destroy.md) - Center of mass after section destruction: physics was right, the camera lied
+- [20260709-component-lock.md](20260709-component-lock.md) - Component fine-lock on turret auto-lock (VATS-lite)
+- [20260709-diegetic-autopilot.md](20260709-diegetic-autopilot.md) - Flight: manual Newtonian + diegetic autopilot
+- [20260709-disabled-controller-torque.md](20260709-disabled-controller-torque.md) - A disabled controller stops torquing the hull
+- [20260709-faction-relations.md](20260709-faction-relations.md) - Faction/relation model (minimal)
+- [20260709-flight-feel-retune.md](20260709-flight-feel-retune.md) - Flight feel retune: torque-budget turn rates, camera weight
+- [20260709-hit-feedback-juice.md](20260709-hit-feedback-juice.md) - Hit feedback / game juice
+- [20260709-projectile-owner-collision-filter.md](20260709-projectile-owner-collision-filter.md) - Projectile owner collision filter (torpedo launch self-damage fix)
+- [20260709-screen-indicator-widget.md](20260709-screen-indicator-widget.md) - Screen-projected-indicator widget (HUD substrate)
+- [20260709-section-overkill-propagation.md](20260709-section-overkill-propagation.md) - Overkill damage no longer kills a whole ship
+- [20260709-thrust-balancing.md](20260709-thrust-balancing.md) - Thrust balancing: differential throttle through the center of mass
+- [20260709-torpedo-launch-particles.md](20260709-torpedo-launch-particles.md) - Torpedo bay launch particles
+- [20260710-003734-torpedo-shootdown.md](20260710-003734-torpedo-shootdown.md) - Shot-down torpedo dies without its blast
+- [20260710-104421-target-inset-view.md](20260710-104421-target-inset-view.md) - Target inset view (RTT scope of the locked ship)
+- [20260710-174629-holo-expansion.md](20260710-174629-holo-expansion.md) - World-space holo instruments (ribbon, SOI shell, flip gate)
+- [20260710-174646-keybind-hints.md](20260710-174646-keybind-hints.md) - Contextual keybind hints (resolver, cluster, anchored cues)
+- [20260710-193500-gravity-aware-arrival.md](20260710-193500-gravity-aware-arrival.md) - Gravity-aware GOTO/STOP arrival planning
+- [20260710-195952-signature-lock.md](20260710-195952-signature-lock.md) - Signature-gated lock (long range only sees large objects)
+- [20260710-195954-goto-parks-into-orbit.md](20260710-195954-goto-parks-into-orbit.md) - GOTO parks into ORBIT on arrival
+- [20260710-201514-gravity-indicator.md](20260710-201514-gravity-indicator.md) - Yellow gravity indicator, SOI shell removed
+- [20260710-202408-surface-relative-standoff.md](20260710-202408-surface-relative-standoff.md) - Surface-relative GOTO standoff
+- [20260710-214316-ribbon-park-point.md](20260710-214316-ribbon-park-point.md) - Holo ribbon terminates at the arrival park point
+- [20260710-222517-camera-handback-blend.md](20260710-222517-camera-handback-blend.md) - Camera handback blend
+- [20260710-222518-orbit-survey-zoom.md](20260710-222518-orbit-survey-zoom.md) - Orbit survey zoom
+- [20260710-231926-diegetic-flight-status.md](20260710-231926-diegetic-flight-status.md) - Diegetic flight status v1
+- [20260710-231928-hud-projection-postupdate.md](20260710-231928-hud-projection-postupdate.md) - HUD projection on the frame's final camera pose
+- [20260710-231929-crosshair-same-frame-aim.md](20260710-231929-crosshair-same-frame-aim.md) - Crosshair on the same-frame intercept
+- [20260710-231930-bullet-spawn-raw-clock.md](20260710-231930-bullet-spawn-raw-clock.md) - Bullet spawn on the raw physics clock
+- [20260710-231931-ship-twitch-retest.md](20260710-231931-ship-twitch-retest.md) - Ship twitch at high velocity - re-test against the impulse fix
+- [20260710-234115-engaged-palette-tint.md](20260710-234115-engaged-palette-tint.md) - Engaged-state tint for the velocity sphere
+- [20260710-camera-handback-blend.md](20260710-camera-handback-blend.md) - Camera handback blend (autopilot to manual)
+- [20260710-collider-derived-body-radius.md](20260710-collider-derived-body-radius.md) - Collider-derived BodyRadius + geometric orbit parking
+- [20260710-collider-derived-radius-hotfixes.md](20260710-collider-derived-radius-hotfixes.md) - Direct-on-master stretch - gravity retune, collider-derived radius, band regression
+- [20260710-flight-instruments.md](20260710-flight-instruments.md) - Maneuver instruments v1: telemetry seam, chips, and the ORBIT holo ring
+- [20260710-goto-parks-into-orbit.md](20260710-goto-parks-into-orbit.md) - GOTO at a gravity-well body parks into ORBIT
+- [20260710-gravity-aware-arrival.md](20260710-gravity-aware-arrival.md) - Gravity-aware arrival planning (GOTO/STOP)
+- [20260710-gravity-indicator.md](20260710-gravity-indicator.md) - Gravity indicator in the velocity-sphere family; SOI shell removed
+- [20260710-gravity-wells.md](20260710-gravity-wells.md) - Gravity wells: bounded one-way gravity with a sphere of influence
+- [20260710-holo-expansion.md](20260710-holo-expansion.md) - World-space holo instruments: trajectory ribbon, SOI shell, flip gate
+- [20260710-keybind-hints.md](20260710-keybind-hints.md) - Contextual keybind hints: resolver, cluster, anchored cues
+- [20260710-off-axis-counter-torque.md](20260710-off-axis-counter-torque.md) - Off-axis counter-torque: recruiting laterals for a damage-shifted drive
+- [20260710-orbit-survey-zoom.md](20260710-orbit-survey-zoom.md) - Orbit survey zoom
+- [20260710-orbit-verb.md](20260710-orbit-verb.md) - ORBIT autopilot verb: circularize and station-keep inside a gravity well
+- [20260710-signature-lock.md](20260710-signature-lock.md) - Signature-gated lock: long-range lock only acquires large objects
+- [20260710-skybox-cubemap-upload-race.md](20260710-skybox-cubemap-upload-race.md) - Skybox cubemap upload race (v0.4.0 release blocker)
+- [20260710-surface-relative-standoff.md](20260710-surface-relative-standoff.md) - Surface-relative GOTO standoff
+- [20260711-000547-remove-orbit-ring-chip.md](20260711-000547-remove-orbit-ring-chip.md) - Remove the redundant ORBIT ring chip
+- [20260711-103527-thruster-impulse-raw-pose.md](20260711-103527-thruster-impulse-raw-pose.md) - Thruster impulses push from the stale eased pose
+- [20260711-114640-torpedo-raw-clock-launch.md](20260711-114640-torpedo-raw-clock-launch.md) - Torpedo raw-clock launch
+- [20260711-121701-decel-wobble-falsified.md](20260711-121701-decel-wobble-falsified.md) - Decel wobble - premise falsified, camera-side redirect
+- [20260711-121711-camera-lag-lead.md](20260711-121711-camera-lag-lead.md) - Camera velocity lead - the "zoom cap" that was a lag
+- [20260711-121839-bullet-first-frame-pop.md](20260711-121839-bullet-first-frame-pop.md) - Bullet first-frame pop - easing seed at spawn
+- [20260711-125225-camera-jump-diagnosis.md](20260711-125225-camera-jump-diagnosis.md) - Camera jump at speed - diagnosed, fix routed
+- [20260711-125226-redundant-speed-caption.md](20260711-125226-redundant-speed-caption.md) - Redundant closing-speed caption removal
+- [20260711-140234-goto-settle-deadband.md](20260711-140234-goto-settle-deadband.md) - GOTO arrival hunt - settle deadband
+- [20260711-140241-pd-handoff-clock.md](20260711-140241-pd-handoff-clock.md) - PD command handoff clock + the boundary bounce
+- [20260711-173237-ctrl-alone-cycle.md](20260711-173237-ctrl-alone-cycle.md) - CTRL press alone fires the target cycle
+- [20260711-174840-edge-indicator-info.md](20260711-174840-edge-indicator-info.md) - Bigger edge indicators with target info
+- [20260711-180426-main-menu.md](20260711-180426-main-menu.md) - Main menu - MainMenu state, nova_menu crate, mode wiring
+- [20260711-180455-menu-ambience.md](20260711-180455-menu-ambience.md) - Ambient menu background scenario
+- [20260711-180501-hud-visibility-levels.md](20260711-180501-hud-visibility-levels.md) - HUD visibility levels (grave/tilde cycle)
+- [20260711-180506-shakedown-run.md](20260711-180506-shakedown-run.md) - Shakedown Run - the five-beat New Game starter
+- [20260711-185156-pause-menu.md](20260711-185156-pause-menu.md) - Pause menu (ESC overlay, Back to Main Menu)
+- [20260711-203805-f1-sandbox-only.md](20260711-203805-f1-sandbox-only.md) - F1 back-to-editor is Sandbox-only
+- [20260711-212504-menu-thruster-orbit.md](20260711-212504-menu-thruster-orbit.md) - Menu ambience thruster-flown AI orbit
+- [20260711-212519-scenario-live-gating.md](20260711-212519-scenario-live-gating.md) - Re-scope spaceship system set gating to scenario-liveness
+- [20260711-212521-ai-orbit-directive.md](20260711-212521-ai-orbit-directive.md) - AI orbit directive (config, passive state, autopilot wiring)
+- [20260711-ribbon-park-point.md](20260711-ribbon-park-point.md) - Trajectory ribbon terminates at the arrival park point
+- [20260712-093044-beacon-crate-primitives.md](20260712-093044-beacon-crate-primitives.md) - Nav beacon and salvage crate scenario objects
+- [20260712-093048-web-landing-site.md](20260712-093048-web-landing-site.md) - Web landing site (play gate, blog, tutorial, wiki)
+- [20260712-093831-objective-conveyance-visuals.md](20260712-093831-objective-conveyance-visuals.md) - Objective conveyance visuals
+- [20260712-105505-bullets-affected-by-gravity.md](20260712-105505-bullets-affected-by-gravity.md) - Bullets affected by gravity wells
+- [20260712-110730-playtest-round-1.md](20260712-110730-playtest-round-1.md) - Shakedown Run playtest round 1 fixes
+- [20260712-121101-playtest-round-2.md](20260712-121101-playtest-round-2.md) - Shakedown Run playtest round 2 fixes
+- [20260712-125342-playtest-round-3.md](20260712-125342-playtest-round-3.md) - Shakedown Run playtest round 3 fixes
+- [20260712-131348-ammo-readout.md](20260712-131348-ammo-readout.md) - Diegetic per-weapon ammo readout
+- [20260712-133343-typed-damage-core.md](20260712-133343-typed-damage-core.md) - Nova typed-damage core
+- [20260712-133349-bullet-type-slot.md](20260712-133349-bullet-type-slot.md) - Bullet-type slot + ammo-readout color-coding
+- [20260712-133832-objective-cue-delay.md](20260712-133832-objective-cue-delay.md) - Objective cue delay
+- [20260712-140250-infinite-ammo-first-scenario.md](20260712-140250-infinite-ammo-first-scenario.md) - Infinite ammo option for the first (New Game) scenario
+- [20260712-143832-controller-provided-verb-flags.md](20260712-143832-controller-provided-verb-flags.md) - Controller-provided flight verb flags (family of 3)
+- [20260712-152340-gold-text-readability.md](20260712-152340-gold-text-readability.md) - Conveyance gold text readability
+- [20260712-154318-beacon-reticle-size.md](20260712-154318-beacon-reticle-size.md) - Lock reticle on beacons sizes to the trigger sensor
+- [20260712-163912-editor-section-keybinds.md](20260712-163912-editor-section-keybinds.md) - Editor visible + editable section keybinds
+- [20260712-164031-turret-free-aim-ctrl.md](20260712-164031-turret-free-aim-ctrl.md) - Turret free-aim while holding CTRL
+- [20260712-172035-pdc-damage-tuning.md](20260712-172035-pdc-damage-tuning.md) - Tune PDC turret damage
+- [20260712-203345-inset-zoomable-scope.md](20260712-203345-inset-zoomable-scope.md) - InsetZoomable - ship/torpedo/asteroid inset scope
+- [20260712-203353-sticky-focused-lock.md](20260712-203353-sticky-focused-lock.md) - Sticky ship locks (B5)
+- [20260712-212742-torpedo-combat-target.md](20260712-212742-torpedo-combat-target.md) - Committed torpedoes join the combat target set
+- [20260712-bullet-type-slot.md](20260712-bullet-type-slot.md) - Bullet-type slot + ammo-readout color-coding
+- [20260712-editor-section-keybinds.md](20260712-editor-section-keybinds.md) - Editor: visible + editable section keybinds
+- [20260712-target-inset-view.md](20260712-target-inset-view.md) - Target inset view (render-to-texture scope of the locked ship)
+- [20260712-typed-damage-core.md](20260712-typed-damage-core.md) - Typed-damage core: DamageType, resistance table, own-the-trigger application
+- [20260712-web-landing-site.md](20260712-web-landing-site.md) - Web landing site (play gate, blog, tutorial, wiki)
+- [20260713-082324-look-ray-infrastructure.md](20260713-082324-look-ray-infrastructure.md) - Look-ray + camera-mode infrastructure
+- [20260713-082330-lock-slots-radar.md](20260713-082330-lock-slots-radar.md) - Travel/combat lock slots + deliberate radar
+- [20260713-082337-weapons-safety.md](20260713-082337-weapons-safety.md) - Weapons safety + AI mirror + status HUD
+- [20260713-082344-docs-reconcile.md](20260713-082344-docs-reconcile.md) - Docs reconcile for the deliberate-radar model
+- [20260713-090653-shakedown-radar-era.md](20260713-090653-shakedown-radar-era.md) - Shakedown radar-era rework
+- [20260713-110311-show-dont-tell-hud.md](20260713-110311-show-dont-tell-hud.md) - Show-don't-tell lock HUD
+- [20260713-110330-live-radar-lock.md](20260713-110330-live-radar-lock.md) - Live radar lock (threshold latch + live writes)
+- [20260713-121605-lock-wins-routing.md](20260713-121605-lock-wins-routing.md) - Lock-wins turret routing
+- [20260713-140922-onlock-events.md](20260713-140922-onlock-events.md) - OnTravelLock/OnCombatLock scenario events
+- [20260713-140929-beat-sheet-v2.md](20260713-140929-beat-sheet-v2.md) - Shakedown beat sheet v2
+- [20260713-154217-inset-kill-cam.md](20260713-154217-inset-kill-cam.md) - Inset kill cam
+- [20260713-docs-overhaul.md](20260713-docs-overhaul.md) - Docs overhaul: concise AGENTS.md/CHANGELOG, restructured docs/

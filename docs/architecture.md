@@ -8,126 +8,99 @@ real code lives under `crates/`.
 
 | Crate           | Responsibility |
 |-----------------|----------------|
-| `nova-protocol` (root) | `src/main.rs` = clap CLI + entrypoint. `src/lib.rs` re-exports `nova_core`. Examples live in `examples/`. |
-| `nova_core`     | Thin wiring: `AppBuilder` assembles every plugin (window/log/asset setup, status UI). No gameplay logic. Adds `NovaEditorPlugin` + `NovaMenuPlugin` when no custom game plugins are supplied. |
-| `nova_editor`   | The spaceship **editor scene** (`NovaEditorPlugin`): section-picker UI, ship building/placement, transition to the scenario simulation. Sits above `nova_gameplay` + `nova_scenario`. Comes up on entering `Playing` only in `GameMode::Sandbox`. |
-| `nova_menu`     | The **main menu** (`NovaMenuPlugin`): owns `GameStates::MainMenu` - bottom-right panel (New Game / Sandbox / Settings / Exit) over a skybox camera. Buttons write `GameMode` and hand off to `Playing`; New Game loads its scenario. See docs/spikes/20260711-180500-main-menu.md. |
-| `nova_gameplay` | Nova-specific gameplay. Submodules: `sections/`, `integrity/`, `input/` (player + ai), `hud/`, `camera_controller`, `plugin` (`NovaGameplayPlugin`). Also owns `GameStates` (top-level Loading/MainMenu/Playing lifecycle) and the `GameMode` resource. |
-| `nova_scenario` | Scenario/modding engine: `events`, `filters`, `actions`, `variables`, `world`, `loader`, and scenario `objects/`. See [scenario-system.md](scenario-system.md). |
-| `nova_events`   | Game event kinds and entity identity components (shared vocabulary between gameplay and scenario). |
-| `nova_assets`   | `bevy_asset_loader` setup. Loads glb/textures/shaders, then registers the built-in sections and scenarios. |
-| `nova_debug`    | Debug-only plugin (inspector, wireframe, section overlays). Compiled only under the `debug` feature. |
-| `nova_info`     | Exposes `APP_VERSION`, injected by `build.rs` via the `APP_VERSION` env var. |
+| `nova-protocol` (root) | `src/main.rs` = clap CLI + entrypoint. `src/lib.rs` re-exports `nova_core`. Runnable examples in `examples/`. |
+| `nova_core`     | Thin wiring only: `AppBuilder` assembles every plugin (window/log/asset setup, status UI). No gameplay logic. |
+| `nova_menu`     | Main menu (owns the `MainMenu` state UI: New Game / Sandbox / Settings / Exit) and the ESC pause overlay. Buttons write `GameMode` and hand off to `Playing`. |
+| `nova_editor`   | The ship editor scene (`NovaEditorPlugin`). Comes up on entering `Playing`, only in `GameMode::Sandbox`. |
+| `nova_gameplay` | Gameplay umbrella: `sections/`, `integrity/`, `damage`, `flight`, `gravity` (gravity wells), `input/` (player, ai, radar targeting with deliberate lock-on), `hud/` (many widgets: crosshairs, target inset, ammo, flight status, markers, ...), `camera_controller`, `audio`, `juice`, `relations`, `beacon`, `objective_marker`, `plugin`. Also owns `GameStates`, `PauseStates`, and the `GameMode` resource. |
+| `nova_scenario` | Scenario/modding engine: `events`, `filters`, `actions`, `variables`, `world`, `loader`, `objects/`. See [scenario-system.md](scenario-system.md). |
+| `nova_events`   | Game event kinds and entity identity components, shared between gameplay and scenario. |
+| `nova_assets`   | `bevy_asset_loader` setup. Loads glb/textures/shaders/sounds, then registers the built-in sections and scenarios. |
+| `nova_debug`    | Debug-only plugin (inspector, overlays). Compiled only under the `debug` feature. |
+| `nova_info`     | Exposes `APP_VERSION`, injected by `build.rs`. |
 
-Every crate exposes a `pub mod prelude`. **Import from the prelude**
+Every crate exposes a `pub mod prelude`. Import from the prelude
 (`use nova_gameplay::prelude::*`), not from inner modules. `nova_core::prelude`
-re-exports all the sub-crate preludes, so top-level code and examples usually just do
+re-exports all sub-crate preludes, so top-level code and examples usually just do
 `use nova_protocol::prelude::*`.
 
 ### External shared crate: `bevy-common-systems`
 
 Generic, non-Nova Bevy helpers (WASD/chase cameras, skybox, post-processing, mesh
-builders + explode, transform orbits, PD controller, health, status bar, the generic
-game-event queue `GameEventsPlugin`/`EventWorld`) live in a **separate repo**,
-`bevy-common-systems`, pinned as a git dependency (rev in
-`crates/nova_gameplay/Cargo.toml`). It is re-exported through
-`nova_gameplay::prelude`, so most call sites do not name it directly.
+explode, PD controller, health, status bar, the generic game-event queue
+`GameEventsPlugin`/`EventWorld`) live in a separate repo, `bevy-common-systems`,
+pinned as a git dependency (rev in `crates/nova_gameplay/Cargo.toml`) and re-exported
+through `nova_gameplay::prelude`. If a helper feels "generic", it lives there.
 
-Historically this crate was vendored under `crates/bevy_common_systems/`. That copy
-is being removed on the `feature/cleanup-v0.3.0` branch. If a helper feels "generic",
-it almost certainly lives in the external crate, not in this repo.
+Boundary policy, from most game-agnostic to most game-specific:
 
-### Crate boundary policy
-
-Three tiers, from most game-agnostic to most game-specific:
-
-1. **`bevy_common_systems` (external)** - fully game-agnostic Bevy primitives that
-   any game could reuse: cameras, skybox, post-processing, mesh builders + explode,
-   transform orbits, PD controller, generic `Health`, status bar, the event queue.
-   Code only earns a place here once it is genuinely reusable and stable.
-2. **`nova_gameplay`** - the umbrella for gameplay plugins: spaceship sections,
-   integrity/health-of-sections, weapons, hud, input, camera controller. It also
-   holds generic-*leaning* helpers that are **not yet ready** to be promoted to
-   `bevy_common_systems` - promotion is deliberate, not automatic.
-3. **`nova_core`** - thin wiring only; no gameplay logic. The editor scene it used to
-   hold now lives in its own `nova_editor` crate (`GameStates` moved down to
-   `nova_gameplay`), so `nova_core` is purely the `AppBuilder` assembler.
-
-Audit finding (task 20260525-132936): the `nova_gameplay` boundary is clean. Every
-spaceship/section/weapon/input/camera module is correctly placed, and nothing
-gameplay-specific is stranded in another crate. A few modules are game-agnostic
-enough to *eventually* promote to `bevy_common_systems`, but promotion is now a
-cross-repo change (that crate is a separate repository), so they legitimately stay in
-`nova_gameplay` under tier 2 until promoted. Tracked promotion candidates:
-
-- `hud/health.rs` - a text HUD over the generic `Health` component (no Nova coupling).
-- `hud/objectives.rs` - a generic id+message objectives text list.
-- `hud/velocity.rs` - the `DirectionMagnitudeMaterial` / `DirectionSphereMaterial`
-  shader materials (would also move `shaders/directional_*.wgsl`).
-- `integrity/blast.rs` + `calculate_blast_damage` / `on_impact_collision_deal_damage`
-  in `integrity/mod.rs` - radial-falloff blast volume and impulse/energy collision
-  damage that only touch Avian physics and the generic `Health`.
-
-These are captured as a follow-up task rather than actioned here, since they belong to
-the external crate's backlog and require a coordinated cross-repo change.
+1. `bevy_common_systems` (external) - fully reusable Bevy primitives.
+2. `nova_gameplay` - Nova gameplay, plus generic-leaning helpers not yet ready for
+   promotion (promotion is a deliberate cross-repo change, not automatic).
+3. `nova_core` - wiring only.
 
 ## App assembly
 
 `AppBuilder` (in `crates/nova_core/src/lib.rs`) is the single place the app is wired:
 
 ```rust
-AppBuilder::new()                 // Bevy DefaultPlugins + window/log setup
+AppBuilder::new()                 // Bevy DefaultPlugins + window/log/asset setup
     .with_game_plugins(my_plugin) // optional: your own systems/observers
     .with_rendering(true)         // debug-only toggle for headless runs
     .build()                      // adds the plugin stack, returns App
 ```
 
-`build()` adds, in order: enhanced input, `GameAssetsPlugin`, `NovaGameplayPlugin`,
-`NovaScenarioPlugin`, the editor `NovaEditorPlugin` and the menu `NovaMenuPlugin`
-(both only when no custom game plugins were supplied; `with_main_menu(bool)`
-overrides the menu default), and (only under `debug`) `DebugPlugin`. (Bevy `DefaultPlugins`,
-including UI widgets, are added by `AppBuilder::new()`; avian3d `PhysicsPlugins` comes
-in via `NovaGameplayPlugin`, see below.)
+`build()` inits `GameStates` + `PauseStates`, then adds, in order:
+`EnhancedInputPlugin`, `GameAssetsPlugin`, `NovaGameplayPlugin`,
+`NovaScenarioPlugin`, then `NovaEditorPlugin` and `NovaMenuPlugin` (both only when
+no custom game plugins were supplied; `with_main_menu(bool)` overrides the menu
+default), and finally `DebugPlugin` under the `debug` feature. On
+`OnEnter(GameAssetsStates::Loaded)` it hands off to `MainMenu` (or straight to
+`Playing` when the menu is off) and spawns the status UI.
 
-`NovaGameplayPlugin` in turn pulls in physics, `bevy_hanabi` particles, `bevy_rand`,
-all the `bevy_common_systems` helper plugins, and the Nova sub-plugins (input,
-sections, hud, camera controller, integrity).
+`NovaGameplayPlugin` pulls in avian3d `PhysicsPlugins` (zero gravity, projectile
+collision hooks), `bevy_rand`, `bevy_hanabi` particles (not on wasm), the
+`bevy_common_systems` helper plugins, and the Nova sub-plugins: input, sections,
+hud, camera controller, integrity, damage, flight, gravity, relations, audio, juice.
 
 ## States
 
-Two independent state machines:
-
-- `GameStates { Loading, MainMenu, Playing }` - top-level app state
-  (`nova_gameplay`). `MainMenu` only occurs when `NovaMenuPlugin` fronts the app
-  (the default editor app); examples with custom game plugins go straight
+- `GameStates { Loading, MainMenu, Playing }` (`nova_gameplay`) - top-level
+  lifecycle. `MainMenu` only occurs when `NovaMenuPlugin` fronts the app (the
+  default editor app); examples with custom game plugins go straight
   `Loading -> Playing`. The `GameMode` resource (`Sandbox` default | `NewGame`)
-  records what the menu handed off to: the editor enters only in `Sandbox`, the
-  menu loads the New Game scenario in `NewGame`.
-- `PauseStates { Unpaused, Paused }` - the ESC pause overlay (`nova_gameplay`
-  owns the enum and gates the spaceship system sets; `nova_menu` owns the
-  toggle, the overlay UI, and the clock freeze). Only meaningful inside
-  `Playing`; leaving Playing force-resets it.
-- `GameAssetsStates { Loading, Processing, Loaded }` - asset pipeline (`nova_assets`).
-  Assets load in `Loading`, get post-processed in `Processing`, and gameplay/scenarios
-  begin at `Loaded`. **Scenario setup hooks `OnEnter(GameAssetsStates::Loaded)`** -
-  see `examples/03_scenario.rs`.
+  records what the menu handed off to.
+- `PauseStates { Unpaused, Paused }` - the ESC pause overlay. `nova_gameplay` owns
+  the enum and gates the spaceship sets; `nova_menu` owns the toggle, the overlay
+  UI, and the clock freeze (`Time<Virtual>` + `Time<Physics>`). Only meaningful
+  inside `Playing`; leaving `Playing` resets it.
+- `GameAssetsStates { Loading, Processing, Loaded }` (`nova_assets`) - asset
+  pipeline. Scenario setup hooks `OnEnter(GameAssetsStates::Loaded)` - see
+  `examples/03_scenario.rs`.
 
-## Frame flow / system sets
+## Frame flow
 
-Gameplay systems are grouped into ordered `SystemSet`s so ordering is explicit:
+Gameplay systems run in an explicit chain, configured identically in `Update` and
+`FixedUpdate` (`nova_gameplay::plugin`):
 
-- `SpaceshipSystems { First, Last }` (`nova_gameplay::plugin`) - brackets the
-  spaceship update work each frame.
-- `SpaceshipSectionSystems`, `IntegritySystems`, `DebugSystems` - per-subsystem sets.
+```
+SpaceshipSystems::First -> SpaceshipInputSystems -> SpaceshipSectionSystems
+    -> NovaHudSystems -> NovaCameraSystems -> SpaceshipSystems::Last
+```
 
-Cross-system communication is done through **events and observers** (Bevy `On<...>`
-observers are used heavily, e.g. the whole integrity/destruction chain) rather than
-direct calls. Prefer adding an event/observer over coupling two systems directly.
+- Physics (avian3d) runs in `FixedPostUpdate` on a fixed timestep. Rigid bodies get
+  `TransformInterpolation` so rendering stays smooth between physics ticks.
+- `PostUpdate` hosts the chase camera's final move and the HUD's world-to-screen
+  projection, ordered after it.
+- While `Paused`, the input and section sets are gated off and the clocks freeze.
+
+Cross-system communication goes through events and observers (Bevy `On<...>`
+observers, e.g. the integrity/destruction chain) rather than direct calls. Prefer
+adding an event/observer over coupling two systems.
 
 ## Assets
 
-`assets/` holds `blender/` sources, exported `gltf/` (`.glb`) models, `textures/`,
-`shaders/` (`.wgsl`: thruster exhaust, directional sphere/magnitude), and `icons/`.
-The built-in sections and scenarios are currently defined **in Rust code**
-(`crates/nova_assets/src/sections.rs` and `scenario.rs`) with a `// This should be
-loaded from a JSON file` note - moving them to data files is a known future direction.
+`assets/` holds `blender/` sources, exported `gltf/` models, `textures/`,
+`shaders/` (`.wgsl`), `sounds/`, and `icons/`. The built-in sections and scenarios
+are defined in Rust (`crates/nova_assets/src/sections.rs`, `scenario.rs`,
+`scenario/`); moving them to data files is a known future direction.

@@ -1,102 +1,94 @@
 # Spaceship sections and integrity
 
-Ships in Nova Protocol are assembled from modular **sections**. Each section is a
-child entity of the ship root, has its own mass and health, and contributes a
-behavior (thrust, aiming, firing, structure). The **integrity** system tracks how
-sections are connected and handles damage, disabling, and chain-reaction destruction.
+Ships are assembled from modular **sections**. Each section is a child entity of
+the ship root with its own collider, mass, and health, and contributes one
+behavior (structure, thrust, steering, guns). The **integrity** system tracks
+how sections connect and handles damage, disabling, and cascading destruction.
 
 ## Sections (`nova_gameplay::sections`)
 
 A section is a `SectionConfig { base: BaseSectionConfig, kind: SectionKind }`.
-
-`BaseSectionConfig` (shared by all kinds): `id`, `name`, `description`, `mass`,
+`BaseSectionConfig` is shared by all kinds: `id`, `name`, `description`, `mass`,
 `health`.
 
-`SectionKind` variants (`base_section.rs`):
+`SectionKind` variants (one module per kind under `crates/nova_gameplay/src/sections/`):
 
-| Kind         | Config highlights |
-|--------------|-------------------|
-| `Hull`       | `render_mesh`. Passive structure/armor. |
-| `Thruster`   | `magnitude`, `render_mesh`. Produces forward thrust; drives the exhaust shader. |
-| `Controller` | `frequency`, `damping_ratio`, `max_torque`. PD attitude controller (steering). A ship needs a controller to be player/AI drivable. |
-| `Turret`     | yaw/pitch speeds + limits, per-part meshes and offsets (base/yaw/pitch/barrel), `muzzle_offset`, `fire_rate`, `muzzle_speed`, projectile params, optional `muzzle_effect`. Aims and fires bullet projectiles. |
-| `Torpedo`    | torpedo bay; fires guided torpedoes that deal **blast** (area) damage. |
+| Kind         | What it does |
+|--------------|--------------|
+| `Hull`       | Passive structure/armor. Just a `render_mesh`. |
+| `Thruster`   | Forward thrust (`magnitude`); drives the exhaust visual. |
+| `Controller` | PD attitude controller (`frequency`, `damping_ratio`, `max_torque`). Also grants flight `verbs` (STOP/GOTO/ORBIT autopilot capabilities). A ship needs one to be drivable. |
+| `Turret`     | Aims and fires bullets. Yaw/pitch speeds and limits, per-part meshes and offsets, `fire_rate`, `muzzle_speed`, authored `bullet_damage` + `bullet_kind`, optional `ammo_capacity`. |
+| `Torpedo`    | Torpedo bay. Fires guided torpedoes that detonate an Explosive area blast (`blast_radius`, `blast_damage`), optional `ammo_capacity`. |
 
-`GameSections(Vec<SectionConfig>)` is the resource of available section blueprints,
-populated in `crates/nova_assets/src/sections.rs`. Look sections up by id with
+`GameSections(Vec<SectionConfig>)` is the resource of section blueprints,
+populated in `crates/nova_assets/src/sections.rs`. Look one up with
 `sections.get_section("basic_thruster_section")`.
 
-### Building a ship
+## Building a ship
 
-A `SpaceshipConfig` has a `controller` (`Player` with an input mapping, or `AI`) and a
-`Vec<SpaceshipSectionConfig>`. Each `SpaceshipSectionConfig` places one section at a
-local `position` + `rotation` relative to the ship root
-(`SpaceshipRootMarker`). See the `asteroid_field` ship in
-`crates/nova_assets/src/scenario.rs` for a full worked example (controller + two
-hulls + thruster + turret with an input mapping binding `thruster`/`turret` actions to
-keys and gamepad buttons).
+A `SpaceshipConfig` (`crates/nova_scenario/src/objects/spaceship.rs`) has a
+`controller` (`None`, `Player`, or `AI`) and a list of `SpaceshipSectionConfig`,
+each placing one section at a local grid `position` + `rotation`. The player
+config carries the input mapping (section id -> key/gamepad bindings) plus
+`speed_cap` and `infinite_ammo`; the AI config carries `patrol`/`orbit`/`leash`.
 
-The editor scene in `crates/nova_editor/src/lib.rs` (`NovaEditorPlugin`) lets you
-assemble ships interactively.
+Spawning: the base scenario bundle gives the root `RigidBody::Dynamic`; the
+spaceship object adds `SpaceshipRootMarker`, and an observer
+(`insert_spaceship_sections`) spawns each section as a direct child. Every
+section gets `SectionMarker`, a unit cuboid `Collider`, and `Health`
+(`base_section` in `sections/base_section.rs`), so the ship is one rigid body
+whose child colliders each carry their own health.
 
-## Input (`nova_gameplay::input`)
+See the `asteroid_field` ship in `crates/nova_assets/src/scenario.rs` for a full
+example. The editor (`crates/nova_editor`) assembles ships interactively using
+`preview_section`, which has no health or rigid body and never enters the
+damage pipeline.
 
-- `player.rs` - maps `bevy_enhanced_input` actions to section behaviors using the
-  per-ship input mapping (named actions like `"thruster"`, `"turret"`).
-- `ai.rs` - AI controller that drives the same section behaviors without human input.
+## Integrity: damage -> disable -> destroy
 
-## Integrity system (`nova_gameplay::integrity`)
+The generic destruction core lives in the `bevy_common_systems` (bcs) crate
+(`IntegrityPlugin`). Nova wraps it in `NovaIntegrityPlugin`
+(`crates/nova_gameplay/src/integrity/`) and adds two nova-specific pieces:
 
-This is the damage and destruction model. Everything is observer-driven (`On<...>`).
+- `glue.rs` - builds the graph and rolls section health up to the ship root.
+- `explode.rs` - reacts to destruction: debris, mesh fragments, `OnDestroyedEvent`.
 
-Key components (`components.rs`):
+Graph build: when avian links a collider to its body (`ColliderOf`),
+`build_integrity_relations` connects sections one grid unit apart via
+`ConnectedTo` neighbor lists and marks the body `IntegrityRoot`. A lone body
+(asteroid) gets an empty list, so it is a leaf.
 
-- `IntegrityRoot` - marks the body that owns the structure (a ship root, or a lone
-  body like an asteroid). Used to find the body for aggregate health and whole-body
-  destruction.
-- `ConnectedTo(Vec<Entity>)` - the neighbor list stored on each integrity node (a ship
-  section, or an asteroid's collider node). This replaces the old central
-  `IntegrityGraph(HashMap<...>)`: connectivity now lives per-node instead of in one map
-  on the root. Built by `build_integrity_relations` (in `glue.rs`) as colliders link.
-- `IntegrityLeafMarker` - a node with at most one neighbor (a leaf in the connectivity
-  graph).
-- `IntegrityDisabledMarker` - a section whose health hit zero (disabled).
-- `IntegrityDestroyMarker` - a node queued for destruction.
+Damage flow:
 
-Damage/destruction flow (observers in `plugin.rs`):
+1. A hit triggers bcs `HealthApplyDamage`; bcs subtracts the amount and adds
+   `HealthZeroMarker` at zero. The amount also bubbles up `ChildOf`, clamped to
+   what the section actually had left - so overkill on one section cannot kill
+   the ship (a 1000 hit on a 100 hp section costs the root 100).
+2. Zero health -> `IntegrityDisabledMarker`. A disabled non-leaf section is only
+   deactivated (`SectionInactiveMarker`); a disabled **leaf** is destroyed.
+3. Destruction prunes the node from its neighbors' lists, which can create new
+   leaves and cascade: shooting off the structure collapses what hung from it.
+4. `aggregate_ship_health` keeps the root's health equal to the sum of its
+   living sections; when the last section dies, the root dies with it.
 
-1. Colliders spawn collision events (`on_collider_of_spawn_insert_collision_events`).
-2. Impact and blast collisions deal damage
-   (`on_impact_collision_deal_damage`, `on_blast_collision_deal_damage`;
-   blast falloff computed by `calculate_blast_damage`).
-3. When health reaches zero a `HealthZeroMarker` is added, which inserts
-   `IntegrityDisabledMarker` (`on_health_depleted_insert_disabled`).
-4. Destruction propagates: `handle_destroy`, `handle_chain_destroy` (a disabled leaf
-   destroys, pruning neighbor links and creating new leaves), and `handle_parent_destroy`.
-5. Destruction finalizes across two crates: `on_destroyed` (in `plugin.rs`) prunes the
-   destroyed node from its neighbors' `ConnectedTo` lists; `on_destroyed_entity` (in
-   `integrity/explode.rs`) fires the game `OnDestroyed` event; and the explode systems
-   there spawn debris/mesh fragments and despawn the meshless remains.
+## Typed damage (`crates/nova_gameplay/src/damage.rs`)
 
-The chain-reaction rule of thumb: **a section is destroyed when it is both disabled
-(zero health) and a leaf** (nothing structurally depends on it). Destroying it can
-turn its neighbors into leaves, cascading the failure - so shooting off a ship's
-structure can collapse the pieces hanging from it.
+Weapon damage is authored, not emergent from bullet physics. A projectile
+carries `ProjectileDamage { amount, kind }` with a `DamageType`: `Kinetic`,
+`ArmorPiercing`, `Emp`, or `Explosive`. On hit, the amount is scaled by a
+`resistance(section class, damage type)` table (for example EMP is 3.0 vs the
+Controller but 0.1 vs Hull; Kinetic is always 1.0) and only then applied via
+`HealthApplyDamage`. Targets without a `SectionDamageClass` (asteroids) take
+the raw amount. Turret bullets are given a near-zero physical mass so bcs's
+old mass-times-velocity damage is negligible; torpedoes detonate a typed
+`NovaBlast` (Explosive, linear falloff) instead of bcs's untyped blast.
 
-Blast damage (`integrity/blast.rs`) is what torpedoes use: area damage that falls off
-with distance from the detonation, applied to every section within range.
+## Ammo
 
-## HUD (`nova_gameplay::hud`)
-
-Player-facing overlays: `health`, `objectives` (fed by scenario objective actions via
-`GameObjectivesHud`), `torpedo_target`, and `velocity`.
-
-The torpedo lock uses angular aim-assist rather than a single ray
-(`input/player.rs::update_spaceship_target_input`): among the dynamic bodies in front
-of the ship, it locks the one whose bearing is nearest the aim direction, within a cone
-(`TARGETING_CONE_HALF_ANGLE_DEG`) and range (`TARGETING_MAX_RANGE`). The player ship,
-static sensor areas, un-committed torpedoes and turret bullets are never locked. So the
-player only has to point roughly at a target, and panning the view cycles the lock to
-whichever body is now nearest the centre. The `torpedo_target` reticle then sizes itself
-to the locked target's on-screen extent (from the union of its collider AABBs), never
-shrinking below its minimum size.
+- `SectionAmmo` (`sections/ammo.rs`): optional magazine on a weapon section.
+  Absent = unlimited fire; `ammo_capacity` in the turret/torpedo config opts in.
+  The player `infinite_ammo` flag builds that ship's weapons without magazines.
+- `LoadedBullet` (`sections/turret_section.rs`): the turret's loaded-round slot
+  (damage type + amount), seeded from the config. Fired bullets and the HUD ammo
+  readout colors read this slot, so swapping ammo types is one component write.
