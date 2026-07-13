@@ -759,17 +759,18 @@ main {
     border-bottom: none;
 }
 
-/* ---- blog list (bevy.org/news-style card grid) --------------------------
-   Each post is a card with a 16:9 thumbnail on top (a real image - e.g. the
-   YouTube thumbnail for posts with a video - or the sharp placeholder frame)
-   and a body below (date // version, title, excerpt). */
+/* ---- blog list (bevy.org/news-style stacked cards) ----------------------
+   One post per row: a wide horizontal card with a 16:9 thumbnail beside the
+   body (date // version, title, excerpt). The thumbnail is a real image - e.g.
+   the YouTube thumbnail for posts with a video - or the sharp placeholder
+   frame. Stacks the thumbnail above the body on narrow screens. */
 .post-grid {
     list-style: none;
     padding: 0;
     margin: 40px 0 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
 }
 .post-card {
     position: relative;
@@ -800,7 +801,7 @@ main {
 }
 .post-card__link {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     height: 100%;
     color: inherit;
 }
@@ -808,10 +809,21 @@ main {
     color: inherit;
 }
 .post-card__media {
-    width: 100%;
+    flex: 0 0 300px;
     aspect-ratio: 16 / 9;
-    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
     background: var(--space-0);
+}
+@media (max-width: 620px) {
+    .post-card__link {
+        flex-direction: column;
+    }
+    .post-card__media {
+        flex-basis: auto;
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
 }
 .post-card__thumb {
     display: block;
@@ -855,10 +867,12 @@ main {
     word-break: break-all;
 }
 .post-card__body {
+    flex: 1;
     display: flex;
     flex-direction: column;
+    justify-content: center;
     gap: 6px;
-    padding: 16px 18px 18px;
+    padding: 18px 20px;
 }
 .post-card__meta {
     font-family: var(--font-mono);
