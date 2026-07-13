@@ -21,3 +21,8 @@ see-also working), content is code-accurate, `cd web && npm run ci` is green.
 - Pull the real data from the code: keybinds from `nova_gameplay` input rig,
   sections from `nova_assets`/section modules, damage types + resistances,
   radar/lock rules, HUD tiers. Verify against source, do not invent.
+
+- Authoritative code-sourced content for every page is in the content
+  spike tasks/20260714-002013/SPIKE.md (audited from crates/ with file refs);
+  author from it and fix the manifest summaries it flags (esp. Flight: no FA
+  toggle / Z mode / RCS - manual is Newtonian, autopilot is the assist).
