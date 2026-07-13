@@ -119,6 +119,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `additions-join-doc-indexes` (x1): adding an artifact of an enumerated kind
   (example, crate) must update the doc list that enumerates its kind; grep
   docs/ for a sibling's name before committing. 20260713-175352.
+- `maskable-ci-conclusions` (x1): a continue-on-error step reports success
+  even when its command fails - cite the job LOG's own result line as
+  evidence, never the step/run conclusion, whenever the workflow modifies
+  failure semantics. 20260710-143138.
 - `insert-cluster-must-be-removed-as-a-cluster` (x1): a component insert can
   bring requires and hook-inserted companions; the matching remove must strip
   the whole cluster (requires do not cascade on removal) - and code copied
