@@ -38,6 +38,27 @@ nova_scenario (incl. the new area pin), 471 nova_gameplay, fmt +
 workspace check clean. Autopilots deferred (user's game instance
 running).
 
+## Round 2 (2026-07-13, user still stuck at beat 11)
+
+The round-1 catch-all was correct config-level but the EVENT never
+arrived: NO asteroid has ever fired OnDestroyed. The integrity bridge
+(nova_gameplay explode.rs on_destroyed_entity) reads EntityId off the
+MARKED entity, and an asteroid's Health lives on its id-less child node -
+the root only ever got the husk-despawn marker. Ships worked (roots carry
+the marker), and the scripted beat-walks fire events BY HAND, so the gap
+was invisible to every config test; the derelict is the first scenario
+consumer of an asteroid death. FIX: `on_asteroid_node_destroyed` now
+fires OnDestroyedEvent under the ROOT's id/type alongside the husk mark
+(marking the root instead would trip the meshless insta-despawn and race
+the fragment spawn). Pinned end-to-end in asteroid.rs: node death ->
+handler filtered on the root's id ticks a variable; editor previews
+(id-less roots) skip the event but keep the cleanup.
+
+Also folded in (user request): ORBIT is now withheld at spawn and granted
+by the coast-ring handler - a lit [O] row during the zero-key coast read
+as "press it now". Same capability choreography as GOTO/LOCK; walk +
+config pins extended (STOP is the only verb granted from the start).
+
 ## Notes
 
 - Emphasis-pairing pin relaxed: clears may exceed sets (the catch-all's

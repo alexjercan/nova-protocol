@@ -380,6 +380,11 @@ fn player_ship(sections: &GameSections) -> ScenarioObjectConfig {
         if let SectionKind::Controller(ref mut controller_config) = config.kind {
             controller_config.verbs.goto = false;
             controller_config.verbs.lock = false;
+            // ORBIT is withheld until the coast completes (playtest
+            // 2026-07-13: a lit [O] row during the coast read as "press
+            // it now" and muddied the zero-key beat); the coast-ring
+            // handler grants it exactly when its objective asks for it.
+            controller_config.verbs.orbit = false;
         }
         SpaceshipSectionConfig {
             id: "controller".to_string(),
@@ -750,6 +755,14 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
             actions: vec![
                 set(VAR_BEAT, num(8.0)),
                 complete(OBJ_B7),
+                // The orbit computer comes online WITH its lesson (the
+                // same capability choreography as GOTO and LOCK): the
+                // contextual [O] row lights the moment the text asks.
+                EventActionConfig::SetControllerVerb(SetControllerVerbActionConfig {
+                    id: ID_PLAYER.to_string(),
+                    verb: FlightVerb::Orbit,
+                    enabled: true,
+                }),
                 objective(OBJ_B8, "Press [O] and hold the orbit."),
             ],
         },
@@ -1621,14 +1634,14 @@ mod tests {
         // The Lock capability on the player's REAL controller section (the
         // capability beat, task 20260713-090653 - same pin shape as the
         // training governor).
-        let lock_granted = |app: &mut App, player: Entity| -> bool {
+        let verb_granted = |app: &mut App, player: Entity, verb: FlightVerb| -> bool {
             let mut q_controllers = app
                 .world_mut()
                 .query_filtered::<(&ChildOf, &ControllerVerbs), With<ControllerSectionMarker>>();
             q_controllers
                 .iter(app.world())
                 .find(|(ChildOf(parent), _)| *parent == player)
-                .map(|(_, verbs)| verbs.granted(FlightVerb::Lock))
+                .map(|(_, verbs)| verbs.granted(verb))
                 .expect("the player ship has a controller section")
         };
 
@@ -1661,8 +1674,12 @@ mod tests {
             "the training governor caps the fresh ship"
         );
         assert!(
-            !lock_granted(&mut app, player),
+            !verb_granted(&mut app, player, FlightVerb::Lock),
             "the targeting computer starts OFFLINE (lock withheld; CTRL answers with the deny cue)"
+        );
+        assert!(
+            !verb_granted(&mut app, player, FlightVerb::Orbit),
+            "the orbit computer starts OFFLINE (a lit [O] during the coast reads as an ask)"
         );
 
         // Beat 1 -> 2.
@@ -1740,7 +1757,7 @@ mod tests {
         assert!(radar_emphasized(&app), "beat 4 emphasizes RADAR");
         assert!(!goto_emphasized(&app), "GOTO waits for its own beat");
         assert!(
-            lock_granted(&mut app, player),
+            verb_granted(&mut app, player, FlightVerb::Lock),
             "beat 4 brings the targeting computer ONLINE (delivery guard: withheld at boot)"
         );
 
@@ -1792,10 +1809,19 @@ mod tests {
             Some("PLANETOID")
         );
 
-        // Beat 7 -> 8: the drift crosses the ring.
+        // Beat 7 -> 8: the drift crosses the ring; the orbit computer
+        // comes online with its lesson.
+        assert!(
+            !verb_granted(&mut app, player, FlightVerb::Orbit),
+            "ORBIT stays withheld through the coast"
+        );
         enter(&mut app, ID_COAST_RING);
         assert_eq!(beat(&app), 8.0);
         assert!(has_objective(&app, OBJ_B8));
+        assert!(
+            verb_granted(&mut app, player, FlightVerb::Orbit),
+            "the ring grants ORBIT (delivery guard: withheld at boot)"
+        );
 
         // Beat 8 -> 9: orbit held; the derelict appears by the old field.
         orbit(&mut app, ID_PLANETOID);
@@ -2026,8 +2052,12 @@ mod tests {
             "GOTO starts withheld on the fresh player controller"
         );
         assert!(
-            controller_config.verbs.stop && controller_config.verbs.orbit,
-            "STOP and ORBIT are granted from the start"
+            !controller_config.verbs.lock && !controller_config.verbs.orbit,
+            "LOCK and ORBIT start withheld too - each computer comes online with its lesson"
+        );
+        assert!(
+            controller_config.verbs.stop,
+            "STOP is granted from the start (the very first lesson needs it)"
         );
     }
 

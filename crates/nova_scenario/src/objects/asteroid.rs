@@ -123,27 +123,44 @@ impl Plugin for AsteroidPlugin {
 }
 
 /// When an asteroid's collider/health node is destroyed, mark the asteroid root for
-/// despawn. An asteroid is a `RigidBody::Dynamic` parent whose `Collider` + `Health`
-/// live on a child node; once that node explodes and despawns, the parent is an empty
-/// dynamic body with no collider - avian then logs "has no mass or inertia" and the
-/// invisible husk lingers until the scenario unloads. Marking (rather than despawning
-/// here) defers the despawn to `despawn_asteroid_husk` so the destruction observers -
-/// which spawn the explosion fragments and despawn the node - all run first.
+/// despawn AND fire the scenario's OnDestroyed under the ROOT's id. An asteroid is a
+/// `RigidBody::Dynamic` parent whose `Collider` + `Health` live on a child node; once
+/// that node explodes and despawns, the parent is an empty dynamic body with no
+/// collider - avian then logs "has no mass or inertia" and the invisible husk lingers
+/// until the scenario unloads. Marking (rather than despawning here) defers the
+/// despawn to `despawn_asteroid_husk` so the destruction observers - which spawn the
+/// explosion fragments and despawn the node - all run first.
+///
+/// The EVENT must fire from here (task 20260713-150343 round 2): the integrity
+/// pipeline's own bridge (nova_gameplay explode.rs `on_destroyed_entity`) reads
+/// `EntityId` off the MARKED entity, and for asteroids the marked entity is the
+/// id-less child node - so no asteroid ever fired OnDestroyed, and the shakedown's
+/// derelict beat soft-locked on a kill the script never heard about. Putting the
+/// marker on the root instead would fire the bridge but ALSO trip the meshless
+/// insta-despawn observer, racing the fragment spawn this deferral protects.
 fn on_asteroid_node_destroyed(
     add: On<Add, IntegrityDestroyMarker>,
     mut commands: Commands,
     q_node: Query<&ChildOf, With<IntegrityDestroyMarker>>,
-    q_asteroid: Query<(), With<AsteroidMarker>>,
+    q_asteroid: Query<(Option<&EntityId>, Option<&EntityTypeName>), With<AsteroidMarker>>,
 ) {
     let Ok(ChildOf(parent)) = q_node.get(add.entity) else {
         return;
     };
-    if q_asteroid.contains(*parent) {
+    if let Ok((id, type_name)) = q_asteroid.get(*parent) {
         trace!(
             "on_asteroid_node_destroyed: marking asteroid husk {:?}",
             parent
         );
         commands.entity(*parent).try_insert(AsteroidHuskDespawn);
+        // Editor previews carry no scenario id: husk cleanup still runs,
+        // only the event is skipped.
+        if let (Some(id), Some(type_name)) = (id, type_name) {
+            commands.fire::<OnDestroyedEvent>(OnDestroyedEventInfo {
+                id: id.to_string(),
+                type_name: type_name.to_string(),
+            });
+        }
     }
 }
 
@@ -638,6 +655,68 @@ mod tests {
         assert!(
             !app.world().entities().contains(asteroid),
             "the asteroid husk should be despawned when its node is destroyed"
+        );
+    }
+
+    /// Destroying the node fires the scenario's OnDestroyed under the
+    /// ROOT's id, through the real handler pipeline (task 20260713-150343
+    /// round 2: the integrity bridge reads EntityId off the marked entity,
+    /// which for asteroids is the id-less NODE - so no asteroid ever fired
+    /// OnDestroyed and the shakedown derelict beat soft-locked; the
+    /// scripted beat-walks fire events by hand and can never catch a
+    /// missing bridge, so this pin owns the gap).
+    #[test]
+    fn destroying_an_asteroid_node_fires_on_destroyed_for_the_root() {
+        use bevy_common_systems::prelude::{EventHandler, GameEventsPlugin, GameObjectives};
+
+        use crate::prelude::*;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.add_observer(on_asteroid_node_destroyed);
+        app.add_systems(Update, despawn_asteroid_husk);
+
+        let mut handler =
+            EventHandler::<NovaEventWorld>::from(crate::events::EventConfig::OnDestroyed);
+        handler.add_filter(EventFilterConfig::Entity(EntityFilterConfig {
+            id: Some("derelict".to_string()),
+            ..Default::default()
+        }));
+        handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: "hulk_down".to_string(),
+            expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                VariableFactorNode::new_literal(VariableLiteral::Boolean(true)),
+            )),
+        }));
+        app.world_mut().spawn(handler);
+
+        let asteroid = app
+            .world_mut()
+            .spawn((
+                AsteroidMarker,
+                EntityId::new("derelict".to_string()),
+                EntityTypeName::new(ASTEROID_TYPE_NAME),
+            ))
+            .id();
+        let node = app.world_mut().spawn(ChildOf(asteroid)).id();
+
+        app.world_mut()
+            .entity_mut(node)
+            .insert(IntegrityDestroyMarker);
+        app.update();
+        app.update();
+
+        assert!(
+            matches!(
+                app.world()
+                    .resource::<NovaEventWorld>()
+                    .get_variable("hulk_down"),
+                Some(VariableLiteral::Boolean(true))
+            ),
+            "the node's death must reach a handler filtered on the ROOT's id"
         );
     }
 
