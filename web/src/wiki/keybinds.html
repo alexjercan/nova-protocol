@@ -33,11 +33,11 @@
                     <div class="wiki__tags" id="wiki-tags"></div>
 
                     <p>
-                        The full control reference. Thrust is analog on a
-                        gamepad trigger and on/off on the keyboard. The
-                        autopilot verbs each fly a whole maneuver and hand
-                        control back; any manual input disengages them
-                        immediately. New players should start with the
+                        The full control reference. Thrust is analog on the
+                        gamepad and on/off on the keyboard. The autopilot verbs
+                        each fly a whole maneuver and hand control back; any
+                        manual input disengages them immediately. New players
+                        should start with the
                         <a
                             href="<%= htmlWebpackPlugin.options.basePath %>tutorial/"
                             >tutorial</a
@@ -51,15 +51,22 @@
                             <td>
                                 <kbd>W</kbd> / <kbd>Space</kbd> &nbsp;or&nbsp;
                                 <span
-                                    class="pf pf-trigger-right"
+                                    class="pf pf-shoulder-right"
                                     role="img"
-                                    aria-label="Right trigger"
+                                    aria-label="Right bumper"
                                 ></span>
                             </td>
                         </tr>
                         <tr>
                             <td>GOTO - fly to the current lock</td>
-                            <td><kbd>G</kbd> &nbsp;or&nbsp; North button</td>
+                            <td>
+                                <kbd>G</kbd> &nbsp;or&nbsp;
+                                <span
+                                    class="pf pf-face-north"
+                                    role="img"
+                                    aria-label="North face button"
+                                ></span>
+                            </td>
                         </tr>
                         <tr>
                             <td>
@@ -76,11 +83,25 @@
                         </tr>
                         <tr>
                             <td>STOP - face retrograde and burn to rest</td>
-                            <td><kbd>X</kbd> &nbsp;or&nbsp; East button</td>
+                            <td>
+                                <kbd>X</kbd> &nbsp;or&nbsp;
+                                <span
+                                    class="pf pf-face-east"
+                                    role="img"
+                                    aria-label="East face button"
+                                ></span>
+                            </td>
                         </tr>
                         <tr>
                             <td>CANCEL autopilot (resume manual)</td>
-                            <td><kbd>Z</kbd> &nbsp;or&nbsp; West button</td>
+                            <td>
+                                <kbd>Z</kbd> &nbsp;or&nbsp;
+                                <span
+                                    class="pf pf-face-west"
+                                    role="img"
+                                    aria-label="West face button"
+                                ></span>
+                            </td>
                         </tr>
                     </table>
 
@@ -95,9 +116,9 @@
                             <td>
                                 <kbd>Alt</kbd> (hold) &nbsp;or&nbsp;
                                 <span
-                                    class="pf pf-trigger-left"
+                                    class="pf pf-shoulder-left"
                                     role="img"
-                                    aria-label="Left trigger"
+                                    aria-label="Left bumper"
                                 ></span>
                             </td>
                         </tr>
@@ -109,7 +130,12 @@
                                     role="img"
                                     aria-label="Right mouse button"
                                 ></span>
-                                (hold)
+                                (hold) &nbsp;or&nbsp;
+                                <span
+                                    class="pf pf-trigger-left"
+                                    role="img"
+                                    aria-label="Left trigger"
+                                ></span>
                             </td>
                         </tr>
                         <tr>
@@ -138,23 +164,23 @@
                         <tr>
                             <td>Cycle fine-lock component</td>
                             <td>
-                                <kbd>[</kbd> / <kbd>]</kbd> /
+                                <kbd>]</kbd> /
                                 <span
                                     class="pf pf-mouse-scroll"
                                     role="img"
                                     aria-label="Scroll wheel"
                                 ></span>
-                                &nbsp;or&nbsp;
-                                <span
-                                    class="pf pf-dpad-left"
-                                    role="img"
-                                    aria-label="D-Pad left"
-                                ></span>
-                                /
+                                next, <kbd>[</kbd> previous &nbsp;or&nbsp;
                                 <span
                                     class="pf pf-dpad-right"
                                     role="img"
                                     aria-label="D-Pad right"
+                                ></span>
+                                /
+                                <span
+                                    class="pf pf-dpad-left"
+                                    role="img"
+                                    aria-label="D-Pad left"
                                 ></span>
                             </td>
                         </tr>
@@ -170,7 +196,7 @@
                                     role="img"
                                     aria-label="Left mouse button"
                                 ></span>
-                                &nbsp;or&nbsp; RT2
+                                (default)
                             </td>
                         </tr>
                         <tr>
@@ -181,6 +207,13 @@
                             </td>
                         </tr>
                     </table>
+                    <p>
+                        Weapon sections are rebindable: in the editor, click a
+                        section to bind it to any key or mouse button, so a
+                        ship's turret and torpedo controls are whatever its
+                        build assigns (the shipped ship fires turrets on the
+                        left mouse button).
+                    </p>
 
                     <h2 id="interface">Interface</h2>
                     <table class="controls">

@@ -785,6 +785,27 @@ main {
 .pf-dpad-right::before {
     content: "\21A0";
 }
+/* Face buttons by position (PromptFont's positional glyphs carry the Xbox
+   A/B/X/Y layout: Y=north, B=east, A=south, X=west). */
+.pf-face-north::before {
+    content: "\21A5";
+}
+.pf-face-east::before {
+    content: "\21A6";
+}
+.pf-face-south::before {
+    content: "\21A7";
+}
+.pf-face-west::before {
+    content: "\21A4";
+}
+/* Shoulders / bumpers. */
+.pf-shoulder-left::before {
+    content: "\2198";
+}
+.pf-shoulder-right::before {
+    content: "\2199";
+}
 /* In the keybind tables, tint and size the glyphs to sit with the text. */
 .controls .pf {
     color: var(--cyan-bright);
