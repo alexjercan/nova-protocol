@@ -40,12 +40,6 @@ pub struct KeybindHintClusterMarker;
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 struct KeybindHintRow(usize);
 
-/// The HUD-level cycle row (task 20260711-180501). Not a flight verb, so it
-/// carries its own marker, but it obeys the cluster's "no rig, no keys, no
-/// hints" rule: blank until the flight rig exists.
-#[derive(Component, Debug, Clone, Reflect)]
-struct HudLevelHintRow;
-
 /// The verb names, in cluster display order (top to bottom). The two cycle
 /// rows document the wheel gestures (task 20260708-165705): plain scroll
 /// steps the component fine-lock, CTRL+scroll steps the ship lock through
@@ -150,25 +144,7 @@ pub fn keybind_hint_cluster_hud() -> impl Bundle {
             ..default()
         },
         Pickable::IGNORE,
-        children![
-            row(0),
-            row(1),
-            row(2),
-            row(3),
-            row(4),
-            row(5),
-            // Discoverability row for the HUD level cycle, driven by
-            // update_hint_cluster (blank without a rig). It is chrome
-            // itself: at Minimal the whole cluster is hidden, which is
-            // exactly the point.
-            (
-                Name::new("HudLevelHintRow"),
-                HudLevelHintRow,
-                Text::new(""),
-                TextFont::from_font_size(12.0),
-                TextColor(DIM_COLOR),
-            ),
-        ],
+        children![row(0), row(1), row(2), row(3), row(4), row(5),],
     )
 }
 
@@ -244,45 +220,38 @@ fn row_hint(hints: &FlightVerbHints, index: usize) -> &VerbHint {
     }
 }
 
-/// `[KEY] VERB` per row: cyan when available, dim when not, empty until
-/// the flight rig exists (no rig, no keys, no hints).
+/// `[KEY] VERB` per row - CONTEXTUAL (playtest 2026-07-13, Arma-style): a
+/// row renders only while its verb is actionable; a verb that cannot do
+/// anything right now is not shown at all (the old grey rows read as
+/// noise). The one exception is an EMPHASIZED verb: the tutorial spotlight
+/// must be able to point at a key just before it becomes actionable, so an
+/// emphasized row shows (and pulses) even while unavailable. No rig, no
+/// keys, no rows, as always.
 fn update_hint_cluster(
     hints: Res<FlightVerbHints>,
-    mut q_row: Query<(&KeybindHintRow, &mut Text, &mut TextColor)>,
+    emphasis: Res<HintEmphasis>,
+    mut q_row: Query<(&KeybindHintRow, &mut Text, &mut TextColor, &mut Node)>,
     q_added: Query<(), Added<KeybindHintRow>>,
-    mut q_hud_row: Query<&mut Text, (With<HudLevelHintRow>, Without<KeybindHintRow>)>,
-    q_hud_added: Query<(), Added<HudLevelHintRow>>,
 ) {
     // Skip quiet frames, but never skip freshly spawned rows (a respawned
     // HUD may appear while the resource is unchanged).
-    if !hints.is_changed() && q_added.is_empty() && q_hud_added.is_empty() {
+    if !hints.is_changed() && !emphasis.is_changed() && q_added.is_empty() {
         return;
     }
-    for (row, mut text, mut color) in &mut q_row {
+    for (row, mut text, mut color, mut node) in &mut q_row {
         let hint = row_hint(&hints, **row);
-        if hint.key.is_empty() {
+        let verb = ROW_VERBS[(**row).min(ROW_VERBS.len() - 1)];
+        let shown = !hint.key.is_empty() && (hint.available || emphasis.contains(verb));
+        let display = if shown { Display::Flex } else { Display::None };
+        if node.display != display {
+            node.display = display;
+        }
+        if !shown {
             text.clear();
             continue;
         }
-        **text = format!(
-            "[{}] {}",
-            hint.key,
-            ROW_VERBS[(**row).min(ROW_VERBS.len() - 1)]
-        );
+        **text = format!("[{}] {}", hint.key, verb);
         **color = if hint.available { NAV_CYAN } else { DIM_COLOR };
-    }
-    // The HUD-cycle row follows the same no-rig rule; an empty STOP key is
-    // the established "rig missing" signal (see cycle_label in
-    // input/player.rs).
-    let rig_exists = !hints.stop.key.is_empty();
-    for mut text in &mut q_hud_row {
-        if rig_exists {
-            if text.0 != "[`] HUD" {
-                **text = "[`] HUD".to_string();
-            }
-        } else {
-            text.clear();
-        }
     }
 }
 
@@ -447,36 +416,77 @@ mod tests {
     }
 
     #[test]
-    fn cluster_rows_show_labels_and_availability() {
+    fn only_actionable_rows_show_and_emphasis_overrides() {
+        // Contextual cluster (playtest 2026-07-13, Arma-style): unavailable
+        // verbs are NOT rendered - no grey noise; an emphasized verb is the
+        // exception (the tutorial spotlight may precede availability).
         let mut world = World::new();
+        world.init_resource::<HintEmphasis>();
         let well = world.spawn_empty().id();
         world.insert_resource(hints(true, false, Some(well)));
         let rows = cluster_rows(&mut world);
 
         world.run_system_once(update_hint_cluster).unwrap();
 
-        let text = |e: Entity| world.entity(e).get::<Text>().unwrap().0.clone();
-        let color = |e: Entity| world.entity(e).get::<TextColor>().unwrap().0;
-        assert_eq!(text(rows[0]), "[X] STOP");
-        assert_eq!(color(rows[0]), NAV_CYAN, "available verbs light up");
-        assert_eq!(text(rows[1]), "[G] GOTO");
-        assert_eq!(color(rows[1]), DIM_COLOR, "no lock, GOTO stays dim");
-        assert_eq!(text(rows[2]), "[O] ORBIT");
-        assert_eq!(text(rows[3]), "[Z] CANCEL");
-        assert_eq!(color(rows[3]), DIM_COLOR, "nothing engaged");
-        assert_eq!(text(rows[4]), "[CTRL] RADAR");
-        assert_eq!(color(rows[4]), NAV_CYAN, "the computer grants Lock");
-        assert_eq!(text(rows[5]), "[SCROLL] COMPONENT");
-        assert_eq!(color(rows[5]), DIM_COLOR, "no focus, component cycle dim");
+        let text = |w: &World, e: Entity| w.entity(e).get::<Text>().unwrap().0.clone();
+        let color = |w: &World, e: Entity| w.entity(e).get::<TextColor>().unwrap().0;
+        let display = |w: &World, e: Entity| w.entity(e).get::<Node>().unwrap().display;
+        // Available: shown, cyan.
+        assert_eq!(text(&world, rows[0]), "[X] STOP");
+        assert_eq!(display(&world, rows[0]), Display::Flex);
+        assert_eq!(color(&world, rows[0]), NAV_CYAN, "available verbs light up");
+        assert_eq!(text(&world, rows[2]), "[O] ORBIT");
+        assert_eq!(display(&world, rows[2]), Display::Flex);
+        assert_eq!(text(&world, rows[4]), "[CTRL] RADAR");
+        assert_eq!(color(&world, rows[4]), NAV_CYAN, "the computer grants Lock");
+        // Unavailable: gone entirely, not greyed.
+        for (index, name) in [(1, "GOTO"), (3, "CANCEL"), (5, "COMPONENT")] {
+            assert_eq!(
+                display(&world, rows[index]),
+                Display::None,
+                "unavailable {name} is not rendered"
+            );
+            assert_eq!(text(&world, rows[index]), "", "and carries no text");
+        }
+
+        // Emphasize the unavailable GOTO: the row comes back (dim base;
+        // the gold pulse rides on top) so the tutorial can point at it.
+        world.resource_mut::<HintEmphasis>().set("GOTO");
+        world.run_system_once(update_hint_cluster).unwrap();
+        assert_eq!(
+            display(&world, rows[1]),
+            Display::Flex,
+            "an emphasized verb shows even while unavailable"
+        );
+        assert_eq!(text(&world, rows[1]), "[G] GOTO");
+        assert_eq!(
+            color(&world, rows[1]),
+            DIM_COLOR,
+            "base stays dim; gold is the pulse's"
+        );
+
+        // Clearing the emphasis hides it again (delivery guard).
+        world.resource_mut::<HintEmphasis>().clear("GOTO");
+        world.run_system_once(update_hint_cluster).unwrap();
+        assert_eq!(display(&world, rows[1]), Display::None);
     }
 
     #[test]
     fn cluster_rows_stay_empty_without_a_flight_rig() {
         let mut world = World::new();
+        world.init_resource::<HintEmphasis>();
         world.insert_resource(FlightVerbHints::default());
         let rows = cluster_rows(&mut world);
 
         world.run_system_once(update_hint_cluster).unwrap();
+
+        for &row in &rows {
+            assert_eq!(
+                world.entity(row).get::<Node>().unwrap().display,
+                Display::None,
+                "no rig, no rows"
+            );
+        }
 
         for row in rows {
             assert!(
