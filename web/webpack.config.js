@@ -41,6 +41,9 @@ const WIKI_SLUGS = [
     "targeting-radar",
     "combat-weapons",
     "gravity-wells",
+    "factions",
+    "scenarios",
+    "modding",
 ];
 const wikiPage = (slug) =>
     page("wiki", `src/wiki/${slug}.html`, `wiki/${slug}/index.html`);

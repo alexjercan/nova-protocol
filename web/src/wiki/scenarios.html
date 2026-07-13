@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Scenarios - Nova Protocol Wiki</title>
+        <meta
+            name="description"
+            content="Nova Protocol scenarios: what a scenario places into the world, the events / filters / actions system that wires objectives, and the scenarios that ship today."
+        />
+        <link
+            rel="icon"
+            href="<%= htmlWebpackPlugin.options.basePath %>favicon.svg"
+        />
+    </head>
+    <body>
+        <div id="header"></div>
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="<%= htmlWebpackPlugin.options.basePath %>wiki/"
+                            >Wiki</a
+                        >
+                        / Scenarios
+                    </p>
+                    <h1>Scenarios</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+
+                    <p>
+                        A scenario places a world and wires its objectives. It
+                        is the same machinery whether it is a five-minute
+                        tutorial or a combat sandbox: some objects, and a
+                        reactive events-filters-actions script over a set of
+                        variables.
+                    </p>
+
+                    <h2 id="objects">What a scenario places</h2>
+                    <p>A scenario spawns a handful of object kinds:</p>
+                    <ul>
+                        <li>
+                            <strong>Asteroids</strong> - rocks with health, a
+                            radar signature and an optional
+                            <a
+                                href="<%= htmlWebpackPlugin.options.basePath %>wiki/gravity-wells/"
+                                >gravity well</a
+                            >; destroyable debris or invulnerable planetoids.
+                        </li>
+                        <li>
+                            <strong>Spaceships</strong> - multi-section
+                            <a
+                                href="<%= htmlWebpackPlugin.options.basePath %>wiki/sections/"
+                                >builds</a
+                            >
+                            under a player or AI controller (which can withhold
+                            or grant flight verbs).
+                        </li>
+                        <li>
+                            <strong>Nav beacons</strong> - lockable waypoints
+                            with authorable radar signatures and optional
+                            trigger areas.
+                        </li>
+                        <li>
+                            <strong>Salvage crates</strong> - small pickups
+                            collected by flying through them.
+                        </li>
+                        <li>
+                            <strong>Trigger areas</strong> - invisible volumes
+                            that fire on-enter / on-exit events.
+                        </li>
+                    </ul>
+
+                    <h2 id="objectives-and-events">
+                        Objectives: events, filters, actions
+                    </h2>
+                    <p>
+                        Objectives are wired with a three-layer reactive system.
+                        An <strong>event</strong> fires under a named condition,
+                        a <strong>filter</strong> gates whether it applies, and
+                        an <strong>action</strong> runs when both match - all
+                        reading and writing typed
+                        <strong>variables</strong> (numbers, strings, booleans)
+                        with arithmetic and comparisons.
+                    </p>
+                    <ul>
+                        <li>
+                            <strong>Events</strong>: OnStart, OnUpdate,
+                            OnDestroyed, OnEnter / OnExit (a trigger area),
+                            OnOrbit (an orbit held a few seconds), OnTravelLock
+                            / OnCombatLock (a
+                            <a
+                                href="<%= htmlWebpackPlugin.options.basePath %>wiki/targeting-radar/"
+                                >lock</a
+                            >
+                            landed on an object).
+                        </li>
+                        <li>
+                            <strong>Filters</strong>: match by object id or type
+                            (asteroid / beacon / salvage crate), combine with
+                            not / or / and, or test a variable expression.
+                        </li>
+                        <li>
+                            <strong>Actions</strong>: post or complete an
+                            objective, attach or detach the gold objective
+                            marker, emphasize a keybind hint, set a variable,
+                            spawn or despawn an object, install or lift a speed
+                            cap, grant or withhold a flight verb, create a
+                            trigger area, or queue the next scenario.
+                        </li>
+                    </ul>
+                    <p>
+                        This is the vocabulary the
+                        <a
+                            href="<%= htmlWebpackPlugin.options.basePath %>tutorial/"
+                            >Shakedown Run</a
+                        >
+                        is built from - each beat is an event handler that
+                        grants the next verb, posts the next objective, and
+                        moves a beat counter forward.
+                    </p>
+
+                    <h2 id="shipped-scenarios">The shipped scenarios</h2>
+                    <ul>
+                        <li>
+                            <strong>Shakedown Run</strong> - the New Game
+                            starter: a guided tutorial that teaches one gesture
+                            per beat (burn, freelook, salvage, GOTO, ORBIT,
+                            radar lock, a live-fire rehearsal, and a scavenger
+                            fight).
+                        </li>
+                        <li>
+                            <strong>Asteroid Field</strong> - a combat and
+                            gravity sandbox: a dense field, a planetoid to
+                            orbit, a fully outfitted ship and an AI drone. (A
+                            tiny <em>Asteroid Field - Next</em> loops it.)
+                        </li>
+                        <li>
+                            <strong>Menu Ambience</strong> - the living backdrop
+                            behind the main menu: a planetoid with an AI ship
+                            flying a real ORBIT, no gameplay - just scale and
+                            motion.
+                        </li>
+                    </ul>
+
+                    <p>
+                        Authoring your own scenarios is on the way - see
+                        <a
+                            href="<%= htmlWebpackPlugin.options.basePath %>wiki/modding/"
+                            >Modding</a
+                        >.
+                    </p>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <div id="footer"></div>
+    </body>
+</html>

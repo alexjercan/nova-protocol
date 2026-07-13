@@ -1,6 +1,6 @@
 # Author the world/meta wiki pages (factions, scenarios, modding coming-soon)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 15
 - TAGS: web,wiki,content
 

@@ -211,7 +211,6 @@ export const WIKI_PAGES: WikiPage[] = [
             "The player / enemy / neutral relation model that drives acquisition, projectile allegiance and reticle tint.",
         related: ["targeting-radar", "combat-weapons"],
         headings: ["Relations", "Allegiance", "Reticle tint"],
-        comingSoon: true,
     },
     {
         slug: "scenarios",
@@ -226,7 +225,6 @@ export const WIKI_PAGES: WikiPage[] = [
             "Objectives and events",
             "Beacons and salvage",
         ],
-        comingSoon: true,
     },
     {
         slug: "modding",
@@ -237,6 +235,5 @@ export const WIKI_PAGES: WikiPage[] = [
             "The data-driven scenario language for authoring your own missions - documented here once it lands.",
         related: ["scenarios"],
         headings: [],
-        comingSoon: true,
     },
 ];
