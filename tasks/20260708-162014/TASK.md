@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.6.0,editor
+- TAGS: backlog,editor
 
 Spike: tasks/20260708-161726/SPIKE.md (roadmap)
 

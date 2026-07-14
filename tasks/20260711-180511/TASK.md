@@ -2,11 +2,11 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.6.0,ui,menu,spike
+- TAGS: backlog,ui,menu,spike
 
 Goal: fill the Settings placeholder panel with real content: visual quality
 options (relates to task 20260525-133013, spawn-less visual mode), keybinds,
-and audio volume. Deferred to v0.6.0; the main menu task 20260711-180426
+and audio volume. Deferred to backlog; the main menu task 20260711-180426
 ships only an empty panel with a Back button.
 
 Notes:

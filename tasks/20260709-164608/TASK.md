@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.6.0,hud,refactor,spike
+- TAGS: backlog,hud,refactor,spike
 
 Spike: tasks/20260709-164502/SPIKE.md
 

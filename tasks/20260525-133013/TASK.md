@@ -2,6 +2,6 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.6.0,chore
+- TAGS: backlog,chore
 
 Flag to skip particles/shaders for performance. Legacy #127.

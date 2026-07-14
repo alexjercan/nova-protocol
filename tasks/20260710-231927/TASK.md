@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.6.0,hud,ux,input
+- TAGS: backlog,hud,ux,input
 
 
 ## Goal

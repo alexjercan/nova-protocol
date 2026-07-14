@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.6.0,modding,spike
+- TAGS: backlog,modding,spike
 
 Spike: tasks/20260708-161726/SPIKE.md
 

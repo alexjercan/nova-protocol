@@ -1,12 +1,12 @@
-# v0.6.0: gamepad navigation for menus/editor + mobile virtual pad
+# backlog: gamepad navigation for menus/editor + mobile virtual pad
 
 - STATUS: OPEN
 - PRIORITY: 40
-- TAGS: v0.6.0,input,gamepad,mobile
+- TAGS: backlog,input,gamepad,mobile
 
 ## Goal
 
-Broaden input beyond keyboard + mouse in two workstreams for the v0.6.0 cycle.
+Broaden input beyond keyboard + mouse in two workstreams for the backlog cycle.
 Gameplay already has gamepad bindings (flight verbs in player.rs; pause / HUD
 cycle / back-to-editor added in the v0.5.x cycle), but the menus and the editor
 cannot be driven by a gamepad at all, and there is no touch support for mobile.
@@ -51,7 +51,7 @@ bevy-common-systems primitives.
 
 ## Notes
 
-- Forward-looking backlog for the v0.6.0 cycle; depends on nothing shipped.
+- Forward-looking backlog for the backlog cycle; depends on nothing shipped.
 - Fuzzy enough that it likely wants a `/spike` first (menu-nav approach: Bevy UI
   focus vs a custom focus ring; the virtual-pad layout and which verbs get
   on-screen buttons), then `/plan` per part - Part A and Part B are independently

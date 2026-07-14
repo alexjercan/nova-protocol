@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.6.0,objectives,modding
+- TAGS: backlog,objectives,modding
 
 Store all scenarios as a resource. Legacy #99.
 

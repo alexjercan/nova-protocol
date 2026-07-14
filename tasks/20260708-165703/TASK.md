@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.6.0,hud,torpedo,spike
+- TAGS: backlog,hud,torpedo,spike
 
 Spike: tasks/20260708-165647/SPIKE.md
 

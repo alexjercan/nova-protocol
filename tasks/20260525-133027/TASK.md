@@ -2,6 +2,6 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.6.0,objectives
+- TAGS: backlog,objectives
 
 Display current objective state to the player. Legacy #90.

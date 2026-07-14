@@ -2,6 +2,6 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.6.0,example
+- TAGS: backlog,example
 
 Thruster + PD controller standalone. [new]

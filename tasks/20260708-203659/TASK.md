@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.6.0,example,scenario
+- TAGS: backlog,example,scenario
 
 Spike: tasks/20260708-203517/SPIKE.md
 
@@ -15,9 +15,9 @@ Goal: a single playable scenario that exercises the whole loop - handling, PDC
 screening, torpedo offense/defense, section destruction, audio, hit FX, and HUD -
 under a win/lose frame.
 
-Depends on: the v0.6.0 objectives/win-lose work (20260525-133026/133027) for the
+Depends on: the backlog objectives/win-lose work (20260525-133026/133027) for the
 frame, and ideally the v0.5.0 feel systems (handling, audio 162011, hit FX 162013,
-smarter AI 162012) landing first so there is juice to show. Lands in v0.6.0 once
+smarter AI 162012) landing first so there is juice to show. Lands in backlog once
 objectives exist. Build it on the RON scenario format (20260525-133029) if that
 has landed, so the flagship scenario also dogfoods the authoring format.
 

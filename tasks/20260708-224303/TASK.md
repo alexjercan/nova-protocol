@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.6.0,audio,test
+- TAGS: backlog,audio,test
 
 ## Goal
 

@@ -2,6 +2,6 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.6.0,chore
+- TAGS: backlog,chore
 
 Index handlers by event name for fast lookup. Legacy #118.

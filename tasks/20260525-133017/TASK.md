@@ -2,6 +2,6 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.6.0,modding
+- TAGS: backlog,modding
 
 Expose cubemap swap as a modding hook. Legacy #130.

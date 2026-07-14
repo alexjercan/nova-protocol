@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.6.0,hud,ui,spike
+- TAGS: backlog,hud,ui,spike
 
 Goal: improve the HP UI by making it diegetic - the health readout should
 live on/in the ship somehow instead of the current generic screen-space

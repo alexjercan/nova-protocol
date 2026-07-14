@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: v0.6.0,ai,spike,health
+- TAGS: backlog,ai,spike,health
 
 Spike: tasks/20260709-225508/SPIKE.md (wave 3)
 
