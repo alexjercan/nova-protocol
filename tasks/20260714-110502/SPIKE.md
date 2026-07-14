@@ -124,7 +124,12 @@ work is gated behind it:
 4. **Multi-file scenario bundles (C2).** A scenario as a folder + manifest, once the
    prototype/catalog model is proven. Its own spike - the id-namespacing, overlay,
    and directory-loader design is the real uncertainty and should not block steps
-   1-3.
+   1-3. KEY (user): files are TYPED and merged by kind - each file declares whether
+   it is a ship / section / scenario / map / etc., and loading a bundle reads ALL
+   files and routes each into the appropriate collection (Wesnoth's units/scenarios/
+   maps model). The base game becomes just another bundle, and a mod is a bundle
+   merged on top by kind - same shape. That tagging + merge-by-kind router, not the
+   folder layout, is the heart of this step's spike (see 20260714-113418).
 
 Why this beats the runners-up: A2 is what the user asked for and Wesnoth-proves;
 B1/C3 make sections moddable without the full folder-bundle machinery; keeping
