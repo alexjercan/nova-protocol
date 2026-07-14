@@ -178,3 +178,15 @@ Direction-level tasks (for `/plan` to break into steps):
   `SectionConfig` unchanged. Editor palette + boot verified live. Reviewed APPROVE
   (out-of-context). See tasks/20260714-113408/{TASK,REVIEW,RETRO}.md. Next: step 2
   (113411) makes ship sections REFERENCE this catalog by id - the big dedup.
+- 20260714, step 2 (113411) landed on master (`32031e4`): ship sections reference
+  catalog prototypes + component modifications. `SpaceshipSectionConfig` = { source:
+  SectionSource(Inline|Prototype(id)), modifications: Vec<SectionModification> },
+  resolved at spawn against GameSections. Modifications are COMPONENTS applied by
+  On<Add> observers, inert where not applicable (user's model) - DisableVerb clears
+  ControllerVerbs, SetHealth/Rename. Built-in ships re-ported to prototype refs
+  (withheld verbs -> DisableVerb mods); Option/Vec/HashMap fields omit None/empty via
+  serde. Regenerated RON shrank (asteroid_field 643->414, shakedown 1480->1238).
+  Runtime behavior preserved (verb-withhold equivalence re-derived; 12_menu_newgame +
+  09_editor green). SetMass + f32/bool serde domain-defaults deferred. Reviewed APPROVE
+  (2 rounds, out-of-context). Next: 113414 (whole-ship prototypes) / 113418 (typed
+  multi-file bundles). Follow-up spike 123535 (verb-availability from components).

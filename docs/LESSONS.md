@@ -127,6 +127,16 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   must stage `Cargo.lock` too; explicit-path `git add` (the no-worktree habit)
   silently drops the lock, leaving a stale `--locked`/CI build. Glance at
   `git status` for related generated files before committing. 20260714-113408.
+  (In an isolated sprout worktree, `git add -A` is the safe fix - it caught
+  everything in 20260714-113411, no recurrence.)
+- `pin-the-fix-at-its-boundary` (x1): guard a bug fix with a test that fails under
+  the bug at the fix's OWN boundary (a unit test), not only a downstream e2e -
+  especially when the existing unit test passes under the bug (the DisableVerb
+  multi-verb accumulation was only e2e-guarded). 20260714-113411.
+- `reconcile-plan-to-shipped` (x2): at close-out reconcile the plan's aspirational
+  lists (which variants/scope actually shipped, deferrals, overstated guarantees)
+  with reality BEFORE review - it keeps flagging stale plan text as findings.
+  20260525-133028, 20260714-113411.
 - `bg-session-authors-on-branch` (x1): background sessions cannot Write in the
   shared checkout, and parallel sessions sweep loose files there; author task
   and doc content inside the first sprouted worktree, only `tatr new` stubs
