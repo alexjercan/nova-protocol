@@ -6,7 +6,6 @@
     events: [
         (
             name: OnStart,
-            filters: [],
             actions: [
                 SpawnScenarioObject((
                     base: (
@@ -30,7 +29,6 @@
                         health: 2000.0,
                         surface_gravity: Some(6.0),
                         invulnerable: true,
-                        lock_signature: None,
                     )),
                 )),
                 SpawnScenarioObject((
@@ -51,9 +49,7 @@
                     ),
                     kind: Spaceship((
                         controller: AI((
-                            patrol: [],
                             orbit: Some("menu_planetoid"),
-                            leash: None,
                         )),
                         sections: [
                             (
@@ -69,27 +65,7 @@
                                     0.0,
                                     1.0,
                                 ),
-                                config: (
-                                    base: (
-                                        id: "basic_controller_section",
-                                        name: "Basic Controller Section",
-                                        description: "A basic controller section for spaceships.",
-                                        mass: 1.0,
-                                        health: 100.0,
-                                    ),
-                                    kind: Controller((
-                                        frequency: 4.0,
-                                        damping_ratio: 4.0,
-                                        max_torque: 40.0,
-                                        verbs: (
-                                            stop: true,
-                                            goto: true,
-                                            orbit: true,
-                                            lock: true,
-                                        ),
-                                        render_mesh: None,
-                                    )),
-                                ),
+                                source: Prototype("basic_controller_section"),
                             ),
                             (
                                 id: "hull_front",
@@ -104,18 +80,7 @@
                                     0.0,
                                     1.0,
                                 ),
-                                config: (
-                                    base: (
-                                        id: "reinforced_hull_section",
-                                        name: "Reinforced Hull Section",
-                                        description: "A reinforced hull section for spaceships.",
-                                        mass: 1.0,
-                                        health: 200.0,
-                                    ),
-                                    kind: Hull((
-                                        render_mesh: Some("gltf/hull-01.glb#Scene0"),
-                                    )),
-                                ),
+                                source: Prototype("reinforced_hull_section"),
                             ),
                             (
                                 id: "thruster",
@@ -130,19 +95,7 @@
                                     0.0,
                                     1.0,
                                 ),
-                                config: (
-                                    base: (
-                                        id: "basic_thruster_section",
-                                        name: "Basic Thruster Section",
-                                        description: "A basic thruster section for spaceships.",
-                                        mass: 1.0,
-                                        health: 70.0,
-                                    ),
-                                    kind: Thruster((
-                                        magnitude: 1.0,
-                                        render_mesh: None,
-                                    )),
-                                ),
+                                source: Prototype("basic_thruster_section"),
                             ),
                         ],
                     )),
@@ -177,9 +130,7 @@
                             radius: 1.0,
                             texture: "textures/asteroid.png",
                             health: 100.0,
-                            surface_gravity: None,
                             invulnerable: false,
-                            lock_signature: None,
                         )),
                     ),
                     asteroid_radius: Some((

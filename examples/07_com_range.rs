@@ -97,7 +97,8 @@ fn com_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
         id: id.to_string(),
         position: Vec3::new(0.0, 0.0, z),
         rotation: Quat::IDENTITY,
-        config: section(kind),
+        source: SectionSource::Inline(section(kind)),
+        modifications: vec![],
     };
 
     let ship = SpaceshipConfig {

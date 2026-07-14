@@ -53,7 +53,6 @@ pub fn register_scenario(
 pub(crate) fn menu_ambience(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
-    sections: &GameSections,
 ) -> ScenarioConfig {
     let mut objects = Vec::new();
 
@@ -149,28 +148,22 @@ pub(crate) fn menu_ambience(
                     id: "controller".to_string(),
                     position: Vec3::ZERO,
                     rotation: Quat::IDENTITY,
-                    config: sections
-                        .get_section("basic_controller_section")
-                        .unwrap()
-                        .clone(),
+                    source: SectionSource::Prototype("basic_controller_section".to_string()),
+                    modifications: vec![],
                 },
                 SpaceshipSectionConfig {
                     id: "hull_front".to_string(),
                     position: Vec3::new(0.0, 0.0, 1.0),
                     rotation: Quat::IDENTITY,
-                    config: sections
-                        .get_section("reinforced_hull_section")
-                        .unwrap()
-                        .clone(),
+                    source: SectionSource::Prototype("reinforced_hull_section".to_string()),
+                    modifications: vec![],
                 },
                 SpaceshipSectionConfig {
                     id: "thruster".to_string(),
                     position: Vec3::new(0.0, 0.0, 2.0),
                     rotation: Quat::IDENTITY,
-                    config: sections
-                        .get_section("basic_thruster_section")
-                        .unwrap()
-                        .clone(),
+                    source: SectionSource::Prototype("basic_thruster_section".to_string()),
+                    modifications: vec![],
                 },
             ],
         }),
@@ -198,7 +191,6 @@ pub(crate) fn menu_ambience(
 pub(crate) fn asteroid_field(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
-    sections: &GameSections,
 ) -> ScenarioConfig {
     // The field scatter is now a single seeded ScatterObjects action (added to
     // the OnStart event below) rather than a per-launch RNG loop: the layout is
@@ -280,46 +272,36 @@ pub(crate) fn asteroid_field(
                 id: "controller".to_string(),
                 position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
-                config: sections
-                    .get_section("basic_controller_section")
-                    .unwrap()
-                    .clone(),
+                source: SectionSource::Prototype("basic_controller_section".to_string()),
+                modifications: vec![],
             },
             SpaceshipSectionConfig {
                 id: "hull_front".to_string(),
                 position: Vec3::new(0.0, 0.0, 1.0),
                 rotation: Quat::IDENTITY,
-                config: sections
-                    .get_section("reinforced_hull_section")
-                    .unwrap()
-                    .clone(),
+                source: SectionSource::Prototype("reinforced_hull_section".to_string()),
+                modifications: vec![],
             },
             SpaceshipSectionConfig {
                 id: "hull_back".to_string(),
                 position: Vec3::new(0.0, 0.0, -1.0),
                 rotation: Quat::IDENTITY,
-                config: sections
-                    .get_section("reinforced_hull_section")
-                    .unwrap()
-                    .clone(),
+                source: SectionSource::Prototype("reinforced_hull_section".to_string()),
+                modifications: vec![],
             },
             SpaceshipSectionConfig {
                 id: "thruster".to_string(),
                 position: Vec3::new(0.0, 0.0, 2.0),
                 rotation: Quat::IDENTITY,
-                config: sections
-                    .get_section("basic_thruster_section")
-                    .unwrap()
-                    .clone(),
+                source: SectionSource::Prototype("basic_thruster_section".to_string()),
+                modifications: vec![],
             },
             SpaceshipSectionConfig {
                 id: "turret".to_string(),
                 position: Vec3::new(0.0, 0.0, -2.0),
                 rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-                config: sections
-                    .get_section("better_turret_section")
-                    .unwrap()
-                    .clone(),
+                source: SectionSource::Prototype("better_turret_section".to_string()),
+                modifications: vec![],
             },
         ],
     };
@@ -340,46 +322,36 @@ pub(crate) fn asteroid_field(
                 id: "controller".to_string(),
                 position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
-                config: sections
-                    .get_section("basic_controller_section")
-                    .unwrap()
-                    .clone(),
+                source: SectionSource::Prototype("basic_controller_section".to_string()),
+                modifications: vec![],
             },
             SpaceshipSectionConfig {
                 id: "hull_front".to_string(),
                 position: Vec3::new(0.0, 0.0, 1.0),
                 rotation: Quat::IDENTITY,
-                config: sections
-                    .get_section("reinforced_hull_section")
-                    .unwrap()
-                    .clone(),
+                source: SectionSource::Prototype("reinforced_hull_section".to_string()),
+                modifications: vec![],
             },
             SpaceshipSectionConfig {
                 id: "hull_back".to_string(),
                 position: Vec3::new(0.0, 0.0, -1.0),
                 rotation: Quat::IDENTITY,
-                config: sections
-                    .get_section("reinforced_hull_section")
-                    .unwrap()
-                    .clone(),
+                source: SectionSource::Prototype("reinforced_hull_section".to_string()),
+                modifications: vec![],
             },
             SpaceshipSectionConfig {
                 id: "thruster".to_string(),
                 position: Vec3::new(0.0, 0.0, 2.0),
                 rotation: Quat::IDENTITY,
-                config: sections
-                    .get_section("basic_thruster_section")
-                    .unwrap()
-                    .clone(),
+                source: SectionSource::Prototype("basic_thruster_section".to_string()),
+                modifications: vec![],
             },
             SpaceshipSectionConfig {
                 id: "turret".to_string(),
                 position: Vec3::new(0.0, 0.0, -2.0),
                 rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-                config: sections
-                    .get_section("better_turret_section")
-                    .unwrap()
-                    .clone(),
+                source: SectionSource::Prototype("better_turret_section".to_string()),
+                modifications: vec![],
             },
         ],
     };
@@ -599,16 +571,6 @@ pub(crate) fn asteroid_next(cubemap: AssetRef<Image>) -> ScenarioConfig {
 pub(crate) mod tests {
     use super::*;
 
-    /// The real section registry, built by the production `build_sections`
-    /// against PATH-based mesh refs - the same source the RON generator uses,
-    /// so config-shape tests see exactly what gets serialized. pub(crate): the
-    /// shakedown child module's tests build on the same helper.
-    pub(crate) fn real_sections() -> GameSections {
-        GameSections(crate::sections::build_sections(
-            &crate::sections::SectionMeshRefs::from_paths(),
-        ))
-    }
-
     /// The menu backdrop's contract (task 20260711-212504): the orbiter is
     /// an AI ship directed to orbit the planetoid on its own thrusters -
     /// controller + thruster sections aboard, directive pointing at an
@@ -616,7 +578,7 @@ pub(crate) mod tests {
     /// authored surface gravity (so it gets a well at spawn).
     #[test]
     fn menu_orbiter_is_an_ai_ship_directed_at_the_planetoid() {
-        let scenario = menu_ambience(AssetRef::default(), AssetRef::default(), &real_sections());
+        let scenario = menu_ambience(AssetRef::default(), AssetRef::default());
 
         let spawns: Vec<_> = scenario
             .events
@@ -643,17 +605,18 @@ pub(crate) mod tests {
             Some("menu_planetoid"),
             "the directive targets the planetoid"
         );
-        let has = |kind: fn(&SectionKind) -> bool| {
-            ship.sections
-                .iter()
-                .any(|section| kind(&section.config.kind))
+        // Sections now reference the catalog by prototype id; match on the id.
+        let references = |needle: &str| {
+            ship.sections.iter().any(|section| {
+                matches!(&section.source, SectionSource::Prototype(id) if id.contains(needle))
+            })
         };
         assert!(
-            has(|kind| matches!(kind, SectionKind::Controller(_))),
+            references("controller"),
             "a controller section flies the autopilot's attitude commands"
         );
         assert!(
-            has(|kind| matches!(kind, SectionKind::Thruster(_))),
+            references("thruster"),
             "a thruster section provides the burn"
         );
 

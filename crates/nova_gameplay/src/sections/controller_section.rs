@@ -34,6 +34,10 @@ pub struct ControllerSectionConfig {
     pub verbs: ControllerVerbs,
     /// The render mesh of the hull section, defaults to a cuboid of size 1x1x1.
     #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub render_mesh: Option<AssetRef<WorldAsset>>,
 }
 

@@ -157,13 +157,15 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                 id: "controller".to_string(),
                 position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
-                config: section("basic_controller_section"),
+                source: SectionSource::Inline(section("basic_controller_section")),
+                modifications: vec![],
             },
             SpaceshipSectionConfig {
                 id: "hull".to_string(),
                 position: Vec3::new(0.0, 0.0, 1.0),
                 rotation: Quat::IDENTITY,
-                config: section("reinforced_hull_section"),
+                source: SectionSource::Inline(section("reinforced_hull_section")),
+                modifications: vec![],
             },
             SpaceshipSectionConfig {
                 id: "turret".to_string(),
@@ -171,7 +173,8 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                 // Matches the turret placement in the asteroid_field ship so the
                 // base sits upright.
                 rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-                config: section("better_turret_section"),
+                source: SectionSource::Inline(section("better_turret_section")),
+                modifications: vec![],
             },
         ],
     };

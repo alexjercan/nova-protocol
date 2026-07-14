@@ -32,6 +32,10 @@ pub struct AsteroidConfig {
     /// threshold; `None` falls back to the global rule (a default-strength
     /// well when `radius >= GravitySettings::min_well_radius`, none
     /// otherwise).
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub surface_gravity: Option<f32>,
     /// An invulnerable body gets its collider WITHOUT a health node:
     /// nothing can disable or destroy it, so its gravity well can never
@@ -43,6 +47,10 @@ pub struct AsteroidConfig {
     /// proportion to its size). A scenario body meant to be designated
     /// from afar authors what it needs (the shakedown derelict, task
     /// 20260713-150343).
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub lock_signature: Option<f32>,
 }
 

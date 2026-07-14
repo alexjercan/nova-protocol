@@ -37,26 +37,50 @@ pub struct TurretSectionConfig {
     /// The pitch speed of the turret section in radians per second.
     pub pitch_speed: f32,
     /// The minimum pitch angle of the turret section in radians. If None, there is no limit.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub min_pitch: Option<f32>,
     /// The maximum pitch angle of the turret section in radians. If None, there is no limit.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub max_pitch: Option<f32>,
     /// The render mesh of the base, defaults to a cylinder base
     #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub render_mesh_base: Option<AssetRef<WorldAsset>>,
     /// The offset of the base from the section origin
     pub base_offset: Vec3,
     /// The render mesh of the yaw rotator, defaults to a cylinder with ridges
     #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub render_mesh_yaw: Option<AssetRef<WorldAsset>>,
     /// The offset of the yaw rotator from the base
     pub yaw_offset: Vec3,
     /// The render mesh of the pitch rotator, defaults to a cylinder with ridges
     #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub render_mesh_pitch: Option<AssetRef<WorldAsset>>,
     /// The offset of the pitch rotator from the yaw rotator
     pub pitch_offset: Vec3,
     /// The render mesh of the barrel, defaults to a simple barrel shape
     #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub render_mesh_barrel: Option<AssetRef<WorldAsset>>,
     /// The offset of the barrel from the pitch rotator
     pub barrel_offset: Vec3,
@@ -86,14 +110,26 @@ pub struct TurretSectionConfig {
     pub bullet_kind: DamageType,
     /// The projectile mesh,
     #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub projectile_render_mesh: Option<AssetRef<WorldAsset>>,
     /// The muzzle particle effect when shooting.
     #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub muzzle_effect: Option<AssetRef<EffectAsset>>,
     /// Magazine size in rounds. `None` fires without limit (the pre-ammo
     /// behavior); `Some(n)` gives the turret a [`SectionAmmo`] of `n` rounds
     /// that depletes one per bullet and blocks firing once empty. Reloading it
     /// is task 20260708-162005.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub ammo_capacity: Option<u32>,
 }
 

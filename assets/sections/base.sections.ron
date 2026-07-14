@@ -21,7 +21,6 @@
         ),
         kind: Thruster((
             magnitude: 1.0,
-            render_mesh: None,
         )),
     ),
     (
@@ -42,7 +41,6 @@
                 orbit: true,
                 lock: true,
             ),
-            render_mesh: None,
         )),
     ),
     (
@@ -58,7 +56,6 @@
             pitch_speed: 3.1415927,
             min_pitch: Some(-0.5235988),
             max_pitch: Some(1.5707964),
-            render_mesh_base: None,
             base_offset: (
                 0.0,
                 -0.5,
@@ -92,8 +89,6 @@
             projectile_lifetime: 5.0,
             bullet_damage: 4.0,
             bullet_kind: Kinetic,
-            projectile_render_mesh: None,
-            muzzle_effect: None,
             ammo_capacity: Some(500),
         )),
     ),
@@ -122,7 +117,6 @@
             pitch_speed: 3.1415927,
             min_pitch: Some(-0.5235988),
             max_pitch: Some(1.5707964),
-            render_mesh_base: None,
             base_offset: (
                 0.0,
                 -0.5,
@@ -156,8 +150,6 @@
             projectile_lifetime: 5.0,
             bullet_damage: 3.825,
             bullet_kind: Kinetic,
-            projectile_render_mesh: None,
-            muzzle_effect: None,
             ammo_capacity: Some(150),
         )),
     ),
@@ -171,7 +163,6 @@
         ),
         kind: Torpedo((
             render_mesh: Some("gltf/torpedo-bay-01.glb#Scene0"),
-            projectile_render_mesh: None,
             spawn_offset: (
                 0.0,
                 0.0,
@@ -193,8 +184,6 @@
             linear_damping: 0.8,
             blast_radius: 30.0,
             blast_damage: 100.0,
-            blast_effect: None,
-            launch_effect: None,
             ammo_capacity: Some(6),
         )),
     ),

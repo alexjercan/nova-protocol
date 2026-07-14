@@ -330,24 +330,20 @@ fn crate_object(index: usize, position: Vec3) -> ScenarioObjectConfig {
     }
 }
 
-fn section(
-    sections: &GameSections,
-    id: &str,
-    section_id: &str,
-    position: Vec3,
-) -> SpaceshipSectionConfig {
+fn section(id: &str, section_id: &str, position: Vec3) -> SpaceshipSectionConfig {
     SpaceshipSectionConfig {
         id: id.to_string(),
         position,
         rotation: Quat::IDENTITY,
-        config: sections.get_section(section_id).unwrap().clone(),
+        source: SectionSource::Prototype(section_id.to_string()),
+        modifications: vec![],
     }
 }
 
 /// The shakedown ship: deliberately minimal - controller, one hull, one
 /// thruster, ONE turret (no torpedo bay). One of everything keeps the
 /// component-cycle lesson trivially readable.
-fn player_ship(sections: &GameSections) -> ScenarioObjectConfig {
+fn player_ship() -> ScenarioObjectConfig {
     let turret = SpaceshipSectionConfig {
         id: "turret".to_string(),
         // Directly behind the controller: the minimal ships have no
@@ -355,10 +351,8 @@ fn player_ship(sections: &GameSections) -> ScenarioObjectConfig {
         // silhouette (playtest 2026-07-12 finding 7).
         position: Vec3::new(0.0, 0.0, -1.0),
         rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-        config: sections
-            .get_section("better_turret_section")
-            .unwrap()
-            .clone(),
+        source: SectionSource::Prototype("better_turret_section".to_string()),
+        modifications: vec![],
     };
     // GOTO and LOCK start WITHHELD on the player's controller: the pilot has
     // not yet flown a controlled leg, and the targeting computer is not
@@ -371,27 +365,22 @@ fn player_ship(sections: &GameSections) -> ScenarioObjectConfig {
     // an OnStart action, so both are off from the instant the controller
     // section is built - no spawn-vs-action ordering window - and the shared
     // basic_controller_section catalog entry (the pirate reuses it) stays
-    // untouched because we clone-and-override here.
-    let controller = {
-        let mut config = sections
-            .get_section("basic_controller_section")
-            .unwrap()
-            .clone();
-        if let SectionKind::Controller(ref mut controller_config) = config.kind {
-            controller_config.verbs.goto = false;
-            controller_config.verbs.lock = false;
+    // untouched because the deltas are DisableVerb MODIFICATIONS applied on
+    // top of the referenced prototype, not an edit of the catalog entry.
+    let controller = SpaceshipSectionConfig {
+        id: "controller".to_string(),
+        position: Vec3::ZERO,
+        rotation: Quat::IDENTITY,
+        source: SectionSource::Prototype("basic_controller_section".to_string()),
+        modifications: vec![
+            SectionModification::DisableVerb(FlightVerb::Goto),
+            SectionModification::DisableVerb(FlightVerb::Lock),
             // ORBIT is withheld until the coast completes (playtest
             // 2026-07-13: a lit [O] row during the coast read as "press
             // it now" and muddied the zero-key beat); the coast-ring
             // handler grants it exactly when its objective asks for it.
-            controller_config.verbs.orbit = false;
-        }
-        SpaceshipSectionConfig {
-            id: "controller".to_string(),
-            position: Vec3::ZERO,
-            rotation: Quat::IDENTITY,
-            config,
-        }
+            SectionModification::DisableVerb(FlightVerb::Orbit),
+        ],
     };
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -418,13 +407,8 @@ fn player_ship(sections: &GameSections) -> ScenarioObjectConfig {
             }),
             sections: vec![
                 controller,
-                section(sections, "hull_front", "reinforced_hull_section", Vec3::Z),
-                section(
-                    sections,
-                    "thruster",
-                    "basic_thruster_section",
-                    Vec3::Z * 2.0,
-                ),
+                section("hull_front", "reinforced_hull_section", Vec3::Z),
+                section("thruster", "basic_thruster_section", Vec3::Z * 2.0),
                 turret,
             ],
         }),
@@ -434,7 +418,7 @@ fn player_ship(sections: &GameSections) -> ScenarioObjectConfig {
 /// The scavenger: the player ship's silhouette in scavenger grade - light
 /// hull, light turret - passive (patrolling the debris cluster) until the
 /// player closes inside AI engage range or shoots first.
-fn pirate_ship(sections: &GameSections) -> ScenarioObjectConfig {
+fn pirate_ship() -> ScenarioObjectConfig {
     let turret = SpaceshipSectionConfig {
         id: "turret".to_string(),
         // Directly behind the controller: the minimal ships have no
@@ -442,10 +426,8 @@ fn pirate_ship(sections: &GameSections) -> ScenarioObjectConfig {
         // silhouette (playtest 2026-07-12 finding 7).
         position: Vec3::new(0.0, 0.0, -1.0),
         rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-        config: sections
-            .get_section("light_turret_section")
-            .unwrap()
-            .clone(),
+        source: SectionSource::Prototype("light_turret_section".to_string()),
+        modifications: vec![],
     };
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -465,19 +447,9 @@ fn pirate_ship(sections: &GameSections) -> ScenarioObjectConfig {
                 ..Default::default()
             }),
             sections: vec![
-                section(
-                    sections,
-                    "controller",
-                    "basic_controller_section",
-                    Vec3::ZERO,
-                ),
-                section(sections, "hull_front", "light_hull_section", Vec3::Z),
-                section(
-                    sections,
-                    "thruster",
-                    "basic_thruster_section",
-                    Vec3::Z * 2.0,
-                ),
+                section("controller", "basic_controller_section", Vec3::ZERO),
+                section("hull_front", "light_hull_section", Vec3::Z),
+                section("thruster", "basic_thruster_section", Vec3::Z * 2.0),
                 turret,
             ],
         }),
@@ -487,7 +459,6 @@ fn pirate_ship(sections: &GameSections) -> ScenarioObjectConfig {
 pub(crate) fn shakedown_run(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
-    sections: &GameSections,
 ) -> ScenarioConfig {
     // The debris cluster: fixed offsets, not rng - the layout is content,
     // and determinism keeps the config-shape tests honest.
@@ -505,7 +476,7 @@ pub(crate) fn shakedown_run(
     const ROCK_RADII: [f32; 9] = [2.5, 1.5, 3.0, 2.0, 1.0, 2.5, 1.5, 2.0, 3.0];
 
     let mut start_spawns: Vec<ScenarioObjectConfig> = Vec::new();
-    start_spawns.push(player_ship(sections));
+    start_spawns.push(player_ship());
     start_spawns.push(beacon(ID_BEACON_1, "BEACON 1", BEACON_1_POS));
     start_spawns.push(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -830,7 +801,7 @@ pub(crate) fn shakedown_run(
                 complete(OBJ_B10),
                 complete(OBJ_B11),
                 deemphasize("RADAR"),
-                spawn(pirate_ship(sections)),
+                spawn(pirate_ship()),
                 objective(
                     OBJ_B12,
                     "A scavenger is picking through your debris field. Drive it off.",
@@ -884,11 +855,7 @@ mod tests {
     use super::*;
 
     fn scenario() -> ScenarioConfig {
-        shakedown_run(
-            AssetRef::default(),
-            AssetRef::default(),
-            &crate::scenario::tests::real_sections(),
-        )
+        shakedown_run(AssetRef::default(), AssetRef::default())
     }
 
     /// Every action across all handlers, flattened.
@@ -1188,18 +1155,28 @@ mod tests {
             .collect();
         assert_eq!(ships.len(), 2, "player and pirate only");
 
+        // Sections now reference the catalog by prototype id (the ships were
+        // re-ported to `SectionSource::Prototype`), so the ship-shape asserts
+        // read the prototype id rather than an inlined SectionConfig.
+        let prototype_id = |section: &SpaceshipSectionConfig| -> String {
+            match &section.source {
+                SectionSource::Prototype(id) => id.clone(),
+                SectionSource::Inline(config) => config.base.id.clone(),
+            }
+        };
+
         for (id, ship) in &ships {
             let turrets: Vec<_> = ship
                 .sections
                 .iter()
-                .filter(|section| matches!(section.config.kind, SectionKind::Turret(_)))
+                .filter(|section| prototype_id(section).contains("turret"))
                 .collect();
             assert_eq!(turrets.len(), 1, "'{}' carries exactly one turret", id);
             assert!(
                 !ship
                     .sections
                     .iter()
-                    .any(|section| matches!(section.config.kind, SectionKind::Torpedo(_))),
+                    .any(|section| prototype_id(section).contains("torpedo")),
                 "'{}' has no torpedo bay",
                 id
             );
@@ -1210,7 +1187,8 @@ mod tests {
                 "better_turret_section"
             };
             assert_eq!(
-                turrets[0].config.base.id, expected_turret,
+                prototype_id(turrets[0]),
+                expected_turret,
                 "'{}' turret grade",
                 id
             );
@@ -1245,7 +1223,7 @@ mod tests {
             pirate
                 .sections
                 .iter()
-                .any(|section| section.config.base.id == "light_hull_section"),
+                .any(|section| prototype_id(section) == "light_hull_section"),
             "the pirate's hull is the light one"
         );
     }
@@ -1457,6 +1435,12 @@ mod tests {
         // Production inits this in the HUD plugin; the emphasis actions
         // write it through the same drain the walk exercises.
         app.init_resource::<HintEmphasis>();
+        // The ships reference their sections by prototype id, so
+        // `insert_spaceship_sections` needs the real catalog in `GameSections`
+        // to resolve them (production loads it from the sections RON).
+        app.insert_resource(GameSections(crate::sections::build_sections(
+            &crate::sections::SectionMeshRefs::from_paths(),
+        )));
         app.add_plugins(ScenarioObjectsPlugin { render: false });
         app.finish();
 
@@ -2022,8 +2006,7 @@ mod tests {
     /// would still pass, so this is the one that pins the user-facing behavior.
     #[test]
     fn the_new_game_player_has_infinite_ammo() {
-        let sections = crate::scenario::tests::real_sections();
-        let player = player_ship(&sections);
+        let player = player_ship();
         let ScenarioObjectKind::Spaceship(config) = player.kind else {
             panic!("the player object must be a spaceship");
         };
@@ -2036,34 +2019,41 @@ mod tests {
         );
     }
 
-    /// The player's controller section is authored with GOTO withheld (STOP
-    /// and ORBIT stay granted), so the verb is off from the instant the
-    /// section is built - no OnStart-action ordering window.
+    /// The player's controller section carries DisableVerb modifications for
+    /// GOTO, LOCK and ORBIT (STOP is left granted), so those verbs are off from
+    /// the instant the section is built - no OnStart-action ordering window. The
+    /// controller now references the shared `basic_controller_section` prototype
+    /// and the withholding is expressed as modifications on top of it.
     #[test]
     fn the_new_game_player_starts_with_goto_withheld() {
-        let sections = crate::scenario::tests::real_sections();
-        let player = player_ship(&sections);
+        let player = player_ship();
         let ScenarioObjectKind::Spaceship(config) = player.kind else {
             panic!("the player object must be a spaceship");
         };
         let controller = config
             .sections
             .iter()
-            .find(|section| matches!(section.config.kind, SectionKind::Controller(_)))
-            .expect("the player ship has a controller section");
-        let SectionKind::Controller(ref controller_config) = controller.config.kind else {
-            unreachable!("filtered to Controller above");
+            .find(|section| {
+                matches!(&section.source, SectionSource::Prototype(id) if id == "basic_controller_section")
+            })
+            .expect("the player ship has a controller section referencing the prototype");
+
+        let disables_verb = |verb: FlightVerb| {
+            controller
+                .modifications
+                .iter()
+                .any(|m| matches!(m, SectionModification::DisableVerb(v) if *v == verb))
         };
         assert!(
-            !controller_config.verbs.goto,
+            disables_verb(FlightVerb::Goto),
             "GOTO starts withheld on the fresh player controller"
         );
         assert!(
-            !controller_config.verbs.lock && !controller_config.verbs.orbit,
+            disables_verb(FlightVerb::Lock) && disables_verb(FlightVerb::Orbit),
             "LOCK and ORBIT start withheld too - each computer comes online with its lesson"
         );
         assert!(
-            controller_config.verbs.stop,
+            !disables_verb(FlightVerb::Stop),
             "STOP is granted from the start (the very first lesson needs it)"
         );
     }

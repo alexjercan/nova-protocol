@@ -243,46 +243,61 @@ fn test_scenario(
                 id: "controller".to_string(),
                 position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
-                config: sections
-                    .get_section("basic_controller_section")
-                    .unwrap()
-                    .clone(),
+                source: SectionSource::Inline(
+                    sections
+                        .get_section("basic_controller_section")
+                        .unwrap()
+                        .clone(),
+                ),
+                modifications: vec![],
             },
             SpaceshipSectionConfig {
                 id: "hull_front".to_string(),
                 position: Vec3::new(0.0, 0.0, 1.0),
                 rotation: Quat::IDENTITY,
-                config: sections
-                    .get_section("reinforced_hull_section")
-                    .unwrap()
-                    .clone(),
+                source: SectionSource::Inline(
+                    sections
+                        .get_section("reinforced_hull_section")
+                        .unwrap()
+                        .clone(),
+                ),
+                modifications: vec![],
             },
             SpaceshipSectionConfig {
                 id: "hull_back".to_string(),
                 position: Vec3::new(0.0, 0.0, -1.0),
                 rotation: Quat::IDENTITY,
-                config: sections
-                    .get_section("reinforced_hull_section")
-                    .unwrap()
-                    .clone(),
+                source: SectionSource::Inline(
+                    sections
+                        .get_section("reinforced_hull_section")
+                        .unwrap()
+                        .clone(),
+                ),
+                modifications: vec![],
             },
             SpaceshipSectionConfig {
                 id: "thruster".to_string(),
                 position: Vec3::new(0.0, 0.0, 2.0),
                 rotation: Quat::IDENTITY,
-                config: sections
-                    .get_section("basic_thruster_section")
-                    .unwrap()
-                    .clone(),
+                source: SectionSource::Inline(
+                    sections
+                        .get_section("basic_thruster_section")
+                        .unwrap()
+                        .clone(),
+                ),
+                modifications: vec![],
             },
             SpaceshipSectionConfig {
                 id: "turret".to_string(),
                 position: Vec3::new(0.0, 0.0, -2.0),
                 rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-                config: sections
-                    .get_section("better_turret_section")
-                    .unwrap()
-                    .clone(),
+                source: SectionSource::Inline(
+                    sections
+                        .get_section("better_turret_section")
+                        .unwrap()
+                        .clone(),
+                ),
+                modifications: vec![],
             },
         ],
     };
@@ -612,10 +627,11 @@ fn create_new_spaceship(
                 id: "initial_hull".to_string(),
                 position,
                 rotation,
-                config: SectionConfig {
+                source: SectionSource::Inline(SectionConfig {
                     base,
                     kind: SectionKind::Hull(hull),
-                },
+                }),
+                modifications: vec![],
             },
         )]),
         ..default()
@@ -669,10 +685,11 @@ fn create_new_spaceship_with_controller(
                 id: "initial_controller".to_string(),
                 position,
                 rotation,
-                config: SectionConfig {
+                source: SectionSource::Inline(SectionConfig {
                     base,
                     kind: SectionKind::Controller(controller),
-                },
+                }),
+                modifications: vec![],
             },
         )]),
         ..default()
@@ -785,7 +802,8 @@ fn on_click_spaceship_section(
                             id: hull_entity.to_string(),
                             position,
                             rotation,
-                            config: section.clone(),
+                            source: SectionSource::Inline(section.clone()),
+                            modifications: vec![],
                         },
                     );
                 }
@@ -829,7 +847,8 @@ fn on_click_spaceship_section(
                             id: thruster_entity.to_string(),
                             position,
                             rotation,
-                            config: section.clone(),
+                            source: SectionSource::Inline(section.clone()),
+                            modifications: vec![],
                         },
                     );
                     player_config.inputs.insert(thruster_entity, binds);
@@ -858,7 +877,8 @@ fn on_click_spaceship_section(
                             id: controller_entity.to_string(),
                             position,
                             rotation,
-                            config: section.clone(),
+                            source: SectionSource::Inline(section.clone()),
+                            modifications: vec![],
                         },
                     );
                 }
@@ -902,7 +922,8 @@ fn on_click_spaceship_section(
                             id: turret_entity.to_string(),
                             position,
                             rotation,
-                            config: section.clone(),
+                            source: SectionSource::Inline(section.clone()),
+                            modifications: vec![],
                         },
                     );
                     player_config.inputs.insert(turret_entity, binds);
@@ -947,7 +968,8 @@ fn on_click_spaceship_section(
                             id: torpedo_entity.to_string(),
                             position,
                             rotation,
-                            config: section.clone(),
+                            source: SectionSource::Inline(section.clone()),
+                            modifications: vec![],
                         },
                     );
                     player_config.inputs.insert(torpedo_entity, binds);

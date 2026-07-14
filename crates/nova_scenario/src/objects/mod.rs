@@ -2,13 +2,15 @@ pub mod area;
 pub mod asteroid;
 pub mod beacon;
 pub mod binding_input;
+pub mod modification;
 pub mod salvage;
 pub mod spaceship;
 
 pub mod prelude {
     pub use super::{
         area::prelude::*, asteroid::prelude::*, beacon::prelude::*, binding_input::prelude::*,
-        salvage::prelude::*, spaceship::prelude::*, ScenarioObjectsPlugin,
+        modification::prelude::*, salvage::prelude::*, spaceship::prelude::*,
+        ScenarioObjectsPlugin,
     };
 }
 

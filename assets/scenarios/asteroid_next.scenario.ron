@@ -6,7 +6,6 @@
     events: [
         (
             name: OnStart,
-            filters: [],
             actions: [
                 NextScenario((
                     scenario_id: "asteroid_field",

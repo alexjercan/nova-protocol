@@ -36,6 +36,10 @@ pub struct ScenarioConfig {
     /// path; resolved to a live handle at load time (see `on_load_scenario`).
     pub cubemap: AssetRef<Image>,
     /// Events associated with the scenario
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
     pub events: Vec<ScenarioEventConfig>,
 }
 
@@ -46,8 +50,16 @@ pub struct ScenarioEventConfig {
     /// The name of the event to listen for
     pub name: EventConfig,
     /// Filters to apply to the event
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
     pub filters: Vec<EventFilterConfig>,
     /// Actions to perform when the event is triggered
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
     pub actions: Vec<EventActionConfig>,
 }
 
@@ -1273,13 +1285,14 @@ mod tests {
                 id: "thruster".to_string(),
                 position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
-                config: SectionConfig {
+                source: SectionSource::Inline(SectionConfig {
                     base: BaseSectionConfig {
                         id: "thruster".to_string(),
                         ..default()
                     },
                     kind: SectionKind::Thruster(ThrusterSectionConfig::default()),
-                },
+                }),
+                modifications: vec![],
             }],
         };
 

@@ -29,6 +29,10 @@ pub struct ThrusterSectionConfig {
     pub magnitude: f32,
     /// The render mesh of the section, defaults to prototype mesh if None.
     #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub render_mesh: Option<AssetRef<WorldAsset>>,
 }
 

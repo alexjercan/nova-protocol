@@ -119,7 +119,8 @@ fn hud_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
         id: id.to_string(),
         position: Vec3::new(0.0, 0.0, z),
         rotation: Quat::IDENTITY,
-        config: section(kind),
+        source: SectionSource::Inline(section(kind)),
+        modifications: vec![],
     };
     let sections_line = |prefix: &str| {
         vec![
@@ -140,7 +141,8 @@ fn hud_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
         // Matches the turret placement in 04_turret_section so the base sits
         // upright.
         rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-        config: section("better_turret_section"),
+        source: SectionSource::Inline(section("better_turret_section")),
+        modifications: vec![],
     });
     let player = SpaceshipConfig {
         controller: SpaceshipController::Player(PlayerControllerConfig {

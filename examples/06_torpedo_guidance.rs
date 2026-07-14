@@ -116,13 +116,15 @@ fn guidance_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scena
                 id: "controller".to_string(),
                 position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
-                config: section("basic_controller_section"),
+                source: SectionSource::Inline(section("basic_controller_section")),
+                modifications: vec![],
             },
             SpaceshipSectionConfig {
                 id: "torpedo".to_string(),
                 position: Vec3::new(0.0, 0.0, -1.0),
                 rotation: Quat::IDENTITY,
-                config: section("torpedo_section"),
+                source: SectionSource::Inline(section("torpedo_section")),
+                modifications: vec![],
             },
         ],
     };

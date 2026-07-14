@@ -32,8 +32,16 @@ pub mod prelude {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TorpedoSectionConfig {
     #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub render_mesh: Option<AssetRef<WorldAsset>>,
     #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub projectile_render_mesh: Option<AssetRef<WorldAsset>>,
     /// The offset of the spawn point of the projectile relative to the torpedo section.
     pub spawn_offset: Vec3,
@@ -79,6 +87,10 @@ pub struct TorpedoSectionConfig {
     pub blast_damage: f32,
     /// The explosion effect to play when the torpedo detonates.
     #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub blast_effect: Option<AssetRef<EffectAsset>>,
     /// The launch particle burst played at the bay spawner each time a torpedo is
     /// fired. Mirrors the turret's `muzzle_effect`; when `None`, a default
@@ -87,11 +99,19 @@ pub struct TorpedoSectionConfig {
     /// `base_velocity` `Vec3` properties, which `on_torpedo_launch_effect` sets
     /// per shot (unknown properties are ignored by hanabi).
     #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub launch_effect: Option<AssetRef<EffectAsset>>,
     /// Magazine size in torpedoes. `None` launches without limit (the pre-ammo
     /// behavior); `Some(n)` gives the bay a [`SectionAmmo`] of `n` torpedoes
     /// that depletes one per launch and blocks firing once empty. Reloading it
     /// is task 20260708-162005.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub ammo_capacity: Option<u32>,
 }
 

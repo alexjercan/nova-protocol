@@ -431,6 +431,10 @@ impl EventAction<NovaEventWorld> for HintEmphasisClearActionConfig {
 pub struct SetSpeedCapActionConfig {
     pub id: String,
     /// `Some(cap)` installs/updates the cap (u/s); `None` removes it.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub cap: Option<f32>,
 }
 
@@ -1241,6 +1245,10 @@ pub struct ScatterObjectsConfig {
     pub template: ScenarioObjectConfig,
     /// If set and `template.kind` is an asteroid, randomize each rock's radius in
     /// this `[lo, hi]` range.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub asteroid_radius: Option<(f32, f32)>,
 }
 

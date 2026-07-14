@@ -45,11 +45,19 @@ pub struct BeaconConfig {
     pub color: Color,
     /// When set, the beacon is also its own trigger area of this radius:
     /// `OnEnter`/`OnExit` fire with the beacon's scenario id.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub area_radius: Option<f32>,
     /// Radar signature override; `None` = the default
     /// [`BEACON_LOCK_SIGNATURE`] (600u lock range). A scenario whose GOTO
     /// leg is longer than that authors the signature the leg needs
     /// (shakedown's waypoint run, task 20260713-140929).
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub lock_signature: Option<f32>,
 }
 

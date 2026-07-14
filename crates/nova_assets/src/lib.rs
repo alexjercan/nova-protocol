@@ -28,7 +28,7 @@ pub mod prelude {
 /// Cargo feature unification carries it here.
 #[doc(hidden)]
 pub mod scenario_generation {
-    use nova_gameplay::prelude::{AssetRef, GameSections, SectionConfig};
+    use nova_gameplay::prelude::{AssetRef, SectionConfig};
     use nova_scenario::prelude::ScenarioConfig;
 
     use crate::sections::{build_sections, SectionMeshRefs};
@@ -45,24 +45,19 @@ pub mod scenario_generation {
         build_sections(&SectionMeshRefs::from_paths())
     }
 
-    /// The section registry built from PATH-based mesh refs - the generation
-    /// counterpart of production's handle-backed `register_sections`.
-    fn path_sections() -> GameSections {
-        GameSections(build_section_catalog())
-    }
-
     /// Build all four built-in configs with path-based asset refs, in a stable
-    /// order. This is the source the parity test serializes and compares.
+    /// order. This is the source the parity test serializes and compares. The
+    /// ships now reference the section catalog by prototype id, so the scenario
+    /// generators no longer need the resolved `GameSections`.
     pub fn build_scenarios() -> Vec<ScenarioConfig> {
         let cubemap = || AssetRef::from(CUBEMAP_PATH.to_string());
         let texture = || AssetRef::from(ASTEROID_TEXTURE_PATH.to_string());
-        let sections = path_sections();
 
         vec![
             crate::scenario::asteroid_next(cubemap()),
-            crate::scenario::asteroid_field(cubemap(), texture(), &sections),
-            crate::scenario::menu_ambience(cubemap(), texture(), &sections),
-            crate::scenario::shakedown::shakedown_run(cubemap(), texture(), &sections),
+            crate::scenario::asteroid_field(cubemap(), texture()),
+            crate::scenario::menu_ambience(cubemap(), texture()),
+            crate::scenario::shakedown::shakedown_run(cubemap(), texture()),
         ]
     }
 

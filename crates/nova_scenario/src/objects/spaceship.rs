@@ -3,11 +3,13 @@ use bevy_enhanced_input::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 
+use crate::objects::modification::prelude::SectionModification;
+
 pub mod prelude {
     pub use super::{
-        spaceship_scenario_object, AIControllerConfig, PlayerControllerConfig, SpaceshipConfig,
-        SpaceshipController, SpaceshipPlugin, SpaceshipSectionConfig, SpaceshipSectionsConfig,
-        SPACESHIP_TYPE_NAME,
+        spaceship_scenario_object, AIControllerConfig, PlayerControllerConfig, SectionSource,
+        SpaceshipConfig, SpaceshipController, SpaceshipPlugin, SpaceshipSectionConfig,
+        SpaceshipSectionsConfig, SPACESHIP_TYPE_NAME,
     };
 }
 
@@ -26,13 +28,21 @@ pub enum SpaceshipController {
 pub struct PlayerControllerConfig {
     #[cfg_attr(
         feature = "serde",
-        serde(with = "crate::objects::binding_input::binding_map_serde")
+        serde(
+            default,
+            with = "crate::objects::binding_input::binding_map_serde",
+            skip_serializing_if = "HashMap::is_empty"
+        )
     )]
     pub input_mapping: HashMap<SectionId, Vec<Binding>>,
     /// Soft manual-speed cap (u/s), inserted as [`FlightSpeedCap`] on the
     /// ship root: the manual burn tapers off approaching it (the starter
     /// scenario's don't-sail-into-the-void guard; playtest 2026-07-12
     /// finding 1). None = unbounded Newtonian burn, the default.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub speed_cap: Option<f32>,
     /// Give this player ship unlimited ammunition: its weapon sections are
     /// built with `ammo_capacity = None`, so no [`SectionAmmo`] is attached and
@@ -49,20 +59,48 @@ pub struct AIControllerConfig {
     /// Waypoint loop the ship patrols while nothing hostile is in detection
     /// range (world coordinates). Empty = no patrol assignment: the ship
     /// station-keeps instead.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
     pub patrol: Vec<Vec3>,
     /// Scenario id of a gravity-well entity to orbit while nothing hostile
     /// is in detection range. Takes precedence over `patrol` when both are
     /// set (passive fallback: orbit > patrol > idle). None = no orbit
     /// assignment.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub orbit: Option<String>,
     /// Territorial tether radius (world units): combat breaks off beyond
     /// this distance from the patrol centroid (or the spawn position when
     /// there is no route) and the ship returns to its routine. None = the
     /// ship chases freely. See `AILeash`.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub leash: Option<f32>,
 }
 
 pub type SectionId = String;
+
+/// Where a ship section's [`SectionConfig`] comes from. Resolved at spawn in
+/// `insert_spaceship_sections` (mirrors `AssetRef`'s resolve-at-spawn): an
+/// `Inline` config is used as-is; a `Prototype` is looked up by id in the
+/// section-prototype catalog ([`GameSections`]). Keeping the compact
+/// authored form (the id) in the scenario data is what lets a re-ported ship
+/// reference a shared prototype instead of inlining its whole config.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum SectionSource {
+    /// The full config, authored inline.
+    Inline(SectionConfig),
+    /// A reference to a catalog prototype by id, resolved against
+    /// [`GameSections`] at spawn.
+    Prototype(SectionId),
+}
 
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -70,7 +108,17 @@ pub struct SpaceshipSectionConfig {
     pub id: SectionId,
     pub position: Vec3,
     pub rotation: Quat,
-    pub config: SectionConfig,
+    /// Where the section's config comes from - inline, or a catalog prototype
+    /// referenced by id.
+    pub source: SectionSource,
+    /// Data-only deltas applied to the resolved section at spawn (inserted as
+    /// components, applied by observers). Empty by default; authored files may
+    /// omit the field.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
+    pub modifications: Vec<SectionModification>,
 }
 
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, Reflect)]
@@ -80,6 +128,10 @@ pub struct SpaceshipSectionsConfig(pub Vec<SpaceshipSectionConfig>);
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SpaceshipConfig {
     pub controller: SpaceshipController,
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
     pub sections: Vec<SpaceshipSectionConfig>,
 }
 
@@ -100,13 +152,25 @@ impl Plugin for SpaceshipPlugin {
     fn build(&self, app: &mut App) {
         debug!("SpaceshipPlugin: build");
 
+        // `insert_spaceship_sections` resolves Prototype sources against
+        // `GameSections`, so the plugin self-provides an (empty) default: production
+        // and the editor overwrite it with the loaded catalog, and Inline-only spawns
+        // (examples, previews) then need no catalog wiring. Makes the `Res<GameSections>`
+        // dependency self-satisfying instead of a spawn-order footgun.
+        app.init_resource::<GameSections>();
+
         app.add_observer(insert_spaceship_sections);
+
+        // Section modifications: the per-variant components + their apply-on-add
+        // observers (DisableVerb / SetHealth / Rename).
+        crate::objects::modification::register_section_modifications(app);
     }
 }
 
 fn insert_spaceship_sections(
     add: On<Add, SpaceshipRootMarker>,
     mut commands: Commands,
+    game_sections: Res<GameSections>,
     q_spaceship: Query<
         (&SpaceshipSectionsConfig, &SpaceshipController, &Transform),
         With<SpaceshipRootMarker>,
@@ -133,14 +197,32 @@ fn insert_spaceship_sections(
 
     commands.entity(entity).with_children(|parent| {
         for section in sections_config.iter() {
+            // Resolve the section's source to an owned SectionConfig: an inline
+            // config is used as-is; a prototype is looked up in the catalog
+            // (missing -> error + skip this section, no panic).
+            let config: SectionConfig = match &section.source {
+                SectionSource::Inline(config) => config.clone(),
+                SectionSource::Prototype(id) => match game_sections.get_section(id) {
+                    Some(config) => config.clone(),
+                    None => {
+                        error!(
+                            "insert_spaceship_sections: unknown section prototype '{}' for \
+                             section '{}'; skipping",
+                            id, section.id
+                        );
+                        continue;
+                    }
+                },
+            };
+
             let mut section_entity = parent.spawn((
                 EntityId::new(section.id.clone()),
-                EntityTypeName::new(section.config.base.id.clone()),
-                base_section(section.config.base.clone()),
+                EntityTypeName::new(config.base.id.clone()),
+                base_section(config.base.clone()),
                 Transform::from_translation(section.position).with_rotation(section.rotation),
             ));
 
-            match &section.config.kind {
+            match &config.kind {
                 SectionKind::Hull(hull_config) => {
                     section_entity.insert(hull_section(hull_config.clone()));
                 }
@@ -198,6 +280,10 @@ fn insert_spaceship_sections(
                     }
                 }
             }
+
+            // Insert the authored modification components; their observers apply
+            // each delta where relevant (and are inert elsewhere).
+            SectionModification::insert_all(&section.modifications, &mut section_entity);
         }
     });
 
@@ -245,6 +331,9 @@ mod tests {
     #[test]
     fn ai_config_maps_to_directive_components() {
         let mut world = World::new();
+        // The observer resolves each section's source against the catalog; these
+        // tests use Inline sources, so an empty catalog is fine.
+        world.init_resource::<GameSections>();
         world.add_observer(insert_spaceship_sections);
 
         let spawn = |world: &mut World, config: AIControllerConfig| {
@@ -310,6 +399,7 @@ mod tests {
     fn player_infinite_ammo_strips_the_weapon_magazine() {
         fn turret_ammo_capacity(infinite_ammo: bool) -> Option<u32> {
             let mut world = World::new();
+            world.init_resource::<GameSections>();
             world.add_observer(insert_spaceship_sections);
             world.spawn((
                 Transform::default(),
@@ -322,7 +412,7 @@ mod tests {
                         id: "turret".to_string(),
                         position: Vec3::ZERO,
                         rotation: Quat::IDENTITY,
-                        config: SectionConfig {
+                        source: SectionSource::Inline(SectionConfig {
                             base: BaseSectionConfig {
                                 id: "turret".to_string(),
                                 ..default()
@@ -331,7 +421,8 @@ mod tests {
                                 ammo_capacity: Some(10),
                                 ..default()
                             }),
-                        },
+                        }),
+                        modifications: vec![],
                     }],
                 }),
             ));
