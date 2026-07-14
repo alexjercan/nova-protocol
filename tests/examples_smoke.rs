@@ -37,6 +37,12 @@ const HARNESSED_EXAMPLES: &[&str] = &[
     "10_playable",
     "11_hud_range",
     "12_menu_newgame",
+    "13_screenshot_reel",
+    "14_screenshot_ui",
+    "15_screenshot_combat",
+    "16_screenshot_sections",
+    "17_screenshot_juice",
+    "18_screenshot_orbit",
 ];
 
 /// Run each harnessed example headless and assert it reaches gameplay and exits

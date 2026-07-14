@@ -261,7 +261,20 @@ function renderChildrenGrid(
         card.href = pageUrl(base, c.slug);
 
         const icon = el("span", "wiki-child__icon");
-        if (c.icon) icon.title = c.icon;
+        if (c.icon) {
+            // The hatched span is the placeholder; drop the real icon in on top
+            // once it loads (and fall back to the frame if the asset 404s).
+            icon.title = c.icon;
+            const img = new Image();
+            img.alt = c.title;
+            img.decoding = "async";
+            img.style.width = "100%";
+            img.style.height = "100%";
+            img.style.objectFit = "contain";
+            img.onerror = (): void => img.remove();
+            img.src = base + c.icon;
+            icon.appendChild(img);
+        }
         card.appendChild(icon);
 
         const body = el("span", "wiki-child__body");

@@ -1,0 +1,8 @@
+// The screenshot-reel bundle: the scene the `13_screenshot_reel` example films to
+// generate the web site's pure-3D showcase shots (asteroid field, a ship beside a
+// gravity planetoid, a ship beauty pass). Same shape as any mod - a manifest
+// listing its content files, relative to this folder. Listed in
+// `assets/mods.catalog.ron`; the example enables it by id at startup, and the reel
+// plugin (BCS_REEL) poses the camera per beat and captures. Not enabled in the
+// shipped game (it is a capture tool, not gameplay content).
+(content: ["reel.content.ron"])

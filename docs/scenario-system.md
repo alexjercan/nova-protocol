@@ -85,6 +85,19 @@ it would soft-lock the script; gated handlers make repeats no-ops.
   (id, name, position, rotation, radius) that drives `OnEnter`/`OnExit`.
 - `NextScenario` - queue a switch to another scenario by id; `linger: true`
   defers the switch until something clears the flag (e.g. the Enter key input).
+- `SetCamera { position, look_at }` - pose the scenario camera (the
+  `ScenarioCameraMarker` entity) at `position` looking at `look_at`. It drops
+  `WASDCameraController` so the scripted pose holds - the free-fly controller's
+  `sync_transform` would otherwise overwrite the camera `Transform` every frame
+  (same swap the player-ship-spawn observer does). No-op with a warning if no
+  scenario camera is present. Part of the in-engine photo-mode surface.
+- `Screenshot { path }` - capture the primary window to a PNG at `path`, built
+  on Bevy's `Screenshot::primary_window()` + `save_to_disk` (no capture crate).
+  A relative `path` resolves under the `NOVA_SHOT_DIR` env var when set (so an
+  example or a packaging script can redirect all captures to a staging folder),
+  else it is relative to the working directory; the parent dir is created if
+  missing. Pair `SetCamera` (pose) + settle frames + `Screenshot` (capture) to
+  script a framed shot; the screenshot-reel example drives exactly this.
 
 ## Variables and the event world (`world.rs`, `variables.rs`)
 

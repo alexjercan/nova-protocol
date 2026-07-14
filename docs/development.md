@@ -114,6 +114,31 @@ uses its `wasm_js` feature there. Trunk only supports the `release` profile.
 The GitHub Pages deploy (`.github/workflows/deploy-page.yaml`) builds the
 landing site (`web/`) at the root and the game under `/play/`.
 
+### Regenerating the web screenshots
+
+The site's `.figure` blocks ship as placeholders; the real screenshots are
+captured in-engine and packaged into `web/src/assets/` by
+`scripts/gen-web-screenshots.py`. Each figure auto-upgrades to its image at
+runtime once the asset exists (progressive enhancement in `web/src/site.ts`), so
+no HTML edit is needed - just drop the file in.
+
+Capture (needs a display + GPU; headless CI-style is Xvfb + lavapipe) into a
+staging dir, then package into `web/src/assets/`:
+
+```sh
+export NOVA_SHOT_DIR=target/reel
+BCS_REEL=1                cargo run --example 13_screenshot_reel   --features debug
+BCS_AUTOPILOT=1 BCS_REEL=1 cargo run --example 14_screenshot_ui     --features debug
+BCS_AUTOPILOT=1 BCS_REEL=1 cargo run --example 15_screenshot_combat --features debug
+python3 scripts/gen-web-screenshots.py   # validate + copy; also writes the 44x44 section icons
+```
+
+The example examples run headless under `BCS_AUTOPILOT`; the reel poses a
+free-fly camera per beat and captures 1920x1080 PNGs. The Python step validates
+each shot is 16:9, copies it in, generates the section icons, and reports which
+shots have no capture example yet. Commit the resulting PNGs (they are content,
+like `banner.png`).
+
 ## Versioning and release
 
 - Version: `workspace.package.version` in root `Cargo.toml`; crates inherit it.

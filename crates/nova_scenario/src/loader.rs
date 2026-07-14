@@ -9,9 +9,9 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        scenario_is_live, CurrentScenario, GameScenarios, LoadScenario, ScenarioConfig,
-        ScenarioEventConfig, ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin,
-        ScenarioScopedMarker, UnloadScenario,
+        scenario_is_live, CurrentScenario, GameScenarios, LoadScenario, ScenarioCameraMarker,
+        ScenarioConfig, ScenarioEventConfig, ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin,
+        ScenarioScopedMarker, ScriptedCameraPose, UnloadScenario,
     };
 }
 
@@ -165,6 +165,40 @@ impl Plugin for ScenarioLoaderPlugin {
         // lessons tick the instant the lock lands.
         app.register_type::<LockEcho>();
         app.add_systems(Update, track_player_locks.run_if(scenario_is_live));
+
+        // Scripted-camera override (photo mode / the screenshot reel): the
+        // `SetCamera` action pins a `ScriptedCameraPose` on the scenario camera;
+        // enforce it in PostUpdate AFTER the WASD sync so the scripted pose wins
+        // the last write before render. The free-fly controller's state machine
+        // keeps writing the camera Transform every frame (and removing the
+        // controller does not stop it - the private state components survive), so
+        // a one-shot Transform set would be immediately overwritten; running last
+        // is what makes the pose stick.
+        app.add_systems(
+            PostUpdate,
+            enforce_scripted_camera_pose.after(WASDCameraSystems::Sync),
+        );
+    }
+}
+
+/// A scripted camera pose that overrides the free-fly WASD controller, applied
+/// every frame by [`enforce_scripted_camera_pose`]. Set by the `SetCamera`
+/// scenario action (photo mode) and the screenshot reel; while present it pins
+/// the [`ScenarioCameraMarker`] camera at `position` looking at `look_at`.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct ScriptedCameraPose {
+    /// World-space camera position.
+    pub position: Vec3,
+    /// World-space point the camera looks at (up is +Y).
+    pub look_at: Vec3,
+}
+
+/// Pin every camera carrying a [`ScriptedCameraPose`] to that pose. Ordered
+/// after `WASDCameraSystems::Sync` so it wins the frame's last write to the
+/// camera Transform.
+fn enforce_scripted_camera_pose(mut cameras: Query<(&mut Transform, &ScriptedCameraPose)>) {
+    for (mut transform, pose) in &mut cameras {
+        *transform = Transform::from_translation(pose.position).looking_at(pose.look_at, Vec3::Y);
     }
 }
 
@@ -569,8 +603,13 @@ fn on_next_input(
     world.next_scenario = Some(next_scenario);
 }
 
+/// Marks the scenario's free-fly camera (the one spawned by
+/// [`on_load_scenario`], carrying [`WASDCameraController`] until a player ship
+/// swaps it to the chase camera). The `SetCamera` scenario action
+/// ([`SetCameraActionConfig`](crate::actions::SetCameraActionConfig)) queries
+/// this to pose the camera for a scripted screenshot.
 #[derive(Component, Debug, Clone)]
-struct ScenarioCameraMarker;
+pub struct ScenarioCameraMarker;
 
 fn on_player_spaceship_spawned(
     add: On<Add, PlayerSpaceshipMarker>,

@@ -20,4 +20,10 @@
         description: "Example mod: up-armors a hull section and adds an arena scenario.",
         bundle: "mods/demo/demo.bundle.ron",
     ),
+    (
+        id: "screenshot-reel",
+        name: "Screenshot Reel",
+        description: "Capture set for the screenshot-reel example (web-site screenshots).",
+        bundle: "mods/screenshot-reel/screenshot-reel.bundle.ron",
+    ),
 ])

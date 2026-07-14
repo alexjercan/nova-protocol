@@ -1,5 +1,8 @@
 use avian3d::prelude::*;
-use bevy::prelude::*;
+use bevy::{
+    prelude::*,
+    render::view::screenshot::{save_to_disk, Screenshot},
+};
 use bevy_common_systems::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
@@ -13,8 +16,8 @@ pub mod prelude {
         HintEmphasisSetActionConfig, NextScenarioActionConfig, ObjectiveActionConfig,
         ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
         ObjectiveMarkerDetachActionConfig, ScatterObjectsConfig, ScatterRegion, ScenarioAreaConfig,
-        ScenarioObjectConfig, ScenarioObjectKind, SetControllerVerbActionConfig,
-        SetSpeedCapActionConfig, VariableSetActionConfig,
+        ScenarioObjectConfig, ScenarioObjectKind, ScreenshotActionConfig, SetCameraActionConfig,
+        SetControllerVerbActionConfig, SetSpeedCapActionConfig, VariableSetActionConfig,
     };
 }
 
@@ -36,6 +39,10 @@ pub enum EventActionConfig {
     SetControllerVerb(SetControllerVerbActionConfig),
     CreateScenarioArea(ScenarioAreaConfig),
     NextScenario(NextScenarioActionConfig),
+    /// Pose the scenario camera for a scripted shot (photo mode).
+    SetCamera(SetCameraActionConfig),
+    /// Capture the primary window to a PNG (photo mode).
+    Screenshot(ScreenshotActionConfig),
 }
 
 impl EventAction<NovaEventWorld> for EventActionConfig {
@@ -86,7 +93,133 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
             EventActionConfig::NextScenario(config) => {
                 config.action(world, info);
             }
+            EventActionConfig::SetCamera(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::Screenshot(config) => {
+                config.action(world, info);
+            }
         }
+    }
+}
+
+/// Pose the scenario camera (the [`ScenarioCameraMarker`] entity) at `position`
+/// looking at `look_at` by pinning a [`ScriptedCameraPose`] on it (and dropping
+/// [`WASDCameraController`] so free-fly input stops). The pose is enforced every
+/// frame after the WASD sync, so it holds even though the controller's state
+/// machine keeps writing the Transform - a one-shot set would be overwritten,
+/// and removing the controller does not stop it (its private state components
+/// survive). A no-op with a warning when no scenario camera is present (e.g. a
+/// headless rig without the loader's camera).
+///
+/// Part of the in-engine photo-mode surface, paired with
+/// [`ScreenshotActionConfig`]: a beat poses the camera, settles, then captures.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SetCameraActionConfig {
+    /// World-space camera position.
+    pub position: Vec3,
+    /// World-space point the camera looks at (up is +Y).
+    pub look_at: Vec3,
+}
+
+impl EventAction<NovaEventWorld> for SetCameraActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let position = self.position;
+        let look_at = self.look_at;
+        debug!("SetCamera: position {:?} look_at {:?}", position, look_at);
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                // Resolve the camera before taking a mutable borrow (the query's
+                // immutable borrow of `world` ends with this block).
+                let camera = {
+                    let mut query = world.query_filtered::<Entity, With<ScenarioCameraMarker>>();
+                    query.iter(world).next()
+                };
+                let Some(camera) = camera else {
+                    warn!("SetCamera: no scenario camera present; nothing to pose");
+                    return;
+                };
+
+                if let Ok(mut entity) = world.get_entity_mut(camera) {
+                    // Drop free-fly input and pin the scripted pose; the loader's
+                    // enforcer applies it after the WASD sync every frame.
+                    entity.remove::<WASDCameraController>();
+                    entity.insert(ScriptedCameraPose { position, look_at });
+                }
+            });
+        });
+    }
+}
+
+/// Resolve a screenshot output path. Absolute paths are used as-is; a relative
+/// path is joined under the `NOVA_SHOT_DIR` env var when set (so an example or a
+/// packaging script can redirect all captures to a staging folder), else it is
+/// relative to the process working directory.
+fn resolve_capture_path(path: &str) -> std::path::PathBuf {
+    let dir = std::env::var("NOVA_SHOT_DIR")
+        .ok()
+        .filter(|dir| !dir.is_empty());
+    resolve_capture_path_in(path, dir.as_deref())
+}
+
+/// Pure core of [`resolve_capture_path`], with the capture dir passed in so it
+/// is testable without mutating the process environment.
+fn resolve_capture_path_in(path: &str, capture_dir: Option<&str>) -> std::path::PathBuf {
+    let path = std::path::Path::new(path);
+    match capture_dir {
+        Some(dir) if !path.is_absolute() => std::path::Path::new(dir).join(path),
+        _ => path.to_path_buf(),
+    }
+}
+
+/// Capture the primary window to a PNG at `path` (photo mode). Relative paths
+/// resolve under `NOVA_SHOT_DIR` (see [`resolve_capture_path`]). Built on Bevy's
+/// built-in `Screenshot::primary_window()` + `save_to_disk` observer - the same
+/// primitive the screenshot harness uses - so no capture dependency is added.
+/// The parent directory is created if missing; a capture on a build without a
+/// render backend simply never lands, which is acceptable for a dev/marketing
+/// tool.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ScreenshotActionConfig {
+    /// Output PNG path (relative paths resolve under `NOVA_SHOT_DIR`).
+    pub path: String,
+}
+
+impl ScreenshotActionConfig {
+    /// Construct from a string slice.
+    pub fn new(path: &str) -> Self {
+        Self {
+            path: path.to_string(),
+        }
+    }
+}
+
+impl EventAction<NovaEventWorld> for ScreenshotActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let path = self.path.clone();
+        debug!("Screenshot: capturing to '{}'", path);
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                let resolved = resolve_capture_path(&path);
+                if let Some(parent) = resolved.parent() {
+                    if !parent.as_os_str().is_empty() {
+                        if let Err(error) = std::fs::create_dir_all(parent) {
+                            warn!(
+                                "Screenshot: could not create capture dir {:?}: {error}",
+                                parent
+                            );
+                        }
+                    }
+                }
+                world
+                    .spawn(Screenshot::primary_window())
+                    .observe(save_to_disk(resolved));
+            });
+        });
     }
 }
 
@@ -1150,6 +1283,136 @@ mod tests {
             }))
             .id();
         assert!(world.get::<TransformInterpolation>(entity).is_some());
+    }
+
+    /// SetCamera pins a `ScriptedCameraPose` on the scenario camera and drops
+    /// WASD control (the loader's enforcer then applies the pose every frame, so
+    /// it holds against the free-fly state machine). Mirrors the despawn harness:
+    /// fire into a `NovaEventWorld`, drain, assert on the world.
+    #[test]
+    fn set_camera_pins_a_scripted_pose_and_drops_wasd() {
+        use bevy_common_systems::prelude::{EventWorld, WASDCameraController};
+
+        use crate::prelude::{ScenarioCameraMarker, ScriptedCameraPose};
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+
+        let camera = world
+            .spawn((
+                ScenarioCameraMarker,
+                WASDCameraController,
+                Transform::from_xyz(0.0, 10.0, 20.0),
+            ))
+            .id();
+
+        let action = SetCameraActionConfig {
+            position: Vec3::new(5.0, 6.0, 7.0),
+            look_at: Vec3::ZERO,
+        };
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        action.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        let pose = world
+            .get::<ScriptedCameraPose>(camera)
+            .expect("the camera is pinned to a scripted pose");
+        assert_eq!(pose.position, Vec3::new(5.0, 6.0, 7.0));
+        assert_eq!(pose.look_at, Vec3::ZERO);
+        assert!(
+            world.get::<WASDCameraController>(camera).is_none(),
+            "WASD control is dropped so free-fly input stops"
+        );
+    }
+
+    /// SetCamera against a world with no scenario camera is a warn-and-continue
+    /// no-op, not a panic (a headless rig without the loader's camera).
+    #[test]
+    fn set_camera_without_a_camera_is_harmless() {
+        use bevy_common_systems::prelude::EventWorld;
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+        let bystander = world.spawn(Transform::default()).id();
+
+        let action = SetCameraActionConfig {
+            position: Vec3::ONE,
+            look_at: Vec3::ZERO,
+        };
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        action.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        assert!(world.get_entity(bystander).is_ok());
+    }
+
+    /// The Screenshot action queues a capture without panicking on a world with
+    /// no render backend (the `save_to_disk` observer simply never fires): the
+    /// drain must complete and a `Screenshot` request entity must exist. A bare
+    /// filename has no parent dir, so the action writes nothing to disk here.
+    #[test]
+    fn screenshot_action_queues_a_capture_without_render() {
+        use bevy_common_systems::prelude::EventWorld;
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+
+        let action = ScreenshotActionConfig::new("nova_test_shot.png");
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        action.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        let requests = world.query::<&Screenshot>().iter(&world).count();
+        assert_eq!(requests, 1, "exactly one capture request is spawned");
+    }
+
+    /// `resolve_capture_path_in` joins relative paths under the capture dir,
+    /// leaves absolute paths alone, and is a no-op without a dir. Tests the pure
+    /// core so no process-wide env mutation is needed.
+    #[test]
+    fn resolve_capture_path_honors_the_capture_dir() {
+        use std::path::Path;
+
+        // A relative path is joined under the capture dir.
+        assert_eq!(
+            resolve_capture_path_in("feature-gravity.png", Some("/tmp/nova-shots")),
+            Path::new("/tmp/nova-shots/feature-gravity.png")
+        );
+        // No capture dir: the relative path is used as-is.
+        assert_eq!(
+            resolve_capture_path_in("feature-gravity.png", None),
+            Path::new("feature-gravity.png")
+        );
+        // An absolute path passes through even with a capture dir set.
+        assert_eq!(
+            resolve_capture_path_in("/shots/a.png", Some("/tmp/nova-shots")),
+            Path::new("/shots/a.png")
+        );
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn set_camera_config_round_trips_through_ron() {
+        let config = SetCameraActionConfig {
+            position: Vec3::new(1.0, 2.0, 3.0),
+            look_at: Vec3::new(-1.0, 0.0, 5.0),
+        };
+        let ron = ron::to_string(&config).expect("serialize");
+        let back: SetCameraActionConfig = ron::from_str(&ron).expect("deserialize");
+        assert_eq!(back.position, config.position);
+        assert_eq!(back.look_at, config.look_at);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn screenshot_config_round_trips_through_ron() {
+        let config = ScreenshotActionConfig::new("shots/feature-gravity.png");
+        let ron = ron::to_string(&config).expect("serialize");
+        let back: ScreenshotActionConfig = ron::from_str(&ron).expect("deserialize");
+        assert_eq!(back.path, config.path);
     }
 }
 

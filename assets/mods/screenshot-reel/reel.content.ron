@@ -1,0 +1,126 @@
+// The screenshot-reel scene. One scenario, `screenshot_reel`, whose OnStart builds
+// a static showcase set: a gravity planetoid, a scattered asteroid field around it,
+// and a built showcase ship posed in the foreground. It carries NO camera or
+// screenshot actions - the `13_screenshot_reel` example owns the reel cadence
+// (pose the camera per beat, settle, capture) via the ScreenshotReelPlugin, so the
+// scene stays pure data and the framing/filenames live with the capture code.
+//
+// Deterministic: the scatter uses a fixed seed, so every capture run frames the
+// same field. The ship uses `controller: None` (a prop, not flown) so no HUD or
+// input is needed - the pure-3D shots this scene produces are the ones a scenario
+// alone can make (the HUD/menu/editor/combat shots are driven by the example).
+[
+    Scenario((
+        id: "screenshot_reel",
+        name: "Screenshot Reel",
+        description: "A static showcase set filmed by the screenshot-reel example.",
+        cubemap: "textures/cubemap.png",
+        events: [
+            (
+                name: OnStart,
+                filters: [],
+                actions: [
+                    DebugMessage((
+                        message: "screenshot-reel scene loaded (capture set).",
+                    )),
+                    // The planetoid: a big, invulnerable rock, off to one side so a
+                    // beat can frame the ship against it. NO surface-gravity well -
+                    // the shots are static stills, and a live well would pull the
+                    // dynamic showcase ship out of frame over the reel's duration.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "reel_planetoid",
+                            name: "Planetoid",
+                            position: (26.0, 0.0, -6.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 4.0,
+                            texture: "textures/asteroid.png",
+                            health: 5000.0,
+                            surface_gravity: None,
+                            invulnerable: true,
+                        )),
+                    )),
+                    // The asteroid field: a deterministic ring of rocks around the
+                    // origin, the backdrop for the wide/thumbnail beats.
+                    ScatterObjects((
+                        id_prefix: "reel_rock_",
+                        count: 28,
+                        seed: 20260714,
+                        region: Ring(
+                            inner: 90.0,
+                            outer: 180.0,
+                            y_min: -30.0,
+                            y_max: 30.0,
+                        ),
+                        template: (
+                            base: (
+                                id: "reel_rock",
+                                name: "Rock",
+                                position: (0.0, 0.0, 0.0),
+                                rotation: (0.0, 0.0, 0.0, 1.0),
+                            ),
+                            kind: Asteroid((
+                                radius: 3.0,
+                                texture: "textures/asteroid.png",
+                                health: 100.0,
+                                surface_gravity: None,
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((1.5, 5.5)),
+                    )),
+                    // The showcase ship: a built hull (controller + hulls + thruster
+                    // + turret) posed in the foreground, not flown (controller None).
+                    SpawnScenarioObject((
+                        base: (
+                            id: "reel_ship",
+                            name: "Showcase Ship",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: None,
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (0.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (0.0, 0.0, -1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "hull_back",
+                                    position: (0.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (0.0, 0.0, 2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                                (
+                                    id: "turret",
+                                    position: (0.0, 0.0, -2.0),
+                                    // X -90 degrees so the turret base sits upright
+                                    // (matches the turret placement in the combat
+                                    // examples / 04_turret_section).
+                                    rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+                                    source: Prototype("better_turret_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                ],
+            ),
+        ],
+    )),
+]

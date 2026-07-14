@@ -15,7 +15,10 @@ pub mod prelude {
     // with Bevy's own `bevy::render::view::screenshot::ScreenshotPlugin`.
     pub use super::{
         debugdump,
-        harness::{assert_scenario_loaded, nova_autopilot, nova_screenshot},
+        harness::{
+            assert_scenario_loaded, capture_window, hide_dev_overlays, nova_autopilot,
+            nova_screenshot, reel_pose_camera, ReelBeat, ReelCamera, ScreenshotReelPlugin,
+        },
         DebugPlugin,
     };
 }
