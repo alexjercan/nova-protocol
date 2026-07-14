@@ -8,14 +8,16 @@ use bevy::{
 };
 use bevy_asset_loader::prelude::*;
 use nova_gameplay::prelude::*;
-use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog};
+use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, ModEntry};
 use nova_scenario::prelude::GameScenarios;
 
 mod scenario;
 mod sections;
 
 pub mod prelude {
-    pub use super::{EnabledMods, GameAssets, GameAssetsPlugin, GameAssetsStates};
+    pub use nova_modding::prelude::ModEntry;
+
+    pub use super::{EnabledMods, GameAssets, GameAssetsPlugin, GameAssetsStates, ModCatalog};
 }
 
 /// The RON generation surface for the built-in scenarios (task 20260525-133028
@@ -114,6 +116,29 @@ pub use crate::register_bundles as register_bundles_for_test;
 /// is `Changed`-watched so a toggle re-runs the merge live.
 #[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
 pub struct EnabledMods(pub HashSet<String>);
+
+/// The installed-mods metadata, in catalog order - the menu-facing view of the
+/// [`InstalledCatalog`] asset (metadata only, no bundle handles).
+///
+/// Built once from the loaded catalog at `OnEnter(Processing)` by
+/// [`build_mod_catalog`]. The mods menu reads this (plus [`EnabledMods`]) to render
+/// its list without touching the asset machinery. Empty until the catalog loads.
+#[derive(Resource, Clone, Debug, Default)]
+pub struct ModCatalog(pub Vec<ModEntry>);
+
+/// Fill [`ModCatalog`] from the loaded [`InstalledCatalog`] asset (metadata only),
+/// in catalog order. Runs at `OnEnter(Processing)`, before `seed_enabled_mods`.
+pub fn build_mod_catalog(
+    game_assets: Res<GameAssets>,
+    catalogs: Res<Assets<InstalledCatalog>>,
+    mut mod_catalog: ResMut<ModCatalog>,
+) {
+    let Some(catalog) = catalogs.get(&game_assets.catalog) else {
+        error!("build_mod_catalog: the mods catalog was not loaded; the mods list is empty");
+        return;
+    };
+    mod_catalog.0 = catalog.entries.iter().map(|e| e.meta.clone()).collect();
+}
 
 /// Seed [`EnabledMods`] from the catalog's default-enabled (`base: true`) entries -
 /// but ONLY if it is still empty, so a persisted set (174131) or an early menu
@@ -333,6 +358,9 @@ impl Plugin for GameAssetsPlugin {
         // The enabled-mods set drives which cataloged bundles merge. Seeded from
         // the catalog's base entries at Processing; toggled by the mods menu.
         app.init_resource::<EnabledMods>();
+        // The menu-facing installed-mods metadata, filled from the catalog at
+        // Processing.
+        app.init_resource::<ModCatalog>();
 
         // Setup the asset loader to load assets during the loading state.
         app.init_state::<GameAssetsStates>();
@@ -346,6 +374,7 @@ impl Plugin for GameAssetsPlugin {
             OnEnter(GameAssetsStates::Processing),
             (
                 prepare_cubemap_view,
+                build_mod_catalog,
                 seed_enabled_mods,
                 register_bundles,
                 register_sounds,

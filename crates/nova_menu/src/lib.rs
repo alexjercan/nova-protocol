@@ -26,6 +26,7 @@ use bevy::{
     ui_widgets::{observe, Activate, Button},
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
+use nova_assets::prelude::{EnabledMods, ModCatalog, ModEntry};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
@@ -86,7 +87,15 @@ impl Plugin for NovaMenuPlugin {
         );
         app.add_systems(
             Update,
-            stage_menu_camera.run_if(in_state(GameStates::MainMenu)),
+            (stage_menu_camera, update_mod_toggle_labels).run_if(in_state(GameStates::MainMenu)),
+        );
+        // Wheel-scroll for the mods list: gated on the input message buffer existing
+        // (the real app's InputPlugin provides it; minimal headless test apps do not).
+        app.add_systems(
+            Update,
+            scroll_mods_panel
+                .run_if(in_state(GameStates::MainMenu))
+                .run_if(resource_exists::<Messages<bevy::input::mouse::MouseWheel>>),
         );
         // Button hover/press feedback serves both the main menu panel and the
         // pause overlay; the query only matches MenuButton, so running it
@@ -293,6 +302,24 @@ struct MenuButton;
 #[derive(Component)]
 struct SettingsPanel;
 
+/// Marker for the Mods panel root, toggled by the Mods button.
+#[derive(Component)]
+struct ModsPanel;
+
+/// The scrollable container holding the mod rows (wheel-scrolled by
+/// `scroll_mods_panel`, so a long installed-mods list stays reachable).
+#[derive(Component)]
+struct ModsScrollPanel;
+
+/// A mod row's enable/disable toggle button: carries the catalog `id` it toggles
+/// and whether it is the locked `base` entry. `on_mod_toggle` reads this on click;
+/// `update_mod_toggle_labels` renders the button's state from `EnabledMods`.
+#[derive(Component)]
+struct ModToggle {
+    id: String,
+    base: bool,
+}
+
 /// The living backdrop: load the ambient scenario behind the menu. The loader
 /// brings its own camera + skybox and tears down whatever was loaded before;
 /// the uniform OnExit(MainMenu) teardown (unload_menu_ambience) tears this
@@ -360,7 +387,11 @@ fn restore_hud_chrome(mut level: ResMut<HudVisibility>) {
 /// The menu panel: title on top, buttons below, anchored bottom-right per the
 /// spike's layout call (the center of the screen stays free for the background
 /// scene).
-fn setup_menu_ui(mut commands: Commands) {
+fn setup_menu_ui(
+    mut commands: Commands,
+    mod_catalog: Option<Res<ModCatalog>>,
+    enabled: Option<Res<EnabledMods>>,
+) {
     commands
         .spawn((
             DespawnOnExit(GameStates::MainMenu),
@@ -408,6 +439,7 @@ fn setup_menu_ui(mut commands: Commands) {
                 button("Sandbox"),
                 observe(on_sandbox),
             ));
+            parent.spawn((Name::new("Mods Button"), button("Mods"), observe(on_mods)));
             parent.spawn((
                 Name::new("Settings Button"),
                 button("Settings"),
@@ -477,6 +509,177 @@ fn setup_menu_ui(mut commands: Commands) {
                     ));
                 });
         });
+
+    // Mods panel: hidden until the Mods button toggles it. Lists the installed
+    // mods (from the catalog) with per-mod enable/disable toggles; base is shown
+    // locked-on. `Explore online` is a coming-soon placeholder.
+    let mods: Vec<ModEntry> = mod_catalog.map(|c| c.0.clone()).unwrap_or_default();
+    let is_enabled = |id: &str| enabled.as_ref().is_some_and(|e| e.0.contains(id));
+
+    commands
+        .spawn((
+            DespawnOnExit(GameStates::MainMenu),
+            Name::new("Mods Panel Root"),
+            ModsPanel,
+            Visibility::Hidden,
+            Pickable {
+                should_block_lower: false,
+                is_hoverable: false,
+            },
+            Node {
+                width: percent(100),
+                height: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+        ))
+        .with_children(|parent| {
+            parent
+                .spawn((
+                    Name::new("Mods Panel"),
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::Center,
+                        width: px(460),
+                        max_height: percent(80),
+                        padding: UiRect::all(px(20)),
+                        ..default()
+                    },
+                    BackgroundColor(BACKGROUND_COLOR),
+                ))
+                .with_children(|parent| {
+                    parent.spawn((
+                        Name::new("Mods Title"),
+                        Text::new("Mods"),
+                        TextFont {
+                            font_size: FontSize::Px(24.0),
+                            ..default()
+                        },
+                        TextColor(TEXT_COLOR),
+                    ));
+                    parent.spawn((
+                        Name::new("Mods Subtitle"),
+                        Text::new("Enable installed mods. Base is always on."),
+                        TextFont {
+                            font_size: FontSize::Px(13.0),
+                            ..default()
+                        },
+                        TextColor(Color::srgb(0.6, 0.6, 0.6)),
+                    ));
+
+                    // The scrollable list of installed mods.
+                    parent
+                        .spawn((
+                            Name::new("Mods List"),
+                            ModsScrollPanel,
+                            Node {
+                                flex_direction: FlexDirection::Column,
+                                align_self: AlignSelf::Stretch,
+                                overflow: Overflow::scroll_y(),
+                                margin: UiRect::vertical(px(10)),
+                                ..default()
+                            },
+                            ScrollPosition::default(),
+                        ))
+                        .with_children(|list| {
+                            for m in &mods {
+                                spawn_mod_row(list, m, is_enabled(&m.id));
+                            }
+                        });
+
+                    // Explore online: a disabled coming-soon placeholder (not a
+                    // MenuButton, so it takes no hover/press feedback and has no
+                    // observer - it is inert on purpose).
+                    parent.spawn((
+                        Name::new("Explore Online Button"),
+                        Node {
+                            width: percent(100),
+                            min_height: px(40),
+                            margin: UiRect::all(px(8)),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            border_radius: BorderRadius::MAX,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgb(0.12, 0.12, 0.12)),
+                        children![(
+                            Text::new("Explore online (coming soon)"),
+                            TextFont {
+                                font_size: FontSize::Px(14.0),
+                                ..default()
+                            },
+                            TextColor(Color::srgb(0.45, 0.45, 0.45)),
+                        )],
+                    ));
+
+                    parent.spawn((
+                        Name::new("Mods Back Button"),
+                        button("Back"),
+                        observe(on_mods_back),
+                    ));
+                });
+        });
+}
+
+/// Spawn one mod row: name + description, then either a toggle button (its label
+/// set by `update_mod_toggle_labels`) or, for the locked `base` mod, a static
+/// "Enabled (base)" tag.
+fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModEntry, enabled: bool) {
+    list.spawn((
+        Name::new(format!("Mod Row: {}", m.id)),
+        Node {
+            flex_direction: FlexDirection::Column,
+            align_self: AlignSelf::Stretch,
+            padding: UiRect::all(px(6)),
+            margin: UiRect::bottom(px(4)),
+            ..default()
+        },
+        BackgroundColor(Color::srgb(0.13, 0.13, 0.13)),
+        children![
+            (
+                Name::new("Mod Name"),
+                Text::new(m.name.clone()),
+                TextFont {
+                    font_size: FontSize::Px(16.0),
+                    ..default()
+                },
+                TextColor(TEXT_COLOR),
+            ),
+            (
+                Name::new("Mod Description"),
+                Text::new(m.description.clone()),
+                TextFont {
+                    font_size: FontSize::Px(12.0),
+                    ..default()
+                },
+                TextColor(Color::srgb(0.6, 0.6, 0.6)),
+            ),
+        ],
+    ))
+    .with_children(|row| {
+        if m.base {
+            row.spawn((
+                Name::new("Mod Locked Tag"),
+                Text::new("Enabled (base)"),
+                TextFont {
+                    font_size: FontSize::Px(13.0),
+                    ..default()
+                },
+                TextColor(Color::srgb(0.5, 0.75, 0.5)),
+            ));
+        } else {
+            row.spawn((
+                Name::new("Mod Toggle Button"),
+                button(if enabled { "Enabled" } else { "Disabled" }),
+                ModToggle {
+                    id: m.id.clone(),
+                    base: m.base,
+                },
+                observe(on_mod_toggle),
+            ));
+        }
+    });
 }
 
 fn on_new_game(
@@ -516,6 +719,93 @@ fn on_settings_back(
     mut panel: Single<&mut Visibility, With<SettingsPanel>>,
 ) {
     **panel = Visibility::Hidden;
+}
+
+fn on_mods(_activate: On<Activate>, mut panel: Single<&mut Visibility, With<ModsPanel>>) {
+    **panel = match **panel {
+        Visibility::Hidden => Visibility::Visible,
+        _ => Visibility::Hidden,
+    };
+}
+
+fn on_mods_back(_activate: On<Activate>, mut panel: Single<&mut Visibility, With<ModsPanel>>) {
+    **panel = Visibility::Hidden;
+}
+
+/// Toggle a mod's enabled state on click. Reads the clicked button's [`ModToggle`]
+/// and flips its id in [`EnabledMods`] - which nova_assets' `resource_changed`
+/// re-merge then applies live. The `base` mod is locked on (its row has no toggle
+/// button, but guard here too).
+fn on_mod_toggle(
+    activate: On<Activate>,
+    toggles: Query<&ModToggle>,
+    mut enabled: ResMut<EnabledMods>,
+) {
+    let Ok(toggle) = toggles.get(activate.entity) else {
+        return;
+    };
+    if toggle.base {
+        return;
+    }
+    if enabled.0.contains(&toggle.id) {
+        enabled.0.remove(&toggle.id);
+    } else {
+        enabled.0.insert(toggle.id.clone());
+    }
+}
+
+/// Keep each mod toggle button's label + text colour in sync with [`EnabledMods`]
+/// (e.g. after a click, or a future persisted set). The button background is left to
+/// `update_button_colors` (hover/press); the label text carries the on/off state.
+fn update_mod_toggle_labels(
+    enabled: Option<Res<EnabledMods>>,
+    toggles: Query<(&ModToggle, &Children)>,
+    mut texts: Query<(&mut Text, &mut TextColor)>,
+) {
+    let Some(enabled) = enabled else {
+        return;
+    };
+    for (toggle, children) in &toggles {
+        let on = enabled.0.contains(&toggle.id);
+        let label = if on { "Enabled" } else { "Disabled" };
+        let color = if on {
+            Color::srgb(0.5, 0.85, 0.5)
+        } else {
+            TEXT_COLOR
+        };
+        for child in children.iter() {
+            if let Ok((mut text, mut text_color)) = texts.get_mut(child) {
+                if text.0 != label {
+                    text.0 = label.to_string();
+                }
+                if text_color.0 != color {
+                    text_color.0 = color;
+                }
+            }
+        }
+    }
+}
+
+/// Mouse-wheel scroll for the mods list (the editor's scroll pattern), so a long
+/// installed-mods list stays reachable.
+fn scroll_mods_panel(
+    mut wheel: MessageReader<bevy::input::mouse::MouseWheel>,
+    mut panels: Query<&mut ScrollPosition, With<ModsScrollPanel>>,
+) {
+    use bevy::input::mouse::MouseScrollUnit;
+    let dy: f32 = wheel
+        .read()
+        .map(|ev| match ev.unit {
+            MouseScrollUnit::Line => ev.y * 20.0,
+            MouseScrollUnit::Pixel => ev.y,
+        })
+        .sum();
+    if dy == 0.0 {
+        return;
+    }
+    for mut scroll in &mut panels {
+        scroll.0.y = (scroll.0.y - dy).max(0.0);
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -943,5 +1233,112 @@ mod tests {
             "pose must derive from the well's runtime geometry, got {staged:?}"
         );
         assert!(app.world().get::<Camera>(cam).unwrap().is_active);
+    }
+
+    /// Clicking a non-base mod's toggle flips its id in `EnabledMods` (the set the
+    /// nova_assets re-merge watches). Driven via `trigger(Activate)` like the other
+    /// button tests.
+    #[test]
+    fn mod_toggle_flips_enabled_state() {
+        let mut app = app();
+        app.insert_resource(EnabledMods::default());
+        let toggle = app
+            .world_mut()
+            .spawn((
+                ModToggle {
+                    id: "demo".to_string(),
+                    base: false,
+                },
+                observe(on_mod_toggle),
+            ))
+            .id();
+        app.update();
+
+        // Enable.
+        app.world_mut().trigger(Activate { entity: toggle });
+        app.update();
+        assert!(
+            app.world().resource::<EnabledMods>().0.contains("demo"),
+            "clicking an off toggle enables the mod"
+        );
+
+        // Disable.
+        app.world_mut().trigger(Activate { entity: toggle });
+        app.update();
+        assert!(
+            !app.world().resource::<EnabledMods>().0.contains("demo"),
+            "clicking an on toggle disables the mod"
+        );
+    }
+
+    /// Entering the menu with a populated `ModCatalog` builds the mods list: the
+    /// demo mod gets a toggle button (it is IN the list and enableable - the flow's
+    /// goal), and the locked base mod gets NO toggle.
+    #[test]
+    fn mods_panel_lists_catalog_demo_toggle_base_locked() {
+        let mut app = app();
+        app.insert_resource(dummy_scenarios());
+        app.insert_resource(ModCatalog(vec![
+            ModEntry {
+                id: "base".to_string(),
+                name: "Base Game".to_string(),
+                description: "base".to_string(),
+                bundle: "base/base.bundle.ron".to_string(),
+                base: true,
+            },
+            ModEntry {
+                id: "demo".to_string(),
+                name: "Demo Mod".to_string(),
+                description: "demo".to_string(),
+                bundle: "mods/demo/demo.bundle.ron".to_string(),
+                base: false,
+            },
+        ]));
+        app.insert_resource(EnabledMods(["base".to_string()].into_iter().collect()));
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::MainMenu);
+        app.update();
+
+        let toggles: Vec<String> = app
+            .world_mut()
+            .query::<&ModToggle>()
+            .iter(app.world())
+            .map(|t| t.id.clone())
+            .collect();
+        assert!(
+            toggles.contains(&"demo".to_string()),
+            "the demo mod is listed with an enable/disable toggle"
+        );
+        assert!(
+            !toggles.contains(&"base".to_string()),
+            "base is locked - it has no toggle button"
+        );
+    }
+
+    /// The base mod is locked on: even if a `ModToggle { base: true }` were clicked,
+    /// `on_mod_toggle` is a no-op, so base stays enabled.
+    #[test]
+    fn base_mod_toggle_is_locked_on() {
+        let mut app = app();
+        app.insert_resource(EnabledMods(["base".to_string()].into_iter().collect()));
+        let toggle = app
+            .world_mut()
+            .spawn((
+                ModToggle {
+                    id: "base".to_string(),
+                    base: true,
+                },
+                observe(on_mod_toggle),
+            ))
+            .id();
+        app.update();
+
+        app.world_mut().trigger(Activate { entity: toggle });
+        app.update();
+        assert!(
+            app.world().resource::<EnabledMods>().0.contains("base"),
+            "base is locked - toggling it must not disable it"
+        );
     }
 }

@@ -105,6 +105,39 @@ fn merge_with_enabled(enabled: &[&str]) -> (GameSections, GameScenarios) {
     (sections, scenarios)
 }
 
+/// `build_mod_catalog` fills the menu-facing `ModCatalog` with every installed mod's
+/// metadata, in catalog order (base first) - the list the mods menu renders.
+#[test]
+fn mod_catalog_lists_installed_mods_metadata() {
+    let mut app = headless_app();
+    let asset_server = app.world().resource::<AssetServer>().clone();
+    let catalog: Handle<InstalledCatalog> = asset_server.load("mods.catalog.ron");
+    wait_recursive_loaded(
+        &mut app,
+        &asset_server,
+        catalog.id().untyped(),
+        "the mods catalog",
+    );
+
+    app.world_mut()
+        .insert_resource(game_assets_with_catalog(catalog));
+    app.world_mut().init_resource::<ModCatalog>();
+    app.world_mut()
+        .run_system_once(nova_assets::build_mod_catalog)
+        .expect("build mod catalog");
+
+    let mods = &app.world().resource::<ModCatalog>().0;
+    assert_eq!(mods.len(), 2, "base + demo are installed");
+    assert_eq!(mods[0].id, "base", "base is first (load order)");
+    assert!(mods[0].base, "base is flagged");
+    assert_eq!(mods[1].id, "demo");
+    assert!(!mods[1].base);
+    assert!(
+        !mods[1].name.is_empty() && !mods[1].description.is_empty(),
+        "the demo entry carries display metadata"
+    );
+}
+
 #[test]
 fn catalog_loads_and_base_only_merges_by_default() {
     // Only base enabled (the startup default) -> base content merges, the demo mod
