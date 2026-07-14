@@ -1,6 +1,6 @@
 # Spike: main-menu mod manager - installed catalog, base as a default mod, enable/disable + persistence
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: spike
 
