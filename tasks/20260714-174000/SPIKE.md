@@ -178,3 +178,12 @@ Direction-level tasks this spike seeded, for `/plan` to break into steps:
   is now data; startup behaviour identical (base only). Reviewed APPROVE (out-of-context,
   no defects). Next: 174126 (Mods menu - meets the goal), then 174131 (persistence). See
   tasks/20260714-174120/{TASK,REVIEW,RETRO}.md.
+- 20260714, Mods menu section (174126) landed on master (`efa2523`): THE GOAL is met -
+  the demo mod is in the main-menu Mods list and enableable. Added a `ModCatalog` resource
+  (nova_assets, metadata built from the catalog at Processing) + re-exported `ModEntry`; a
+  modal `ModsPanel` in nova_menu (Settings-panel pattern) lists installed mods with
+  enable/disable toggles bound to `EnabledMods` (base shown locked), a coming-soon "Explore
+  online" placeholder, and a scrollable list. Toggling flips `EnabledMods` -> 174120's
+  re-merge applies it live (updates GameScenarios for the next New Game). Reviewed APPROVE
+  (out-of-context, one pre-existing modal-overlap UX nit deferred). Remaining: 174131
+  (persist the enabled set across restarts). See tasks/20260714-174126/{TASK,REVIEW,RETRO}.md.

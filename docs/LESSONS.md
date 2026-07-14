@@ -51,6 +51,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `observer-over-spawn-site` (x1): attach a derived component to every entity
   of a kind with an `On<Add, Marker>` observer, not by hunting spawn sites.
   20260712-203345.
+- `messagereader-needs-resource-guard-in-tests` (x1): a system with a
+  `MessageReader<T>`/event param added to a plugin panics in that plugin's
+  MINIMAL-app tests (which omit `InputPlugin` etc, so `Messages<T>` is absent);
+  gate it `run_if(resource_exists::<Messages<T>>)`. A new scroll system broke 4
+  menu tests that only entered the state. 20260714-174126.
 - `worktree-shares-main-target` (x1, CORRECTED): a fresh sprout worktree has an
   empty `target/` - accept the cold build; do NOT share `CARGO_TARGET_DIR` with
   the main checkout (same crates, artifacts clobber; a worktree binary silently
