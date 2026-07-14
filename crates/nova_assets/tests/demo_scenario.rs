@@ -191,8 +191,11 @@ fn bundle_untyped_load_resolves_the_loader() {
     app.add_plugins(NovaModdingPlugin);
 
     let asset_server = app.world().resource::<AssetServer>().clone();
-    // UNTYPED, mirroring bevy_asset_loader's collection kickoff.
-    let handle = asset_server.load_untyped("base/base.bundle.ron");
+    // UNTYPED, mirroring bevy_asset_loader's collection kickoff (which resolves
+    // the loader by extension alone, with no asset type to fall back on).
+    let handle = asset_server
+        .load_builder()
+        .load_untyped("base/base.bundle.ron");
 
     let deadline = Instant::now() + Duration::from_secs(60);
     loop {
