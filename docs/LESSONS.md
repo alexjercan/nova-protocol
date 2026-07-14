@@ -123,6 +123,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   compile `#[cfg(test)]` code; after a type change verify with `cargo test
   --workspace --no-run` (CI's build) or a test build broke silently past the branch
   gate onto master (a stray `Handle` in a test helper). 20260525-133028.
+- `stage-lock-with-manifest` (x1): a commit that changes a `Cargo.toml` dep list
+  must stage `Cargo.lock` too; explicit-path `git add` (the no-worktree habit)
+  silently drops the lock, leaving a stale `--locked`/CI build. Glance at
+  `git status` for related generated files before committing. 20260714-113408.
 - `bg-session-authors-on-branch` (x1): background sessions cannot Write in the
   shared checkout, and parallel sessions sweep loose files there; author task
   and doc content inside the first sprouted worktree, only `tatr new` stubs

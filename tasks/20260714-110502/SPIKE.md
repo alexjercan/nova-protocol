@@ -171,4 +171,10 @@ Direction-level tasks (for `/plan` to break into steps):
 
 ## Fix record
 
-(Appended by each implementing task as it lands.)
+- 20260714, step 1 (113408) landed on master (`d85c4b0`): section catalog is now
+  data. `nova_modding` gained a `SectionCatalogAsset` + `*.sections.ron` loader;
+  `assets/sections/base.sections.ron` (7 prototypes, generator-guarded by
+  `sections_ron_parity`) loads into `GameSections` via `register_sections`; runtime
+  `SectionConfig` unchanged. Editor palette + boot verified live. Reviewed APPROVE
+  (out-of-context). See tasks/20260714-113408/{TASK,REVIEW,RETRO}.md. Next: step 2
+  (113411) makes ship sections REFERENCE this catalog by id - the big dedup.
