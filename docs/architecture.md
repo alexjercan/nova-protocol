@@ -59,7 +59,8 @@ default), and finally `DebugPlugin` under the `debug` feature. On
 `Playing` when the menu is off) and spawns the status UI.
 
 `NovaGameplayPlugin` pulls in avian3d `PhysicsPlugins` (zero gravity, projectile
-collision hooks), `bevy_rand`, `bevy_hanabi` particles (not on wasm), the
+collision hooks), `bevy_rand`, `bevy_hanabi` particles (on wasm via the WebGPU
+backend), the
 `bevy_common_systems` helper plugins, and the Nova sub-plugins: input, sections,
 hud, camera controller, integrity, damage, flight, gravity, relations, audio, juice.
 

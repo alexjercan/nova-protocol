@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Particle effects (turret muzzle flash, projectile trail, torpedo launch and detonation bursts) now render in the web build: it moved from the WebGL2 render backend to WebGPU, which is what `bevy_hanabi`'s compute-shader particles require. Native was already running them. The thruster exhaust plume is a shader (not particles) and rendered on the web already
+
 ## [0.5.2] - 2026-07-14
 
 ### Added

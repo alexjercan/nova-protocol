@@ -16,11 +16,11 @@
 //!
 //! **Impact / hit-flash FX** are drawn with gizmos, not spawned meshes or
 //! particles: a camera-facing ring at the event position that expands and fades
-//! over a fraction of a second. Gizmos are wasm-safe (the particle system is still
-//! wasm-blocked, 162908) and, being immediate-mode, incur zero asset/entity churn
-//! even when a blast hits many colliders in one frame. Section render meshes live
-//! in shared, gltf-instanced children, so an overlay ring is chosen over recoloring
-//! their materials (a true per-section emissive flash is a possible follow-up).
+//! over a fraction of a second. Gizmos are immediate-mode, so they incur zero
+//! asset/entity churn even when a blast hits many colliders in one frame.
+//! Section render meshes live in shared, gltf-instanced children, so an overlay
+//! ring is chosen over recoloring their materials (a true per-section emissive
+//! flash is a possible follow-up).
 //!
 //! Both effects are **distance-attenuated** from the gameplay camera (the one
 //! carrying `SfxListenerMarker`, shared with the audio layer; the trauma

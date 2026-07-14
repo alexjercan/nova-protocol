@@ -114,11 +114,12 @@ pub(super) fn insert_torpedo_controller_render(
     ));
 }
 
-/// An expanding, fading sphere that visualizes a blast's area of effect. Unlike the
-/// hanabi particle burst (`insert_particle_effect`, wasm-blocked), this is a plain
-/// mesh + `StandardMaterial`, so it renders on every target including wasm. It is the
-/// blast's actual `radius` made visible: the sphere grows from a point to exactly the
-/// blast radius while fading out, so the player sees how far the detonation reached.
+/// An expanding, fading sphere that visualizes a blast's area of effect. It
+/// complements the hanabi detonation burst (`insert_particle_effect`): where the
+/// burst is spray, this plain mesh + `StandardMaterial` is the blast's actual
+/// `radius` made visible - the sphere grows from a point to exactly the blast
+/// radius while fading out, so the player sees how far the detonation reached.
+/// Being a mesh (no compute), it also stays visible if particles are ever off.
 #[derive(Component, Debug, Clone, Reflect)]
 pub(super) struct BlastRadiusVisual {
     /// Full blast radius the sphere expands to reach, in world units.

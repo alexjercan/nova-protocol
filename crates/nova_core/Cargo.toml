@@ -16,6 +16,16 @@ nova_menu = { path = "../nova_menu" }
 nova_scenario = { path = "../nova_scenario" }
 nova_events = { path = "../nova_events" }
 
+# The web build must use the WebGPU render backend, not the default WebGL2:
+# bevy_hanabi's particle effects run on compute shaders, which on wasm exist only
+# under WebGPU (see tasks/20260714-085955/SPIKE.md). bevy's `webgpu` feature
+# overrides the default `webgl2` when both are enabled, so this additive,
+# wasm-only feature flips the backend without touching the trunk invocation or
+# disabling default features. Feature unification carries it to the whole wasm
+# build. Native keeps WebGL2/native backends untouched (this block is wasm-only).
+[target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]
+bevy = { version = "0.19.0", features = ["webgpu"] }
+
 [lints]
 workspace = true
 

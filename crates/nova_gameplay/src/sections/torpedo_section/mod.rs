@@ -316,16 +316,13 @@ impl Plugin for TorpedoSectionPlugin {
             app.add_observer(insert_blast_radius_visual);
             app.add_systems(Update, animate_blast_radius_visual);
 
-            // FIXME(20260706-162908): For now we disable particle effects on wasm because it's not working
-            #[cfg(not(target_family = "wasm"))]
+            // Hanabi detonation burst: runs on wasm too now that the web build
+            // uses the WebGPU backend.
             app.add_observer(insert_particle_effect);
 
             // Launch burst at the bay: build the effect on the spawner, fire it
-            // whenever a torpedo projectile is spawned. Hanabi-only, wasm-gated
-            // like the blast burst above.
-            #[cfg(not(target_family = "wasm"))]
+            // whenever a torpedo projectile is spawned.
             app.add_observer(insert_torpedo_spawner_effect);
-            #[cfg(not(target_family = "wasm"))]
             app.add_observer(on_torpedo_launch_effect);
         }
 

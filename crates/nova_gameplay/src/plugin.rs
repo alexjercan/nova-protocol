@@ -47,8 +47,9 @@ impl Plugin for NovaGameplayPlugin {
         // Random number generator
         app.add_plugins(EntropyPlugin::<WyRand>::default());
 
-        // FIXME(20260706-162908): For now we disable particle effects on wasm because it's not working
-        #[cfg(not(target_family = "wasm"))]
+        // Hanabi particles run on every target: native, and wasm via the WebGPU
+        // backend (compute shaders; see nova_core's wasm webgpu feature and
+        // tasks/20260714-085955/SPIKE.md).
         app.add_plugins(bevy_hanabi::HanabiPlugin);
 
         // Bevy Common Systems - WASD Camera

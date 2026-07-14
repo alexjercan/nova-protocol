@@ -319,12 +319,9 @@ impl Plugin for TurretSectionPlugin {
             app.add_observer(insert_turret_barrel_render);
             app.add_observer(insert_projectile_render);
 
-            // FIXME(20260706-162908): For now we disable particle effects on wasm because it's not working
-            #[cfg(not(target_family = "wasm"))]
+            // Hanabi muzzle-flash and projectile-trail effects: run on wasm too
+            // now that the web build uses the WebGPU backend.
             app.add_observer(insert_turret_barrel_muzzle_effect);
-
-            // FIXME(20260706-162908): For now we disable particle effects on wasm because it's not working
-            #[cfg(not(target_family = "wasm"))]
             app.add_observer(on_projectile_marker_effect);
         }
 

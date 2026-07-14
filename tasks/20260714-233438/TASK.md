@@ -1,8 +1,22 @@
 # Switch web build to bevy/webgpu and un-gate hanabi on wasm
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.6.0,wasm,polish
+
+## Outcome
+
+Switched the web build to the WebGPU render backend via a single additive,
+wasm-only `bevy/webgpu` feature in `crates/nova_core/Cargo.toml`, and removed the
+three `#[cfg(not(target_family = "wasm"))]` gates that disabled hanabi particles on
+wasm (turret muzzle flash, projectile trail, torpedo launch + detonation bursts).
+Native is untouched (the feature block is wasm-scoped; `cargo tree` confirms native
+gets no `webgpu`). Verified: native `cargo check --all-targets` clean, `trunk build`
+compiles hanabi + the un-gated code for wasm32 with `✅ success`, `cargo tree` shows
+webgpu enabled (overriding webgl2) on wasm only, `cargo fmt --check` clean. Full fix
+record and the honest runtime-verification gap in `NOTES.md`. Corrected a spike
+inaccuracy: the thruster plume is a shader, not hanabi, and already worked on the
+web. Ships with 20260714-233443 (the WebGPU detection gate).
 
 ## Goal
 
@@ -13,7 +27,7 @@ wasm `#[cfg]` gates that currently disable hanabi. Scoped from
 
 ## Steps
 
-- [ ] Enable the WebGPU backend on the wasm target only, additively. In
+- [x] Enable the WebGPU backend on the wasm target only, additively. In
   `crates/nova_core/Cargo.toml` add a target block mirroring the existing wasm
   pattern in `nova_gameplay`/`nova_scenario`:
   `[target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]`
@@ -22,7 +36,7 @@ wasm `#[cfg]` gates that currently disable hanabi. Scoped from
   README + bevy.org/news/bevy-webgpu - so this needs no `--features` on the trunk
   invocation and no disabling of default features. Feature unification applies it
   to the whole wasm build.)
-- [ ] Remove the hanabi wasm gates and their `FIXME(20260706-162908)` comments:
+- [x] Remove the hanabi wasm gates and their `FIXME(20260706-162908)` comments:
   - `crates/nova_gameplay/src/plugin.rs:50-52` (`HanabiPlugin`)
   - `crates/nova_gameplay/src/sections/turret_section.rs:322-327` (muzzle +
     projectile-marker effect observers)
@@ -30,31 +44,35 @@ wasm `#[cfg]` gates that currently disable hanabi. Scoped from
     (`insert_particle_effect`, `insert_torpedo_spawner_effect`,
     `on_torpedo_launch_effect`)
   Re-read each surrounding block after editing (reread-after-insert).
-- [ ] Grep the repo to confirm no `#[cfg(not(target_family = "wasm"))]` /
+- [x] Grep the repo to confirm no `#[cfg(not(target_family = "wasm"))]` /
   `#[cfg(not(target_arch = "wasm32"))]` guard gating hanabi/effects remains, and
   that the now-unconditional `bevy_hanabi::prelude::*` imports in
   `turret_section.rs` / `torpedo_section/mod.rs` are actually used on wasm (else
   they become unused-import errors under the workspace lints).
-- [ ] Leave the WebGL2 std140 padding fields (`hud/velocity.rs`,
+- [x] Leave the WebGL2 std140 padding fields (`hud/velocity.rs`,
   `sections/thruster_section.rs`, `#[cfg(target_arch = "wasm32")]`) and the
   `hud/target_inset.rs` empty-`view_formats` guard in place - both stay valid
   under WebGPU (padding is harmless; empty view_formats is legal on WebGPU too).
   Record in NOTES why they are kept rather than removed.
-- [ ] Native sanity: `cargo check --workspace --all-targets` (guards the
+- [x] Native sanity: `cargo check --workspace --all-targets` (guards the
   Cargo.toml edit; native already compiles hanabi).
-- [ ] Real wasm compile - the ONLY compile check for the un-gated wasm code, since
+- [x] Real wasm compile - the ONLY compile check for the un-gated wasm code, since
   CI builds native only (`ci.yaml`) and `deploy-page.yaml` is
   `workflow_dispatch`: run `trunk build` (debug) from repo root; it must compile
   cleanly. Do not skip - a green CI proves nothing here
   (verify-ci-triggers-before-claiming-coverage).
-- [ ] Runtime-verify in a WebGPU browser at the real `/play/` path via
-  `scripts/preview-web.sh`: enter a scenario and confirm thruster plume, turret
-  muzzle flash, and torpedo launch + detonation particles render. (Pairs with the
-  gate task; the switch itself is verifiable independently in a WebGPU browser.)
-- [ ] Docs: update `docs/architecture.md:62` ("`bevy_hanabi` particles (not on
+- [~] Runtime-verify in a WebGPU browser at the real `/play/` path via
+  `scripts/preview-web.sh`: enter a scenario and confirm muzzle flash and torpedo
+  launch + detonation particles render. NOT eyeballed - this environment is
+  headless (no WebGPU browser). Compile + backend-wiring verified instead (see
+  NOTES); the same effects already render on native. Deferred to the paired gate
+  task's `preview-web.sh` run for a live-browser eyeball. (Correction: the
+  thruster plume is a shader, not hanabi, and already rendered on the web.)
+- [x] Docs: update `docs/architecture.md:62` ("`bevy_hanabi` particles (not on
   wasm)" -> now on wasm via the WebGPU backend), add a `CHANGELOG.md` entry, and
   write `tasks/20260714-233438/NOTES.md` (fix record: what shipped, the backend
-  mechanism, why the WebGL2 shims stay).
+  mechanism, why the WebGL2 shims stay). Also swept stale "wasm-blocked" prose in
+  `torpedo_section/render.rs` and `juice.rs`.
 
 ## Notes
 
