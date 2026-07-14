@@ -1,8 +1,8 @@
 # Spike: reduce RON duplication - prototype+modifications model + multi-file scenario bundles
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
-- TAGS: v0.6.0,modding,scenario,spike,refactor
+- TAGS: v0.6.0, modding, scenario, spike, refactor
 
 Spike only - do NOT implement. Follow-up to the RON format landing
 (133028, docs/modding-ron-format.md).
