@@ -138,6 +138,52 @@ fn mod_catalog_lists_installed_mods_metadata() {
     );
 }
 
+/// Run `seed_enabled_mods` with `EnabledMods` pre-set to `preset` and return the
+/// resulting set. Exercises the "union base ids" behaviour (task 174131).
+fn seed_from(preset: &[&str]) -> std::collections::HashSet<String> {
+    let mut app = headless_app();
+    let asset_server = app.world().resource::<AssetServer>().clone();
+    let catalog: Handle<InstalledCatalog> = asset_server.load("mods.catalog.ron");
+    wait_recursive_loaded(
+        &mut app,
+        &asset_server,
+        catalog.id().untyped(),
+        "the mods catalog",
+    );
+
+    app.world_mut()
+        .insert_resource(game_assets_with_catalog(catalog));
+    app.world_mut()
+        .insert_resource(EnabledMods(preset.iter().map(|s| s.to_string()).collect()));
+    app.world_mut()
+        .run_system_once(nova_assets::seed_enabled_mods)
+        .expect("seed enabled mods");
+    app.world().resource::<EnabledMods>().0.clone()
+}
+
+/// `seed_enabled_mods` unions the catalog's `base:true` ids in: from empty it yields
+/// the base-only default (unchanged pre-persistence startup), and it preserves a
+/// restored non-base choice while still forcing base on (base is locked in the UI).
+#[test]
+fn seed_enabled_mods_unions_base_over_any_restored_set() {
+    // No restored prefs -> base-only default.
+    let from_empty = seed_from(&[]);
+    assert!(from_empty.contains("base"), "base is enabled by default");
+    assert!(!from_empty.contains("demo"), "demo is off by default");
+
+    // A restored set with a non-base mod (and NO base) -> keep the demo choice AND
+    // force base on (so base is never left disabled, even from a base-less set).
+    let from_demo = seed_from(&["demo"]);
+    assert!(
+        from_demo.contains("demo"),
+        "the restored demo choice is preserved"
+    );
+    assert!(
+        from_demo.contains("base"),
+        "base is forced on regardless of the restored set"
+    );
+}
+
 #[test]
 fn catalog_loads_and_base_only_merges_by_default() {
     // Only base enabled (the startup default) -> base content merges, the demo mod

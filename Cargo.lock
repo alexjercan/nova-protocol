@@ -4410,11 +4410,13 @@ dependencies = [
  "bevy",
  "bevy_asset_loader",
  "bevy_rand",
+ "dirs",
  "nova_events",
  "nova_gameplay",
  "nova_modding",
  "nova_scenario",
  "ron",
+ "web-sys",
 ]
 
 [[package]]

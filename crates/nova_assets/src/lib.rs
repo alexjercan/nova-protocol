@@ -11,6 +11,7 @@ use nova_gameplay::prelude::*;
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, ModEntry};
 use nova_scenario::prelude::GameScenarios;
 
+pub mod mod_prefs;
 mod scenario;
 mod sections;
 
@@ -140,27 +141,49 @@ pub fn build_mod_catalog(
     mod_catalog.0 = catalog.entries.iter().map(|e| e.meta.clone()).collect();
 }
 
-/// Seed [`EnabledMods`] from the catalog's default-enabled (`base: true`) entries -
-/// but ONLY if it is still empty, so a persisted set (174131) or an early menu
-/// toggle is never clobbered. Runs once at `OnEnter(Processing)`, before the merge.
+/// Ensure every `base: true` catalog entry is in [`EnabledMods`].
+///
+/// This UNIONS the base ids in (rather than seeding only when empty): it keeps base
+/// enabled regardless of what `load_enabled_mods` restored - base is locked on in the
+/// UI, so it must always be active - while preserving any persisted or toggled
+/// non-base choices. Runs at `OnEnter(Processing)`, after `load_enabled_mods` and
+/// before the merge. Idempotent.
 pub fn seed_enabled_mods(
     game_assets: Res<GameAssets>,
     catalogs: Res<Assets<InstalledCatalog>>,
     mut enabled: ResMut<EnabledMods>,
 ) {
-    if !enabled.0.is_empty() {
-        return;
-    }
     let Some(catalog) = catalogs.get(&game_assets.catalog) else {
         error!("seed_enabled_mods: the mods catalog was not loaded; nothing enabled by default");
         return;
     };
-    enabled.0 = catalog
-        .entries
-        .iter()
-        .filter(|e| e.meta.base)
-        .map(|e| e.meta.id.clone())
-        .collect();
+    for entry in &catalog.entries {
+        if entry.meta.base {
+            enabled.0.insert(entry.meta.id.clone());
+        }
+    }
+}
+
+/// Restore the saved enabled-mods set at startup, if any (task 174131).
+///
+/// Runs FIRST in the `OnEnter(Processing)` chain, before `seed_enabled_mods`. When
+/// the platform store holds a saved set it becomes `EnabledMods`; `seed_enabled_mods`
+/// then unions base in (so base is always on), and the merge reflects the restored
+/// choices. With NO saved set, `EnabledMods` stays empty here and `seed_enabled_mods`
+/// falls back to the base-only default - identical to pre-persistence startup.
+pub fn load_enabled_mods(mut enabled: ResMut<EnabledMods>) {
+    if let Some(ids) = mod_prefs::load_enabled_ids() {
+        enabled.0 = ids.into_iter().collect();
+    }
+}
+
+/// Persist [`EnabledMods`] whenever it changes (a menu toggle, or the startup seed).
+/// Runs in `Update`, gated on `resource_changed::<EnabledMods>`.
+pub fn save_enabled_mods(enabled: Res<EnabledMods>) {
+    let mut ids: Vec<String> = enabled.0.iter().cloned().collect();
+    // Sort for a stable, diff-friendly on-disk file (HashSet order is arbitrary).
+    ids.sort();
+    mod_prefs::save_enabled_ids(&ids);
 }
 
 /// Route every ENABLED cataloged bundle's content into the id-keyed game registries,
@@ -375,6 +398,7 @@ impl Plugin for GameAssetsPlugin {
             (
                 prepare_cubemap_view,
                 build_mod_catalog,
+                load_enabled_mods,
                 seed_enabled_mods,
                 register_bundles,
                 register_sounds,
@@ -393,6 +417,17 @@ impl Plugin for GameAssetsPlugin {
         app.add_systems(
             Update,
             register_bundles
+                .run_if(resource_exists::<GameAssets>)
+                .run_if(resource_changed::<EnabledMods>)
+                .run_if(not(in_state(GameAssetsStates::Loading))),
+        );
+
+        // Persist the enabled set whenever it changes (a menu toggle, or the startup
+        // seed). Gated the same way as the re-merge so it only fires with the real
+        // set present, not during the empty-init on Loading.
+        app.add_systems(
+            Update,
+            save_enabled_mods
                 .run_if(resource_exists::<GameAssets>)
                 .run_if(resource_changed::<EnabledMods>)
                 .run_if(not(in_state(GameAssetsStates::Loading))),
