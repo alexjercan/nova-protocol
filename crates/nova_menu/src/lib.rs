@@ -57,13 +57,11 @@ const MENU_PLANETOID_ID: &str = "menu_planetoid";
 /// autopilot's own plan (stable band); this constant only shapes the shot.
 const ORBIT_CLEARANCE: f32 = 40.0;
 
-// Same palette as the editor sidebar (nova_editor keeps its constants private;
-// the duplication is two colors, not worth a shared UI crate yet).
-const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
-const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
-const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
-const BACKGROUND_COLOR: Color = Color::srgb(0.1, 0.1, 0.1);
-const TEXT_COLOR: Color = Color::srgb(0.9, 0.9, 0.9);
+// The whole game UI shares one theme (task 20260714-212139): the palette + metrics
+// live in `nova_ui::theme`. The menu keeps its own tiny polling colour system
+// (`update_button_colors`) rather than nova_ui's observers, to stay self-contained,
+// but draws every colour + metric from the shared theme.
+use nova_ui::theme;
 
 pub struct NovaMenuPlugin;
 
@@ -240,9 +238,12 @@ fn setup_pause_ui(mut commands: Commands) {
                         align_items: AlignItems::Center,
                         width: px(280),
                         padding: UiRect::all(px(20)),
+                        border: UiRect::all(px(theme::BORDER_W)),
+                        border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    BackgroundColor(BACKGROUND_COLOR),
+                    BorderColor::all(theme::BORDER),
+                    BackgroundColor(theme::PANEL),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -252,7 +253,7 @@ fn setup_pause_ui(mut commands: Commands) {
                             font_size: FontSize::Px(24.0),
                             ..default()
                         },
-                        TextColor(TEXT_COLOR),
+                        TextColor(theme::TEXT),
                     ));
                     parent.spawn((
                         Name::new("Resume Button"),
@@ -405,9 +406,12 @@ fn setup_menu_ui(
                 justify_content: JustifyContent::FlexStart,
                 width: px(280),
                 padding: UiRect::all(px(20)),
+                border: UiRect::all(px(theme::BORDER_W)),
+                border_radius: BorderRadius::all(px(theme::RADIUS)),
                 ..default()
             },
-            BackgroundColor(BACKGROUND_COLOR),
+            BorderColor::all(theme::BORDER),
+            BackgroundColor(theme::PANEL),
         ))
         .with_children(|parent| {
             parent.spawn((
@@ -417,7 +421,7 @@ fn setup_menu_ui(
                     font_size: FontSize::Px(28.0),
                     ..default()
                 },
-                TextColor(TEXT_COLOR),
+                TextColor(theme::TEXT),
             ));
             parent.spawn((
                 Name::new("Title Separator"),
@@ -427,7 +431,7 @@ fn setup_menu_ui(
                     margin: UiRect::all(px(10)),
                     ..default()
                 },
-                BackgroundColor(Color::srgb(0.5, 0.5, 0.5)),
+                BackgroundColor(theme::BORDER),
             ));
             parent.spawn((
                 Name::new("New Game Button"),
@@ -479,9 +483,12 @@ fn setup_menu_ui(
                         align_items: AlignItems::Center,
                         width: px(360),
                         padding: UiRect::all(px(20)),
+                        border: UiRect::all(px(theme::BORDER_W)),
+                        border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    BackgroundColor(BACKGROUND_COLOR),
+                    BorderColor::all(theme::BORDER),
+                    BackgroundColor(theme::PANEL),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -491,7 +498,7 @@ fn setup_menu_ui(
                             font_size: FontSize::Px(24.0),
                             ..default()
                         },
-                        TextColor(TEXT_COLOR),
+                        TextColor(theme::TEXT),
                     ));
                     parent.spawn((
                         Name::new("Settings Placeholder"),
@@ -500,7 +507,7 @@ fn setup_menu_ui(
                             font_size: FontSize::Px(16.0),
                             ..default()
                         },
-                        TextColor(TEXT_COLOR),
+                        TextColor(theme::TEXT),
                     ));
                     parent.spawn((
                         Name::new("Settings Back Button"),
@@ -544,9 +551,12 @@ fn setup_menu_ui(
                         width: px(460),
                         max_height: percent(80),
                         padding: UiRect::all(px(20)),
+                        border: UiRect::all(px(theme::BORDER_W)),
+                        border_radius: BorderRadius::all(px(theme::RADIUS)),
                         ..default()
                     },
-                    BackgroundColor(BACKGROUND_COLOR),
+                    BorderColor::all(theme::BORDER),
+                    BackgroundColor(theme::PANEL),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -556,7 +566,7 @@ fn setup_menu_ui(
                             font_size: FontSize::Px(24.0),
                             ..default()
                         },
-                        TextColor(TEXT_COLOR),
+                        TextColor(theme::TEXT),
                     ));
                     parent.spawn((
                         Name::new("Mods Subtitle"),
@@ -565,7 +575,7 @@ fn setup_menu_ui(
                             font_size: FontSize::Px(13.0),
                             ..default()
                         },
-                        TextColor(Color::srgb(0.6, 0.6, 0.6)),
+                        TextColor(theme::TEXT_MUTED),
                     ));
 
                     // The scrollable list of installed mods.
@@ -599,17 +609,19 @@ fn setup_menu_ui(
                             margin: UiRect::all(px(8)),
                             justify_content: JustifyContent::Center,
                             align_items: AlignItems::Center,
-                            border_radius: BorderRadius::MAX,
+                            border: UiRect::all(px(theme::BORDER_W)),
+                            border_radius: BorderRadius::all(px(theme::RADIUS)),
                             ..default()
                         },
-                        BackgroundColor(Color::srgb(0.12, 0.12, 0.12)),
+                        BorderColor::all(theme::BORDER),
+                        BackgroundColor(theme::BG),
                         children![(
                             Text::new("Explore online (coming soon)"),
                             TextFont {
                                 font_size: FontSize::Px(14.0),
                                 ..default()
                             },
-                            TextColor(Color::srgb(0.45, 0.45, 0.45)),
+                            TextColor(theme::TEXT_MUTED),
                         )],
                     ));
 
@@ -631,11 +643,14 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModEntry, enabled: bool) {
         Node {
             flex_direction: FlexDirection::Column,
             align_self: AlignSelf::Stretch,
-            padding: UiRect::all(px(6)),
+            padding: UiRect::all(px(8)),
             margin: UiRect::bottom(px(4)),
+            border: UiRect::all(px(theme::BORDER_W)),
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
-        BackgroundColor(Color::srgb(0.13, 0.13, 0.13)),
+        BorderColor::all(theme::BORDER),
+        BackgroundColor(theme::PANEL_RAISED),
         children![
             (
                 Name::new("Mod Name"),
@@ -644,7 +659,7 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModEntry, enabled: bool) {
                     font_size: FontSize::Px(16.0),
                     ..default()
                 },
-                TextColor(TEXT_COLOR),
+                TextColor(theme::TEXT),
             ),
             (
                 Name::new("Mod Description"),
@@ -653,7 +668,7 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModEntry, enabled: bool) {
                     font_size: FontSize::Px(12.0),
                     ..default()
                 },
-                TextColor(Color::srgb(0.6, 0.6, 0.6)),
+                TextColor(theme::TEXT_MUTED),
             ),
         ],
     ))
@@ -666,7 +681,7 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModEntry, enabled: bool) {
                     font_size: FontSize::Px(13.0),
                     ..default()
                 },
-                TextColor(Color::srgb(0.5, 0.75, 0.5)),
+                TextColor(theme::CYAN),
             ));
         } else {
             row.spawn((
@@ -768,11 +783,7 @@ fn update_mod_toggle_labels(
     for (toggle, children) in &toggles {
         let on = enabled.0.contains(&toggle.id);
         let label = if on { "Enabled" } else { "Disabled" };
-        let color = if on {
-            Color::srgb(0.5, 0.85, 0.5)
-        } else {
-            TEXT_COLOR
-        };
+        let color = if on { theme::CYAN_BRIGHT } else { theme::TEXT };
         for child in children.iter() {
             if let Ok((mut text, mut text_color)) = texts.get_mut(child) {
                 if text.0 != label {
@@ -829,21 +840,29 @@ fn start_new_game_scenario(mut commands: Commands, scenarios: Res<GameScenarios>
 /// and keeps the menu self-contained.
 fn update_button_colors(
     mut buttons: Query<
-        (&Hovered, Has<Pressed>, &mut BackgroundColor),
+        (
+            &Hovered,
+            Has<Pressed>,
+            &mut BackgroundColor,
+            &mut BorderColor,
+        ),
         (With<MenuButton>, With<Button>),
     >,
 ) {
-    for (hovered, pressed, mut color) in &mut buttons {
-        let target = if pressed {
-            PRESSED_BUTTON
+    for (hovered, pressed, mut color, mut border) in &mut buttons {
+        // Crisp instrument hover, matching the editor/web app: fill brightens and
+        // the border shifts to cyan on press, bright on hover.
+        let (fill, edge) = if pressed {
+            (theme::SELECTED_FILL, theme::CYAN)
         } else if hovered.get() {
-            HOVERED_BUTTON
+            (theme::PANEL_RAISED, theme::BORDER_BRIGHT)
         } else {
-            NORMAL_BUTTON
+            (theme::PANEL, theme::BORDER)
         };
-        if color.0 != target {
-            color.0 = target;
+        if color.0 != fill {
+            color.0 = fill;
         }
+        border.set_all(edge);
     }
 }
 
@@ -855,20 +874,22 @@ fn button(text: &str) -> impl Bundle {
             margin: UiRect::all(px(8)),
             justify_content: JustifyContent::Center,
             align_items: AlignItems::Center,
-            border_radius: BorderRadius::MAX,
+            border: UiRect::all(px(theme::BORDER_W)),
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
         MenuButton,
         Button,
         Hovered::default(),
-        BackgroundColor(NORMAL_BUTTON),
+        BorderColor::all(theme::BORDER),
+        BackgroundColor(theme::PANEL),
         children![(
             Text::new(text),
             TextFont {
                 font_size: FontSize::Px(16.0),
                 ..default()
             },
-            TextColor(TEXT_COLOR),
+            TextColor(theme::TEXT),
             TextShadow::default(),
         )],
     )

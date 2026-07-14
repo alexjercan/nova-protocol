@@ -4502,6 +4502,7 @@ dependencies = [
  "nova_events",
  "nova_gameplay",
  "nova_scenario",
+ "nova_ui",
 ]
 
 [[package]]

@@ -1,8 +1,39 @@
 # Restyle nova_menu to nova_ui theme (main menu, settings, mods, pause)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 58
 - TAGS: ui,v0.6.0
+
+## Close-out (20260714)
+
+Restyled every `nova_menu` screen onto `nova_ui::theme`:
+- Deleted the 5 private palette consts (NORMAL/HOVERED/PRESSED_BUTTON,
+  BACKGROUND_COLOR, TEXT_COLOR) + the "not worth a shared crate yet" comment;
+  `use nova_ui::theme`.
+- `button()`: 1px border + 2px radius (dropped the `BorderRadius::MAX` pill),
+  `theme::PANEL`/`theme::BORDER`/`theme::TEXT`. `update_button_colors` now sets
+  BOTH fill and border with the crisp instrument states (PANEL/PANEL_RAISED/
+  SELECTED_FILL + BORDER/BORDER_BRIGHT/CYAN). Kept the menu's own polling colour
+  system (`MenuButton`) rather than `nova_ui`'s observers, to stay self-contained
+  and avoid double-registering the global observers alongside the editor.
+- Panels (main menu, settings, mods, pause) got 1px `theme::BORDER` frames + 2px
+  radius + `theme::PANEL` fills; separators -> `theme::BORDER`; subtitles/
+  descriptions -> `theme::TEXT_MUTED`; mod rows -> `theme::PANEL_RAISED` + a border;
+  the "Explore online" placeholder -> `theme::BG` + border + muted text.
+- SEMANTIC colours kept meaningful, mapped to shared accents: the enabled/base
+  "on" greens -> `theme::CYAN`/`CYAN_BRIGHT` (active), disabled -> `theme::TEXT`;
+  the pause scrim `srgba(0,0,0,0.6)` left as-is (it is a dim, not chrome).
+- No `Name`, layout-structure, or interaction changes -> the `12_menu_newgame`
+  autopilot still drives the menu.
+
+### Verification
+- `cargo check --workspace --all-targets --features debug`: clean.
+- `cargo test -p nova_menu`: 11 pass. `cargo fmt`.
+- `12_menu_newgame` autopilot (headless): menu -> New Game loads the shakedown_run
+  scenario (crates/beacons/player ship spawn), cycle complete, no panic - proves
+  the restyled buttons still fire by `Name`.
+
+Depends on: 20260714-214111 (nova_ui). Sibling: 20260714-214118 (HUD).
 
 Umbrella: task 20260714-212139. Depends on: 20260714-214111 (nova_ui).
 
