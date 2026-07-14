@@ -313,16 +313,22 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   working theory mid-task, re-read every artifact written under the old
   theory (notes, comments, records) in one pass; the review found the dead
   model still taught as fact. 20260712-115902.
-- `run-example-via-cargo-run-for-assets` (x1): a built example binary run
+- `run-example-via-cargo-run-for-assets` (x2): a built example binary run
   directly (`./target/.../examples/foo`) resolves `assets/` relative to CWD
-  and fails to load everything; run via `cargo run --example` from the crate
-  root (CWD = root) so the asset path resolves. A direct-binary autopilot run
-  "passed" (no panic) but had loaded zero assets, so it exercised nothing.
-  20260714-204219.
+  and fails to load everything (`BEVY_ASSET_ROOT` did not help); run via
+  `cargo run --example` from the crate root so the asset path resolves. Also:
+  autopilot/tracing logs go to STDERR - use `2>&1`, never `2>/dev/null`.
+  20260714-204219, 20260714-214111.
 - `despawn-by-owner-not-all-on-cross` (x1): a hover-out handler that despawns
   ALL of a shared singleton (tooltip/highlight) can kill a freshly-spawned one
   if the sibling's enter fires before this one's leave; tag the singleton with
   its owner entity and despawn only the match. 20260714-204219.
+- `autopilot-is-frame-starved-under-load` (x1): the BCS autopilot's phase waits
+  are frame-COUNTED but its lifetime is a wall-clock ~6s, so under heavy load
+  (cold full-graph rebuild, a parallel sprout building) too few frames run and it
+  stalls mid-sequence - reads as a step failure but is starvation. Run
+  timing-sensitive autopilots BEFORE other heavy builds, or verify a touch-free
+  path by `git diff` + a deterministic unit test instead. 20260714-214111.
 - `ui-footprint-vs-3d-picking` (x1): a UI panel over the point where a 3D
   object projects BLOCKS its placement/pick raycast; size left panels against
   the actual window resolution (read it, don't guess) so the build area stays
