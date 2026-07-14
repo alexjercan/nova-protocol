@@ -29,6 +29,24 @@ Screens to bring onto the shared theme:
   UI text/panels, without disturbing diegetic 3D elements.
 - `nova_editor` - already themed; just consume the shared module once extracted.
 
+## Planned (20260714) - broken into children, decisions made
+
+User decided: a new bevy-only `nova_ui` crate (not folded into an existing
+crate); palette/metrics-only restyle keeping the default font (real fonts are a
+separate follow-up). `nova_info` turned out to be build-info only (NOT UI), so the
+theme consumers are `nova_menu`, `nova_editor`, `nova_gameplay`. Children:
+
+- 20260714-214111 (p65) - create `nova_ui` (theme + widgets), migrate `nova_editor`
+  onto it. Foundation; blocks the other two.
+- 20260714-214115 (p58) - restyle `nova_menu` (main menu, settings, mods, pause).
+- 20260714-214118 (p50) - centralize the gameplay HUD palette into `nova_ui`,
+  align chrome, PRESERVE semantic hues (threat-red/ally-green/nav-cyan/objective-
+  gold are meaningful, not random - this is a de-dup + align, not a recolor).
+- 20260714-214329 (backlog) - ship the real web fonts (Rajdhani/Inter/JetBrains
+  Mono) + a load path, deferred out of this pass.
+
+This umbrella closes when 214111/214115/214118 land.
+
 ## Likely approach (decide when planning)
 
 - Extract the palette + metrics (and ideally a `button`/panel/`header` widget set)
