@@ -1,6 +1,6 @@
 # Spike: multi-file scenario bundles - folder + manifest, id namespacing/overlay, directory loader
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.6.0, modding, scenario, spike
 
