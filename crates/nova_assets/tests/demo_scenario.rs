@@ -1,112 +1,71 @@
-//! End-to-end proof of the folder-bundle modding pipeline: load the real
-//! `assets/base/base.bundle.ron` through the production `nova_modding` bundle loader
-//! on a headless asset server. The bundle loader recursively loads every content
-//! file the manifest lists, so waiting for the bundle's RECURSIVE load state
-//! reaching `Loaded` waits for all of its content. Then run the real
-//! `register_bundles` system (through `GameAssets`) and assert the resulting
-//! `GameScenarios` carries the RON-authored `"demo"` scenario ALONGSIDE the four
-//! built-ins AND `GameSections` is populated from the base section content.
+//! End-to-end proof of the catalog-driven modding pipeline on a headless asset
+//! server (task 20260714-174120, on 134119/134127). The real `mods.catalog.ron`
+//! loads through `nova_modding`'s `CatalogLoader`, which loads EVERY installed mod's
+//! `*.bundle.ron` (base + demo) and, through each, its `*.content.ron` files. Waiting
+//! for the catalog's RECURSIVE load state waits for that whole tree. Then the real
+//! `register_bundles` system merges only the ENABLED subset (`EnabledMods`) into
+//! `GameSections` / `GameScenarios`, base first.
 //!
-//! This drives the bundle decode + route wiring: the `base.bundle.ron` decode
-//! into a `BundleAsset` (with its content handles) via `BundleAssetLoader`, the
-//! recursive load of each `ContentAsset`, and the `register_bundles` route into
-//! `GameSections` / `GameScenarios`. The asset IO reads the real workspace
-//! `assets/` dir (tests run with the crate root as cwd).
-//!
-//! NOTE: this test loads the bundle with a TYPED `Handle<BundleAsset>`, which
-//! resolves the loader by asset type. The game loads it UNTYPED through
-//! bevy_asset_loader (extension-only resolution) - see `bundle_untyped_load`
-//! for the guard that pins that path.
+//! The asset IO reads the real workspace `assets/` dir (tests run with the crate root
+//! as cwd).
 
 use std::time::{Duration, Instant};
 
 use bevy::{
-    asset::{AssetPlugin, RecursiveDependencyLoadState},
+    asset::{AssetPlugin, RecursiveDependencyLoadState, UntypedAssetId},
     ecs::system::RunSystemOnce,
     prelude::*,
 };
 use nova_assets::prelude::*;
 use nova_gameplay::prelude::GameSections;
-use nova_modding::prelude::{BundleAsset, Content, ContentAsset, ModList, NovaModdingPlugin};
+use nova_modding::prelude::{
+    BundleAsset, Content, ContentAsset, InstalledCatalog, NovaModdingPlugin,
+};
 use nova_scenario::prelude::GameScenarios;
 
-#[test]
-fn base_bundle_loads_into_game_registries() {
+/// A headless app with the asset server pointed at the workspace `assets/` and the
+/// modding plugin (which registers the content/bundle/catalog loaders).
+fn headless_app() -> App {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
         AssetPlugin {
-            // Tests run with the crate root as cwd; the asset folder lives at
-            // the workspace root.
+            // Tests run with the crate root as cwd; assets live at the workspace root.
             file_path: "../../assets".to_string(),
             ..default()
         },
     ));
-    // The production modding plugin: registers ContentAsset + BundleAsset and
-    // their `*.content.ron` / `*.bundle.ron` loaders.
     app.add_plugins(NovaModdingPlugin);
+    app
+}
 
-    // Load the base bundle through the real asset server + loader. The bundle
-    // loader `load_context.load`s each content file the manifest lists, so the
-    // bundle's RECURSIVE dependency load state waits for all of them.
-    let asset_server = app.world().resource::<AssetServer>().clone();
-    let base_bundle: Handle<BundleAsset> = asset_server.load("base/base.bundle.ron");
-
+/// Pump updates until `handle`'s recursive dependency load state is `Loaded`,
+/// panicking on failure or timeout.
+fn wait_recursive_loaded(
+    app: &mut App,
+    asset_server: &AssetServer,
+    handle: UntypedAssetId,
+    what: &str,
+) {
     let deadline = Instant::now() + Duration::from_secs(60);
     loop {
         app.update();
-        match asset_server.recursive_dependency_load_state(&base_bundle) {
-            RecursiveDependencyLoadState::Loaded => break,
-            RecursiveDependencyLoadState::Failed(err) => {
-                panic!("the base bundle (or its content) failed to load: {err}")
+        match asset_server.get_recursive_dependency_load_state(handle) {
+            Some(RecursiveDependencyLoadState::Loaded) => break,
+            Some(RecursiveDependencyLoadState::Failed(err)) => {
+                panic!("{what} failed to load: {err}")
             }
             _ => {}
         }
-        assert!(
-            Instant::now() < deadline,
-            "timed out loading the base bundle + its content"
-        );
+        assert!(Instant::now() < deadline, "timed out loading {what}");
         std::thread::sleep(Duration::from_millis(5));
     }
+}
 
-    // The bundle carries a content handle per manifest entry (six files: the
-    // section catalog + five scenarios).
-    let demo = {
-        let bundles = app.world().resource::<Assets<BundleAsset>>();
-        let bundle = bundles.get(&base_bundle).expect("base bundle present");
-        assert_eq!(
-            bundle.content.len(),
-            6,
-            "the manifest lists six content files"
-        );
-
-        // Find the demo content among the bundle's content handles and assert it
-        // decoded to the authored scenario: a single `Content::Scenario` item
-        // with the OnStart event's six actions.
-        let contents = app.world().resource::<Assets<ContentAsset>>();
-        let mut demo_handle = None;
-        for handle in &bundle.content {
-            let content = contents.get(handle).expect("bundle content loaded");
-            for item in &content.0 {
-                if let Content::Scenario(scenario) = item {
-                    if scenario.id == "demo" {
-                        assert_eq!(scenario.events.len(), 1);
-                        assert_eq!(scenario.events[0].actions.len(), 6);
-                        demo_handle = Some(handle.clone());
-                    }
-                }
-            }
-        }
-        demo_handle.expect("the demo scenario is present in the bundle's content")
-    };
-    let _ = demo;
-
-    // Build the GameAssets the register system reads: default handles for the
-    // raw assets (register_bundles never resolves them - AssetRef stays a path),
-    // and the REAL base bundle handle we just loaded. `mod_list` is a default
-    // (unloaded) handle: with no enable-list asset present register_bundles logs
-    // and registers the base only, which is what this test asserts.
-    let game_assets = GameAssets {
+/// A `GameAssets` with real defaults for the raw handles (register_bundles never
+/// resolves them - AssetRef stays a path) and the given loaded catalog handle.
+fn game_assets_with_catalog(catalog: Handle<InstalledCatalog>) -> GameAssets {
+    GameAssets {
         cubemap: Handle::default(),
         asteroid_texture: Handle::default(),
         hull_01: Handle::default(),
@@ -116,37 +75,60 @@ fn base_bundle_loads_into_game_registries() {
         torpedo_bay_01: Handle::default(),
         fps_icon: Handle::default(),
         target_sprite: Handle::default(),
-        base_bundle: base_bundle.clone(),
-        mod_list: Handle::default(),
-    };
-    app.world_mut().insert_resource(game_assets);
+        catalog,
+    }
+}
 
-    // Run the production register_bundles system: routes Section items into
-    // GameSections and Scenario items into GameScenarios.
+/// Load the real catalog and run `register_bundles` once with the given enabled set,
+/// returning the resulting `(GameSections, GameScenarios)`.
+fn merge_with_enabled(enabled: &[&str]) -> (GameSections, GameScenarios) {
+    let mut app = headless_app();
+    let asset_server = app.world().resource::<AssetServer>().clone();
+    let catalog: Handle<InstalledCatalog> = asset_server.load("mods.catalog.ron");
+    wait_recursive_loaded(
+        &mut app,
+        &asset_server,
+        catalog.id().untyped(),
+        "the mods catalog",
+    );
+
+    app.world_mut()
+        .insert_resource(game_assets_with_catalog(catalog));
+    app.world_mut()
+        .insert_resource(EnabledMods(enabled.iter().map(|s| s.to_string()).collect()));
     app.world_mut()
         .run_system_once(nova_assets::register_bundles_for_test)
         .expect("register bundles");
 
-    // GameSections is populated from the base section content: the named
-    // prototypes the editor palette and ship scenarios reference are present.
-    {
-        let sections = app.world().resource::<GameSections>();
-        assert!(
-            !sections.is_empty(),
-            "the section catalog loaded from RON into GameSections"
-        );
-        assert!(
-            sections.get_section("basic_controller_section").is_some(),
-            "a known catalog prototype id resolves"
-        );
-    }
+    let sections = app.world().resource::<GameSections>().clone();
+    let scenarios = app.world().resource::<GameScenarios>().clone();
+    (sections, scenarios)
+}
 
-    // The RON-authored demo is present in GameScenarios ALONGSIDE the four
-    // built-ins.
-    let scenarios = app.world().resource::<GameScenarios>();
+#[test]
+fn catalog_loads_and_base_only_merges_by_default() {
+    // Only base enabled (the startup default) -> base content merges, the demo mod
+    // is loaded-but-not-merged.
+    let (sections, scenarios) = merge_with_enabled(&["base"]);
+
+    assert!(
+        sections.get_section("basic_controller_section").is_some(),
+        "the base section catalog loaded into GameSections"
+    );
+    // Base hull is the base's 200, NOT the demo mod's 400 override (demo disabled).
+    assert_eq!(
+        sections
+            .get_section("reinforced_hull_section")
+            .expect("base hull present")
+            .base
+            .health,
+        200.0,
+        "with demo disabled, the base section is un-overridden"
+    );
+
     assert!(
         scenarios.contains_key("demo"),
-        "the RON-authored demo scenario must be registered"
+        "base 'demo' scenario present"
     );
     for built_in in [
         "asteroid_field",
@@ -156,118 +138,144 @@ fn base_bundle_loads_into_game_registries() {
     ] {
         assert!(
             scenarios.contains_key(built_in),
-            "built-in scenario '{built_in}' must still be registered"
+            "built-in scenario '{built_in}' present"
         );
     }
-    assert_eq!(
-        scenarios.get("demo").map(|s| s.id.as_str()),
-        Some("demo"),
-        "the demo entry is keyed by and carries the authored id"
+    assert!(
+        !scenarios.contains_key("demo_mod_arena"),
+        "the demo mod's scenario must NOT be registered while it is disabled"
     );
 }
 
-/// Regression guard for the in-game load path (task 20260714-163342).
-///
-/// bevy_asset_loader kicks off every `GameAssets` field with an UNTYPED
-/// `asset_server.load_untyped(path)`, which resolves the loader by EXTENSION
-/// ONLY - there is no asset type to fall back on. Bevy's full extension is
-/// everything after the FIRST dot in the file name, so a manifest named
-/// `bundle.ron` resolves to the bare `ron` extension (no loader) and the base
-/// bundle silently fails to load in the running game, leaving the section /
-/// scenario registries empty. The `<pack>.bundle.ron` stem makes the full
-/// extension `bundle.ron`, which `BundleAssetLoader` registers.
-///
-/// This test loads the base bundle exactly as the game does - UNTYPED - and
-/// asserts it resolves and reaches `Loaded` (never `Failed`). It fails under the
-/// old `bundle.ron` name; the typed `base_bundle_loads_into_game_registries`
-/// test above cannot catch this because the type gives it a by-type fallback.
 #[test]
-fn bundle_untyped_load_resolves_the_loader() {
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        AssetPlugin {
-            file_path: "../../assets".to_string(),
-            ..default()
-        },
-    ));
-    app.add_plugins(NovaModdingPlugin);
+fn enabling_demo_overrides_a_section_and_adds_a_scenario() {
+    // base + demo enabled -> the demo mod overlays the base by id and adds its scenario.
+    let (sections, scenarios) = merge_with_enabled(&["base", "demo"]);
 
-    let asset_server = app.world().resource::<AssetServer>().clone();
-    // UNTYPED, mirroring bevy_asset_loader's collection kickoff (which resolves
-    // the loader by extension alone, with no asset type to fall back on).
-    let handle = asset_server
-        .load_builder()
-        .load_untyped("base/base.bundle.ron");
+    let hull = sections
+        .get_section("reinforced_hull_section")
+        .expect("the overridden base section is present");
+    assert_eq!(
+        hull.base.health, 400.0,
+        "the enabled demo mod must overlay the base section"
+    );
+    assert!(
+        hull.base.name.contains("Demo Mod"),
+        "the mod's renamed label won: {}",
+        hull.base.name
+    );
 
-    let deadline = Instant::now() + Duration::from_secs(60);
-    loop {
-        app.update();
-        match asset_server.recursive_dependency_load_state(&handle) {
-            RecursiveDependencyLoadState::Loaded => break,
-            RecursiveDependencyLoadState::Failed(err) => panic!(
-                "untyped load of base/base.bundle.ron failed - the loader did not \
-                 resolve by extension (this is the in-game failure mode): {err}"
-            ),
-            _ => {}
-        }
-        assert!(
-            Instant::now() < deadline,
-            "timed out on the untyped base bundle load"
-        );
-        std::thread::sleep(Duration::from_millis(5));
-    }
+    assert!(
+        scenarios.contains_key("demo_mod_arena"),
+        "the enabled demo mod's scenario must be registered"
+    );
+    assert!(
+        scenarios.contains_key("demo"),
+        "base scenarios remain after the overlay"
+    );
 }
 
-/// End-to-end proof of the mod overlay (task 20260714-134127): load the REAL base
-/// bundle and the REAL demo mod bundle through the production loaders, flatten
-/// each into its `Content` items, and run the production `merge_bundles` with the
-/// mod AFTER the base. Asserts the mod's `reinforced_hull_section` OVERRODE the
-/// base one by id and the mod's `demo_mod_arena` scenario was ADDED alongside the
-/// base scenarios - exercising loader -> manifest -> content -> Content -> overlay.
+/// Toggling `EnabledMods` re-runs the merge LIVE (the production wiring: the same
+/// `register_bundles` system gated on `resource_changed::<EnabledMods>`). This is the
+/// mechanism the mods menu (174126) drives - proven across real frames, not a single
+/// `run_system_once` (per the change-detection lesson).
 #[test]
-fn demo_mod_overlays_the_base_bundle() {
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        AssetPlugin {
-            file_path: "../../assets".to_string(),
-            ..default()
-        },
-    ));
-    app.add_plugins(NovaModdingPlugin);
+fn toggling_enabled_mods_remerges_live() {
+    let mut app = headless_app();
+    let asset_server = app.world().resource::<AssetServer>().clone();
+    let catalog: Handle<InstalledCatalog> = asset_server.load("mods.catalog.ron");
+    wait_recursive_loaded(
+        &mut app,
+        &asset_server,
+        catalog.id().untyped(),
+        "the mods catalog",
+    );
 
+    app.world_mut()
+        .insert_resource(game_assets_with_catalog(catalog));
+    app.world_mut()
+        .insert_resource(EnabledMods(["base".to_string()].into_iter().collect()));
+    // The production run condition: re-merge whenever the enabled set changes.
+    app.add_systems(
+        Update,
+        nova_assets::register_bundles_for_test.run_if(resource_changed::<EnabledMods>),
+    );
+
+    // First frame: EnabledMods just inserted (changed) -> base-only merge.
+    app.update();
+    assert!(
+        !app.world()
+            .resource::<GameScenarios>()
+            .contains_key("demo_mod_arena"),
+        "demo disabled -> its scenario absent"
+    );
+
+    // Enable demo -> the change triggers a live re-merge on the next frame.
+    app.world_mut()
+        .resource_mut::<EnabledMods>()
+        .0
+        .insert("demo".to_string());
+    app.update();
+    assert!(
+        app.world()
+            .resource::<GameScenarios>()
+            .contains_key("demo_mod_arena"),
+        "enabling demo must re-merge live and register its scenario"
+    );
+    assert_eq!(
+        app.world()
+            .resource::<GameSections>()
+            .get_section("reinforced_hull_section")
+            .unwrap()
+            .base
+            .health,
+        400.0,
+        "the re-merge applied the demo mod's section override"
+    );
+}
+
+/// Regression guard for the in-game load path (task 20260714-163342). The catalog is
+/// a `GameAssets` field, so bevy_asset_loader loads it UNTYPED, resolving the loader
+/// by the file's FULL extension only (everything after the first dot). A bare
+/// `catalog.ron` would resolve to `ron` (no loader) and fail in-game; `mods.catalog.ron`
+/// yields `catalog.ron`, which `CatalogLoader` registers. Loading it untyped here (the
+/// game's path) must resolve and reach `Loaded`, pulling in every installed bundle.
+#[test]
+fn catalog_untyped_load_resolves_the_loader() {
+    let mut app = headless_app();
+    let asset_server = app.world().resource::<AssetServer>().clone();
+    let handle = asset_server.load_builder().load_untyped("mods.catalog.ron");
+    wait_recursive_loaded(
+        &mut app,
+        &asset_server,
+        handle.id().untyped(),
+        "the untyped mods catalog",
+    );
+}
+
+/// Lower-level proof of the overlay itself (task 20260714-134127): load the base and
+/// demo bundles directly, flatten to `Content`, and run the pure `merge_bundles` with
+/// the mod after the base. Complements the system-level tests above by pinning the
+/// merge core independent of the catalog/EnabledMods plumbing.
+#[test]
+fn merge_bundles_overlays_demo_over_base() {
+    let mut app = headless_app();
     let asset_server = app.world().resource::<AssetServer>().clone();
     let base: Handle<BundleAsset> = asset_server.load("base/base.bundle.ron");
     let demo: Handle<BundleAsset> = asset_server.load("mods/demo/demo.bundle.ron");
+    wait_recursive_loaded(
+        &mut app,
+        &asset_server,
+        base.id().untyped(),
+        "the base bundle",
+    );
+    wait_recursive_loaded(
+        &mut app,
+        &asset_server,
+        demo.id().untyped(),
+        "the demo bundle",
+    );
 
-    let deadline = Instant::now() + Duration::from_secs(60);
-    loop {
-        app.update();
-        for (label, handle) in [("base", &base), ("demo mod", &demo)] {
-            if let RecursiveDependencyLoadState::Failed(err) =
-                asset_server.recursive_dependency_load_state(handle)
-            {
-                panic!("the {label} bundle failed to load: {err}");
-            }
-        }
-        let ready = [&base, &demo].iter().all(|h| {
-            matches!(
-                asset_server.recursive_dependency_load_state(*h),
-                RecursiveDependencyLoadState::Loaded
-            )
-        });
-        if ready {
-            break;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "timed out loading the base + demo mod bundles"
-        );
-        std::thread::sleep(Duration::from_millis(5));
-    }
-
-    // Flatten each bundle into its ordered Content items, base first then the mod.
     let bundles = app.world().resource::<Assets<BundleAsset>>();
     let contents = app.world().resource::<Assets<ContentAsset>>();
     let flatten = |bundle: &Handle<BundleAsset>| -> Vec<Content> {
@@ -283,15 +291,11 @@ fn demo_mod_overlays_the_base_bundle() {
     let demo_items = flatten(&demo);
 
     let outcome = nova_assets::merge_bundles([base_items.iter(), demo_items.iter()]);
-
     assert!(
         outcome.conflicts.is_empty(),
         "clean data has no intra-bundle conflicts: {:?}",
         outcome.conflicts
     );
-
-    // The mod OVERRODE the base section by id: the health is the mod's 400, not
-    // the base's 200, and the label is the mod's renamed one.
     let hull = outcome
         .sections
         .iter()
@@ -299,160 +303,14 @@ fn demo_mod_overlays_the_base_bundle() {
         .expect("the overridden section is present");
     assert_eq!(
         hull.base.health, 400.0,
-        "the demo mod's reinforced_hull_section must overlay the base's"
+        "the mod's section overlays the base"
     );
-    assert!(
-        hull.base.name.contains("Demo Mod"),
-        "the mod's renamed label won: {}",
-        hull.base.name
-    );
-
-    // The mod ADDED a new scenario alongside the base ones.
     assert!(
         outcome.scenarios.contains_key("demo_mod_arena"),
-        "the demo mod's new scenario must be registered"
+        "the mod's new scenario is added"
     );
     assert!(
         outcome.scenarios.contains_key("demo"),
-        "a base scenario must still be present after overlay"
+        "a base scenario remains after overlay"
     );
-}
-
-/// The FULL production path (task 20260714-134127): the `register_bundles`
-/// SYSTEM reads the enabled mods from `Res<Assets<ModList>>` (not `merge_bundles`
-/// directly), appends them after the base, and writes `GameSections` /
-/// `GameScenarios`. Drives it with a populated `ModList` (the demo mod bundle) to
-/// prove the enable-list -> ModList -> bundle -> overlay chain the game runs, and
-/// that the mod's section override + added scenario land in the real resources.
-#[test]
-fn register_bundles_applies_enabled_mods() {
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        AssetPlugin {
-            file_path: "../../assets".to_string(),
-            ..default()
-        },
-    ));
-    app.add_plugins(NovaModdingPlugin);
-
-    let asset_server = app.world().resource::<AssetServer>().clone();
-    let base: Handle<BundleAsset> = asset_server.load("base/base.bundle.ron");
-    let demo: Handle<BundleAsset> = asset_server.load("mods/demo/demo.bundle.ron");
-
-    let deadline = Instant::now() + Duration::from_secs(60);
-    loop {
-        app.update();
-        for (label, handle) in [("base", &base), ("demo mod", &demo)] {
-            if let RecursiveDependencyLoadState::Failed(err) =
-                asset_server.recursive_dependency_load_state(handle)
-            {
-                panic!("the {label} bundle failed to load: {err}");
-            }
-        }
-        let ready = [&base, &demo].iter().all(|h| {
-            matches!(
-                asset_server.recursive_dependency_load_state(*h),
-                RecursiveDependencyLoadState::Loaded
-            )
-        });
-        if ready {
-            break;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "timed out loading the base + demo mod bundles"
-        );
-        std::thread::sleep(Duration::from_millis(5));
-    }
-
-    // A ModList enabling the demo mod, inserted as a real asset - exactly what the
-    // enable-list loader produces from a non-empty `enabled.mods.ron`.
-    let mod_list = app
-        .world_mut()
-        .resource_mut::<Assets<ModList>>()
-        .add(ModList {
-            bundles: vec![demo.clone()],
-        });
-
-    let game_assets = GameAssets {
-        cubemap: Handle::default(),
-        asteroid_texture: Handle::default(),
-        hull_01: Handle::default(),
-        turret_yaw_01: Handle::default(),
-        turret_pitch_01: Handle::default(),
-        turret_barrel_01: Handle::default(),
-        torpedo_bay_01: Handle::default(),
-        fps_icon: Handle::default(),
-        target_sprite: Handle::default(),
-        base_bundle: base.clone(),
-        mod_list,
-    };
-    app.world_mut().insert_resource(game_assets);
-
-    app.world_mut()
-        .run_system_once(nova_assets::register_bundles_for_test)
-        .expect("register bundles");
-
-    // The mod's section override reached GameSections through the real system.
-    let sections = app.world().resource::<GameSections>();
-    let hull = sections
-        .get_section("reinforced_hull_section")
-        .expect("the overridden base section is present");
-    assert_eq!(
-        hull.base.health, 400.0,
-        "the enabled demo mod must overlay the base section via register_bundles"
-    );
-
-    // The mod's new scenario reached GameScenarios alongside the base ones.
-    let scenarios = app.world().resource::<GameScenarios>();
-    assert!(
-        scenarios.contains_key("demo_mod_arena"),
-        "the enabled demo mod's scenario must be registered"
-    );
-    assert!(
-        scenarios.contains_key("demo"),
-        "base scenarios must remain after the mod overlay"
-    );
-}
-
-/// Same guard as `bundle_untyped_load_resolves_the_loader`, for the mod
-/// enable-list (task 20260714-134127). `enabled.mods.ron` is a `GameAssets`
-/// field, so bevy_asset_loader loads it UNTYPED; the `<name>.mods.ron` stem makes
-/// its full extension `mods.ron`, which `ModListLoader` registers. A bare
-/// `mods.ron` would resolve to `ron` and fail identically to the base-bundle bug.
-/// The shipped enable-list is empty, so the load reaches `Loaded` with no mod
-/// dependencies - the point is only that the loader RESOLVES.
-#[test]
-fn mods_enable_list_untyped_load_resolves_the_loader() {
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        AssetPlugin {
-            file_path: "../../assets".to_string(),
-            ..default()
-        },
-    ));
-    app.add_plugins(NovaModdingPlugin);
-
-    let asset_server = app.world().resource::<AssetServer>().clone();
-    let handle = asset_server.load_builder().load_untyped("enabled.mods.ron");
-
-    let deadline = Instant::now() + Duration::from_secs(60);
-    loop {
-        app.update();
-        match asset_server.recursive_dependency_load_state(&handle) {
-            RecursiveDependencyLoadState::Loaded => break,
-            RecursiveDependencyLoadState::Failed(err) => panic!(
-                "untyped load of enabled.mods.ron failed - the loader did not \
-                 resolve by extension (the in-game failure mode): {err}"
-            ),
-            _ => {}
-        }
-        assert!(
-            Instant::now() < deadline,
-            "timed out on the untyped enable-list load"
-        );
-        std::thread::sleep(Duration::from_millis(5));
-    }
 }

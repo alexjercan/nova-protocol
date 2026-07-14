@@ -8,14 +8,14 @@ use bevy::{
 };
 use bevy_asset_loader::prelude::*;
 use nova_gameplay::prelude::*;
-use nova_modding::prelude::{BundleAsset, Content, ContentAsset, ModList};
+use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog};
 use nova_scenario::prelude::GameScenarios;
 
 mod scenario;
 mod sections;
 
 pub mod prelude {
-    pub use super::{GameAssets, GameAssetsPlugin, GameAssetsStates};
+    pub use super::{EnabledMods, GameAssets, GameAssetsPlugin, GameAssetsStates};
 }
 
 /// The RON generation surface for the built-in scenarios (task 20260525-133028
@@ -105,41 +105,79 @@ pub mod scenario_generation {
 #[doc(hidden)]
 pub use crate::register_bundles as register_bundles_for_test;
 
-/// Route every loaded bundle's content into the id-keyed game registries, with
-/// load-order overlay.
+/// The set of ENABLED mod ids (catalog entry ids). `register_bundles` merges only
+/// the cataloged bundles whose id is in this set, in catalog order.
 ///
-/// It builds the ORDERED bundle list - the base bundle first, then every enabled
-/// mod bundle from the [`ModList`] enable-list in enable order - flattens each
-/// bundle's content (in manifest order, across its content files), and hands the
-/// whole ordered list to [`merge_bundles`]. Because a later bundle's items are
-/// applied after earlier ones, a LATER (mod) bundle wins on an id collision with
-/// the base (load-order overlay); a duplicate id WITHIN one bundle is a conflict,
-/// logged and skipped. Both resources are always inserted (empty if nothing
-/// loaded).
+/// Runtime state, NOT baked into any read-only asset: `seed_enabled_mods` fills it
+/// from the catalog's `base` entries at startup (persistence, task 174131, will load
+/// a saved set instead), and the mods menu (task 174126) toggles ids in and out. It
+/// is `Changed`-watched so a toggle re-runs the merge live.
+#[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
+pub struct EnabledMods(pub HashSet<String>);
+
+/// Seed [`EnabledMods`] from the catalog's default-enabled (`base: true`) entries -
+/// but ONLY if it is still empty, so a persisted set (174131) or an early menu
+/// toggle is never clobbered. Runs once at `OnEnter(Processing)`, before the merge.
+pub fn seed_enabled_mods(
+    game_assets: Res<GameAssets>,
+    catalogs: Res<Assets<InstalledCatalog>>,
+    mut enabled: ResMut<EnabledMods>,
+) {
+    if !enabled.0.is_empty() {
+        return;
+    }
+    let Some(catalog) = catalogs.get(&game_assets.catalog) else {
+        error!("seed_enabled_mods: the mods catalog was not loaded; nothing enabled by default");
+        return;
+    };
+    enabled.0 = catalog
+        .entries
+        .iter()
+        .filter(|e| e.meta.base)
+        .map(|e| e.meta.id.clone())
+        .collect();
+}
+
+/// Route every ENABLED cataloged bundle's content into the id-keyed game registries,
+/// with load-order overlay.
 ///
-/// The base bundle and the enable-list are both part of the `GameAssets`
-/// collection, so bevy_asset_loader gates the collection on their RECURSIVE load
-/// state and guarantees every mod bundle + content file finished loading before
-/// this runs `OnEnter(Processing)`. A handle whose asset is somehow not loaded is
-/// logged and skipped (never a panic) - the remaining content still registers.
+/// It walks the catalog in order, keeps the entries whose id is in [`EnabledMods`]
+/// (base first, by catalog order), flattens each kept bundle's content (in manifest
+/// order, across its content files), and hands the whole ordered list to
+/// [`merge_bundles`]. A LATER (mod) bundle wins on an id collision with the base
+/// (load-order overlay); a duplicate id WITHIN one bundle is a conflict, logged and
+/// skipped. Both resources are always inserted (empty if nothing enabled/loaded).
+///
+/// The catalog is part of the `GameAssets` collection and visits every installed
+/// bundle as a dependency, so bevy_asset_loader gates the collection on the whole
+/// tree's RECURSIVE load state - every installed bundle + content file is loaded
+/// before this first runs `OnEnter(Processing)`, regardless of which are enabled. A
+/// handle whose asset is somehow not loaded is logged and skipped (never a panic).
+/// Re-runs whenever `EnabledMods` changes so a menu toggle applies live.
 pub fn register_bundles(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
-    mod_lists: Res<Assets<ModList>>,
+    enabled: Res<EnabledMods>,
+    catalogs: Res<Assets<InstalledCatalog>>,
     bundles: Res<Assets<BundleAsset>>,
     contents: Res<Assets<ContentAsset>>,
 ) {
-    // Ordered bundle handles: base first, then enabled mods in enable order.
-    let mut bundle_handles: Vec<&Handle<BundleAsset>> = vec![&game_assets.base_bundle];
-    match mod_lists.get(&game_assets.mod_list) {
-        Some(mod_list) => bundle_handles.extend(mod_list.bundles.iter()),
-        None => error!(
-            "register_bundles: the mod enable-list was not loaded; registering the base only"
-        ),
+    // Ordered ENABLED bundle handles: catalog order (base first), keeping only
+    // entries whose id is enabled.
+    let mut bundle_handles: Vec<&Handle<BundleAsset>> = Vec::new();
+    match catalogs.get(&game_assets.catalog) {
+        Some(catalog) => {
+            for entry in &catalog.entries {
+                if enabled.0.contains(&entry.meta.id) {
+                    bundle_handles.push(&entry.bundle);
+                }
+            }
+        }
+        None => error!("register_bundles: the mods catalog was not loaded; registering nothing"),
     }
 
-    // Flatten each bundle into its ordered `&Content` items (missing content is
-    // logged and skipped). Kept as one Vec per bundle so `merge_bundles` can tell
+    // Flatten each enabled bundle into its ordered `&Content` items (missing content
+    // is logged and skipped). Kept as one Vec per bundle so `merge_bundles` can tell
     // intra-bundle duplicates from cross-bundle overlay.
     let mut bundle_items: Vec<Vec<&Content>> = Vec::new();
     for bundle_handle in bundle_handles {
@@ -292,6 +330,10 @@ impl Plugin for GameAssetsPlugin {
         // bevy_asset_loader starts loading the content files below.
         app.add_plugins(nova_modding::prelude::NovaModdingPlugin);
 
+        // The enabled-mods set drives which cataloged bundles merge. Seeded from
+        // the catalog's base entries at Processing; toggled by the mods menu.
+        app.init_resource::<EnabledMods>();
+
         // Setup the asset loader to load assets during the loading state.
         app.init_state::<GameAssetsStates>();
         app.add_loading_state(
@@ -304,6 +346,7 @@ impl Plugin for GameAssetsPlugin {
             OnEnter(GameAssetsStates::Processing),
             (
                 prepare_cubemap_view,
+                seed_enabled_mods,
                 register_bundles,
                 register_sounds,
                 update_nova_hud_assets,
@@ -312,6 +355,18 @@ impl Plugin for GameAssetsPlugin {
                 },
             )
                 .chain(),
+        );
+
+        // Re-merge live when the enabled set changes (a mods-menu toggle), once the
+        // catalog is loaded. `resource_changed` also fires on the initial insert,
+        // which is harmless (idempotent re-merge); it is skipped while still loading
+        // because the catalog is not yet present (register_bundles logs + no-ops).
+        app.add_systems(
+            Update,
+            register_bundles
+                .run_if(resource_exists::<GameAssets>)
+                .run_if(resource_changed::<EnabledMods>)
+                .run_if(not(in_state(GameAssetsStates::Loading))),
         );
     }
 }
@@ -336,32 +391,22 @@ pub struct GameAssets {
     pub fps_icon: Handle<Image>,
     #[asset(path = "icons/target.png")]
     pub target_sprite: Handle<Image>,
-    /// The base game, packaged as a folder bundle: `assets/base/base.bundle.ron`
-    /// lists the base content files, and its `BundleAsset` handle carries a
-    /// `ContentAsset` handle for each. bevy_asset_loader gates the collection
-    /// on this handle's RECURSIVE load state, so the bundle's content is fully
-    /// loaded before `register_bundles` runs at `OnEnter(Processing)`.
+    /// The installed-mods catalog (`assets/mods.catalog.ron`): every installed mod
+    /// (base first, then mods) with metadata + a `BundleAsset` handle. The
+    /// `InstalledCatalog` asset visits EVERY entry's bundle as a dependency, so
+    /// bevy_asset_loader gates the collection on the whole tree's RECURSIVE load
+    /// state - every installed bundle + its content is loaded before
+    /// `register_bundles` runs at `OnEnter(Processing)`, regardless of which mods
+    /// are enabled. `EnabledMods` then selects which cataloged bundles actually
+    /// merge (base enabled by default; the mods menu toggles the rest).
     ///
-    /// The `<pack>.bundle.ron` STEM is load-bearing: bevy_asset_loader kicks off
+    /// The `<name>.catalog.ron` STEM is load-bearing: bevy_asset_loader kicks off
     /// each collection field with an UNTYPED `load_untyped`, which resolves the
-    /// loader by extension only. Bevy's full extension is everything after the
-    /// FIRST dot, so a bare `bundle.ron` resolves to `ron` (no loader) and fails;
-    /// `base.bundle.ron` resolves to `bundle.ron` and matches `BundleAssetLoader`.
-    #[asset(path = "base/base.bundle.ron")]
-    pub base_bundle: Handle<BundleAsset>,
-    /// The enabled mods, as a `ModList` enable-list (`assets/enabled.mods.ron`).
-    /// Each entry is a mod `BundleAsset` handle; `register_bundles` merges them
-    /// AFTER the base, in enable order, so a mod overlays the base by id. Ships
-    /// EMPTY (`(mods: [])`) by default - a pristine base game. Like the base
-    /// bundle, the collection gates on this handle's RECURSIVE load state, so
-    /// every enabled mod bundle + its content is loaded before the merge runs.
-    ///
-    /// The `<name>.mods.ron` STEM is load-bearing for the same reason as the
-    /// bundle (untyped `load_untyped` -> extension-only resolution): a bare
-    /// `mods.ron` resolves to `ron` (no loader); `enabled.mods.ron` -> `mods.ron`,
-    /// which `ModListLoader` registers.
-    #[asset(path = "enabled.mods.ron")]
-    pub mod_list: Handle<ModList>,
+    /// loader by extension only. Bevy's full extension is everything after the FIRST
+    /// dot, so a bare `catalog.ron` resolves to `ron` (no loader) and fails;
+    /// `mods.catalog.ron` resolves to `catalog.ron` and matches `CatalogLoader`.
+    #[asset(path = "mods.catalog.ron")]
+    pub catalog: Handle<InstalledCatalog>,
 }
 
 /// Give the skybox cubemap its cube texture view.

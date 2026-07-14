@@ -13,22 +13,20 @@ This mod:
 
 ## How to enable
 
-Edit `assets/enabled.mods.ron` to list this bundle:
-
-```ron
-(mods: ["mods/demo/demo.bundle.ron"])
-```
-
-Then run the game - the section palette shows the buffed "Reinforced Hull Section
-(Demo Mod)" and `demo_mod_arena` is available. Set it back to `(mods: [])` to
-return to the pristine base game.
+This mod is listed in `assets/mods.catalog.ron` (the installed-mods catalog), so it
+is INSTALLED but disabled by default. Enable it from the main-menu **Mods** section -
+the section palette then shows the buffed "Reinforced Hull Section (Demo Mod)" and
+`demo_mod_arena` becomes available. Toggle it back off to return to the pristine base
+game.
 
 ## How it loads
 
-`enabled.mods.ron` -> `ModList` (its dependencies are the enabled mod bundles) ->
-each `demo.bundle.ron` -> `BundleAsset` (its dependencies are the content files)
--> each `mod.content.ron` -> `ContentAsset`. bevy gates on the recursive load
-state, then `register_bundles` (in `nova_assets`) merges base-then-mods by id.
+`mods.catalog.ron` -> `InstalledCatalog` (its dependencies are EVERY installed mod's
+bundle) -> each `demo.bundle.ron` -> `BundleAsset` (deps = its content files) -> each
+`mod.content.ron` -> `ContentAsset`. bevy gates on the recursive load state so all
+installed bundles load. `register_bundles` (in `nova_assets`) then merges only the
+ENABLED subset (`EnabledMods`) by id, base first - so enabling/disabling a mod is a
+live re-merge, not a reload.
 
 Naming note: manifests must be stemmed (`demo.bundle.ron`, not `bundle.ron`;
-`enabled.mods.ron`, not `mods.ron`) - see `docs/modding-ron-format.md`.
+`mods.catalog.ron`, not `catalog.ron`) - see `docs/modding-ron-format.md`.

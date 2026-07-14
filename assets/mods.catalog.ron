@@ -1,0 +1,23 @@
+// The INSTALLED-mods catalog: every mod the build ships, in LOAD order (base
+// first, so mods overlay it). This is the wasm-safe index the mods menu lists and
+// the loader loads - never a directory scan. Which entries are ENABLED is a runtime
+// concern (EnabledMods, persisted separately), NOT baked in here.
+//
+// Each entry: id (enable key + overlay namespace), name/description (shown in the
+// menu), bundle (the mod's `*.bundle.ron`, asset-root-relative), base (true = the
+// base game: enabled by default, locked on in the UI).
+(mods: [
+    (
+        id: "base",
+        name: "Base Game",
+        description: "Nova Protocol - the core sections, ships and scenarios.",
+        bundle: "base/base.bundle.ron",
+        base: true,
+    ),
+    (
+        id: "demo",
+        name: "Demo Mod",
+        description: "Example mod: up-armors a hull section and adds an arena scenario.",
+        bundle: "mods/demo/demo.bundle.ron",
+    ),
+])

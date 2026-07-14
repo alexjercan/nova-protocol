@@ -1,5 +1,6 @@
 // The demo mod bundle. A mod is the SAME shape as the base game: a folder with a
 // `*.bundle.ron` manifest listing its content files (paths relative to this
 // folder). This one has a single content file that both OVERRIDES a base section
-// and ADDS a new scenario. Enable it in `assets/enabled.mods.ron`.
+// and ADDS a new scenario. It is listed in `assets/mods.catalog.ron`; enable it from
+// the main-menu Mods section (or by adding its id to `EnabledMods`).
 (content: ["mod.content.ron"])

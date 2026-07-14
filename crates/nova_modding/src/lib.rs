@@ -43,8 +43,9 @@ use serde::{Deserialize, Serialize};
 
 pub mod prelude {
     pub use super::{
-        BundleAsset, BundleAssetLoader, BundleManifest, Content, ContentAsset, ContentAssetLoader,
-        ModList, ModListLoader, ModListManifest, ModdingLoaderError, NovaModdingPlugin,
+        BundleAsset, BundleAssetLoader, BundleManifest, CatalogEntry, CatalogLoader,
+        CatalogManifest, Content, ContentAsset, ContentAssetLoader, InstalledCatalog, ModEntry,
+        ModdingLoaderError, NovaModdingPlugin,
     };
 }
 
@@ -246,61 +247,94 @@ impl AssetLoader for BundleAssetLoader {
     }
 }
 
-/// The on-disk `*.mods.ron` enable-list: the enabled mod bundles, as manifest
-/// paths RELATIVE to the asset root (the enable-list lives at the root, so a mod
-/// bundle path is e.g. `"mods/demo/demo.bundle.ron"`).
+/// One INSTALLED mod's metadata + where to find it, as authored in the catalog.
 ///
-/// This is the wasm-safe source of truth for which mods are on - a manifest, never
-/// directory enumeration (`load_folder` is broken on the web target).
+/// This is what the mods menu shows in its list (`name`/`description`) and what
+/// `register_bundles` keys enable/disable on (`id`). `bundle` is the mod's
+/// `*.bundle.ron` manifest path, RELATIVE to the asset root (the catalog lives at
+/// the root). `base` marks the base game's own entry - it is enabled by default and
+/// (in the UI) locked on.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ModListManifest {
-    /// Enabled mod-bundle manifest paths, root-relative.
-    pub mods: Vec<String>,
+pub struct ModEntry {
+    /// Stable id - the enable/disable key and the merge-overlay namespace.
+    pub id: String,
+    /// Display name for the mods list.
+    pub name: String,
+    /// One-line description for the mods list.
+    pub description: String,
+    /// The mod's `*.bundle.ron` manifest path, asset-root-relative.
+    pub bundle: String,
+    /// True for the base game's entry: enabled by default, locked on in the UI.
+    #[serde(default)]
+    pub base: bool,
 }
 
-/// A loaded mod enable-list: the [`BundleAsset`] handle for every enabled mod, in
-/// enable order (base is merged first, then these).
+/// The on-disk `mods.catalog.ron`: every INSTALLED mod, in load order (base first).
 ///
-/// Like [`BundleAsset`] one level up, a `ModList` HAS dependencies - its mod
-/// bundles - so [`Asset`] and [`VisitAssetDependencies`] are hand-implemented to
-/// visit each bundle handle. That makes bevy load every mod bundle (and, through
-/// each bundle, its content) along with the list, and report the list's RECURSIVE
-/// load state as `Loaded` only once all of it has loaded - so `register_bundles`
-/// sees fully-loaded mods.
-#[derive(TypePath, Clone, Debug)]
-pub struct ModList {
-    /// One handle per enabled mod bundle, in enable order.
-    pub bundles: Vec<Handle<BundleAsset>>,
+/// This is the wasm-safe source of truth for what is installed - a manifest, never
+/// directory enumeration (`load_folder` is broken on the web target). Which entries
+/// are ENABLED is a separate runtime concern (`nova_assets::EnabledMods`), not baked
+/// into this read-only asset.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CatalogManifest {
+    /// Installed mods, in load order. `base` should come first so it merges first.
+    pub mods: Vec<ModEntry>,
 }
 
-impl VisitAssetDependencies for ModList {
+/// One loaded catalog entry: a mod's [`ModEntry`] metadata paired with the loaded
+/// handle for its [`BundleAsset`].
+#[derive(Clone, Debug)]
+pub struct CatalogEntry {
+    /// The authored metadata (id, name, description, base flag).
+    pub meta: ModEntry,
+    /// The loaded handle for this mod's bundle.
+    pub bundle: Handle<BundleAsset>,
+}
+
+/// A loaded installed-mods catalog: every installed mod's metadata + bundle handle,
+/// in catalog (load) order.
+///
+/// Like [`BundleAsset`] one level up, an `InstalledCatalog` HAS dependencies - the
+/// bundle of EVERY installed mod - so [`Asset`] and [`VisitAssetDependencies`] are
+/// hand-implemented to visit each entry's bundle handle. That makes bevy load every
+/// installed bundle (and, through each, its content) along with the catalog, and
+/// report the catalog's RECURSIVE load state as `Loaded` only once all of it has
+/// loaded - so the merge sees fully-loaded bundles regardless of which are enabled.
+#[derive(TypePath, Clone, Debug)]
+pub struct InstalledCatalog {
+    /// One entry per installed mod, in catalog order.
+    pub entries: Vec<CatalogEntry>,
+}
+
+impl VisitAssetDependencies for InstalledCatalog {
     fn visit_dependencies(&self, visit: &mut impl FnMut(UntypedAssetId)) {
-        for handle in &self.bundles {
-            visit(handle.id().untyped());
+        for entry in &self.entries {
+            visit(entry.bundle.id().untyped());
         }
     }
 }
 
-impl Asset for ModList {}
+impl Asset for InstalledCatalog {}
 
-/// Bevy [`AssetLoader`] for `*.mods.ron` files (a RON [`ModListManifest`]).
+/// Bevy [`AssetLoader`] for `mods.catalog.ron` files (a RON [`CatalogManifest`]).
 ///
-/// Decodes the manifest, then for each enabled mod issues a
-/// `load_context.load::<BundleAsset>` (the paths are asset-root-relative) and
-/// collects the handles into a [`ModList`]. Mirrors [`BundleAssetLoader`], one
-/// level up (bundles-of-bundles instead of bundle-of-content).
+/// Decodes the manifest, then for each installed mod issues a
+/// `load_context.load::<BundleAsset>` (the paths are asset-root-relative) and pairs
+/// each handle with its metadata into an [`InstalledCatalog`]. Mirrors
+/// [`BundleAssetLoader`] one level up (a catalog of bundles instead of a bundle of
+/// content).
 ///
-/// NAMING: same rule as bundles - the enable-list MUST be named `<name>.mods.ron`
-/// (e.g. `enabled.mods.ron`), never a bare `mods.ron`. bevy_asset_loader loads it
+/// NAMING: same rule as bundles - the catalog MUST be named `<name>.catalog.ron`
+/// (e.g. `mods.catalog.ron`), never a bare `catalog.ron`. bevy_asset_loader loads it
 /// UNTYPED (as a `GameAssets` field), which resolves the loader by the file's full
-/// extension - everything after the FIRST dot. `mods.ron` yields the bare `ron`
-/// extension (no loader, fails in-game); `enabled.mods.ron` yields `mods.ron` and
-/// matches. See task 20260714-163342.
+/// extension - everything after the FIRST dot. A single-dot name yields the bare
+/// `ron` extension (no loader, fails in-game); `mods.catalog.ron` yields
+/// `catalog.ron` and matches. See task 20260714-163342.
 #[derive(Default, TypePath)]
-pub struct ModListLoader;
+pub struct CatalogLoader;
 
-impl AssetLoader for ModListLoader {
-    type Asset = ModList;
+impl AssetLoader for CatalogLoader {
+    type Asset = InstalledCatalog;
     type Settings = ();
     type Error = ModdingLoaderError;
 
@@ -312,22 +346,25 @@ impl AssetLoader for ModListLoader {
     ) -> Result<Self::Asset, Self::Error> {
         let mut bytes = Vec::new();
         reader.read_to_end(&mut bytes).await?;
-        let manifest: ModListManifest = ron::de::from_bytes(&bytes)?;
+        let manifest: CatalogManifest = ron::de::from_bytes(&bytes)?;
 
-        // Mod-bundle paths are asset-root-relative (the enable-list lives at the
-        // root), so they load as-is - no dir resolution needed, unlike a bundle's
-        // content paths which are bundle-relative.
-        let bundles = manifest
+        // Bundle paths are asset-root-relative (the catalog lives at the root), so
+        // they load as-is - no dir resolution, unlike a bundle's content paths which
+        // are bundle-relative.
+        let entries = manifest
             .mods
-            .iter()
-            .map(|path| load_context.load::<BundleAsset>(AssetPath::from(path.to_string())))
+            .into_iter()
+            .map(|meta| {
+                let bundle = load_context.load::<BundleAsset>(AssetPath::from(meta.bundle.clone()));
+                CatalogEntry { meta, bundle }
+            })
             .collect();
 
-        Ok(ModList { bundles })
+        Ok(InstalledCatalog { entries })
     }
 
     fn extensions(&self) -> &[&str] {
-        &["mods.ron"]
+        &["catalog.ron"]
     }
 }
 
@@ -340,8 +377,8 @@ impl Plugin for NovaModdingPlugin {
             .init_asset_loader::<ContentAssetLoader>()
             .init_asset::<BundleAsset>()
             .init_asset_loader::<BundleAssetLoader>()
-            .init_asset::<ModList>()
-            .init_asset_loader::<ModListLoader>();
+            .init_asset::<InstalledCatalog>()
+            .init_asset_loader::<CatalogLoader>();
     }
 }
 
@@ -418,21 +455,26 @@ mod tests {
         );
     }
 
-    /// A `*.mods.ron` enable-list body decodes into a [`ModListManifest`] carrying
-    /// the enabled mod-bundle paths in order. An empty list (the shipped default)
-    /// decodes too. (The actual load of each mod bundle into a `ModList` is
-    /// exercised by the `nova_assets` integration test on the real asset server.)
+    /// A `mods.catalog.ron` body decodes into a [`CatalogManifest`] carrying the
+    /// installed mods in order, with `base` defaulting to false when omitted. (The
+    /// actual load of each bundle into an `InstalledCatalog` is exercised by the
+    /// `nova_assets` integration test on the real asset server.)
     #[test]
-    fn mod_list_manifest_ron_decodes() {
+    fn catalog_manifest_ron_decodes() {
         let ron = r#"(mods: [
-            "mods/demo/demo.bundle.ron",
+            (id: "base", name: "Base Game", description: "the base", bundle: "base/base.bundle.ron", base: true),
+            (id: "demo", name: "Demo Mod", description: "a demo", bundle: "mods/demo/demo.bundle.ron"),
         ])"#;
-        let manifest: ModListManifest =
-            ron::de::from_bytes(ron.as_bytes()).expect("mod list should decode");
-        assert_eq!(manifest.mods, vec!["mods/demo/demo.bundle.ron".to_string()]);
-
-        let empty: ModListManifest =
-            ron::de::from_bytes(b"(mods: [])").expect("empty mod list should decode");
-        assert!(empty.mods.is_empty());
+        let manifest: CatalogManifest =
+            ron::de::from_bytes(ron.as_bytes()).expect("catalog should decode");
+        assert_eq!(manifest.mods.len(), 2);
+        assert_eq!(manifest.mods[0].id, "base");
+        assert!(manifest.mods[0].base, "base flag decodes");
+        assert_eq!(manifest.mods[1].id, "demo");
+        assert!(
+            !manifest.mods[1].base,
+            "base defaults to false when omitted"
+        );
+        assert_eq!(manifest.mods[1].bundle, "mods/demo/demo.bundle.ron");
     }
 }
