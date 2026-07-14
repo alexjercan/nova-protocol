@@ -1,8 +1,8 @@
 # Base game as a bundle: convert hardcoded GameAssets content loading to a base bundle manifest
 
 - STATUS: OPEN
-- PRIORITY: 36
-- TAGS: v0.6.0,modding,scenario,spike
+- PRIORITY: 38
+- TAGS: v0.6.0, modding, scenario, spike
 
 Spike: tasks/20260714-113418/SPIKE.md
 
@@ -14,3 +14,10 @@ loaded through the bundle loader (20260714-134119) into the registries. Raw
 texture/gltf assets can stay in `GameAssets` or move to bundle asset-refs (already
 `AssetRef` paths). Keep the smoke suite green. Gated on 20260714-134119. `spike`
 until planned.
+
+## Re-based v2 (20260714)
+
+Re-based on the content-model bundle design (spike tasks/20260714-150410): "sections/
+ships/scenarios" are all `Content` items (kind-in-data); the base/mod bundle is a folder
+of `Content` files + a `bundle.ron` manifest, merged by kind via `register_content`.
+Otherwise unchanged. Gated on the folder-bundle mechanism (20260714-134119).

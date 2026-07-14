@@ -1,8 +1,8 @@
 # Mod loading + load-order overlay + a demo mod (override a section, add a scenario)
 
 - STATUS: OPEN
-- PRIORITY: 30
-- TAGS: v0.6.0,modding,scenario,spike
+- PRIORITY: 32
+- TAGS: v0.6.0, modding, scenario, spike
 
 Spike: tasks/20260714-113418/SPIKE.md
 
@@ -14,3 +14,10 @@ dir, but `mods.ron` stays the wasm-safe source of truth. Ship a DEMO mod that
 overrides one base section and adds one scenario, with a test proving the base+mod
 merge + overlay end-to-end. Gated on the base-as-bundle (20260714-134123). `spike`
 until planned.
+
+## Re-based v2 (20260714)
+
+Re-based on the content-model bundle design (spike tasks/20260714-150410): "sections/
+ships/scenarios" are all `Content` items (kind-in-data); the base/mod bundle is a folder
+of `Content` files + a `bundle.ron` manifest, merged by kind via `register_content`.
+Otherwise unchanged. Gated on the folder-bundle mechanism (20260714-134119).

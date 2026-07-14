@@ -1,8 +1,16 @@
 # Spike: typed multi-file content bundles (sections/ships/scenarios merged by kind)
 
 - DATE: 20260714-113418
-- STATUS: RECOMMENDED
+- STATUS: SUPERSEDED-IN-PART
 - TAGS: spike, modding, scenario, bundle
+
+> SUPERSEDED IN PART by `tasks/20260714-150410/SPIKE.md` (v2, 20260714). This doc's
+> "merge by kind + manifest + wasm-no-load_folder + overlay" conclusions still hold,
+> but its recommendation that a file declares its kind by EXTENSION (option A) is
+> OVERRIDDEN: v2 puts the kind flag IN the RON (a `Content` enum), one generic loader +
+> router, and builds that generic foundation FIRST so no kind needs a bespoke catalog.
+> Follow v2's task ordering (foundation 150508 first). Trust v2 over the "how kind is
+> declared" / task-ordering parts below.
 
 ## Question
 
