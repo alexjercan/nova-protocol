@@ -368,6 +368,19 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   item against the code - a spike listed the thruster "plume" as a gated hanabi
   effect when it is a shader (`ThrusterExhaustConfig`) that already rendered on the
   web; caught only because /work grepped. 20260714-233438.
+- `capability-detect-by-acquiring` (x1): gate on ACQUIRING the resource whose
+  absence causes the failure, not on the API namespace existing - a WebGPU gate that
+  checked `navigator.gpu` presence still crashed on a browser that exposed the API
+  but could not get an adapter (the failure is at surface/adapter creation, one step
+  downstream); probe `requestAdapter()`. A real playtest caught it; the unit tests
+  written to the presence-only spec were green and useless. Re-check any plan
+  assumption marked "unnecessary" when it is load-bearing for correctness.
+  20260714-233443.
+- `trunk-inline-script-before-deferred-module` (positive, domain, x1): trunk emits
+  its wasm bootstrap as a deferred `<script type="module">`, so a plain inlined
+  `<script>` (via `<link data-trunk rel="inline">`) placed after the target element
+  runs synchronously BEFORE bevy boots - the place for a pre-init gate (WebGPU
+  check, canvas swap). Confirm ordering in the built `dist/index.html`. 20260714-233443.
 - `target-scoped-feature-flips-wasm-backend` (positive, x1): to switch only the
   wasm build's render backend, add an additive target-specific bevy feature
   (`[target.'cfg(...wasm...)'.dependencies] bevy = { features = ["webgpu"] }`) -
