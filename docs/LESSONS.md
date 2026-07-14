@@ -129,10 +129,14 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   `git status` for related generated files before committing. 20260714-113408.
   (In an isolated sprout worktree, `git add -A` is the safe fix - it caught
   everything in 20260714-113411, no recurrence.)
-- `pin-the-fix-at-its-boundary` (x1): guard a bug fix with a test that fails under
+- `pin-the-fix-at-its-boundary` (x2): guard a bug fix with a test that fails under
   the bug at the fix's OWN boundary (a unit test), not only a downstream e2e -
   especially when the existing unit test passes under the bug (the DisableVerb
-  multi-verb accumulation was only e2e-guarded). 20260714-113411.
+  multi-verb accumulation was only e2e-guarded). Refactor variant: when a refactor
+  changes how an invariant is ENFORCED, re-pin the invariant on the new mechanism -
+  don't massage the old assertion until it passes (a hull-inertness test asserted
+  "present-but-unread" instead of "not a controller, so unread").
+  20260714-113411, 20260714-135642.
 - `reconcile-plan-to-shipped` (x2): at close-out reconcile the plan's aspirational
   lists (which variants/scope actually shipped, deferrals, overstated guarantees)
   with reality BEFORE review - it keeps flagging stale plan text as findings.
