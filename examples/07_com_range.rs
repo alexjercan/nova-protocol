@@ -136,7 +136,7 @@ fn com_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
         id: "com_range".to_string(),
         name: "COM Range".to_string(),
         description: "A test range for mass properties under section destruction.".to_string(),
-        cubemap: game_assets.cubemap.clone(),
+        cubemap: game_assets.cubemap.clone().into(),
         events,
     }
 }

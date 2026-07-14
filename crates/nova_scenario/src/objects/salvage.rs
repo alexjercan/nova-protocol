@@ -40,6 +40,7 @@ const CRATE_EMISSIVE_MIN: f32 = 3.0;
 const CRATE_EMISSIVE_MAX: f32 = 6.0;
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SalvageCrateConfig {
     /// Edge length of the crate's visible box (world units).
     pub size: f32,

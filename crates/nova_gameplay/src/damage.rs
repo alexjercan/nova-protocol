@@ -35,6 +35,7 @@ pub mod prelude {
 /// section, so a Kinetic weapon behaves exactly as the pre-typed model did. The
 /// three others each have one clear best target (spike taxonomy).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum DamageType {
     /// Plain slug / mass driver (the turret). Generalist; never exploits a
     /// weakness, never wasted.

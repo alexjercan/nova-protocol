@@ -102,7 +102,7 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     radius: 2.0,
-                    texture: game_assets.asteroid_texture.clone(),
+                    texture: game_assets.asteroid_texture.clone().into(),
                     health: 50.0,
                     surface_gravity: None,
                     invulnerable: false,
@@ -183,7 +183,7 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
         id: SCENARIO_ID.to_string(),
         name: "Scenario Showcase".to_string(),
         description: "Variables, events, filters and actions in one scenario.".to_string(),
-        cubemap: game_assets.cubemap.clone(),
+        cubemap: game_assets.cubemap.clone().into(),
         events,
     }
 }

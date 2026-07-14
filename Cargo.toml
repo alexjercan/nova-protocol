@@ -90,6 +90,7 @@ members = [
   "crates/nova_gameplay",
   "crates/nova_info",
   "crates/nova_menu",
+  "crates/nova_modding",
   "crates/nova_scenario",
 ]
 resolver = "2"

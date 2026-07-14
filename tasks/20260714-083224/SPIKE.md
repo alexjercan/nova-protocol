@@ -168,4 +168,29 @@ Optimizations (measured):
 
 ## Fix record
 
-(Appended by each implementing task as it lands.)
+- 20260714, branch `modding-language` (8 commits, workspace green feature-on and
+  off at each step). The RON scenario format is IMPLEMENTED end to end:
+  - `ebe47d5` nova_scenario `serde` feature on the pure-data config leaves.
+  - `5a6467c` nova_gameplay `serde` feature (FlightVerb + BaseSectionConfig).
+  - `4b06187` `AssetRef<A>` (nova_gameplay) - path-or-handle asset ref, authors as a
+    path string, resolves lazily via AssetServer at spawn; hand-impl'd standard
+    traits (EffectAsset isn't Debug). 3 tests.
+  - `acab3ee` AssetRef replaces the 13 section-config handle fields (10 WorldAsset
+    render meshes + 3 EffectAsset); render-build observers resolve via
+    Res<AssetServer>; serde on the whole section tree.
+  - `cc662eb` full `ScenarioConfig` serde: cubemap/asteroid texture -> AssetRef<Image>;
+    Binding (no serde) handled via a `BindingInput` authoring enum + `binding_map_serde`
+    with-helper (runtime type unchanged); serde on the container tree. RON round-trip
+    test (asteroid+beacon+ship-with-bindings).
+  - `0f1bfea` NEW crate `nova_modding`: `ScenarioAsset` + `*.scenario.ron`
+    `ScenarioAssetLoader` + `NovaModdingPlugin`. Asset resolution is lazy at spawn so
+    the loader is a pure RON decode.
+  - `d9a6ef1` nova_assets loads `assets/scenarios/demo.scenario.ron` into
+    `GameScenarios` (additive; built-ins untouched). Headless integration test loads
+    the demo through the real loader and asserts it lands in GameScenarios.
+  - Crate-boundary decision (Option C: new crate + optional serde on the engine) in
+    `tasks/20260714-091336/SPIKE.md`.
+  - DONE: 133029 (serde), 083326 (nova_modding crate/loader). PARTIAL: 133028 - the
+    RON->GameScenarios path works and a demo loads; porting the code-built built-ins
+    (esp. shakedown) still to do, and needs Tier-2 ship assets by path (gltf mesh
+    paths + `BindingInput` bindings). See docs/modding-ron-format.md.

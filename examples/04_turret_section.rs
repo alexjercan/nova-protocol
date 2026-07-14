@@ -188,7 +188,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: 2.0,
-            texture: game_assets.asteroid_texture.clone(),
+            texture: game_assets.asteroid_texture.clone().into(),
             health: 2000.0,
             surface_gravity: None,
             invulnerable: false,
@@ -227,7 +227,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 radius: 16.0,
-                texture: game_assets.asteroid_texture.clone(),
+                texture: game_assets.asteroid_texture.clone().into(),
                 health: 100_000.0,
                 surface_gravity: Some(10.0),
                 invulnerable: false,
@@ -249,7 +249,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         id: "turret_range".to_string(),
         name: "Turret Range".to_string(),
         description: "A test range for the PDC turret section.".to_string(),
-        cubemap: game_assets.cubemap.clone(),
+        cubemap: game_assets.cubemap.clone().into(),
         events,
     }
 }

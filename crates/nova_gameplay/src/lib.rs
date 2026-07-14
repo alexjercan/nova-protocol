@@ -4,6 +4,7 @@
 
 use bevy::prelude::*;
 
+pub mod asset_ref;
 pub mod audio;
 pub mod beacon;
 pub mod camera_controller;
@@ -58,6 +59,7 @@ pub mod prelude {
     pub use bevy_common_systems::prelude::*;
 
     pub use super::{
+        asset_ref::prelude::*,
         audio::{NovaAudioPlugin, NovaSfx, SfxListenerMarker, NOVA_SFX_FILES},
         beacon::prelude::*,
         camera_controller::prelude::*,

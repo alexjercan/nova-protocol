@@ -9,7 +9,7 @@ use bevy::{
 };
 use bevy_common_systems::prelude::*;
 
-use crate::prelude::{SectionDamageClass, SectionInactiveMarker, SectionRenderOf};
+use crate::prelude::{AssetRef, SectionDamageClass, SectionInactiveMarker, SectionRenderOf};
 
 pub mod prelude {
     pub use super::{
@@ -23,11 +23,13 @@ const THRUSTER_SECTION_DEFAULT_MAGNITUDE: f32 = 1.0;
 
 /// Configuration for a thruster section of a spaceship.
 #[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ThrusterSectionConfig {
     /// The magnitude of the force produced by this thruster section.
     pub magnitude: f32,
     /// The render mesh of the section, defaults to prototype mesh if None.
-    pub render_mesh: Option<Handle<WorldAsset>>,
+    #[reflect(ignore)]
+    pub render_mesh: Option<AssetRef<WorldAsset>>,
 }
 
 impl Default for ThrusterSectionConfig {
@@ -85,7 +87,7 @@ impl Default for ThrusterExhaustConfig {
 pub struct ThrusterSectionMarker;
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct ThrusterSectionRenderMesh(Option<Handle<WorldAsset>>);
+struct ThrusterSectionRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
 
 /// The thrust magnitude produced by this thruster section. This is a simple scalar value that can be
 /// used to determine the thrust force applied to the ship.
@@ -242,6 +244,7 @@ fn insert_thruster_section_render(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut standard_materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     q_thruster: Query<
         (&ThrusterSectionRenderMesh, Has<ThrusterSectionRenderMarker>),
         With<ThrusterSectionMarker>,
@@ -268,11 +271,12 @@ fn insert_thruster_section_render(
 
     commands.entity(entity).insert(ThrusterSectionRenderMarker);
     match &**render_mesh {
-        Some(scene) => {
+        Some(asset_ref) => {
+            let scene = asset_ref.resolve(&asset_server);
             commands.entity(entity).insert((children![(
                 Name::new("Thruster Section Body"),
                 SectionRenderOf(entity),
-                WorldAssetRoot(scene.clone()),
+                WorldAssetRoot(scene),
             ),],));
         }
         None => {
@@ -437,7 +441,7 @@ mod test {
         let mut app = App::new();
         let custom_scene = Handle::<WorldAsset>::default();
         let config = ThrusterSectionConfig {
-            render_mesh: Some(custom_scene.clone()),
+            render_mesh: Some(custom_scene.clone().into()),
             ..default()
         };
         let id = app.world_mut().spawn(thruster_section(config)).id();
@@ -449,6 +453,9 @@ mod test {
         assert!(app.world().get::<ThrusterSectionMarker>(id).is_some());
         let render_mesh = app.world().get::<ThrusterSectionRenderMesh>(id).unwrap();
         assert!(render_mesh.0.is_some());
-        assert_eq!(render_mesh.0.as_ref().unwrap(), &custom_scene);
+        assert_eq!(
+            render_mesh.0.as_ref().unwrap(),
+            &AssetRef::from(custom_scene)
+        );
     }
 }

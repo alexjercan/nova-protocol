@@ -24,6 +24,7 @@ pub struct GameScenarios(pub HashMap<ScenarioId, ScenarioConfig>);
 
 /// Configuration for a game scenario
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScenarioConfig {
     /// Unique identifier for the scenario
     pub id: ScenarioId,
@@ -31,14 +32,16 @@ pub struct ScenarioConfig {
     pub name: String,
     /// A brief description of the scenario
     pub description: String,
-    /// The cubemap image used for the scenario's skybox
-    pub cubemap: Handle<Image>,
+    /// The cubemap image used for the scenario's skybox. Authored as an asset
+    /// path; resolved to a live handle at load time (see `on_load_scenario`).
+    pub cubemap: AssetRef<Image>,
     /// Events associated with the scenario
     pub events: Vec<ScenarioEventConfig>,
 }
 
 /// Configuration for a scenario event
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScenarioEventConfig {
     /// The name of the event to listen for
     pub name: EventConfig,
@@ -421,6 +424,7 @@ fn on_load_scenario(
     q_scoped: Query<Entity, With<ScenarioScopedMarker>>,
     mut world: ResMut<NovaEventWorld>,
     mut emphasis: Option<ResMut<HintEmphasis>>,
+    asset_server: Res<AssetServer>,
 ) {
     teardown_scenario_entities(
         &mut commands,
@@ -446,7 +450,7 @@ fn on_load_scenario(
         WASDCameraController,
         Transform::from_xyz(0.0, 10.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
         SkyboxConfig {
-            cubemap: scenario.cubemap.clone(),
+            cubemap: scenario.cubemap.resolve(&asset_server),
             brightness: 1000.0,
         },
     ));
@@ -706,7 +710,7 @@ mod tests {
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 radius: 1.0,
-                texture: Handle::default(),
+                texture: AssetRef::default(),
                 health: 1.0,
                 surface_gravity: None,
                 invulnerable: false,
@@ -728,7 +732,7 @@ mod tests {
             id: id.to_string(),
             name: "Test Scenario".to_string(),
             description: "For tests".to_string(),
-            cubemap: Handle::default(),
+            cubemap: AssetRef::default(),
             events,
         }
     }
@@ -1202,6 +1206,12 @@ mod tests {
     #[test]
     fn load_and_unload_scenario_drive_the_gate() {
         let mut app = gated_app();
+        // on_load_scenario resolves the scenario cubemap through the
+        // AssetServer, so the load path needs the asset plugin present.
+        app.add_plugins((
+            bevy::app::TaskPoolPlugin::default(),
+            bevy::asset::AssetPlugin::default(),
+        ));
         app.init_resource::<NovaEventWorld>();
         app.add_observer(on_load_scenario);
         app.add_observer(unload_scenario);
@@ -1225,5 +1235,145 @@ mod tests {
         );
         step(&mut app);
         assert_eq!(ticks(&app), (1, 1, 1), "unloaded: sets frozen again");
+    }
+
+    /// The whole scenario config tree round-trips through RON under the
+    /// `serde` feature: an asteroid with a path-authored texture, a beacon,
+    /// and a player ship whose thruster section carries one keyboard and one
+    /// mouse binding. The bindings survive the `Binding <-> BindingInput`
+    /// bridge (`binding_map_serde`), and the cubemap/texture author as bare
+    /// path strings (`AssetRef`).
+    #[cfg(feature = "serde")]
+    #[test]
+    fn a_scenario_config_round_trips_through_ron() {
+        use bevy::platform::collections::HashMap;
+        use bevy_enhanced_input::prelude::Binding;
+        use nova_gameplay::prelude::{
+            BaseSectionConfig, SectionConfig, SectionKind, ThrusterSectionConfig,
+        };
+
+        use crate::objects::spaceship::{
+            PlayerControllerConfig, SpaceshipConfig, SpaceshipController, SpaceshipSectionConfig,
+        };
+
+        let bindings = vec![
+            Binding::from(KeyCode::KeyW),
+            Binding::from(MouseButton::Left),
+        ];
+        let mut input_mapping: HashMap<String, Vec<Binding>> = HashMap::default();
+        input_mapping.insert("thruster".to_string(), bindings.clone());
+
+        let ship = SpaceshipConfig {
+            controller: SpaceshipController::Player(PlayerControllerConfig {
+                input_mapping,
+                speed_cap: Some(100.0),
+                infinite_ammo: true,
+            }),
+            sections: vec![SpaceshipSectionConfig {
+                id: "thruster".to_string(),
+                position: Vec3::ZERO,
+                rotation: Quat::IDENTITY,
+                config: SectionConfig {
+                    base: BaseSectionConfig {
+                        id: "thruster".to_string(),
+                        ..default()
+                    },
+                    kind: SectionKind::Thruster(ThrusterSectionConfig::default()),
+                },
+            }],
+        };
+
+        let scenario = ScenarioConfig {
+            id: "roundtrip".to_string(),
+            name: "Round Trip".to_string(),
+            description: "serde smoke".to_string(),
+            cubemap: AssetRef::from("scenarios/space.cube.png"),
+            events: vec![ScenarioEventConfig {
+                name: EventConfig::OnStart,
+                filters: vec![],
+                actions: vec![
+                    EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+                        base: BaseScenarioObjectConfig {
+                            id: "rock".to_string(),
+                            name: "Rock".to_string(),
+                            position: Vec3::new(1.0, 2.0, 3.0),
+                            rotation: Quat::IDENTITY,
+                        },
+                        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                            radius: 5.0,
+                            texture: AssetRef::from("textures/rock.png"),
+                            health: 100.0,
+                            surface_gravity: None,
+                            invulnerable: false,
+                            lock_signature: None,
+                        }),
+                    }),
+                    EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+                        base: BaseScenarioObjectConfig {
+                            id: "beacon_1".to_string(),
+                            name: "Beacon".to_string(),
+                            position: Vec3::new(10.0, 0.0, 0.0),
+                            rotation: Quat::IDENTITY,
+                        },
+                        kind: ScenarioObjectKind::Beacon(BeaconConfig {
+                            label: "BEACON 1".to_string(),
+                            radius: 2.0,
+                            color: Color::srgb(0.3, 0.9, 1.0),
+                            area_radius: Some(40.0),
+                            lock_signature: None,
+                        }),
+                    }),
+                    EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+                        base: BaseScenarioObjectConfig {
+                            id: "player".to_string(),
+                            name: "Player".to_string(),
+                            position: Vec3::ZERO,
+                            rotation: Quat::IDENTITY,
+                        },
+                        kind: ScenarioObjectKind::Spaceship(ship),
+                    }),
+                ],
+            }],
+        };
+
+        let ron = ron::to_string(&scenario).expect("scenario serializes to RON");
+        let back: ScenarioConfig = ron::from_str(&ron).expect("scenario deserializes from RON");
+
+        // Top-level scalars and the path-authored cubemap survive.
+        assert_eq!(back.id, scenario.id);
+        assert_eq!(back.name, scenario.name);
+        assert_eq!(back.cubemap.path(), Some("scenarios/space.cube.png"));
+        assert_eq!(back.events.len(), 1);
+
+        let actions = &back.events[0].actions;
+        assert_eq!(actions.len(), 3);
+
+        // The asteroid's texture round-trips as its path.
+        let EventActionConfig::SpawnScenarioObject(rock) = &actions[0] else {
+            panic!("first action is the asteroid spawn");
+        };
+        let ScenarioObjectKind::Asteroid(rock_kind) = &rock.kind else {
+            panic!("first spawn is an asteroid");
+        };
+        assert_eq!(rock_kind.texture.path(), Some("textures/rock.png"));
+        assert_eq!(rock_kind.radius, 5.0);
+
+        // The player ship's bindings survive the Binding<->BindingInput bridge.
+        let EventActionConfig::SpawnScenarioObject(player) = &actions[2] else {
+            panic!("third action is the ship spawn");
+        };
+        let ScenarioObjectKind::Spaceship(ship_kind) = &player.kind else {
+            panic!("third spawn is a spaceship");
+        };
+        let SpaceshipController::Player(player_config) = &ship_kind.controller else {
+            panic!("the ship is player-controlled");
+        };
+        assert_eq!(player_config.speed_cap, Some(100.0));
+        assert!(player_config.infinite_ammo);
+        assert_eq!(
+            player_config.input_mapping.get("thruster"),
+            Some(&bindings),
+            "the keyboard + mouse bindings round-trip unchanged"
+        );
     }
 }

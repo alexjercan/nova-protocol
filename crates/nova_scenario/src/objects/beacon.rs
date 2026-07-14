@@ -35,6 +35,7 @@ const BEACON_EMISSIVE_MAX: f32 = 60.0;
 const BEACON_EMISSIVE_MIN: f32 = 8.0;
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BeaconConfig {
     /// The short name the HUD chip shows ("BEACON 1").
     pub label: String,
@@ -75,6 +76,7 @@ pub fn beacon_scenario_object(config: BeaconConfig) -> impl Bundle {
 
 /// Render inputs, consumed by `insert_beacon_render`.
 #[derive(Component, Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BeaconRenderConfig {
     pub radius: f32,
     pub color: Color,

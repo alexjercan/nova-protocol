@@ -14,12 +14,17 @@ bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems
 bevy_rand = { version = "0.15.0", default-features = false, features = ["chacha20", "wyrand"] }
 nova_events = { path = "../nova_events" }
 nova_gameplay = { path = "../nova_gameplay" }
+serde = { version = "1", features = ["derive"], optional = true }
 
 [target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]
 bevy_rand = { version = "0.15.0", features = ["wasm_js"] }
+
+[dev-dependencies]
+ron = { version = "0.12" }
 
 [lints]
 workspace = true
 
 [features]
 debug = ["bevy/track_location", "bevy_common_systems/debug"]
+serde = ["dep:serde", "bevy/serialize", "nova_gameplay/serde"]

@@ -190,7 +190,7 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius,
-            texture: game_assets.asteroid_texture.clone(),
+            texture: game_assets.asteroid_texture.clone().into(),
             health: 60.0,
             surface_gravity: None,
             invulnerable: false,
@@ -251,7 +251,7 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
         id: "torpedo_range".to_string(),
         name: "Torpedo Range".to_string(),
         description: "A test range for the torpedo bay section.".to_string(),
-        cubemap: game_assets.cubemap.clone(),
+        cubemap: game_assets.cubemap.clone().into(),
         events,
     }
 }

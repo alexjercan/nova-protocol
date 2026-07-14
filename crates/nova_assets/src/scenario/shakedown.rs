@@ -285,7 +285,7 @@ fn beacon_with_signature(
 /// The live-fire rehearsal target: an inert asteroid-kind hulk - zero new
 /// spawn paths (asteroids lock, zoom in the viewfinder, and die); the
 /// inert-SHIP silhouette is recorded future polish (spike 20260713-140742).
-fn derelict(game_assets: &crate::GameAssets) -> ScenarioObjectConfig {
+fn derelict(asteroid_texture: AssetRef<Image>) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: ID_DERELICT.to_string(),
@@ -295,7 +295,7 @@ fn derelict(game_assets: &crate::GameAssets) -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: DERELICT_RADIUS,
-            texture: game_assets.asteroid_texture.clone(),
+            texture: asteroid_texture,
             health: DERELICT_HEALTH,
             surface_gravity: None,
             invulnerable: false,
@@ -484,7 +484,11 @@ fn pirate_ship(sections: &GameSections) -> ScenarioObjectConfig {
     }
 }
 
-pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -> ScenarioConfig {
+pub(crate) fn shakedown_run(
+    cubemap: AssetRef<Image>,
+    asteroid_texture: AssetRef<Image>,
+    sections: &GameSections,
+) -> ScenarioConfig {
     // The debris cluster: fixed offsets, not rng - the layout is content,
     // and determinism keeps the config-shape tests honest.
     const ROCK_OFFSETS: [Vec3; 9] = [
@@ -512,7 +516,7 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: PLANETOID_NOMINAL_RADIUS,
-            texture: game_assets.asteroid_texture.clone(),
+            texture: asteroid_texture.clone(),
             health: 2000.0,
             surface_gravity: Some(6.0),
             invulnerable: true,
@@ -529,7 +533,7 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 radius,
-                texture: game_assets.asteroid_texture.clone(),
+                texture: asteroid_texture.clone(),
                 health: 100.0,
                 surface_gravity: None,
                 invulnerable: false,
@@ -775,7 +779,7 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
             actions: vec![
                 set(VAR_BEAT, num(9.0)),
                 complete(OBJ_B8),
-                spawn(derelict(game_assets)),
+                spawn(derelict(asteroid_texture.clone())),
                 objective(OBJ_B9, "Orbit held. Press [Z] to break away and burn clear."),
                 unmark(ID_PLANETOID),
                 mark(ID_DERELICT, "DERELICT"),
@@ -870,7 +874,7 @@ pub fn shakedown_run(game_assets: &crate::GameAssets, sections: &GameSections) -
         id: SHAKEDOWN_SCENARIO_ID.to_string(),
         name: "Shakedown Run".to_string(),
         description: "First flight: beacons, salvage, orbit - and one scavenger.".to_string(),
-        cubemap: game_assets.cubemap.clone(),
+        cubemap,
         events,
     }
 }
@@ -880,8 +884,11 @@ mod tests {
     use super::*;
 
     fn scenario() -> ScenarioConfig {
-        let assets = crate::scenario::tests::dummy_assets();
-        shakedown_run(&assets, &crate::scenario::tests::real_sections())
+        shakedown_run(
+            AssetRef::default(),
+            AssetRef::default(),
+            &crate::scenario::tests::real_sections(),
+        )
     }
 
     /// Every action across all handlers, flattened.

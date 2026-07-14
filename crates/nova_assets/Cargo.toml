@@ -7,9 +7,12 @@ description = "Asset management for the Nova Protocol game"
 [dependencies]
 bevy = { version = "0.19.0" }
 bevy_asset_loader = { version = "0.27.0" }
-rand = { version = "0.10.2" }
+# The scenario_generation module serializes the code-built configs to RON. The
+# needed Serialize derives (nova_scenario/serde) are already on via nova_modding.
+ron = { version = "0.12" }
 nova_gameplay = { path = "../nova_gameplay" }
 nova_scenario = { path = "../nova_scenario" }
+nova_modding = { path = "../nova_modding" }
 
 [dev-dependencies]
 avian3d = { version = "0.7" }

@@ -1,0 +1,193 @@
+(
+    id: "menu_ambience",
+    name: "Menu Ambience",
+    description: "The main menu\'s living backdrop.",
+    cubemap: "textures/cubemap.png",
+    events: [
+        (
+            name: OnStart,
+            filters: [],
+            actions: [
+                SpawnScenarioObject((
+                    base: (
+                        id: "menu_planetoid",
+                        name: "Menu Planetoid",
+                        position: (
+                            0.0,
+                            0.0,
+                            0.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                    ),
+                    kind: Asteroid((
+                        radius: 20.0,
+                        texture: "textures/asteroid.png",
+                        health: 2000.0,
+                        surface_gravity: Some(6.0),
+                        invulnerable: true,
+                        lock_signature: None,
+                    )),
+                )),
+                SpawnScenarioObject((
+                    base: (
+                        id: "menu_orbiter",
+                        name: "Menu Orbiter",
+                        position: (
+                            140.0,
+                            0.0,
+                            0.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                    ),
+                    kind: Spaceship((
+                        controller: AI((
+                            patrol: [],
+                            orbit: Some("menu_planetoid"),
+                            leash: None,
+                        )),
+                        sections: [
+                            (
+                                id: "controller",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                                config: (
+                                    base: (
+                                        id: "basic_controller_section",
+                                        name: "Basic Controller Section",
+                                        description: "A basic controller section for spaceships.",
+                                        mass: 1.0,
+                                        health: 100.0,
+                                    ),
+                                    kind: Controller((
+                                        frequency: 4.0,
+                                        damping_ratio: 4.0,
+                                        max_torque: 40.0,
+                                        verbs: (
+                                            stop: true,
+                                            goto: true,
+                                            orbit: true,
+                                            lock: true,
+                                        ),
+                                        render_mesh: None,
+                                    )),
+                                ),
+                            ),
+                            (
+                                id: "hull_front",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                                config: (
+                                    base: (
+                                        id: "reinforced_hull_section",
+                                        name: "Reinforced Hull Section",
+                                        description: "A reinforced hull section for spaceships.",
+                                        mass: 1.0,
+                                        health: 200.0,
+                                    ),
+                                    kind: Hull((
+                                        render_mesh: Some("gltf/hull-01.glb#Scene0"),
+                                    )),
+                                ),
+                            ),
+                            (
+                                id: "thruster",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    2.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                                config: (
+                                    base: (
+                                        id: "basic_thruster_section",
+                                        name: "Basic Thruster Section",
+                                        description: "A basic thruster section for spaceships.",
+                                        mass: 1.0,
+                                        health: 70.0,
+                                    ),
+                                    kind: Thruster((
+                                        magnitude: 1.0,
+                                        render_mesh: None,
+                                    )),
+                                ),
+                            ),
+                        ],
+                    )),
+                )),
+                ScatterObjects((
+                    id_prefix: "menu_rock_",
+                    count: 14,
+                    seed: 433757350076153856,
+                    region: Ring(
+                        inner: 170.0,
+                        outer: 240.0,
+                        y_min: -70.0,
+                        y_max: -30.0,
+                    ),
+                    template: (
+                        base: (
+                            id: "menu_rock_",
+                            name: "Menu Rock",
+                            position: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 1.0,
+                            texture: "textures/asteroid.png",
+                            health: 100.0,
+                            surface_gravity: None,
+                            invulnerable: false,
+                            lock_signature: None,
+                        )),
+                    ),
+                    asteroid_radius: Some((
+                        1.0,
+                        3.0,
+                    )),
+                )),
+            ],
+        ),
+    ],
+)

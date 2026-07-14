@@ -14,6 +14,7 @@ pub mod prelude {
 pub const SPACESHIP_TYPE_NAME: &str = "spaceship";
 
 #[derive(Component, Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SpaceshipController {
     None,
     Player(PlayerControllerConfig),
@@ -21,7 +22,12 @@ pub enum SpaceshipController {
 }
 
 #[derive(Clone, Debug, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PlayerControllerConfig {
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "crate::objects::binding_input::binding_map_serde")
+    )]
     pub input_mapping: HashMap<SectionId, Vec<Binding>>,
     /// Soft manual-speed cap (u/s), inserted as [`FlightSpeedCap`] on the
     /// ship root: the manual burn tapers off approaching it (the starter
@@ -38,6 +44,7 @@ pub struct PlayerControllerConfig {
 }
 
 #[derive(Clone, Debug, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AIControllerConfig {
     /// Waypoint loop the ship patrols while nothing hostile is in detection
     /// range (world coordinates). Empty = no patrol assignment: the ship
@@ -58,6 +65,7 @@ pub struct AIControllerConfig {
 pub type SectionId = String;
 
 #[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SpaceshipSectionConfig {
     pub id: SectionId,
     pub position: Vec3,
@@ -69,6 +77,7 @@ pub struct SpaceshipSectionConfig {
 pub struct SpaceshipSectionsConfig(pub Vec<SpaceshipSectionConfig>);
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SpaceshipConfig {
     pub controller: SpaceshipController,
     pub sections: Vec<SpaceshipSectionConfig>,

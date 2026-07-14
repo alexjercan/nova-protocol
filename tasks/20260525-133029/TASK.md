@@ -1,8 +1,8 @@
-# Scenario language/config format
+# Add optional serde feature + derives to nova_scenario config types
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
-- TAGS: v0.6.0,modding,scenario,foundation
+- TAGS: v0.6.0, modding, scenario, foundation
 
 Data-driven scenario definition. Legacy #101.
 

@@ -31,10 +31,56 @@ const TORPEDO_BASE_HEALTH: f32 = 100.0;
 // shakedown pirate still dying in a short burst (~0.15s on a 60-HP hull).
 const BETTER_TURRET_BULLET_DAMAGE: f32 = 4.0;
 
-pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::GameAssets>) {
-    // This should be loaded from a JSON file, but for now it is fine.
+/// The render-mesh asset references the section catalog needs, as `AssetRef`s.
+///
+/// The catalog itself (`build_sections`) is defined ONCE and is agnostic to how
+/// these refs were sourced: production builds them from the live `GameAssets`
+/// handles (`from_game_assets`), while the RON generator/parity test builds them
+/// from asset PATHS (`from_paths`) so the serialized section configs carry
+/// authorable paths instead of opaque handles.
+pub struct SectionMeshRefs {
+    pub hull: AssetRef<WorldAsset>,
+    pub turret_yaw: AssetRef<WorldAsset>,
+    pub turret_pitch: AssetRef<WorldAsset>,
+    pub turret_barrel: AssetRef<WorldAsset>,
+    pub torpedo_bay: AssetRef<WorldAsset>,
+}
 
-    commands.insert_resource(GameSections(vec![
+impl SectionMeshRefs {
+    /// Production source: the live handles held by `GameAssets`.
+    pub fn from_game_assets(game_assets: &super::GameAssets) -> Self {
+        Self {
+            hull: game_assets.hull_01.clone().into(),
+            turret_yaw: game_assets.turret_yaw_01.clone().into(),
+            turret_pitch: game_assets.turret_pitch_01.clone().into(),
+            turret_barrel: game_assets.turret_barrel_01.clone().into(),
+            torpedo_bay: game_assets.torpedo_bay_01.clone().into(),
+        }
+    }
+
+    /// Generation source: the same asset paths `GameAssets` loads them from, so
+    /// the serialized section configs carry authorable paths.
+    pub fn from_paths() -> Self {
+        Self {
+            hull: AssetRef::from("gltf/hull-01.glb#Scene0".to_string()),
+            turret_yaw: AssetRef::from("gltf/turret-yaw-01.glb#Scene0".to_string()),
+            turret_pitch: AssetRef::from("gltf/turret-pitch-01.glb#Scene0".to_string()),
+            turret_barrel: AssetRef::from("gltf/turret-barrel-01.glb#Scene0".to_string()),
+            torpedo_bay: AssetRef::from("gltf/torpedo-bay-01.glb#Scene0".to_string()),
+        }
+    }
+}
+
+pub fn register_sections(mut commands: Commands, game_assets: Res<super::GameAssets>) {
+    let meshes = SectionMeshRefs::from_game_assets(&game_assets);
+    commands.insert_resource(GameSections(build_sections(&meshes)));
+}
+
+/// The section catalog, built against `meshes` for its render-mesh refs. The
+/// single source of truth for the built-in sections; both the production
+/// registry and the RON generator go through here.
+pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
+    vec![
         SectionConfig {
             base: BaseSectionConfig {
                 id: "reinforced_hull_section".to_string(),
@@ -44,7 +90,7 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 health: 200.0,
             },
             kind: SectionKind::Hull(HullSectionConfig {
-                render_mesh: Some(game_assets.hull_01.clone()),
+                render_mesh: Some(meshes.hull.clone()),
             }),
         },
         SectionConfig {
@@ -109,11 +155,11 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 max_pitch: Some(std::f32::consts::FRAC_PI_2),
                 render_mesh_base: None,
                 base_offset: Vec3::new(0.0, -0.5, 0.0),
-                render_mesh_yaw: Some(game_assets.turret_yaw_01.clone()),
+                render_mesh_yaw: Some(meshes.turret_yaw.clone()),
                 yaw_offset: Vec3::new(0.0, 0.1, 0.0),
-                render_mesh_pitch: Some(game_assets.turret_pitch_01.clone()),
+                render_mesh_pitch: Some(meshes.turret_pitch.clone()),
                 pitch_offset: Vec3::new(0.0, 0.332706, 0.303954),
-                render_mesh_barrel: Some(game_assets.turret_barrel_01.clone()),
+                render_mesh_barrel: Some(meshes.turret_barrel.clone()),
                 barrel_offset: Vec3::new(0.0, 0.128437, -0.110729),
                 muzzle_offset: Vec3::new(0.0, 0.0, -1.2),
                 fire_rate: 100.0,
@@ -148,7 +194,7 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 health: 60.0,
             },
             kind: SectionKind::Hull(HullSectionConfig {
-                render_mesh: Some(game_assets.hull_01.clone()),
+                render_mesh: Some(meshes.hull.clone()),
             }),
         },
         SectionConfig {
@@ -170,11 +216,11 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 max_pitch: Some(std::f32::consts::FRAC_PI_2),
                 render_mesh_base: None,
                 base_offset: Vec3::new(0.0, -0.5, 0.0),
-                render_mesh_yaw: Some(game_assets.turret_yaw_01.clone()),
+                render_mesh_yaw: Some(meshes.turret_yaw.clone()),
                 yaw_offset: Vec3::new(0.0, 0.1, 0.0),
-                render_mesh_pitch: Some(game_assets.turret_pitch_01.clone()),
+                render_mesh_pitch: Some(meshes.turret_pitch.clone()),
                 pitch_offset: Vec3::new(0.0, 0.332706, 0.303954),
-                render_mesh_barrel: Some(game_assets.turret_barrel_01.clone()),
+                render_mesh_barrel: Some(meshes.turret_barrel.clone()),
                 barrel_offset: Vec3::new(0.0, 0.128437, -0.110729),
                 muzzle_offset: Vec3::new(0.0, 0.0, -1.2),
                 // Scavenger grade: a quarter of the better turret's fire rate,
@@ -207,7 +253,7 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 health: TORPEDO_BASE_HEALTH,
             },
             kind: SectionKind::Torpedo(TorpedoSectionConfig {
-                render_mesh: Some(game_assets.torpedo_bay_01.clone()),
+                render_mesh: Some(meshes.torpedo_bay.clone()),
                 projectile_render_mesh: None,
                 spawn_offset: Vec3::NEG_Z * 2.0,
                 spawn_rotation: Quat::IDENTITY,
@@ -228,7 +274,7 @@ pub(crate) fn register_sections(mut commands: Commands, game_assets: Res<super::
                 ammo_capacity: Some(6),
             }),
         },
-    ]));
+    ]
 }
 
 #[cfg(test)]

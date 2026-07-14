@@ -105,9 +105,20 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   the original symptom before interpreting old traces. 20260709-125640.
 - `spike-fix-record` (positive, PROMOTED 2026-07-11 -> spike skill): multi-task
   spikes keep a living fix-record section. 20260711-103527.
-- `tatr-same-second-collision` (x6): consecutive `tatr new` calls in one second
+- `tatr-same-second-collision` (x7): consecutive `tatr new` calls in one second
   silently share an ID; one call per tool invocation, never chained.
-  20260712-143832, 20260713-175415.
+  20260712-143832, 20260713-175415, 20260525-133028.
+- `serde-scope-grep` (x1): before estimating a serde/derive (or any trait)
+  migration, grep the whole target type tree for non-derivable members - raw
+  `Handle`s, foreign-crate types, Reflect-only types; scope hides in the leaves
+  ("2 handles" was really 13 + 3 foreign types, a whole second tier). 20260525-133028.
+- `generate-data-from-code` (x1): migrate code-defined content to data files by
+  serializing the code config with a parity test, never hand-authoring - provably
+  faithful and sidesteps every format-syntax gotcha. 20260525-133028.
+- `effect-not-just-helper` (x1): test a spawn/mutation action's EFFECT through the
+  ECS harness (fire -> drain -> assert on the world), not just its pure sub-helper
+  plus a non-asserting example; the helper passing hid an untested spawn loop.
+  20260525-133028.
 - `bg-session-authors-on-branch` (x1): background sessions cannot Write in the
   shared checkout, and parallel sessions sweep loose files there; author task
   and doc content inside the first sprouted worktree, only `tatr new` stubs
@@ -275,7 +286,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-(none)
+- `tatr-same-second-collision` (x7) -> tatr skill / AGENTS.md: never issue two
+  `tatr new` calls in the same second or one bash line - they share a
+  second-resolution ID and the later silently overwrites the earlier. One `tatr
+  new` per tool invocation.
 
 ## Promoted (kept for history)
 

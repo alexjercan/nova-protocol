@@ -1,0 +1,643 @@
+(
+    id: "asteroid_field",
+    name: "Asteroid Field",
+    description: "A dense asteroid field.",
+    cubemap: "textures/cubemap.png",
+    events: [
+        (
+            name: OnStart,
+            filters: [],
+            actions: [
+                SpawnScenarioObject((
+                    base: (
+                        id: "asteroid_grav",
+                        name: "Gravity Rock",
+                        position: (
+                            250.0,
+                            0.0,
+                            0.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                    ),
+                    kind: Asteroid((
+                        radius: 20.0,
+                        texture: "textures/asteroid.png",
+                        health: 2000.0,
+                        surface_gravity: Some(6.0),
+                        invulnerable: true,
+                        lock_signature: None,
+                    )),
+                )),
+                SpawnScenarioObject((
+                    base: (
+                        id: "player_spaceship",
+                        name: "Player Spaceship",
+                        position: (
+                            0.0,
+                            0.0,
+                            0.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                    ),
+                    kind: Spaceship((
+                        controller: Player((
+                            input_mapping: {
+                                "turret": [
+                                    Mouse(Left),
+                                    Gamepad(RightTrigger2),
+                                ],
+                            },
+                            speed_cap: None,
+                            infinite_ammo: false,
+                        )),
+                        sections: [
+                            (
+                                id: "controller",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                                config: (
+                                    base: (
+                                        id: "basic_controller_section",
+                                        name: "Basic Controller Section",
+                                        description: "A basic controller section for spaceships.",
+                                        mass: 1.0,
+                                        health: 100.0,
+                                    ),
+                                    kind: Controller((
+                                        frequency: 4.0,
+                                        damping_ratio: 4.0,
+                                        max_torque: 40.0,
+                                        verbs: (
+                                            stop: true,
+                                            goto: true,
+                                            orbit: true,
+                                            lock: true,
+                                        ),
+                                        render_mesh: None,
+                                    )),
+                                ),
+                            ),
+                            (
+                                id: "hull_front",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                                config: (
+                                    base: (
+                                        id: "reinforced_hull_section",
+                                        name: "Reinforced Hull Section",
+                                        description: "A reinforced hull section for spaceships.",
+                                        mass: 1.0,
+                                        health: 200.0,
+                                    ),
+                                    kind: Hull((
+                                        render_mesh: Some("gltf/hull-01.glb#Scene0"),
+                                    )),
+                                ),
+                            ),
+                            (
+                                id: "hull_back",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    -1.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                                config: (
+                                    base: (
+                                        id: "reinforced_hull_section",
+                                        name: "Reinforced Hull Section",
+                                        description: "A reinforced hull section for spaceships.",
+                                        mass: 1.0,
+                                        health: 200.0,
+                                    ),
+                                    kind: Hull((
+                                        render_mesh: Some("gltf/hull-01.glb#Scene0"),
+                                    )),
+                                ),
+                            ),
+                            (
+                                id: "thruster",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    2.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                                config: (
+                                    base: (
+                                        id: "basic_thruster_section",
+                                        name: "Basic Thruster Section",
+                                        description: "A basic thruster section for spaceships.",
+                                        mass: 1.0,
+                                        health: 70.0,
+                                    ),
+                                    kind: Thruster((
+                                        magnitude: 1.0,
+                                        render_mesh: None,
+                                    )),
+                                ),
+                            ),
+                            (
+                                id: "turret",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    -2.0,
+                                ),
+                                rotation: (
+                                    -0.70710677,
+                                    0.0,
+                                    0.0,
+                                    0.70710677,
+                                ),
+                                config: (
+                                    base: (
+                                        id: "better_turret_section",
+                                        name: "Better Turret Section",
+                                        description: "A better turret section for spaceships.",
+                                        mass: 1.0,
+                                        health: 130.0,
+                                    ),
+                                    kind: Turret((
+                                        yaw_speed: 3.1415927,
+                                        pitch_speed: 3.1415927,
+                                        min_pitch: Some(-0.5235988),
+                                        max_pitch: Some(1.5707964),
+                                        render_mesh_base: None,
+                                        base_offset: (
+                                            0.0,
+                                            -0.5,
+                                            0.0,
+                                        ),
+                                        render_mesh_yaw: Some("gltf/turret-yaw-01.glb#Scene0"),
+                                        yaw_offset: (
+                                            0.0,
+                                            0.1,
+                                            0.0,
+                                        ),
+                                        render_mesh_pitch: Some("gltf/turret-pitch-01.glb#Scene0"),
+                                        pitch_offset: (
+                                            0.0,
+                                            0.332706,
+                                            0.303954,
+                                        ),
+                                        render_mesh_barrel: Some("gltf/turret-barrel-01.glb#Scene0"),
+                                        barrel_offset: (
+                                            0.0,
+                                            0.128437,
+                                            -0.110729,
+                                        ),
+                                        muzzle_offset: (
+                                            0.0,
+                                            0.0,
+                                            -1.2,
+                                        ),
+                                        fire_rate: 100.0,
+                                        muzzle_speed: 100.0,
+                                        projectile_lifetime: 5.0,
+                                        bullet_damage: 4.0,
+                                        bullet_kind: Kinetic,
+                                        projectile_render_mesh: None,
+                                        muzzle_effect: None,
+                                        ammo_capacity: Some(500),
+                                    )),
+                                ),
+                            ),
+                        ],
+                    )),
+                )),
+                SpawnScenarioObject((
+                    base: (
+                        id: "other_spaceship",
+                        name: "Other Spaceship",
+                        position: (
+                            10.0,
+                            0.0,
+                            0.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                    ),
+                    kind: Spaceship((
+                        controller: r#None,
+                        sections: [
+                            (
+                                id: "controller",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                                config: (
+                                    base: (
+                                        id: "basic_controller_section",
+                                        name: "Basic Controller Section",
+                                        description: "A basic controller section for spaceships.",
+                                        mass: 1.0,
+                                        health: 100.0,
+                                    ),
+                                    kind: Controller((
+                                        frequency: 4.0,
+                                        damping_ratio: 4.0,
+                                        max_torque: 40.0,
+                                        verbs: (
+                                            stop: true,
+                                            goto: true,
+                                            orbit: true,
+                                            lock: true,
+                                        ),
+                                        render_mesh: None,
+                                    )),
+                                ),
+                            ),
+                            (
+                                id: "hull_front",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                                config: (
+                                    base: (
+                                        id: "reinforced_hull_section",
+                                        name: "Reinforced Hull Section",
+                                        description: "A reinforced hull section for spaceships.",
+                                        mass: 1.0,
+                                        health: 200.0,
+                                    ),
+                                    kind: Hull((
+                                        render_mesh: Some("gltf/hull-01.glb#Scene0"),
+                                    )),
+                                ),
+                            ),
+                            (
+                                id: "hull_back",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    -1.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                                config: (
+                                    base: (
+                                        id: "reinforced_hull_section",
+                                        name: "Reinforced Hull Section",
+                                        description: "A reinforced hull section for spaceships.",
+                                        mass: 1.0,
+                                        health: 200.0,
+                                    ),
+                                    kind: Hull((
+                                        render_mesh: Some("gltf/hull-01.glb#Scene0"),
+                                    )),
+                                ),
+                            ),
+                            (
+                                id: "thruster",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    2.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                                config: (
+                                    base: (
+                                        id: "basic_thruster_section",
+                                        name: "Basic Thruster Section",
+                                        description: "A basic thruster section for spaceships.",
+                                        mass: 1.0,
+                                        health: 70.0,
+                                    ),
+                                    kind: Thruster((
+                                        magnitude: 1.0,
+                                        render_mesh: None,
+                                    )),
+                                ),
+                            ),
+                            (
+                                id: "turret",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    -2.0,
+                                ),
+                                rotation: (
+                                    -0.70710677,
+                                    0.0,
+                                    0.0,
+                                    0.70710677,
+                                ),
+                                config: (
+                                    base: (
+                                        id: "better_turret_section",
+                                        name: "Better Turret Section",
+                                        description: "A better turret section for spaceships.",
+                                        mass: 1.0,
+                                        health: 130.0,
+                                    ),
+                                    kind: Turret((
+                                        yaw_speed: 3.1415927,
+                                        pitch_speed: 3.1415927,
+                                        min_pitch: Some(-0.5235988),
+                                        max_pitch: Some(1.5707964),
+                                        render_mesh_base: None,
+                                        base_offset: (
+                                            0.0,
+                                            -0.5,
+                                            0.0,
+                                        ),
+                                        render_mesh_yaw: Some("gltf/turret-yaw-01.glb#Scene0"),
+                                        yaw_offset: (
+                                            0.0,
+                                            0.1,
+                                            0.0,
+                                        ),
+                                        render_mesh_pitch: Some("gltf/turret-pitch-01.glb#Scene0"),
+                                        pitch_offset: (
+                                            0.0,
+                                            0.332706,
+                                            0.303954,
+                                        ),
+                                        render_mesh_barrel: Some("gltf/turret-barrel-01.glb#Scene0"),
+                                        barrel_offset: (
+                                            0.0,
+                                            0.128437,
+                                            -0.110729,
+                                        ),
+                                        muzzle_offset: (
+                                            0.0,
+                                            0.0,
+                                            -1.2,
+                                        ),
+                                        fire_rate: 100.0,
+                                        muzzle_speed: 100.0,
+                                        projectile_lifetime: 5.0,
+                                        bullet_damage: 4.0,
+                                        bullet_kind: Kinetic,
+                                        projectile_render_mesh: None,
+                                        muzzle_effect: None,
+                                        ammo_capacity: Some(500),
+                                    )),
+                                ),
+                            ),
+                        ],
+                    )),
+                )),
+                ScatterObjects((
+                    id_prefix: "asteroid_",
+                    count: 20,
+                    seed: 433757350076153856,
+                    region: Box(
+                        min: (
+                            -100.0,
+                            -20.0,
+                            -100.0,
+                        ),
+                        max: (
+                            100.0,
+                            20.0,
+                            100.0,
+                        ),
+                    ),
+                    template: (
+                        base: (
+                            id: "asteroid_",
+                            name: "Asteroid",
+                            position: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 1.0,
+                            texture: "textures/asteroid.png",
+                            health: 100.0,
+                            surface_gravity: None,
+                            invulnerable: false,
+                            lock_signature: None,
+                        )),
+                    ),
+                    asteroid_radius: Some((
+                        1.0,
+                        3.0,
+                    )),
+                )),
+            ],
+        ),
+        (
+            name: OnStart,
+            filters: [],
+            actions: [
+                CreateScenarioArea((
+                    id: "asteroid_zone",
+                    name: "Asteroid Zone",
+                    position: (
+                        0.0,
+                        0.0,
+                        -100.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    radius: 10.0,
+                )),
+            ],
+        ),
+        (
+            name: OnStart,
+            filters: [],
+            actions: [
+                Objective((
+                    id: "destroy_asteroids",
+                    message: "Objective: Destroy 5 asteroids!",
+                )),
+            ],
+        ),
+        (
+            name: OnStart,
+            filters: [],
+            actions: [
+                VariableSet((
+                    key: "asteroids_destroyed",
+                    expression: Term(Factor(Literal(Number(0.0)))),
+                )),
+                VariableSet((
+                    key: "objective_destroy_asteroids",
+                    expression: Term(Factor(Literal(Boolean(false)))),
+                )),
+            ],
+        ),
+        (
+            name: OnDestroyed,
+            filters: [
+                Entity((
+                    id: Some("player_spaceship"),
+                    type_name: None,
+                    other_id: None,
+                    other_type_name: None,
+                )),
+            ],
+            actions: [
+                DebugMessage((
+                    message: "The player\'s spaceship was destroyed!",
+                )),
+                NextScenario((
+                    scenario_id: "asteroid_field",
+                    linger: true,
+                )),
+            ],
+        ),
+        (
+            name: OnDestroyed,
+            filters: [
+                Entity((
+                    id: None,
+                    type_name: Some("asteroid"),
+                    other_id: None,
+                    other_type_name: None,
+                )),
+            ],
+            actions: [
+                VariableSet((
+                    key: "asteroids_destroyed",
+                    expression: Add(
+                        Factor(Name("asteroids_destroyed")),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ),
+                )),
+            ],
+        ),
+        (
+            name: OnDestroyed,
+            filters: [
+                Entity((
+                    id: None,
+                    type_name: Some("asteroid"),
+                    other_id: None,
+                    other_type_name: None,
+                )),
+                Expression((GreaterThan(
+                    Term(Factor(Name("asteroids_destroyed"))),
+                    Term(Factor(Literal(Number(4.0)))),
+                ))),
+                Expression((Equal(
+                    Term(Factor(Name("objective_destroy_asteroids"))),
+                    Term(Factor(Literal(Boolean(false)))),
+                ))),
+            ],
+            actions: [
+                DebugMessage((
+                    message: "Objective Complete: Destroyed 5 asteroids!",
+                )),
+                VariableSet((
+                    key: "objective_destroy_asteroids",
+                    expression: Term(Factor(Literal(Boolean(true)))),
+                )),
+                ObjectiveComplete((
+                    id: "destroy_asteroids",
+                )),
+                Objective((
+                    id: "reach_zone",
+                    message: "Objective: Reach the safe zone!",
+                )),
+            ],
+        ),
+        (
+            name: OnEnter,
+            filters: [
+                Entity((
+                    id: Some("asteroid_zone"),
+                    type_name: None,
+                    other_id: Some("player_spaceship"),
+                    other_type_name: None,
+                )),
+                Expression((Equal(
+                    Term(Factor(Name("objective_destroy_asteroids"))),
+                    Term(Factor(Literal(Boolean(true)))),
+                ))),
+            ],
+            actions: [
+                ObjectiveComplete((
+                    id: "reach_zone",
+                )),
+                NextScenario((
+                    scenario_id: "asteroid_next",
+                    linger: true,
+                )),
+            ],
+        ),
+    ],
+)

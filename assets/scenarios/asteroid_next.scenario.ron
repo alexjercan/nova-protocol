@@ -1,0 +1,18 @@
+(
+    id: "asteroid_next",
+    name: "Asteroid Field - Next",
+    description: "The next scenario after the asteroid field.",
+    cubemap: "textures/cubemap.png",
+    events: [
+        (
+            name: OnStart,
+            filters: [],
+            actions: [
+                NextScenario((
+                    scenario_id: "asteroid_field",
+                    linger: true,
+                )),
+            ],
+        ),
+    ],
+)

@@ -2,7 +2,7 @@
 
 use bevy::prelude::*;
 
-use crate::prelude::{SectionDamageClass, SectionRenderOf};
+use crate::prelude::{AssetRef, SectionDamageClass, SectionRenderOf};
 
 pub mod prelude {
     pub use super::{hull_section, HullSectionConfig, HullSectionMarker, HullSectionPlugin};
@@ -10,9 +10,11 @@ pub mod prelude {
 
 /// Configuration for a hull section.
 #[derive(Clone, Debug, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HullSectionConfig {
     /// The render mesh of the hull section, defaults to a cuboid of size 1x1x1.
-    pub render_mesh: Option<Handle<WorldAsset>>,
+    #[reflect(ignore)]
+    pub render_mesh: Option<AssetRef<WorldAsset>>,
 }
 
 /// Helper function to create a hull section entity bundle.
@@ -31,7 +33,7 @@ pub fn hull_section(config: HullSectionConfig) -> impl Bundle {
 pub struct HullSectionMarker;
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct HullSectionRenderMesh(Option<Handle<WorldAsset>>);
+struct HullSectionRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
 
 /// A plugin that enables the HullSection component and its related systems.
 #[derive(Default)]
@@ -54,6 +56,7 @@ fn insert_hull_section_render(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     q_hull: Query<&HullSectionRenderMesh, With<HullSectionMarker>>,
 ) {
     let entity = add.entity;
@@ -68,11 +71,12 @@ fn insert_hull_section_render(
     };
 
     match &**render_mesh {
-        Some(scene) => {
+        Some(asset_ref) => {
+            let scene = asset_ref.resolve(&asset_server);
             commands.entity(entity).insert((children![(
                 Name::new("Hull Section Body"),
                 SectionRenderOf(entity),
-                WorldAssetRoot(scene.clone()),
+                WorldAssetRoot(scene),
             ),],));
         }
         None => {
@@ -112,7 +116,7 @@ mod test {
         let mut app = App::new();
         let custom_scene = Handle::<WorldAsset>::default();
         let config = HullSectionConfig {
-            render_mesh: Some(custom_scene.clone()),
+            render_mesh: Some(custom_scene.clone().into()),
         };
         let id = app.world_mut().spawn(hull_section(config)).id();
 
@@ -123,6 +127,9 @@ mod test {
         assert!(app.world().get::<HullSectionMarker>(id).is_some());
         let render_mesh = app.world().get::<HullSectionRenderMesh>(id).unwrap();
         assert!(render_mesh.0.is_some());
-        assert_eq!(render_mesh.0.as_ref().unwrap(), &custom_scene);
+        assert_eq!(
+            render_mesh.0.as_ref().unwrap(),
+            &AssetRef::from(custom_scene)
+        );
     }
 }

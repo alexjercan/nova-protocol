@@ -93,7 +93,7 @@ fn hull_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         id: "hull_rig".to_string(),
         name: "Hull Section Rig".to_string(),
         description: "A minimal ship taking scripted section damage.".to_string(),
-        cubemap: game_assets.cubemap.clone(),
+        cubemap: game_assets.cubemap.clone().into(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],

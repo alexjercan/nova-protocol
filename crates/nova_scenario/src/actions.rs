@@ -12,13 +12,14 @@ pub mod prelude {
         DespawnScenarioObjectActionConfig, EventActionConfig, HintEmphasisClearActionConfig,
         HintEmphasisSetActionConfig, NextScenarioActionConfig, ObjectiveActionConfig,
         ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
-        ObjectiveMarkerDetachActionConfig, ScenarioAreaConfig, ScenarioObjectConfig,
-        ScenarioObjectKind, SetControllerVerbActionConfig, SetSpeedCapActionConfig,
-        VariableSetActionConfig,
+        ObjectiveMarkerDetachActionConfig, ScatterObjectsConfig, ScatterRegion, ScenarioAreaConfig,
+        ScenarioObjectConfig, ScenarioObjectKind, SetControllerVerbActionConfig,
+        SetSpeedCapActionConfig, VariableSetActionConfig,
     };
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum EventActionConfig {
     DebugMessage(DebugMessageActionConfig),
     VariableSet(VariableSetActionConfig),
@@ -29,6 +30,7 @@ pub enum EventActionConfig {
     HintEmphasisSet(HintEmphasisSetActionConfig),
     HintEmphasisClear(HintEmphasisClearActionConfig),
     SpawnScenarioObject(ScenarioObjectConfig),
+    ScatterObjects(ScatterObjectsConfig),
     DespawnScenarioObject(DespawnScenarioObjectActionConfig),
     SetSpeedCap(SetSpeedCapActionConfig),
     SetControllerVerb(SetControllerVerbActionConfig),
@@ -66,6 +68,9 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
             EventActionConfig::SpawnScenarioObject(config) => {
                 config.action(world, info);
             }
+            EventActionConfig::ScatterObjects(config) => {
+                config.action(world, info);
+            }
             EventActionConfig::DespawnScenarioObject(config) => {
                 config.action(world, info);
             }
@@ -86,6 +91,7 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct VariableSetActionConfig {
     pub key: String,
     pub expression: VariableExpressionNode,
@@ -108,6 +114,7 @@ impl EventAction<NovaEventWorld> for VariableSetActionConfig {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DebugMessageActionConfig {
     pub message: String,
 }
@@ -119,6 +126,7 @@ impl EventAction<NovaEventWorld> for DebugMessageActionConfig {
 }
 
 #[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NextScenarioActionConfig {
     pub scenario_id: String,
     pub linger: bool,
@@ -141,6 +149,7 @@ impl EventAction<NovaEventWorld> for NextScenarioActionConfig {
 /// `EventAction` trait - which the orphan rule forbids implementing on the foreign
 /// `Objective` type directly.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ObjectiveActionConfig {
     /// Opaque identifier, used to complete/remove the objective later.
     pub id: String,
@@ -165,6 +174,7 @@ impl EventAction<NovaEventWorld> for ObjectiveActionConfig {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ObjectiveCompleteActionConfig {
     pub id: String,
 }
@@ -179,6 +189,7 @@ impl EventAction<NovaEventWorld> for ObjectiveCompleteActionConfig {
 /// so the object's whole child hierarchy goes with it). The complement of
 /// `SpawnScenarioObject`, e.g. a salvage crate the script removes on pickup.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DespawnScenarioObjectActionConfig {
     pub id: String,
 }
@@ -238,6 +249,7 @@ impl EventAction<NovaEventWorld> for DespawnScenarioObjectActionConfig {
 /// DespawnScenarioObject. Attaching to an already-marked entity just
 /// updates the label.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ObjectiveMarkerAttachActionConfig {
     pub target_id: String,
     /// The short name the marker chip shows next to the distance.
@@ -295,6 +307,7 @@ impl EventAction<NovaEventWorld> for ObjectiveMarkerAttachActionConfig {
 /// marker whose entity despawned is already detached - the chip died with
 /// it).
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ObjectiveMarkerDetachActionConfig {
     pub target_id: String,
 }
@@ -344,6 +357,7 @@ impl EventAction<NovaEventWorld> for ObjectiveMarkerDetachActionConfig {
 /// teardown) drops it. Only [`ROW_VERBS`] names are valid; the resource
 /// refuses unknown verbs with a warning.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HintEmphasisSetActionConfig {
     pub verb: String,
 }
@@ -379,6 +393,7 @@ impl EventAction<NovaEventWorld> for HintEmphasisSetActionConfig {
 
 /// Drop the emphasis on one keybind-hint row (see [`HintEmphasisSetActionConfig`]).
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HintEmphasisClearActionConfig {
     pub verb: String,
 }
@@ -412,6 +427,7 @@ impl EventAction<NovaEventWorld> for HintEmphasisClearActionConfig {
 /// (the shakedown training governor releases at beacon 1; playtest round
 /// 2 finding 3). Scoped-only lookup, same rule as DespawnScenarioObject.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SetSpeedCapActionConfig {
     pub id: String,
     /// `Some(cap)` installs/updates the cap (u/s); `None` removes it.
@@ -459,6 +475,7 @@ impl EventAction<NovaEventWorld> for SetSpeedCapActionConfig {
 /// Scoped-only lookup, same rule as SetSpeedCap; writes every controller
 /// section on the ship so the union the input layer reads matches.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SetControllerVerbActionConfig {
     pub id: String,
     pub verb: FlightVerb,
@@ -512,12 +529,14 @@ impl EventAction<NovaEventWorld> for SetControllerVerbActionConfig {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScenarioObjectConfig {
     pub base: BaseScenarioObjectConfig,
     pub kind: ScenarioObjectKind,
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BaseScenarioObjectConfig {
     pub id: String,
     pub name: String,
@@ -673,6 +692,181 @@ mod tests {
         NovaEventWorld::state_to_world_system(&mut world);
 
         assert!(world.get_entity(bystander).is_ok());
+    }
+
+    /// Scatter is deterministic: the same seed yields the same layout every
+    /// load (a data file must be reproducible), and samples stay in bounds.
+    #[test]
+    fn scatter_region_sampling_is_deterministic_and_bounded() {
+        use rand::SeedableRng;
+
+        let region = ScatterRegion::Box {
+            min: Vec3::new(-10.0, -2.0, -10.0),
+            max: Vec3::new(10.0, 2.0, 10.0),
+        };
+
+        let sample_10 = || {
+            let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+            (0..10).map(|_| region.sample(&mut rng)).collect::<Vec<_>>()
+        };
+        let a = sample_10();
+        let b = sample_10();
+        assert_eq!(a, b, "same seed must produce the same positions");
+
+        for p in &a {
+            assert!(p.x >= -10.0 && p.x <= 10.0, "x in box: {p:?}");
+            assert!(p.y >= -2.0 && p.y <= 2.0, "y in box: {p:?}");
+            assert!(p.z >= -10.0 && p.z <= 10.0, "z in box: {p:?}");
+        }
+    }
+
+    /// A degenerate region (min == max on an axis) does not panic; it pins that
+    /// axis to the value.
+    #[test]
+    fn scatter_region_degenerate_axis_does_not_panic() {
+        use rand::SeedableRng;
+
+        let region = ScatterRegion::Box {
+            min: Vec3::new(5.0, 0.0, 5.0),
+            max: Vec3::new(5.0, 0.0, 5.0),
+        };
+        let mut rng = rand::rngs::StdRng::seed_from_u64(1);
+        let p = region.sample(&mut rng);
+        assert_eq!(p, Vec3::new(5.0, 0.0, 5.0));
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn scatter_objects_config_round_trips_through_ron() {
+        let config = ScatterObjectsConfig {
+            id_prefix: "rock_".to_string(),
+            count: 12,
+            seed: 7,
+            region: ScatterRegion::Ring {
+                inner: 100.0,
+                outer: 150.0,
+                y_min: -20.0,
+                y_max: 20.0,
+            },
+            template: ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: "rock".to_string(),
+                    name: "Rock".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                    radius: 2.0,
+                    texture: nova_gameplay::prelude::AssetRef::from("textures/asteroid.png"),
+                    health: 100.0,
+                    surface_gravity: None,
+                    invulnerable: false,
+                    lock_signature: None,
+                }),
+            },
+            asteroid_radius: Some((1.0, 3.0)),
+        };
+
+        let ron = ron::to_string(&config).expect("serialize");
+        let back: ScatterObjectsConfig = ron::from_str(&ron).expect("deserialize");
+        assert_eq!(back.id_prefix, "rock_");
+        assert_eq!(back.count, 12);
+        assert_eq!(back.seed, 7);
+        assert_eq!(back.asteroid_radius, Some((1.0, 3.0)));
+        // The nested enum fields most likely to regress in a serde change: the
+        // region variant and the template's asset ref must survive intact.
+        match back.region {
+            ScatterRegion::Ring {
+                inner,
+                outer,
+                y_min,
+                y_max,
+            } => assert_eq!((inner, outer, y_min, y_max), (100.0, 150.0, -20.0, 20.0)),
+            other => panic!("region variant changed on round-trip: {other:?}"),
+        }
+        match &back.template.kind {
+            ScenarioObjectKind::Asteroid(asteroid) => {
+                assert_eq!(asteroid.texture.path(), Some("textures/asteroid.png"))
+            }
+            other => panic!("template kind changed on round-trip: {other:?}"),
+        }
+    }
+
+    /// The scatter ACTION spawns exactly `count` scoped objects, each with an id
+    /// under the prefix, a position inside the region, and a radius in range.
+    /// Mirrors the despawn harness: fire into a `NovaEventWorld`, drain, assert on
+    /// the world. Guards the spawn loop that only the windowed example exercised.
+    #[test]
+    fn scatter_action_spawns_count_objects_in_region() {
+        let region_min = Vec3::new(-10.0, -5.0, -10.0);
+        let region_max = Vec3::new(10.0, 5.0, 10.0);
+        let config = ScatterObjectsConfig {
+            id_prefix: "rock_".to_string(),
+            count: 8,
+            seed: 123,
+            region: ScatterRegion::Box {
+                min: region_min,
+                max: region_max,
+            },
+            template: ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: "rock".to_string(),
+                    name: "Rock".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                    radius: 2.0,
+                    texture: nova_gameplay::prelude::AssetRef::default(),
+                    health: 100.0,
+                    surface_gravity: None,
+                    invulnerable: false,
+                    lock_signature: None,
+                }),
+            },
+            asteroid_radius: Some((1.0, 3.0)),
+        };
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+        {
+            let mut event_world = world.resource_mut::<NovaEventWorld>();
+            config.action(&mut event_world, &GameEventInfo::default());
+        }
+        // The action only queues; the drain in state_to_world applies the spawns.
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        let mut query = world
+            .query_filtered::<(&EntityId, &Transform, &AsteroidRadius), With<AsteroidMarker>>();
+        let mut ids: Vec<String> = Vec::new();
+        for (id, transform, radius) in query.iter(&world) {
+            let p = transform.translation;
+            assert!(
+                p.x >= region_min.x && p.x <= region_max.x,
+                "x in region: {p:?}"
+            );
+            assert!(
+                p.y >= region_min.y && p.y <= region_max.y,
+                "y in region: {p:?}"
+            );
+            assert!(
+                p.z >= region_min.z && p.z <= region_max.z,
+                "z in region: {p:?}"
+            );
+            assert!(
+                radius.0 >= 1.0 && radius.0 <= 3.0,
+                "radius in range: {}",
+                radius.0
+            );
+            assert!(id.0.starts_with("rock_"), "id has the prefix: {}", id.0);
+            ids.push(id.0.clone());
+        }
+
+        assert_eq!(ids.len(), 8, "scatter spawns exactly `count` objects");
+        ids.sort();
+        ids.dedup();
+        assert_eq!(ids.len(), 8, "scattered ids are unique (no collision)");
     }
 
     /// The marker attach/detach pair drives the [`ObjectiveMarkerTarget`]
@@ -945,6 +1139,7 @@ mod tests {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ScenarioObjectKind {
     Asteroid(AsteroidConfig),
     Spaceship(SpaceshipConfig),
@@ -978,7 +1173,111 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
     }
 }
 
+/// A volume to scatter objects within, for [`ScatterObjectsConfig`].
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ScatterRegion {
+    /// An axis-aligned box; each object is placed uniformly per-axis in
+    /// `[min, max]`.
+    Box { min: Vec3, max: Vec3 },
+    /// A horizontal annulus centred on the origin: uniform angle, radius in
+    /// `[inner, outer]`, height in `[y_min, y_max]`.
+    Ring {
+        inner: f32,
+        outer: f32,
+        y_min: f32,
+        y_max: f32,
+    },
+}
+
+impl ScatterRegion {
+    /// Sample a position in the region. `random_in` guards empty ranges
+    /// (`a >= b` yields `a`) so a degenerate authored region cannot panic.
+    fn sample(&self, rng: &mut impl rand::Rng) -> Vec3 {
+        fn random_in(rng: &mut impl rand::Rng, a: f32, b: f32) -> f32 {
+            use rand::RngExt;
+            if a < b {
+                rng.random_range(a..b)
+            } else {
+                a
+            }
+        }
+        match self {
+            ScatterRegion::Box { min, max } => Vec3::new(
+                random_in(rng, min.x, max.x),
+                random_in(rng, min.y, max.y),
+                random_in(rng, min.z, max.z),
+            ),
+            ScatterRegion::Ring {
+                inner,
+                outer,
+                y_min,
+                y_max,
+            } => {
+                let angle = random_in(rng, 0.0, std::f32::consts::TAU);
+                let dist = random_in(rng, *inner, *outer);
+                Vec3::new(
+                    angle.cos() * dist,
+                    random_in(rng, *y_min, *y_max),
+                    angle.sin() * dist,
+                )
+            }
+        }
+    }
+}
+
+/// Spawn `count` copies of a template object scattered through a region, with a
+/// deterministic seed so the layout is reproducible across loads. Each copy is a
+/// clone of `template` with `base.id = "{id_prefix}{i}"` and a sampled position;
+/// when `asteroid_radius` is set and the template is an asteroid, its radius is
+/// randomized too. This is the declarative form of a procedural asteroid field.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ScatterObjectsConfig {
+    pub id_prefix: String,
+    pub count: u32,
+    pub seed: u64,
+    pub region: ScatterRegion,
+    pub template: ScenarioObjectConfig,
+    /// If set and `template.kind` is an asteroid, randomize each rock's radius in
+    /// this `[lo, hi]` range.
+    pub asteroid_radius: Option<(f32, f32)>,
+}
+
+impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
+    fn action(&self, world: &mut NovaEventWorld, info: &GameEventInfo) {
+        use rand::{RngExt, SeedableRng};
+        let mut rng = rand::rngs::StdRng::seed_from_u64(self.seed);
+        debug!(
+            "ScatterObjects: scattering {} '{}' objects (seed {})",
+            self.count, self.id_prefix, self.seed
+        );
+
+        for i in 0..self.count {
+            let mut object = self.template.clone();
+            object.base.id = format!("{}{}", self.id_prefix, i);
+            object.base.name = format!("{} {}", self.template.base.name, i);
+            object.base.position = self.region.sample(&mut rng);
+
+            if let (Some((lo, hi)), ScenarioObjectKind::Asteroid(asteroid)) =
+                (self.asteroid_radius, &mut object.kind)
+            {
+                asteroid.radius = if lo < hi {
+                    rng.random_range(lo..hi)
+                } else {
+                    lo
+                };
+            }
+
+            // Reuse the ordinary spawn path so scatter and SpawnScenarioObject
+            // stay identical in how they build an object.
+            object.action(world, info);
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScenarioAreaConfig {
     pub id: String,
     pub name: String,

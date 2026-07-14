@@ -17,6 +17,7 @@ pub enum VariableError {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum VariableLiteral {
     String(String),
     Number(f64),
@@ -24,6 +25,7 @@ pub enum VariableLiteral {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum VariableFactorNode {
     Parens(Box<VariableExpressionNode>),
     Literal(VariableLiteral),
@@ -56,6 +58,7 @@ impl VariableFactorNode {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum VariableTermNode {
     Multiply(Box<VariableFactorNode>, Box<VariableTermNode>),
     Divide(Box<VariableFactorNode>, Box<VariableTermNode>),
@@ -115,6 +118,7 @@ impl VariableTermNode {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum VariableExpressionNode {
     Add(Box<VariableTermNode>, Box<VariableExpressionNode>),
     Subtract(Box<VariableTermNode>, Box<VariableExpressionNode>),
@@ -172,6 +176,7 @@ impl VariableExpressionNode {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum VariableConditionNode {
     LessThan(Box<VariableExpressionNode>, Box<VariableExpressionNode>),
     GreaterThan(Box<VariableExpressionNode>, Box<VariableExpressionNode>),

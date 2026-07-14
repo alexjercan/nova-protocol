@@ -214,7 +214,7 @@ fn test_scenario(
             rng.random_range(-100.0..100.0),
         );
         let radius = rng.random_range(1.0..3.0);
-        let texture = game_assets.asteroid_texture.clone();
+        let texture = AssetRef::from(game_assets.asteroid_texture.clone());
 
         objects.push(ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
@@ -374,7 +374,7 @@ fn test_scenario(
         id: "test_scenario".to_string(),
         name: "Test Scenario".to_string(),
         description: "A test scenario.".to_string(),
-        cubemap: game_assets.cubemap.clone(),
+        cubemap: game_assets.cubemap.clone().into(),
         events,
     }
 }
@@ -419,7 +419,7 @@ fn setup_editor_scene(
         WASDCameraController,
         Transform::from_xyz(0.0, 5.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
         SkyboxConfig {
-            cubemap: game_assets.cubemap.clone(),
+            cubemap: game_assets.cubemap.clone().into(),
             brightness: 1000.0,
         },
     ));

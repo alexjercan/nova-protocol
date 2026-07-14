@@ -148,7 +148,7 @@ fn guidance_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scena
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 radius: 3.0,
-                texture: game_assets.asteroid_texture.clone(),
+                texture: game_assets.asteroid_texture.clone().into(),
                 health: 100_000.0,
                 surface_gravity: None,
                 invulnerable: false,
@@ -170,7 +170,7 @@ fn guidance_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scena
         id: SCENARIO_ID.to_string(),
         name: "Torpedo Guidance".to_string(),
         description: "A harness for the torpedo PN guidance.".to_string(),
-        cubemap: game_assets.cubemap.clone(),
+        cubemap: game_assets.cubemap.clone().into(),
         events,
     }
 }

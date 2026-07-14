@@ -30,6 +30,7 @@ pub struct TurretSectionAimSystems;
 
 /// Configuration for a turret section of a spaceship.
 #[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TurretSectionConfig {
     /// The yaw speed of the turret section in radians per second.
     pub yaw_speed: f32,
@@ -40,19 +41,23 @@ pub struct TurretSectionConfig {
     /// The maximum pitch angle of the turret section in radians. If None, there is no limit.
     pub max_pitch: Option<f32>,
     /// The render mesh of the base, defaults to a cylinder base
-    pub render_mesh_base: Option<Handle<WorldAsset>>,
+    #[reflect(ignore)]
+    pub render_mesh_base: Option<AssetRef<WorldAsset>>,
     /// The offset of the base from the section origin
     pub base_offset: Vec3,
     /// The render mesh of the yaw rotator, defaults to a cylinder with ridges
-    pub render_mesh_yaw: Option<Handle<WorldAsset>>,
+    #[reflect(ignore)]
+    pub render_mesh_yaw: Option<AssetRef<WorldAsset>>,
     /// The offset of the yaw rotator from the base
     pub yaw_offset: Vec3,
     /// The render mesh of the pitch rotator, defaults to a cylinder with ridges
-    pub render_mesh_pitch: Option<Handle<WorldAsset>>,
+    #[reflect(ignore)]
+    pub render_mesh_pitch: Option<AssetRef<WorldAsset>>,
     /// The offset of the pitch rotator from the yaw rotator
     pub pitch_offset: Vec3,
     /// The render mesh of the barrel, defaults to a simple barrel shape
-    pub render_mesh_barrel: Option<Handle<WorldAsset>>,
+    #[reflect(ignore)]
+    pub render_mesh_barrel: Option<AssetRef<WorldAsset>>,
     /// The offset of the barrel from the pitch rotator
     pub barrel_offset: Vec3,
     /// The offset of the muzzle from the barrel
@@ -80,9 +85,11 @@ pub struct TurretSectionConfig {
     /// loaded type by mutating `LoadedBullet`, not this authored default.
     pub bullet_kind: DamageType,
     /// The projectile mesh,
-    pub projectile_render_mesh: Option<Handle<WorldAsset>>,
+    #[reflect(ignore)]
+    pub projectile_render_mesh: Option<AssetRef<WorldAsset>>,
     /// The muzzle particle effect when shooting.
-    pub muzzle_effect: Option<Handle<EffectAsset>>,
+    #[reflect(ignore)]
+    pub muzzle_effect: Option<AssetRef<EffectAsset>>,
     /// Magazine size in rounds. `None` fires without limit (the pre-ammo
     /// behavior); `Some(n)` gives the turret a [`SectionAmmo`] of `n` rounds
     /// that depletes one per bullet and blocks firing once empty. Reloading it
@@ -202,19 +209,19 @@ pub struct TurretSectionAimPoint(pub Option<Vec3>);
 pub(crate) struct TurretSectionPartOf(pub Entity);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct BulletProjectileRenderMesh(Option<Handle<WorldAsset>>);
+struct BulletProjectileRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TurretSectionBaseRenderMesh(Option<Handle<WorldAsset>>);
+struct TurretSectionBaseRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TurretSectionYawRenderMesh(Option<Handle<WorldAsset>>);
+struct TurretSectionYawRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TurretSectionPitchRenderMesh(Option<Handle<WorldAsset>>);
+struct TurretSectionPitchRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TurretSectionBarrelRenderMesh(Option<Handle<WorldAsset>>);
+struct TurretSectionBarrelRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
 
 /// The live tuning config carried by a turret section entity. The aim/shoot systems read
 /// `muzzle_speed` from it directly every frame; the rotator speeds, pitch limits and fire rate
@@ -229,7 +236,7 @@ pub struct TurretSectionConfigHelper(pub TurretSectionConfig);
 pub struct TurretSectionBarrelFireState(pub Timer);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TurretSectionBarrelMuzzleEffect(Option<Handle<EffectAsset>>);
+struct TurretSectionBarrelMuzzleEffect(#[reflect(ignore)] Option<AssetRef<EffectAsset>>);
 
 #[derive(Component, Clone, Copy, Debug, Reflect)]
 struct TurretRotatorBaseMarker;
@@ -1215,6 +1222,7 @@ fn insert_projectile_render(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     q_render_mesh: Query<&BulletProjectileRenderMesh>,
 ) {
     let entity = add.entity;
@@ -1229,10 +1237,11 @@ fn insert_projectile_render(
     };
 
     match &**render_mesh {
-        Some(scene_handle) => {
+        Some(asset_ref) => {
+            let scene_handle = asset_ref.resolve(&asset_server);
             commands.entity(entity).insert((children![(
                 Name::new("Bullet Projectile Render"),
-                WorldAssetRoot(scene_handle.clone()),
+                WorldAssetRoot(scene_handle),
             ),],));
         }
         None => {
@@ -1250,6 +1259,7 @@ fn insert_turret_section_render(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     q_base: Query<
         (&TurretSectionPartOf, &TurretSectionBaseRenderMesh),
         With<TurretRotatorBaseMarker>,
@@ -1267,11 +1277,12 @@ fn insert_turret_section_render(
     };
 
     match &**render_mesh {
-        Some(scene) => {
+        Some(asset_ref) => {
+            let scene = asset_ref.resolve(&asset_server);
             commands.entity(entity).insert((children![(
                 Name::new("Render Turret Base"),
                 SectionRenderOf(**turret),
-                WorldAssetRoot(scene.clone()),
+                WorldAssetRoot(scene),
             ),],));
         }
         None => {
@@ -1291,6 +1302,7 @@ fn insert_turret_yaw_rotator_render(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     q_yaw: Query<
         (&TurretSectionPartOf, &TurretSectionYawRenderMesh),
         With<TurretSectionRotatorYawMarker>,
@@ -1308,11 +1320,12 @@ fn insert_turret_yaw_rotator_render(
     };
 
     match &**render_mesh {
-        Some(scene) => {
+        Some(asset_ref) => {
+            let scene = asset_ref.resolve(&asset_server);
             commands.entity(entity).insert((children![(
                 Name::new("Render Turret Yaw"),
                 SectionRenderOf(**turret),
-                WorldAssetRoot(scene.clone()),
+                WorldAssetRoot(scene),
             ),],));
         }
         None => {
@@ -1371,6 +1384,7 @@ fn insert_turret_pitch_rotator_render(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     q_pitch: Query<
         (&TurretSectionPartOf, &TurretSectionPitchRenderMesh),
         With<TurretSectionRotatorPitchMarker>,
@@ -1388,11 +1402,12 @@ fn insert_turret_pitch_rotator_render(
     };
 
     match &**render_mesh {
-        Some(scene) => {
+        Some(asset_ref) => {
+            let scene = asset_ref.resolve(&asset_server);
             commands.entity(entity).insert((children![(
                 Name::new("Render Turret Pitch"),
                 SectionRenderOf(**turret),
-                WorldAssetRoot(scene.clone()),
+                WorldAssetRoot(scene),
             ),],));
         }
         None => {
@@ -1452,6 +1467,7 @@ fn insert_turret_barrel_render(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     q_barrel: Query<
         (&TurretSectionPartOf, &TurretSectionBarrelRenderMesh),
         With<TurretSectionRotatorBarrelMarker>,
@@ -1469,11 +1485,12 @@ fn insert_turret_barrel_render(
     };
 
     match &**render_mesh {
-        Some(scene) => {
+        Some(asset_ref) => {
+            let scene = asset_ref.resolve(&asset_server);
             commands.entity(entity).insert((children![(
                 Name::new("Render Turret Barrel"),
                 SectionRenderOf(**turret),
-                WorldAssetRoot(scene.clone()),
+                WorldAssetRoot(scene),
             ),],));
         }
         None => {
@@ -1530,6 +1547,7 @@ fn insert_turret_barrel_muzzle_effect(
     add: On<Add, TurretSectionBarrelMuzzleMarker>,
     mut commands: Commands,
     mut effects: ResMut<Assets<EffectAsset>>,
+    asset_server: Res<AssetServer>,
     q_effect: Query<&TurretSectionBarrelMuzzleEffect, With<TurretSectionBarrelMuzzleMarker>>,
 ) {
     let entity = add.entity;
@@ -1544,11 +1562,12 @@ fn insert_turret_barrel_muzzle_effect(
     };
 
     match &**effect_handle {
-        Some(effect) => {
+        Some(asset_ref) => {
+            let effect = asset_ref.resolve(&asset_server);
             commands.entity(entity).insert((children![(
                 Name::new("Muzzle Effect"),
                 TurretSectionBarrelMuzzleEffectMarker,
-                ParticleEffect::new(effect.clone()),
+                ParticleEffect::new(effect),
                 EffectProperties::default(),
             ),],));
         }

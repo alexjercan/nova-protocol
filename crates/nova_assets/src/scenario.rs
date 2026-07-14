@@ -1,33 +1,48 @@
 use bevy::{platform::collections::HashMap, prelude::*};
 use nova_gameplay::prelude::*;
+use nova_modding::prelude::ScenarioAsset;
 use nova_scenario::prelude::*;
-use rand::prelude::*;
 
 pub mod shakedown;
 
-pub(crate) fn register_scenario(
+/// The seed of the built-in scenarios' scatter fields. A fixed value: the
+/// ports replaced the old per-launch RNG rock loops with a single seeded
+/// `ScatterObjects` action each, so the layout is now deterministic content
+/// (reproducible across loads) rather than random per launch.
+const SCATTER_SEED: u64 = 0x0605_0403_0201_0000;
+
+pub fn register_scenario(
     mut commands: Commands,
     game_assets: Res<super::GameAssets>,
-    sections: Res<GameSections>,
+    scenario_assets: Res<Assets<ScenarioAsset>>,
 ) {
-    commands.insert_resource(GameScenarios(HashMap::from([
-        (
-            "asteroid_field".to_string(),
-            asteroid_field(&game_assets, &sections),
-        ),
-        (
-            "asteroid_next".to_string(),
-            asteroid_next(&game_assets, &sections),
-        ),
-        (
-            "menu_ambience".to_string(),
-            menu_ambience(&game_assets, &sections),
-        ),
-        (
-            shakedown::SHAKEDOWN_SCENARIO_ID.to_string(),
-            shakedown::shakedown_run(&game_assets, &sections),
-        ),
-    ])));
+    let mut scenarios = HashMap::new();
+
+    // The four built-ins are now RON data files loaded into the GameAssets
+    // collection (like the demo below); look each up by its handle. On a miss,
+    // log and skip - never panic - exactly as the demo does.
+    let built_ins = [
+        &game_assets.asteroid_field_scenario,
+        &game_assets.asteroid_next_scenario,
+        &game_assets.menu_ambience_scenario,
+        &game_assets.shakedown_scenario,
+        &game_assets.demo_scenario,
+    ];
+    for handle in built_ins {
+        match scenario_assets.get(handle) {
+            Some(asset) => {
+                scenarios.insert(asset.0.id.clone(), asset.0.clone());
+            }
+            None => {
+                error!(
+                    "register_scenario: a scenario asset was not loaded; skipping it \
+                     (the other scenarios still register)"
+                );
+            }
+        }
+    }
+
+    commands.insert_resource(GameScenarios(scenarios));
 }
 
 /// The main menu's living backdrop (task 20260711-180455): a big planetoid
@@ -35,9 +50,11 @@ pub(crate) fn register_scenario(
 /// thruster-driven orbit around the planetoid (orbit directive, task
 /// 20260711-212504). No
 /// player, no objectives, no areas - the scene exists to be looked at.
-pub fn menu_ambience(game_assets: &super::GameAssets, sections: &GameSections) -> ScenarioConfig {
-    let mut rng = rand::rng();
-
+pub(crate) fn menu_ambience(
+    cubemap: AssetRef<Image>,
+    asteroid_texture: AssetRef<Image>,
+    sections: &GameSections,
+) -> ScenarioConfig {
     let mut objects = Vec::new();
 
     // The stage: a nominally-20u planetoid at the origin with an authored
@@ -54,7 +71,7 @@ pub fn menu_ambience(game_assets: &super::GameAssets, sections: &GameSections) -
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: 20.0,
-            texture: game_assets.asteroid_texture.clone(),
+            texture: asteroid_texture.clone(),
             health: 2000.0,
             surface_gravity: Some(6.0),
             invulnerable: true,
@@ -72,31 +89,38 @@ pub fn menu_ambience(game_assets: &super::GameAssets, sections: &GameSections) -
     // roughly body_radius + 40), keeping it clear of the orbit across collider
     // seeds (worst-case clearance is on the order of 10u, not unbounded - if
     // the planetoid's nominal radius grows, regrow this ring floor with it).
-    for i in 0..14 {
-        let angle = rng.random_range(0.0..std::f32::consts::TAU);
-        let dist = rng.random_range(170.0..240.0);
-        let pos = Vec3::new(
-            angle.cos() * dist,
-            rng.random_range(-70.0..-30.0),
-            angle.sin() * dist,
-        );
-        objects.push(ScenarioObjectConfig {
+    //
+    // This is now a single seeded ScatterObjects action (below, in the OnStart
+    // event) rather than a per-launch RNG loop: the layout is deterministic
+    // content, reproducible across loads.
+    let menu_rock_scatter = EventActionConfig::ScatterObjects(ScatterObjectsConfig {
+        id_prefix: "menu_rock_".to_string(),
+        count: 14,
+        seed: SCATTER_SEED,
+        region: ScatterRegion::Ring {
+            inner: 170.0,
+            outer: 240.0,
+            y_min: -70.0,
+            y_max: -30.0,
+        },
+        template: ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
-                id: format!("menu_rock_{}", i),
-                name: format!("Menu Rock {}", i),
-                position: pos,
+                id: "menu_rock_".to_string(),
+                name: "Menu Rock".to_string(),
+                position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                radius: rng.random_range(1.0..3.0),
-                texture: game_assets.asteroid_texture.clone(),
+                radius: 1.0,
+                texture: asteroid_texture.clone(),
                 health: 100.0,
                 surface_gravity: None,
                 invulnerable: false,
                 lock_signature: None,
             }),
-        });
-    }
+        },
+        asteroid_radius: Some((1.0, 3.0)),
+    });
 
     // The actor: an AI ship directed to orbit the planetoid on its own
     // thrusters (task 20260711-212504) - the ORBIT autopilot plans its ring
@@ -158,6 +182,7 @@ pub fn menu_ambience(game_assets: &super::GameAssets, sections: &GameSections) -
         actions: objects
             .into_iter()
             .map(EventActionConfig::SpawnScenarioObject)
+            .chain([menu_rock_scatter])
             .collect::<_>(),
     }];
 
@@ -165,41 +190,47 @@ pub fn menu_ambience(game_assets: &super::GameAssets, sections: &GameSections) -
         id: "menu_ambience".to_string(),
         name: "Menu Ambience".to_string(),
         description: "The main menu's living backdrop.".to_string(),
-        cubemap: game_assets.cubemap.clone(),
+        cubemap,
         events,
     }
 }
 
-pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) -> ScenarioConfig {
-    let mut rng = rand::rng();
-
-    let mut objects = Vec::new();
-    for i in 0..20 {
-        let pos = Vec3::new(
-            rng.random_range(-100.0..100.0),
-            rng.random_range(-20.0..20.0),
-            rng.random_range(-100.0..100.0),
-        );
-        let radius = rng.random_range(1.0..3.0);
-        let texture = game_assets.asteroid_texture.clone();
-
-        objects.push(ScenarioObjectConfig {
+pub(crate) fn asteroid_field(
+    cubemap: AssetRef<Image>,
+    asteroid_texture: AssetRef<Image>,
+    sections: &GameSections,
+) -> ScenarioConfig {
+    // The field scatter is now a single seeded ScatterObjects action (added to
+    // the OnStart event below) rather than a per-launch RNG loop: the layout is
+    // deterministic content, reproducible across loads.
+    let asteroid_scatter = EventActionConfig::ScatterObjects(ScatterObjectsConfig {
+        id_prefix: "asteroid_".to_string(),
+        count: 20,
+        seed: SCATTER_SEED,
+        region: ScatterRegion::Box {
+            min: Vec3::new(-100.0, -20.0, -100.0),
+            max: Vec3::new(100.0, 20.0, 100.0),
+        },
+        template: ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
-                id: format!("asteroid_{}", i),
-                name: format!("Asteroid {}", i),
-                position: pos,
+                id: "asteroid_".to_string(),
+                name: "Asteroid".to_string(),
+                position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                radius,
-                texture,
+                radius: 1.0,
+                texture: asteroid_texture.clone(),
                 health: 100.0,
                 surface_gravity: None,
                 invulnerable: false,
                 lock_signature: None,
             }),
-        });
-    }
+        },
+        asteroid_radius: Some((1.0, 3.0)),
+    });
+
+    let mut objects = Vec::new();
 
     // One large designated body clear of the combat field (+X, past the
     // scatter cube), so the gravity well is playtestable: 20u rock at the
@@ -217,7 +248,7 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: 20.0,
-            texture: game_assets.asteroid_texture.clone(),
+            texture: asteroid_texture.clone(),
             health: 2000.0,
             surface_gravity: Some(6.0),
             invulnerable: true,
@@ -370,6 +401,7 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
             actions: objects
                 .into_iter()
                 .map(EventActionConfig::SpawnScenarioObject)
+                .chain([asteroid_scatter])
                 .collect::<_>(),
         },
         // OnStart: Create the safe zone
@@ -539,12 +571,12 @@ pub fn asteroid_field(game_assets: &super::GameAssets, sections: &GameSections) 
         id: "asteroid_field".to_string(),
         name: "Asteroid Field".to_string(),
         description: "A dense asteroid field.".to_string(),
-        cubemap: game_assets.cubemap.clone(),
+        cubemap,
         events,
     }
 }
 
-pub fn asteroid_next(game_assets: &super::GameAssets, _sections: &GameSections) -> ScenarioConfig {
+pub(crate) fn asteroid_next(cubemap: AssetRef<Image>) -> ScenarioConfig {
     let events = vec![ScenarioEventConfig {
         name: EventConfig::OnStart,
         filters: vec![],
@@ -558,59 +590,23 @@ pub fn asteroid_next(game_assets: &super::GameAssets, _sections: &GameSections) 
         id: "asteroid_next".to_string(),
         name: "Asteroid Field - Next".to_string(),
         description: "The next scenario after the asteroid field.".to_string(),
-        cubemap: game_assets.cubemap.clone(),
+        cubemap,
         events,
     }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use bevy::ecs::system::RunSystemOnce;
-
     use super::*;
 
-    /// A GameAssets with default handles - fine for config-shape tests,
-    /// which never resolve the assets. pub(crate): the shakedown child
-    /// module's tests build on the same helpers.
-    pub(crate) fn dummy_assets() -> crate::GameAssets {
-        crate::GameAssets {
-            cubemap: Handle::default(),
-            asteroid_texture: Handle::default(),
-            hull_01: Handle::default(),
-            turret_yaw_01: Handle::default(),
-            turret_pitch_01: Handle::default(),
-            turret_barrel_01: Handle::default(),
-            torpedo_bay_01: Handle::default(),
-            fps_icon: Handle::default(),
-            target_sprite: Handle::default(),
-        }
-    }
-
-    /// The real section registry, built by the production register_sections
-    /// system against the dummy assets.
+    /// The real section registry, built by the production `build_sections`
+    /// against PATH-based mesh refs - the same source the RON generator uses,
+    /// so config-shape tests see exactly what gets serialized. pub(crate): the
+    /// shakedown child module's tests build on the same helper.
     pub(crate) fn real_sections() -> GameSections {
-        let mut world = World::new();
-        world.insert_resource(dummy_assets());
-        world
-            .run_system_once(crate::sections::register_sections)
-            .unwrap();
-        world.remove_resource::<GameSections>().unwrap()
-    }
-
-    /// New Game's contract with nova_menu: the shakedown scenario is
-    /// actually registered under the id the menu hardcodes (the menu
-    /// panics at runtime on a miss, which a config typo here would cause).
-    #[test]
-    fn shakedown_run_is_registered() {
-        let mut world = World::new();
-        world.insert_resource(dummy_assets());
-        world.insert_resource(real_sections());
-        world.run_system_once(register_scenario).unwrap();
-        let scenarios = world.resource::<GameScenarios>();
-        assert!(
-            scenarios.contains_key(shakedown::SHAKEDOWN_SCENARIO_ID),
-            "shakedown_run must be in GameScenarios"
-        );
+        GameSections(crate::sections::build_sections(
+            &crate::sections::SectionMeshRefs::from_paths(),
+        ))
     }
 
     /// The menu backdrop's contract (task 20260711-212504): the orbiter is
@@ -620,8 +616,7 @@ pub(crate) mod tests {
     /// authored surface gravity (so it gets a well at spawn).
     #[test]
     fn menu_orbiter_is_an_ai_ship_directed_at_the_planetoid() {
-        let assets = dummy_assets();
-        let scenario = menu_ambience(&assets, &real_sections());
+        let scenario = menu_ambience(AssetRef::default(), AssetRef::default(), &real_sections());
 
         let spawns: Vec<_> = scenario
             .events

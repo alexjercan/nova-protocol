@@ -5,6 +5,7 @@ pub(super) fn insert_torpedo_section_render(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     q_section: Query<&TorpedoSectionConfigHelper, With<TorpedoSectionMarker>>,
     q_body: Query<&TorpedoSectionPartOf, With<TorpedoSectionBodyMarker>>,
 ) {
@@ -29,11 +30,12 @@ pub(super) fn insert_torpedo_section_render(
     let render_mesh = &config.render_mesh;
 
     match render_mesh {
-        Some(scene) => {
+        Some(asset_ref) => {
+            let scene = asset_ref.resolve(&asset_server);
             commands.entity(entity).insert((children![(
                 Name::new("Torpedo Section Body"),
                 SectionRenderOf(entity),
-                WorldAssetRoot(scene.clone()),
+                WorldAssetRoot(scene),
             ),],));
         }
         None => {
@@ -50,6 +52,7 @@ pub(super) fn insert_torpedo_section_render(
 pub(super) fn insert_torpedo_render(
     add: On<Add, TorpedoProjectileMarker>,
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     q_projectile: Query<&TorpedoProjectileRenderMesh, With<TorpedoProjectileMarker>>,
 ) {
     let entity = add.entity;
@@ -63,11 +66,12 @@ pub(super) fn insert_torpedo_render(
         return;
     };
 
-    if let Some(scene) = &**render_mesh {
+    if let Some(asset_ref) = &**render_mesh {
+        let scene = asset_ref.resolve(&asset_server);
         commands.entity(entity).insert((children![(
             Name::new("Torpedo Projectile Body"),
             SectionRenderOf(entity),
-            WorldAssetRoot(scene.clone()),
+            WorldAssetRoot(scene),
         ),],));
     }
 }
@@ -228,6 +232,7 @@ pub(super) fn insert_particle_effect(
     add: On<Add, NovaBlast>,
     mut commands: Commands,
     mut effects: ResMut<Assets<EffectAsset>>,
+    asset_server: Res<AssetServer>,
     q_blast: Query<(&Transform, &TorpedoSectionPartOf), With<NovaBlast>>,
     q_config: Query<&TorpedoSectionConfigHelper, With<TorpedoSectionMarker>>,
 ) {
@@ -251,7 +256,7 @@ pub(super) fn insert_particle_effect(
     };
 
     let effect = match &config.blast_effect {
-        Some(effect) => effect.clone(),
+        Some(asset_ref) => asset_ref.resolve(&asset_server),
         None => {
             let spawner = SpawnerSettings::once(400.0.into())
                 // In this case we want to emit on start to create an instantaneous explosion
@@ -347,6 +352,7 @@ pub(super) fn insert_torpedo_spawner_effect(
     add: On<Add, TorpedoSectionSpawnerMarker>,
     mut commands: Commands,
     mut effects: ResMut<Assets<EffectAsset>>,
+    asset_server: Res<AssetServer>,
     q_effect: Query<&TorpedoSectionSpawnerEffect, With<TorpedoSectionSpawnerMarker>>,
 ) {
     let entity = add.entity;
@@ -361,7 +367,7 @@ pub(super) fn insert_torpedo_spawner_effect(
     };
 
     let effect = match &**effect_handle {
-        Some(effect) => effect.clone(),
+        Some(asset_ref) => asset_ref.resolve(&asset_server),
         None => {
             // Emit a fixed-size burst only when reset() is called (per launch),
             // never automatically on spawn.

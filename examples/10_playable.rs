@@ -148,7 +148,7 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                     },
                     kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                         radius: 2.0,
-                        texture: game_assets.asteroid_texture.clone(),
+                        texture: game_assets.asteroid_texture.clone().into(),
                         health: 60.0,
                         surface_gravity: None,
                         invulnerable: false,
@@ -236,7 +236,7 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         id: SCENARIO_ID.to_string(),
         name: "Playable Run".to_string(),
         description: "Kill the prey, lock the waypoint, fly there.".to_string(),
-        cubemap: game_assets.cubemap.clone(),
+        cubemap: game_assets.cubemap.clone().into(),
         events,
     }
 }

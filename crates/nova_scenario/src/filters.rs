@@ -11,6 +11,7 @@ pub mod prelude {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum EventFilterConfig {
     Entity(EntityFilterConfig),
     Conditional(ConditionalFilterConfig),
@@ -28,6 +29,7 @@ impl EventFilter<NovaEventWorld> for EventFilterConfig {
 }
 
 #[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct EntityFilterConfig {
     pub id: Option<String>,
     pub type_name: Option<String>,
@@ -101,6 +103,7 @@ impl EventFilter<NovaEventWorld> for EntityFilterConfig {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ConditionalFilterConfig {
     Not(Box<EventFilterConfig>),
     Or(Box<EventFilterConfig>, Box<EventFilterConfig>),
@@ -136,6 +139,7 @@ impl EventFilter<NovaEventWorld> for ConditionalFilterConfig {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExpressionFilterConfig(pub VariableConditionNode);
 
 impl EventFilter<NovaEventWorld> for ExpressionFilterConfig {

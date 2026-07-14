@@ -24,6 +24,8 @@ version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3b7f7f85a7e5f68090000ed7622545829afd484d210358702ae4cb97dd0c320"
 dependencies = [
+ "enumn",
+ "serde",
  "uuid",
 ]
 
@@ -545,6 +547,7 @@ dependencies = [
  "bevy_derive",
  "bevy_ecs",
  "bevy_reflect",
+ "serde",
 ]
 
 [[package]]
@@ -1276,6 +1279,7 @@ dependencies = [
  "bevy_reflect",
  "derive_more",
  "log",
+ "serde",
  "smol_str",
  "thiserror 2.0.17",
 ]
@@ -1489,6 +1493,7 @@ dependencies = [
  "glam 0.32.1",
  "half",
  "hexasphere",
+ "serde",
  "thiserror 2.0.17",
  "tracing",
  "wgpu-types",
@@ -2034,6 +2039,7 @@ dependencies = [
  "bevy_window",
  "derive_more",
  "parley",
+ "serde",
  "smallvec",
  "swash",
  "taffy",
@@ -3061,6 +3067,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "enumn"
+version = "0.1.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f9ed6b3789237c8a0c1c505af1c7eb2c560df6186f01b098c3a1064ea532f38"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "epaint"
 version = "0.34.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3623,6 +3640,7 @@ dependencies = [
  "cfg-if",
  "crunchy",
  "num-traits",
+ "serde",
  "zerocopy",
 ]
 
@@ -4394,8 +4412,9 @@ dependencies = [
  "bevy_rand",
  "nova_events",
  "nova_gameplay",
+ "nova_modding",
  "nova_scenario",
- "rand 0.10.2",
+ "ron",
 ]
 
 [[package]]
@@ -4462,6 +4481,7 @@ dependencies = [
  "bevy_transform_interpolation",
  "nova_events",
  "rand 0.10.2",
+ "ron",
  "serde",
 ]
 
@@ -4482,6 +4502,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nova_modding"
+version = "0.5.2"
+dependencies = [
+ "bevy",
+ "nova_scenario",
+ "ron",
+]
+
+[[package]]
 name = "nova_scenario"
 version = "0.5.2"
 dependencies = [
@@ -4494,6 +4523,8 @@ dependencies = [
  "nova_events",
  "nova_gameplay",
  "rand 0.10.2",
+ "ron",
+ "serde",
 ]
 
 [[package]]
@@ -5994,6 +6025,9 @@ name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "smithay-client-toolkit"

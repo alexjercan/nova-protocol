@@ -4,7 +4,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 
-use crate::prelude::{SectionDamageClass, SectionInactiveMarker, SectionRenderOf};
+use crate::prelude::{AssetRef, SectionDamageClass, SectionInactiveMarker, SectionRenderOf};
 
 pub mod prelude {
     pub use super::{
@@ -16,6 +16,7 @@ pub mod prelude {
 
 /// Configuration for a controller section.
 #[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ControllerSectionConfig {
     /// The frequency of the PD controller in Hz.
     pub frequency: f32,
@@ -32,7 +33,8 @@ pub struct ControllerSectionConfig {
     /// via `SetControllerVerb`.
     pub verbs: ControllerVerbs,
     /// The render mesh of the hull section, defaults to a cuboid of size 1x1x1.
-    pub render_mesh: Option<Handle<WorldAsset>>,
+    #[reflect(ignore)]
+    pub render_mesh: Option<AssetRef<WorldAsset>>,
 }
 
 impl Default for ControllerSectionConfig {
@@ -48,7 +50,7 @@ impl Default for ControllerSectionConfig {
 }
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct ControllerSectionRenderMesh(Option<Handle<WorldAsset>>);
+struct ControllerSectionRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
 
 /// Helper function to create a controller section entity bundle.
 pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
@@ -94,6 +96,7 @@ pub struct ControllerSectionMarker;
 /// is the addressable handle used by [`ControllerVerbs`] and the
 /// `SetControllerVerb` scenario action.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum FlightVerb {
     /// STOP: kill all velocity.
     Stop,
@@ -116,6 +119,7 @@ pub enum FlightVerb {
 /// build time from [`ControllerSectionConfig::verbs`] and flipped at runtime by
 /// the `SetControllerVerb` scenario action.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ControllerVerbs {
     /// Whether STOP (kill velocity) is granted.
     pub stop: bool,
@@ -281,6 +285,7 @@ fn insert_controller_section_render(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     q_controller: Query<
         (
             &ControllerSectionRenderMesh,
@@ -312,11 +317,12 @@ fn insert_controller_section_render(
         .entity(entity)
         .insert(ControllerSectionRenderMarker);
     match &**render_mesh {
-        Some(scene) => {
+        Some(asset_ref) => {
+            let scene = asset_ref.resolve(&asset_server);
             commands.entity(entity).insert((children![(
                 Name::new("Controller Section Body"),
                 SectionRenderOf(entity),
-                WorldAssetRoot(scene.clone()),
+                WorldAssetRoot(scene),
             ),],));
         }
         None => {
@@ -365,7 +371,7 @@ mod tests {
         let mut app = App::new();
         let custom_scene = Handle::<WorldAsset>::default();
         let config = ControllerSectionConfig {
-            render_mesh: Some(custom_scene.clone()),
+            render_mesh: Some(custom_scene.clone().into()),
             ..Default::default()
         };
         let id = app.world_mut().spawn(controller_section(config)).id();
@@ -377,7 +383,10 @@ mod tests {
         assert!(app.world().get::<ControllerSectionMarker>(id).is_some());
         let render_mesh = app.world().get::<ControllerSectionRenderMesh>(id).unwrap();
         assert!(render_mesh.0.is_some());
-        assert_eq!(render_mesh.0.as_ref().unwrap(), &custom_scene);
+        assert_eq!(
+            render_mesh.0.as_ref().unwrap(),
+            &AssetRef::from(custom_scene)
+        );
     }
 
     #[test]

@@ -89,7 +89,7 @@ fn attitude_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         id: "controller_rig".to_string(),
         name: "Controller Section Rig".to_string(),
         description: "A minimal ship chasing a rotating attitude command.".to_string(),
-        cubemap: game_assets.cubemap.clone(),
+        cubemap: game_assets.cubemap.clone().into(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
             filters: vec![],

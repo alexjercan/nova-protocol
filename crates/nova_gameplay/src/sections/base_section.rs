@@ -23,6 +23,7 @@ pub struct SectionInactiveMarker;
 pub struct SectionRenderOf(pub Entity);
 
 #[derive(Component, Clone, Debug, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BaseSectionConfig {
     pub id: String,
     pub name: String,
@@ -32,6 +33,7 @@ pub struct BaseSectionConfig {
 }
 
 #[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[allow(clippy::large_enum_variant)]
 pub enum SectionKind {
     Hull(HullSectionConfig),
@@ -42,6 +44,7 @@ pub enum SectionKind {
 }
 
 #[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SectionConfig {
     pub base: BaseSectionConfig,
     pub kind: SectionKind,

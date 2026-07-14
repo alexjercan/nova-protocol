@@ -19,9 +19,12 @@ pub mod prelude {
 pub const ASTEROID_TYPE_NAME: &str = "asteroid";
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AsteroidConfig {
     pub radius: f32,
-    pub texture: Handle<Image>,
+    /// Surface texture. Authored as an asset path; resolved to a live handle
+    /// at spawn time (see `insert_asteroid_render`).
+    pub texture: AssetRef<Image>,
     pub health: f32,
     /// Per-body gravity override, u/s^2 at the surface. `Some` always makes
     /// this asteroid a gravity well at that strength (subject to the
@@ -74,7 +77,7 @@ pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
 pub struct AsteroidMarker;
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-pub struct AsteroidTexture(pub Handle<Image>);
+pub struct AsteroidTexture(#[reflect(ignore)] pub AssetRef<Image>);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidRenderMesh(pub Mesh);
@@ -317,6 +320,7 @@ fn insert_asteroid_render(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     q_render: Query<(&AsteroidRenderMesh, &ChildOf)>,
     q_asteroid: Query<&AsteroidTexture, With<AsteroidMarker>>,
 ) {
@@ -341,7 +345,7 @@ fn insert_asteroid_render(
 
     let mesh = (**render_mesh).clone();
     let material = StandardMaterial {
-        base_color_texture: Some((**texture).clone()),
+        base_color_texture: Some(texture.resolve(&asset_server)),
         ..default()
     };
 
@@ -813,7 +817,7 @@ mod tests {
                     RigidBody::Dynamic,
                     asteroid_scenario_object(AsteroidConfig {
                         radius: 20.0,
-                        texture: Handle::default(),
+                        texture: AssetRef::default(),
                         health: 2000.0,
                         surface_gravity: Some(6.0),
                         invulnerable,
@@ -861,7 +865,7 @@ mod tests {
                 RigidBody::Dynamic,
                 asteroid_scenario_object(AsteroidConfig {
                     radius,
-                    texture: Handle::default(),
+                    texture: AssetRef::default(),
                     health: 100.0,
                     surface_gravity,
                     invulnerable: false,
@@ -889,7 +893,7 @@ mod tests {
                 RigidBody::Dynamic,
                 asteroid_scenario_object(AsteroidConfig {
                     radius,
-                    texture: Handle::default(),
+                    texture: AssetRef::default(),
                     health: 100.0,
                     surface_gravity,
                     invulnerable: false,
