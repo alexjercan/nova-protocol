@@ -44,7 +44,7 @@ use serde::{Deserialize, Serialize};
 pub mod prelude {
     pub use super::{
         BundleAsset, BundleAssetLoader, BundleManifest, Content, ContentAsset, ContentAssetLoader,
-        ModdingLoaderError, NovaModdingPlugin,
+        ModList, ModListLoader, ModListManifest, ModdingLoaderError, NovaModdingPlugin,
     };
 }
 
@@ -246,6 +246,91 @@ impl AssetLoader for BundleAssetLoader {
     }
 }
 
+/// The on-disk `*.mods.ron` enable-list: the enabled mod bundles, as manifest
+/// paths RELATIVE to the asset root (the enable-list lives at the root, so a mod
+/// bundle path is e.g. `"mods/demo/demo.bundle.ron"`).
+///
+/// This is the wasm-safe source of truth for which mods are on - a manifest, never
+/// directory enumeration (`load_folder` is broken on the web target).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ModListManifest {
+    /// Enabled mod-bundle manifest paths, root-relative.
+    pub mods: Vec<String>,
+}
+
+/// A loaded mod enable-list: the [`BundleAsset`] handle for every enabled mod, in
+/// enable order (base is merged first, then these).
+///
+/// Like [`BundleAsset`] one level up, a `ModList` HAS dependencies - its mod
+/// bundles - so [`Asset`] and [`VisitAssetDependencies`] are hand-implemented to
+/// visit each bundle handle. That makes bevy load every mod bundle (and, through
+/// each bundle, its content) along with the list, and report the list's RECURSIVE
+/// load state as `Loaded` only once all of it has loaded - so `register_bundles`
+/// sees fully-loaded mods.
+#[derive(TypePath, Clone, Debug)]
+pub struct ModList {
+    /// One handle per enabled mod bundle, in enable order.
+    pub bundles: Vec<Handle<BundleAsset>>,
+}
+
+impl VisitAssetDependencies for ModList {
+    fn visit_dependencies(&self, visit: &mut impl FnMut(UntypedAssetId)) {
+        for handle in &self.bundles {
+            visit(handle.id().untyped());
+        }
+    }
+}
+
+impl Asset for ModList {}
+
+/// Bevy [`AssetLoader`] for `*.mods.ron` files (a RON [`ModListManifest`]).
+///
+/// Decodes the manifest, then for each enabled mod issues a
+/// `load_context.load::<BundleAsset>` (the paths are asset-root-relative) and
+/// collects the handles into a [`ModList`]. Mirrors [`BundleAssetLoader`], one
+/// level up (bundles-of-bundles instead of bundle-of-content).
+///
+/// NAMING: same rule as bundles - the enable-list MUST be named `<name>.mods.ron`
+/// (e.g. `enabled.mods.ron`), never a bare `mods.ron`. bevy_asset_loader loads it
+/// UNTYPED (as a `GameAssets` field), which resolves the loader by the file's full
+/// extension - everything after the FIRST dot. `mods.ron` yields the bare `ron`
+/// extension (no loader, fails in-game); `enabled.mods.ron` yields `mods.ron` and
+/// matches. See task 20260714-163342.
+#[derive(Default, TypePath)]
+pub struct ModListLoader;
+
+impl AssetLoader for ModListLoader {
+    type Asset = ModList;
+    type Settings = ();
+    type Error = ModdingLoaderError;
+
+    async fn load(
+        &self,
+        reader: &mut dyn Reader,
+        _settings: &Self::Settings,
+        load_context: &mut LoadContext<'_>,
+    ) -> Result<Self::Asset, Self::Error> {
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes).await?;
+        let manifest: ModListManifest = ron::de::from_bytes(&bytes)?;
+
+        // Mod-bundle paths are asset-root-relative (the enable-list lives at the
+        // root), so they load as-is - no dir resolution needed, unlike a bundle's
+        // content paths which are bundle-relative.
+        let bundles = manifest
+            .mods
+            .iter()
+            .map(|path| load_context.load::<BundleAsset>(AssetPath::from(path.to_string())))
+            .collect();
+
+        Ok(ModList { bundles })
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &["mods.ron"]
+    }
+}
+
 /// Registers the modding asset types and their RON loaders.
 pub struct NovaModdingPlugin;
 
@@ -254,7 +339,9 @@ impl Plugin for NovaModdingPlugin {
         app.init_asset::<ContentAsset>()
             .init_asset_loader::<ContentAssetLoader>()
             .init_asset::<BundleAsset>()
-            .init_asset_loader::<BundleAssetLoader>();
+            .init_asset_loader::<BundleAssetLoader>()
+            .init_asset::<ModList>()
+            .init_asset_loader::<ModListLoader>();
     }
 }
 
@@ -329,5 +416,23 @@ mod tests {
                 "scenarios/demo.content.ron".to_string(),
             ]
         );
+    }
+
+    /// A `*.mods.ron` enable-list body decodes into a [`ModListManifest`] carrying
+    /// the enabled mod-bundle paths in order. An empty list (the shipped default)
+    /// decodes too. (The actual load of each mod bundle into a `ModList` is
+    /// exercised by the `nova_assets` integration test on the real asset server.)
+    #[test]
+    fn mod_list_manifest_ron_decodes() {
+        let ron = r#"(mods: [
+            "mods/demo/demo.bundle.ron",
+        ])"#;
+        let manifest: ModListManifest =
+            ron::de::from_bytes(ron.as_bytes()).expect("mod list should decode");
+        assert_eq!(manifest.mods, vec!["mods/demo/demo.bundle.ron".to_string()]);
+
+        let empty: ModListManifest =
+            ron::de::from_bytes(b"(mods: [])").expect("empty mod list should decode");
+        assert!(empty.mods.is_empty());
     }
 }

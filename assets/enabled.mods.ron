@@ -1,0 +1,9 @@
+// The enabled-mods list: each entry is a mod bundle manifest path, relative to
+// the asset root, loaded AFTER the base and overlaid by id (a mod overrides the
+// base). Ships EMPTY so the base game is pristine. To try the bundled demo mod,
+// add its bundle path:
+//
+//   (mods: ["mods/demo/demo.bundle.ron"])
+//
+// See assets/mods/demo/README.md.
+(mods: [])

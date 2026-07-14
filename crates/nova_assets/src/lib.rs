@@ -1,12 +1,14 @@
 //! A Bevy plugin for loading game assets and initializing asset resources.
 
+use std::collections::HashSet;
+
 use bevy::{
     prelude::*,
     render::render_resource::{TextureViewDescriptor, TextureViewDimension},
 };
 use bevy_asset_loader::prelude::*;
 use nova_gameplay::prelude::*;
-use nova_modding::prelude::{BundleAsset, Content, ContentAsset};
+use nova_modding::prelude::{BundleAsset, Content, ContentAsset, ModList};
 use nova_scenario::prelude::GameScenarios;
 
 mod scenario;
@@ -106,34 +108,40 @@ pub use crate::register_bundles as register_bundles_for_test;
 /// Route every loaded bundle's content into the id-keyed game registries, with
 /// load-order overlay.
 ///
-/// It iterates the ORDERED list of loaded [`BundleAsset`]s (just the base bundle
-/// today; mods append after it), and for each bundle iterates its content
-/// handles in manifest order, reads the [`ContentAsset`] from
-/// [`Assets<ContentAsset>`], and dispatches each [`Content`] item by variant -
-/// `Section` collects into the [`GameSections`] `Vec`, `Scenario` inserts into
-/// [`GameScenarios`] keyed by its id. Because a later bundle's items are applied
-/// after earlier ones, a LATER bundle wins on an id collision (load-order
-/// overlay); this is the seam mods hook into. Both resources are always inserted
-/// (empty if nothing loaded).
+/// It builds the ORDERED bundle list - the base bundle first, then every enabled
+/// mod bundle from the [`ModList`] enable-list in enable order - flattens each
+/// bundle's content (in manifest order, across its content files), and hands the
+/// whole ordered list to [`merge_bundles`]. Because a later bundle's items are
+/// applied after earlier ones, a LATER (mod) bundle wins on an id collision with
+/// the base (load-order overlay); a duplicate id WITHIN one bundle is a conflict,
+/// logged and skipped. Both resources are always inserted (empty if nothing
+/// loaded).
 ///
-/// The base bundle is part of the `GameAssets` collection, so bevy_asset_loader
-/// gates the collection on its RECURSIVE load state and guarantees every content
-/// file finished loading before this runs `OnEnter(Processing)`. A handle whose
-/// asset is somehow not loaded is logged and skipped (never a panic) - the
-/// remaining content still registers.
+/// The base bundle and the enable-list are both part of the `GameAssets`
+/// collection, so bevy_asset_loader gates the collection on their RECURSIVE load
+/// state and guarantees every mod bundle + content file finished loading before
+/// this runs `OnEnter(Processing)`. A handle whose asset is somehow not loaded is
+/// logged and skipped (never a panic) - the remaining content still registers.
 pub fn register_bundles(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
+    mod_lists: Res<Assets<ModList>>,
     bundles: Res<Assets<BundleAsset>>,
     contents: Res<Assets<ContentAsset>>,
 ) {
-    let mut sections: Vec<SectionConfig> = Vec::new();
-    let mut scenarios = GameScenarios::default();
+    // Ordered bundle handles: base first, then enabled mods in enable order.
+    let mut bundle_handles: Vec<&Handle<BundleAsset>> = vec![&game_assets.base_bundle];
+    match mod_lists.get(&game_assets.mod_list) {
+        Some(mod_list) => bundle_handles.extend(mod_list.bundles.iter()),
+        None => error!(
+            "register_bundles: the mod enable-list was not loaded; registering the base only"
+        ),
+    }
 
-    // The ordered bundle list. Base first; mods (task 20260714-134127) append
-    // more handles here, so a later bundle overlays an earlier one by id.
-    let bundle_handles = [&game_assets.base_bundle];
-
+    // Flatten each bundle into its ordered `&Content` items (missing content is
+    // logged and skipped). Kept as one Vec per bundle so `merge_bundles` can tell
+    // intra-bundle duplicates from cross-bundle overlay.
+    let mut bundle_items: Vec<Vec<&Content>> = Vec::new();
     for bundle_handle in bundle_handles {
         let Some(bundle) = bundles.get(bundle_handle) else {
             error!(
@@ -142,6 +150,7 @@ pub fn register_bundles(
             );
             continue;
         };
+        let mut items: Vec<&Content> = Vec::new();
         for content_handle in &bundle.content {
             let Some(content) = contents.get(content_handle) else {
                 error!(
@@ -150,23 +159,102 @@ pub fn register_bundles(
                 );
                 continue;
             };
-            for item in &content.0 {
-                merge_content_item(item, &mut sections, &mut scenarios);
+            items.extend(content.0.iter());
+        }
+        bundle_items.push(items);
+    }
+
+    let outcome = merge_bundles(bundle_items.iter().map(|items| items.iter().copied()));
+    for conflict in &outcome.conflicts {
+        error!("register_bundles: {conflict}");
+    }
+
+    commands.insert_resource(GameSections(outcome.sections));
+    commands.insert_resource(outcome.scenarios);
+}
+
+/// The result of merging an ordered list of bundles: the id-keyed registries plus
+/// any intra-bundle id conflicts that were detected (and skipped).
+pub struct MergeOutcome {
+    /// Sections in registration order (base then mods), overlaid last-wins by id.
+    pub sections: Vec<SectionConfig>,
+    /// Scenarios keyed by id, overlaid last-wins.
+    pub scenarios: GameScenarios,
+    /// Human-readable messages, one per intra-bundle duplicate id that was
+    /// skipped. Empty on clean data.
+    pub conflicts: Vec<String>,
+}
+
+/// Merge an ORDERED list of bundles into the id-keyed registries. Each bundle is
+/// an ordered list of its `&Content` items (already flattened across the bundle's
+/// content files).
+///
+/// Two overlay rules, mirroring Wesnoth's base+addons model:
+/// - CROSS-bundle (a later bundle vs an earlier one): last-wins overlay by id -
+///   a mod's `Content` with the same id as the base REPLACES it. This is the
+///   whole point of mods.
+/// - INTRA-bundle (the same id twice in ONE bundle - including the BASE bundle,
+///   whose content files flatten into one bundle): a conflict. The first item is
+///   kept, the duplicate is skipped, and a message is recorded. This is an
+///   authoring error in any pack, surfaced loudly (the caller logs it) rather than
+///   silently last-wins-overlaid like the cross-bundle case - but NOT a panic, so
+///   bad mod (or base) data cannot crash the app.
+pub fn merge_bundles<'a, B, I>(bundles: B) -> MergeOutcome
+where
+    B: IntoIterator<Item = I>,
+    I: IntoIterator<Item = &'a Content>,
+{
+    let mut sections: Vec<SectionConfig> = Vec::new();
+    let mut scenarios = GameScenarios::default();
+    let mut conflicts: Vec<String> = Vec::new();
+
+    for bundle in bundles {
+        // Ids seen in THIS bundle, per kind - reset each bundle so a later bundle
+        // may overlay an earlier one, while a repeat within one bundle conflicts.
+        let mut seen_sections: HashSet<&str> = HashSet::new();
+        let mut seen_scenarios: HashSet<&str> = HashSet::new();
+
+        for item in bundle {
+            match item {
+                Content::Section(cfg) => {
+                    if !seen_sections.insert(cfg.base.id.as_str()) {
+                        conflicts.push(format!(
+                            "section id '{}' appears more than once in one bundle; \
+                             keeping the first, skipping the duplicate",
+                            cfg.base.id
+                        ));
+                        continue;
+                    }
+                    merge_content_item(item, &mut sections, &mut scenarios);
+                }
+                Content::Scenario(cfg) => {
+                    if !seen_scenarios.insert(cfg.id.as_str()) {
+                        conflicts.push(format!(
+                            "scenario id '{}' appears more than once in one bundle; \
+                             keeping the first, skipping the duplicate",
+                            cfg.id
+                        ));
+                        continue;
+                    }
+                    merge_content_item(item, &mut sections, &mut scenarios);
+                }
             }
         }
     }
 
-    commands.insert_resource(GameSections(sections));
-    commands.insert_resource(scenarios);
+    MergeOutcome {
+        sections,
+        scenarios,
+        conflicts,
+    }
 }
 
 /// Route one content item into the accumulating registries with last-wins
 /// overlay by id. Both kinds overlay identically: a later item (from a later
-/// bundle, or later in the same bundle) with the same id replaces the earlier
-/// one rather than appending a shadowed duplicate. Sections keep a Vec (order
-/// matters for the editor palette) so overlay is a linear replace-in-place;
-/// scenarios are a map so overlay is a plain `insert`. This is the seam mods
-/// (task 20260714-134127) rely on, so it is a standalone, tested helper.
+/// bundle) with the same id replaces the earlier one rather than appending a
+/// shadowed duplicate. Sections keep a Vec (order matters for the editor palette)
+/// so overlay is a linear replace-in-place; scenarios are a map so overlay is a
+/// plain `insert`. Called by [`merge_bundles`] once per accepted item.
 fn merge_content_item(
     item: &Content,
     sections: &mut Vec<SectionConfig>,
@@ -261,6 +349,19 @@ pub struct GameAssets {
     /// `base.bundle.ron` resolves to `bundle.ron` and matches `BundleAssetLoader`.
     #[asset(path = "base/base.bundle.ron")]
     pub base_bundle: Handle<BundleAsset>,
+    /// The enabled mods, as a `ModList` enable-list (`assets/enabled.mods.ron`).
+    /// Each entry is a mod `BundleAsset` handle; `register_bundles` merges them
+    /// AFTER the base, in enable order, so a mod overlays the base by id. Ships
+    /// EMPTY (`(mods: [])`) by default - a pristine base game. Like the base
+    /// bundle, the collection gates on this handle's RECURSIVE load state, so
+    /// every enabled mod bundle + its content is loaded before the merge runs.
+    ///
+    /// The `<name>.mods.ron` STEM is load-bearing for the same reason as the
+    /// bundle (untyped `load_untyped` -> extension-only resolution): a bare
+    /// `mods.ron` resolves to `ron` (no loader); `enabled.mods.ron` -> `mods.ron`,
+    /// which `ModListLoader` registers.
+    #[asset(path = "enabled.mods.ron")]
+    pub mod_list: Handle<ModList>,
 }
 
 /// Give the skybox cubemap its cube texture view.
@@ -397,6 +498,71 @@ mod tests {
             scenarios.get(&id).unwrap().name,
             "modded",
             "later scenario must win"
+        );
+    }
+
+    /// A later bundle (a mod) overlays an earlier bundle (the base) by id:
+    /// last-wins across bundles, with a fresh section left added. No conflicts -
+    /// same id in DIFFERENT bundles is the intended overlay, not an error.
+    #[test]
+    fn merge_bundles_overlays_later_bundle_by_id() {
+        let base = vec![
+            Content::Section(section("hull", 100.0)),
+            Content::Section(section("thruster", 50.0)),
+        ];
+        let modded = vec![
+            // Overrides the base hull by id.
+            Content::Section(section("hull", 999.0)),
+            // Adds a brand-new section.
+            Content::Section(section("shield", 25.0)),
+        ];
+
+        let outcome = merge_bundles([base.iter(), modded.iter()]);
+
+        assert!(
+            outcome.conflicts.is_empty(),
+            "same id across bundles is overlay, not a conflict: {:?}",
+            outcome.conflicts
+        );
+        // hull overlaid in place (order preserved), thruster kept, shield appended.
+        assert_eq!(
+            outcome
+                .sections
+                .iter()
+                .map(|s| s.base.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["hull", "thruster", "shield"]
+        );
+        assert_eq!(
+            outcome.sections[0].base.health, 999.0,
+            "the mod's hull must win over the base's"
+        );
+    }
+
+    /// The SAME id twice within ONE bundle is a conflict: the first is kept, the
+    /// duplicate is skipped and recorded. This is the "intra-bundle duplicate is
+    /// an error" rule (surfaced loudly by the caller), distinct from cross-bundle
+    /// overlay.
+    #[test]
+    fn merge_bundles_intra_bundle_duplicate_is_a_conflict() {
+        let bundle = vec![
+            Content::Section(section("hull", 100.0)),
+            // Duplicate id in the SAME bundle - a conflict, not an overlay.
+            Content::Section(section("hull", 999.0)),
+        ];
+
+        let outcome = merge_bundles([bundle.iter()]);
+
+        assert_eq!(outcome.sections.len(), 1, "the duplicate must be skipped");
+        assert_eq!(
+            outcome.sections[0].base.health, 100.0,
+            "the FIRST occurrence is kept within a bundle"
+        );
+        assert_eq!(outcome.conflicts.len(), 1, "the conflict is recorded");
+        assert!(
+            outcome.conflicts[0].contains("hull"),
+            "the conflict names the offending id: {}",
+            outcome.conflicts[0]
         );
     }
 }

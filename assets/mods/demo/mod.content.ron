@@ -1,0 +1,57 @@
+// Demo mod content. Loaded AFTER the base bundle, so:
+//   - the Section below shares the base id "reinforced_hull_section", so it
+//     OVERRIDES the base one by id (last-wins overlay): buffed health + a renamed
+//     label the editor palette will show.
+//   - the Scenario below is a NEW id ("demo_mod_arena"), so it is ADDED alongside
+//     the base scenarios.
+[
+    Section((
+        base: (
+            id: "reinforced_hull_section",
+            name: "Reinforced Hull Section (Demo Mod)",
+            description: "Base hull, up-armored by the demo mod to show section overlay.",
+            mass: 1.0,
+            health: 400.0,
+        ),
+        kind: Hull((
+            render_mesh: Some("gltf/hull-01.glb#Scene0"),
+        )),
+    )),
+    Scenario((
+        id: "demo_mod_arena",
+        name: "Demo Mod Arena",
+        description: "A scenario added by the demo mod: a lone beacon in open space.",
+        cubemap: "textures/cubemap.png",
+        events: [
+            (
+                name: OnStart,
+                filters: [],
+                actions: [
+                    DebugMessage((
+                        message: "Demo mod scenario loaded from an overlaid bundle.",
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "demo_mod_beacon",
+                            name: "Demo Mod Beacon",
+                            position: (0.0, 0.0, -50.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "MOD",
+                            radius: 2.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.6,
+                                blue: 0.2,
+                                alpha: 1.0,
+                            )),
+                            area_radius: Some(40.0),
+                            lock_signature: None,
+                        )),
+                    )),
+                ],
+            ),
+        ],
+    )),
+]
