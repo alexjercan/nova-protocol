@@ -228,3 +228,19 @@ Direction-level tasks (for `/plan` to break into steps):
   `base.bundle.ron` (convention `<pack>.bundle.ron`) + an untyped-load regression guard.
   IMPLICATION for 134127: the top-level `mods.ron` needs the SAME stem (`*.mods.ron`) or
   it fails identically. See tasks/20260714-163342/{TASK,REVIEW,RETRO}.md.
+- 20260714, mods overlay + demo mod (134127) landed on master (`85ddc46`): THE PAYOFF -
+  a mod is another bundle merged on top of the base. nova_modding gained
+  `ModListManifest` + `ModList` (deps = enabled mod bundles) + `ModListLoader`
+  (`*.mods.ron`), mirroring the bundle mechanism one level up. `GameAssets` loads
+  `enabled.mods.ron` (ships EMPTY - pristine base) as `Handle<ModList>`;
+  `register_bundles` builds `[base] ++ enabled mods` and routes via a new pure
+  `merge_bundles`: CROSS-bundle last-wins overlay by id (mod overrides base),
+  INTRA-bundle duplicate id = recorded conflict (logged, first kept, never a panic).
+  Recursive load-gating (verified) loads all mods before the merge. Ships a demo mod
+  (`assets/mods/demo/`, disabled by default) overriding `reinforced_hull_section` +
+  adding `demo_mod_arena`; proven by unit + full-`register_bundles`-path + live
+  enabled-mod run. Used the `*.mods.ron` stem from the 163342 fix. Reviewed APPROVE
+  (self + out-of-context adversarial). Remaining family: 134115 (ship kind, still
+  deferred until a real consumer - the demo mod could become it). The bundle/mod
+  mechanism is now COMPLETE end to end (define content -> bundle -> base-as-bundle ->
+  mods overlay). See tasks/20260714-134127/{TASK,REVIEW,RETRO}.md.

@@ -123,16 +123,18 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   compile `#[cfg(test)]` code; after a type change verify with `cargo test
   --workspace --no-run` (CI's build) or a test build broke silently past the branch
   gate onto master (a stray `Handle` in a test helper). 20260525-133028.
-- `test-the-production-load-path` (x1): exercise an asset load the SAME way the
-  production consumer does. A typed `asset_server.load::<T>` test masks failures the
-  game hits via bevy_asset_loader's UNTYPED `load_untyped` kickoff (extension-only
-  loader resolution, no by-type fallback) - the base bundle failed only in-game while
-  the typed e2e test passed and even claimed "the exact wiring the game ships".
-  20260714-163342.
-- `stemmed-compound-extension` (x1): name a custom-asset file with a STEM so its bevy
+- `test-the-production-load-path` (x2): exercise an asset load / merge the SAME way
+  the production consumer does. A typed `asset_server.load::<T>` test masks failures
+  the game hits via bevy_asset_loader's UNTYPED `load_untyped` kickoff (extension-only
+  loader resolution, no by-type fallback); a test that calls the pure merge core
+  directly bypasses the real system that reads it from a resource. Add the test that
+  drives the production path, not just the convenient intermediate.
+  20260714-163342, 20260714-134127.
+- `stemmed-compound-extension` (x2): name a custom-asset file with a STEM so its bevy
   full extension (everything after the FIRST dot) equals the registered compound
-  extension; a bare `bundle.ron` resolves to `ron` (no loader) under an untyped load.
-  `<pack>.bundle.ron` / `<name>.content.ron`. 20260714-163342.
+  extension; a bare `bundle.ron`/`mods.ron` resolves to `ron` (no loader) under an
+  untyped load. `<pack>.bundle.ron` / `<name>.content.ron` / `<name>.mods.ron`.
+  20260714-163342, 20260714-134127.
 - `stage-lock-with-manifest` (x1): a commit that changes a `Cargo.toml` dep list
   must stage `Cargo.lock` too; explicit-path `git add` (the no-worktree habit)
   silently drops the lock, leaving a stale `--locked`/CI build. Glance at
