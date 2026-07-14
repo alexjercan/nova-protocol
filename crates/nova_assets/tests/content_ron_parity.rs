@@ -3,15 +3,16 @@
 //! `*.content.ron` files - a RON `Vec<Content>` where each item carries its kind).
 //!
 //! The config builders (`build_section_catalog` / `build_scenarios`) are the
-//! SINGLE definition of each built-in; at runtime `register_content` loads the
-//! committed `assets/**/*.content.ron` and routes each item into `GameSections` /
+//! SINGLE definition of each built-in; at runtime `register_bundles` loads the
+//! committed `assets/base/**/*.content.ron` (via the base bundle) and routes each
+//! item into `GameSections` /
 //! `GameScenarios`, and the builders are only exercised here. This test rebuilds
 //! each file's `Vec<Content>` with PATH-based asset refs (exactly what production
 //! loads them from), serializes it with the deterministic `PrettyConfig`, and
 //! compares to the committed file.
 //!
-//! - `assets/sections/base.content.ron` = one `Vec<Content>` of `Section((..))`.
-//! - `assets/scenarios/<id>.content.ron` = a `Vec<Content>` with one `Scenario((..))`.
+//! - `assets/base/sections/base.content.ron` = one `Vec<Content>` of `Section((..))`.
+//! - `assets/base/scenarios/<id>.content.ron` = a `Vec<Content>` with one `Scenario((..))`.
 //!
 //! The first run (before a file exists) WRITES it, so `cargo test` is the tool
 //! that produces the data files; every run after that asserts the file on disk
@@ -66,14 +67,14 @@ fn guard(path: &std::path::Path, generated: &str) {
 
 #[test]
 fn built_in_section_content_matches_committed_ron() {
-    let path = assets_dir().join("sections/base.content.ron");
+    let path = assets_dir().join("base/sections/base.content.ron");
     let generated = serialize(&build_section_content());
     guard(&path, &generated);
 }
 
 #[test]
 fn built_in_scenario_content_matches_committed_ron() {
-    let dir = assets_dir().join("scenarios");
+    let dir = assets_dir().join("base/scenarios");
     for (id, content) in build_scenario_contents() {
         let path = dir.join(format!("{id}.content.ron"));
         let generated = serialize(&content);

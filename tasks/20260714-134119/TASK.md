@@ -1,6 +1,6 @@
 # Bundle manifest + loader + merge-by-kind router into id-keyed registries
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 48
 - TAGS: v0.6.0,modding,scenario
 
@@ -46,7 +46,7 @@ The base game becoming a bundle IS the mechanism's end-to-end proof (like 150508
 mechanism + migration together), so 134123 folds in here - no throwaway demo bundle.
 
 Steps:
-- [ ] 1. nova_modding: `BundleManifest { content: Vec<String> }` (relative content-file
+- [x] 1. nova_modding: `BundleManifest { content: Vec<String> }` (relative content-file
   paths) + `BundleAsset { content: Vec<Handle<ContentAsset>> }` + `BundleAssetLoader`
   (`bundle.ron`): parse the manifest, `load_context.load::<ContentAsset>(path)` each entry
   (resolved relative to the bundle file's dir - use the bevy-idiomatic relative path, or
@@ -54,19 +54,19 @@ Steps:
   `VisitAssetDependencies` MUST visit its content handles (unlike ContentAsset, a bundle
   HAS dependencies) so the content loads with the bundle. Register in NovaModdingPlugin.
   Unit test: a bundle.ron manifest decodes; (integration) a bundle + its content load.
-- [ ] 2. Package the base as a bundle: move the six `*.content.ron` into `assets/base/`
+- [x] 2. Package the base as a bundle: move the six `*.content.ron` into `assets/base/`
   (`assets/base/sections/base.content.ron`, `assets/base/scenarios/*.content.ron`) and add
   `assets/base/bundle.ron` listing them. git-rename the files; update the content-parity
   test paths.
-- [ ] 3. nova_assets: `GameAssets` replaces the six `Handle<ContentAsset>` with ONE
+- [x] 3. nova_assets: `GameAssets` replaces the six `Handle<ContentAsset>` with ONE
   `Handle<BundleAsset>` (`assets/base/bundle.ron`). A `register_bundles` system (replaces/
   wraps `register_content`) reads a LIST of loaded bundles (just `[base]` for now), flattens
   every bundle's content items in order, and merges by kind into GameSections/GameScenarios
   with LOAD-ORDER overlay (later bundle's id wins). Written overlay-ready so 134127 (mods)
   just appends bundles. Keep `error!`+skip on an unloaded asset.
-- [ ] 4. Update the `demo_scenario` test + `_for_test` re-exports for the bundle path;
+- [x] 4. Update the `demo_scenario` test + `_for_test` re-exports for the bundle path;
   assert GameScenarios (demo + 4 built-ins) + GameSections populated via the base bundle.
-- [ ] 5. Verify: `cargo test --workspace --no-run`; nova_modding/nova_assets tests;
+- [x] 5. Verify: `cargo test --workspace --no-run`; nova_modding/nova_assets tests;
   `12_menu_newgame` + `09_editor` under `DISPLAY=:0 BCS_AUTOPILOT=1 --features debug`;
   parity green. Behavior IDENTICAL (same content registered, now via the base bundle).
 

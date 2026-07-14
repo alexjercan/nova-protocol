@@ -13,7 +13,7 @@
 //!
 //! The kind lives IN the RON structure (an externally-tagged enum), so ONE
 //! loader reads any content file and a downstream router (`nova_assets`'s
-//! `register_content`) dispatches each item into its id-keyed registry
+//! `register_bundles`) dispatches each item into its id-keyed registry
 //! (`GameSections` / `GameScenarios`). A single file may mix kinds.
 //!
 //! The config trees are `serde` under nova_scenario's / nova_gameplay's `serde`
@@ -30,7 +30,10 @@
 //! and routes each item into `GameScenarios` / `GameSections`.
 
 use bevy::{
-    asset::{io::Reader, Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies},
+    asset::{
+        io::Reader, Asset, AssetLoader, AssetPath, LoadContext, UntypedAssetId,
+        VisitAssetDependencies,
+    },
     prelude::*,
     reflect::TypePath,
 };
@@ -40,7 +43,8 @@ use serde::{Deserialize, Serialize};
 
 pub mod prelude {
     pub use super::{
-        Content, ContentAsset, ContentAssetLoader, ModdingLoaderError, NovaModdingPlugin,
+        BundleAsset, BundleAssetLoader, BundleManifest, Content, ContentAsset, ContentAssetLoader,
+        ModdingLoaderError, NovaModdingPlugin,
     };
 }
 
@@ -75,6 +79,44 @@ impl VisitAssetDependencies for ContentAsset {
 }
 
 impl Asset for ContentAsset {}
+
+/// The on-disk `bundle.ron` manifest: the list of content files a bundle folder
+/// packages, as paths RELATIVE to the `bundle.ron` file's own directory.
+///
+/// A bundle is a DIRECTORY plus this manifest - the manifest, not directory
+/// enumeration, is what makes bundles wasm-safe (`load_folder` is broken on the
+/// web target, so a bundle can never rely on listing its directory).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BundleManifest {
+    /// Content-file paths, relative to the `bundle.ron` file's directory (e.g.
+    /// `"sections/base.content.ron"`, `"scenarios/demo.content.ron"`).
+    pub content: Vec<String>,
+}
+
+/// A loaded bundle: the [`ContentAsset`] handles for every content file its
+/// [`BundleManifest`] listed, in manifest order.
+///
+/// Unlike [`ContentAsset`] (a leaf with no dependencies), a bundle HAS
+/// dependencies - its content files. [`Asset`] and [`VisitAssetDependencies`]
+/// are implemented by hand so that `visit_dependencies` reports every content
+/// handle: this is what tells bevy to load the content along with the bundle and
+/// to only report the bundle's RECURSIVE load state as `Loaded` once all its
+/// content has loaded.
+#[derive(TypePath, Clone, Debug)]
+pub struct BundleAsset {
+    /// One handle per content file the manifest listed, in manifest order.
+    pub content: Vec<Handle<ContentAsset>>,
+}
+
+impl VisitAssetDependencies for BundleAsset {
+    fn visit_dependencies(&self, visit: &mut impl FnMut(UntypedAssetId)) {
+        for handle in &self.content {
+            visit(handle.id().untyped());
+        }
+    }
+}
+
+impl Asset for BundleAsset {}
 
 /// Errors produced while loading a modding RON asset (`*.content.ron`).
 #[derive(Debug)]
@@ -141,13 +183,70 @@ impl AssetLoader for ContentAssetLoader {
     }
 }
 
-/// Registers the modding asset type and its RON loader.
+/// Bevy [`AssetLoader`] for `bundle.ron` files (a RON [`BundleManifest`]).
+///
+/// Decodes the manifest, then for each listed content path issues a
+/// `load_context.load::<ContentAsset>` and collects the handles into a
+/// [`BundleAsset`]. The manifest paths are resolved RELATIVE to the bundle
+/// file's own directory (via [`AssetPath::resolve`] against the bundle path's
+/// parent), so a bundle folder is self-contained and relocatable.
+#[derive(Default, TypePath)]
+pub struct BundleAssetLoader;
+
+impl AssetLoader for BundleAssetLoader {
+    type Asset = BundleAsset;
+    type Settings = ();
+    type Error = ModdingLoaderError;
+
+    async fn load(
+        &self,
+        reader: &mut dyn Reader,
+        _settings: &Self::Settings,
+        load_context: &mut LoadContext<'_>,
+    ) -> Result<Self::Asset, Self::Error> {
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes).await?;
+        let manifest: BundleManifest = ron::de::from_bytes(&bytes)?;
+
+        // Resolve each content path against the bundle file's DIRECTORY so the
+        // manifest paths are bundle-relative (self-contained folder). `path()`
+        // is the bundle file itself (e.g. `base/bundle.ron`); its parent is the
+        // bundle dir (e.g. `base`), and `resolve` joins the relative content
+        // path onto it.
+        let base = load_context
+            .path()
+            .parent()
+            .unwrap_or_else(|| AssetPath::from(""));
+
+        let content = manifest
+            .content
+            .iter()
+            .map(|rel| {
+                // `to_string` (owned) is load-bearing here, not a smell: an
+                // `AssetPath::from(&str)` would borrow `manifest.content`, which does
+                // not outlive the resolved path.
+                let resolved = base.resolve(&AssetPath::from(rel.to_string()));
+                load_context.load::<ContentAsset>(resolved)
+            })
+            .collect();
+
+        Ok(BundleAsset { content })
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &["bundle.ron"]
+    }
+}
+
+/// Registers the modding asset types and their RON loaders.
 pub struct NovaModdingPlugin;
 
 impl Plugin for NovaModdingPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<ContentAsset>()
-            .init_asset_loader::<ContentAssetLoader>();
+            .init_asset_loader::<ContentAssetLoader>()
+            .init_asset::<BundleAsset>()
+            .init_asset_loader::<BundleAssetLoader>();
     }
 }
 
@@ -200,5 +299,27 @@ mod tests {
             }
             other => panic!("expected a Scenario, got {other:?}"),
         }
+    }
+
+    /// A `bundle.ron` body decodes into a [`BundleManifest`] carrying the listed
+    /// content-file paths in order. (The actual load of each content file into a
+    /// `BundleAsset` is exercised by the `nova_assets` `demo_scenario`
+    /// integration test on the real asset server.)
+    #[test]
+    fn bundle_manifest_ron_decodes() {
+        let ron = r#"(content: [
+            "sections/base.content.ron",
+            "scenarios/demo.content.ron",
+        ])"#;
+
+        let manifest: BundleManifest =
+            ron::de::from_bytes(ron.as_bytes()).expect("bundle manifest should decode");
+        assert_eq!(
+            manifest.content,
+            vec![
+                "sections/base.content.ron".to_string(),
+                "scenarios/demo.content.ron".to_string(),
+            ]
+        );
     }
 }

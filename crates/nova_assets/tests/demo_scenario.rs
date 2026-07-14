@@ -1,30 +1,32 @@
-//! End-to-end proof of the RON modding pipeline: load the real
-//! `assets/**/*.content.ron` files through the production `nova_modding` asset
-//! loader on a headless asset server, then run the real `register_content`
-//! system (through `GameAssets`) and assert the resulting `GameScenarios`
-//! carries the RON-authored `"demo"` scenario ALONGSIDE the four built-ins AND
-//! `GameSections` is populated from the base section content.
+//! End-to-end proof of the folder-bundle modding pipeline: load the real
+//! `assets/base/bundle.ron` through the production `nova_modding` bundle loader
+//! on a headless asset server. The bundle loader recursively loads every content
+//! file the manifest lists, so waiting for the bundle's RECURSIVE load state
+//! reaching `Loaded` waits for all of its content. Then run the real
+//! `register_bundles` system (through `GameAssets`) and assert the resulting
+//! `GameScenarios` carries the RON-authored `"demo"` scenario ALONGSIDE the four
+//! built-ins AND `GameSections` is populated from the base section content.
 //!
-//! This drives the exact loader and register wiring the game ships: the RON
-//! decode into a `ContentAsset` via `ContentAssetLoader`, the
-//! `Assets<ContentAsset>` lookup in `register_content`, and the by-variant route
-//! into `GameSections` / `GameScenarios`. The asset IO reads the real workspace
+//! This drives the exact wiring the game ships: the `bundle.ron` decode into a
+//! `BundleAsset` (with its content handles) via `BundleAssetLoader`, the
+//! recursive load of each `ContentAsset`, and the `register_bundles` route into
+//! `GameSections` / `GameScenarios`. The asset IO reads the real workspace
 //! `assets/` dir (tests run with the crate root as cwd).
 
 use std::time::{Duration, Instant};
 
 use bevy::{
-    asset::{AssetPlugin, LoadState},
+    asset::{AssetPlugin, RecursiveDependencyLoadState},
     ecs::system::RunSystemOnce,
     prelude::*,
 };
 use nova_assets::prelude::*;
 use nova_gameplay::prelude::GameSections;
-use nova_modding::prelude::{Content, ContentAsset, NovaModdingPlugin};
+use nova_modding::prelude::{BundleAsset, Content, ContentAsset, NovaModdingPlugin};
 use nova_scenario::prelude::GameScenarios;
 
 #[test]
-fn demo_content_ron_loads_into_game_registries() {
+fn base_bundle_loads_into_game_registries() {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
@@ -35,67 +37,68 @@ fn demo_content_ron_loads_into_game_registries() {
             ..default()
         },
     ));
-    // The production modding plugin: registers ContentAsset + the
-    // `*.content.ron` loader.
+    // The production modding plugin: registers ContentAsset + BundleAsset and
+    // their `*.content.ron` / `bundle.ron` loaders.
     app.add_plugins(NovaModdingPlugin);
 
-    // Load every content RON through the real asset server + loader: the base
-    // section catalog, the demo and the four built-in scenarios. register_content
-    // looks each up by handle and routes its items by variant.
+    // Load the base bundle through the real asset server + loader. The bundle
+    // loader `load_context.load`s each content file the manifest lists, so the
+    // bundle's RECURSIVE dependency load state waits for all of them.
     let asset_server = app.world().resource::<AssetServer>().clone();
-    let section_content: Handle<ContentAsset> = asset_server.load("sections/base.content.ron");
-    let demo: Handle<ContentAsset> = asset_server.load("scenarios/demo.content.ron");
-    let asteroid_field: Handle<ContentAsset> =
-        asset_server.load("scenarios/asteroid_field.content.ron");
-    let asteroid_next: Handle<ContentAsset> =
-        asset_server.load("scenarios/asteroid_next.content.ron");
-    let menu_ambience: Handle<ContentAsset> =
-        asset_server.load("scenarios/menu_ambience.content.ron");
-    let shakedown: Handle<ContentAsset> = asset_server.load("scenarios/shakedown_run.content.ron");
-    let all_handles = [
-        section_content.clone().untyped(),
-        demo.clone().untyped(),
-        asteroid_field.clone().untyped(),
-        asteroid_next.clone().untyped(),
-        menu_ambience.clone().untyped(),
-        shakedown.clone().untyped(),
-    ];
+    let base_bundle: Handle<BundleAsset> = asset_server.load("base/bundle.ron");
 
     let deadline = Instant::now() + Duration::from_secs(60);
     loop {
         app.update();
-        let mut all_loaded = true;
-        for h in &all_handles {
-            match asset_server.load_state(h.id()) {
-                LoadState::Loaded => {}
-                LoadState::Failed(err) => panic!("an asset failed to load: {err}"),
-                _ => all_loaded = false,
+        match asset_server.recursive_dependency_load_state(&base_bundle) {
+            RecursiveDependencyLoadState::Loaded => break,
+            RecursiveDependencyLoadState::Failed(err) => {
+                panic!("the base bundle (or its content) failed to load: {err}")
             }
+            _ => {}
         }
-        if all_loaded {
-            break;
-        }
-        assert!(Instant::now() < deadline, "timed out loading the assets");
+        assert!(
+            Instant::now() < deadline,
+            "timed out loading the base bundle + its content"
+        );
         std::thread::sleep(Duration::from_millis(5));
     }
 
-    // The loaded demo content decodes to the authored scenario: a single
-    // `Content::Scenario` item, with the OnStart event's six actions.
-    {
+    // The bundle carries a content handle per manifest entry (six files: the
+    // section catalog + five scenarios).
+    let demo = {
+        let bundles = app.world().resource::<Assets<BundleAsset>>();
+        let bundle = bundles.get(&base_bundle).expect("base bundle present");
+        assert_eq!(
+            bundle.content.len(),
+            6,
+            "the manifest lists six content files"
+        );
+
+        // Find the demo content among the bundle's content handles and assert it
+        // decoded to the authored scenario: a single `Content::Scenario` item
+        // with the OnStart event's six actions.
         let contents = app.world().resource::<Assets<ContentAsset>>();
-        let demo_content = contents.get(&demo).expect("loaded demo content present");
-        assert_eq!(demo_content.0.len(), 1);
-        let Content::Scenario(scenario) = &demo_content.0[0] else {
-            panic!("the demo content is a single Scenario item");
-        };
-        assert_eq!(scenario.id, "demo");
-        assert_eq!(scenario.events.len(), 1);
-        assert_eq!(scenario.events[0].actions.len(), 6);
-    }
+        let mut demo_handle = None;
+        for handle in &bundle.content {
+            let content = contents.get(handle).expect("bundle content loaded");
+            for item in &content.0 {
+                if let Content::Scenario(scenario) = item {
+                    if scenario.id == "demo" {
+                        assert_eq!(scenario.events.len(), 1);
+                        assert_eq!(scenario.events[0].actions.len(), 6);
+                        demo_handle = Some(handle.clone());
+                    }
+                }
+            }
+        }
+        demo_handle.expect("the demo scenario is present in the bundle's content")
+    };
+    let _ = demo;
 
     // Build the GameAssets the register system reads: default handles for the
-    // raw assets (register_content never resolves them - AssetRef stays a path),
-    // and the REAL content handles we just loaded.
+    // raw assets (register_bundles never resolves them - AssetRef stays a path),
+    // and the REAL base bundle handle we just loaded.
     let game_assets = GameAssets {
         cubemap: Handle::default(),
         asteroid_texture: Handle::default(),
@@ -106,20 +109,15 @@ fn demo_content_ron_loads_into_game_registries() {
         torpedo_bay_01: Handle::default(),
         fps_icon: Handle::default(),
         target_sprite: Handle::default(),
-        section_content: section_content.clone(),
-        demo_content: demo.clone(),
-        asteroid_field_content: asteroid_field.clone(),
-        asteroid_next_content: asteroid_next.clone(),
-        menu_ambience_content: menu_ambience.clone(),
-        shakedown_content: shakedown.clone(),
+        base_bundle: base_bundle.clone(),
     };
     app.world_mut().insert_resource(game_assets);
 
-    // Run the production register_content system: routes Section items into
+    // Run the production register_bundles system: routes Section items into
     // GameSections and Scenario items into GameScenarios.
     app.world_mut()
-        .run_system_once(nova_assets::register_content_for_test)
-        .expect("register content");
+        .run_system_once(nova_assets::register_bundles_for_test)
+        .expect("register bundles");
 
     // GameSections is populated from the base section content: the named
     // prototypes the editor palette and ship scenarios reference are present.

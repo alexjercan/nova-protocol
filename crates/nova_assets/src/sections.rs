@@ -35,7 +35,7 @@ const BETTER_TURRET_BULLET_DAMAGE: f32 = 4.0;
 ///
 /// The catalog itself (`build_sections`) is defined ONCE and is agnostic to how
 /// these refs were sourced. Production no longer builds sections from `GameAssets`
-/// handles - it loads the serialized catalog (`assets/sections/base.content.ron`)
+/// handles - it loads the serialized catalog (`assets/base/sections/base.content.ron`)
 /// via `nova_modding`; the only remaining source is the RON generator/parity test,
 /// which builds them from asset PATHS (`from_paths`) so the serialized section
 /// configs carry authorable paths instead of opaque handles.

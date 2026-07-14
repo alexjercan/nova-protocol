@@ -6,7 +6,7 @@ use bevy::{
 };
 use bevy_asset_loader::prelude::*;
 use nova_gameplay::prelude::*;
-use nova_modding::prelude::{Content, ContentAsset};
+use nova_modding::prelude::{BundleAsset, Content, ContentAsset};
 use nova_scenario::prelude::GameScenarios;
 
 mod scenario;
@@ -41,8 +41,9 @@ pub mod scenario_generation {
 
     /// The section-prototype catalog built from PATH-based mesh refs - the source
     /// the content parity test wraps as `Content::Section` items and serializes
-    /// into `assets/sections/base.content.ron` (production loads that file and
-    /// routes its items into `GameSections` via `register_content`).
+    /// into `assets/base/sections/base.content.ron` (production loads that file
+    /// via the base bundle and routes its items into `GameSections` via
+    /// `register_bundles`).
     pub fn build_section_catalog() -> Vec<SectionConfig> {
         build_sections(&SectionMeshRefs::from_paths())
     }
@@ -64,7 +65,7 @@ pub mod scenario_generation {
     }
 
     /// The section catalog wrapped as one `Vec<Content>` of `Content::Section`
-    /// items - the shape the committed `assets/sections/base.content.ron` file
+    /// items - the shape the committed `assets/base/sections/base.content.ron` file
     /// carries. The parity test serializes this.
     pub fn build_section_content() -> Vec<Content> {
         build_section_catalog()
@@ -95,65 +96,91 @@ pub mod scenario_generation {
     }
 }
 
-/// The production `register_content` system, re-exported for the crate's
+/// The production `register_bundles` system, re-exported for the crate's
 /// integration tests (which drive the RON modding pipeline end to end: load the
-/// `.content.ron` files and route their items into `GameSections` /
+/// base bundle + its content files and route their items into `GameSections` /
 /// `GameScenarios`). Not part of the public API.
 #[doc(hidden)]
-pub use crate::register_content as register_content_for_test;
+pub use crate::register_bundles as register_bundles_for_test;
 
-/// Route every loaded [`ContentAsset`] item into its id-keyed registry.
+/// Route every loaded bundle's content into the id-keyed game registries, with
+/// load-order overlay.
 ///
-/// This is the generic replacement for the old per-kind `register_sections` +
-/// `register_scenario` systems: it reads each content file from
-/// [`Assets<ContentAsset>`] through the [`GameAssets`] handles and dispatches
-/// each [`Content`] item by variant - `Section` collects into the
-/// [`GameSections`] `Vec`, `Scenario` inserts into [`GameScenarios`] keyed by
-/// its id. Both resources are always inserted (empty if nothing loaded).
+/// It iterates the ORDERED list of loaded [`BundleAsset`]s (just the base bundle
+/// today; mods append after it), and for each bundle iterates its content
+/// handles in manifest order, reads the [`ContentAsset`] from
+/// [`Assets<ContentAsset>`], and dispatches each [`Content`] item by variant -
+/// `Section` collects into the [`GameSections`] `Vec`, `Scenario` inserts into
+/// [`GameScenarios`] keyed by its id. Because a later bundle's items are applied
+/// after earlier ones, a LATER bundle wins on an id collision (load-order
+/// overlay); this is the seam mods hook into. Both resources are always inserted
+/// (empty if nothing loaded).
 ///
-/// The content files are part of the `GameAssets` collection, so
-/// bevy_asset_loader guarantees they finished loading before this runs
-/// `OnEnter(Processing)`; a handle whose asset is somehow not loaded is logged
-/// and skipped (never a panic) - the remaining files still register.
-pub fn register_content(
+/// The base bundle is part of the `GameAssets` collection, so bevy_asset_loader
+/// gates the collection on its RECURSIVE load state and guarantees every content
+/// file finished loading before this runs `OnEnter(Processing)`. A handle whose
+/// asset is somehow not loaded is logged and skipped (never a panic) - the
+/// remaining content still registers.
+pub fn register_bundles(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
+    bundles: Res<Assets<BundleAsset>>,
     contents: Res<Assets<ContentAsset>>,
 ) {
     let mut sections: Vec<SectionConfig> = Vec::new();
     let mut scenarios = GameScenarios::default();
 
-    // Every content-file handle in the collection. Order is stable so overlay
-    // (later id wins) is deterministic; base sections first, then scenarios.
-    let handles = [
-        &game_assets.section_content,
-        &game_assets.demo_content,
-        &game_assets.asteroid_field_content,
-        &game_assets.asteroid_next_content,
-        &game_assets.menu_ambience_content,
-        &game_assets.shakedown_content,
-    ];
+    // The ordered bundle list. Base first; mods (task 20260714-134127) append
+    // more handles here, so a later bundle overlays an earlier one by id.
+    let bundle_handles = [&game_assets.base_bundle];
 
-    for handle in handles {
-        let Some(content) = contents.get(handle) else {
+    for bundle_handle in bundle_handles {
+        let Some(bundle) = bundles.get(bundle_handle) else {
             error!(
-                "register_content: a content asset was not loaded; skipping it \
-                 (the other content still registers)"
+                "register_bundles: a bundle asset was not loaded; skipping it \
+                 (the other bundles still register)"
             );
             continue;
         };
-        for item in &content.0 {
-            match item {
-                Content::Section(cfg) => sections.push(cfg.clone()),
-                Content::Scenario(cfg) => {
-                    scenarios.insert(cfg.id.clone(), cfg.clone());
-                }
+        for content_handle in &bundle.content {
+            let Some(content) = contents.get(content_handle) else {
+                error!(
+                    "register_bundles: a content asset was not loaded; skipping it \
+                     (the other content still registers)"
+                );
+                continue;
+            };
+            for item in &content.0 {
+                merge_content_item(item, &mut sections, &mut scenarios);
             }
         }
     }
 
     commands.insert_resource(GameSections(sections));
     commands.insert_resource(scenarios);
+}
+
+/// Route one content item into the accumulating registries with last-wins
+/// overlay by id. Both kinds overlay identically: a later item (from a later
+/// bundle, or later in the same bundle) with the same id replaces the earlier
+/// one rather than appending a shadowed duplicate. Sections keep a Vec (order
+/// matters for the editor palette) so overlay is a linear replace-in-place;
+/// scenarios are a map so overlay is a plain `insert`. This is the seam mods
+/// (task 20260714-134127) rely on, so it is a standalone, tested helper.
+fn merge_content_item(
+    item: &Content,
+    sections: &mut Vec<SectionConfig>,
+    scenarios: &mut GameScenarios,
+) {
+    match item {
+        Content::Section(cfg) => match sections.iter_mut().find(|s| s.base.id == cfg.base.id) {
+            Some(existing) => *existing = cfg.clone(),
+            None => sections.push(cfg.clone()),
+        },
+        Content::Scenario(cfg) => {
+            scenarios.insert(cfg.id.clone(), cfg.clone());
+        }
+    }
 }
 
 /// Game states for the asset loader.
@@ -189,7 +216,7 @@ impl Plugin for GameAssetsPlugin {
             OnEnter(GameAssetsStates::Processing),
             (
                 prepare_cubemap_view,
-                register_content,
+                register_bundles,
                 register_sounds,
                 update_nova_hud_assets,
                 |mut state: ResMut<NextState<GameAssetsStates>>| {
@@ -221,18 +248,13 @@ pub struct GameAssets {
     pub fps_icon: Handle<Image>,
     #[asset(path = "icons/target.png")]
     pub target_sprite: Handle<Image>,
-    #[asset(path = "sections/base.content.ron")]
-    pub section_content: Handle<ContentAsset>,
-    #[asset(path = "scenarios/demo.content.ron")]
-    pub demo_content: Handle<ContentAsset>,
-    #[asset(path = "scenarios/asteroid_field.content.ron")]
-    pub asteroid_field_content: Handle<ContentAsset>,
-    #[asset(path = "scenarios/asteroid_next.content.ron")]
-    pub asteroid_next_content: Handle<ContentAsset>,
-    #[asset(path = "scenarios/menu_ambience.content.ron")]
-    pub menu_ambience_content: Handle<ContentAsset>,
-    #[asset(path = "scenarios/shakedown_run.content.ron")]
-    pub shakedown_content: Handle<ContentAsset>,
+    /// The base game, packaged as a folder bundle: `assets/base/bundle.ron`
+    /// lists the base content files, and its `BundleAsset` handle carries a
+    /// `ContentAsset` handle for each. bevy_asset_loader gates the collection
+    /// on this handle's RECURSIVE load state, so the bundle's content is fully
+    /// loaded before `register_bundles` runs at `OnEnter(Processing)`.
+    #[asset(path = "base/bundle.ron")]
+    pub base_bundle: Handle<BundleAsset>,
 }
 
 /// Give the skybox cubemap its cube texture view.
@@ -288,4 +310,87 @@ fn update_nova_hud_assets(
     game_assets: Res<GameAssets>,
 ) {
     nova_hud_assets.target_sprite = game_assets.target_sprite.clone();
+}
+
+#[cfg(test)]
+mod tests {
+    use nova_gameplay::prelude::{BaseSectionConfig, HullSectionConfig, SectionKind};
+
+    use super::*;
+
+    fn section(id: &str, health: f32) -> SectionConfig {
+        SectionConfig {
+            base: BaseSectionConfig {
+                id: id.to_string(),
+                health,
+                ..Default::default()
+            },
+            kind: SectionKind::Hull(HullSectionConfig::default()),
+        }
+    }
+
+    /// A later content item with the same section id overlays the earlier one
+    /// (last-wins) instead of appending a shadowed duplicate, and does so
+    /// in-place so the palette order is preserved. This is the seam mods
+    /// (20260714-134127) rely on, mirroring the scenario map's insert-overlay.
+    #[test]
+    fn later_section_overlays_earlier_by_id_in_place() {
+        let mut sections: Vec<SectionConfig> = Vec::new();
+        let mut scenarios = GameScenarios::default();
+
+        // Base bundle: two sections in palette order.
+        merge_content_item(
+            &Content::Section(section("hull", 100.0)),
+            &mut sections,
+            &mut scenarios,
+        );
+        merge_content_item(
+            &Content::Section(section("thruster", 50.0)),
+            &mut sections,
+            &mut scenarios,
+        );
+
+        // Mod bundle: overlays "hull" with a new health, leaves "thruster".
+        merge_content_item(
+            &Content::Section(section("hull", 999.0)),
+            &mut sections,
+            &mut scenarios,
+        );
+
+        // No duplicate appended: still two sections, original order kept.
+        assert_eq!(sections.len(), 2, "overlay must replace, not append");
+        assert_eq!(sections[0].base.id, "hull", "palette order preserved");
+        assert_eq!(sections[1].base.id, "thruster");
+        // Last-wins: the overlaid value took effect.
+        assert_eq!(sections[0].base.health, 999.0, "later section must win");
+    }
+
+    /// A later scenario with the same id overlays the earlier one, same as
+    /// sections - the two kinds must behave identically under overlay.
+    #[test]
+    fn later_scenario_overlays_earlier_by_id() {
+        let mut sections: Vec<SectionConfig> = Vec::new();
+        let mut scenarios = GameScenarios::default();
+
+        // Reuse a real built scenario (no Default on ScenarioConfig) and overlay
+        // a second config sharing its id but with a different name.
+        let mut base = scenario_generation::build_scenarios()
+            .into_iter()
+            .next()
+            .expect("build_scenarios yields at least one scenario");
+        let id = base.id.clone();
+        base.name = "base".to_string();
+        let mut modded = base.clone();
+        modded.name = "modded".to_string();
+
+        merge_content_item(&Content::Scenario(base), &mut sections, &mut scenarios);
+        merge_content_item(&Content::Scenario(modded), &mut sections, &mut scenarios);
+
+        assert_eq!(scenarios.len(), 1, "overlay must replace, not add");
+        assert_eq!(
+            scenarios.get(&id).unwrap().name,
+            "modded",
+            "later scenario must win"
+        );
+    }
 }
