@@ -137,6 +137,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   don't massage the old assertion until it passes (a hull-inertness test asserted
   "present-but-unread" instead of "not a controller, so unread").
   20260714-113411, 20260714-135642.
+- `agent-interrupted-verify-worktree` (x1): a subagent that hits a long build can end
+  with an ambiguous partial state and misleading "in progress" notifications; INSPECT
+  the worktree (git status + compile + run the deterministic generators) before
+  concluding done-or-broken. For data-file work the parity/generator write-on-missing
+  usually completes it deterministically. 20260714-150508.
 - `reconcile-plan-to-shipped` (x2): at close-out reconcile the plan's aspirational
   lists (which variants/scope actually shipped, deferrals, overstated guarantees)
   with reality BEFORE review - it keeps flagging stale plan text as findings.

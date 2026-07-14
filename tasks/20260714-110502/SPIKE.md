@@ -197,3 +197,14 @@ Direction-level tasks (for `/plan` to break into steps):
   ship-modifications, mirroring 113411 one level up) is now designed/delivered inside
   the bundle work. Nothing shipped here; the work moved. Remaining family: 113418
   (typed bundles, now also owning ship prototypes), 123535 (verb-flags spike).
+- 20260714: bundle sub-family re-thought (spike 20260714-150410) and re-ordered around
+  content-declared kind + folder bundles + generic-first sequencing, so no kind needs a
+  bespoke-then-fold detour. 113418's extension-typed recommendation superseded-in-part.
+- 20260714, content-model FOUNDATION (150508) landed on master (c29154b): the two per-kind
+  modding loaders collapsed into ONE Content enum (kind-in-data) + ContentAsset +
+  ContentAssetLoader (*.content.ron) + a generic register_content router into GameSections/
+  GameScenarios. All six RON files migrated to *.content.ron, regenerated, parity-guarded.
+  Behavior-preserving (7 sections + 5 scenario ids; verified by review + 12_menu_newgame/
+  09_editor). Every future kind is now a variant + a router arm. Reviewed APPROVE.
+  Remaining (all on this foundation): 134115 (ship kind = Content::Ship), 134119 (folder
+  bundle), 134123 (base-as-bundle), 134127 (mods + overlay + demo).
