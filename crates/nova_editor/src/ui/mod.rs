@@ -1,0 +1,298 @@
+//! The editor UI: a wiki-inspired left rail of categories plus a component
+//! drawer of cards (task 20260714-204219). Submodules hold the theme, the shared
+//! button widgets, the rail, the drawer, the cards and the hover tooltip; this
+//! module assembles them into the scene and owns the panel scroll.
+
+pub(crate) mod card;
+pub(crate) mod drawer;
+pub(crate) mod rail;
+pub(crate) mod theme;
+pub(crate) mod tooltip;
+pub(crate) mod widget;
+
+use bevy::{prelude::*, ui_widgets::observe};
+use nova_assets::prelude::*;
+use nova_gameplay::prelude::*;
+
+use crate::{
+    config::SectionChoice,
+    placement::{
+        continue_to_simulation, create_new_spaceship, create_new_spaceship_with_controller,
+    },
+    ui::{
+        card::component_card,
+        drawer::{panel_header, DrawerPanel},
+        rail::{coming_soon_category, components_category},
+        widget::{button, ButtonValue},
+    },
+    ExampleStates,
+};
+
+/// Register the UI's observers (button colours, selection, tooltips). The
+/// per-state systems and the `SectionChoice` setting observer are wired by the
+/// plugin, which owns those types.
+pub(crate) fn register(app: &mut App) {
+    widget::register(app);
+    tooltip::register(app);
+}
+
+/// Marker for a scrollable panel (currently the drawer's card list). Task
+/// 20260712-185527.
+#[derive(Component, Debug, Clone, Copy)]
+pub(crate) struct EditorScrollPanel;
+
+/// Pixels scrolled per line of wheel movement.
+const SCROLL_LINE_HEIGHT: f32 = 20.0;
+
+/// Scroll the editor's scrollable panel with the mouse wheel. Bevy does not
+/// scroll `Overflow::Scroll` nodes on its own - a system must drive
+/// `ScrollPosition` (bevy ui scroll example pattern). Editor-state only; the
+/// WASD camera does not consume the wheel, so there is no zoom conflict.
+pub(crate) fn scroll_editor_panel(
+    mut wheel: MessageReader<bevy::input::mouse::MouseWheel>,
+    mut q_panel: Query<&mut ScrollPosition, With<EditorScrollPanel>>,
+) {
+    use bevy::input::mouse::MouseScrollUnit;
+    let dy: f32 = wheel
+        .read()
+        .map(|ev| match ev.unit {
+            MouseScrollUnit::Line => ev.y * SCROLL_LINE_HEIGHT,
+            MouseScrollUnit::Pixel => ev.y,
+        })
+        .sum();
+    if dy == 0.0 {
+        return;
+    }
+    for mut scroll in &mut q_panel {
+        // Wheel up (dy > 0) reveals content above -> smaller offset; clamp at the
+        // top. Bevy clamps the bottom visually against the content height.
+        scroll.0.y = (scroll.0.y - dy).max(0.0);
+    }
+}
+
+/// A thin horizontal separator inside a rail.
+fn separator() -> impl Bundle {
+    (
+        Node {
+            width: percent(100),
+            height: px(theme::BORDER_W),
+            margin: UiRect::vertical(px(8)),
+            ..default()
+        },
+        BackgroundColor(theme::BORDER),
+    )
+}
+
+pub(crate) fn setup_editor_scene(
+    mut commands: Commands,
+    game_assets: Res<GameAssets>,
+    sections: Res<GameSections>,
+) {
+    commands.spawn((
+        DespawnOnExit(ExampleStates::Editor),
+        DirectionalLight {
+            illuminance: 10000.0,
+            ..default()
+        },
+        Transform::from_rotation(Quat::from_euler(
+            EulerRot::XYZ,
+            -std::f32::consts::FRAC_PI_2,
+            0.0,
+            0.0,
+        )),
+        GlobalTransform::default(),
+    ));
+
+    commands.spawn((
+        DespawnOnExit(ExampleStates::Editor),
+        Name::new("WASD Camera"),
+        Camera3d::default(),
+        PostProcessingCamera,
+        WASDCameraController,
+        Transform::from_xyz(0.0, 5.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
+        SkyboxConfig {
+            cubemap: game_assets.cubemap.clone().into(),
+            brightness: 1000.0,
+        },
+    ));
+
+    commands
+        .spawn((
+            DespawnOnExit(ExampleStates::Editor),
+            Name::new("Editor Root"),
+            // Pass pointer events through the empty (right) area to the 3D scene,
+            // so building is not blocked; the rail/drawer panels still block.
+            Pickable {
+                should_block_lower: false,
+                is_hoverable: false,
+            },
+            Node {
+                width: percent(100),
+                height: percent(100),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Stretch,
+                justify_content: JustifyContent::FlexStart,
+                ..default()
+            },
+        ))
+        .with_children(|root| {
+            // -- Left rail: categories + tools + play --
+            root.spawn((
+                Name::new("Editor Rail"),
+                Node {
+                    width: px(theme::RAIL_W),
+                    height: percent(100),
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Stretch,
+                    padding: UiRect::all(px(10)),
+                    border: UiRect::right(px(theme::BORDER_W)),
+                    ..default()
+                },
+                BorderColor::all(theme::BORDER),
+                BackgroundColor(theme::PANEL),
+            ))
+            .with_children(|rail| {
+                rail.spawn((
+                    Name::new("Editor Title"),
+                    Text::new("EDITOR"),
+                    TextFont {
+                        font_size: FontSize::Px(20.0),
+                        ..default()
+                    },
+                    TextColor(theme::TEXT),
+                    Node {
+                        margin: UiRect::bottom(px(8)),
+                        ..default()
+                    },
+                ));
+
+                rail.spawn(panel_header("Categories"));
+                rail.spawn(components_category());
+                rail.spawn(coming_soon_category("Ships"));
+                rail.spawn(coming_soon_category("Objects"));
+                rail.spawn(coming_soon_category("Events"));
+                rail.spawn(coming_soon_category("Objectives"));
+
+                rail.spawn(separator());
+                rail.spawn(panel_header("Ship"));
+                // Names kept exact: the 09_editor / 12_menu_newgame autopilots find
+                // these by Name and press them. Display text is free to change.
+                rail.spawn((
+                    Name::new("Create New Spaceship Button V2"),
+                    button("New Ship"),
+                    observe(create_new_spaceship_with_controller),
+                ));
+                rail.spawn((
+                    Name::new("Create New Spaceship Button V1"),
+                    button("New Hull Ship"),
+                    observe(create_new_spaceship),
+                ));
+
+                rail.spawn(separator());
+                rail.spawn(panel_header("Tools"));
+                // Deselect the build/delete tool -> select mode (SectionChoice::None),
+                // where clicking a section rebinds its key (task 20260712-183725).
+                rail.spawn((
+                    Name::new("Select Section Button"),
+                    button("Select / Rebind"),
+                    ButtonValue(SectionChoice::None),
+                ));
+                rail.spawn((
+                    Name::new("Delete Section Button"),
+                    button("Delete Section"),
+                    ButtonValue(SectionChoice::Delete),
+                ));
+
+                rail.spawn(separator());
+                rail.spawn((
+                    Name::new("Play Button"),
+                    button("Play"),
+                    observe(continue_to_simulation),
+                ));
+            });
+
+            // -- Component drawer: header + scrollable card list --
+            root.spawn((
+                Name::new("Component Drawer"),
+                DrawerPanel,
+                Node {
+                    width: px(theme::DRAWER_W),
+                    height: percent(100),
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Stretch,
+                    padding: UiRect::all(px(12)),
+                    border: UiRect::right(px(theme::BORDER_W)),
+                    ..default()
+                },
+                BorderColor::all(theme::BORDER),
+                BackgroundColor(theme::BG),
+            ))
+            .with_children(|drawer| {
+                drawer.spawn(panel_header("Components"));
+                drawer
+                    .spawn((
+                        Name::new("Component List"),
+                        EditorScrollPanel,
+                        ScrollPosition::default(),
+                        Node {
+                            flex_direction: FlexDirection::Column,
+                            align_items: AlignItems::Stretch,
+                            flex_grow: 1.0,
+                            overflow: Overflow::scroll_y(),
+                            ..default()
+                        },
+                    ))
+                    .with_children(|list| {
+                        for section in sections.iter() {
+                            list.spawn(component_card(section));
+                        }
+                    });
+            });
+        });
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::ecs::system::RunSystemOnce;
+
+    use super::*;
+
+    #[test]
+    fn wheel_scrolls_the_editor_panel_and_clamps_at_the_top() {
+        use bevy::input::{
+            mouse::{MouseScrollUnit, MouseWheel},
+            touch::TouchPhase,
+        };
+
+        // Fresh world per case: a re-run `MessageReader` reads the whole buffer,
+        // so isolating avoids the first message leaking into the second run.
+        fn run_wheel(y: f32, start_y: f32) -> f32 {
+            let mut world = World::new();
+            world.init_resource::<Messages<MouseWheel>>();
+            let panel = world
+                .spawn((EditorScrollPanel, ScrollPosition(Vec2::new(0.0, start_y))))
+                .id();
+            world.write_message(MouseWheel {
+                unit: MouseScrollUnit::Line,
+                x: 0.0,
+                y,
+                window: Entity::PLACEHOLDER,
+                phase: TouchPhase::Moved,
+            });
+            world.run_system_once(scroll_editor_panel).unwrap();
+            world.entity(panel).get::<ScrollPosition>().unwrap().0.y
+        }
+
+        // Wheel down from the top scrolls the panel down (offset grows).
+        assert!(
+            run_wheel(-3.0, 0.0) > 0.0,
+            "wheel down must scroll the panel down"
+        );
+        // Wheel up past the top clamps the offset at 0.
+        assert_eq!(
+            run_wheel(100.0, 5.0),
+            0.0,
+            "scrolling up past the top clamps at 0"
+        );
+    }
+}
