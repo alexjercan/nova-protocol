@@ -187,3 +187,12 @@ Direction-level tasks this spike seeded, for `/plan` to break into steps:
   re-merge applies it live (updates GameScenarios for the next New Game). Reviewed APPROVE
   (out-of-context, one pre-existing modal-overlap UX nit deferred). Remaining: 174131
   (persist the enabled set across restarts). See tasks/20260714-174126/{TASK,REVIEW,RETRO}.md.
+- 20260714, EnabledMods persistence (174131) landed on master (`f6742fa`): the LAST task -
+  the mod manager is complete. Added `nova_assets::mod_prefs` (native RON file under
+  `dirs::config_dir()/nova-protocol/`, wasm `localStorage`) + `load_enabled_mods`
+  (start of Processing) / `save_enabled_mods` (on change); `seed_enabled_mods` now unions
+  base ids in. Verified in-game with a temp XDG_CONFIG_HOME (writes [base], honors saved
+  [base,demo]); wasm checked against the web-sys 0.3 API (not built by automated CI).
+  Reviewed APPROVE (out-of-context, no defects; a comment-accuracy MINOR + a test NIT
+  fixed). FAMILY COMPLETE: enabling the demo mod from the menu now persists across
+  restarts on native and web. See tasks/20260714-174131/{TASK,REVIEW,RETRO}.md.

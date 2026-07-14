@@ -336,6 +336,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   done, or split it. 20260708-165704.
 - `bei-app-finish-in-tests` (x1): bevy_enhanced_input needs `app.finish()` +
   `app.cleanup()` before spawning an action rig in tests. 20260708-165705.
+- `verify-ci-triggers-before-claiming-coverage` (x1): before writing "CI builds
+  this", read the workflow triggers - a `workflow_dispatch`/deploy job is NOT
+  automated PR/master coverage. An uncompiled cfg branch (e.g. the wasm
+  localStorage backend) is guarded only by static review; say so in the comment.
+  20260714-174131.
 
 ## Pending promotions (3+ occurrences, user decides)
 
