@@ -1,7 +1,7 @@
 # Ship-prototype content kind: GameShips + *.ship.ron + ShipSource + ship-modifications (folds 113414)
 
 - STATUS: OPEN
-- PRIORITY: 46
+- PRIORITY: 22
 - TAGS: v0.6.0, modding, scenario, spike
 
 Spike: tasks/20260714-113418/SPIKE.md
@@ -25,3 +25,18 @@ not an extension: add `Content::Ship(SpaceshipConfig)` to the `Content` enum + o
 task shrinks to: the `Content::Ship` variant, the `GameShips` registry, the `ShipSource`
 resolution at spawn, and the `ShipModification` component set. Ships get authored as
 `Ship((..))` content items in a bundle. The old `*.ship.ron` framing above is superseded.
+
+## DEFERRED (20260714, /flow 134115 -> re-order)
+
+Deferred until a REAL CONSUMER exists (a mod or fleet scenario that references a ship
+prototype). Decision (user, during /flow): NO built-in ship is reused, so the reference/
+resolution machinery (ShipSource on ScenarioObjectKind::Spaceship + spawn-time
+resolution against GameShips + churning every built-in to Inline) would be speculative -
+and it is trickier than sections were (a ship prototype is the whole SpaceshipConfig and
+must resolve BEFORE the spawn bundle is built, but the spawn runs in a Commands closure
+with no resource access, unlike the section observer's Res<GameSections> hook). So build
+this WITH its first consumer, during/after the mods+demo work (20260714-134127), not now.
+On the content-model foundation (150508) the DEFINE side is just a `Content::Ship` variant
++ a `GameShips` registry + one router arm; the reference side is the real work and needs a
+consumer to justify its shape. Ship-modifications stay deferred too (mirror
+SectionModification when needed). Priority dropped to 22.

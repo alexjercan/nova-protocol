@@ -142,3 +142,15 @@ the old 134xxx tasks are re-based on the Content model and re-gated:
 ## Fix record
 
 (Appended by each implementing task as it lands.)
+
+## Re-order (20260714, /flow 134115)
+
+Discovered while starting the ship kind: NO built-in ship is reused, so ShipSource
+reference/resolution is speculative (real churn + trickier than sections - a ship
+prototype is the whole SpaceshipConfig and must resolve before the spawn bundle, but the
+spawn runs in a Commands closure without resource access). The folder bundle (134119)
+does NOT need ships. So the family FLIPS: folder bundle FIRST, then base-as-bundle, then
+mods+demo, and the ship kind LAST - built with its first consumer (a mod/fleet that
+references a ship), not speculatively. New order: 134119 (48) -> 134123 (40) -> 134127
+(36) -> 134115 (22, deferred). The content-model foundation (150508) is unaffected; this
+is only the ordering of what builds ON it.
