@@ -190,3 +190,10 @@ Direction-level tasks (for `/plan` to break into steps):
   09_editor green). SetMass + f32/bool serde domain-defaults deferred. Reviewed APPROVE
   (2 rounds, out-of-context). Next: 113414 (whole-ship prototypes) / 113418 (typed
   multi-file bundles). Follow-up spike 123535 (verb-availability from components).
+- 20260714, step 3 (113414, whole-ship prototypes) CLOSED as FOLDED into 113418
+  (user call during /flow). No built-in ship is reused, so a standalone ship catalog
+  relocates rather than dedups; and ships are a content KIND in the typed-bundle model
+  (113418), so the ship-prototype mechanism (`ShipSource` + `GameShips` +
+  ship-modifications, mirroring 113411 one level up) is now designed/delivered inside
+  the bundle work. Nothing shipped here; the work moved. Remaining family: 113418
+  (typed bundles, now also owning ship prototypes), 123535 (verb-flags spike).

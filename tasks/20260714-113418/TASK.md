@@ -1,8 +1,8 @@
 # Spike: multi-file scenario bundles - folder + manifest, id namespacing/overlay, directory loader
 
 - STATUS: OPEN
-- PRIORITY: 35
-- TAGS: v0.6.0,modding,scenario,spike
+- PRIORITY: 45
+- TAGS: v0.6.0, modding, scenario, spike
 
 Spike: tasks/20260714-110502/SPIKE.md
 
@@ -35,3 +35,27 @@ design:
 
 So the tagging/merge-by-kind design is the heart of this spike, not just the folder
 layout.
+
+## Absorbs whole-ship prototypes (folded from 20260714-113414, 20260714)
+
+The standalone ship-catalog task (113414) was CLOSED and folded here: since no
+built-in ship is reused, a standalone ship catalog would relocate rather than dedup,
+and "ships as data" is naturally a content KIND in this bundle model. So this spike
+also owns the ship-prototype mechanism:
+
+- `ShipSource = Inline(SpaceshipConfig) | Prototype(ShipId)` on the scenario's
+  `ScenarioObjectKind::Spaceship`, resolved at spawn against a `GameShips` catalog -
+  exactly mirroring the section model (113411's `SectionSource` + `GameSections`), one
+  level up. Ships become a "ship" kind in a bundle, loaded into `GameShips`.
+- Ship-level modifications reuse 113411's component-modification model
+  (`SectionModification` -> a `ShipModification` analogue applied by observers on the
+  ship root, inert where not applicable): controller/speed-cap/infinite-ammo-style
+  deltas. Design the starter set in the spike.
+- The base game's ships (player_ship, pirate_ship, ...) become ship-kind files in the
+  base bundle; a scenario references them by id. This only pays off once ships are
+  reused (a fleet) or the bundle relocation is done - so the port is part of the
+  bundle work, not a standalone step.
+
+Net: the section catalog (113408) proved the pattern at the section level; this spike
+generalizes prototype+catalog+modifications to ALL content kinds (sections, ships,
+scenarios) inside the typed-bundle loader, instead of one bespoke catalog per kind.
