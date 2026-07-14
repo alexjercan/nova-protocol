@@ -658,7 +658,7 @@ mod tests {
                 id: id.to_string(),
                 name: "Test".to_string(),
                 description: "Test".to_string(),
-                cubemap: Handle::default(),
+                cubemap: AssetRef::default(),
                 events: vec![],
             },
         )
