@@ -5,6 +5,17 @@
 - TAGS: v0.6.0,editor,scenario,modding,spike
 
 Spike: tasks/20260714-081636/SPIKE.md
+Spike: tasks/20260714-204059/SPIKE.md (editor UI rework - splits this into baseline + "the rest")
+
+SCOPE NARROWED (20260714): the editor rework was split by the 204059 spike into a
+BASELINE slice (wiki-style category rail + component drawer + tooltips +
+player-only asteroid+planetoid scenario), now tracked as task 20260714-204219 and
+built first, and "THE REST" - which is what THIS task now owns:
+export/load `*.scenario.ron`, placing non-ship objects (asteroids, planetoids,
+beacons, salvage), events/objectives wiring, factions (player vs enemy),
+modifications beyond keybinds, and real component icons. Plan this task only AFTER
+the baseline (204219) lands, extending its rail/drawer with the deferred
+categories.
 
 This is the SINGLE editor task for v0.6.0 (the separate "ship blueprint save/load"
 and "UI overhaul" tasks were closed: ship save/load is just exporting an empty
