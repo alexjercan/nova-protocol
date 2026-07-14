@@ -248,12 +248,18 @@ pub struct GameAssets {
     pub fps_icon: Handle<Image>,
     #[asset(path = "icons/target.png")]
     pub target_sprite: Handle<Image>,
-    /// The base game, packaged as a folder bundle: `assets/base/bundle.ron`
+    /// The base game, packaged as a folder bundle: `assets/base/base.bundle.ron`
     /// lists the base content files, and its `BundleAsset` handle carries a
     /// `ContentAsset` handle for each. bevy_asset_loader gates the collection
     /// on this handle's RECURSIVE load state, so the bundle's content is fully
     /// loaded before `register_bundles` runs at `OnEnter(Processing)`.
-    #[asset(path = "base/bundle.ron")]
+    ///
+    /// The `<pack>.bundle.ron` STEM is load-bearing: bevy_asset_loader kicks off
+    /// each collection field with an UNTYPED `load_untyped`, which resolves the
+    /// loader by extension only. Bevy's full extension is everything after the
+    /// FIRST dot, so a bare `bundle.ron` resolves to `ron` (no loader) and fails;
+    /// `base.bundle.ron` resolves to `bundle.ron` and matches `BundleAssetLoader`.
+    #[asset(path = "base/base.bundle.ron")]
     pub base_bundle: Handle<BundleAsset>,
 }
 

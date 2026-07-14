@@ -96,6 +96,23 @@ each and asserts it matches the committed file, so the data cannot silently drif
 the intended config. `menu_ambience`/`asteroid_field` use the seeded `ScatterObjects`
 action instead of runtime RNG. Verified by the `12_menu_newgame` boot example.
 
+## File naming (bundles and content) - load-bearing
+
+A bundle folder's manifest MUST be named `<pack>.bundle.ron` (e.g.
+`assets/base/base.bundle.ron`), and content files `<name>.content.ron` - always a
+STEM before the compound extension, never a bare `bundle.ron`.
+
+Why: `bevy_asset_loader` kicks off every collection field with an UNTYPED
+`asset_server.load_untyped(path)`, which resolves the loader by the file's FULL
+extension only. Bevy's full extension is everything after the FIRST dot in the file
+name, so `bundle.ron` resolves to the bare `ron` extension (no loader) and the load
+fails in-game with "Could not find an asset loader"; `base.bundle.ron` resolves to
+`bundle.ron`, which `BundleAssetLoader` registers. A TYPED load
+(`asset_server.load::<BundleAsset>`) would fall back to the by-asset-type loader and
+mask the problem - so tests must exercise the untyped path (see the
+`bundle_untyped_load_resolves_the_loader` guard). Regression: task
+`tasks/20260714-163342`.
+
 ## Known limitation: authoring verbosity
 
 The generated files are large and repetitive - `shakedown_run.scenario.ron` is

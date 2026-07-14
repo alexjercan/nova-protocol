@@ -80,8 +80,8 @@ impl VisitAssetDependencies for ContentAsset {
 
 impl Asset for ContentAsset {}
 
-/// The on-disk `bundle.ron` manifest: the list of content files a bundle folder
-/// packages, as paths RELATIVE to the `bundle.ron` file's own directory.
+/// The on-disk `*.bundle.ron` manifest: the list of content files a bundle
+/// folder packages, as paths RELATIVE to the manifest file's own directory.
 ///
 /// A bundle is a DIRECTORY plus this manifest - the manifest, not directory
 /// enumeration, is what makes bundles wasm-safe (`load_folder` is broken on the
@@ -183,13 +183,21 @@ impl AssetLoader for ContentAssetLoader {
     }
 }
 
-/// Bevy [`AssetLoader`] for `bundle.ron` files (a RON [`BundleManifest`]).
+/// Bevy [`AssetLoader`] for `*.bundle.ron` files (a RON [`BundleManifest`]).
 ///
 /// Decodes the manifest, then for each listed content path issues a
 /// `load_context.load::<ContentAsset>` and collects the handles into a
 /// [`BundleAsset`]. The manifest paths are resolved RELATIVE to the bundle
 /// file's own directory (via [`AssetPath::resolve`] against the bundle path's
 /// parent), so a bundle folder is self-contained and relocatable.
+///
+/// NAMING: a bundle manifest MUST be named `<pack>.bundle.ron` (e.g.
+/// `base.bundle.ron`), never a bare `bundle.ron`. bevy resolves an UNTYPED load
+/// (which is how `bevy_asset_loader` kicks off collection fields) by the file's
+/// FULL extension - everything after the FIRST dot. `bundle.ron` yields the bare
+/// `ron` extension (this loader is registered for `bundle.ron`, so it would not
+/// match, and the load fails with "Could not find an asset loader"); a stemmed
+/// `base.bundle.ron` yields `bundle.ron` and matches. See task 20260714-163342.
 #[derive(Default, TypePath)]
 pub struct BundleAssetLoader;
 
@@ -210,7 +218,7 @@ impl AssetLoader for BundleAssetLoader {
 
         // Resolve each content path against the bundle file's DIRECTORY so the
         // manifest paths are bundle-relative (self-contained folder). `path()`
-        // is the bundle file itself (e.g. `base/bundle.ron`); its parent is the
+        // is the bundle file itself (e.g. `base/base.bundle.ron`); its parent is the
         // bundle dir (e.g. `base`), and `resolve` joins the relative content
         // path onto it.
         let base = load_context

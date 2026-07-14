@@ -1,5 +1,5 @@
 //! End-to-end proof of the folder-bundle modding pipeline: load the real
-//! `assets/base/bundle.ron` through the production `nova_modding` bundle loader
+//! `assets/base/base.bundle.ron` through the production `nova_modding` bundle loader
 //! on a headless asset server. The bundle loader recursively loads every content
 //! file the manifest lists, so waiting for the bundle's RECURSIVE load state
 //! reaching `Loaded` waits for all of its content. Then run the real
@@ -7,11 +7,16 @@
 //! `GameScenarios` carries the RON-authored `"demo"` scenario ALONGSIDE the four
 //! built-ins AND `GameSections` is populated from the base section content.
 //!
-//! This drives the exact wiring the game ships: the `bundle.ron` decode into a
-//! `BundleAsset` (with its content handles) via `BundleAssetLoader`, the
+//! This drives the bundle decode + route wiring: the `base.bundle.ron` decode
+//! into a `BundleAsset` (with its content handles) via `BundleAssetLoader`, the
 //! recursive load of each `ContentAsset`, and the `register_bundles` route into
 //! `GameSections` / `GameScenarios`. The asset IO reads the real workspace
 //! `assets/` dir (tests run with the crate root as cwd).
+//!
+//! NOTE: this test loads the bundle with a TYPED `Handle<BundleAsset>`, which
+//! resolves the loader by asset type. The game loads it UNTYPED through
+//! bevy_asset_loader (extension-only resolution) - see `bundle_untyped_load`
+//! for the guard that pins that path.
 
 use std::time::{Duration, Instant};
 
@@ -38,14 +43,14 @@ fn base_bundle_loads_into_game_registries() {
         },
     ));
     // The production modding plugin: registers ContentAsset + BundleAsset and
-    // their `*.content.ron` / `bundle.ron` loaders.
+    // their `*.content.ron` / `*.bundle.ron` loaders.
     app.add_plugins(NovaModdingPlugin);
 
     // Load the base bundle through the real asset server + loader. The bundle
     // loader `load_context.load`s each content file the manifest lists, so the
     // bundle's RECURSIVE dependency load state waits for all of them.
     let asset_server = app.world().resource::<AssetServer>().clone();
-    let base_bundle: Handle<BundleAsset> = asset_server.load("base/bundle.ron");
+    let base_bundle: Handle<BundleAsset> = asset_server.load("base/base.bundle.ron");
 
     let deadline = Instant::now() + Duration::from_secs(60);
     loop {
@@ -156,4 +161,54 @@ fn base_bundle_loads_into_game_registries() {
         Some("demo"),
         "the demo entry is keyed by and carries the authored id"
     );
+}
+
+/// Regression guard for the in-game load path (task 20260714-163342).
+///
+/// bevy_asset_loader kicks off every `GameAssets` field with an UNTYPED
+/// `asset_server.load_untyped(path)`, which resolves the loader by EXTENSION
+/// ONLY - there is no asset type to fall back on. Bevy's full extension is
+/// everything after the FIRST dot in the file name, so a manifest named
+/// `bundle.ron` resolves to the bare `ron` extension (no loader) and the base
+/// bundle silently fails to load in the running game, leaving the section /
+/// scenario registries empty. The `<pack>.bundle.ron` stem makes the full
+/// extension `bundle.ron`, which `BundleAssetLoader` registers.
+///
+/// This test loads the base bundle exactly as the game does - UNTYPED - and
+/// asserts it resolves and reaches `Loaded` (never `Failed`). It fails under the
+/// old `bundle.ron` name; the typed `base_bundle_loads_into_game_registries`
+/// test above cannot catch this because the type gives it a by-type fallback.
+#[test]
+fn bundle_untyped_load_resolves_the_loader() {
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        AssetPlugin {
+            file_path: "../../assets".to_string(),
+            ..default()
+        },
+    ));
+    app.add_plugins(NovaModdingPlugin);
+
+    let asset_server = app.world().resource::<AssetServer>().clone();
+    // UNTYPED, mirroring bevy_asset_loader's collection kickoff.
+    let handle = asset_server.load_untyped("base/base.bundle.ron");
+
+    let deadline = Instant::now() + Duration::from_secs(60);
+    loop {
+        app.update();
+        match asset_server.recursive_dependency_load_state(&handle) {
+            RecursiveDependencyLoadState::Loaded => break,
+            RecursiveDependencyLoadState::Failed(err) => panic!(
+                "untyped load of base/base.bundle.ron failed - the loader did not \
+                 resolve by extension (this is the in-game failure mode): {err}"
+            ),
+            _ => {}
+        }
+        assert!(
+            Instant::now() < deadline,
+            "timed out on the untyped base bundle load"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
 }
