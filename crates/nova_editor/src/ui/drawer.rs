@@ -4,27 +4,9 @@
 
 use bevy::{prelude::*, ui_widgets::Activate};
 
-use crate::ui::theme;
-
 /// The toggleable drawer panel (shown/hidden via `Visibility`).
 #[derive(Component)]
 pub(crate) struct DrawerPanel;
-
-/// A section header inside a panel (e.g. "COMPONENTS").
-pub(crate) fn panel_header(text: &str) -> impl Bundle {
-    (
-        Text::new(text.to_uppercase()),
-        TextFont {
-            font_size: FontSize::Px(13.0),
-            ..default()
-        },
-        TextColor(theme::CYAN),
-        Node {
-            margin: UiRect::bottom(px(8)),
-            ..default()
-        },
-    )
-}
 
 /// Toggle the drawer's visibility. Wired to the "Components" category button via
 /// `observe`.

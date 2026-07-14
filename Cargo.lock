@@ -4458,6 +4458,7 @@ dependencies = [
  "nova_assets",
  "nova_gameplay",
  "nova_scenario",
+ "nova_ui",
  "rand 0.10.2",
 ]
 
@@ -4529,6 +4530,13 @@ dependencies = [
  "rand 0.10.2",
  "ron",
  "serde",
+]
+
+[[package]]
+name = "nova_ui"
+version = "0.5.2"
+dependencies = [
+ "bevy",
 ]
 
 [[package]]

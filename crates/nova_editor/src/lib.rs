@@ -26,12 +26,13 @@ use keybind::{
     apply_section_rebind, position_section_keybind_labels, sync_section_keybind_labels,
     EditorRebind,
 };
+use nova_ui::widget::button_on_setting;
 use placement::{
     on_click_spaceship_section, on_hover_spaceship_section, on_move_spaceship_section,
     on_out_spaceship_section,
 };
 use scenario::setup_scenario;
-use ui::{scroll_editor_panel, setup_editor_scene, widget::button_on_setting};
+use ui::{scroll_editor_panel, setup_editor_scene};
 
 pub mod prelude {
     pub use super::NovaEditorPlugin;

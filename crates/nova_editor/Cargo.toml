@@ -12,6 +12,7 @@ rand = { version = "0.10.2" }
 nova_assets = { path = "../nova_assets" }
 nova_gameplay = { path = "../nova_gameplay" }
 nova_scenario = { path = "../nova_scenario" }
+nova_ui = { path = "../nova_ui" }
 
 [lints]
 workspace = true

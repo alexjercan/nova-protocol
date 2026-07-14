@@ -1,18 +1,21 @@
 //! The editor UI: a wiki-inspired left rail of categories plus a component
-//! drawer of cards (task 20260714-204219). Submodules hold the theme, the shared
-//! button widgets, the rail, the drawer, the cards and the hover tooltip; this
-//! module assembles them into the scene and owns the panel scroll.
+//! drawer of cards (task 20260714-204219). The theme + shared button widgets now
+//! live in `nova_ui`; the submodules here hold the editor-specific rail, drawer,
+//! cards and hover tooltip, and this module assembles them into the scene and
+//! owns the panel scroll.
 
 pub(crate) mod card;
 pub(crate) mod drawer;
 pub(crate) mod rail;
-pub(crate) mod theme;
 pub(crate) mod tooltip;
-pub(crate) mod widget;
 
 use bevy::{prelude::*, ui_widgets::observe};
 use nova_assets::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_ui::{
+    prelude::{panel_header, separator, themed_button, ButtonValue},
+    theme,
+};
 
 use crate::{
     config::SectionChoice,
@@ -21,18 +24,25 @@ use crate::{
     },
     ui::{
         card::component_card,
-        drawer::{panel_header, DrawerPanel},
+        drawer::DrawerPanel,
         rail::{coming_soon_category, components_category},
-        widget::{button, ButtonValue},
     },
     ExampleStates,
 };
+
+/// Left rail width (px). Kept narrow so the rail + drawer stay clear of screen
+/// centre on the 1024-wide window, where the editor preview ship projects - a
+/// UI panel over that point would block the placement raycast.
+const RAIL_W: f32 = 150.0;
+/// Component drawer width (px). RAIL_W + DRAWER_W = 430 < 512 (half of 1024),
+/// so the centred build area stays pickable.
+const DRAWER_W: f32 = 280.0;
 
 /// Register the UI's observers (button colours, selection, tooltips). The
 /// per-state systems and the `SectionChoice` setting observer are wired by the
 /// plugin, which owns those types.
 pub(crate) fn register(app: &mut App) {
-    widget::register(app);
+    nova_ui::widget::register(app);
     tooltip::register(app);
 }
 
@@ -68,19 +78,6 @@ pub(crate) fn scroll_editor_panel(
         // top. Bevy clamps the bottom visually against the content height.
         scroll.0.y = (scroll.0.y - dy).max(0.0);
     }
-}
-
-/// A thin horizontal separator inside a rail.
-fn separator() -> impl Bundle {
-    (
-        Node {
-            width: percent(100),
-            height: px(theme::BORDER_W),
-            margin: UiRect::vertical(px(8)),
-            ..default()
-        },
-        BackgroundColor(theme::BORDER),
-    )
 }
 
 pub(crate) fn setup_editor_scene(
@@ -140,7 +137,7 @@ pub(crate) fn setup_editor_scene(
             root.spawn((
                 Name::new("Editor Rail"),
                 Node {
-                    width: px(theme::RAIL_W),
+                    width: px(RAIL_W),
                     height: percent(100),
                     flex_direction: FlexDirection::Column,
                     align_items: AlignItems::Stretch,
@@ -179,12 +176,12 @@ pub(crate) fn setup_editor_scene(
                 // these by Name and press them. Display text is free to change.
                 rail.spawn((
                     Name::new("Create New Spaceship Button V2"),
-                    button("New Ship"),
+                    themed_button("New Ship"),
                     observe(create_new_spaceship_with_controller),
                 ));
                 rail.spawn((
                     Name::new("Create New Spaceship Button V1"),
-                    button("New Hull Ship"),
+                    themed_button("New Hull Ship"),
                     observe(create_new_spaceship),
                 ));
 
@@ -194,19 +191,19 @@ pub(crate) fn setup_editor_scene(
                 // where clicking a section rebinds its key (task 20260712-183725).
                 rail.spawn((
                     Name::new("Select Section Button"),
-                    button("Select / Rebind"),
+                    themed_button("Select / Rebind"),
                     ButtonValue(SectionChoice::None),
                 ));
                 rail.spawn((
                     Name::new("Delete Section Button"),
-                    button("Delete Section"),
+                    themed_button("Delete Section"),
                     ButtonValue(SectionChoice::Delete),
                 ));
 
                 rail.spawn(separator());
                 rail.spawn((
                     Name::new("Play Button"),
-                    button("Play"),
+                    themed_button("Play"),
                     observe(continue_to_simulation),
                 ));
             });
@@ -216,7 +213,7 @@ pub(crate) fn setup_editor_scene(
                 Name::new("Component Drawer"),
                 DrawerPanel,
                 Node {
-                    width: px(theme::DRAWER_W),
+                    width: px(DRAWER_W),
                     height: percent(100),
                     flex_direction: FlexDirection::Column,
                     align_items: AlignItems::Stretch,

@@ -5,11 +5,9 @@
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_ui::theme;
 
-use crate::{
-    ui::{card::ComponentCard, theme},
-    ExampleStates,
-};
+use crate::{ui::card::ComponentCard, ExampleStates};
 
 /// The floating detail panel. At most one exists at a time. Tagged with the
 /// card it belongs to so `hide` only removes the tooltip for the card being

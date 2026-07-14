@@ -5,14 +5,12 @@
 
 use bevy::{picking::hover::Hovered, prelude::*, ui_widgets::Button};
 use nova_gameplay::prelude::*;
-
-use crate::{
-    config::SectionChoice,
-    ui::{
-        theme,
-        widget::{ButtonValue, EditorButton},
-    },
+use nova_ui::{
+    prelude::{ButtonValue, ThemedButton},
+    theme,
 };
+
+use crate::config::SectionChoice;
 
 /// A component card, carrying the catalog id of the section it places. The
 /// tooltip system reads this to look the section up in `GameSections`.
@@ -94,7 +92,7 @@ pub(crate) fn component_card(section: &SectionConfig) -> impl Bundle {
         ComponentCard {
             id: section.base.id.clone(),
         },
-        EditorButton,
+        ThemedButton,
         Button,
         Hovered::default(),
         ButtonValue(SectionChoice::Section(section.base.id.clone())),

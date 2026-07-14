@@ -4,16 +4,17 @@
 //! 20260714-081703).
 
 use bevy::{picking::hover::Hovered, prelude::*, ui_widgets::Button};
+use nova_ui::{prelude::ThemedButton, theme};
 
-use crate::ui::{drawer::toggle_drawer, theme, widget::EditorButton};
+use crate::ui::drawer::toggle_drawer;
 
 /// The active "Components" category row: a themed button that toggles the
-/// drawer. Uses `EditorButton` so it gets the shared hover colouring, but
+/// drawer. Uses `ThemedButton` so it gets the shared hover colouring, but
 /// carries no `ButtonValue`, so pressing it never touches `SectionChoice`.
 pub(crate) fn components_category() -> impl Bundle {
     (
         Name::new("Components Category"),
-        EditorButton,
+        ThemedButton,
         Button,
         Hovered::default(),
         bevy::ui_widgets::observe(toggle_drawer),
