@@ -1,5 +1,5 @@
 [
-    (
+    Section((
         base: (
             id: "reinforced_hull_section",
             name: "Reinforced Hull Section",
@@ -10,8 +10,8 @@
         kind: Hull((
             render_mesh: Some("gltf/hull-01.glb#Scene0"),
         )),
-    ),
-    (
+    )),
+    Section((
         base: (
             id: "basic_thruster_section",
             name: "Basic Thruster Section",
@@ -22,8 +22,8 @@
         kind: Thruster((
             magnitude: 1.0,
         )),
-    ),
-    (
+    )),
+    Section((
         base: (
             id: "basic_controller_section",
             name: "Basic Controller Section",
@@ -36,8 +36,8 @@
             damping_ratio: 4.0,
             max_torque: 40.0,
         )),
-    ),
-    (
+    )),
+    Section((
         base: (
             id: "better_turret_section",
             name: "Better Turret Section",
@@ -85,8 +85,8 @@
             bullet_kind: Kinetic,
             ammo_capacity: Some(500),
         )),
-    ),
-    (
+    )),
+    Section((
         base: (
             id: "light_hull_section",
             name: "Light Hull Section",
@@ -97,8 +97,8 @@
         kind: Hull((
             render_mesh: Some("gltf/hull-01.glb#Scene0"),
         )),
-    ),
-    (
+    )),
+    Section((
         base: (
             id: "light_turret_section",
             name: "Light Turret Section",
@@ -146,8 +146,8 @@
             bullet_kind: Kinetic,
             ammo_capacity: Some(150),
         )),
-    ),
-    (
+    )),
+    Section((
         base: (
             id: "torpedo_section",
             name: "Torpedo Bay Section",
@@ -180,5 +180,5 @@
             blast_damage: 100.0,
             ammo_capacity: Some(6),
         )),
-    ),
+    )),
 ]

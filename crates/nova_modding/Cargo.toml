@@ -7,6 +7,9 @@ description = "RON scenario/mod format and asset loader for the Nova Protocol ga
 [dependencies]
 bevy = { version = "0.19.0" }
 ron = { version = "0.12" }
+# The `Content` enum derives Serialize/Deserialize (it wraps the section/scenario
+# config trees, whose derives come from the features enabled below).
+serde = { version = "1", features = ["derive"] }
 # nova_scenario carries the ScenarioConfig tree; the `serde` feature turns on its
 # (and nova_gameplay's) Serialize/Deserialize derives, which the loader needs.
 nova_scenario = { path = "../nova_scenario", features = ["serde"] }

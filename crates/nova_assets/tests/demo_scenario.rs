@@ -1,14 +1,14 @@
 //! End-to-end proof of the RON modding pipeline: load the real
-//! `assets/scenarios/demo.scenario.ron` through the production
-//! `nova_modding` asset loader on a headless asset server, then run the real
-//! `register_scenario` system (through `GameAssets`) and assert the resulting
-//! `GameScenarios` resource carries the RON-authored `"demo"` scenario
-//! ALONGSIDE the four code-built built-ins.
+//! `assets/**/*.content.ron` files through the production `nova_modding` asset
+//! loader on a headless asset server, then run the real `register_content`
+//! system (through `GameAssets`) and assert the resulting `GameScenarios`
+//! carries the RON-authored `"demo"` scenario ALONGSIDE the four built-ins AND
+//! `GameSections` is populated from the base section content.
 //!
 //! This drives the exact loader and register wiring the game ships: the RON
-//! decode into a `ScenarioAsset` via `ScenarioAssetLoader`, the
-//! `Assets<ScenarioAsset>` lookup in `register_scenario`, and the additive
-//! insert into `GameScenarios`. The asset IO reads the real workspace
+//! decode into a `ContentAsset` via `ContentAssetLoader`, the
+//! `Assets<ContentAsset>` lookup in `register_content`, and the by-variant route
+//! into `GameSections` / `GameScenarios`. The asset IO reads the real workspace
 //! `assets/` dir (tests run with the crate root as cwd).
 
 use std::time::{Duration, Instant};
@@ -20,11 +20,11 @@ use bevy::{
 };
 use nova_assets::prelude::*;
 use nova_gameplay::prelude::GameSections;
-use nova_modding::prelude::{NovaModdingPlugin, ScenarioAsset, SectionCatalogAsset};
+use nova_modding::prelude::{Content, ContentAsset, NovaModdingPlugin};
 use nova_scenario::prelude::GameScenarios;
 
 #[test]
-fn demo_scenario_ron_loads_into_game_scenarios() {
+fn demo_content_ron_loads_into_game_registries() {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
@@ -35,34 +35,30 @@ fn demo_scenario_ron_loads_into_game_scenarios() {
             ..default()
         },
     ));
-    // The production modding plugin: registers ScenarioAsset + the
-    // `*.scenario.ron` loader.
+    // The production modding plugin: registers ContentAsset + the
+    // `*.content.ron` loader.
     app.add_plugins(NovaModdingPlugin);
 
-    // Load every scenario RON through the real asset server + loader: the demo
-    // plus the four built-ins (which are now data files too - task
-    // 20260525-133028 follow-up). register_scenario looks each up by handle.
+    // Load every content RON through the real asset server + loader: the base
+    // section catalog, the demo and the four built-in scenarios. register_content
+    // looks each up by handle and routes its items by variant.
     let asset_server = app.world().resource::<AssetServer>().clone();
-    let handle: Handle<ScenarioAsset> = asset_server.load("scenarios/demo.scenario.ron");
-    let asteroid_field: Handle<ScenarioAsset> =
-        asset_server.load("scenarios/asteroid_field.scenario.ron");
-    let asteroid_next: Handle<ScenarioAsset> =
-        asset_server.load("scenarios/asteroid_next.scenario.ron");
-    let menu_ambience: Handle<ScenarioAsset> =
-        asset_server.load("scenarios/menu_ambience.scenario.ron");
-    let shakedown: Handle<ScenarioAsset> =
-        asset_server.load("scenarios/shakedown_run.scenario.ron");
-    // The section catalog is a data file too (task 20260714-113408); load it the
-    // same way so register_sections can populate GameSections from it.
-    let section_catalog: Handle<SectionCatalogAsset> =
-        asset_server.load("sections/base.sections.ron");
+    let section_content: Handle<ContentAsset> = asset_server.load("sections/base.content.ron");
+    let demo: Handle<ContentAsset> = asset_server.load("scenarios/demo.content.ron");
+    let asteroid_field: Handle<ContentAsset> =
+        asset_server.load("scenarios/asteroid_field.content.ron");
+    let asteroid_next: Handle<ContentAsset> =
+        asset_server.load("scenarios/asteroid_next.content.ron");
+    let menu_ambience: Handle<ContentAsset> =
+        asset_server.load("scenarios/menu_ambience.content.ron");
+    let shakedown: Handle<ContentAsset> = asset_server.load("scenarios/shakedown_run.content.ron");
     let all_handles = [
-        handle.clone().untyped(),
+        section_content.clone().untyped(),
+        demo.clone().untyped(),
         asteroid_field.clone().untyped(),
         asteroid_next.clone().untyped(),
         menu_ambience.clone().untyped(),
         shakedown.clone().untyped(),
-        section_catalog.clone().untyped(),
     ];
 
     let deadline = Instant::now() + Duration::from_secs(60);
@@ -83,20 +79,23 @@ fn demo_scenario_ron_loads_into_game_scenarios() {
         std::thread::sleep(Duration::from_millis(5));
     }
 
-    // The loaded config decodes to the authored scenario.
+    // The loaded demo content decodes to the authored scenario: a single
+    // `Content::Scenario` item, with the OnStart event's six actions.
     {
-        let scenarios = app.world().resource::<Assets<ScenarioAsset>>();
-        let demo = scenarios.get(&handle).expect("loaded demo asset present");
-        assert_eq!(demo.0.id, "demo");
-        // OnStart event with the debug message, objective, three asteroids and
-        // a beacon.
-        assert_eq!(demo.0.events.len(), 1);
-        assert_eq!(demo.0.events[0].actions.len(), 6);
+        let contents = app.world().resource::<Assets<ContentAsset>>();
+        let demo_content = contents.get(&demo).expect("loaded demo content present");
+        assert_eq!(demo_content.0.len(), 1);
+        let Content::Scenario(scenario) = &demo_content.0[0] else {
+            panic!("the demo content is a single Scenario item");
+        };
+        assert_eq!(scenario.id, "demo");
+        assert_eq!(scenario.events.len(), 1);
+        assert_eq!(scenario.events[0].actions.len(), 6);
     }
 
     // Build the GameAssets the register system reads: default handles for the
-    // built-ins' assets (register_scenario never resolves them - AssetRef
-    // stays a path), and the REAL demo handle we just loaded.
+    // raw assets (register_content never resolves them - AssetRef stays a path),
+    // and the REAL content handles we just loaded.
     let game_assets = GameAssets {
         cubemap: Handle::default(),
         asteroid_texture: Handle::default(),
@@ -107,22 +106,22 @@ fn demo_scenario_ron_loads_into_game_scenarios() {
         torpedo_bay_01: Handle::default(),
         fps_icon: Handle::default(),
         target_sprite: Handle::default(),
-        section_catalog: section_catalog.clone(),
-        demo_scenario: handle.clone(),
-        asteroid_field_scenario: asteroid_field.clone(),
-        asteroid_next_scenario: asteroid_next.clone(),
-        menu_ambience_scenario: menu_ambience.clone(),
-        shakedown_scenario: shakedown.clone(),
+        section_content: section_content.clone(),
+        demo_content: demo.clone(),
+        asteroid_field_content: asteroid_field.clone(),
+        asteroid_next_content: asteroid_next.clone(),
+        menu_ambience_content: menu_ambience.clone(),
+        shakedown_content: shakedown.clone(),
     };
     app.world_mut().insert_resource(game_assets);
 
-    // The real section registry, now loaded from the RON catalog (task
-    // 20260714-113408) rather than built in code.
+    // Run the production register_content system: routes Section items into
+    // GameSections and Scenario items into GameScenarios.
     app.world_mut()
-        .run_system_once(nova_assets::register_sections_for_test)
-        .expect("register sections");
+        .run_system_once(nova_assets::register_content_for_test)
+        .expect("register content");
 
-    // GameSections is populated from the loaded catalog asset: the named
+    // GameSections is populated from the base section content: the named
     // prototypes the editor palette and ship scenarios reference are present.
     {
         let sections = app.world().resource::<GameSections>();
@@ -136,13 +135,9 @@ fn demo_scenario_ron_loads_into_game_scenarios() {
         );
     }
 
-    // Run the production register_scenario system.
-    app.world_mut()
-        .run_system_once(nova_assets::register_scenario_for_test)
-        .expect("register scenario");
-
+    // The RON-authored demo is present in GameScenarios ALONGSIDE the four
+    // built-ins.
     let scenarios = app.world().resource::<GameScenarios>();
-    // The RON-authored demo is present ALONGSIDE the four built-ins.
     assert!(
         scenarios.contains_key("demo"),
         "the RON-authored demo scenario must be registered"

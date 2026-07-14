@@ -6,8 +6,8 @@ use bevy::{
 };
 use bevy_asset_loader::prelude::*;
 use nova_gameplay::prelude::*;
-
-use crate::{scenario::register_scenario, sections::register_sections};
+use nova_modding::prelude::{Content, ContentAsset};
+use nova_scenario::prelude::GameScenarios;
 
 mod scenario;
 mod sections;
@@ -21,7 +21,7 @@ pub mod prelude {
 /// built-in; production loads their serialized RON, and this module lets the
 /// generator/parity test rebuild them with PATH-based asset refs and serialize
 /// them deterministically. Not part of the game's public API - it exists for
-/// the `scenario_ron_parity` integration test.
+/// the `content_ron_parity` integration test.
 ///
 /// The `ScenarioConfig` serde derives are already present in this crate's
 /// build: `nova_modding` (a dependency) turns on `nova_scenario/serde`, and
@@ -29,6 +29,7 @@ pub mod prelude {
 #[doc(hidden)]
 pub mod scenario_generation {
     use nova_gameplay::prelude::{AssetRef, SectionConfig};
+    use nova_modding::prelude::Content;
     use nova_scenario::prelude::ScenarioConfig;
 
     use crate::sections::{build_sections, SectionMeshRefs};
@@ -39,8 +40,9 @@ pub mod scenario_generation {
     const ASTEROID_TEXTURE_PATH: &str = "textures/asteroid.png";
 
     /// The section-prototype catalog built from PATH-based mesh refs - the source
-    /// the sections parity test serializes into `assets/sections/base.sections.ron`
-    /// (production loads that file into `GameSections` via `nova_modding`).
+    /// the content parity test wraps as `Content::Section` items and serializes
+    /// into `assets/sections/base.content.ron` (production loads that file and
+    /// routes its items into `GameSections` via `register_content`).
     pub fn build_section_catalog() -> Vec<SectionConfig> {
         build_sections(&SectionMeshRefs::from_paths())
     }
@@ -61,8 +63,29 @@ pub mod scenario_generation {
         ]
     }
 
-    /// The deterministic pretty-printer for the built-in scenario RON. Matches
-    /// the hand-committed `demo.scenario.ron` style: struct names omitted,
+    /// The section catalog wrapped as one `Vec<Content>` of `Content::Section`
+    /// items - the shape the committed `assets/sections/base.content.ron` file
+    /// carries. The parity test serializes this.
+    pub fn build_section_content() -> Vec<Content> {
+        build_section_catalog()
+            .into_iter()
+            .map(Content::Section)
+            .collect()
+    }
+
+    /// The four built-in scenarios, each wrapped as its own single-item
+    /// `Vec<Content>` (`[Content::Scenario(..)]`) keyed by scenario id - the
+    /// shape each committed `assets/scenarios/<id>.content.ron` file carries. The
+    /// parity test serializes each.
+    pub fn build_scenario_contents() -> Vec<(String, Vec<Content>)> {
+        build_scenarios()
+            .into_iter()
+            .map(|scenario| (scenario.id.clone(), vec![Content::Scenario(scenario)]))
+            .collect()
+    }
+
+    /// The deterministic pretty-printer for the built-in content RON. Matches
+    /// the hand-committed `demo.content.ron` style: struct names omitted,
     /// indented, so the data files stay diff-friendly and reviewable.
     pub fn pretty_config() -> ron::ser::PrettyConfig {
         ron::ser::PrettyConfig::default()
@@ -72,16 +95,66 @@ pub mod scenario_generation {
     }
 }
 
-/// The production `register_scenario` system, re-exported for the crate's
-/// integration tests (which drive the RON modding pipeline end to end). Not
-/// part of the public API.
+/// The production `register_content` system, re-exported for the crate's
+/// integration tests (which drive the RON modding pipeline end to end: load the
+/// `.content.ron` files and route their items into `GameSections` /
+/// `GameScenarios`). Not part of the public API.
 #[doc(hidden)]
-pub use crate::scenario::register_scenario as register_scenario_for_test;
-/// The production `register_sections` system, re-exported for the crate's
-/// integration tests (which build the section registry the built-in ship
-/// scenarios reference). Not part of the public API.
-#[doc(hidden)]
-pub use crate::sections::register_sections as register_sections_for_test;
+pub use crate::register_content as register_content_for_test;
+
+/// Route every loaded [`ContentAsset`] item into its id-keyed registry.
+///
+/// This is the generic replacement for the old per-kind `register_sections` +
+/// `register_scenario` systems: it reads each content file from
+/// [`Assets<ContentAsset>`] through the [`GameAssets`] handles and dispatches
+/// each [`Content`] item by variant - `Section` collects into the
+/// [`GameSections`] `Vec`, `Scenario` inserts into [`GameScenarios`] keyed by
+/// its id. Both resources are always inserted (empty if nothing loaded).
+///
+/// The content files are part of the `GameAssets` collection, so
+/// bevy_asset_loader guarantees they finished loading before this runs
+/// `OnEnter(Processing)`; a handle whose asset is somehow not loaded is logged
+/// and skipped (never a panic) - the remaining files still register.
+pub fn register_content(
+    mut commands: Commands,
+    game_assets: Res<GameAssets>,
+    contents: Res<Assets<ContentAsset>>,
+) {
+    let mut sections: Vec<SectionConfig> = Vec::new();
+    let mut scenarios = GameScenarios::default();
+
+    // Every content-file handle in the collection. Order is stable so overlay
+    // (later id wins) is deterministic; base sections first, then scenarios.
+    let handles = [
+        &game_assets.section_content,
+        &game_assets.demo_content,
+        &game_assets.asteroid_field_content,
+        &game_assets.asteroid_next_content,
+        &game_assets.menu_ambience_content,
+        &game_assets.shakedown_content,
+    ];
+
+    for handle in handles {
+        let Some(content) = contents.get(handle) else {
+            error!(
+                "register_content: a content asset was not loaded; skipping it \
+                 (the other content still registers)"
+            );
+            continue;
+        };
+        for item in &content.0 {
+            match item {
+                Content::Section(cfg) => sections.push(cfg.clone()),
+                Content::Scenario(cfg) => {
+                    scenarios.insert(cfg.id.clone(), cfg.clone());
+                }
+            }
+        }
+    }
+
+    commands.insert_resource(GameSections(sections));
+    commands.insert_resource(scenarios);
+}
 
 /// Game states for the asset loader.
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
@@ -99,9 +172,9 @@ impl Plugin for GameAssetsPlugin {
     fn build(&self, app: &mut App) {
         debug!("GameAssetsPlugin: build");
 
-        // The modding plugin registers the `*.scenario.ron` asset + loader.
+        // The modding plugin registers the `*.content.ron` asset + loader.
         // Add it before the loading state runs so the loader exists when
-        // bevy_asset_loader starts loading `demo_scenario` below.
+        // bevy_asset_loader starts loading the content files below.
         app.add_plugins(nova_modding::prelude::NovaModdingPlugin);
 
         // Setup the asset loader to load assets during the loading state.
@@ -116,8 +189,7 @@ impl Plugin for GameAssetsPlugin {
             OnEnter(GameAssetsStates::Processing),
             (
                 prepare_cubemap_view,
-                register_sections,
-                register_scenario,
+                register_content,
                 register_sounds,
                 update_nova_hud_assets,
                 |mut state: ResMut<NextState<GameAssetsStates>>| {
@@ -149,18 +221,18 @@ pub struct GameAssets {
     pub fps_icon: Handle<Image>,
     #[asset(path = "icons/target.png")]
     pub target_sprite: Handle<Image>,
-    #[asset(path = "sections/base.sections.ron")]
-    pub section_catalog: Handle<nova_modding::prelude::SectionCatalogAsset>,
-    #[asset(path = "scenarios/demo.scenario.ron")]
-    pub demo_scenario: Handle<nova_modding::prelude::ScenarioAsset>,
-    #[asset(path = "scenarios/asteroid_field.scenario.ron")]
-    pub asteroid_field_scenario: Handle<nova_modding::prelude::ScenarioAsset>,
-    #[asset(path = "scenarios/asteroid_next.scenario.ron")]
-    pub asteroid_next_scenario: Handle<nova_modding::prelude::ScenarioAsset>,
-    #[asset(path = "scenarios/menu_ambience.scenario.ron")]
-    pub menu_ambience_scenario: Handle<nova_modding::prelude::ScenarioAsset>,
-    #[asset(path = "scenarios/shakedown_run.scenario.ron")]
-    pub shakedown_scenario: Handle<nova_modding::prelude::ScenarioAsset>,
+    #[asset(path = "sections/base.content.ron")]
+    pub section_content: Handle<ContentAsset>,
+    #[asset(path = "scenarios/demo.content.ron")]
+    pub demo_content: Handle<ContentAsset>,
+    #[asset(path = "scenarios/asteroid_field.content.ron")]
+    pub asteroid_field_content: Handle<ContentAsset>,
+    #[asset(path = "scenarios/asteroid_next.content.ron")]
+    pub asteroid_next_content: Handle<ContentAsset>,
+    #[asset(path = "scenarios/menu_ambience.content.ron")]
+    pub menu_ambience_content: Handle<ContentAsset>,
+    #[asset(path = "scenarios/shakedown_run.content.ron")]
+    pub shakedown_content: Handle<ContentAsset>,
 }
 
 /// Give the skybox cubemap its cube texture view.

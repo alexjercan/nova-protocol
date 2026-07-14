@@ -1,0 +1,146 @@
+[
+    Scenario((
+        id: "menu_ambience",
+        name: "Menu Ambience",
+        description: "The main menu\'s living backdrop.",
+        cubemap: "textures/cubemap.png",
+        events: [
+            (
+                name: OnStart,
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "menu_planetoid",
+                            name: "Menu Planetoid",
+                            position: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 20.0,
+                            texture: "textures/asteroid.png",
+                            health: 2000.0,
+                            surface_gravity: Some(6.0),
+                            invulnerable: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "menu_orbiter",
+                            name: "Menu Orbiter",
+                            position: (
+                                140.0,
+                                0.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            controller: AI((
+                                orbit: Some("menu_planetoid"),
+                            )),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "menu_rock_",
+                        count: 14,
+                        seed: 433757350076153856,
+                        region: Ring(
+                            inner: 170.0,
+                            outer: 240.0,
+                            y_min: -70.0,
+                            y_max: -30.0,
+                        ),
+                        template: (
+                            base: (
+                                id: "menu_rock_",
+                                name: "Menu Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 1.0,
+                                texture: "textures/asteroid.png",
+                                health: 100.0,
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            1.0,
+                            3.0,
+                        )),
+                    )),
+                ],
+            ),
+        ],
+    )),
+]

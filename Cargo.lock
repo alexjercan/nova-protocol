@@ -4509,6 +4509,7 @@ dependencies = [
  "nova_gameplay",
  "nova_scenario",
  "ron",
+ "serde",
 ]
 
 [[package]]

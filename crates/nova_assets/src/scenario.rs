@@ -1,6 +1,5 @@
 use bevy::{platform::collections::HashMap, prelude::*};
 use nova_gameplay::prelude::*;
-use nova_modding::prelude::ScenarioAsset;
 use nova_scenario::prelude::*;
 
 pub mod shakedown;
@@ -10,40 +9,6 @@ pub mod shakedown;
 /// `ScatterObjects` action each, so the layout is now deterministic content
 /// (reproducible across loads) rather than random per launch.
 const SCATTER_SEED: u64 = 0x0605_0403_0201_0000;
-
-pub fn register_scenario(
-    mut commands: Commands,
-    game_assets: Res<super::GameAssets>,
-    scenario_assets: Res<Assets<ScenarioAsset>>,
-) {
-    let mut scenarios = HashMap::new();
-
-    // The four built-ins are now RON data files loaded into the GameAssets
-    // collection (like the demo below); look each up by its handle. On a miss,
-    // log and skip - never panic - exactly as the demo does.
-    let built_ins = [
-        &game_assets.asteroid_field_scenario,
-        &game_assets.asteroid_next_scenario,
-        &game_assets.menu_ambience_scenario,
-        &game_assets.shakedown_scenario,
-        &game_assets.demo_scenario,
-    ];
-    for handle in built_ins {
-        match scenario_assets.get(handle) {
-            Some(asset) => {
-                scenarios.insert(asset.0.id.clone(), asset.0.clone());
-            }
-            None => {
-                error!(
-                    "register_scenario: a scenario asset was not loaded; skipping it \
-                     (the other scenarios still register)"
-                );
-            }
-        }
-    }
-
-    commands.insert_resource(GameScenarios(scenarios));
-}
 
 /// The main menu's living backdrop (task 20260711-180455): a big planetoid
 /// with a real gravity well, a scatter of rocks, and one AI ship flying a

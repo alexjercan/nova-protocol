@@ -1,23 +1,33 @@
 //! RON scenario/mod format for Nova Protocol.
 //!
-//! This crate is the authoring surface of the modding language. It loads:
-//! - `*.scenario.ron` -> [`ScenarioAsset`] (a
-//!   [`ScenarioConfig`](nova_scenario::prelude::ScenarioConfig)), and
-//! - `*.sections.ron` -> [`SectionCatalogAsset`] (a `Vec` of
-//!   [`SectionConfig`](nova_gameplay::prelude::SectionConfig) prototypes).
+//! This crate is the authoring surface of the modding language. It loads a
+//! single uniform content format:
+//! - `*.content.ron` -> [`ContentAsset`], a RON `Vec<`[`Content`]`>` where each
+//!   item carries its KIND as a data flag (`Section((..))` / `Scenario((..))`).
+//!
+//! A [`Content`] item is one of:
+//! - [`Content::Section`] - a [`SectionConfig`](nova_gameplay::prelude::SectionConfig)
+//!   prototype (previously the `*.sections.ron` catalog), and
+//! - [`Content::Scenario`] - a [`ScenarioConfig`](nova_scenario::prelude::ScenarioConfig)
+//!   (previously the `*.scenario.ron` file).
+//!
+//! The kind lives IN the RON structure (an externally-tagged enum), so ONE
+//! loader reads any content file and a downstream router (`nova_assets`'s
+//! `register_content`) dispatches each item into its id-keyed registry
+//! (`GameSections` / `GameScenarios`). A single file may mix kinds.
 //!
 //! The config trees are `serde` under nova_scenario's / nova_gameplay's `serde`
-//! features (which this crate enables), so the loaders are pure RON decodes.
+//! features (which this crate enables), so the loader is a pure RON decode.
 //!
 //! Asset references inside the configs (section render meshes, particle effects,
 //! the skybox cubemap, asteroid textures) are authored as paths and stay as paths
 //! in the loaded config - each is an
 //! [`AssetRef`](nova_gameplay::prelude::AssetRef) that resolves to a live `Handle`
-//! lazily at spawn time through the `AssetServer`. So the loaders do not touch the
-//! `AssetServer`/`LoadContext`; they just deserialize.
+//! lazily at spawn time through the `AssetServer`. So the loader does not touch the
+//! `AssetServer`/`LoadContext`; it just deserializes.
 //!
-//! Downstream (`nova_assets`) drives the actual load of `assets/scenarios/*.ron`
-//! into `GameScenarios` and `assets/sections/*.ron` into `GameSections`.
+//! Downstream (`nova_assets`) drives the actual load of `assets/**/*.content.ron`
+//! and routes each item into `GameScenarios` / `GameSections`.
 
 use bevy::{
     asset::{io::Reader, Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies},
@@ -26,44 +36,47 @@ use bevy::{
 };
 use nova_gameplay::prelude::SectionConfig;
 use nova_scenario::prelude::ScenarioConfig;
+use serde::{Deserialize, Serialize};
 
 pub mod prelude {
     pub use super::{
-        ModdingLoaderError, NovaModdingPlugin, ScenarioAsset, ScenarioAssetLoader,
-        SectionCatalogAsset, SectionCatalogAssetLoader,
+        Content, ContentAsset, ContentAssetLoader, ModdingLoaderError, NovaModdingPlugin,
     };
 }
 
-/// A scenario loaded from a `*.scenario.ron` file: a thin [`Asset`] wrapper
-/// around the runtime [`ScenarioConfig`].
+/// A single piece of authored content, with its KIND as a data flag.
+///
+/// A content file is a RON `Vec<Content>`; this externally-tagged enum makes the
+/// kind explicit in the data (`Section((..))` / `Scenario((..))`) so one loader
+/// reads any file and a router dispatches each item into its registry. Adding a
+/// kind is one variant here plus one router arm downstream - no new loader or
+/// asset type.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum Content {
+    /// A section-prototype ([`SectionConfig`]) the ships reference by id -
+    /// registers into `GameSections`.
+    Section(SectionConfig),
+    /// A [`ScenarioConfig`] - registers into `GameScenarios` keyed by its id.
+    Scenario(ScenarioConfig),
+}
+
+/// The content of one `*.content.ron` file: a thin [`Asset`] wrapper around a
+/// `Vec` of [`Content`] items.
 ///
 /// [`Asset`] is implemented by hand rather than derived: the derive would try to
-/// walk the wrapped config for `Handle` dependencies, but asset references are
+/// walk the wrapped configs for `Handle` dependencies, but asset references are
 /// [`AssetRef`](nova_gameplay::prelude::AssetRef) paths that resolve lazily at
 /// spawn, so this asset declares no dependencies of its own.
 #[derive(TypePath, Clone, Debug)]
-pub struct ScenarioAsset(pub ScenarioConfig);
+pub struct ContentAsset(pub Vec<Content>);
 
-impl VisitAssetDependencies for ScenarioAsset {
+impl VisitAssetDependencies for ContentAsset {
     fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
 }
 
-impl Asset for ScenarioAsset {}
+impl Asset for ContentAsset {}
 
-/// A section-prototype catalog loaded from a `*.sections.ron` file: the named
-/// [`SectionConfig`]s a scenario's ships reference by id. Same lazy-`AssetRef`
-/// contract as [`ScenarioAsset`], so it declares no `Handle` dependencies.
-#[derive(TypePath, Clone, Debug)]
-pub struct SectionCatalogAsset(pub Vec<SectionConfig>);
-
-impl VisitAssetDependencies for SectionCatalogAsset {
-    fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
-}
-
-impl Asset for SectionCatalogAsset {}
-
-/// Errors produced while loading a modding RON asset (`*.scenario.ron` or
-/// `*.sections.ron`).
+/// Errors produced while loading a modding RON asset (`*.content.ron`).
 #[derive(Debug)]
 pub enum ModdingLoaderError {
     /// The file could not be read.
@@ -102,12 +115,12 @@ impl From<ron::error::SpannedError> for ModdingLoaderError {
     }
 }
 
-/// Bevy [`AssetLoader`] for `*.scenario.ron` files.
+/// Bevy [`AssetLoader`] for `*.content.ron` files (a RON `Vec<`[`Content`]`>`).
 #[derive(Default, TypePath)]
-pub struct ScenarioAssetLoader;
+pub struct ContentAssetLoader;
 
-impl AssetLoader for ScenarioAssetLoader {
-    type Asset = ScenarioAsset;
+impl AssetLoader for ContentAssetLoader {
+    type Asset = ContentAsset;
     type Settings = ();
     type Error = ModdingLoaderError;
 
@@ -119,51 +132,22 @@ impl AssetLoader for ScenarioAssetLoader {
     ) -> Result<Self::Asset, Self::Error> {
         let mut bytes = Vec::new();
         reader.read_to_end(&mut bytes).await?;
-        let config: ScenarioConfig = ron::de::from_bytes(&bytes)?;
-        Ok(ScenarioAsset(config))
+        let items: Vec<Content> = ron::de::from_bytes(&bytes)?;
+        Ok(ContentAsset(items))
     }
 
     fn extensions(&self) -> &[&str] {
-        &["scenario.ron"]
+        &["content.ron"]
     }
 }
 
-/// Bevy [`AssetLoader`] for `*.sections.ron` catalog files (a RON `Vec` of
-/// [`SectionConfig`]).
-#[derive(Default, TypePath)]
-pub struct SectionCatalogAssetLoader;
-
-impl AssetLoader for SectionCatalogAssetLoader {
-    type Asset = SectionCatalogAsset;
-    type Settings = ();
-    type Error = ModdingLoaderError;
-
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _settings: &Self::Settings,
-        _load_context: &mut LoadContext<'_>,
-    ) -> Result<Self::Asset, Self::Error> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
-        let sections: Vec<SectionConfig> = ron::de::from_bytes(&bytes)?;
-        Ok(SectionCatalogAsset(sections))
-    }
-
-    fn extensions(&self) -> &[&str] {
-        &["sections.ron"]
-    }
-}
-
-/// Registers the modding asset types and their RON loaders.
+/// Registers the modding asset type and its RON loader.
 pub struct NovaModdingPlugin;
 
 impl Plugin for NovaModdingPlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset::<ScenarioAsset>()
-            .init_asset_loader::<ScenarioAssetLoader>()
-            .init_asset::<SectionCatalogAsset>()
-            .init_asset_loader::<SectionCatalogAssetLoader>();
+        app.init_asset::<ContentAsset>()
+            .init_asset_loader::<ContentAssetLoader>();
     }
 }
 
@@ -171,35 +155,16 @@ impl Plugin for NovaModdingPlugin {
 mod tests {
     use super::*;
 
-    /// A minimal `*.scenario.ron` body decodes into a `ScenarioConfig` the same
-    /// way the loader will, with a path-authored cubemap. (The full nested-tree
-    /// decode - objects, actions, ship bindings - is covered by nova_scenario's
-    /// own RON round-trip test; here we only pin the loader's decode path and the
-    /// `cubemap: "<path>"` -> `AssetRef` mapping.)
+    /// A `*.content.ron` body mixing a `Section((..))` and a `Scenario((..))`
+    /// decodes into a `Vec<Content>` of length 2, with the kind flag driving
+    /// which variant each item becomes. (The full nested-tree decode of each
+    /// config is covered by nova_scenario's / nova_gameplay's own RON round-trip
+    /// tests; here we only pin the loader's `Vec<Content>` decode path and the
+    /// externally-tagged `Section`/`Scenario` mapping.)
     #[test]
-    fn minimal_scenario_ron_decodes() {
-        let ron = r#"(
-            id: "demo",
-            name: "Demo",
-            description: "a tiny scenario",
-            cubemap: "scenarios/space.cube.png",
-            events: [],
-        )"#;
-
-        let config: ScenarioConfig =
-            ron::de::from_bytes(ron.as_bytes()).expect("scenario RON should decode");
-        assert_eq!(config.id, "demo");
-        assert!(config.events.is_empty());
-        assert_eq!(config.cubemap.path(), Some("scenarios/space.cube.png"));
-    }
-
-    /// A minimal `*.sections.ron` catalog (a RON `Vec<SectionConfig>`) decodes the
-    /// way the loader will, including the base fields and a path-authored render
-    /// mesh via `AssetRef`.
-    #[test]
-    fn minimal_sections_ron_decodes() {
+    fn mixed_content_ron_decodes() {
         let ron = r#"[
-            (
+            Section((
                 base: (
                     id: "basic_hull_section",
                     name: "Basic Hull",
@@ -210,12 +175,30 @@ mod tests {
                 kind: Hull((
                     render_mesh: Some("gltf/hull-01.glb#Scene0"),
                 )),
-            ),
+            )),
+            Scenario((
+                id: "demo",
+                name: "Demo",
+                description: "a tiny scenario",
+                cubemap: "scenarios/space.cube.png",
+                events: [],
+            )),
         ]"#;
 
-        let sections: Vec<SectionConfig> =
-            ron::de::from_bytes(ron.as_bytes()).expect("sections RON should decode");
-        assert_eq!(sections.len(), 1);
-        assert_eq!(sections[0].base.id, "basic_hull_section");
+        let items: Vec<Content> =
+            ron::de::from_bytes(ron.as_bytes()).expect("content RON should decode");
+        assert_eq!(items.len(), 2);
+        match &items[0] {
+            Content::Section(section) => assert_eq!(section.base.id, "basic_hull_section"),
+            other => panic!("expected a Section, got {other:?}"),
+        }
+        match &items[1] {
+            Content::Scenario(scenario) => {
+                assert_eq!(scenario.id, "demo");
+                assert!(scenario.events.is_empty());
+                assert_eq!(scenario.cubemap.path(), Some("scenarios/space.cube.png"));
+            }
+            other => panic!("expected a Scenario, got {other:?}"),
+        }
     }
 }

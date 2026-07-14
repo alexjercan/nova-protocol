@@ -35,7 +35,7 @@ const BETTER_TURRET_BULLET_DAMAGE: f32 = 4.0;
 ///
 /// The catalog itself (`build_sections`) is defined ONCE and is agnostic to how
 /// these refs were sourced. Production no longer builds sections from `GameAssets`
-/// handles - it loads the serialized catalog (`assets/sections/base.sections.ron`)
+/// handles - it loads the serialized catalog (`assets/sections/base.content.ron`)
 /// via `nova_modding`; the only remaining source is the RON generator/parity test,
 /// which builds them from asset PATHS (`from_paths`) so the serialized section
 /// configs carry authorable paths instead of opaque handles.
@@ -59,24 +59,6 @@ impl SectionMeshRefs {
             torpedo_bay: AssetRef::from("gltf/torpedo-bay-01.glb#Scene0".to_string()),
         }
     }
-}
-
-/// Populate [`GameSections`] from the `assets/sections/base.sections.ron` catalog
-/// loaded through `nova_modding`. The catalog is part of the `GameAssets`
-/// collection, so bevy_asset_loader guarantees it is finished loading before this
-/// system runs `OnEnter(Processing)`; the `else` arm cannot fire in practice, so it
-/// logs and leaves `GameSections` empty rather than panicking.
-pub fn register_sections(
-    mut commands: Commands,
-    game_assets: Res<super::GameAssets>,
-    catalogs: Res<Assets<nova_modding::prelude::SectionCatalogAsset>>,
-) {
-    let Some(catalog) = catalogs.get(&game_assets.section_catalog) else {
-        error!("register_sections: section catalog asset not loaded; GameSections left empty");
-        commands.insert_resource(GameSections::default());
-        return;
-    };
-    commands.insert_resource(GameSections(catalog.0.clone()));
 }
 
 /// The section catalog, built against `meshes` for its render-mesh refs. The

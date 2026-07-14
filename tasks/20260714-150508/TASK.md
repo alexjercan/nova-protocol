@@ -1,8 +1,8 @@
 # Content model + generic kind-router: one Content enum (kind-in-RON) + ContentLoader + register_content; refactor per-kind loaders onto it
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
-- TAGS: v0.6.0,modding,scenario
+- TAGS: v0.6.0, modding, scenario
 
 Spike: tasks/20260714-150410/SPIKE.md
 
@@ -28,27 +28,27 @@ replaces `register_sections`+`register_scenario`. Content files use the `.conten
 extension.
 
 Steps:
-- [ ] 1. nova_modding: `Content` enum `{ Section(SectionConfig), Scenario(ScenarioConfig) }`
+- [x] 1. nova_modding: `Content` enum `{ Section(SectionConfig), Scenario(ScenarioConfig) }`
   (kind flag in data) + `ContentAsset(pub Vec<Content>)` (Asset + no-op
   VisitAssetDependencies, like ScenarioAsset) + `ContentLoader` (extension `content.ron`,
   ron-decodes `Vec<Content>`, reuses `ModdingLoaderError`). REMOVE `ScenarioAsset` +
   `SectionCatalogAsset` + their loaders; register `ContentAsset`+loader in `NovaModdingPlugin`.
   Unit test: a content RON mixing a `Section((..))` and a `Scenario((..))` decodes.
-- [ ] 2. nova_assets: a `register_content` system (replaces register_sections+register_scenario
+- [x] 2. nova_assets: a `register_content` system (replaces register_sections+register_scenario
   in the OnEnter(Processing) chain) reading the loaded `ContentAsset`s from `GameAssets` and
   routing each item by variant: `Section` -> `GameSections` (collect into the Vec),
   `Scenario` -> `GameScenarios` (insert by id). error+skip a missing/empty asset, no panic.
   `GameAssets` content-file fields become `Handle<ContentAsset>`. Update the `_for_test`
   re-exports (register_content_for_test).
-- [ ] 3. Migrate + regenerate RON: rename the content files to `.content.ron`
+- [x] 3. Migrate + regenerate RON: rename the content files to `.content.ron`
   (`sections/base.content.ron` = `[Section((..)), ...]`; each `scenarios/<name>.content.ron`
   = `[Scenario((..))]`; `demo.content.ron` hand-migrated). Generators emit `Vec<Content>`
   (build_scenarios -> each `Content::Scenario`; build_section_catalog -> each `Content::Section`).
   Fold the two parity tests into a content parity guard; regenerate. Do it by
   serializing (never hand-author) - the parity test is the safety net.
-- [ ] 4. Update `demo_scenario` test (load `ContentAsset`s; assert `GameScenarios` has the
+- [x] 4. Update `demo_scenario` test (load `ContentAsset`s; assert `GameScenarios` has the
   built-ins + demo AND `GameSections` populated) + `GameAssets` paths. Editor reads
   `GameSections` unchanged (still a Vec).
-- [ ] 5. Verify: `cargo test --workspace --no-run`; nova_modding/nova_scenario/nova_assets
+- [x] 5. Verify: `cargo test --workspace --no-run`; nova_modding/nova_scenario/nova_assets
   tests; `12_menu_newgame` + `09_editor` under `DISPLAY=:0 BCS_AUTOPILOT=1 --features debug`;
   parity green. Behavior IDENTICAL to pre-refactor (same sections/scenarios registered).
