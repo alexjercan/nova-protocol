@@ -19,7 +19,8 @@ use bevy::{
     prelude::*,
 };
 use nova_assets::prelude::*;
-use nova_modding::prelude::{NovaModdingPlugin, ScenarioAsset};
+use nova_gameplay::prelude::GameSections;
+use nova_modding::prelude::{NovaModdingPlugin, ScenarioAsset, SectionCatalogAsset};
 use nova_scenario::prelude::GameScenarios;
 
 #[test]
@@ -51,29 +52,34 @@ fn demo_scenario_ron_loads_into_game_scenarios() {
         asset_server.load("scenarios/menu_ambience.scenario.ron");
     let shakedown: Handle<ScenarioAsset> =
         asset_server.load("scenarios/shakedown_run.scenario.ron");
+    // The section catalog is a data file too (task 20260714-113408); load it the
+    // same way so register_sections can populate GameSections from it.
+    let section_catalog: Handle<SectionCatalogAsset> =
+        asset_server.load("sections/base.sections.ron");
     let all_handles = [
-        &handle,
-        &asteroid_field,
-        &asteroid_next,
-        &menu_ambience,
-        &shakedown,
+        handle.clone().untyped(),
+        asteroid_field.clone().untyped(),
+        asteroid_next.clone().untyped(),
+        menu_ambience.clone().untyped(),
+        shakedown.clone().untyped(),
+        section_catalog.clone().untyped(),
     ];
 
     let deadline = Instant::now() + Duration::from_secs(60);
     loop {
         app.update();
         let mut all_loaded = true;
-        for h in all_handles {
-            match asset_server.load_state(h) {
+        for h in &all_handles {
+            match asset_server.load_state(h.id()) {
                 LoadState::Loaded => {}
-                LoadState::Failed(err) => panic!("a scenario failed to load: {err}"),
+                LoadState::Failed(err) => panic!("an asset failed to load: {err}"),
                 _ => all_loaded = false,
             }
         }
         if all_loaded {
             break;
         }
-        assert!(Instant::now() < deadline, "timed out loading the scenarios");
+        assert!(Instant::now() < deadline, "timed out loading the assets");
         std::thread::sleep(Duration::from_millis(5));
     }
 
@@ -101,6 +107,7 @@ fn demo_scenario_ron_loads_into_game_scenarios() {
         torpedo_bay_01: Handle::default(),
         fps_icon: Handle::default(),
         target_sprite: Handle::default(),
+        section_catalog: section_catalog.clone(),
         demo_scenario: handle.clone(),
         asteroid_field_scenario: asteroid_field.clone(),
         asteroid_next_scenario: asteroid_next.clone(),
@@ -109,10 +116,25 @@ fn demo_scenario_ron_loads_into_game_scenarios() {
     };
     app.world_mut().insert_resource(game_assets);
 
-    // The real section registry (the built-in ship scenarios reference it).
+    // The real section registry, now loaded from the RON catalog (task
+    // 20260714-113408) rather than built in code.
     app.world_mut()
         .run_system_once(nova_assets::register_sections_for_test)
         .expect("register sections");
+
+    // GameSections is populated from the loaded catalog asset: the named
+    // prototypes the editor palette and ship scenarios reference are present.
+    {
+        let sections = app.world().resource::<GameSections>();
+        assert!(
+            !sections.is_empty(),
+            "the section catalog loaded from RON into GameSections"
+        );
+        assert!(
+            sections.get_section("basic_controller_section").is_some(),
+            "a known catalog prototype id resolves"
+        );
+    }
 
     // Run the production register_scenario system.
     app.world_mut()

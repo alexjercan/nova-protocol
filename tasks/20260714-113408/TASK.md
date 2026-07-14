@@ -1,8 +1,8 @@
 # Section catalog as data: assets/sections/*.ron loaded into GameSections via nova_modding
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 58
-- TAGS: v0.6.0,modding,scenario
+- TAGS: v0.6.0, modding, scenario
 
 Spike: tasks/20260714-110502/SPIKE.md
 
@@ -23,22 +23,22 @@ the catalog must load the same section ids. `register_sections` runs
 `OnEnter(GameAssetsStates::Processing)`. Mirror the `ScenarioAsset` pattern.
 
 Steps:
-- [ ] 1. `nova_modding`: add `SectionCatalogAsset(pub Vec<SectionConfig>)` (bevy
+- [x] 1. `nova_modding`: add `SectionCatalogAsset(pub Vec<SectionConfig>)` (bevy
   `Asset` with a no-op `VisitAssetDependencies`, like `ScenarioAsset`) +
   `SectionCatalogAssetLoader` for the `sections.ron` extension (ron decode into a
   `Vec<SectionConfig>`); register both in `NovaModdingPlugin`. Unit test: a minimal
   catalog RON decodes.
-- [ ] 2. Generate `assets/sections/base.sections.ron` by serializing
+- [x] 2. Generate `assets/sections/base.sections.ron` by serializing
   `build_sections(&SectionMeshRefs::from_paths())` (path-based mesh refs), and add a
   `sections_ron_parity` test that guards it against builder drift (mirror
   `scenario_ron_parity`). Single catalog file for now; per-file split is the bundle
   spike's (113418) concern.
-- [ ] 3. `nova_assets`: add `section_catalog: Handle<SectionCatalogAsset>` to the
+- [x] 3. `nova_assets`: add `section_catalog: Handle<SectionCatalogAsset>` to the
   `GameAssets` collection (`#[asset(path = "sections/base.sections.ron")]`); rewrite
   `register_sections` to insert `GameSections` from the loaded catalog asset
   (`Assets<SectionCatalogAsset>::get`, `error!`+skip on miss, no panic). Keep
   `build_sections`/`SectionMeshRefs` as the generator/parity source only.
-- [ ] 4. Verify: `cargo test --workspace --no-run` (test build - the check that
+- [x] 4. Verify: `cargo test --workspace --no-run` (test build - the check that
   caught the last merge break); nova_assets tests (catalog + parity); editor section
   ids intact; run `09_editor` and `12_menu_newgame` under `DISPLAY=:0 BCS_AUTOPILOT=1
   --features debug` to confirm the editor palette + boot still work off the data

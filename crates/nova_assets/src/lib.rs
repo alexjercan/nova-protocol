@@ -28,7 +28,7 @@ pub mod prelude {
 /// Cargo feature unification carries it here.
 #[doc(hidden)]
 pub mod scenario_generation {
-    use nova_gameplay::prelude::{AssetRef, GameSections};
+    use nova_gameplay::prelude::{AssetRef, GameSections, SectionConfig};
     use nova_scenario::prelude::ScenarioConfig;
 
     use crate::sections::{build_sections, SectionMeshRefs};
@@ -38,10 +38,17 @@ pub mod scenario_generation {
     /// The asteroid texture asset path (matches `GameAssets::asteroid_texture`).
     const ASTEROID_TEXTURE_PATH: &str = "textures/asteroid.png";
 
+    /// The section-prototype catalog built from PATH-based mesh refs - the source
+    /// the sections parity test serializes into `assets/sections/base.sections.ron`
+    /// (production loads that file into `GameSections` via `nova_modding`).
+    pub fn build_section_catalog() -> Vec<SectionConfig> {
+        build_sections(&SectionMeshRefs::from_paths())
+    }
+
     /// The section registry built from PATH-based mesh refs - the generation
     /// counterpart of production's handle-backed `register_sections`.
     fn path_sections() -> GameSections {
-        GameSections(build_sections(&SectionMeshRefs::from_paths()))
+        GameSections(build_section_catalog())
     }
 
     /// Build all four built-in configs with path-based asset refs, in a stable
@@ -147,6 +154,8 @@ pub struct GameAssets {
     pub fps_icon: Handle<Image>,
     #[asset(path = "icons/target.png")]
     pub target_sprite: Handle<Image>,
+    #[asset(path = "sections/base.sections.ron")]
+    pub section_catalog: Handle<nova_modding::prelude::SectionCatalogAsset>,
     #[asset(path = "scenarios/demo.scenario.ron")]
     pub demo_scenario: Handle<nova_modding::prelude::ScenarioAsset>,
     #[asset(path = "scenarios/asteroid_field.scenario.ron")]

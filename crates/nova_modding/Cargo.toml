@@ -10,6 +10,8 @@ ron = { version = "0.12" }
 # nova_scenario carries the ScenarioConfig tree; the `serde` feature turns on its
 # (and nova_gameplay's) Serialize/Deserialize derives, which the loader needs.
 nova_scenario = { path = "../nova_scenario", features = ["serde"] }
+# nova_gameplay carries the SectionConfig tree for the section catalog loader.
+nova_gameplay = { path = "../nova_gameplay", features = ["serde"] }
 
 [lints]
 workspace = true
