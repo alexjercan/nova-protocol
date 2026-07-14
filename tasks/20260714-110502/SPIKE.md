@@ -220,3 +220,11 @@ Direction-level tasks (for `/plan` to break into steps):
   Reviewed APPROVE (out-of-context + local; MINOR section-overlay-by-id fixed with a
   pinned `merge_content_item` helper + tests). Remaining: 134127 (mods = more bundles
   overlaid + demo mod), then 134115 (ship kind, deferred until a real consumer).
+- 20260714, REGRESSION fix (163342) landed on master (`f40b84a`): the folder bundle
+  (134119) shipped a critical in-game load failure - `assets/base/bundle.ron` never
+  loaded (web + native) because bevy_asset_loader loads collection fields UNTYPED and
+  bevy resolves the loader by the file's full extension (`bundle.ron` -> bare `ron`, no
+  loader). The 134119 e2e test dodged it by loading TYPED. Fix: rename to
+  `base.bundle.ron` (convention `<pack>.bundle.ron`) + an untyped-load regression guard.
+  IMPLICATION for 134127: the top-level `mods.ron` needs the SAME stem (`*.mods.ron`) or
+  it fails identically. See tasks/20260714-163342/{TASK,REVIEW,RETRO}.md.
