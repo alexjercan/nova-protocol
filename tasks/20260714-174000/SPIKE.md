@@ -168,4 +168,13 @@ Direction-level tasks this spike seeded, for `/plan` to break into steps:
 
 ## Fix record
 
-(Each implementing task appends a few lines as it lands.)
+- 20260714, catalog-driven loading (174120) landed on master (`6c4f455`): replaced the
+  `base_bundle` + `mod_list` `GameAssets` fields with one `mods.catalog.ron` ->
+  `InstalledCatalog` asset (nova_modding: `ModEntry`/`CatalogManifest`/`CatalogEntry` +
+  `CatalogLoader`, `catalog.ron` ext). The catalog visits every installed bundle so all
+  load at startup (recursive-gated); a runtime `EnabledMods` set (seeded from `base:true`
+  entries, idempotent) selects which merge, in catalog order (base first), re-merging live
+  on change (`resource_changed`). `ModList`/`enabled.mods.ron` removed. "base is a mod"
+  is now data; startup behaviour identical (base only). Reviewed APPROVE (out-of-context,
+  no defects). Next: 174126 (Mods menu - meets the goal), then 174131 (persistence). See
+  tasks/20260714-174120/{TASK,REVIEW,RETRO}.md.
