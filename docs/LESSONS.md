@@ -119,6 +119,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   ECS harness (fire -> drain -> assert on the world), not just its pure sub-helper
   plus a non-asserting example; the helper passing hid an untested spawn loop.
   20260525-133028.
+- `check-examples-skips-tests` (x1): `cargo check --workspace --examples` does NOT
+  compile `#[cfg(test)]` code; after a type change verify with `cargo test
+  --workspace --no-run` (CI's build) or a test build broke silently past the branch
+  gate onto master (a stray `Handle` in a test helper). 20260525-133028.
 - `bg-session-authors-on-branch` (x1): background sessions cannot Write in the
   shared checkout, and parallel sessions sweep loose files there; author task
   and doc content inside the first sprouted worktree, only `tatr new` stubs
