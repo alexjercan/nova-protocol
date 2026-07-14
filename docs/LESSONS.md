@@ -129,14 +129,23 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   `git status` for related generated files before committing. 20260714-113408.
   (In an isolated sprout worktree, `git add -A` is the safe fix - it caught
   everything in 20260714-113411, no recurrence.)
-- `pin-the-fix-at-its-boundary` (x2): guard a bug fix with a test that fails under
-  the bug at the fix's OWN boundary (a unit test), not only a downstream e2e -
-  especially when the existing unit test passes under the bug (the DisableVerb
-  multi-verb accumulation was only e2e-guarded). Refactor variant: when a refactor
-  changes how an invariant is ENFORCED, re-pin the invariant on the new mechanism -
-  don't massage the old assertion until it passes (a hull-inertness test asserted
-  "present-but-unread" instead of "not a controller, so unread").
-  20260714-113411, 20260714-135642.
+- `pin-the-fix-at-its-boundary` (x3, -> Pending promotions): guard a bug fix with a
+  test that fails under the bug at the fix's OWN boundary (a unit test), not only a
+  downstream e2e - especially when the existing unit test passes under the bug (the
+  DisableVerb multi-verb accumulation was only e2e-guarded). Refactor variant: when a
+  refactor changes how an invariant is ENFORCED, re-pin the invariant on the new
+  mechanism - don't massage the old assertion until it passes. Overlay variant: the
+  section-overlay-by-id bug was invisible with one bundle (no id collision); extract
+  the overlay into a pure helper and unit-pin last-wins so the divergence can't hide
+  until a second bundle exists. 20260714-113411, 20260714-135642, 20260714-134119.
+- `shared-id-space-shared-overlay` (x1): when one router dispatches into multiple
+  containers that share an id space (a Vec of sections + a map of scenarios), route
+  through ONE overlay helper so the kinds can't silently diverge (Vec push/first-wins
+  vs map insert/last-wins). 20260714-134119.
+- `verify-the-nit-compiles` (x1): a reviewer's micro-optimization NIT (remove this
+  alloc, borrow instead of own) is a hypothesis - compile it before treating it as
+  done; `rel.as_str()` for `rel.to_string()` failed E0597 (borrow outlived by the
+  resolved path), so the owned string was load-bearing. 20260714-134119.
 - `agent-interrupted-verify-worktree` (x1): a subagent that hits a long build can end
   with an ambiguous partial state and misleading "in progress" notifications; INSPECT
   the worktree (git status + compile + run the deterministic generators) before
@@ -317,6 +326,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   `tatr new` calls in the same second or one bash line - they share a
   second-resolution ID and the later silently overwrites the earlier. One `tatr
   new` per tool invocation.
+- `pin-the-fix-at-its-boundary` (x3) -> review/work skill: guard a bug fix with a
+  test that fails under the bug at the fix's OWN boundary (unit test), not only a
+  downstream e2e; when a refactor changes how an invariant is enforced, re-pin the
+  invariant on the new mechanism rather than massaging the old assertion. See the
+  main-list entry for the three variants. 20260714-113411, -135642, -134119.
 
 ## Promoted (kept for history)
 

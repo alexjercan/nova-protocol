@@ -208,3 +208,15 @@ Direction-level tasks (for `/plan` to break into steps):
   09_editor). Every future kind is now a variant + a router arm. Reviewed APPROVE.
   Remaining (all on this foundation): 134115 (ship kind = Content::Ship), 134119 (folder
   bundle), 134123 (base-as-bundle), 134127 (mods + overlay + demo).
+- 20260714, folder bundle + base-as-bundle (134119, folds 134123) landed on master
+  (`1068698`): a bundle is a DIRECTORY with a `bundle.ron` manifest listing content-file
+  paths. nova_modding gained BundleManifest + BundleAsset (its VisitAssetDependencies
+  visits content handles so content loads with the bundle) + BundleAssetLoader
+  (bundle-relative path resolve). The base game is repackaged into `assets/base/` (six
+  `*.content.ron` git-renamed under it) + `assets/base/bundle.ron`, loaded as ONE
+  `Handle<BundleAsset>`. `register_bundles` flattens every bundle's content in load order
+  and routes by kind into GameSections/GameScenarios with LAST-WINS overlay by id (the
+  seam mods append to). wasm-safe (manifest, not load_folder). Behavior identical.
+  Reviewed APPROVE (out-of-context + local; MINOR section-overlay-by-id fixed with a
+  pinned `merge_content_item` helper + tests). Remaining: 134127 (mods = more bundles
+  overlaid + demo mod), then 134115 (ship kind, deferred until a real consumer).
