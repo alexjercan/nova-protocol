@@ -12,6 +12,10 @@ pub struct NovaEventWorld {
     objectives: Vec<ObjectiveActionConfig>,
     variables: HashMap<String, VariableLiteral>,
     pub next_scenario: Option<NextScenarioActionConfig>,
+    /// Logging-only: the last variable snapshot we debug-logged. `state_to_world_system`
+    /// runs every frame, so it logs the variables only when they DIFFER from this, to
+    /// avoid per-frame spam.
+    last_logged_variables: HashMap<String, VariableLiteral>,
 }
 
 impl EventWorld for NovaEventWorld {
@@ -40,10 +44,23 @@ impl EventWorld for NovaEventWorld {
                 .collect();
         }
 
-        // Log variables
-        debug!("# Current Variables:");
-        for (key, value) in &world.resource::<Self>().variables {
-            debug!("Variable: {} = {:?}", key, value);
+        // Log variables ONLY when they change since the last log - this system runs
+        // every frame (the OnUpdate pulse keeps the event queue warm), so an
+        // unconditional log spams the debug stream. Clone the snapshot only on a change.
+        let changed_snapshot = {
+            let this = world.resource::<Self>();
+            if this.variables != this.last_logged_variables {
+                debug!("# Current Variables:");
+                for (key, value) in &this.variables {
+                    debug!("Variable: {} = {:?}", key, value);
+                }
+                Some(this.variables.clone())
+            } else {
+                None
+            }
+        };
+        if let Some(snapshot) = changed_snapshot {
+            world.resource_mut::<Self>().last_logged_variables = snapshot;
         }
 
         // If a next scenario is queued (and not lingering), switch to it. `linger` keeps
