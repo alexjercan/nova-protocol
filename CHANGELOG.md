@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Particle effects (turret muzzle flash, projectile trail, torpedo launch and detonation bursts) now render in the web build: it moved from the WebGL2 render backend to WebGPU, which is what `bevy_hanabi`'s compute-shader particles require. Native was already running them. The thruster exhaust plume is a shader (not particles) and rendered on the web already
+- Browsers without WebGPU (e.g. Firefox on Linux, which the WebGPU switch above needs) now see a "WebGPU required" message on the game page instead of a crash/black canvas, and a heads-up under the landing page's "Play in browser" button. The check probes `navigator.gpu` and then `requestAdapter()`, so it also catches browsers that expose the API but cannot actually get an adapter
 
 ## [0.5.2] - 2026-07-14
 

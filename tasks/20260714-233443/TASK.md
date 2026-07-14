@@ -1,8 +1,32 @@
 # Add navigator.gpu WebGPU-detection gate at the Play boundary
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.6.0,wasm
+
+## Outcome
+
+Two-layer WebGPU gate. Game page (authoritative): `build/web/webgpu-check.js`
+inlined into `index.html`, runs synchronously before trunk's deferred wasm module
+(verified in `dist/index.html`), and shows a "WebGPU required" panel instead of a
+crashed canvas. Landing page (courtesy): `warnIfNoWebGpu` adds a note under the
+Play CTA. A mid-task playtest (Firefox/Linux hit the raw surface-creation panic)
+proved the need AND exposed that presence-only detection is insufficient, so the
+gate also probes `requestAdapter()`. Verified: 5-case node test on the shipped gate
+file (incl. the exact playtest case), `dist/index.html` ordering, `web` npm ci
+green. Live in-browser eyeball deferred to a `preview-web.sh` pass (headless env).
+
+## Playtest verdict (20260715)
+
+User ran the current master build (233438 landed, this gate NOT yet deployed) in
+Firefox on Linux and hit the raw panic
+`Failed to create wgpu surface: FailedToCreateSurfaceForAnyBackend` - i.e. the
+exact non-WebGPU-browser crash this task removes (Firefox on Linux does not ship
+WebGPU in 2026). Confirms the reachability analysis in the spike and the need for
+the gate. It also exposed that a presence-only `navigator.gpu` check is
+insufficient: the crash is at surface creation, so a browser could expose the API
+object yet still fail to get an adapter. Gate strengthened to also probe
+`requestAdapter()` (see Steps 1-2 and the test's "present but no adapter" case).
 
 ## Goal
 
@@ -14,38 +38,37 @@ fails to initialize the renderer entirely on a non-WebGPU browser. Scoped from
 
 ## Steps
 
-- [ ] Add `build/web/webgpu-check.js`: on load, if `!navigator.gpu`, hide the
-  loading spinner and the `#bevy` canvas and inject a `.webgpu-fallback` panel
-  into `.game-container` - heading "WebGPU required", body naming supported
-  browsers (Chrome/Edge, Safari on macOS/iOS 26, Firefox on Windows), and a link
-  back to the landing site. (`navigator.gpu` presence is the standard, cheap
-  WebGPU check; requesting an adapter is async and unnecessary to gate.)
-- [ ] Inline it into the game `index.html` (repo root) via
-  `<link data-trunk rel="inline" href="build/web/webgpu-check.js"/>`, mirroring the
-  existing `sound.js` inline. Verify-first: confirm whether trunk's auto-init of
-  the wasm can be cleanly prevented before it runs; if not, ensure that removing
-  the `#bevy` canvas + spinner makes the failed bevy init invisible (bevy resolves
-  its target by the `#bevy` selector, so a missing canvas fails early and quietly)
-  - the user must see the fallback, not a black flash then an error.
-- [ ] Add `.webgpu-fallback` styling to `build/web/styles.css`, centered like the
-  existing `.lds-dual-ring` spinner.
-- [ ] Landing layer: gate the "Play in browser" CTA so users are warned before
-  navigating. In the landing entry (`web/src/index.ts` + the hero CTA in
-  `web/src/index.html`), when `navigator.gpu` is absent render Play in a
-  disabled/explained state ("Needs WebGPU") rather than linking straight into the
-  game. The game-index gate (steps 1-2) stays the authoritative safety net for
-  direct `/play/` navigation (bookmarks, shared links) that skips the landing.
-- [ ] Verify at the real `/play/` subpath via `scripts/preview-web.sh` (Pages
-  serves the game at `/nova-protocol/play/`, landing at `/nova-protocol/` -
-  verify-at-deploy-base-path, and confirm the back-link target resolves there):
-  (a) in a WebGPU browser, Play works and no fallback appears; (b) with WebGPU
-  absent (a browser/flag without `navigator.gpu`, or temporarily stub it), the
-  game index shows the fallback panel, not a black canvas. This is client-rendered
-  JS, so it needs an actual DOM/eyeball check - a green build proves nothing
-  (ci-skips-client-render).
-- [ ] Docs: `CHANGELOG.md` entry; `tasks/20260714-233443/NOTES.md` recording the
-  two-layer approach (landing warning + game-index safety net) and why the
-  direct-navigation case forces the game-index gate.
+- [x] Add `build/web/webgpu-check.js`: inject a `.webgpu-fallback` panel into
+  `.game-container` (replacing the spinner + `#bevy` canvas) - heading "WebGPU
+  required", body naming supported browsers, and a `../` back link.
+  CHANGED per the 20260715 playtest: presence-only was insufficient (the crash is
+  at surface creation), so it now (1) checks `navigator.gpu` synchronously, then
+  (2) probes `requestAdapter()` async and falls back if no adapter / it rejects.
+- [x] Inline it into the game `index.html` via
+  `<link data-trunk rel="inline" href="build/web/webgpu-check.js"/>`, placed AFTER
+  `.game-container`. Verify-first RESOLVED: trunk's auto-init is a deferred
+  `<script type="module">`; a plain inline `<script>` placed after the container
+  runs synchronously first, so it rewrites the container before bevy boots (no
+  black flash), and bevy's `#bevy` lookup then fails quietly. Confirmed in the
+  generated `dist/index.html`: gate `<script>` ~line 170, trunk module ~line 238.
+- [x] Add `.webgpu-fallback` styling to `build/web/styles.css`, centered like the
+  `.lds-dual-ring` spinner.
+- [x] Landing layer: `web/src/webgpu.ts` (`warnIfNoWebGpu`, called from
+  `web/src/index.ts`) adds a `.hero__cta-note` under the Play CTA when WebGPU is
+  absent. DEVIATION from "disabled state": the link stays clickable because the
+  destination (game page) now explains the requirement itself; a hard-disable would
+  be worse UX. Styled in `web/src/style.css`. No `index.html` change needed (the
+  note targets the existing `.hero__cta`).
+- [~] Verify at the real `/play/` subpath. DONE: `webgpu-check.test.mjs` runs the
+  shipped gate file in a vm against the exact playtest case (present-but-no-adapter)
+  + 4 others; `dist/index.html` ordering inspected; `web` npm ci (prettier+eslint+
+  webpack) green; back link is `../` (resolves `/nova-protocol/play/` ->
+  `/nova-protocol/`). NOT DONE (headless env): the live in-browser eyeball of the
+  message (Firefox/Linux) and particles (Chrome) - left for a `scripts/preview-web.sh`
+  pass. The playtester already confirmed the pre-gate crash this replaces.
+- [x] Docs: `CHANGELOG.md` entry (gate line under [Unreleased]); `NOTES.md` with the
+  two-layer approach, the sync-before-deferred ordering, and the adapter-probe
+  rationale.
 
 ## Notes
 

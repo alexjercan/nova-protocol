@@ -363,6 +363,14 @@ main {
     justify-content: center;
     flex-wrap: wrap;
 }
+/* Injected by warnIfNoWebGpu() under the Play CTA when the browser lacks the
+   WebGPU support the in-browser game needs. */
+.hero__cta-note {
+    margin: 14px auto 0;
+    max-width: 48ch;
+    font-size: 0.95rem;
+    color: var(--text-muted);
+}
 
 /* ---- buttons ------------------------------------------------------------- */
 .btn {

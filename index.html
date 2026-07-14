@@ -18,5 +18,9 @@
                 Javascript and support for canvas is required
             </canvas>
         </div>
+        <!-- Runs synchronously (after the container, before trunk's deferred
+             wasm module) to show a "WebGPU required" message instead of a dead
+             canvas on browsers without WebGPU. See build/web/webgpu-check.js. -->
+        <link data-trunk rel="inline" href="build/web/webgpu-check.js"/>
     </body>
 </html>
