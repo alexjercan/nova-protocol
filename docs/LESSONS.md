@@ -356,11 +356,24 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   done, or split it. 20260708-165704.
 - `bei-app-finish-in-tests` (x1): bevy_enhanced_input needs `app.finish()` +
   `app.cleanup()` before spawning an action rig in tests. 20260708-165705.
-- `verify-ci-triggers-before-claiming-coverage` (x1): before writing "CI builds
+- `verify-ci-triggers-before-claiming-coverage` (x2): before writing "CI builds
   this", read the workflow triggers - a `workflow_dispatch`/deploy job is NOT
   automated PR/master coverage. An uncompiled cfg branch (e.g. the wasm
   localStorage backend) is guarded only by static review; say so in the comment.
-  20260714-174131.
+  Positive application: un-gating hanabi on wasm, CI builds native only + deploy is
+  workflow_dispatch, so ran the real `trunk build` (the sole wasm compile gate)
+  instead of trusting green native CI. 20260714-174131, 20260714-233438.
+- `spike-list-needs-code-check` (x1): a spike's enumerated list of
+  mechanisms/effects is unverified prose until the implementing cycle greps each
+  item against the code - a spike listed the thruster "plume" as a gated hanabi
+  effect when it is a shader (`ThrusterExhaustConfig`) that already rendered on the
+  web; caught only because /work grepped. 20260714-233438.
+- `target-scoped-feature-flips-wasm-backend` (positive, x1): to switch only the
+  wasm build's render backend, add an additive target-specific bevy feature
+  (`[target.'cfg(...wasm...)'.dependencies] bevy = { features = ["webgpu"] }`) -
+  bevy's `webgpu` overrides the default `webgl2`, so no trunk `--features` and no
+  disabling defaults; confirm per-target with `cargo tree --target wasm32...`
+  (webgpu present on wasm, absent on native). 20260714-233438.
 
 ## Pending promotions (3+ occurrences, user decides)
 
