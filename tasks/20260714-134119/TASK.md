@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 48
-- TAGS: v0.6.0, modding, scenario, spike
+- TAGS: v0.6.0,modding,scenario
 
 Spike: tasks/20260714-113418/SPIKE.md
 
@@ -39,3 +39,35 @@ extension" framing above is superseded), with load-order overlay. Package the ba
 game's `.content.ron` files into an `assets/base/` folder + manifest. wasm-safe (manifest,
 not load_folder). Next after this: 134123 (base-as-bundle) -> 134127 (mods+demo) -> then
 134115 (ship kind, with a consumer).
+
+## Plan (20260714) - folds base-as-bundle (134123) as the proof
+
+The base game becoming a bundle IS the mechanism's end-to-end proof (like 150508 did
+mechanism + migration together), so 134123 folds in here - no throwaway demo bundle.
+
+Steps:
+- [ ] 1. nova_modding: `BundleManifest { content: Vec<String> }` (relative content-file
+  paths) + `BundleAsset { content: Vec<Handle<ContentAsset>> }` + `BundleAssetLoader`
+  (`bundle.ron`): parse the manifest, `load_context.load::<ContentAsset>(path)` each entry
+  (resolved relative to the bundle file's dir - use the bevy-idiomatic relative path, or
+  root-relative paths in the manifest if cleaner), store the handles. `BundleAsset`'s
+  `VisitAssetDependencies` MUST visit its content handles (unlike ContentAsset, a bundle
+  HAS dependencies) so the content loads with the bundle. Register in NovaModdingPlugin.
+  Unit test: a bundle.ron manifest decodes; (integration) a bundle + its content load.
+- [ ] 2. Package the base as a bundle: move the six `*.content.ron` into `assets/base/`
+  (`assets/base/sections/base.content.ron`, `assets/base/scenarios/*.content.ron`) and add
+  `assets/base/bundle.ron` listing them. git-rename the files; update the content-parity
+  test paths.
+- [ ] 3. nova_assets: `GameAssets` replaces the six `Handle<ContentAsset>` with ONE
+  `Handle<BundleAsset>` (`assets/base/bundle.ron`). A `register_bundles` system (replaces/
+  wraps `register_content`) reads a LIST of loaded bundles (just `[base]` for now), flattens
+  every bundle's content items in order, and merges by kind into GameSections/GameScenarios
+  with LOAD-ORDER overlay (later bundle's id wins). Written overlay-ready so 134127 (mods)
+  just appends bundles. Keep `error!`+skip on an unloaded asset.
+- [ ] 4. Update the `demo_scenario` test + `_for_test` re-exports for the bundle path;
+  assert GameScenarios (demo + 4 built-ins) + GameSections populated via the base bundle.
+- [ ] 5. Verify: `cargo test --workspace --no-run`; nova_modding/nova_assets tests;
+  `12_menu_newgame` + `09_editor` under `DISPLAY=:0 BCS_AUTOPILOT=1 --features debug`;
+  parity green. Behavior IDENTICAL (same content registered, now via the base bundle).
+
+Follow-on: 134127 (mods = more bundles overlaid + demo mod); 134115 (ship kind, deferred).
