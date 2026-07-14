@@ -4506,6 +4506,7 @@ name = "nova_modding"
 version = "0.5.2"
 dependencies = [
  "bevy",
+ "nova_gameplay",
  "nova_scenario",
  "ron",
 ]
