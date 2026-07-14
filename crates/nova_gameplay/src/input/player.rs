@@ -176,7 +176,7 @@ fn update_flight_verb_hints(
         With<PlayerSpaceshipMarker>,
     >,
     q_computer: Query<
-        (&ChildOf, Option<&ControllerVerbs>),
+        (&ChildOf, Option<&WithheldVerbs>),
         (
             With<ControllerSectionMarker>,
             With<PDController>,
@@ -223,13 +223,13 @@ fn update_flight_verb_hints(
     // lights only if some live controller on this ship enables it (union across
     // controllers), on top of `flyable`. The verb flags are kept SEPARATE from
     // `flyable` above (which only asks "is there a live controller + engine")
-    // so a controller missing the flags component can never brick the ship - it
-    // just falls back to the all-on default (matching `ControllerVerbs::default`
-    // and the pre-flags behavior). The `SetControllerVerb` action flips these.
+    // so a controller missing the withheld-verbs component can never brick the
+    // ship - it just falls back to the all-granted default (an absent component
+    // means nothing is withheld). The `SetControllerVerb` action flips these.
     let verb_granted = |verb: FlightVerb| -> bool {
         ship.is_some_and(|ship| {
-            q_computer.iter().any(|(&ChildOf(parent), verbs)| {
-                parent == ship && verbs.is_none_or(|verbs| verbs.granted(verb))
+            q_computer.iter().any(|(&ChildOf(parent), withheld)| {
+                parent == ship && withheld.is_none_or(|withheld| withheld.granted(verb))
             })
         })
     };
@@ -751,15 +751,16 @@ fn on_flight_burn_input_completed(
     intent.burn = 0.0;
 }
 
-/// Query over every live controller section and its (optional) granted verbs,
+/// Query over every live controller section and its (optional) withheld verbs,
 /// shared by the three maneuver observers so they gate execution on the same
-/// controller-provided capability the hint pass shows. `ControllerVerbs` is
+/// controller-provided capability the hint pass shows. `WithheldVerbs` is
 /// optional for the same reason as in the hint pass: a controller missing the
-/// flags falls back to the all-on default rather than becoming ungovernable.
+/// component falls back to the all-granted default rather than becoming
+/// ungovernable.
 type ControllerVerbQuery<'w, 's> = Query<
     'w,
     's,
-    (&'static ChildOf, Option<&'static ControllerVerbs>),
+    (&'static ChildOf, Option<&'static WithheldVerbs>),
     (
         With<ControllerSectionMarker>,
         With<PDController>,
@@ -772,9 +773,9 @@ type ControllerVerbQuery<'w, 's> = Query<
 /// no grant. Mirrors the `verb_granted` closure in the hint pass so a lit hint
 /// and a firing key never disagree.
 fn ship_grants_verb(ship: Entity, verb: FlightVerb, q_verbs: &ControllerVerbQuery) -> bool {
-    q_verbs
-        .iter()
-        .any(|(&ChildOf(parent), verbs)| parent == ship && verbs.is_none_or(|v| v.granted(verb)))
+    q_verbs.iter().any(|(&ChildOf(parent), withheld)| {
+        parent == ship && withheld.is_none_or(|w| w.granted(verb))
+    })
 }
 
 fn on_autopilot_stop_input(
@@ -1347,8 +1348,9 @@ mod tests {
 
     /// A flyable player ship: live controller (with PD, all verbs granted) +
     /// live thruster. Mirrors the production `controller_section` bundle, which
-    /// always carries [`ControllerVerbs`]; the hint pass and the observers both
-    /// require it, so a controller without it would match nothing.
+    /// carries NO [`WithheldVerbs`] by default (an absent component grants every
+    /// verb); tests that withhold a verb insert a `WithheldVerbs` on the
+    /// returned controller.
     fn spawn_flyable_ship(world: &mut World) -> (Entity, Entity) {
         let ship = world.spawn((PlayerSpaceshipMarker, targeting_state())).id();
         let controller = world
@@ -1360,7 +1362,6 @@ mod tests {
                     damping_ratio: 4.0,
                     max_torque: 40.0,
                 },
-                ControllerVerbs::default(),
             ))
             .id();
         world.spawn((ChildOf(ship), ThrusterSectionMarker));
@@ -1493,12 +1494,9 @@ mod tests {
             .insert((TravelLock(Some(lock)), DominantWell(well)));
 
         // Withhold GOTO and ORBIT on the controller; STOP stays granted.
-        world.entity_mut(controller).insert(ControllerVerbs {
-            stop: true,
-            goto: false,
-            orbit: false,
-            lock: true,
-        });
+        world.entity_mut(controller).insert(WithheldVerbs(
+            [FlightVerb::Goto, FlightVerb::Orbit].into_iter().collect(),
+        ));
         world.run_system_once(update_flight_verb_hints).unwrap();
         let hints = world.resource::<FlightVerbHints>().clone();
         assert!(hints.stop.available, "STOP is still granted");
@@ -1512,10 +1510,10 @@ mod tests {
         );
 
         // Granting them lights both (the lock/well are unchanged) - proves the
-        // flag, not some other condition, was the gate.
+        // withheld set, not some other condition, was the gate.
         world
             .entity_mut(controller)
-            .insert(ControllerVerbs::default());
+            .insert(WithheldVerbs::default());
         world.run_system_once(update_flight_verb_hints).unwrap();
         let hints = world.resource::<FlightVerbHints>().clone();
         assert!(hints.goto.available, "GOTO lights once granted");
@@ -1542,12 +1540,7 @@ mod tests {
         let (ship, controller) = spawn_flyable_ship(app.world_mut());
         app.world_mut()
             .entity_mut(controller)
-            .insert(ControllerVerbs {
-                stop: true,
-                goto: false,
-                orbit: true,
-                lock: true,
-            });
+            .insert(WithheldVerbs([FlightVerb::Goto].into_iter().collect()));
         let target = app.world_mut().spawn_empty().id();
         app.world_mut()
             .entity_mut(ship)
@@ -1579,7 +1572,7 @@ mod tests {
         app.update();
         app.world_mut()
             .entity_mut(controller)
-            .insert(ControllerVerbs::default());
+            .insert(WithheldVerbs::default());
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
             .press(KeyCode::KeyG);
@@ -1594,15 +1587,17 @@ mod tests {
         );
     }
 
-    /// A controller that predates the flags (no `ControllerVerbs` component)
-    /// must stay flyable and grant every verb - the flags are decoupled from
-    /// `flyable`, so a missing component falls back to the all-on default and
-    /// never bricks the ship. Guards the fail-closed hazard (review MINOR 1).
+    /// A controller with no `WithheldVerbs` component must stay flyable and
+    /// grant every verb - the withheld set is decoupled from `flyable`, so a
+    /// missing component falls back to the all-granted default and never bricks
+    /// the ship. This is the production default (a controller carries
+    /// `WithheldVerbs` only once a `DisableVerb`/`SetControllerVerb` touches it).
+    /// Guards the fail-closed hazard (review MINOR 1).
     #[test]
     fn controller_without_verb_flags_is_flyable_and_grants_all_verbs() {
         let mut world = hint_world();
-        // A live controller WITHOUT ControllerVerbs, plus a thruster: not the
-        // production bundle, but the shape a legacy/hand-built spawn could take.
+        // A live controller WITHOUT WithheldVerbs, plus a thruster: the
+        // production default, matching a controller no modification has touched.
         let ship = world.spawn(PlayerSpaceshipMarker).id();
         world.spawn((
             ChildOf(ship),

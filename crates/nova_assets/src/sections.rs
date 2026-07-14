@@ -133,11 +133,11 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 // docs/2026-07-09-flight-feel-retune.md; playtest owns the
                 // final number.
                 max_torque: 40.0,
-                // Full flight-verb loadout by default; scenarios withhold a
-                // verb at runtime via `SetControllerVerb` (the shakedown's
-                // GOTO-off intro) rather than baking it into this shared
-                // catalog entry, which the pirate reuses too.
-                verbs: ControllerVerbs::default(),
+                // Full flight-verb loadout by default (no WithheldVerbs on the
+                // built controller). Scenarios withhold a verb via a
+                // `DisableVerb` section modification or the `SetControllerVerb`
+                // action (the shakedown's GOTO-off intro) rather than baking it
+                // into this shared catalog entry, which the pirate reuses too.
                 render_mesh: None,
             }),
         },

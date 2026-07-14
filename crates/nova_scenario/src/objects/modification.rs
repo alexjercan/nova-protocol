@@ -6,19 +6,20 @@
 //! [`SectionModification`] is inserted at spawn as a distinct COMPONENT on the
 //! resolved section entity, and a small `On<Add, _>` observer per component
 //! applies it WHERE RELEVANT (it queries for the target component) and is INERT
-//! elsewhere. A `DisableVerb(Orbit)` on a controller clears the verb on that
-//! controller's [`ControllerVerbs`]; the same modification on a hull matches no
-//! target and does nothing. Extending the model is a new variant + component +
-//! observer, no central match to grow.
+//! elsewhere. The one exception is `DisableVerb`, whose target component
+//! ([`WithheldVerbs`]) IS the withheld-verb state itself: instead of a marker +
+//! observer, the accumulated `DisableVerb` set is written straight onto the
+//! section entity as a [`WithheldVerbs`] component. A `WithheldVerbs` on a
+//! non-controller section (a hull) is simply never read by the flight gate, so
+//! it stays inert. Extending the model with a one-shot delta is a new variant +
+//! component + observer, no central match to grow.
 
-use bevy::{ecs::system::EntityCommands, prelude::*};
+use bevy::{ecs::system::EntityCommands, platform::collections::HashSet, prelude::*};
 use bevy_common_systems::prelude::Health;
-use nova_gameplay::prelude::{ControllerVerbs, FlightVerb};
+use nova_gameplay::prelude::{FlightVerb, WithheldVerbs};
 
 pub mod prelude {
-    pub use super::{
-        SectionDisableVerb, SectionHealthOverride, SectionModification, SectionRename,
-    };
+    pub use super::{SectionHealthOverride, SectionModification, SectionRename};
 }
 
 /// A single, closed, data-only delta applied to a ship section at spawn on top
@@ -46,21 +47,20 @@ impl SectionModification {
     /// Insert a whole authored modification list onto the section entity as
     /// components; the per-variant observers then apply them where relevant.
     ///
-    /// `DisableVerb` modifications ACCUMULATE into a single
-    /// [`SectionDisableVerb`] carrying every listed verb: a component type can
-    /// exist only once per entity, so inserting one component per DisableVerb
-    /// would let the last verb win and silently drop the others (the shakedown
-    /// controller withholds GOTO+LOCK+ORBIT at once). Merging into one insert
-    /// also means the component is complete by the time its `On<Add>` observer
-    /// fires. The other variants are one component each.
+    /// `DisableVerb` modifications ACCUMULATE into a single [`WithheldVerbs`]
+    /// component carrying every listed verb (the set naturally dedups). A
+    /// component type can exist only once per entity, so writing one insert per
+    /// DisableVerb would let the last verb win and silently drop the others (the
+    /// shakedown controller withholds GOTO+LOCK+ORBIT at once). `WithheldVerbs`
+    /// is the live state the flight gate reads directly - no marker + observer
+    /// hop - so on a non-controller section (a hull) it is simply never read.
+    /// The other variants are one component each with an apply-on-add observer.
     pub fn insert_all(modifications: &[SectionModification], entity: &mut EntityCommands) {
-        let mut disabled_verbs: Vec<FlightVerb> = Vec::new();
+        let mut withheld: HashSet<FlightVerb> = HashSet::new();
         for modification in modifications {
             match modification {
                 SectionModification::DisableVerb(verb) => {
-                    if !disabled_verbs.contains(verb) {
-                        disabled_verbs.push(*verb);
-                    }
+                    withheld.insert(*verb);
                 }
                 SectionModification::SetHealth(health) => {
                     entity.insert(SectionHealthOverride(*health));
@@ -70,17 +70,11 @@ impl SectionModification {
                 }
             }
         }
-        if !disabled_verbs.is_empty() {
-            entity.insert(SectionDisableVerb(disabled_verbs));
+        if !withheld.is_empty() {
+            entity.insert(WithheldVerbs(withheld));
         }
     }
 }
-
-/// Marker/data component: withhold every listed verb on this section's
-/// controller. Accumulates across several `DisableVerb` modifications on the
-/// same section (see [`SectionModification::insert_all`]).
-#[derive(Component, Clone, Debug, Reflect)]
-pub struct SectionDisableVerb(pub Vec<FlightVerb>);
 
 /// Marker/data component: override this section's starting health.
 #[derive(Component, Clone, Debug, Reflect)]
@@ -93,34 +87,11 @@ pub struct SectionRename(pub String);
 /// Register the modification components and their apply-on-add observers. Called
 /// from `SpaceshipPlugin::build`.
 pub(crate) fn register_section_modifications(app: &mut App) {
-    app.register_type::<SectionDisableVerb>()
-        .register_type::<SectionHealthOverride>()
+    app.register_type::<SectionHealthOverride>()
         .register_type::<SectionRename>();
 
-    app.add_observer(apply_section_disable_verb);
     app.add_observer(apply_section_health_override);
     app.add_observer(apply_section_rename);
-}
-
-/// Apply [`SectionDisableVerb`]: clear the verb on this entity's
-/// [`ControllerVerbs`]. Inert when the entity has no `ControllerVerbs` (e.g. a
-/// hull), which is the "match no target, do nothing" contract.
-fn apply_section_disable_verb(
-    add: On<Add, SectionDisableVerb>,
-    q_disable: Query<&SectionDisableVerb>,
-    mut q_verbs: Query<&mut ControllerVerbs>,
-) {
-    let entity = add.entity;
-    let Ok(disable) = q_disable.get(entity) else {
-        return;
-    };
-    // Inert on a section with no controller verbs (a hull, thruster, ...).
-    let Ok(mut verbs) = q_verbs.get_mut(entity) else {
-        return;
-    };
-    for verb in &disable.0 {
-        verbs.set(*verb, false);
-    }
 }
 
 /// Apply [`SectionHealthOverride`]: set the section's `Health` (current and max)
@@ -158,7 +129,7 @@ fn apply_section_rename(
 mod tests {
     use nova_gameplay::prelude::{
         base_section, controller_section, hull_section, BaseSectionConfig, ControllerSectionConfig,
-        HullSectionConfig,
+        ControllerSectionMarker, HullSectionConfig, WithheldVerbs,
     };
 
     use super::*;
@@ -169,9 +140,9 @@ mod tests {
         app
     }
 
-    /// DisableVerb(Orbit) on a controller section clears the orbit verb on its
-    /// ControllerVerbs while leaving the other verbs granted - the observer
-    /// applies the delta where the target component exists.
+    /// DisableVerb(Orbit) on a controller section withholds the orbit verb via
+    /// a WithheldVerbs component while leaving the other verbs granted - the
+    /// accumulated set is written straight onto the section entity.
     #[test]
     fn disable_verb_clears_the_verb_on_a_controller() {
         let mut app = app_with_observers();
@@ -192,20 +163,25 @@ mod tests {
         );
         app.world_mut().flush();
 
-        let verbs = app.world().get::<ControllerVerbs>(controller).unwrap();
-        assert!(!verbs.orbit, "ORBIT is withheld on the controller");
+        let withheld = app.world().get::<WithheldVerbs>(controller).unwrap();
         assert!(
-            verbs.stop && verbs.goto && verbs.lock,
+            !withheld.granted(FlightVerb::Orbit),
+            "ORBIT is withheld on the controller"
+        );
+        assert!(
+            withheld.granted(FlightVerb::Stop)
+                && withheld.granted(FlightVerb::Goto)
+                && withheld.granted(FlightVerb::Lock),
             "the other verbs stay granted"
         );
     }
 
     /// Multiple DisableVerb modifications on one section ALL take effect. This
-    /// pins the accumulation fix directly (a component is unique per entity, so
-    /// inserting one `SectionDisableVerb` per verb would let the last win and drop
-    /// the rest): the shakedown controller withholds GOTO+LOCK+ORBIT at once, and
-    /// this asserts all three clear while STOP stays granted. Under a
-    /// last-write-wins regression only ORBIT (the last) would clear and this fails.
+    /// pins the accumulation directly (a component is unique per entity, so
+    /// writing one `WithheldVerbs` per verb would let the last win and drop the
+    /// rest): the shakedown controller withholds GOTO+LOCK+ORBIT at once, and
+    /// this asserts all three are withheld while STOP stays granted. Under a
+    /// last-write-wins regression only ORBIT (the last) would apply and this fails.
     #[test]
     fn multiple_disable_verbs_all_apply() {
         let mut app = app_with_observers();
@@ -230,17 +206,23 @@ mod tests {
         );
         app.world_mut().flush();
 
-        let verbs = app.world().get::<ControllerVerbs>(controller).unwrap();
+        let withheld = app.world().get::<WithheldVerbs>(controller).unwrap();
         assert!(
-            !verbs.goto && !verbs.lock && !verbs.orbit,
-            "every listed verb is withheld, not just the last: {verbs:?}"
+            !withheld.granted(FlightVerb::Goto)
+                && !withheld.granted(FlightVerb::Lock)
+                && !withheld.granted(FlightVerb::Orbit),
+            "every listed verb is withheld, not just the last: {withheld:?}"
         );
-        assert!(verbs.stop, "STOP (not disabled) stays granted");
+        assert!(
+            withheld.granted(FlightVerb::Stop),
+            "STOP (not disabled) stays granted"
+        );
     }
 
-    /// The SAME DisableVerb component on a hull section (no ControllerVerbs) is
-    /// inert: the observer matches no target and does nothing - no panic, and
-    /// the hull carries no ControllerVerbs afterward.
+    /// A DisableVerb on a hull section writes a `WithheldVerbs` component too,
+    /// but nothing on a hull reads it - the flight gate only queries controller
+    /// sections. This pins that the modification never panics on a non-controller
+    /// and the withheld set carries the listed verb (inert-but-present).
     #[test]
     fn disable_verb_is_inert_on_a_hull() {
         let mut app = app_with_observers();
@@ -261,9 +243,22 @@ mod tests {
         );
         app.world_mut().flush();
 
+        let withheld = app.world().get::<WithheldVerbs>(hull).unwrap();
         assert!(
-            app.world().get::<ControllerVerbs>(hull).is_none(),
-            "a hull has no controller verbs to disable - the modification is inert"
+            !withheld.granted(FlightVerb::Orbit),
+            "the withheld set carries ORBIT, but no gate on a hull reads it - inert"
+        );
+
+        // The actual inertness guarantee: every verb-availability gate filters
+        // `With<ControllerSectionMarker>`, and a hull has no controller marker, so
+        // the hull's WithheldVerbs is never read. Pin that the hull is not a
+        // controller section rather than trusting the readers' filters elsewhere.
+        let mut q_controllers = app
+            .world_mut()
+            .query_filtered::<Entity, With<ControllerSectionMarker>>();
+        assert!(
+            !q_controllers.iter(app.world()).any(|e| e == hull),
+            "a hull is not a controller section, so no verb gate ever reads its WithheldVerbs"
         );
     }
 
@@ -296,10 +291,9 @@ mod tests {
 
     /// End-to-end through the real spawn path: a controller section authored
     /// with `DisableVerb(Orbit)` as a modification on a ship spawned through
-    /// `insert_spaceship_sections` has ORBIT withheld on its `ControllerVerbs`.
-    /// This pins the spawn-order contract (the modification component is
-    /// inserted alongside `ControllerVerbs` and its observer must see it) that
-    /// the shakedown end-to-end relies on.
+    /// `insert_spaceship_sections` has ORBIT withheld on its `WithheldVerbs`.
+    /// This pins the spawn contract (the `WithheldVerbs` component is inserted
+    /// straight onto the controller section) that the shakedown e2e relies on.
     #[test]
     fn disable_verb_applies_through_the_real_ship_spawn() {
         use nova_gameplay::prelude::{GameSections, SectionKind};
@@ -337,14 +331,21 @@ mod tests {
             .id();
         app.world_mut().flush();
 
-        let mut q = app.world_mut().query::<(&ChildOf, &ControllerVerbs)>();
-        let verbs = q
+        let mut q = app.world_mut().query::<(&ChildOf, &WithheldVerbs)>();
+        let withheld = q
             .iter(app.world())
             .find(|(ChildOf(parent), _)| *parent == ship)
-            .map(|(_, v)| *v)
-            .expect("the ship has a controller section carrying ControllerVerbs");
-        assert!(!verbs.orbit, "ORBIT is withheld by the modification");
-        assert!(verbs.stop && verbs.goto && verbs.lock);
+            .map(|(_, w)| w.clone())
+            .expect("the ship has a controller section carrying WithheldVerbs");
+        assert!(
+            !withheld.granted(FlightVerb::Orbit),
+            "ORBIT is withheld by the modification"
+        );
+        assert!(
+            withheld.granted(FlightVerb::Stop)
+                && withheld.granted(FlightVerb::Goto)
+                && withheld.granted(FlightVerb::Lock)
+        );
     }
 
     /// Rename sets the section entity's Name.

@@ -35,12 +35,6 @@
             frequency: 4.0,
             damping_ratio: 4.0,
             max_torque: 40.0,
-            verbs: (
-                stop: true,
-                goto: true,
-                orbit: true,
-                lock: true,
-            ),
         )),
     ),
     (

@@ -1,7 +1,7 @@
 //! A section of a spaceship that can control its rotation using a PD controller.
 
 use avian3d::prelude::*;
-use bevy::prelude::*;
+use bevy::{platform::collections::HashSet, prelude::*};
 use bevy_common_systems::prelude::*;
 
 use crate::prelude::{AssetRef, SectionDamageClass, SectionInactiveMarker, SectionRenderOf};
@@ -10,7 +10,7 @@ pub mod prelude {
     pub use super::{
         controller_section, preview_controller_section, ControllerSectionConfig,
         ControllerSectionMarker, ControllerSectionPlugin, ControllerSectionRenderMarker,
-        ControllerSectionRotationInput, ControllerVerbs, FlightVerb,
+        ControllerSectionRotationInput, FlightVerb, WithheldVerbs,
     };
 }
 
@@ -24,14 +24,6 @@ pub struct ControllerSectionConfig {
     pub damping_ratio: f32,
     /// The maximum torque that can be applied by the PD controller.
     pub max_torque: f32,
-    /// Which flight verbs this controller grants, its initial loadout. The
-    /// autopilot maneuvers (STOP/GOTO/ORBIT) are a capability of the controller
-    /// section, so a controller can be authored to withhold one - a cheap
-    /// shuttle controller that only brakes, or the shakedown's GOTO-off intro
-    /// (spike docs/spikes/20260712-143551-controller-provided-verb-flags.md).
-    /// Defaults to all verbs enabled. Scenarios can also flip a verb at runtime
-    /// via `SetControllerVerb`.
-    pub verbs: ControllerVerbs,
     /// The render mesh of the hull section, defaults to a cuboid of size 1x1x1.
     #[reflect(ignore)]
     #[cfg_attr(
@@ -47,7 +39,6 @@ impl Default for ControllerSectionConfig {
             frequency: 2.0,
             damping_ratio: 2.0,
             max_torque: 1.0,
-            verbs: ControllerVerbs::default(),
             render_mesh: None,
         }
     }
@@ -68,7 +59,6 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
             damping_ratio: config.damping_ratio,
             max_torque: config.max_torque,
         },
-        config.verbs,
         ControllerSectionRotationInput::default(),
         ControllerSectionRenderMesh(config.render_mesh),
     )
@@ -97,7 +87,7 @@ pub struct ControllerSectionMarker;
 /// the maneuvers the flight computer can fly (STOP/GOTO/ORBIT); CANCEL is not
 /// listed because it only ever disengages an already-running maneuver and stays
 /// available so a disabled verb can never strand an engaged autopilot. The enum
-/// is the addressable handle used by [`ControllerVerbs`] and the
+/// is the addressable handle used by [`WithheldVerbs`] and the
 /// `SetControllerVerb` scenario action.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -114,57 +104,33 @@ pub enum FlightVerb {
     Lock,
 }
 
-/// Per-verb enable flags carried on a controller section: computer-provided
-/// capabilities (autopilot maneuvers plus the targeting radar), each
-/// individually withholdable while the controller is otherwise alive. A verb is available only
-/// if the ship has a live controller section AND that section's flag for the
-/// verb is set (layered on top of the existing physical `flyable` gate - a live
-/// controller plus a live thruster). Defaults to all verbs enabled. Written at
-/// build time from [`ControllerSectionConfig::verbs`] and flipped at runtime by
-/// the `SetControllerVerb` scenario action.
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+/// The set of flight verbs WITHHELD on a controller section: computer-provided
+/// capabilities (autopilot maneuvers plus the targeting radar) that this
+/// controller does NOT grant, while the controller is otherwise alive. A verb
+/// is available only if the ship has a live controller section that does NOT
+/// withhold it (layered on top of the existing physical `flyable` gate - a live
+/// controller plus a live thruster). An empty set (or an absent component) means
+/// every verb is granted. Populated at spawn by the `DisableVerb` section
+/// modification and flipped at runtime by the `SetControllerVerb` scenario
+/// action.
+#[derive(Component, Clone, Debug, Default, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct ControllerVerbs {
-    /// Whether STOP (kill velocity) is granted.
-    pub stop: bool,
-    /// Whether GOTO (fly to lock) is granted.
-    pub goto: bool,
-    /// Whether ORBIT (station-keep in a well) is granted.
-    pub orbit: bool,
-    /// Whether LOCK (the targeting radar) is granted.
-    pub lock: bool,
-}
+pub struct WithheldVerbs(pub HashSet<FlightVerb>);
 
-impl Default for ControllerVerbs {
-    fn default() -> Self {
-        Self {
-            stop: true,
-            goto: true,
-            orbit: true,
-            lock: true,
-        }
-    }
-}
-
-impl ControllerVerbs {
-    /// Whether the given verb is currently granted.
+impl WithheldVerbs {
+    /// Whether the given verb is currently granted (i.e. NOT withheld).
     pub fn granted(&self, verb: FlightVerb) -> bool {
-        match verb {
-            FlightVerb::Stop => self.stop,
-            FlightVerb::Goto => self.goto,
-            FlightVerb::Orbit => self.orbit,
-            FlightVerb::Lock => self.lock,
-        }
+        !self.0.contains(&verb)
     }
 
-    /// Enable or disable the given verb.
-    pub fn set(&mut self, verb: FlightVerb, enabled: bool) {
-        match verb {
-            FlightVerb::Stop => self.stop = enabled,
-            FlightVerb::Goto => self.goto = enabled,
-            FlightVerb::Orbit => self.orbit = enabled,
-            FlightVerb::Lock => self.lock = enabled,
-        }
+    /// Withhold the given verb (remove the grant).
+    pub fn withhold(&mut self, verb: FlightVerb) {
+        self.0.insert(verb);
+    }
+
+    /// Grant the given verb (remove it from the withheld set).
+    pub fn grant(&mut self, verb: FlightVerb) {
+        self.0.remove(&verb);
     }
 }
 
@@ -188,7 +154,7 @@ impl Plugin for ControllerSectionPlugin {
         // (and the flight-feel retune) can see and edit them.
         app.register_type::<ControllerSectionMarker>()
             .register_type::<ControllerSectionRotationInput>()
-            .register_type::<ControllerVerbs>()
+            .register_type::<WithheldVerbs>()
             .register_type::<FlightVerb>();
 
         app.add_observer(insert_controller_section_target);

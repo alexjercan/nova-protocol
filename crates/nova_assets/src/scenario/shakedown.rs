@@ -1628,11 +1628,11 @@ mod tests {
         let verb_granted = |app: &mut App, player: Entity, verb: FlightVerb| -> bool {
             let mut q_controllers = app
                 .world_mut()
-                .query_filtered::<(&ChildOf, &ControllerVerbs), With<ControllerSectionMarker>>();
+                .query_filtered::<(&ChildOf, Option<&WithheldVerbs>), With<ControllerSectionMarker>>();
             q_controllers
                 .iter(app.world())
                 .find(|(ChildOf(parent), _)| *parent == player)
-                .map(|(_, verbs)| verbs.granted(verb))
+                .map(|(_, withheld)| withheld.is_none_or(|w| w.granted(verb)))
                 .expect("the player ship has a controller section")
         };
 
@@ -2078,11 +2078,11 @@ mod tests {
             };
             let mut q = app
                 .world_mut()
-                .query_filtered::<(&ChildOf, &ControllerVerbs), With<ControllerSectionMarker>>();
+                .query_filtered::<(&ChildOf, Option<&WithheldVerbs>), With<ControllerSectionMarker>>();
             q.iter(app.world())
                 .find(|(&ChildOf(parent), _)| parent == player)
-                .map(|(_, verbs)| verbs.goto)
-                .expect("player has a controller section carrying ControllerVerbs")
+                .map(|(_, withheld)| withheld.is_none_or(|w| w.granted(FlightVerb::Goto)))
+                .expect("player has a controller section")
         };
 
         boot(&mut app);

@@ -819,16 +819,16 @@ fn maintain_contacts(ranked: &[Entity], combat_lock: Option<Entity>) -> Vec<Enti
 fn ship_grants_lock(
     ship: Entity,
     q_controllers: &Query<
-        (&ChildOf, &ControllerVerbs),
+        (&ChildOf, Option<&WithheldVerbs>),
         (
             With<ControllerSectionMarker>,
             Without<SectionInactiveMarker>,
         ),
     >,
 ) -> bool {
-    q_controllers
-        .iter()
-        .any(|(ChildOf(parent), verbs)| *parent == ship && verbs.granted(FlightVerb::Lock))
+    q_controllers.iter().any(|(ChildOf(parent), withheld)| {
+        *parent == ship && withheld.is_none_or(|w| w.granted(FlightVerb::Lock))
+    })
 }
 
 /// Start of the radar hold: open the search. The destination slot is NOT
@@ -842,7 +842,7 @@ fn on_radar_start(
     pause: Res<State<crate::PauseStates>>,
     mut denied: MessageWriter<RadarDenied>,
     q_controllers: Query<
-        (&ChildOf, &ControllerVerbs),
+        (&ChildOf, Option<&WithheldVerbs>),
         (
             With<ControllerSectionMarker>,
             Without<SectionInactiveMarker>,
@@ -2254,11 +2254,9 @@ mod tests {
                 targeting_state(),
             ))
             .id();
-        app.world_mut().spawn((
-            ControllerSectionMarker,
-            ControllerVerbs::default(),
-            ChildOf(ship),
-        ));
+        // No WithheldVerbs: an absent component grants every verb (Lock).
+        app.world_mut()
+            .spawn((ControllerSectionMarker, ChildOf(ship)));
 
         // The context registry finalizes in App::finish; run the lifecycle
         // before spawning the rig, like the production app does.
@@ -2627,12 +2625,7 @@ mod tests {
             .unwrap();
         app.world_mut()
             .entity_mut(controller)
-            .insert(ControllerVerbs {
-                stop: true,
-                goto: true,
-                orbit: true,
-                lock: false,
-            });
+            .insert(WithheldVerbs([FlightVerb::Lock].into_iter().collect()));
 
         press_ctrl(&mut app);
         app.update();
@@ -2646,7 +2639,7 @@ mod tests {
         app.update();
         app.world_mut()
             .entity_mut(controller)
-            .insert(ControllerVerbs::default());
+            .insert(WithheldVerbs::default());
         press_ctrl(&mut app);
         app.update();
         assert!(app.world().get::<RadarState>(ship).is_some());

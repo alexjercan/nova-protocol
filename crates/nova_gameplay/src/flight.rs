@@ -4112,7 +4112,6 @@ mod tests {
                     frequency: 4.0,
                     damping_ratio: 4.0,
                     max_torque: 40.0,
-                    verbs: ControllerVerbs::default(),
                     render_mesh: None,
                 }),
                 Transform::default(),

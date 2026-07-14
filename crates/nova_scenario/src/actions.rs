@@ -523,8 +523,26 @@ impl EventAction<NovaEventWorld> for SetControllerVerbActionConfig {
                     return;
                 }
                 for controller in targets {
-                    if let Some(mut verbs) = world.get_mut::<ControllerVerbs>(controller) {
-                        verbs.set(verb, enabled);
+                    // `WithheldVerbs` is absent on a fresh controller (all
+                    // granted); a disable must materialize it first. An enable
+                    // on an absent component is already a no-op (nothing is
+                    // withheld), so only insert-if-absent when disabling.
+                    if world.get::<WithheldVerbs>(controller).is_none() {
+                        if !enabled {
+                            world
+                                .entity_mut(controller)
+                                .insert(WithheldVerbs::default());
+                        } else {
+                            continue;
+                        }
+                    }
+                    let mut withheld = world
+                        .get_mut::<WithheldVerbs>(controller)
+                        .expect("WithheldVerbs present: it was just inserted or already existed");
+                    if enabled {
+                        withheld.grant(verb);
+                    } else {
+                        withheld.withhold(verb);
                     }
                 }
             });
@@ -1006,7 +1024,8 @@ mod tests {
         world.init_resource::<GameObjectives>();
 
         // The target ship and a bystander ship, each a scoped root with a
-        // controller section carrying all verbs.
+        // controller section carrying no WithheldVerbs (all granted, the
+        // production default - disabling must materialize the component).
         let player = world
             .spawn((
                 ScenarioScopedMarker,
@@ -1014,13 +1033,7 @@ mod tests {
                 EntityId::new("player".to_string()),
             ))
             .id();
-        let player_ctrl = world
-            .spawn((
-                ChildOf(player),
-                ControllerSectionMarker,
-                ControllerVerbs::default(),
-            ))
-            .id();
+        let player_ctrl = world.spawn((ChildOf(player), ControllerSectionMarker)).id();
         let bystander = world
             .spawn((
                 ScenarioScopedMarker,
@@ -1029,11 +1042,7 @@ mod tests {
             ))
             .id();
         let bystander_ctrl = world
-            .spawn((
-                ChildOf(bystander),
-                ControllerSectionMarker,
-                ControllerVerbs::default(),
-            ))
+            .spawn((ChildOf(bystander), ControllerSectionMarker))
             .id();
 
         // Disable GOTO on the player only.
@@ -1046,15 +1055,20 @@ mod tests {
         disable.action(&mut event_world, &GameEventInfo::default());
         NovaEventWorld::state_to_world_system(&mut world);
 
-        let pv = *world.get::<ControllerVerbs>(player_ctrl).unwrap();
-        assert!(!pv.goto, "GOTO disabled on the addressed ship");
+        let pv = world.get::<WithheldVerbs>(player_ctrl).unwrap();
         assert!(
-            pv.stop && pv.orbit,
+            !pv.granted(FlightVerb::Goto),
+            "GOTO disabled on the addressed ship"
+        );
+        assert!(
+            pv.granted(FlightVerb::Stop) && pv.granted(FlightVerb::Orbit),
             "other verbs on that controller untouched"
         );
         assert!(
-            world.get::<ControllerVerbs>(bystander_ctrl).unwrap().goto,
-            "the bystander ship's controller is untouched"
+            world
+                .get::<WithheldVerbs>(bystander_ctrl)
+                .is_none_or(|w| w.granted(FlightVerb::Goto)),
+            "the bystander ship's controller is untouched (still grants GOTO)"
         );
 
         // Re-enable restores it.
@@ -1067,7 +1081,10 @@ mod tests {
         enable.action(&mut event_world, &GameEventInfo::default());
         NovaEventWorld::state_to_world_system(&mut world);
         assert!(
-            world.get::<ControllerVerbs>(player_ctrl).unwrap().goto,
+            world
+                .get::<WithheldVerbs>(player_ctrl)
+                .unwrap()
+                .granted(FlightVerb::Goto),
             "GOTO re-enabled on the addressed ship"
         );
     }
@@ -1090,20 +1107,8 @@ mod tests {
                 EntityId::new("twin".to_string()),
             ))
             .id();
-        let ctrl_a = world
-            .spawn((
-                ChildOf(ship),
-                ControllerSectionMarker,
-                ControllerVerbs::default(),
-            ))
-            .id();
-        let ctrl_b = world
-            .spawn((
-                ChildOf(ship),
-                ControllerSectionMarker,
-                ControllerVerbs::default(),
-            ))
-            .id();
+        let ctrl_a = world.spawn((ChildOf(ship), ControllerSectionMarker)).id();
+        let ctrl_b = world.spawn((ChildOf(ship), ControllerSectionMarker)).id();
 
         let disable = SetControllerVerbActionConfig {
             id: "twin".to_string(),
@@ -1115,11 +1120,17 @@ mod tests {
         NovaEventWorld::state_to_world_system(&mut world);
 
         assert!(
-            !world.get::<ControllerVerbs>(ctrl_a).unwrap().stop,
+            !world
+                .get::<WithheldVerbs>(ctrl_a)
+                .unwrap()
+                .granted(FlightVerb::Stop),
             "first controller written"
         );
         assert!(
-            !world.get::<ControllerVerbs>(ctrl_b).unwrap().stop,
+            !world
+                .get::<WithheldVerbs>(ctrl_b)
+                .unwrap()
+                .granted(FlightVerb::Stop),
             "second controller written too"
         );
     }
