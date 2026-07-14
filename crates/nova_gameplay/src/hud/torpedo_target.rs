@@ -32,7 +32,7 @@ const READOUT_GAP_PX: f32 = 8.0;
 const HEALTH_BAR_SIZE: Vec2 = Vec2::new(64.0, 6.0);
 
 /// Health bar backdrop (the "missing health" part).
-const HEALTH_BAR_BACKDROP: Color = Color::srgba(0.15, 0.15, 0.15, 0.8);
+const HEALTH_BAR_BACKDROP: Color = nova_ui::theme::semantic::BACKDROP;
 
 /// Focus meter size (px): a thin underline below the reticle that fills
 /// while the focus dwell accumulates (component-lock arc, task
@@ -40,7 +40,7 @@ const HEALTH_BAR_BACKDROP: Color = Color::srgba(0.15, 0.15, 0.15, 0.8);
 const FOCUS_METER_SIZE: Vec2 = Vec2::new(48.0, 4.0);
 
 /// Focus meter backdrop.
-const FOCUS_METER_BACKDROP: Color = Color::srgba(0.15, 0.15, 0.15, 0.8);
+const FOCUS_METER_BACKDROP: Color = nova_ui::theme::semantic::BACKDROP;
 
 /// Focus meter fill: hot-metal red, matching the component markers it
 /// unlocks.
@@ -53,7 +53,7 @@ const FOCUS_METER_COLOR: Color = Color::srgba(1.0, 0.4, 0.25, 0.9);
 /// the veto) and the reticle's four armed corner pips: a visible combat
 /// reticle already IMPLIES weapons-hot (lock => hot, the safety truth
 /// table), and the raised-manual hot cue lives on the lead pips.
-const RETICLE_COMBAT_COLOR: Color = Color::srgba(1.0, 0.35, 0.3, 1.0);
+const RETICLE_COMBAT_COLOR: Color = nova_ui::theme::semantic::THREAT;
 
 pub mod prelude {
     pub use super::{

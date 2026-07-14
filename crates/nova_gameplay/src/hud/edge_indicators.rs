@@ -44,7 +44,7 @@ const CANDIDATE_COLOR: Color = Color::srgba(1.0, 0.25, 0.25, 0.45);
 /// The combat-lock arrow follows the reticle's slot color (torpedo_target.rs,
 /// task 20260713-124000): always combat-red - red = combat lock, white =
 /// travel lock, everywhere. (The relation tint it used to mirror is retired.)
-const LOCK_COLOR: Color = Color::srgba(1.0, 0.35, 0.3, 1.0);
+const LOCK_COLOR: Color = nova_ui::theme::semantic::THREAT;
 
 pub mod prelude {
     pub use super::{

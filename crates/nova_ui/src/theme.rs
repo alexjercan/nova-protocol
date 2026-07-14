@@ -43,3 +43,50 @@ pub const RADIUS: f32 = 2.0;
 pub const BORDER_W: f32 = 1.0;
 /// Placeholder/thumbnail icon size (the wiki `.wiki-child__icon` is 44x44).
 pub const ICON: f32 = 44.0;
+
+/// Semantic HUD accents: the meaning-carrying gameplay colours (threat, ally,
+/// nav, objective, ...), centralized here so the HUD has ONE palette source.
+///
+/// These are the game's FUNCTIONAL colours (a hostile reticle must be red, an
+/// ally green), distinct from the neutral chrome above - so they keep their own
+/// tuned hues rather than snapping to the cyan/amber brand accents. Values are
+/// the canonical HUD literals verbatim (task 20260714-214118): centralizing them
+/// changes nothing visually. Per-widget tuned variants (the many slightly-
+/// different combat reds/ambers) intentionally stay local to their file; only the
+/// shared, exactly-repeated accents live here.
+pub mod semantic {
+    use bevy::prelude::Color;
+
+    /// Navigation / flight-computer accent (nav crosshair, flight chips).
+    pub const NAV: Color = Color::srgba(0.3, 0.9, 1.0, 0.9);
+    /// Objective "do this now" accent (objectives panel, markers).
+    pub const OBJECTIVE: Color = Color::srgba(1.0, 0.85, 0.3, 0.95);
+    /// Threat / combat lock (hostile reticle, lock indicators, hostile faction) -
+    /// the exactly-repeated combat red (reticle + lock + faction-hostile).
+    pub const THREAT: Color = Color::srgba(1.0, 0.35, 0.3, 1.0);
+    /// Own / allied target.
+    pub const ALLY: Color = Color::srgba(0.35, 0.9, 0.55, 1.0);
+    /// Neutral target (light steel).
+    pub const NEUTRAL: Color = Color::srgba(0.85, 0.88, 0.9, 0.9);
+    /// The recurring dark readout backdrop (health bar, focus meter).
+    pub const BACKDROP: Color = Color::srgba(0.15, 0.15, 0.15, 0.8);
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        /// The HUD consts were centralized here at their EXACT original values
+        /// (task 20260714-214118), so the restyle changed nothing visually. Pin
+        /// them: any future edit that shifts a semantic hue must be deliberate,
+        /// because it moves every HUD widget that references it.
+        #[test]
+        fn semantic_accents_match_the_original_hud_literals() {
+            assert_eq!(NAV, Color::srgba(0.3, 0.9, 1.0, 0.9));
+            assert_eq!(OBJECTIVE, Color::srgba(1.0, 0.85, 0.3, 0.95));
+            assert_eq!(THREAT, Color::srgba(1.0, 0.35, 0.3, 1.0));
+            assert_eq!(ALLY, Color::srgba(0.35, 0.9, 0.55, 1.0));
+            assert_eq!(NEUTRAL, Color::srgba(0.85, 0.88, 0.9, 0.9));
+            assert_eq!(BACKDROP, Color::srgba(0.15, 0.15, 0.15, 0.8));
+        }
+    }
+}

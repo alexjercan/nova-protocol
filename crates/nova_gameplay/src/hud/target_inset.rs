@@ -89,9 +89,9 @@ const INSET_TICK_THICK_PX: f32 = 4.0;
 
 /// Faction-line colors (playtest 2026-07-13): the relation palette the
 /// retired reticle tint used, now living on the inset's rich surface.
-const FACTION_HOSTILE_COLOR: Color = Color::srgba(1.0, 0.35, 0.3, 1.0);
-const FACTION_OWN_COLOR: Color = Color::srgba(0.35, 0.9, 0.55, 1.0);
-const FACTION_NEUTRAL_COLOR: Color = Color::srgba(0.85, 0.88, 0.9, 0.9);
+const FACTION_HOSTILE_COLOR: Color = nova_ui::theme::semantic::THREAT;
+const FACTION_OWN_COLOR: Color = nova_ui::theme::semantic::ALLY;
+const FACTION_NEUTRAL_COLOR: Color = nova_ui::theme::semantic::NEUTRAL;
 
 /// NO-SIGNAL overlay (Q4a): shown when a combat lock exists on a body the
 /// inset cannot scope (a beacon - lockable, never zoomable), so the panel

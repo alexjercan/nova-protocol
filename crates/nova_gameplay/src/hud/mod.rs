@@ -105,13 +105,13 @@ const OBJECTIVES_FONT_PX: f32 = 13.0;
 /// Nav cyan, the family color of every flight-computer projection (the
 /// destination marker tint, the orbit cue, the maneuver chips, the holo
 /// ring).
-pub(crate) const NAV_CYAN: Color = Color::srgba(0.3, 0.9, 1.0, 0.9);
+pub(crate) const NAV_CYAN: Color = nova_ui::theme::semantic::NAV;
 
 /// Objective gold, the "do this now" accent (task 20260712-093831): the
 /// objective marker chip and the hint-emphasis pulse draw from it. One hue
 /// per meaning - cyan is nav infrastructure, red is threat, green is
 /// own/done, gold is the current objective.
-pub(crate) const OBJECTIVE_GOLD: Color = Color::srgba(1.0, 0.85, 0.3, 0.95);
+pub(crate) const OBJECTIVE_GOLD: Color = nova_ui::theme::semantic::OBJECTIVE;
 
 #[derive(Resource, Clone, Default, Debug)]
 pub struct NovaHudAssets {

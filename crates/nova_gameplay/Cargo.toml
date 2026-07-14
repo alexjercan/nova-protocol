@@ -26,6 +26,7 @@ bevy_rand = { version = "0.15.0", default-features = false, features = ["chacha2
 # in lockstep with the one avian3d resolves.
 bevy_transform_interpolation = { version = "0.5.0" }
 nova_events = { path = "../nova_events" }
+nova_ui = { path = "../nova_ui" }
 
 [target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]
 bevy_rand = { version = "0.15.0", features = ["wasm_js"] }

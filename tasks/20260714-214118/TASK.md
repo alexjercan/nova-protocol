@@ -1,8 +1,46 @@
 # Centralize gameplay HUD palette into nova_ui; align chrome, preserve semantic hues
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: ui,v0.6.0
+
+## Close-out (20260714)
+
+Scope decided with the user: SAFE centralize, NO hue change (option A). The HUD
+colours are semantic/functional and already coherent, so this is a de-dup to one
+palette source, not a recolor.
+
+- Added `nova_ui::theme::semantic` with the meaning-carrying HUD accents at their
+  EXACT current values: `NAV` (0.3,0.9,1.0,0.9), `OBJECTIVE` (1.0,0.85,0.3,0.95),
+  `THREAT` (1.0,0.35,0.3,1.0 - the combat red repeated across reticle/lock/faction-
+  hostile), `ALLY`, `NEUTRAL`, `BACKDROP` (0.15,0.15,0.15,0.8, the repeated readout
+  backdrop). Pinned by a `nova_ui` test so a future drift is deliberate.
+- `nova_gameplay` now depends on `nova_ui`; 9 HUD consts across 4 files
+  (`hud/mod.rs` NAV_CYAN/OBJECTIVE_GOLD, `hud/torpedo_target.rs` two backdrops +
+  reticle, `hud/target_inset.rs` faction trio, `hud/edge_indicators.rs` lock) now
+  reference the shared accents. Every value is byte-identical, so the HUD renders
+  exactly as before.
+- DELIBERATELY LEFT LOCAL (would change a hue to merge): the many per-widget tuned
+  combat-red/amber variants (radar-combat 1.0,0.35,0.25; focus-meter 1.0,0.4,0.25;
+  marker/pip/torpedo/candidate reds; the ammo ambers at differing alphas) and the
+  diegetic 3D colours (section materials, velocity gizmo, juice). Nudging the HUD
+  accents toward the web's exact cyan/amber is a separate follow-up needing visual
+  QA (see below).
+
+### Verification (repo policy: check/fmt + new tests; full gameplay suite is CI's)
+- `cargo check --workspace --all-targets --features debug`: clean.
+- `cargo test -p nova_ui`: 2 pass (incl. the new semantic-value pin). `cargo fmt`.
+- Zero visual change by construction (identical values), so no eyeball needed for
+  THIS task; the pin test guards the values.
+- NOT run locally (CI covers): the full `nova_gameplay` test suite - no gameplay
+  logic changed, only const definitions relocated at identical values.
+
+### Follow-up
+Web-palette alignment (snap HUD nav-cyan/objective-gold to the exact web
+CYAN/AMBER) is a visual change that needs a screenshot to verify legibility; file
+it when a clean-machine capture is available. Umbrella: 20260714-212139.
+
+Depends on: 20260714-214111 (nova_ui). Sibling: 20260714-214115 (menu).
 
 Umbrella: task 20260714-212139. Depends on: 20260714-214111 (nova_ui).
 
