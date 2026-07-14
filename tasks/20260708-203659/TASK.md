@@ -15,9 +15,13 @@ Goal: a single playable scenario that exercises the whole loop - handling, PDC
 screening, torpedo offense/defense, section destruction, audio, hit FX, and HUD -
 under a win/lose frame.
 
-Depends on: the backlog objectives/win-lose work (20260525-133026/133027) for the
-frame, and ideally the v0.5.0 feel systems (handling, audio 162011, hit FX 162013,
-smarter AI 162012) landing first so there is juice to show. Lands in backlog once
-objectives exist. Build it on the RON scenario format (20260525-133029) if that
-has landed, so the flagship scenario also dogfoods the authoring format.
+Depends on: the v0.5.0 feel systems (handling, audio 162011, hit FX 162013,
+smarter AI 162012) - all shipped. Build it on the RON scenario format
+(20260525-133029) so the flagship scenario also dogfoods the authoring format.
+
+This task now OWNS the win/lose frame. The legacy objectives tasks (133026/133027)
+were closed 20260714: the objective foundation and HUD conveyance shipped in
+v0.5.0, and an explicit win/lose state was never built - it belongs here, on top
+of the RON format, as part of the vertical slice rather than as a standalone
+legacy task.
 

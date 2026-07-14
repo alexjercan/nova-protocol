@@ -1,7 +1,7 @@
 # Minimal example for bevy_common_systems
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: backlog,example
+- TAGS: wontdo,example
 
 Thruster + PD controller standalone. [new]

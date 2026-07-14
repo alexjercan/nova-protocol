@@ -1,8 +1,8 @@
 # Integration test for SFX event->sound wiring
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,audio,test
+- PRIORITY: 20
+- TAGS: v0.6.0,audio,test,testing
 
 ## Goal
 
