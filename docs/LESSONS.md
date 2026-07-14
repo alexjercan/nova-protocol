@@ -71,11 +71,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   20260713-175416.
 - `presence-vs-behavior-tests` (x2): component-exists assertions stay green
   while behavior regresses; assert the behavior. 20260709-160753.
-- `sweep-then-delete` (x6): before deleting, moving, or swapping a mechanism or
+- `sweep-then-delete` (x7): before deleting, moving, or swapping a mechanism or
   marker, grep the WHOLE repo for its symbol names, describing words, and
   observers/queries - including root-level docs (README, AGENTS.md), the
   CHANGELOG, and text the same branch added earlier. 20260711-212519,
-  20260712-133343, 20260712-211352.
+  20260712-133343, 20260712-211352, 20260714-204219.
 - `reread-after-insert` (x2): after inserting into a function or test, re-read
   the whole thing for bindings, assertions, or invariants the insertion
   duplicated or broke. 20260710-214316.
@@ -313,6 +313,20 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   working theory mid-task, re-read every artifact written under the old
   theory (notes, comments, records) in one pass; the review found the dead
   model still taught as fact. 20260712-115902.
+- `run-example-via-cargo-run-for-assets` (x1): a built example binary run
+  directly (`./target/.../examples/foo`) resolves `assets/` relative to CWD
+  and fails to load everything; run via `cargo run --example` from the crate
+  root (CWD = root) so the asset path resolves. A direct-binary autopilot run
+  "passed" (no panic) but had loaded zero assets, so it exercised nothing.
+  20260714-204219.
+- `despawn-by-owner-not-all-on-cross` (x1): a hover-out handler that despawns
+  ALL of a shared singleton (tooltip/highlight) can kill a freshly-spawned one
+  if the sibling's enter fires before this one's leave; tag the singleton with
+  its owner entity and despawn only the match. 20260714-204219.
+- `ui-footprint-vs-3d-picking` (x1): a UI panel over the point where a 3D
+  object projects BLOCKS its placement/pick raycast; size left panels against
+  the actual window resolution (read it, don't guess) so the build area stays
+  uncovered, and verify with the real pointer path. 20260714-204219.
 
 ## Domain lessons (nova-protocol specific)
 
