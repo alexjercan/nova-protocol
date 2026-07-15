@@ -2199,7 +2199,37 @@ fn spawn_details_empty(details: &mut ChildSpawnerCommands) {
 
 /// The details header both tabs share: name, muted version/author line,
 /// separator, description, dependencies (all from the mod's [`ModMeta`]).
-fn spawn_details_meta(details: &mut ChildSpawnerCommands, name: &str, line: &str, meta: &ModMeta) {
+/// A declared dependency's status for the details panel (task 20260715-142931).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum DepStatus {
+    /// Installed and enabled (will merge).
+    Enabled,
+    /// Installed but not enabled (enabling this mod will auto-enable it).
+    InstalledDisabled,
+    /// Not installed - Install from Explore pulls it, or it must be added.
+    Missing,
+}
+
+/// Resolve a dependency id's status against the installed catalog + enabled set.
+/// An enabled id counts as enabled even if hidden (not in `ModCatalog`).
+fn dep_status(id: &str, catalog: Option<&ModCatalog>, enabled: Option<&EnabledMods>) -> DepStatus {
+    if enabled.is_some_and(|e| e.0.contains(id)) {
+        DepStatus::Enabled
+    } else if catalog.is_some_and(|c| c.0.iter().any(|m| m.id == id)) {
+        DepStatus::InstalledDisabled
+    } else {
+        DepStatus::Missing
+    }
+}
+
+fn spawn_details_meta(
+    details: &mut ChildSpawnerCommands,
+    name: &str,
+    line: &str,
+    meta: &ModMeta,
+    catalog: Option<&ModCatalog>,
+    enabled: Option<&EnabledMods>,
+) {
     details.spawn((
         Name::new("Mod Details Name"),
         Text::new(name.to_string()),
@@ -2236,20 +2266,45 @@ fn spawn_details_meta(details: &mut ChildSpawnerCommands, name: &str, line: &str
             },
         ));
     }
-    let deps = if meta.dependencies.is_empty() {
-        "none".to_string()
-    } else {
-        meta.dependencies.join(", ")
-    };
     details.spawn((
         Name::new("Mod Details Dependencies"),
-        Text::new(format!("Dependencies: {deps}")),
+        Text::new("Dependencies:"),
         TextFont {
             font_size: FontSize::Px(13.0),
             ..default()
         },
         TextColor(theme::TEXT_MUTED),
     ));
+    if meta.dependencies.is_empty() {
+        details.spawn((
+            Name::new("Mod Details Dependency: none"),
+            Text::new("  none"),
+            TextFont {
+                font_size: FontSize::Px(13.0),
+                ..default()
+            },
+            TextColor(theme::TEXT_MUTED),
+        ));
+    } else {
+        // One line per dep, coloured by whether it is enabled / installed / missing
+        // so the player sees what enabling this mod will pull in.
+        for dep in &meta.dependencies {
+            let (suffix, color) = match dep_status(dep, catalog, enabled) {
+                DepStatus::Enabled => ("enabled", theme::CYAN_BRIGHT),
+                DepStatus::InstalledDisabled => ("installed, disabled", theme::TEXT_MUTED),
+                DepStatus::Missing => ("missing", theme::AMBER),
+            };
+            details.spawn((
+                Name::new(format!("Mod Details Dependency: {dep}")),
+                Text::new(format!("  {dep} - {suffix}")),
+                TextFont {
+                    font_size: FontSize::Px(13.0),
+                    ..default()
+                },
+                TextColor(color),
+            ));
+        }
+    }
 }
 
 /// One fixed-width portal action button (the percent-width themed button must
@@ -2482,6 +2537,8 @@ fn refresh_mod_details(
                     &m.meta.name,
                     &version_author_line(&m.meta),
                     &m.meta,
+                    catalog.as_deref(),
+                    enabled.as_deref(),
                 );
                 details
                     .spawn((
@@ -2572,6 +2629,8 @@ fn refresh_mod_details(
                     &portal_display_name(&entry),
                     &portal_version_author_line(&entry),
                     &entry.meta,
+                    catalog.as_deref(),
+                    enabled.as_deref(),
                 );
                 details
                     .spawn((
@@ -2604,9 +2663,30 @@ fn refresh_mod_details(
 /// and flips its id in [`EnabledMods`] - which nova_assets' `resource_changed`
 /// re-merge then applies live. The `base` mod is locked on (its row has no toggle
 /// button, but guard here too).
+/// The mod dependency graph (id -> declared dependency ids) from the catalog.
+/// Every installed mod is a key (deps possibly empty), so `contains_key(id)`
+/// doubles as "is this id installed". `base` is implicit and never a declared
+/// dependency. Task 20260715-142931.
+fn mod_dep_graph(catalog: &ModCatalog) -> nova_mod_format::deps::DepGraph {
+    catalog
+        .0
+        .iter()
+        .map(|m| (m.id.clone(), m.meta.dependencies.clone()))
+        .collect()
+}
+
+/// Toggle a mod, resolving dependencies (task 20260715-142931):
+/// - ENABLING a mod also enables its transitive dependencies (Factorio).
+/// - DISABLING a mod that enabled mods still depend on is REFUSED with a warning
+///   naming them (block + warn); the player disables those dependents first.
+///
+/// `base` is implicit (locked on, seeded) so it is never toggled here and never
+/// auto-enabled. A declared dependency that is not installed is warned about but
+/// does not block enabling the mod (it simply will not merge).
 fn on_mod_toggle(
     activate: On<Activate>,
     toggles: Query<&ModToggle>,
+    catalog: Option<Res<ModCatalog>>,
     mut enabled: ResMut<EnabledMods>,
 ) {
     let Ok(toggle) = toggles.get(activate.entity) else {
@@ -2615,10 +2695,45 @@ fn on_mod_toggle(
     if toggle.base {
         return;
     }
+    let graph = catalog
+        .as_ref()
+        .map(|c| mod_dep_graph(c))
+        .unwrap_or_default();
+
     if enabled.0.contains(&toggle.id) {
+        // Disable: block if any ENABLED mod still declares this one as a
+        // dependency (Factorio - never strand an enabled mod without its dep).
+        let blockers = nova_mod_format::deps::dependents(
+            &toggle.id,
+            enabled.0.iter().map(String::as_str),
+            &graph,
+        );
+        if !blockers.is_empty() {
+            warn!(
+                "cannot disable mod '{}': still required by enabled mod(s) {}; disable those first",
+                toggle.id,
+                blockers.join(", ")
+            );
+            return;
+        }
         enabled.0.remove(&toggle.id);
     } else {
+        // Enable: this mod plus all of its (transitive) dependencies.
         enabled.0.insert(toggle.id.clone());
+        for dep in nova_mod_format::deps::transitive_deps(&graph, &toggle.id) {
+            if dep == "base" {
+                continue; // base is implicit, always on
+            }
+            if !graph.contains_key(&dep) {
+                warn!(
+                    "mod '{}' depends on '{dep}', which is not installed; enabling anyway - \
+                     the mod may not work until '{dep}' is installed",
+                    toggle.id
+                );
+                continue;
+            }
+            enabled.0.insert(dep);
+        }
     }
 }
 
@@ -3378,8 +3493,8 @@ mod tests {
             "the details pane renders the default selection's description"
         );
         assert!(
-            texts.iter().any(|t| t == "Dependencies: none"),
-            "no dependencies renders as 'none'"
+            texts.iter().any(|t| t == "Dependencies:") && texts.iter().any(|t| t == "  none"),
+            "no dependencies renders the label plus 'none': {texts:?}"
         );
         assert!(
             texts.iter().any(|t| t == "Enabled (base)"),
@@ -3416,8 +3531,8 @@ mod tests {
             "the details pane renders the clicked mod's description: {texts:?}"
         );
         assert!(
-            texts.iter().any(|t| t == "Dependencies: base"),
-            "the details pane renders the dependencies from meta"
+            texts.iter().any(|t| t == "  base - enabled"),
+            "the details pane renders each dependency with its status (base is enabled): {texts:?}"
         );
         let button = entity_by_name(&mut app, "Mod Details Toggle Button")
             .expect("a non-base selection has an Enable/Disable action");
@@ -4443,6 +4558,121 @@ mod tests {
         assert!(
             app.world().resource::<EnabledMods>().0.contains("base"),
             "base is locked - toggling it must not disable it"
+        );
+    }
+
+    // --- Mod dependencies (task 20260715-142931) ---------------------------
+
+    fn dep_mod(id: &str, base: bool, deps: &[&str]) -> ModInfo {
+        ModInfo {
+            id: id.to_string(),
+            base,
+            meta: ModMeta {
+                name: id.to_string(),
+                dependencies: deps.iter().map(|d| d.to_string()).collect(),
+                ..Default::default()
+            },
+        }
+    }
+
+    /// A catalog where `cool` depends on `lib`; `base` is implicit.
+    fn dep_catalog() -> ModCatalog {
+        ModCatalog(vec![
+            dep_mod("base", true, &[]),
+            dep_mod("lib", false, &[]),
+            dep_mod("cool", false, &["lib"]),
+        ])
+    }
+
+    fn toggle_entity(app: &mut App, id: &str) -> Entity {
+        let e = app
+            .world_mut()
+            .spawn((
+                ModToggle {
+                    id: id.to_string(),
+                    base: false,
+                },
+                observe(on_mod_toggle),
+            ))
+            .id();
+        app.update();
+        e
+    }
+
+    fn is_enabled(app: &App, id: &str) -> bool {
+        app.world().resource::<EnabledMods>().0.contains(id)
+    }
+
+    /// Enabling a mod auto-enables its (transitive) dependencies - Factorio.
+    #[test]
+    fn enabling_a_mod_auto_enables_its_dependencies() {
+        let mut app = app();
+        app.insert_resource(dep_catalog());
+        app.insert_resource(EnabledMods(["base".to_string()].into_iter().collect()));
+        let cool = toggle_entity(&mut app, "cool");
+
+        app.world_mut().trigger(Activate { entity: cool });
+        app.update();
+
+        assert!(is_enabled(&app, "cool"), "the toggled mod is enabled");
+        assert!(
+            is_enabled(&app, "lib"),
+            "its dependency was auto-enabled with it"
+        );
+    }
+
+    /// Disabling a mod that an enabled mod still depends on is BLOCKED (block +
+    /// warn); once the dependent is disabled, the dependency can be disabled.
+    #[test]
+    fn disabling_a_depended_on_mod_is_blocked_until_its_dependents_go() {
+        let mut app = app();
+        app.insert_resource(dep_catalog());
+        app.insert_resource(EnabledMods(
+            ["base", "lib", "cool"]
+                .into_iter()
+                .map(String::from)
+                .collect(),
+        ));
+        let lib = toggle_entity(&mut app, "lib");
+        let cool = toggle_entity(&mut app, "cool");
+
+        // Disabling lib is refused while cool (which needs it) is enabled.
+        app.world_mut().trigger(Activate { entity: lib });
+        app.update();
+        assert!(
+            is_enabled(&app, "lib"),
+            "lib stays enabled - cool still depends on it"
+        );
+
+        // Disable the dependent first...
+        app.world_mut().trigger(Activate { entity: cool });
+        app.update();
+        assert!(!is_enabled(&app, "cool"), "the leaf dependent disables");
+
+        // ...now lib can be disabled.
+        app.world_mut().trigger(Activate { entity: lib });
+        app.update();
+        assert!(!is_enabled(&app, "lib"), "with no dependents, lib disables");
+    }
+
+    /// The details-pane dependency status: enabled / installed-disabled / missing.
+    #[test]
+    fn dep_status_classifies_enabled_installed_and_missing() {
+        let catalog = ModCatalog(vec![dep_mod("base", true, &[]), dep_mod("lib", false, &[])]);
+        let enabled = EnabledMods(["base"].into_iter().map(String::from).collect());
+        assert_eq!(
+            dep_status("base", Some(&catalog), Some(&enabled)),
+            DepStatus::Enabled
+        );
+        assert_eq!(
+            dep_status("lib", Some(&catalog), Some(&enabled)),
+            DepStatus::InstalledDisabled,
+            "installed but not enabled"
+        );
+        assert_eq!(
+            dep_status("ghost", Some(&catalog), Some(&enabled)),
+            DepStatus::Missing,
+            "not in the catalog"
         );
     }
 

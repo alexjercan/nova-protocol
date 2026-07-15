@@ -135,8 +135,13 @@ flowchart TD
   crate so the portal generator shares them without bevy):
   `name`, `description`, `author`, `version` (opaque semver-ish string; base
   leaves it empty - the GAME version is authoritative there),
-  `dependencies: [ids]` (schema-only for now; `base` is an IMPLICIT
-  dependency and is never declared), `icon` and `screenshots: [paths]`
+  `dependencies: [ids]` (mod ids this one needs; `base` is an IMPLICIT
+  dependency and is never declared. Resolved end to end: installing a mod from
+  Explore auto-installs its missing dependencies from the portal first, enabling
+  a mod auto-enables its dependencies and disabling a mod other enabled mods
+  need is refused, and the merge order is dependency-topological so a
+  dependency's content is overlaid by its dependents. Ids only - no version
+  ranges), `icon` and `screenshots: [paths]`
   (bundle-dir-relative; reserved for the mod portal and the details panel).
   NOTE: `icon` is an Option and the loader uses strict RON, so it must be
   written `icon: Some("icon.png")`, not `icon: "icon.png"`.

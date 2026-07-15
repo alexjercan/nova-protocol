@@ -840,3 +840,81 @@ fn install_guards_reject_shadowing_and_double_install() {
         "the first install survives the rejected retry"
     );
 }
+
+/// Installing a mod whose PORTAL entry declares a dependency also installs the
+/// dependency from the same portal first (task 20260715-142931): triggering the
+/// install of `cool` (deps [lib]) pulls `lib` too, so BOTH land in the cache.
+/// Deleting the dependency-resolution loop leaves `lib` uninstalled and this
+/// test's `lib` wait times out.
+#[test]
+fn installing_a_mod_auto_installs_its_portal_dependency() {
+    let _guard = cache_root_guard();
+    let files = mock_files();
+    let lib = entry_for("lib", &files);
+    let mut cool = entry_for("cool", &files);
+    cool.meta.dependencies = vec!["lib".to_string()];
+
+    // A catalog listing BOTH mods, plus each mod's files under its own prefix.
+    let mut routes = HashMap::new();
+    routes.insert(
+        format!("{MOCK_BASE}/catalog.json"),
+        Ok(catalog_bytes(vec![cool.clone(), lib.clone()])),
+    );
+    for entry in [&cool, &lib] {
+        for (path, bytes) in &files {
+            routes.insert(
+                format!("{MOCK_BASE}/{}/{}/{path}", entry.id, entry.version),
+                Ok(bytes.clone()),
+            );
+        }
+    }
+    let mut app = mock_app(routes);
+
+    app.world_mut().trigger(InstallPortalMod {
+        id: "cool".to_string(),
+    });
+    pump_install_success(&mut app, "lib");
+    pump_install_success(&mut app, "cool");
+
+    let downloaded = app.world().resource::<DownloadedMods>();
+    assert!(
+        downloaded.0.iter().any(|m| m.record.id == "cool"),
+        "the requested mod installed"
+    );
+    assert!(
+        downloaded.0.iter().any(|m| m.record.id == "lib"),
+        "its declared dependency was auto-installed"
+    );
+}
+
+/// A dependency that is neither installed nor in the portal fails the install
+/// up front, NAMING the missing dependency, and commits nothing.
+#[test]
+fn installing_a_mod_with_an_unavailable_dependency_fails_naming_it() {
+    let _guard = cache_root_guard();
+    let files = mock_files();
+    let mut cool = entry_for("cool", &files);
+    cool.meta.dependencies = vec!["ghost".to_string()];
+    let served: Vec<(String, FetchResult)> = files
+        .iter()
+        .map(|(p, b)| (p.clone(), Ok(b.clone())))
+        .collect();
+    let mut app = mock_app(mock_routes(&cool, &served));
+
+    app.world_mut().trigger(InstallPortalMod {
+        id: "cool".to_string(),
+    });
+    let reason = pump_install_failure(&mut app, "cool");
+    assert!(
+        reason.contains("ghost"),
+        "the failure names the missing dependency: {reason}"
+    );
+    assert!(
+        !app.world()
+            .resource::<DownloadedMods>()
+            .0
+            .iter()
+            .any(|m| m.record.id == "cool"),
+        "the mod did not install when its dependency was unavailable"
+    );
+}

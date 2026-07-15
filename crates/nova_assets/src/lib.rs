@@ -1,6 +1,6 @@
 //! A Bevy plugin for loading game assets and initializing asset resources.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use bevy::{
     prelude::*,
@@ -493,11 +493,13 @@ pub fn register_bundles(
     if catalog.is_none() {
         error!("register_bundles: the mods catalog was not loaded; registering nothing");
     }
-    let mut bundle_handles: Vec<&Handle<BundleAsset>> = Vec::new();
+    // Enabled (id, bundle) pairs in catalog order (base first) then downloaded
+    // order - the stable tiebreak the dependency sort keeps below.
+    let mut ordered: Vec<(&str, &Handle<BundleAsset>)> = Vec::new();
     if let Some(catalog) = catalog {
         for entry in &catalog.entries {
             if enabled.0.contains(&entry.decl.id) {
-                bundle_handles.push(&entry.bundle);
+                ordered.push((entry.decl.id.as_str(), &entry.bundle));
             }
         }
     }
@@ -523,7 +525,7 @@ pub fn register_bundles(
         // TRANSIENT state, not the shared "somehow not loaded" error below -
         // the loaded-event re-run merges it in.
         if bundles.contains(&m.bundle) {
-            bundle_handles.push(&m.bundle);
+            ordered.push((m.record.id.as_str(), &m.bundle));
         } else {
             warn!(
                 "register_bundles: downloaded mod '{}' is enabled but its bundle has not \
@@ -532,6 +534,45 @@ pub fn register_bundles(
             );
         }
     }
+
+    // Dependency-respecting merge order (task 20260715-142931): a mod's Content
+    // overlays its dependencies' (last-wins by id), so a dependency must merge
+    // BEFORE its dependents. Build the id->deps graph from the loaded bundles'
+    // meta and topologically sort, keeping the catalog-then-download order as the
+    // stable tiebreak. `base` is implicit (first in catalog order, no incoming
+    // edges) so it stays first. A cycle - which the portal generator rejects at
+    // publish, but a hand-installed set could carry - warns and falls back to
+    // input order.
+    //
+    // The graph only carries edges for bundles that are LOADED (`bundles.get`);
+    // an enabled dependent whose bundle is still loading contributes no edges and
+    // may briefly merge before its dependency, but that is transient - the
+    // loaded-event re-run of this system (above) rebuilds with the full graph.
+    let graph: nova_mod_format::deps::DepGraph = ordered
+        .iter()
+        .filter_map(|(id, handle)| {
+            bundles
+                .get(*handle)
+                .map(|b| (id.to_string(), b.meta.dependencies.clone()))
+        })
+        .collect();
+    let ids: Vec<String> = ordered.iter().map(|(id, _)| id.to_string()).collect();
+    let topo = nova_mod_format::deps::topological_order(&ids, &graph);
+    if topo.cycle {
+        warn!(
+            "register_bundles: a dependency cycle among enabled mods prevents a full \
+             topological order; merging the cyclic mods in catalog order"
+        );
+    }
+    // `ordered`'s ids are unique (a downloaded id that shadows a shipped one is
+    // skipped above), so this id->handle map never drops a bundle.
+    let by_id: HashMap<&str, &Handle<BundleAsset>> =
+        ordered.iter().map(|(id, h)| (*id, *h)).collect();
+    let bundle_handles: Vec<&Handle<BundleAsset>> = topo
+        .order
+        .iter()
+        .filter_map(|id| by_id.get(id.as_str()).copied())
+        .collect();
 
     // Flatten each enabled bundle into its ordered `&Content` items (missing content
     // is logged and skipped). Kept as one Vec per bundle so `merge_bundles` can tell
@@ -992,6 +1033,38 @@ mod tests {
         assert_eq!(
             outcome.sections[0].base.health, 999.0,
             "the mod's hull must win over the base's"
+        );
+    }
+
+    /// Dependency order drives the merge (task 20260715-142931): a DEPENDENT
+    /// mod overlays its DEPENDENCY, so the topological order (dependency before
+    /// dependent) must merge the dependent LAST even when it comes FIRST in
+    /// catalog order. This is `register_bundles`'s ordering step
+    /// (`topological_order` + `merge_bundles`) in miniature; without the topo
+    /// reorder the merge would keep catalog order and the dependency would
+    /// wrongly win.
+    #[test]
+    fn dependency_order_merges_a_dependent_after_its_dependency() {
+        use nova_mod_format::deps::{topological_order, DepGraph};
+
+        // `dependent` (id "mod") overrides the `hull` section that `dependency`
+        // (id "dep") defines. Catalog/input order lists the dependent FIRST.
+        let dependency = vec![Content::Section(section("hull", 100.0))];
+        let dependent = vec![Content::Section(section("hull", 999.0))];
+        let bundles: HashMap<&str, &Vec<Content>> =
+            HashMap::from([("dep", &dependency), ("mod", &dependent)]);
+        let ids = vec!["mod".to_string(), "dep".to_string()];
+        let graph: DepGraph = HashMap::from([("mod".to_string(), vec!["dep".to_string()])]);
+
+        let topo = topological_order(&ids, &graph);
+        assert!(!topo.cycle);
+        assert_eq!(topo.order, vec!["dep".to_string(), "mod".to_string()]);
+
+        let outcome = merge_bundles(topo.order.iter().map(|id| bundles[id.as_str()].iter()));
+        assert_eq!(outcome.sections.len(), 1);
+        assert_eq!(
+            outcome.sections[0].base.health, 999.0,
+            "the dependent overlays its dependency regardless of catalog order"
         );
     }
 

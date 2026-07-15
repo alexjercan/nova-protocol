@@ -341,7 +341,8 @@ fn mod_catalog_lists_the_downloaded_mod_with_its_bundle_meta() {
     assert_eq!(mods[2].meta.version, "1.0.0");
     assert_eq!(mods[2].meta.author, "Nova Protocol");
     assert_eq!(
-        mods[2].meta.description, "A beacon slalom course: thread the gates from start to finish.",
+        mods[2].meta.description,
+        "A slalom race: fly your ship through the beacon gates in order, START to FINISH.",
         "the description comes from the cached bundle's meta"
     );
 }

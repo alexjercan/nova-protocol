@@ -16,6 +16,11 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Pure mod-dependency resolution (topological order, transitive closure,
+/// dependents) over an id-keyed graph. Engine-free; shared by the merge, the
+/// menu and the portal. Task 20260715-142931.
+pub mod deps;
+
 /// The portal catalog schema version THIS build writes and reads. Bump on any
 /// breaking change to the wire types below; the game checks it before trusting
 /// a fetched catalog, so old clients fail loud instead of misparsing.
@@ -30,7 +35,8 @@ pub const PORTAL_SCHEMA_VERSION: u32 = 1;
 /// (empty = unversioned; the base game leaves it empty, the GAME version is
 /// authoritative there; the PORTAL requires it non-empty to publish);
 /// `dependencies` lists mod ids - `base` is an IMPLICIT dependency and is not
-/// declared (resolution is task 20260715-142931); `icon`/`screenshots` are paths
+/// declared (resolved by [`deps`]: install pulls them, enable auto-enables them,
+/// merge order is topological); `icon`/`screenshots` are paths
 /// relative to the bundle's directory (RON `Option` syntax:
 /// `icon: Some("icon.png")`), reserved for the portal and the details panel.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -47,7 +53,9 @@ pub struct ModMeta {
     /// Opaque version string (semver-ish); empty = unversioned.
     #[serde(default)]
     pub version: String,
-    /// Ids of mods this one needs (schema-only for now; `base` is implicit).
+    /// Ids of mods this one needs (`base` is implicit, never listed). Resolved
+    /// by [`deps`]: installing pulls missing ones, enabling auto-enables them,
+    /// and merge order is dependency-topological. Ids only - no version ranges.
     #[serde(default)]
     pub dependencies: Vec<String>,
     /// Icon image path, relative to the bundle directory (reserved).

@@ -882,6 +882,7 @@ fn on_install_portal_mod(
     pending: Res<PendingRemovals>,
     mut jobs: ResMut<InstallJobs>,
     mut active: ResMut<ActiveInstalls>,
+    mut commands: Commands,
 ) {
     let id = event.id.clone();
     if matches!(jobs.0.get(&id), Some(status) if !matches!(status, InstallStatus::Failed(_))) {
@@ -961,10 +962,57 @@ fn on_install_portal_mod(
         return;
     }
 
+    // Dependency resolution (task 20260715-142931): before installing, ensure
+    // every transitive dependency is installed or pullable from the portal. The
+    // job is recorded FIRST so a dependency CYCLE (the portal generator rejects
+    // one at publish, but wire data could carry it) is broken by the in-flight
+    // guard at the top of this handler when a dep re-triggers this id.
     let total = entry.files.len();
+    let entry = entry.clone();
     jobs.0
         .insert(id.clone(), InstallStatus::Fetching { done: 0, total });
-    let entry = entry.clone();
+
+    let graph: nova_mod_format::deps::DepGraph = catalog
+        .entries
+        .iter()
+        .map(|e| (e.id.clone(), e.meta.dependencies.clone()))
+        .collect();
+    let is_installed = |dep: &str| {
+        downloaded.0.iter().any(|m| m.record.id == dep)
+            || shipped.entries.iter().any(|e| e.decl.id == dep)
+    };
+    let needed = nova_mod_format::deps::transitive_deps(&graph, &id);
+    // Fail fast if any transitive dependency is neither installed nor in the
+    // portal (`base` is implicit and always shipped).
+    for dep in &needed {
+        if dep == "base" || is_installed(dep) {
+            continue;
+        }
+        if !catalog.entries.iter().any(|e| &e.id == dep) {
+            fail_install(
+                &mut jobs,
+                &mut active,
+                &id,
+                format!("dependency '{dep}' is not installed and not available in the portal"),
+            );
+            return;
+        }
+    }
+    // Pull the missing dependencies; each resolves its own deps, and the
+    // in-flight guard dedupes overlapping installs and breaks cycles. This mod
+    // and its deps then download in PARALLEL - there is no join, so atomicity is
+    // PER MOD (each mod's staged commit is all-or-nothing), NOT across the set.
+    // If a dependency's download fails asynchronously it lands as its own
+    // `Failed` job while this mod still installs; the gap is surfaced when the
+    // player enables this mod (on_mod_toggle warns about the uninstalled dep),
+    // not silently. A true atomic dependency-set install is a possible follow-up.
+    for dep in &needed {
+        if dep == "base" || is_installed(dep) {
+            continue;
+        }
+        commands.trigger(InstallPortalMod { id: dep.clone() });
+    }
+
     let job = active.begin(entry.clone());
     fetch_file(&config, &client, &channel.tx, job, &entry, 0);
 }
