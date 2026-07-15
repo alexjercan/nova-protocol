@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Particle effects (turret muzzle flash, projectile trail, torpedo launch and detonation bursts) now render in the web build: it moved from the WebGL2 render backend to WebGPU, which is what `bevy_hanabi`'s compute-shader particles require. Native was already running them. The thruster exhaust plume is a shader (not particles) and rendered on the web already
 - Browsers without WebGPU (e.g. Firefox on Linux, which the WebGPU switch above needs) now see a "WebGPU required" message on the game page instead of a crash/black canvas, and a heads-up under the landing page's "Play in browser" button. The check probes `navigator.gpu` and then `requestAdapter()`, so it also catches browsers that expose the API but cannot actually get an adapter
+- A criterion benchmark for the modding scenario-dispatch hot path (`cargo bench -p nova_scenario --bench scenario_dispatch`): entity-filter and condition-eval micro groups plus the full event-dispatch loop over a synthetic hundreds-of-handlers scenario, with a realistic one-event-per-frame group and a scan-isolating burst group. `samply` joins the dev shell for sampling profiles. This is the measure-before-optimizing gate for the modding perf work; the full writeup is `docs/modding-perf-report.md`
+
+### Changed
+
+- Modding event dispatch is now indexed by event name (moved upstream into bevy-common-systems, rev bump to ae68e38). The dispatcher used to scan every spawned handler for every fired event; it now jumps straight to the handlers registered for that event and walks them from a contiguous snapshot, touching neither the ECS nor scattered memory. Measured on the synthetic benchmark: 17-24% faster dispatch under bursts (a wave of entities all firing in one frame) at 500-5000 handlers, and neutral at the realistic one-event-per-frame rate. First-party scenarios (1-19 handlers) are unaffected; this is insurance for large community mods. A first entity-id index that looked handlers up per-dispatch was measured, caught regressing at scale (random-access cache thrash), and replaced by the snapshot version before landing
+- The sibling filter-key-interning and condition-eval-compile optimizations (task 20260714-083339) were measured and deferred: at realistic event rates their per-handler costs (13 ns entity filter, 26 ns condition eval, and condition filters run only once per frame) are noise, so they stay documented insurance rather than serde/data-model churn
 
 ## [0.5.2] - 2026-07-14
 
