@@ -37,8 +37,8 @@ use nova_assets::{
     mod_cache,
     portal::{
         FetchPortalCatalog, FetchResult, InstallJobs, InstallPortalMod, InstallStatus,
-        PortalClient, PortalConfig, PortalPlugin, PortalTransport, RemoteCatalog,
-        UninstallPortalMod,
+        PortalClient, PortalConfig, PortalFetchTimeout, PortalPlugin, PortalTransport,
+        RemoteCatalog, RemoteCatalogState, UninstallPortalMod,
     },
     prelude::*,
 };
@@ -320,8 +320,8 @@ fn portal_fetch_install_enable_uninstall_over_the_wire() {
     // FETCH: Idle -> (Fetching ->) Ready listing the real gauntlet meta.
     app.world_mut().trigger(FetchPortalCatalog);
     let entry = pump_until(&mut app, "the portal catalog", |app| {
-        match app.world().resource::<RemoteCatalog>() {
-            RemoteCatalog::Ready(catalog) => Some(
+        match &app.world().resource::<RemoteCatalog>().state {
+            RemoteCatalogState::Ready(catalog) => Some(
                 catalog
                     .entries
                     .iter()
@@ -329,10 +329,28 @@ fn portal_fetch_install_enable_uninstall_over_the_wire() {
                     .expect("the fetched catalog lists gauntlet")
                     .clone(),
             ),
-            RemoteCatalog::Error(error) => panic!("catalog fetch failed: {error}"),
+            RemoteCatalogState::Error(error) => panic!("catalog fetch failed: {error}"),
             _ => None,
         }
     });
+    // The successful fetch also stamps the LAST-GOOD fallback (task 142916)
+    // and persists it under the (test-overridden) cache root; the persisted
+    // bytes re-pass the schema gate - the exact startup-load path.
+    assert!(
+        app.world()
+            .resource::<RemoteCatalog>()
+            .last_good
+            .as_ref()
+            .is_some_and(|c| c.entries.iter().any(|e| e.id == "gauntlet")),
+        "a Ready fetch must stamp last_good"
+    );
+    let store = guard.root.path().join("portal_catalog.json");
+    let stored =
+        std::fs::read(&store).expect("the last-good store was written under the cache root");
+    assert!(
+        serde_json::from_slice::<PortalCatalog>(&stored).is_ok(),
+        "the store holds the raw catalog JSON"
+    );
     assert_eq!(entry.meta.name, "Gauntlet Run");
     assert_eq!(entry.version, "1.0.0");
     assert_eq!(entry.bundle, "gauntlet.bundle.ron");
@@ -530,9 +548,9 @@ fn mock_app(routes: HashMap<String, FetchResult>) -> App {
     ready_shipped_catalog(&mut app);
     app.world_mut().trigger(FetchPortalCatalog);
     pump_until(&mut app, "the mock catalog", |app| {
-        match app.world().resource::<RemoteCatalog>() {
-            RemoteCatalog::Ready(_) => Some(()),
-            RemoteCatalog::Error(error) => panic!("mock catalog fetch failed: {error}"),
+        match &app.world().resource::<RemoteCatalog>().state {
+            RemoteCatalogState::Ready(_) => Some(()),
+            RemoteCatalogState::Error(error) => panic!("mock catalog fetch failed: {error}"),
             _ => None,
         }
     });
@@ -664,9 +682,9 @@ fn unknown_schema_version_is_rejected_not_misparsed() {
 
     app.world_mut().trigger(FetchPortalCatalog);
     let error = pump_until(&mut app, "the catalog rejection", |app| {
-        match app.world().resource::<RemoteCatalog>() {
-            RemoteCatalog::Error(error) => Some(error.clone()),
-            RemoteCatalog::Ready(_) => {
+        match &app.world().resource::<RemoteCatalog>().state {
+            RemoteCatalogState::Error(error) => Some(error.clone()),
+            RemoteCatalogState::Ready(_) => {
                 panic!("a schema_version-999 catalog must never become Ready")
             }
             _ => None,
@@ -686,6 +704,62 @@ fn unknown_schema_version_is_rejected_not_misparsed() {
         reason.contains("not loaded"),
         "an install without a Ready catalog is rejected: {reason}"
     );
+}
+
+/// Review 142916 R1.3: an install whose file fetch NEVER calls back (the
+/// pathological transport 163508 documented) is failed by the stall timeout
+/// instead of wedging in `Fetching` forever, landing on the standard Failed
+/// surface (the menu's Retry/Dismiss) with nothing committed. The tiny
+/// injected `PortalFetchTimeout` drives the REAL timeout system across
+/// frames; deleting `timeout_wedged_fetches` (or its Fetching filter) makes
+/// this pump time out with the job still in `Fetching`.
+#[test]
+fn a_wedged_file_fetch_times_out_into_failed() {
+    let guard = cache_root_guard();
+    let files = mock_files();
+    let entry = entry_for("mockmod", &files);
+
+    /// Serves the catalog; DROPS every file fetch's callback on the floor.
+    struct WedgedTransport {
+        catalog: Vec<u8>,
+    }
+    impl PortalTransport for WedgedTransport {
+        fn fetch(&self, url: &str, on_done: Box<dyn FnOnce(FetchResult) + Send>) {
+            if url.ends_with("/catalog.json") {
+                on_done(Ok(self.catalog.clone()));
+            }
+            // else: the callback is dropped - it will never fire.
+        }
+    }
+
+    let mut app = portal_app();
+    app.insert_resource(PortalClient(Arc::new(WedgedTransport {
+        catalog: catalog_bytes(vec![entry]),
+    })));
+    app.insert_resource(PortalConfig {
+        base_url: MOCK_BASE.to_string(),
+    });
+    ready_shipped_catalog(&mut app);
+    app.world_mut().trigger(FetchPortalCatalog);
+    pump_until(&mut app, "the mock catalog", |app| {
+        match &app.world().resource::<RemoteCatalog>().state {
+            RemoteCatalogState::Ready(_) => Some(()),
+            RemoteCatalogState::Error(error) => panic!("mock catalog fetch failed: {error}"),
+            _ => None,
+        }
+    });
+    // Shrink the stall window so the test drives the real system quickly.
+    app.insert_resource(PortalFetchTimeout(Duration::from_millis(50)));
+
+    app.world_mut().trigger(InstallPortalMod {
+        id: "mockmod".to_string(),
+    });
+    let reason = pump_install_failure(&mut app, "mockmod");
+    assert!(
+        reason.contains("timed out"),
+        "the failure names the stall timeout: {reason}"
+    );
+    assert_nothing_committed(&app, &guard, "mockmod", &paths_of(&files));
 }
 
 /// The install guards, through a SUCCESSFUL mock install: a portal id

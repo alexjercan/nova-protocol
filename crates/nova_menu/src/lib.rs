@@ -18,15 +18,22 @@
 //!
 //! Design rationale: docs/spikes/20260711-180500-main-menu.md.
 
+use std::{collections::HashMap, time::Duration};
+
 use avian3d::prelude::{Physics, PhysicsTime};
 use bevy::{
     picking::hover::Hovered,
+    platform::time::Instant,
     prelude::*,
     ui::Pressed,
     ui_widgets::{observe, Activate, Button},
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
-use nova_assets::prelude::{EnabledMods, ModCatalog, ModInfo, ModMeta};
+use nova_assets::prelude::{
+    DownloadedMods, EnabledMods, FetchPortalCatalog, InstallJobs, InstallPortalMod, InstallStatus,
+    ModCatalog, ModInfo, ModMeta, PendingRemovals, PortalEntry, RemoteCatalog, RemoteCatalogState,
+    UninstallPortalMod,
+};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
@@ -78,6 +85,11 @@ impl Plugin for NovaMenuPlugin {
         // list/details refresh systems below.
         app.init_resource::<ModsActiveTab>();
         app.init_resource::<SelectedModId>();
+        // The Explore tab's update choreography (uninstall-then-install). The
+        // driver runs OUTSIDE the menu state on purpose: an update started
+        // from the menu must complete even if the player closes it mid-flight.
+        app.init_resource::<UpdateRequested>();
+        app.add_systems(Update, drive_update_choreography);
         // The mods screen's tabs/rows/action button are nova_ui ThemedButtons;
         // their hover/press/Selected colours come from these observers
         // (register is guarded, so the editor registering them too is fine).
@@ -428,6 +440,207 @@ struct ModEnableCheckbox;
 struct ModToggle {
     id: String,
     base: bool,
+}
+
+/// A details-pane portal action button: which command to fire for which mod
+/// id. One observer (`on_portal_action`) serves every button.
+#[derive(Component)]
+struct PortalAction {
+    id: String,
+    kind: PortalActionKind,
+}
+
+/// The portal commands the details pane's action buttons carry.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum PortalActionKind {
+    /// Trigger [`InstallPortalMod`] (also the Failed state's Retry).
+    Install,
+    /// Trigger [`UninstallPortalMod`].
+    Uninstall,
+    /// Record the id in [`UpdateRequested`] and trigger the uninstall; the
+    /// choreography system fires the install once both guards clear.
+    Update,
+    /// Clear the id's [`InstallJobs`] entry - the recovery affordance for a
+    /// Failed job (including one the portal client's fetch-stall timeout
+    /// failed, the 163508 R1.3 pair).
+    Dismiss,
+}
+
+/// One in-flight update request (see [`UpdateRequested`]).
+struct UpdateRequest {
+    /// When the current stage started (wall clock); the timeout compares
+    /// against this, and the stage transition resets it so each stage gets
+    /// its own window.
+    since: Instant,
+    /// The mod was ENABLED when the update started; re-enable it once the
+    /// new version's record lands (review 142916 R1.4 - the uninstall strips
+    /// EnabledMods per 142906 R1.7, and a fresh install commits disabled, so
+    /// an update would otherwise silently disable a mod the player had on).
+    re_enable: bool,
+    /// The install half was fired; the request now only waits for the new
+    /// record to land in [`DownloadedMods`] to restore the enabled bit.
+    install_fired: bool,
+}
+
+/// UPDATE = uninstall-then-install choreography: the ids whose Update button
+/// was clicked. [`drive_update_choreography`] fires [`InstallPortalMod`] only
+/// once the id has left BOTH [`DownloadedMods`] and [`PendingRemovals`] (the
+/// 163508 race guard: a wasm uninstall's file removal is async, and an
+/// install admitted while it runs could have its fresh writes deleted under
+/// it), then holds the request until the new record lands to restore the
+/// enabled bit; a stage older than [`UPDATE_TIMEOUT`] drops the request with
+/// a warn - a wedged uninstall (or a failed install) must not hold a phantom
+/// request forever (review 163508 R1.3).
+#[derive(Resource, Default)]
+struct UpdateRequested(HashMap<String, UpdateRequest>);
+
+/// Wall-clock lifetime of each update-request stage. Generous: a native
+/// uninstall settles same-frame and a wasm removal within an IndexedDB
+/// transaction; anything still pending after this is wedged (or, stage two,
+/// the install failed - its Failed job surface explains), not slow.
+const UPDATE_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Drive the update requests: fire the deferred install once its uninstall
+/// fully settled (id out of [`DownloadedMods`] AND [`PendingRemovals`]), then
+/// re-enable the mod once the NEW record lands (when it was enabled at
+/// request time); expire stages that outlive [`UPDATE_TIMEOUT`]. The portal
+/// resources are optional so minimal rigs (and slim apps) without the portal
+/// plugin stay valid - a missing set reads as its guard already cleared.
+fn drive_update_choreography(
+    mut updates: ResMut<UpdateRequested>,
+    downloaded: Option<Res<DownloadedMods>>,
+    pending: Option<Res<PendingRemovals>>,
+    mut enabled: Option<ResMut<EnabledMods>>,
+    mut commands: Commands,
+) {
+    if updates.0.is_empty() {
+        return;
+    }
+    let now = Instant::now();
+    let mut expired: Vec<String> = Vec::new();
+    let mut fire: Vec<String> = Vec::new();
+    let mut landed: Vec<String> = Vec::new();
+    for (id, request) in updates.0.iter() {
+        let is_downloaded = downloaded
+            .as_ref()
+            .is_some_and(|d| d.0.iter().any(|m| m.record.id == *id));
+        let removal_pending = pending.as_ref().is_some_and(|p| p.0.contains(id));
+        if now.saturating_duration_since(request.since) > UPDATE_TIMEOUT {
+            expired.push(id.clone());
+        } else if !request.install_fired && !is_downloaded && !removal_pending {
+            fire.push(id.clone());
+        } else if request.install_fired && is_downloaded {
+            landed.push(id.clone());
+        }
+    }
+    for id in expired {
+        warn!("mods: the update of '{id}' timed out; dropping the request");
+        updates.0.remove(&id);
+    }
+    for id in fire {
+        if let Some(request) = updates.0.get_mut(&id) {
+            request.install_fired = true;
+            request.since = now;
+        }
+        commands.trigger(InstallPortalMod { id });
+    }
+    for id in landed {
+        let Some(request) = updates.0.remove(&id) else {
+            continue;
+        };
+        // The new record is in: restore the enabled bit the uninstall
+        // stripped, if the player had the mod on (the existing change-gated
+        // save system persists the insert). A disabled mod stays disabled.
+        if request.re_enable {
+            if let Some(enabled) = enabled.as_mut() {
+                enabled.0.insert(id);
+            }
+        }
+    }
+}
+
+/// Fire the clicked action button's portal command (see [`PortalActionKind`]).
+///
+/// Install and Update require a READY remote catalog (review 142916 R1.1,
+/// defense in depth with the UI gate in [`spawn_portal_actions`]): entries
+/// rendered from the stale last-good fallback must not start an install (it
+/// can only fail - the portal observer requires Ready) and an offline Update
+/// must not uninstall a working mod it cannot replace.
+fn on_portal_action(
+    activate: On<Activate>,
+    buttons: Query<&PortalAction>,
+    remote: Option<Res<RemoteCatalog>>,
+    enabled: Option<Res<EnabledMods>>,
+    mut jobs: Option<ResMut<InstallJobs>>,
+    mut updates: ResMut<UpdateRequested>,
+    mut commands: Commands,
+) {
+    let Ok(action) = buttons.get(activate.entity) else {
+        return;
+    };
+    let catalog_ready = remote
+        .as_ref()
+        .is_some_and(|r| matches!(r.state, RemoteCatalogState::Ready(_)));
+    match action.kind {
+        PortalActionKind::Install => {
+            if !catalog_ready {
+                warn!(
+                    "mods: refusing to install '{}' - the portal catalog is not ready",
+                    action.id
+                );
+                return;
+            }
+            commands.trigger(InstallPortalMod {
+                id: action.id.clone(),
+            });
+        }
+        PortalActionKind::Uninstall => commands.trigger(UninstallPortalMod {
+            id: action.id.clone(),
+        }),
+        PortalActionKind::Update => {
+            if !catalog_ready {
+                warn!(
+                    "mods: refusing to update '{}' - the portal catalog is not ready",
+                    action.id
+                );
+                return;
+            }
+            // The enabled bit is read BEFORE the uninstall strips it.
+            let re_enable = enabled.as_ref().is_some_and(|e| e.0.contains(&action.id));
+            updates.0.insert(
+                action.id.clone(),
+                UpdateRequest {
+                    since: Instant::now(),
+                    re_enable,
+                    install_fired: false,
+                },
+            );
+            commands.trigger(UninstallPortalMod {
+                id: action.id.clone(),
+            });
+        }
+        PortalActionKind::Dismiss => {
+            if let Some(jobs) = jobs.as_mut() {
+                jobs.0.remove(&action.id);
+            }
+        }
+    }
+}
+
+/// The catalog Error state's Retry: force-reset the state to Idle FIRST - the
+/// fetch observer refuses re-triggers while `Fetching`, so a wedged fetch
+/// (transport callback never fired, review 163508 R1.3) would otherwise
+/// refuse recovery forever - then re-trigger the fetch.
+fn on_catalog_retry(
+    _activate: On<Activate>,
+    remote: Option<ResMut<RemoteCatalog>>,
+    mut commands: Commands,
+) {
+    let Some(mut remote) = remote else {
+        return;
+    };
+    remote.state = RemoteCatalogState::Idle;
+    commands.trigger(FetchPortalCatalog);
 }
 
 /// The living backdrop: load the ambient scenario behind the menu. The loader
@@ -1002,11 +1215,15 @@ fn on_mods_back(_activate: On<Activate>, mut panel: Single<&mut Visibility, With
 }
 
 /// Switch the active mods tab: write [`ModsActiveTab`] (which re-arms
-/// `refresh_mods_list`) and move the `Selected` highlight to the clicked tab.
+/// `refresh_mods_list`), move the `Selected` highlight to the clicked tab,
+/// and - opening Explore - kick the catalog fetch when nothing was ever
+/// fetched (`Idle`). Ready/Fetching are left alone; Error renders its own
+/// Retry affordance in the list.
 fn on_mods_tab(
     activate: On<Activate>,
     tabs: Query<(Entity, &ModsTab)>,
     mut active: ResMut<ModsActiveTab>,
+    remote: Option<Res<RemoteCatalog>>,
     mut commands: Commands,
 ) {
     let Ok((entity, tab)) = tabs.get(activate.entity) else {
@@ -1016,6 +1233,11 @@ fn on_mods_tab(
         return;
     }
     active.0 = tab.0;
+    if tab.0 == ModsTabKind::Explore
+        && remote.is_some_and(|r| matches!(r.state, RemoteCatalogState::Idle))
+    {
+        commands.trigger(FetchPortalCatalog);
+    }
     for (other, _) in &tabs {
         commands.entity(other).remove::<Selected>();
     }
@@ -1047,33 +1269,222 @@ fn on_mod_row_select(
 }
 
 /// `refresh_mods_list` runs when the active tab or the catalog changed (the
-/// catalog changes live: a downloaded bundle's async load upgrades its row).
-fn mods_list_dirty(active: Res<ModsActiveTab>, catalog: Option<Res<ModCatalog>>) -> bool {
-    active.is_changed() || catalog.is_some_and(|c| c.is_changed())
+/// catalog changes live: a downloaded bundle's async load upgrades its row),
+/// when the remote catalog transitioned (Explore's fetch states), or when the
+/// downloaded set changed (the Explore rows' installed/update status tags).
+fn mods_list_dirty(
+    active: Res<ModsActiveTab>,
+    catalog: Option<Res<ModCatalog>>,
+    remote: Option<Res<RemoteCatalog>>,
+    downloaded: Option<Res<DownloadedMods>>,
+) -> bool {
+    active.is_changed()
+        || catalog.is_some_and(|c| c.is_changed())
+        || remote.is_some_and(|r| r.is_changed())
+        || downloaded.is_some_and(|d| d.is_changed())
 }
 
-/// `refresh_mod_details` runs when the selection, the catalog (meta upgrade),
-/// or the enabled set (Enable/Disable label) changed.
+/// `refresh_mod_details` runs when the tab, the selection, the catalogs
+/// (installed meta upgrade / remote transition), the enabled set
+/// (Enable/Disable label), the job table (progress/Failed/Dismiss), the
+/// downloaded set (Install vs Uninstall/Update actions) or the update
+/// requests ("Updating..." rendering) changed.
 fn mod_details_dirty(
+    active: Res<ModsActiveTab>,
     selected: Res<SelectedModId>,
     catalog: Option<Res<ModCatalog>>,
     enabled: Option<Res<EnabledMods>>,
+    remote: Option<Res<RemoteCatalog>>,
+    jobs: Option<Res<InstallJobs>>,
+    downloaded: Option<Res<DownloadedMods>>,
+    updates: Res<UpdateRequested>,
 ) -> bool {
-    selected.is_changed()
+    active.is_changed()
+        || selected.is_changed()
         || catalog.is_some_and(|c| c.is_changed())
         || enabled.is_some_and(|e| e.is_changed())
+        || remote.is_some_and(|r| r.is_changed())
+        || jobs.is_some_and(|j| j.is_changed())
+        || downloaded.is_some_and(|d| d.is_changed())
+        || updates.is_changed()
+}
+
+/// The Explore tab's VISIBLE entries: Ready's own, or - when the fetch failed
+/// but a last-good catalog survives - the stale fallback's (rendered under
+/// the offline note). Idle/Fetching (and an Error with no fallback) show
+/// none.
+fn explore_entries(remote: &RemoteCatalog) -> Option<&[PortalEntry]> {
+    match &remote.state {
+        RemoteCatalogState::Ready(catalog) => Some(&catalog.entries),
+        RemoteCatalogState::Error(_) => remote.last_good.as_ref().map(|c| c.entries.as_slice()),
+        RemoteCatalogState::Idle | RemoteCatalogState::Fetching => None,
+    }
+}
+
+/// An Explore row's right-aligned install-state tag: "installed" when the id
+/// is downloaded at the catalog's exact version string, "update" when it is
+/// downloaded at a DIFFERENT one (v1: exact string compare; semver ordering
+/// is deferred per the spike), none otherwise.
+fn portal_status_tag(
+    entry: &PortalEntry,
+    downloaded: Option<&DownloadedMods>,
+) -> Option<&'static str> {
+    let record = downloaded?.0.iter().find(|m| m.record.id == entry.id)?;
+    if record.record.version == entry.version {
+        Some("installed")
+    } else {
+        Some("update")
+    }
+}
+
+/// The muted "v1.0.0 - by Author" line for a portal entry: the CATALOG's
+/// top-level version (the authoritative one the update compare uses), the
+/// meta's author.
+fn portal_version_author_line(entry: &PortalEntry) -> String {
+    let mut meta = entry.meta.clone();
+    meta.version = entry.version.clone();
+    version_author_line(&meta)
+}
+
+/// A portal entry's display name; wire meta may be empty, fall back to the id
+/// (the `ModInfo::new` normalization).
+fn portal_display_name(entry: &PortalEntry) -> String {
+    if entry.meta.name.is_empty() {
+        entry.id.clone()
+    } else {
+        entry.meta.name.clone()
+    }
+}
+
+/// One muted informational row in the Explore list (fetching/offline notes).
+fn spawn_explore_note(list: &mut ChildSpawnerCommands, name: &'static str, text: &str) {
+    list.spawn((
+        Name::new(name),
+        Node {
+            align_self: AlignSelf::Stretch,
+            min_height: px(40),
+            margin: UiRect::bottom(px(4)),
+            padding: UiRect::all(px(8)),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            border: UiRect::all(px(theme::BORDER_W)),
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            ..default()
+        },
+        BorderColor::all(theme::BORDER),
+        BackgroundColor(theme::BG),
+        children![(
+            Text::new(text.to_string()),
+            TextFont {
+                font_size: FontSize::Px(13.0),
+                ..default()
+            },
+            TextColor(theme::TEXT_MUTED),
+        )],
+    ));
+}
+
+/// Spawn one portal-entry row: a clickable ThemedButton row (selection reuse -
+/// same `ModRow`/observer as the Installed rows) holding the name + muted
+/// version/author line and, right-aligned where the Installed rows put their
+/// checkbox, the install-state tag ("installed" muted / "update" amber).
+fn spawn_explore_row(
+    list: &mut ChildSpawnerCommands,
+    entry: &PortalEntry,
+    tag: Option<&'static str>,
+    selected: bool,
+) {
+    let mut row = list.spawn((
+        Name::new(format!("Portal Row: {}", entry.id)),
+        ModRow {
+            id: entry.id.clone(),
+        },
+        Node {
+            flex_direction: FlexDirection::Row,
+            align_self: AlignSelf::Stretch,
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceBetween,
+            column_gap: px(8),
+            padding: UiRect::all(px(8)),
+            margin: UiRect::bottom(px(4)),
+            border: UiRect::all(px(theme::BORDER_W)),
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            ..default()
+        },
+        ThemedButton,
+        Button,
+        Hovered::default(),
+        BorderColor::all(theme::BORDER),
+        BackgroundColor(theme::PANEL),
+        observe(on_mod_row_select),
+    ));
+    if selected {
+        row.insert(Selected);
+    }
+    row.with_children(|row| {
+        row.spawn((
+            Name::new("Portal Row Info"),
+            Node {
+                flex_direction: FlexDirection::Column,
+                flex_grow: 1.0,
+                ..default()
+            },
+        ))
+        .with_children(|info| {
+            info.spawn((
+                Name::new("Mod Name"),
+                Text::new(portal_display_name(entry)),
+                TextFont {
+                    font_size: FontSize::Px(15.0),
+                    ..default()
+                },
+                TextColor(theme::TEXT),
+            ));
+            let line = portal_version_author_line(entry);
+            if !line.is_empty() {
+                info.spawn((
+                    Name::new("Mod Version Author"),
+                    Text::new(line),
+                    TextFont {
+                        font_size: FontSize::Px(12.0),
+                        ..default()
+                    },
+                    TextColor(theme::TEXT_MUTED),
+                ));
+            }
+        });
+        if let Some(tag) = tag {
+            row.spawn((
+                Name::new("Portal Status Tag"),
+                Text::new(tag),
+                TextFont {
+                    font_size: FontSize::Px(12.0),
+                    ..default()
+                },
+                TextColor(if tag == "update" {
+                    theme::AMBER
+                } else {
+                    theme::TEXT_MUTED
+                }),
+            ));
+        }
+    });
 }
 
 /// Rebuild the left list's rows for the active tab. Installed: one row per
 /// catalog entry, default-selecting the first row when nothing (still) valid
 /// is selected - written BEFORE the chained details refresh, so the pane
-/// renders it the same frame. Explore: one inert placeholder row until task
-/// 20260715-142916 wires the portal catalog in.
+/// renders it the same frame. Explore: the portal catalog's fetch states -
+/// Fetching note, Error row + Retry (over the stale last-good entries when
+/// one survives), Ready rows with install-state tags; selection is repaired
+/// against the VISIBLE remote entries exactly like the Installed branch.
 fn refresh_mods_list(
     mut commands: Commands,
     active: Res<ModsActiveTab>,
     catalog: Option<Res<ModCatalog>>,
     enabled: Option<Res<EnabledMods>>,
+    remote: Option<Res<RemoteCatalog>>,
+    downloaded: Option<Res<DownloadedMods>>,
     mut selected: ResMut<SelectedModId>,
     lists: Query<Entity, With<ModsList>>,
 ) {
@@ -1102,185 +1513,516 @@ fn refresh_mods_list(
             });
         }
         ModsTabKind::Explore => {
-            // No selectable entries here yet: clear the selection so the
-            // details pane drops to its fallback instead of showing a live
-            // Enable/Disable for an INSTALLED mod next to the portal
-            // placeholder (review 142911 R1.2). Switching back to Installed
-            // re-runs the default selection above. 142916 owns Explore-side
-            // selection when remote entries become selectable.
-            if selected.0.is_some() {
-                selected.0 = None;
+            let entries: &[PortalEntry] = remote
+                .as_ref()
+                .and_then(|r| explore_entries(r))
+                .unwrap_or_default();
+            // Selection repair against the visible REMOTE entries (the
+            // Installed-branch discipline): no live installed-mod action can
+            // survive next to Explore content (review 142911 R1.2), and the
+            // details pane keys the id into the remote catalog.
+            if !entries
+                .iter()
+                .any(|e| selected.0.as_deref() == Some(e.id.as_str()))
+            {
+                let first = entries.first().map(|e| e.id.clone());
+                if selected.0 != first {
+                    selected.0 = first;
+                }
             }
             commands.entity(list).with_children(|list| {
-                list.spawn((
-                    Name::new("Explore Placeholder"),
-                    Node {
-                        align_self: AlignSelf::Stretch,
-                        min_height: px(40),
-                        margin: UiRect::bottom(px(4)),
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        border: UiRect::all(px(theme::BORDER_W)),
-                        border_radius: BorderRadius::all(px(theme::RADIUS)),
-                        ..default()
-                    },
-                    BorderColor::all(theme::BORDER),
-                    BackgroundColor(theme::BG),
-                    children![(
-                        Text::new("Connects to the mod portal - next update"),
-                        TextFont {
-                            font_size: FontSize::Px(13.0),
-                            ..default()
-                        },
-                        TextColor(theme::TEXT_MUTED),
-                    )],
-                ));
+                match remote.as_ref().map(|r| &r.state) {
+                    // A rig/slim app without the portal plugin never leaves
+                    // Idle; in production Idle only renders for the frame the
+                    // tab-open fetch trigger is still in flight.
+                    None | Some(RemoteCatalogState::Idle | RemoteCatalogState::Fetching) => {
+                        spawn_explore_note(
+                            list,
+                            "Portal Fetching Note",
+                            "Fetching the mod portal catalog...",
+                        );
+                    }
+                    Some(RemoteCatalogState::Error(error)) => {
+                        list.spawn((
+                            Name::new("Portal Error Row"),
+                            Node {
+                                flex_direction: FlexDirection::Column,
+                                align_self: AlignSelf::Stretch,
+                                row_gap: px(8),
+                                padding: UiRect::all(px(8)),
+                                margin: UiRect::bottom(px(4)),
+                                border: UiRect::all(px(theme::BORDER_W)),
+                                border_radius: BorderRadius::all(px(theme::RADIUS)),
+                                ..default()
+                            },
+                            BorderColor::all(theme::BORDER),
+                            BackgroundColor(theme::BG),
+                        ))
+                        .with_children(|row| {
+                            row.spawn((
+                                Name::new("Portal Error Text"),
+                                Text::new(error.clone()),
+                                TextFont {
+                                    font_size: FontSize::Px(13.0),
+                                    ..default()
+                                },
+                                TextColor(theme::AMBER),
+                            ));
+                            row.spawn((
+                                Name::new("Portal Retry Slot"),
+                                Node {
+                                    width: px(140),
+                                    ..default()
+                                },
+                            ))
+                            .with_children(|slot| {
+                                slot.spawn((
+                                    Name::new("Portal Retry Button"),
+                                    themed_button("Retry"),
+                                    observe(on_catalog_retry),
+                                ));
+                            });
+                        });
+                        if !entries.is_empty() {
+                            spawn_explore_note(
+                                list,
+                                "Portal Offline Note",
+                                "offline - showing the last fetched catalog",
+                            );
+                        }
+                    }
+                    Some(RemoteCatalogState::Ready(_)) => {}
+                }
+                for entry in entries {
+                    let is_selected = selected.0.as_deref() == Some(entry.id.as_str());
+                    let tag = portal_status_tag(entry, downloaded.as_deref());
+                    spawn_explore_row(list, entry, tag, is_selected);
+                }
             });
         }
     }
 }
 
-/// Rebuild the details pane from the selected mod's bundle meta: name header,
-/// version/author line, description, dependencies, then the action area
-/// ([`ModDetailsActions`]) holding the Enable/Disable button (base: a locked
-/// tag). The action container is spawned even with nothing selected, so the
-/// Explore task can rely on the marker existing.
-fn refresh_mod_details(
-    mut commands: Commands,
-    selected: Res<SelectedModId>,
-    catalog: Option<Res<ModCatalog>>,
-    enabled: Option<Res<EnabledMods>>,
-    panels: Query<Entity, With<ModDetailsPanel>>,
-) {
-    let Ok(panel) = panels.single() else {
-        return;
-    };
-    commands.entity(panel).despawn_related::<Children>();
-    let info: Option<ModInfo> = selected.0.as_ref().and_then(|id| {
-        catalog
-            .as_ref()
-            .and_then(|c| c.0.iter().find(|m| &m.id == id))
-            .cloned()
-    });
-    let is_enabled = info
-        .as_ref()
-        .is_some_and(|m| enabled.as_ref().is_some_and(|e| e.0.contains(&m.id)));
-    commands.entity(panel).with_children(|details| {
-        let Some(m) = info else {
-            details.spawn((
-                Name::new("Mod Details Empty"),
-                Text::new("Select a mod to see its details."),
-                TextFont {
-                    font_size: FontSize::Px(14.0),
-                    ..default()
-                },
-                TextColor(theme::TEXT_MUTED),
-            ));
-            details.spawn((
-                Name::new("Mod Details Actions"),
-                ModDetailsActions,
-                Node::default(),
-            ));
-            return;
-        };
+/// The details pane's empty fallback: the hint text plus the (empty) action
+/// container, so [`ModDetailsActions`] exists in every state.
+fn spawn_details_empty(details: &mut ChildSpawnerCommands) {
+    details.spawn((
+        Name::new("Mod Details Empty"),
+        Text::new("Select a mod to see its details."),
+        TextFont {
+            font_size: FontSize::Px(14.0),
+            ..default()
+        },
+        TextColor(theme::TEXT_MUTED),
+    ));
+    details.spawn((
+        Name::new("Mod Details Actions"),
+        ModDetailsActions,
+        Node::default(),
+    ));
+}
+
+/// The details header both tabs share: name, muted version/author line,
+/// separator, description, dependencies (all from the mod's [`ModMeta`]).
+fn spawn_details_meta(details: &mut ChildSpawnerCommands, name: &str, line: &str, meta: &ModMeta) {
+    details.spawn((
+        Name::new("Mod Details Name"),
+        Text::new(name.to_string()),
+        TextFont {
+            font_size: FontSize::Px(20.0),
+            ..default()
+        },
+        TextColor(theme::TEXT),
+    ));
+    if !line.is_empty() {
         details.spawn((
-            Name::new("Mod Details Name"),
-            Text::new(m.meta.name.clone()),
-            TextFont {
-                font_size: FontSize::Px(20.0),
-                ..default()
-            },
-            TextColor(theme::TEXT),
-        ));
-        let line = version_author_line(&m.meta);
-        if !line.is_empty() {
-            details.spawn((
-                Name::new("Mod Details Version Author"),
-                Text::new(line),
-                TextFont {
-                    font_size: FontSize::Px(13.0),
-                    ..default()
-                },
-                TextColor(theme::TEXT_MUTED),
-            ));
-        }
-        details.spawn((Name::new("Mod Details Separator"), separator()));
-        if !m.meta.description.is_empty() {
-            details.spawn((
-                Name::new("Mod Details Description"),
-                Text::new(m.meta.description.clone()),
-                TextFont {
-                    font_size: FontSize::Px(14.0),
-                    ..default()
-                },
-                TextColor(theme::TEXT),
-                Node {
-                    margin: UiRect::bottom(px(8)),
-                    ..default()
-                },
-            ));
-        }
-        let deps = if m.meta.dependencies.is_empty() {
-            "none".to_string()
-        } else {
-            m.meta.dependencies.join(", ")
-        };
-        details.spawn((
-            Name::new("Mod Details Dependencies"),
-            Text::new(format!("Dependencies: {deps}")),
+            Name::new("Mod Details Version Author"),
+            Text::new(line.to_string()),
             TextFont {
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
             TextColor(theme::TEXT_MUTED),
         ));
-        details
-            .spawn((
-                Name::new("Mod Details Actions"),
-                ModDetailsActions,
-                Node {
-                    flex_direction: FlexDirection::Row,
-                    column_gap: px(8),
-                    margin: UiRect::top(px(12)),
-                    ..default()
-                },
-            ))
-            .with_children(|actions| {
-                if m.base {
-                    actions.spawn((
-                        Name::new("Mod Details Locked"),
-                        Text::new("Enabled (base)"),
-                        TextFont {
-                            font_size: FontSize::Px(14.0),
+    }
+    details.spawn((Name::new("Mod Details Separator"), separator()));
+    if !meta.description.is_empty() {
+        details.spawn((
+            Name::new("Mod Details Description"),
+            Text::new(meta.description.clone()),
+            TextFont {
+                font_size: FontSize::Px(14.0),
+                ..default()
+            },
+            TextColor(theme::TEXT),
+            Node {
+                margin: UiRect::bottom(px(8)),
+                ..default()
+            },
+        ));
+    }
+    let deps = if meta.dependencies.is_empty() {
+        "none".to_string()
+    } else {
+        meta.dependencies.join(", ")
+    };
+    details.spawn((
+        Name::new("Mod Details Dependencies"),
+        Text::new(format!("Dependencies: {deps}")),
+        TextFont {
+            font_size: FontSize::Px(13.0),
+            ..default()
+        },
+        TextColor(theme::TEXT_MUTED),
+    ));
+}
+
+/// One fixed-width portal action button (the percent-width themed button must
+/// not span the details pane), wired to [`on_portal_action`].
+fn spawn_portal_button(
+    row: &mut ChildSpawnerCommands,
+    name: &'static str,
+    label: &str,
+    id: &str,
+    kind: PortalActionKind,
+) {
+    row.spawn((
+        Name::new(format!("{name} Slot")),
+        Node {
+            width: px(140),
+            ..default()
+        },
+    ))
+    .with_children(|slot| {
+        slot.spawn((
+            Name::new(name),
+            themed_button(label),
+            PortalAction {
+                id: id.to_string(),
+                kind,
+            },
+            observe(on_portal_action),
+        ));
+    });
+}
+
+/// A progress/status text line in the details action area.
+fn spawn_action_text(
+    actions: &mut ChildSpawnerCommands,
+    name: &'static str,
+    text: String,
+    color: Color,
+) {
+    actions.spawn((
+        Name::new(name),
+        Text::new(text),
+        TextFont {
+            font_size: FontSize::Px(14.0),
+            ..default()
+        },
+        TextColor(color),
+    ));
+}
+
+/// The Explore details' action area, by install state (the R1.3 recovery
+/// surface lives here): a live job renders progress text and NO buttons; a
+/// Failed job renders the error + Retry (re-trigger) + Dismiss (clear the
+/// job entry); a pending update renders "Updating..."; otherwise Install, or
+/// Uninstall (+ Update when the installed version string differs).
+///
+/// `catalog_ready` is false when the entry renders from the stale last-good
+/// fallback (review 142916 R1.1): Install/Update need the READY catalog to
+/// succeed, and an offline Update would uninstall a working mod it cannot
+/// replace - so only Uninstall renders, under a muted offline note.
+fn spawn_portal_actions(
+    actions: &mut ChildSpawnerCommands,
+    id: &str,
+    remote_version: &str,
+    job: Option<InstallStatus>,
+    installed_version: Option<String>,
+    updating: bool,
+    catalog_ready: bool,
+) {
+    match job {
+        Some(InstallStatus::Failed(reason)) => {
+            spawn_action_text(actions, "Mod Details Job Error", reason, theme::AMBER);
+            actions
+                .spawn((
+                    Name::new("Mod Details Action Buttons"),
+                    Node {
+                        flex_direction: FlexDirection::Row,
+                        column_gap: px(8),
+                        ..default()
+                    },
+                ))
+                .with_children(|row| {
+                    spawn_portal_button(
+                        row,
+                        "Mod Details Retry Button",
+                        "Retry",
+                        id,
+                        PortalActionKind::Install,
+                    );
+                    spawn_portal_button(
+                        row,
+                        "Mod Details Dismiss Button",
+                        "Dismiss",
+                        id,
+                        PortalActionKind::Dismiss,
+                    );
+                });
+        }
+        Some(status) => {
+            let text = match status {
+                InstallStatus::Fetching { done, total } => {
+                    format!("Downloading {}/{}...", done + 1, total)
+                }
+                InstallStatus::Verifying => "Verifying...".to_string(),
+                InstallStatus::Committing => "Committing...".to_string(),
+                // Handled by the arm above; keep the match total.
+                InstallStatus::Failed(reason) => reason,
+            };
+            spawn_action_text(actions, "Mod Details Progress", text, theme::CYAN);
+        }
+        None if updating => {
+            spawn_action_text(
+                actions,
+                "Mod Details Progress",
+                "Updating...".to_string(),
+                theme::CYAN,
+            );
+        }
+        None => {
+            // An Install/Update that the stale fallback cannot honor is
+            // replaced by the offline note (set when a button was withheld).
+            let mut offline_note = false;
+            if installed_version.is_some() || catalog_ready {
+                actions
+                    .spawn((
+                        Name::new("Mod Details Action Buttons"),
+                        Node {
+                            flex_direction: FlexDirection::Row,
+                            column_gap: px(8),
                             ..default()
                         },
-                        TextColor(theme::CYAN),
-                    ));
-                } else {
-                    // Fixed-width slot: the percent-width themed button must
-                    // not span the whole details pane.
-                    actions
-                        .spawn((
-                            Name::new("Mod Details Toggle Slot"),
-                            Node {
-                                width: px(180),
-                                ..default()
-                            },
-                        ))
-                        .with_children(|slot| {
-                            slot.spawn((
-                                Name::new("Mod Details Toggle Button"),
-                                themed_button(if is_enabled { "Disable" } else { "Enable" }),
-                                ModToggle {
-                                    id: m.id.clone(),
-                                    base: m.base,
-                                },
-                                observe(on_mod_toggle),
-                            ));
-                        });
-                }
+                    ))
+                    .with_children(|row| match installed_version {
+                        Some(installed) => {
+                            spawn_portal_button(
+                                row,
+                                "Mod Details Uninstall Button",
+                                "Uninstall",
+                                id,
+                                PortalActionKind::Uninstall,
+                            );
+                            if installed != remote_version {
+                                if catalog_ready {
+                                    spawn_portal_button(
+                                        row,
+                                        "Mod Details Update Button",
+                                        "Update",
+                                        id,
+                                        PortalActionKind::Update,
+                                    );
+                                } else {
+                                    offline_note = true;
+                                }
+                            }
+                        }
+                        None => {
+                            // catalog_ready holds here (the guard above).
+                            spawn_portal_button(
+                                row,
+                                "Mod Details Install Button",
+                                "Install",
+                                id,
+                                PortalActionKind::Install,
+                            );
+                        }
+                    });
+            } else {
+                offline_note = true;
+            }
+            if offline_note {
+                spawn_action_text(
+                    actions,
+                    "Mod Details Offline Note",
+                    "offline - reconnect to install or update".to_string(),
+                    theme::TEXT_MUTED,
+                );
+            }
+        }
+    }
+}
+
+/// Rebuild the details pane for the selected mod: name header, version/author
+/// line, description, dependencies, then the action area
+/// ([`ModDetailsActions`]). Installed tab: the Enable/Disable button (base: a
+/// locked tag), plus Uninstall for DOWNLOADED mods (managing installs must
+/// not require the Explore tab). Explore tab: the selection keys into the
+/// visible remote entries and the action area follows the install state
+/// ([`spawn_portal_actions`]). The action container is spawned even with
+/// nothing selected, so the marker contract holds in every state.
+fn refresh_mod_details(
+    mut commands: Commands,
+    active: Res<ModsActiveTab>,
+    selected: Res<SelectedModId>,
+    catalog: Option<Res<ModCatalog>>,
+    enabled: Option<Res<EnabledMods>>,
+    remote: Option<Res<RemoteCatalog>>,
+    jobs: Option<Res<InstallJobs>>,
+    downloaded: Option<Res<DownloadedMods>>,
+    updates: Res<UpdateRequested>,
+    panels: Query<Entity, With<ModDetailsPanel>>,
+) {
+    let Ok(panel) = panels.single() else {
+        return;
+    };
+    commands.entity(panel).despawn_related::<Children>();
+    let installed_version_of = |id: &str| -> Option<String> {
+        downloaded
+            .as_ref()
+            .and_then(|d| d.0.iter().find(|m| m.record.id == id))
+            .map(|m| m.record.version.clone())
+    };
+    match active.0 {
+        ModsTabKind::Installed => {
+            let info: Option<ModInfo> = selected.0.as_ref().and_then(|id| {
+                catalog
+                    .as_ref()
+                    .and_then(|c| c.0.iter().find(|m| &m.id == id))
+                    .cloned()
             });
-    });
+            let is_enabled = info
+                .as_ref()
+                .is_some_and(|m| enabled.as_ref().is_some_and(|e| e.0.contains(&m.id)));
+            commands.entity(panel).with_children(|details| {
+                let Some(m) = info else {
+                    spawn_details_empty(details);
+                    return;
+                };
+                let is_downloaded = installed_version_of(&m.id).is_some();
+                spawn_details_meta(
+                    details,
+                    &m.meta.name,
+                    &version_author_line(&m.meta),
+                    &m.meta,
+                );
+                details
+                    .spawn((
+                        Name::new("Mod Details Actions"),
+                        ModDetailsActions,
+                        Node {
+                            flex_direction: FlexDirection::Row,
+                            column_gap: px(8),
+                            margin: UiRect::top(px(12)),
+                            ..default()
+                        },
+                    ))
+                    .with_children(|actions| {
+                        if m.base {
+                            actions.spawn((
+                                Name::new("Mod Details Locked"),
+                                Text::new("Enabled (base)"),
+                                TextFont {
+                                    font_size: FontSize::Px(14.0),
+                                    ..default()
+                                },
+                                TextColor(theme::CYAN),
+                            ));
+                        } else {
+                            // Fixed-width slot: the percent-width themed
+                            // button must not span the whole details pane.
+                            actions
+                                .spawn((
+                                    Name::new("Mod Details Toggle Slot"),
+                                    Node {
+                                        width: px(180),
+                                        ..default()
+                                    },
+                                ))
+                                .with_children(|slot| {
+                                    slot.spawn((
+                                        Name::new("Mod Details Toggle Button"),
+                                        themed_button(if is_enabled {
+                                            "Disable"
+                                        } else {
+                                            "Enable"
+                                        }),
+                                        ModToggle {
+                                            id: m.id.clone(),
+                                            base: m.base,
+                                        },
+                                        observe(on_mod_toggle),
+                                    ));
+                                });
+                            // Installed-tab parity (task 142916): a DOWNLOADED
+                            // mod is uninstallable from here too.
+                            if is_downloaded {
+                                spawn_portal_button(
+                                    actions,
+                                    "Mod Details Uninstall Button",
+                                    "Uninstall",
+                                    &m.id,
+                                    PortalActionKind::Uninstall,
+                                );
+                            }
+                        }
+                    });
+            });
+        }
+        ModsTabKind::Explore => {
+            let entry: Option<PortalEntry> = selected.0.as_ref().and_then(|id| {
+                remote
+                    .as_ref()
+                    .and_then(|r| explore_entries(r))
+                    .and_then(|entries| entries.iter().find(|e| &e.id == id))
+                    .cloned()
+            });
+            commands.entity(panel).with_children(|details| {
+                let Some(entry) = entry else {
+                    spawn_details_empty(details);
+                    return;
+                };
+                let job = jobs.as_ref().and_then(|j| j.0.get(&entry.id)).cloned();
+                let installed_version = installed_version_of(&entry.id);
+                let updating = updates.0.contains_key(&entry.id);
+                // False when the entry renders from the stale last-good
+                // fallback: Install/Update are withheld there (R1.1).
+                let catalog_ready = remote
+                    .as_ref()
+                    .is_some_and(|r| matches!(r.state, RemoteCatalogState::Ready(_)));
+                spawn_details_meta(
+                    details,
+                    &portal_display_name(&entry),
+                    &portal_version_author_line(&entry),
+                    &entry.meta,
+                );
+                details
+                    .spawn((
+                        Name::new("Mod Details Actions"),
+                        ModDetailsActions,
+                        Node {
+                            flex_direction: FlexDirection::Column,
+                            row_gap: px(8),
+                            margin: UiRect::top(px(12)),
+                            ..default()
+                        },
+                    ))
+                    .with_children(|actions| {
+                        spawn_portal_actions(
+                            actions,
+                            &entry.id,
+                            &entry.version,
+                            job,
+                            installed_version,
+                            updating,
+                            catalog_ready,
+                        );
+                    });
+            });
+        }
+    }
 }
 
 /// Toggle a mod's enabled state on click. Reads the clicked button's [`ModToggle`]
@@ -2137,13 +2879,15 @@ mod tests {
         assert_eq!(label_of(&app, button), "Disable");
     }
 
-    /// Switching to the Explore tab swaps the list to the inert portal
-    /// placeholder, moves the tab highlight, and clears the selection so the
-    /// details pane drops to its fallback (review R1.2: no live Enable/Disable
-    /// for an installed mod next to the portal placeholder); switching back
-    /// restores the installed rows and re-runs the default selection.
+    /// Switching to the Explore tab swaps the list to the portal catalog's
+    /// fetch state (in this portal-less rig: the fetching note - the same
+    /// rendering a real Idle/Fetching shows), moves the tab highlight, and
+    /// repairs the selection against the (empty) remote entries so no live
+    /// Enable/Disable survives next to portal content (review 142911 R1.2);
+    /// switching back restores the installed rows and re-runs the default
+    /// selection.
     #[test]
-    fn tab_switch_swaps_list_to_the_explore_placeholder() {
+    fn tab_switch_swaps_list_to_the_explore_states() {
         let mut app = mods_app();
         let installed_tab = entity_by_name(&mut app, "Installed Tab").expect("installed tab");
         let explore_tab = entity_by_name(&mut app, "Explore Online Tab").expect("explore tab");
@@ -2152,7 +2896,7 @@ mod tests {
             "Installed is the default tab"
         );
         // Select demo first, so the Explore switch has a live details action
-        // to clear (the reviewer's exact scenario).
+        // to clear (the 142911 reviewer's exact scenario).
         let demo_row = mod_row(&mut app, "demo").expect("demo row exists");
         app.world_mut().trigger(Activate { entity: demo_row });
         app.update();
@@ -2178,18 +2922,18 @@ mod tests {
         assert_eq!(
             selected_mod(&app),
             None,
-            "the Explore tab clears the selection"
+            "no remote entries - the Explore tab clears the selection"
         );
         assert!(
             entity_by_name(&mut app, "Mod Details Toggle Button").is_none(),
-            "no live Enable/Disable next to the portal placeholder"
+            "no live Enable/Disable next to the portal content"
         );
         let texts = all_texts(&mut app);
         assert!(
             texts
                 .iter()
-                .any(|t| t == "Connects to the mod portal - next update"),
-            "the Explore tab shows the portal placeholder: {texts:?}"
+                .any(|t| t == "Fetching the mod portal catalog..."),
+            "the Explore tab shows the fetch state: {texts:?}"
         );
         assert!(
             texts
@@ -2219,8 +2963,8 @@ mod tests {
         assert!(
             !texts
                 .iter()
-                .any(|t| t == "Connects to the mod portal - next update"),
-            "the placeholder is gone again"
+                .any(|t| t == "Fetching the mod portal catalog..."),
+            "the fetch note is gone again"
         );
     }
 
@@ -2268,6 +3012,805 @@ mod tests {
         assert!(
             entity_by_name(&mut app, "Explore Online Button").is_none(),
             "the old standalone button entity is gone"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // The Explore tab (task 20260715-142916): portal resources inserted, no
+    // transport - observer captures stand in for the portal client, so every
+    // action button is pinned to the RIGHT event with the RIGHT id.
+    // -----------------------------------------------------------------------
+
+    use nova_assets::{
+        mod_cache::InstalledModRecord,
+        prelude::{DownloadedMod, PortalCatalog},
+    };
+
+    /// Every portal trigger the menu can fire, captured with its id (and, for
+    /// the catalog fetch, whether the state was Idle at trigger time - the
+    /// retry's force-reset ordering).
+    #[derive(Resource, Default)]
+    struct PortalCaptures {
+        installs: Vec<String>,
+        uninstalls: Vec<String>,
+        fetches: usize,
+        fetch_seen_idle: bool,
+    }
+
+    fn observe_portal_events(app: &mut App) {
+        app.init_resource::<PortalCaptures>();
+        app.add_observer(|e: On<InstallPortalMod>, mut cap: ResMut<PortalCaptures>| {
+            cap.installs.push(e.id.clone());
+        });
+        app.add_observer(
+            |e: On<UninstallPortalMod>, mut cap: ResMut<PortalCaptures>| {
+                cap.uninstalls.push(e.id.clone());
+            },
+        );
+        app.add_observer(
+            |_: On<FetchPortalCatalog>,
+             remote: Option<Res<RemoteCatalog>>,
+             mut cap: ResMut<PortalCaptures>| {
+                cap.fetches += 1;
+                cap.fetch_seen_idle =
+                    remote.is_some_and(|r| matches!(r.state, RemoteCatalogState::Idle));
+            },
+        );
+    }
+
+    fn portal_entry(
+        id: &str,
+        version: &str,
+        name: &str,
+        author: &str,
+        description: &str,
+    ) -> PortalEntry {
+        PortalEntry {
+            id: id.to_string(),
+            version: version.to_string(),
+            bundle: format!("{id}.bundle.ron"),
+            meta: ModMeta {
+                name: name.to_string(),
+                description: description.to_string(),
+                author: author.to_string(),
+                version: version.to_string(),
+                ..Default::default()
+            },
+            files: vec![],
+            total_size: 0,
+        }
+    }
+
+    fn ready_catalog(entries: Vec<PortalEntry>) -> RemoteCatalog {
+        RemoteCatalog {
+            state: RemoteCatalogState::Ready(PortalCatalog {
+                schema_version: 1,
+                entries,
+            }),
+            last_good: None,
+        }
+    }
+
+    fn downloaded_set(records: &[(&str, &str)]) -> DownloadedMods {
+        DownloadedMods(
+            records
+                .iter()
+                .map(|(id, version)| DownloadedMod {
+                    record: InstalledModRecord {
+                        id: id.to_string(),
+                        version: version.to_string(),
+                        bundle: format!("{id}.bundle.ron"),
+                    },
+                    bundle: Handle::default(),
+                })
+                .collect(),
+        )
+    }
+
+    /// A mods_app with the portal resources inserted and the Explore tab
+    /// opened via its real tab button.
+    fn explore_app(remote: RemoteCatalog, downloaded: DownloadedMods) -> App {
+        let mut app = mods_app();
+        app.insert_resource(remote);
+        app.insert_resource(downloaded);
+        app.insert_resource(InstallJobs::default());
+        app.insert_resource(PendingRemovals::default());
+        observe_portal_events(&mut app);
+        app.update();
+        let explore_tab = entity_by_name(&mut app, "Explore Online Tab").expect("explore tab");
+        app.world_mut().trigger(Activate {
+            entity: explore_tab,
+        });
+        app.update();
+        app
+    }
+
+    /// The `Portal Status Tag` text of `id`'s row, if the row carries one.
+    fn row_tag(app: &mut App, id: &str) -> Option<String> {
+        let row = mod_row(app, id).expect("the row exists");
+        let children: Vec<Entity> = app
+            .world()
+            .get::<Children>(row)
+            .map(|c| c.iter().collect())
+            .unwrap_or_default();
+        children.into_iter().find_map(|child| {
+            let named = app
+                .world()
+                .get::<Name>(child)
+                .is_some_and(|n| n.as_str() == "Portal Status Tag");
+            if named {
+                app.world().get::<Text>(child).map(|t| t.0.clone())
+            } else {
+                None
+            }
+        })
+    }
+
+    /// A Ready catalog renders one selectable row per entry (wire meta name +
+    /// version/author line) with the right status tag - none / "installed" /
+    /// "update" (exact version-string mismatch) - and default-selects the
+    /// first entry, whose details and Install action render.
+    #[test]
+    fn explore_ready_lists_entries_with_status_tags() {
+        let mut app = explore_app(
+            ready_catalog(vec![
+                portal_entry("alpha", "1.0.0", "Alpha Pack", "Ann", "Adds alpha."),
+                portal_entry("bravo", "1.0.0", "Bravo Pack", "Bob", "Adds bravo."),
+                portal_entry("charlie", "1.0.0", "Charlie Pack", "Cyn", "Adds charlie."),
+            ]),
+            downloaded_set(&[("bravo", "1.0.0"), ("charlie", "0.9.0")]),
+        );
+
+        let texts = all_texts(&mut app);
+        assert!(
+            texts.iter().any(|t| t == "Alpha Pack"),
+            "rows render the wire meta name: {texts:?}"
+        );
+        assert!(
+            texts.iter().any(|t| t == "v1.0.0 - by Ann"),
+            "rows render the catalog version + meta author line: {texts:?}"
+        );
+
+        assert_eq!(row_tag(&mut app, "alpha"), None, "not installed - no tag");
+        assert_eq!(
+            row_tag(&mut app, "bravo").as_deref(),
+            Some("installed"),
+            "downloaded at the catalog version"
+        );
+        assert_eq!(
+            row_tag(&mut app, "charlie").as_deref(),
+            Some("update"),
+            "downloaded at a different version string"
+        );
+
+        assert_eq!(
+            selected_mod(&app).as_deref(),
+            Some("alpha"),
+            "the first entry is default-selected"
+        );
+        assert!(
+            texts.iter().any(|t| t == "Adds alpha."),
+            "the details pane renders the selection's description"
+        );
+        assert!(
+            entity_by_name(&mut app, "Mod Details Install Button").is_some(),
+            "a not-installed entry offers Install"
+        );
+    }
+
+    /// Opening the Explore tab fetches the catalog ONLY from Idle: Ready is
+    /// left alone (no gratuitous refetch), and the Idle/Fetching list renders
+    /// the muted fetching note.
+    #[test]
+    fn opening_explore_fetches_only_from_idle() {
+        let mut app = explore_app(RemoteCatalog::default(), DownloadedMods::default());
+        assert_eq!(
+            app.world().resource::<PortalCaptures>().fetches,
+            1,
+            "Idle fetches on tab open"
+        );
+        let texts = all_texts(&mut app);
+        assert!(
+            texts
+                .iter()
+                .any(|t| t == "Fetching the mod portal catalog..."),
+            "the fetching note renders: {texts:?}"
+        );
+
+        let mut app = explore_app(
+            ready_catalog(vec![portal_entry(
+                "alpha",
+                "1.0.0",
+                "Alpha Pack",
+                "Ann",
+                "Adds alpha.",
+            )]),
+            DownloadedMods::default(),
+        );
+        assert_eq!(
+            app.world().resource::<PortalCaptures>().fetches,
+            0,
+            "Ready is left alone on tab open"
+        );
+    }
+
+    /// A failed fetch renders the error + Retry; a surviving last-good
+    /// catalog renders below an offline note, browsable and selectable.
+    /// Retry force-resets the state to Idle BEFORE re-triggering (the 163508
+    /// R1.3 wedge recovery: the fetch observer refuses re-triggers while
+    /// Fetching, so a reset-less retry could be refused forever).
+    #[test]
+    fn catalog_error_renders_retry_and_the_stale_fallback() {
+        let mut app = explore_app(
+            RemoteCatalog {
+                state: RemoteCatalogState::Error("portal catalog fetch failed: boom".to_string()),
+                last_good: Some(PortalCatalog {
+                    schema_version: 1,
+                    entries: vec![portal_entry(
+                        "alpha",
+                        "1.0.0",
+                        "Alpha Pack",
+                        "Ann",
+                        "Adds alpha.",
+                    )],
+                }),
+            },
+            DownloadedMods::default(),
+        );
+
+        let texts = all_texts(&mut app);
+        assert!(
+            texts
+                .iter()
+                .any(|t| t == "portal catalog fetch failed: boom"),
+            "the error text renders: {texts:?}"
+        );
+        assert!(
+            texts
+                .iter()
+                .any(|t| t == "offline - showing the last fetched catalog"),
+            "the stale note renders over a surviving last_good: {texts:?}"
+        );
+        assert!(
+            mod_row(&mut app, "alpha").is_some(),
+            "the last-good entries render below the note"
+        );
+        assert_eq!(
+            selected_mod(&app).as_deref(),
+            Some("alpha"),
+            "stale entries are selectable"
+        );
+        assert!(
+            texts.iter().any(|t| t == "Adds alpha."),
+            "the stale selection's details render"
+        );
+
+        let retry = entity_by_name(&mut app, "Portal Retry Button").expect("retry button");
+        app.world_mut().trigger(Activate { entity: retry });
+        app.update();
+        let cap = app.world().resource::<PortalCaptures>();
+        assert_eq!(cap.fetches, 1, "Retry re-triggers the fetch");
+        assert!(
+            cap.fetch_seen_idle,
+            "the state was force-reset to Idle before the re-trigger"
+        );
+    }
+
+    /// An Error with NO last-good catalog renders the error + Retry alone -
+    /// no offline note, no phantom rows.
+    #[test]
+    fn catalog_error_without_last_good_renders_no_stale_note() {
+        let mut app = explore_app(
+            RemoteCatalog {
+                state: RemoteCatalogState::Error("boom".to_string()),
+                last_good: None,
+            },
+            DownloadedMods::default(),
+        );
+        let texts = all_texts(&mut app);
+        assert!(texts.iter().any(|t| t == "boom"));
+        assert!(
+            !texts
+                .iter()
+                .any(|t| t == "offline - showing the last fetched catalog"),
+            "no stale note without a last_good: {texts:?}"
+        );
+        assert!(entity_by_name(&mut app, "Portal Retry Button").is_some());
+        assert_eq!(selected_mod(&app), None, "nothing to select");
+    }
+
+    /// The action buttons fire the RIGHT portal event with the RIGHT id:
+    /// Install for a fresh entry, Uninstall for an installed one (same
+    /// version: no Update offered), and Update records the request +
+    /// triggers the uninstall, deferring the install until the id leaves
+    /// DownloadedMods (rendering "Updating..." meanwhile).
+    #[test]
+    fn explore_actions_trigger_the_right_events_with_the_right_ids() {
+        let mut app = explore_app(
+            ready_catalog(vec![
+                portal_entry("alpha", "1.0.0", "Alpha Pack", "Ann", "Adds alpha."),
+                portal_entry("bravo", "1.0.0", "Bravo Pack", "Bob", "Adds bravo."),
+                portal_entry("charlie", "1.0.0", "Charlie Pack", "Cyn", "Adds charlie."),
+            ]),
+            downloaded_set(&[("bravo", "1.0.0"), ("charlie", "0.9.0")]),
+        );
+
+        // alpha (default selection, not installed): Install.
+        let install = entity_by_name(&mut app, "Mod Details Install Button").expect("install");
+        app.world_mut().trigger(Activate { entity: install });
+        app.update();
+        assert_eq!(
+            app.world().resource::<PortalCaptures>().installs,
+            vec!["alpha".to_string()],
+            "Install fires InstallPortalMod with the selected id"
+        );
+
+        // bravo (installed, same version): Uninstall only.
+        let bravo = mod_row(&mut app, "bravo").expect("bravo row");
+        app.world_mut().trigger(Activate { entity: bravo });
+        app.update();
+        assert!(
+            entity_by_name(&mut app, "Mod Details Update Button").is_none(),
+            "matching version strings offer no Update"
+        );
+        let uninstall =
+            entity_by_name(&mut app, "Mod Details Uninstall Button").expect("uninstall");
+        app.world_mut().trigger(Activate { entity: uninstall });
+        app.update();
+        assert_eq!(
+            app.world().resource::<PortalCaptures>().uninstalls,
+            vec!["bravo".to_string()],
+            "Uninstall fires UninstallPortalMod with the selected id"
+        );
+
+        // charlie (installed at 0.9.0, catalog 1.0.0): Update triggers the
+        // uninstall and records the request; the install half must NOT fire
+        // while the id is still in DownloadedMods.
+        let charlie = mod_row(&mut app, "charlie").expect("charlie row");
+        app.world_mut().trigger(Activate { entity: charlie });
+        app.update();
+        let update = entity_by_name(&mut app, "Mod Details Update Button").expect("update");
+        app.world_mut().trigger(Activate { entity: update });
+        app.update();
+        {
+            let cap = app.world().resource::<PortalCaptures>();
+            assert_eq!(
+                cap.uninstalls,
+                vec!["bravo".to_string(), "charlie".to_string()],
+                "Update fires the uninstall half immediately"
+            );
+            assert_eq!(
+                cap.installs,
+                vec!["alpha".to_string()],
+                "no install while charlie is still in DownloadedMods"
+            );
+        }
+        assert!(
+            all_texts(&mut app).iter().any(|t| t == "Updating..."),
+            "the pending update renders as progress, not buttons"
+        );
+
+        // The uninstall lands: the deferred install fires, once, right id;
+        // the request then waits for the new record (the R1.4 enablement
+        // stage) and clears when it lands.
+        app.world_mut()
+            .resource_mut::<DownloadedMods>()
+            .0
+            .retain(|m| m.record.id != "charlie");
+        app.update();
+        let cap = app.world().resource::<PortalCaptures>();
+        assert_eq!(
+            cap.installs,
+            vec!["alpha".to_string(), "charlie".to_string()],
+            "the install half fires once the id left DownloadedMods"
+        );
+        assert!(
+            app.world()
+                .resource::<UpdateRequested>()
+                .0
+                .contains_key("charlie"),
+            "the request waits for the new record to land"
+        );
+        app.world_mut()
+            .resource_mut::<DownloadedMods>()
+            .0
+            .extend(downloaded_set(&[("charlie", "1.0.0")]).0);
+        app.update();
+        assert!(
+            app.world().resource::<UpdateRequested>().0.is_empty(),
+            "the request clears once the new record landed"
+        );
+        assert!(
+            !app.world().resource::<EnabledMods>().0.contains("charlie"),
+            "charlie was disabled before the update; it stays disabled"
+        );
+    }
+
+    /// Insert a raw update request (the shape `on_portal_action` records).
+    fn request_update(app: &mut App, id: &str, since: Instant, re_enable: bool) {
+        app.world_mut().resource_mut::<UpdateRequested>().0.insert(
+            id.to_string(),
+            UpdateRequest {
+                since,
+                re_enable,
+                install_fired: false,
+            },
+        );
+    }
+
+    /// The choreography guards, focused: the install half fires only after
+    /// the id has left BOTH DownloadedMods AND PendingRemovals (the 163508
+    /// race guard - a wasm uninstall's async file removal must not race the
+    /// reinstall's writes), and it fires exactly once.
+    #[test]
+    fn update_choreography_fires_only_after_both_guards_clear() {
+        let mut app = app();
+        observe_portal_events(&mut app);
+        app.insert_resource(downloaded_set(&[("pack", "0.9.0")]));
+        let mut pending = PendingRemovals::default();
+        pending.0.insert("pack".to_string());
+        app.insert_resource(pending);
+        request_update(&mut app, "pack", Instant::now(), false);
+
+        app.update();
+        assert!(
+            app.world().resource::<PortalCaptures>().installs.is_empty(),
+            "still downloaded: the install must not fire"
+        );
+
+        app.world_mut().resource_mut::<DownloadedMods>().0.clear();
+        app.update();
+        assert!(
+            app.world().resource::<PortalCaptures>().installs.is_empty(),
+            "removal still pending: the install must not fire (the 163508 race guard)"
+        );
+
+        app.world_mut().resource_mut::<PendingRemovals>().0.clear();
+        app.update();
+        assert_eq!(
+            app.world().resource::<PortalCaptures>().installs,
+            vec!["pack".to_string()],
+            "both guards cleared: the install fires with the right id"
+        );
+        app.update();
+        assert_eq!(
+            app.world().resource::<PortalCaptures>().installs.len(),
+            1,
+            "the install fires exactly once"
+        );
+    }
+
+    /// A request stage older than the 30s wall-clock timeout is dropped
+    /// (with a warn) instead of holding a phantom install forever - and
+    /// stays dead even if the wedged uninstall settles later.
+    #[test]
+    fn update_request_times_out_and_stays_dead() {
+        let mut app = app();
+        observe_portal_events(&mut app);
+        // The uninstall never lands: the id stays in DownloadedMods.
+        app.insert_resource(downloaded_set(&[("pack", "0.9.0")]));
+        app.insert_resource(PendingRemovals::default());
+        let stale = Instant::now()
+            .checked_sub(UPDATE_TIMEOUT + Duration::from_secs(1))
+            .expect("the clock has more than 31s of history");
+        request_update(&mut app, "pack", stale, false);
+
+        app.update();
+        assert!(
+            app.world().resource::<UpdateRequested>().0.is_empty(),
+            "the stale request is dropped"
+        );
+
+        app.world_mut().resource_mut::<DownloadedMods>().0.clear();
+        app.update();
+        assert!(
+            app.world().resource::<PortalCaptures>().installs.is_empty(),
+            "a dropped request never fires, even after the uninstall settles"
+        );
+    }
+
+    /// Review 142916 R1.4: updating an ENABLED mod restores its enabled bit
+    /// once the new record lands (the uninstall strips EnabledMods and a
+    /// fresh install commits disabled - without this, Update silently
+    /// disables the mod); a DISABLED mod stays disabled through the same
+    /// choreography.
+    #[test]
+    fn update_preserves_the_enabled_bit() {
+        let mut app = explore_app(
+            ready_catalog(vec![portal_entry(
+                "charlie",
+                "1.0.0",
+                "Charlie Pack",
+                "Cyn",
+                "Adds charlie.",
+            )]),
+            downloaded_set(&[("charlie", "0.9.0")]),
+        );
+        // The player has the mod ON when the update starts.
+        app.world_mut()
+            .resource_mut::<EnabledMods>()
+            .0
+            .insert("charlie".to_string());
+        app.update();
+
+        let update = entity_by_name(&mut app, "Mod Details Update Button").expect("update");
+        app.world_mut().trigger(Activate { entity: update });
+        // The portal side of the uninstall (captured, not executed here):
+        // strip the record AND the enabled bit, as production does.
+        app.world_mut()
+            .resource_mut::<EnabledMods>()
+            .0
+            .remove("charlie");
+        app.world_mut()
+            .resource_mut::<DownloadedMods>()
+            .0
+            .retain(|m| m.record.id != "charlie");
+        app.update(); // the install half fires
+        assert_eq!(
+            app.world().resource::<PortalCaptures>().installs,
+            vec!["charlie".to_string()]
+        );
+        // The install commits: the new record lands (disabled, as always).
+        app.world_mut()
+            .resource_mut::<DownloadedMods>()
+            .0
+            .extend(downloaded_set(&[("charlie", "1.0.0")]).0);
+        app.update();
+        assert!(
+            app.world().resource::<EnabledMods>().0.contains("charlie"),
+            "the update restores the enabled bit the uninstall stripped"
+        );
+        assert!(
+            app.world().resource::<UpdateRequested>().0.is_empty(),
+            "the finished request is cleared"
+        );
+
+        // The disabled path is covered by the tail of
+        // explore_actions_trigger_the_right_events_with_the_right_ids:
+        // charlie was disabled there and stays disabled after the update.
+    }
+
+    /// Review 142916 R1.1: entries rendered from the STALE last-good fallback
+    /// must not offer Install or Update - an offline install can only fail,
+    /// and an offline Update would uninstall a working mod it cannot replace.
+    /// Uninstall stays (purely local), under the muted offline note; and the
+    /// action handler itself refuses Install/Update without a Ready catalog
+    /// (defense in depth), so even a stale button cannot destroy an install.
+    #[test]
+    fn stale_entries_offer_no_install_or_update() {
+        // An update-available installed entry, rendered from last_good.
+        let mut app = explore_app(
+            RemoteCatalog {
+                state: RemoteCatalogState::Error("boom".to_string()),
+                last_good: Some(PortalCatalog {
+                    schema_version: 1,
+                    entries: vec![
+                        portal_entry("alpha", "1.0.0", "Alpha Pack", "Ann", "Adds alpha."),
+                        portal_entry("charlie", "1.0.0", "Charlie Pack", "Cyn", "Adds charlie."),
+                    ],
+                }),
+            },
+            downloaded_set(&[("charlie", "0.9.0")]),
+        );
+        let charlie = mod_row(&mut app, "charlie").expect("charlie row");
+        app.world_mut().trigger(Activate { entity: charlie });
+        app.update();
+
+        assert!(
+            entity_by_name(&mut app, "Mod Details Update Button").is_none(),
+            "no Update on a stale entry"
+        );
+        assert!(
+            entity_by_name(&mut app, "Mod Details Uninstall Button").is_some(),
+            "Uninstall (purely local) stays available"
+        );
+        assert!(
+            all_texts(&mut app)
+                .iter()
+                .any(|t| t == "offline - reconnect to install or update"),
+            "the withheld action is explained by the offline note"
+        );
+
+        // A not-installed stale entry: no Install either, just the note.
+        let alpha = mod_row(&mut app, "alpha").expect("alpha row");
+        app.world_mut().trigger(Activate { entity: alpha });
+        app.update();
+        assert!(
+            entity_by_name(&mut app, "Mod Details Install Button").is_none(),
+            "no Install on a stale entry"
+        );
+        assert!(
+            all_texts(&mut app)
+                .iter()
+                .any(|t| t == "offline - reconnect to install or update"),
+            "the offline note renders for the not-installed entry too"
+        );
+
+        // Defense in depth: even a synthetic Update/Install action (a stale
+        // button surviving a race) is refused without a Ready catalog -
+        // nothing is uninstalled, nothing recorded, nothing installed.
+        let stale_update = app
+            .world_mut()
+            .spawn((
+                PortalAction {
+                    id: "charlie".to_string(),
+                    kind: PortalActionKind::Update,
+                },
+                observe(on_portal_action),
+            ))
+            .id();
+        let stale_install = app
+            .world_mut()
+            .spawn((
+                PortalAction {
+                    id: "alpha".to_string(),
+                    kind: PortalActionKind::Install,
+                },
+                observe(on_portal_action),
+            ))
+            .id();
+        app.update();
+        app.world_mut().trigger(Activate {
+            entity: stale_update,
+        });
+        app.world_mut().trigger(Activate {
+            entity: stale_install,
+        });
+        app.update();
+        let cap = app.world().resource::<PortalCaptures>();
+        assert!(
+            cap.uninstalls.is_empty(),
+            "a refused Update must not fire the uninstall half"
+        );
+        assert!(cap.installs.is_empty(), "a refused Install fires nothing");
+        assert!(
+            app.world().resource::<UpdateRequested>().0.is_empty(),
+            "a refused Update records no request"
+        );
+    }
+
+    /// A Failed job renders its error with Retry + Dismiss: Retry re-triggers
+    /// the install with the right id; Dismiss clears the InstallJobs entry
+    /// (the 163508 R1.3 recovery affordance) and the pane recovers to the
+    /// plain Install action.
+    #[test]
+    fn failed_job_renders_error_retry_and_dismiss() {
+        let mut app = explore_app(
+            ready_catalog(vec![portal_entry(
+                "alpha",
+                "1.0.0",
+                "Alpha Pack",
+                "Ann",
+                "Adds alpha.",
+            )]),
+            DownloadedMods::default(),
+        );
+        app.world_mut().resource_mut::<InstallJobs>().0.insert(
+            "alpha".to_string(),
+            InstallStatus::Failed("disk full".to_string()),
+        );
+        app.update();
+
+        let texts = all_texts(&mut app);
+        assert!(
+            texts.iter().any(|t| t == "disk full"),
+            "the pane renders the failure reason: {texts:?}"
+        );
+        assert!(
+            entity_by_name(&mut app, "Mod Details Install Button").is_none(),
+            "no plain Install next to a failed job"
+        );
+
+        let retry = entity_by_name(&mut app, "Mod Details Retry Button").expect("retry");
+        app.world_mut().trigger(Activate { entity: retry });
+        app.update();
+        assert_eq!(
+            app.world().resource::<PortalCaptures>().installs,
+            vec!["alpha".to_string()],
+            "Retry re-triggers the install"
+        );
+
+        let dismiss = entity_by_name(&mut app, "Mod Details Dismiss Button").expect("dismiss");
+        app.world_mut().trigger(Activate { entity: dismiss });
+        app.update();
+        assert!(
+            app.world().resource::<InstallJobs>().0.is_empty(),
+            "Dismiss clears the job entry"
+        );
+        assert!(
+            entity_by_name(&mut app, "Mod Details Dismiss Button").is_none(),
+            "the failed-state buttons are gone"
+        );
+        assert!(
+            entity_by_name(&mut app, "Mod Details Install Button").is_some(),
+            "the pane recovers to the Install action"
+        );
+    }
+
+    /// A live job renders its progress stage as text and NO action buttons
+    /// (nothing to click mid-download; recovery affordances only exist for
+    /// Failed).
+    #[test]
+    fn in_flight_job_renders_progress_and_no_buttons() {
+        let mut app = explore_app(
+            ready_catalog(vec![portal_entry(
+                "alpha",
+                "1.0.0",
+                "Alpha Pack",
+                "Ann",
+                "Adds alpha.",
+            )]),
+            DownloadedMods::default(),
+        );
+        app.world_mut().resource_mut::<InstallJobs>().0.insert(
+            "alpha".to_string(),
+            InstallStatus::Fetching { done: 1, total: 3 },
+        );
+        app.update();
+
+        assert!(
+            all_texts(&mut app)
+                .iter()
+                .any(|t| t == "Downloading 2/3..."),
+            "the per-file progress renders"
+        );
+        for name in [
+            "Mod Details Install Button",
+            "Mod Details Uninstall Button",
+            "Mod Details Update Button",
+            "Mod Details Retry Button",
+            "Mod Details Dismiss Button",
+        ] {
+            assert!(
+                entity_by_name(&mut app, name).is_none(),
+                "{name} must not render during a live job"
+            );
+        }
+
+        app.world_mut()
+            .resource_mut::<InstallJobs>()
+            .0
+            .insert("alpha".to_string(), InstallStatus::Committing);
+        app.update();
+        assert!(
+            all_texts(&mut app).iter().any(|t| t == "Committing..."),
+            "the commit stage renders"
+        );
+    }
+
+    /// Installed-tab parity: a DOWNLOADED mod's details gain an Uninstall
+    /// button (next to Enable/Disable) that fires UninstallPortalMod with the
+    /// right id; non-downloaded (shipped) mods never show one.
+    #[test]
+    fn installed_tab_details_offer_uninstall_for_downloaded_mods() {
+        let mut app = mods_app();
+        app.insert_resource(downloaded_set(&[("demo", "0.2.0")]));
+        app.insert_resource(InstallJobs::default());
+        app.insert_resource(PendingRemovals::default());
+        observe_portal_events(&mut app);
+        app.update();
+
+        // base (default selection, shipped): no Uninstall.
+        assert!(
+            entity_by_name(&mut app, "Mod Details Uninstall Button").is_none(),
+            "a shipped mod's details carry no Uninstall"
+        );
+
+        let demo_row = mod_row(&mut app, "demo").expect("demo row");
+        app.world_mut().trigger(Activate { entity: demo_row });
+        app.update();
+        assert!(
+            entity_by_name(&mut app, "Mod Details Toggle Button").is_some(),
+            "Enable/Disable stays alongside Uninstall"
+        );
+        let uninstall = entity_by_name(&mut app, "Mod Details Uninstall Button")
+            .expect("a downloaded mod's details gain Uninstall on the Installed tab");
+        app.world_mut().trigger(Activate { entity: uninstall });
+        app.update();
+        assert_eq!(
+            app.world().resource::<PortalCaptures>().uninstalls,
+            vec!["demo".to_string()],
+            "the Installed-tab Uninstall fires with the right id"
         );
     }
 

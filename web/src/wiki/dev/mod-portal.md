@@ -7,7 +7,10 @@ How remote mods are published and served. The portal is STATIC files on the
 existing GitHub Pages site - no server, no database - generated on every
 deploy, never hand-maintained. The game consumes it through the portal client
 (`nova_assets::portal`): it fetches `catalog.json`, verifies and installs mods
-into the local cache, and the mods menu UI binds on top.
+into the local cache, and the mods menu's "Explore online" tab is the UI on
+top - players browse the portal catalog in game and install, update or
+uninstall mods without leaving the menu, with the last fetched catalog cached
+for offline browsing.
 
 ## Layout
 

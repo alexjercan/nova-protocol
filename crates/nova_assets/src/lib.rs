@@ -20,12 +20,14 @@ mod scenario;
 mod sections;
 
 pub mod prelude {
+    pub use nova_mod_format::{PortalCatalog, PortalEntry};
     pub use nova_modding::prelude::ModMeta;
 
     pub use super::{
         portal::{
-            FetchPortalCatalog, InstallJobs, InstallPortalMod, InstallStatus, PortalConfig,
-            RemoteCatalog, UninstallPortalMod,
+            FetchPortalCatalog, InstallJobs, InstallPortalMod, InstallStatus, PendingRemovals,
+            PortalConfig, PortalFetchTimeout, RemoteCatalog, RemoteCatalogState,
+            UninstallPortalMod,
         },
         DownloadedMod, DownloadedMods, EnabledMods, GameAssets, GameAssetsPlugin, GameAssetsStates,
         ModCatalog, ModInfo,

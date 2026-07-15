@@ -78,6 +78,16 @@ pub fn read_index() -> Option<Vec<InstalledModRecord>> {
     backend::read_index()
 }
 
+/// `<data_root>/portal_catalog.json` - where the portal client's last-good
+/// catalog store lives (`portal::last_good_store`). Beside the cache ON
+/// PURPOSE: the catalog is cached wire data, not a preference, and the cache
+/// root's `NOVA_MOD_CACHE_ROOT` test override is what keeps integration rigs
+/// out of the developer's real store.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn portal_catalog_store_path() -> Option<std::path::PathBuf> {
+    backend::portal_catalog_store_path()
+}
+
 /// Persist the downloaded-mods index. Best-effort - failures are logged, not
 /// returned (the mod_prefs idiom; the installer flow of task 163508 owns any
 /// stricter commit discipline via the `*_at` primitives). A plain persist: the
@@ -422,6 +432,11 @@ mod backend {
     /// resolves (headless CI without HOME, e.g.).
     pub fn mods_root() -> Option<PathBuf> {
         data_root().map(|d| d.join("mods"))
+    }
+
+    /// The last-good portal catalog's store file (see the crate-level wrapper).
+    pub fn portal_catalog_store_path() -> Option<PathBuf> {
+        data_root().map(|d| d.join("portal_catalog.json"))
     }
 
     pub fn read_index() -> Option<Vec<InstalledModRecord>> {
