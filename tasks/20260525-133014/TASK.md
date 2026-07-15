@@ -1,6 +1,6 @@
 # Optimize modding event handler lookup
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 40
 - TAGS: v0.6.0, modding, chore
 

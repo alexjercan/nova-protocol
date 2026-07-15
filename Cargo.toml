@@ -99,10 +99,3 @@ members = [
   "crates/nova_ui",
 ]
 resolver = "2"
-
-# TEMPORARY: benchmark the handler-index change in bevy-common-systems before it
-# is committed upstream and the git rev is bumped. Points at the local worktree
-# branched off the exact pinned rev (4a743b2) + the index. Removed once the rev
-# is bumped in the per-crate dependencies. (task 20260525-133014)
-[patch."https://github.com/alexjercan/bevy-common-systems"]
-bevy_common_systems = { path = "/home/alex/.cache/sprouts/bcs-perf-index" }

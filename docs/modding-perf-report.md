@@ -114,20 +114,19 @@ This is the gate the other two tasks were waiting on. It paid for itself twice:
 it justified the index for burst dispatch, caught the naive-index regression, and
 proved the hot-path micro-opts are not justified at realistic event rates (below).
 
-### 2. Index handlers by event name (`20260525-133014`) - DONE (landing pending)
+### 2. Index handlers by event name (`20260525-133014`) - DONE (landed)
 
 Implemented in `bevy-common-systems` (`src/modding/events.rs`): an
 `EventHandlerIndex<W>` of contiguous handler snapshots, an ungated
 `maintain_handler_index` system, and a snapshot-driven `queue_system`. Two
-dispatch correctness tests added; all 59 nova_scenario tests pass against the
-patched crate. Measured -17-24% on burst dispatch, neutral at 1 event/frame.
+dispatch correctness tests added; all 59 nova_scenario tests pass against it.
+Measured -17-24% on burst dispatch, neutral at 1 event/frame.
 
-Landing is a cross-repo step: the change is committed on the `perf-event-index`
-branch of the local bcs checkout and wired into nova via a temporary
-`[patch]` in the root `Cargo.toml`. To finish: push the bcs commit and bump the
-pinned git rev in the four nova crates that depend on it
-(`nova_scenario`, `nova_gameplay`, `nova_events`, `nova_debug`), then drop the
-patch.
+Landed cross-repo: committed on bcs `master` as `ae68e38` and pushed; the pinned
+git rev was bumped `4a743b2 -> ae68e38` in the four nova crates that depend on it
+(`nova_scenario`, `nova_gameplay`, `nova_events`, `nova_debug`), the temporary
+`[patch]` was removed, and `cargo check --workspace` is green against the real
+git dependency.
 
 ### 3. Hot-path filter/condition micro-opts (`20260714-083339`) - DEFER (measured)
 

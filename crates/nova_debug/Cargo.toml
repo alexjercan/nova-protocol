@@ -13,7 +13,7 @@ itertools = { version = "0.15.0" }
 bevy_mod_debugdump = { version = "0.16" }
 nova_gameplay = { path = "../nova_gameplay", features = ["debug"] }
 nova_scenario = { path = "../nova_scenario" }
-bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", rev = "4a743b2a91ac270cc689eb43c5ecc26c6b2f0897", features = ["debug"] }
+bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", rev = "ae68e3851a42b2201e32f6c2c93accbf896a8587", features = ["debug"] }
 
 [lints]
 workspace = true
