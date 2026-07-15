@@ -309,12 +309,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `authored-vs-derived-values` (x2): author content against measured runtime
   values exported as consts, not nominal constants or folklore ranges.
   20260711-180455, 20260711-180506.
-- `verify-engine-guarantees-in-source` (x2): read the engine's source (or
-  write a five-line probe) before designing around an ordering guarantee -
-  observer order is arbitrary; observer-queued commands apply BEFORE the
-  queue's remaining pending commands, not after. A subagent's reasoned
-  verdict about engine semantics is a hypothesis, not evidence.
-  20260525-133004, 20260712-115902.
+- `verify-engine-guarantees-in-source` (x3): read the engine/dependency source
+  (or write a five-line probe) before designing around its behavior - observer
+  order is arbitrary; observer-queued commands apply BEFORE the queue's remaining
+  pending commands; a bcs `On<Insert>` observer `.unwrap()`s the asset, so
+  inserting a config with an unloaded handle panics (design a deferred insert).
+  A reasoned verdict about engine semantics is a hypothesis, not evidence.
+  20260525-133004, 20260712-115902, 20260525-133017.
 - `advertised-but-unwired` (x3): a config surface is not a capability until its
   producer/consumer wiring, data source, and runtime preconditions are
   verified in the new context. 20260712-093044, 20260712-093831.
@@ -346,6 +347,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `verify-bevy-api-at-callsite` (x1): before writing an unfamiliar Bevy
   bundle/field, copy an existing in-repo callsite; the 0.x API churns.
   20260712-131348.
+- `anchor-edits-in-the-right-scope` (x1): inserting into a large file by unique
+  text can land in the wrong enclosing scope (a `#[test]` compiled inside a
+  production impl because the anchor string also appeared there); anchor on an
+  in-module landmark or confirm the module boundary first. 20260525-133017.
 - `spike-reuse-over-new-infra` (x1, positive): when a request implies new
   infrastructure, first check whether an existing substrate covers the real
   need. 20260712-131348.
@@ -455,6 +460,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   downstream e2e; when a refactor changes how an invariant is enforced, re-pin the
   invariant on the new mechanism rather than massaging the old assertion. See the
   main-list entry for the three variants. 20260714-113411, -135642, -134119.
+- `verify-engine-guarantees-in-source` (x3) -> work/plan skill: read the
+  engine/dependency source (or write a tiny probe) before designing around its
+  behavior - ordering guarantees, observer semantics, and panic-on-precondition
+  (e.g. a bcs `On<Insert>` observer that `.unwrap()`s an unloaded asset). See the
+  main-list entry. 20260525-133004, 20260712-115902, 20260525-133017.
 
 ## Promoted (kept for history)
 
