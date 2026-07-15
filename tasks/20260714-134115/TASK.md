@@ -1,8 +1,8 @@
 # Ship-prototype content kind: GameShips + *.ship.ron + ShipSource + ship-modifications (folds 113414)
 
 - STATUS: OPEN
-- PRIORITY: 22
-- TAGS: v0.6.0, modding, scenario, spike
+- PRIORITY: 0
+- TAGS: backlog, modding, scenario, spike
 
 Spike: tasks/20260714-113418/SPIKE.md
 

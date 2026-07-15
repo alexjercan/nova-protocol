@@ -1,8 +1,8 @@
 # Devlog post-card thumbnails: thumb-devlog-3/4/5 (source decision + package)
 
 - STATUS: OPEN
-- PRIORITY: 25
-- TAGS: v0.6.0,web,screenshot,devlog
+- PRIORITY: 0
+- TAGS: backlog,web,screenshot,devlog
 
 Split out of the screenshot follow-up 20260715-004216 (which now covers only the
 `devlog5-radar-stance-slots` composite). Deferred at the user's request: the
