@@ -118,6 +118,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   that control managed - not just readers of the changed resource - and answer
   how that state gets corrected without it; hiding a mod row orphaned its
   persisted enablement. 20260715-142844.
+- `author-facing-schema-needs-syntax-doc` (x1): when adding a serde field that
+  authors hand-write (especially Option in strict RON: `icon: Some("x.png")`,
+  never `icon: "x.png"`), document the literal syntax in the same change - a
+  schema doc that omits how to type it ships a parse footgun. 20260715-142849.
 - `declared-but-not-loaded` (x1): a resource named in config/markup (font stack,
   asset URL, class hook) is not proof it is wired; grep for where it is actually
   imported/served before assuming it renders. 20260713-222025.
@@ -300,12 +304,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   mechanism deleted proves nothing; copied tests inherit vacuousness - and a
   sabotage that refuses to go red refutes the assumed mechanism itself.
   20260711-180426, 20260711-212521, 20260712-115902.
-- `out-of-context-review-pass` (positive, x15): a fresh-context review of a
+- `out-of-context-review-pass` (positive, x16): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
   load-bearing claims instead of trusting them - checking cited evidence IS
   the spawn site, re-running the sabotage or the whole smoke suite, reading
   the DEPENDENCY's source for composition hazards. 20260712-133343,
-  20260711-183417, 20260712-115902, 20260712-211352, 20260715-142844.
+  20260711-183417, 20260712-115902, 20260712-211352, 20260715-142844,
+  20260715-142849.
 - `required-component-in-shared-query` (x2): a required fetch added to an
   existing query narrows its membership and every gate computed from it; fetch
   `Option<&T>` or use a separate query. New `Res<T>` params also panic every

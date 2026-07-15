@@ -343,6 +343,17 @@ Direction-level tasks this spike seeded, for `/plan` to break into steps:
 
 ## Fix record
 
+- 20260715, bundle meta (142849) landed on master (`60958111`): `ModMeta`
+  (name/description/author/version/dependencies/icon/screenshots) authored in
+  each `*.bundle.ron`, carried onto `BundleAsset`; the catalog thinned to
+  declarations (id/bundle/base/hidden, `CatalogEntry.decl`); menu-facing
+  `ModCatalog` is now `Vec<ModInfo>` (decl + bundle meta, id fallback name).
+  One source of truth per mod - the portal generator (142900) and details panel
+  (142911) read the same meta. Review APPROVE round 1 (two NITs fixed: icon
+  `Some()` doc, menu render pin). NOTE mid-cycle user request became task
+  20260715-151551: unship screenshot-reel from assets/ entirely (embed in the
+  example; the hidden flag stays as a feature) - runs next, before 142900. See
+  tasks/20260715-142849/{TASK,REVIEW,RETRO}.md.
 - 20260715, hidden dev mods (142844) landed on master (`4a6d2615`): `ModEntry`
   gained `hidden: bool`; screenshot-reel is hidden from the player-facing
   `ModCatalog` (filtered in `build_mod_catalog`) while staying installed and
