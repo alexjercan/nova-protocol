@@ -343,4 +343,11 @@ Direction-level tasks this spike seeded, for `/plan` to break into steps:
 
 ## Fix record
 
-(Appended by implementing tasks as they land.)
+- 20260715, hidden dev mods (142844) landed on master (`4a6d2615`): `ModEntry`
+  gained `hidden: bool`; screenshot-reel is hidden from the player-facing
+  `ModCatalog` (filtered in `build_mod_catalog`) while staying installed and
+  enableable by id (the example's path, test-pinned). Review APPROVE round 1;
+  its one MINOR added session-only semantics: `seed_enabled_mods` strips
+  restored hidden ids so prefs pollution from example runs self-heals. Also
+  fixed the red master CI (stale 2-entry catalog assertion). Next: 142849
+  (bundle meta). See tasks/20260715-142844/{TASK,REVIEW,RETRO}.md.

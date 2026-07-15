@@ -13,9 +13,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `diagnostic-first` (x9): trace the exact reported scenario, with real
   numbers, before theorizing a mechanism. 20260711-140241, 20260712-172035,
   20260711-183417.
-- `fail-first-regression-ab` (x10, PROMOTED 2026-07-11 -> work skill): prove a
+- `fail-first-regression-ab` (x11, PROMOTED 2026-07-11 -> work skill): prove a
   bug fix by failing its test against the pre-fix behavior; record the numbers.
-  20260711-180426.
+  CI history counts as the failing run when master is already red on the exact
+  assertion (no local sabotage needed). 20260711-180426, 20260715-142844.
 - `delivery-guards-on-null-assertions` (x6, PROMOTED 2026-07-11 -> review
   skill): "nothing happens" tests need proof the stimulus fired, IN the same
   test - a cross-test guard through a shared helper does not count.
@@ -112,6 +113,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `does-the-old-element-survive` (x2): when a design adds an element
   overlapping an existing one, decide explicitly what happens to the old one.
   20260711-000547.
+- `removed-control-orphans-persisted-state` (x1): a change that removes or
+  hides a control (row, toggle) must sweep every WRITER/persister of the state
+  that control managed - not just readers of the changed resource - and answer
+  how that state gets corrected without it; hiding a mod row orphaned its
+  persisted enablement. 20260715-142844.
 - `declared-but-not-loaded` (x1): a resource named in config/markup (font stack,
   asset URL, class hook) is not proof it is wired; grep for where it is actually
   imported/served before assuming it renders. 20260713-222025.
@@ -294,12 +300,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   mechanism deleted proves nothing; copied tests inherit vacuousness - and a
   sabotage that refuses to go red refutes the assumed mechanism itself.
   20260711-180426, 20260711-212521, 20260712-115902.
-- `out-of-context-review-pass` (positive, x14): a fresh-context review of a
+- `out-of-context-review-pass` (positive, x15): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
   load-bearing claims instead of trusting them - checking cited evidence IS
   the spawn site, re-running the sabotage or the whole smoke suite, reading
   the DEPENDENCY's source for composition hazards. 20260712-133343,
-  20260711-183417, 20260712-115902, 20260712-211352, 20260712-201603.
+  20260711-183417, 20260712-115902, 20260712-211352, 20260715-142844.
 - `required-component-in-shared-query` (x2): a required fetch added to an
   existing query narrows its membership and every gate computed from it; fetch
   `Option<&T>` or use a separate query. New `Res<T>` params also panic every
