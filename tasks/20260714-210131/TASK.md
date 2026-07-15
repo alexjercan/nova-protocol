@@ -1,6 +1,6 @@
 # Screenshot showcase pipeline: photo-mode scenario actions + reel capture example + web asset packaging
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.6.0, example, screenshot, web, testing
 

@@ -159,10 +159,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   containers that share an id space (a Vec of sections + a map of scenarios), route
   through ONE overlay helper so the kinds can't silently diverge (Vec push/first-wins
   vs map insert/last-wins). 20260714-134119.
-- `verify-the-nit-compiles` (x1): a reviewer's micro-optimization NIT (remove this
-  alloc, borrow instead of own) is a hypothesis - compile it before treating it as
-  done; `rel.as_str()` for `rel.to_string()` failed E0597 (borrow outlived by the
-  resolved path), so the owned string was load-bearing. 20260714-134119.
+- `verify-the-nit-compiles` (x2): any review fix (a micro-opt NIT, a two-line TS
+  swap, a comment asserting caller behavior) is a hypothesis - compile/typecheck
+  it AND verify the contract it assumes before marking done. `rel.as_str()` for
+  `rel.to_string()` failed E0597; `onload = (): void => appendChild(...)` failed
+  TS2322 (node not void) and needed a block body; a png-validation fix's comment
+  claimed callers caught its ValueError when the one call site had no try/except.
+  20260714-134119, 20260714-210131.
 - `agent-interrupted-verify-worktree` (x1): a subagent that hits a long build can end
   with an ambiguous partial state and misleading "in progress" notifications; INSPECT
   the worktree (git status + compile + run the deterministic generators) before
