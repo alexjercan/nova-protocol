@@ -3217,7 +3217,7 @@ mod tests {
             "the fetching note renders: {texts:?}"
         );
 
-        let mut app = explore_app(
+        let app = explore_app(
             ready_catalog(vec![portal_entry(
                 "alpha",
                 "1.0.0",
