@@ -1,6 +1,6 @@
 # Player docs: getting-started front door, tutorial promotion, glossary, jargon trim
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 48
 - TAGS: docs,web,feature
 
@@ -16,40 +16,40 @@ small glossary (incl. the `u`/`u/s` unit), and player-appropriate prose.
 
 ## Steps
 
-- [ ] Write `web/src/wiki/getting-started.md` ("Your first flight"): launch ->
+- [x] Write `web/src/wiki/getting-started.md` ("Your first flight"): launch ->
       New Game (loads Shakedown Run) -> the first two minutes (burn with `W`,
       hold `Ctrl` to sweep/lock, `G` to GOTO, raise weapons + fire), then "where
       to go next". Prominently link the tutorial (`../../tutorial/`) and Keybinds.
-- [ ] Write `web/src/wiki/glossary.md`: define the recurring terms (prograde/
+- [x] Write `web/src/wiki/glossary.md`: define the recurring terms (prograde/
       retrograde, standoff, sphere of influence, hysteresis, fine-lock, "hot"
       weapons, diegetic) and state the distance/speed unit: distances are units
       (`u`), speeds `u/s`. Keep it short.
-- [ ] Register both pages: add entries to `WIKI_DOC_PAGES` in
+- [x] Register both pages: add entries to `WIKI_DOC_PAGES` in
       `web/webpack.config.js` (`{slug:"getting-started", md:"getting-started.md",
       ...}`, likewise glossary) and `WikiPage` entries in `web/src/wiki-pages.ts`.
-- [ ] Put them first: add a "Start here" category at the FRONT of the
+- [x] Put them first: add a "Start here" category at the FRONT of the
       "For players" band in `WIKI_SECTIONS` (`web/src/wiki-pages.ts`) holding
       getting-started + glossary, so they lead the player nav and index.
-- [ ] Surface the tutorial in the nav. The tutorial is a separate page at
+- [x] Surface the tutorial in the nav. The tutorial is a separate page at
       `/tutorial/` (`web/src/tutorial.html`), not a wiki manifest page.
       verify-first: read `renderSidebar` in `web/src/wiki.ts` and decide -
       either (a) let a `WikiPage` carry an optional external `href` and render it
       as a plain nav link, or (b) keep the tutorial out of the manifest but make
       getting-started its prominent front door + a "Tutorial" see-also. Prefer
       (b) unless (a) is a two-line change.
-- [ ] Trim control-theory jargon (keep the behavior, drop the nouns) in
+- [x] Trim control-theory jargon (keep the behavior, drop the nouns) in
       `web/src/wiki/flight-autopilot.md` ("PD attitude loop", "solves every tick
       a small allocation", "nulling the net torque") and
       `web/src/wiki/sections/controller.md` ("proportional-derivative (PD)
       controller") - e.g. "an asymmetric ship still flies straight" stays, the
       control-theory framing moves to a brief aside or is cut.
-- [ ] Define `u`/`u/s` at first use in `web/src/wiki/hud.md` and
+- [x] Define `u`/`u/s` at first use in `web/src/wiki/hud.md` and
       `web/src/wiki/flight-autopilot.md` (one clause, or a link to the glossary).
 - [ ] (separable, image work) Annotate `web/src/assets/wiki-hud.png` and
       `wiki-radar.png` with callout labels so the visual pages are
       self-explanatory. Can be split to its own follow-up if image tooling is a
-      blocker.
-- [ ] Verify: `npm run ci` green; serve + headless-eyeball that getting-started
+      blocker. DEFERRED to follow-up task 20260715-231500.
+- [x] Verify: `npm run ci` green; serve + headless-eyeball that getting-started
       and glossary render and lead the For-players nav/index, the tutorial link
       resolves, and the trimmed pages still read well; check the deploy subpath.
 

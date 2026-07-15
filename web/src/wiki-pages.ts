@@ -43,6 +43,7 @@ export const WIKI_SECTIONS: WikiSection[] = [
     {
         name: "For players",
         categories: [
+            "Start here",
             "Ships & building",
             "Flying",
             "Combat",
@@ -65,6 +66,35 @@ export const WIKI_CATEGORIES: string[] = WIKI_SECTIONS.flatMap(
 );
 
 export const WIKI_PAGES: WikiPage[] = [
+    {
+        slug: "getting-started",
+        title: "Your first flight",
+        category: "Start here",
+        tags: ["ui", "flight"],
+        summary:
+            "The shortest path from launch to flying: New Game into the Shakedown Run, the first two minutes (burn, lock, GOTO, raise weapons and fire), and where to go next.",
+        related: [
+            "keybinds",
+            "flight-autopilot",
+            "targeting-radar",
+            "glossary",
+        ],
+        headings: [
+            "Launch and start",
+            "The first two minutes",
+            "Where to go next",
+        ],
+    },
+    {
+        slug: "glossary",
+        title: "Glossary",
+        category: "Start here",
+        tags: ["ui"],
+        summary:
+            "Short definitions for the recurring terms and units - prograde/retrograde, standoff, sphere of influence, hysteresis, fine-lock, hot weapons, diegetic, and the u / u-per-s units.",
+        related: ["getting-started", "flight-autopilot", "targeting-radar"],
+        headings: ["Units", "Terms"],
+    },
     {
         slug: "sections",
         title: "Ship sections",
@@ -95,7 +125,7 @@ export const WIKI_PAGES: WikiPage[] = [
         icon: "assets/icon-controller.png",
         tags: ["ships"],
         summary:
-            "The PD attitude controller that steers the ship; required to fly.",
+            "The steering system that rotates the ship toward a heading; required to fly.",
         related: ["sections", "flight-autopilot"],
         headings: [],
     },
@@ -293,6 +323,28 @@ export const WIKI_PAGES: WikiPage[] = [
         ],
     },
     {
+        slug: "dev/guide-author-section",
+        title: "Author a section (RON)",
+        category: "Scenarios & mods",
+        tags: ["dev", "guide", "modding", "ships"],
+        summary:
+            "Author a ship part in RON - the Section content item and its BaseSectionConfig, then each SectionKind (hull, thruster, controller, turret, torpedo) with every field grounded in the shipped catalog, plus overlaying a base section in a mod.",
+        related: [
+            "dev/guide-make-a-mod",
+            "dev/guide-author-scenario",
+            "dev/sections",
+        ],
+        headings: [
+            "The Section item",
+            "Hull",
+            "Thruster",
+            "Controller",
+            "Turret",
+            "Torpedo",
+            "A section in a mod",
+        ],
+    },
+    {
         slug: "dev/guide-make-a-mod",
         title: "Make and publish a mod",
         category: "Scenarios & mods",
@@ -303,6 +355,7 @@ export const WIKI_PAGES: WikiPage[] = [
             "dev/modding-ron",
             "dev/mod-portal",
             "dev/guide-author-scenario",
+            "dev/guide-author-section",
         ],
         headings: [
             "Bundle anatomy",

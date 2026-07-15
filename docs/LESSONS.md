@@ -32,6 +32,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `collider-needs-a-rigidbody` (x1): an avian Collider without a RigidBody
   registers no contact pair, silently; diff a silent physics test's bundle
   against a production spawn before theorizing. 20260713-150343.
+- `recheck-referenced-task-freshness` (x1): when a task/plan step references
+  another task as "OPEN/tracked-future" (or asserts a feature is unshipped),
+  re-check that task's STATUS and the current code before writing prose around
+  it - plans go stale between planning and doing, and a doc that encodes the
+  stale premise is wrong the day it lands (the Scenarios picker had shipped and
+  CLOSED, inverting a "no pure-RON launch path" step). 20260715-224030.
 - `collisionstart-is-per-collider-pair` (x1): avian `CollisionStart` fires once
   per collider-pair, not per body-pair, so a cue/counter keyed off a
   multi-collider body (a ship = many section colliders) fires N times unless it

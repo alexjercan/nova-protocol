@@ -1,6 +1,6 @@
 # Fix dead examples/03_scenario.rs reference in scenario-system wiki page
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: bug,docs,web
 
@@ -16,11 +16,11 @@ does not exist. The scenario examples consolidated into `examples/08_scenario.rs
 
 ## Steps
 
-- [ ] Change the `examples/03_scenario.rs` reference in scenario-system.md:26 to
+- [x] Change the `examples/03_scenario.rs` reference in scenario-system.md:26 to
       `examples/08_scenario.rs`.
-- [ ] Grep the wiki (and docs) for any other `0N_scenario` / stale example
+- [x] Grep the wiki (and docs) for any other `0N_scenario` / stale example
       references and fix them.
-- [ ] Verify: `npm run ci` green.
+- [x] Verify: `npm run ci` green.
 
 ## Notes
 

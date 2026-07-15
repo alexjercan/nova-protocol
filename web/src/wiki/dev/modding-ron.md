@@ -3,16 +3,19 @@
 > To make and publish your own mod, follow the guide
 > [Make and publish a mod](../guide-make-a-mod/).
 
-The declarative modding language for Nova Protocol: scenarios authored as
-`*.scenario.ron` data files instead of Rust. Implemented on branch
-`modding-language` (v0.6.0). For the runtime it feeds, see the
+The declarative modding language for Nova Protocol: content (scenarios and
+sections) authored as `*.content.ron` data files instead of Rust. Implemented on
+branch `modding-language` (v0.6.0). For the runtime it feeds, see the
 [scenario engine](../scenario-system/).
 
 ## What shipped
 
-Scenarios are now serializable. A `*.scenario.ron` file deserializes into the
-same `nova_scenario::ScenarioConfig` the runtime already used, and loads through
-a Bevy `AssetLoader` into the `GameScenarios` resource.
+Scenarios (and sections) are now serializable. A `*.content.ron` file is a RON
+`Vec<Content>` where each `Content` item is a `Scenario((...))` or a
+`Section((...))`; a scenario item deserializes into the same
+`nova_scenario::ScenarioConfig` the runtime already used, and loads through a
+Bevy `AssetLoader` (`ContentAssetLoader`) that merges into the `GameScenarios`
+resource.
 
 - `nova_scenario` and `nova_gameplay` gained off-by-default `serde` features that
   `cfg_attr`-derive `Serialize`/`Deserialize` on the whole config tree (events,
@@ -30,12 +33,14 @@ a Bevy `AssetLoader` into the `GameScenarios` resource.
   keeps its path and re-serializes (for editor save). Code-built configs use
   `AssetRef::from(handle)`. It replaced the 13 section-config handle fields plus
   the scenario cubemap and asteroid texture.
-- `nova_modding` (new crate) owns the format: `ScenarioAsset`, the
-  `ScenarioAssetLoader` for the `scenario.ron` extension, and `NovaModdingPlugin`.
-  It depends on `nova_scenario` with its `serde` feature.
-- `nova_assets` registers the plugin, loads `assets/scenarios/*.ron` as part of the
-  `GameAssets` collection, and merges them into `GameScenarios`. See
-  `assets/scenarios/demo.scenario.ron` for a worked, ship-less example.
+- `nova_modding` (new crate) owns the format: `ContentAsset` (a `Vec<Content>`)
+  with `ContentAssetLoader` for the `content.ron` extension, `BundleManifest`
+  with `BundleAssetLoader` for the `bundle.ron` extension, and
+  `NovaModdingPlugin`. It depends on `nova_scenario` with its `serde` feature.
+- `nova_assets` registers the plugin, loads the enabled bundles' `*.content.ron`
+  files (the base game's live under `assets/base/scenarios/`) as part of the
+  `GameAssets` collection, and merges their scenarios into `GameScenarios`. See
+  `assets/base/scenarios/demo.content.ron` for a worked, ship-less example.
 
 ## Architecture decisions
 
@@ -289,8 +294,8 @@ mask the problem - so tests must exercise the untyped path (see the
 
 ## Known limitation: authoring verbosity
 
-The generated files are large and repetitive - `shakedown_run.scenario.ron` is
-~1480 lines because each ship inlines its whole section catalog, restating
+The generated files are large and repetitive - `shakedown_run.content.ron` is
+~1240 lines because each ship inlines its whole section catalog, restating
 `name`/`description`/mass/health/meshes per section. Faithful, but a poor
 hand-authoring surface. Reducing this (a prototype+modifications model, sections as
 their own RON, scenarios as multi-file bundles) is a known direction.

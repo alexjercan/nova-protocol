@@ -62,6 +62,12 @@ const WIKI_DOC_PAGES = [
         title: "Torpedo bay",
         crumbParent: SECTIONS_CRUMB,
     },
+    {
+        slug: "getting-started",
+        md: "getting-started.md",
+        title: "Your first flight",
+    },
+    { slug: "glossary", md: "glossary.md", title: "Glossary" },
     { slug: "sections", md: "sections.md", title: "Ship sections" },
     { slug: "keybinds", md: "keybinds.md", title: "Keybinds" },
     { slug: "hud", md: "hud.md", title: "HUD" },
@@ -130,6 +136,11 @@ const WIKI_DOC_PAGES = [
         slug: "dev/guide-author-scenario",
         md: "dev/guide-author-scenario.md",
         title: "Author a scenario (RON)",
+    },
+    {
+        slug: "dev/guide-author-section",
+        md: "dev/guide-author-section.md",
+        title: "Author a section (RON)",
     },
     {
         slug: "dev/guide-make-a-mod",

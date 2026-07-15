@@ -16,6 +16,6 @@
     </div>
 </figure>
 
-The controller is the ship's steering system: a **proportional-derivative (PD) attitude controller** that rotates the ship toward a target heading. It is **required** for any ship a player or AI can fly.
+The controller is the ship's steering system: it rotates the ship toward a target heading, easing in and settling without overshoot rather than snapping. It is **required** for any ship a player or AI can fly.
 
 With no live controller, the hull cannot steer itself - so destroying the controller _disables_ a ship without destroying it outright, leaving a drifting, tumbling wreck. It is also what the autopilot verbs drive when they fly the ship for you.

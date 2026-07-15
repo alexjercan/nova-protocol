@@ -8,6 +8,14 @@ A mod is the same folder-bundle shape as the base game. The shipped demo mod
 (`assets/mods/demo/`) is the copy-me example; the first portal mod
 (`webmods/gauntlet/`) is the copy-me publish example.
 
+A mod's content is `Scenario` and `Section` items. If you have not authored those
+yet, write them first with the two authoring guides -
+[Author a scenario](../guide-author-scenario/) for the `Scenario` grammar and
+[Author a section](../guide-author-section/) for the `Section` (ship-part)
+grammar - then come back here to package and ship them. The demo mod below leads
+with a `Section` overlay, so the section guide is the one that explains its
+`base`/`kind` shape.
+
 ## 1. Bundle anatomy
 
 A mod is a DIRECTORY containing:
@@ -65,8 +73,9 @@ A content file is a `[Content]` list. Each item is externally tagged by kind:
 ]
 ```
 
-One file may mix `Section` and `Scenario` items. For the scenario event/action
-shapes, see [Author a scenario](../guide-author-scenario/).
+One file may mix `Section` and `Scenario` items. For the `Section` `base`/`kind`
+fields, see [Author a section](../guide-author-section/); for the scenario
+event/action shapes, see [Author a scenario](../guide-author-scenario/).
 
 ### The stemmed-extension rule (load-bearing)
 

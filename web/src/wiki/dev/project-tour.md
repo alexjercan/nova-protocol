@@ -1,5 +1,16 @@
 # Project tour
 
+> **Start here.** New to the codebase? Read the dev wiki in this order:
+> 1. [Project tour](../project-tour/) -- this page: the crate map and where to
+>    change X.
+> 2. [Architecture](../architecture/) -- the full crate graph, app assembly,
+>    state machines and frame flow.
+> 3. [Building & running](../development/) -- toolchain, cargo commands,
+>    examples, the web build, and how to contribute a change.
+> 4. Then pick the guide for your change:
+>    [Add a ship section](../guide-add-section/) or
+>    [Extend the scenario engine](../guide-extend-scenarios/).
+
 The friendly 20-minute front door to the codebase. Read this first, then dive
 into [Architecture](../architecture/) for the full crate graph, plugin order,
 state machines and frame flow -- this page only orients you.

@@ -604,6 +604,155 @@ of per-step booleans: every handler filters on `Equal(beat, N)` and bumps
 better than a flag per objective. Handler order within one event is not
 load-bearing - gate on the variable, not on position.
 
+### The whole file, assembled
+
+Here is the objective loop above as one runnable `*.content.ron` file. It is
+ship-free on purpose (see the ship-verbosity note in section 8), so you can read
+every line: it scatters asteroids, seeds the counter, gates the objective, and
+advances through a zone. Drop it at
+`assets/base/scenarios/my_scenario.content.ron`, list it in the base bundle, and
+load it per section 7.
+
+```ron
+[
+    Scenario((
+        id: "my_scenario",
+        name: "My Scenario",
+        description: "A starter objective loop: clear the field, reach the zone.",
+        cubemap: "textures/cubemap.png",
+        events: [
+            // Seed the world and the objective state, once, on load.
+            (
+                name: OnStart,
+                actions: [
+                    ScatterObjects((
+                        id_prefix: "asteroid_",
+                        count: 20,
+                        seed: 433757350076153856,
+                        region: Box(
+                            min: (-100.0, -20.0, -100.0),
+                            max: (100.0, 20.0, 100.0),
+                        ),
+                        template: (
+                            base: (
+                                id: "asteroid_",
+                                name: "Asteroid",
+                                position: (0.0, 0.0, 0.0),
+                                rotation: (0.0, 0.0, 0.0, 1.0),
+                            ),
+                            kind: Asteroid((
+                                radius: 1.0,
+                                texture: "textures/asteroid.png",
+                                health: 100.0,
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((1.0, 3.0)),
+                    )),
+                    CreateScenarioArea((
+                        id: "safe_zone",
+                        name: "Safe Zone",
+                        position: (0.0, 0.0, -100.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        radius: 10.0,
+                    )),
+                    VariableSet((
+                        key: "asteroids_destroyed",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "objective_destroy_asteroids",
+                        expression: Term(Factor(Literal(Boolean(false)))),
+                    )),
+                    Objective((
+                        id: "destroy_asteroids",
+                        message: "Objective: Destroy 5 asteroids!",
+                    )),
+                ],
+            ),
+            // Every destroyed asteroid bumps the counter.
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        type_name: Some("asteroid"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "asteroids_destroyed",
+                        expression: Add(
+                            Factor(Name("asteroids_destroyed")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            // The one-shot gate: past 4 kills AND not yet done.
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        type_name: Some("asteroid"),
+                    )),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("asteroids_destroyed"))),
+                        Term(Factor(Literal(Number(4.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("objective_destroy_asteroids"))),
+                        Term(Factor(Literal(Boolean(false)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "objective_destroy_asteroids",
+                        expression: Term(Factor(Literal(Boolean(true)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "destroy_asteroids",
+                    )),
+                    Objective((
+                        id: "reach_zone",
+                        message: "Objective: Reach the safe zone!",
+                    )),
+                ],
+            ),
+            // Reach the zone once the field is cleared, then advance.
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("safe_zone"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("objective_destroy_asteroids"))),
+                        Term(Factor(Literal(Boolean(true)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "reach_zone",
+                    )),
+                    NextScenario((
+                        scenario_id: "asteroid_next",
+                        linger: true,
+                    )),
+                ],
+            ),
+        ],
+    )),
+]
+```
+
+This scenario spawns no ship of its own, so it relies on `player_spaceship`
+being the id the runtime spawns for the player. For a self-contained file that
+also spawns its own ships, clone the full shipped example -
+`assets/base/scenarios/asteroid_field.content.ron` - which is this same loop
+plus the `Spaceship` object blocks (verbose, so copy rather than type them; see
+section 8). Its `player_spaceship` block is the one to lift verbatim.
+
 ## 7. Load and test it
 
 A scenario only reaches the game as MOD CONTENT - it has to be listed in a
@@ -634,13 +783,31 @@ enabled, so the quickest loop is to add your file to it:
 3. `cargo run`. The loader merges every enabled bundle into `GameScenarios`,
    keyed by scenario `id`, so yours is now registered.
 
-Getting INTO it: there is no in-menu scenario picker yet, so New Game always
-loads the starter (`shakedown_run`). While iterating, either repoint the New
-Game scenario at your id (`NEW_GAME_SCENARIO_ID` in
-`crates/nova_menu/src/lib.rs`) or reach your scenario with a `NextScenario`
-action from one that already runs (the way `asteroid_field` chains to
-`asteroid_next`). Sprinkle `DebugMessage` actions and run with `--features dev`
-to watch each event fire as you play, then edit, re-run, repeat.
+### Launch it
+
+There are three ways to reach a scenario you authored. The first is pure RON and
+needs no Rust:
+
+1. THE SCENARIOS PICKER (no Rust, the primary route). Every `!hidden` scenario
+   in `GameScenarios` - base plus every enabled mod - is listed in the main
+   menu's Scenarios picker; its Play button launches the selected id. So the
+   full no-Rust chain is: author your scenario as a `Scenario((...))` item in a
+   mod's `*.content.ron` (or the base bundle while iterating), enable that mod
+   from the Mods menu (its scenarios merge into `GameScenarios`), open Scenarios
+   from the main menu, pick your row, and hit Play. Leave `hidden` off (it
+   defaults to listed) so the picker shows it; set `hidden: true` only for
+   mid-story continuations reached by `NextScenario`.
+2. CHAIN IN FROM ANOTHER SCENARIO. A running scenario hands off with a
+   `NextScenario` action (section 4), the way `asteroid_field` chains to
+   `asteroid_next`. Use this to string scenarios into a campaign, or to reach a
+   `hidden` continuation the picker deliberately omits.
+3. MAKE IT THE DEFAULT NEW GAME. `NEW_GAME_SCENARIO_ID` in
+   `crates/nova_menu/src/lib.rs` is the scenario the New Game button plays. Point
+   it at your id (one line of Rust) if you want your scenario to BE the New Game
+   start, rather than one pick among many in the picker.
+
+While iterating, sprinkle `DebugMessage` actions and run with `--features dev` to
+watch each event fire as you play, then edit, re-run, repeat.
 
 ### Ship it to other players
 
@@ -661,9 +828,11 @@ file, so it is not a way to test your own scenario.)
 - Asset paths (`cubemap`, `texture`) are hand-typed strings with no validation
   until load; a wrong path resolves to a broken handle. There is no visual
   editor yet.
-- No in-menu scenario picker yet: New Game loads the starter scenario, so
-  reaching your own scenario while iterating means repointing the New Game id or
-  chaining in with `NextScenario` (see section 7).
+- Reaching your scenario: the main-menu Scenarios picker lists every `!hidden`
+  scenario and launches the one you pick, so a mod scenario is playable with no
+  Rust once its mod is enabled. A `hidden` scenario stays off the picker and is
+  reached only by a `NextScenario` chain; making yours the New Game default is
+  the `NEW_GAME_SCENARIO_ID` one-liner (see section 7).
 - The loader uses STRICT RON: an unknown or misspelled field is a hard parse
   error, and enum variants must use the newtype form -
   `Asteroid((...))`, `DebugMessage((...))`, `Objective((...))` - double parens

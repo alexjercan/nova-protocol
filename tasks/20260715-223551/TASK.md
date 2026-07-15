@@ -1,6 +1,6 @@
 # Fix stale modding-ron doc: scenarios are *.content.ron not *.scenario.ron
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: bug,docs,web
 
@@ -23,16 +23,16 @@ The page also reads as a changelog (serde rationale, `AssetRef` trait bounds,
 
 ## Steps
 
-- [ ] Rewrite the format claims in `modding-ron.md` to the real
+- [x] Rewrite the format claims in `modding-ron.md` to the real
       `*.content.ron` + `[Content]` (`Section(...)` / `Scenario(...)`) shape;
       remove every `*.scenario.ron` / `assets/scenarios/*.ron` reference. Ground
       each statement in a real file (asteroid_field.content.ron, demo mod).
-- [ ] Decide the page's role: make it a true creator reference (bundle /
+- [x] Decide the page's role: make it a true creator reference (bundle /
       content / catalog / naming / RON gotchas), OR move the contributor
       rationale to a note and drop the "reference" framing on `modding.md`.
       Prefer: keep it as the data-format reference but reference-shaped.
-- [ ] Sweep the other creator pages for the same stale `.scenario.ron` framing.
-- [ ] Verify: `npm run ci` green; the page's file names match the tree; links
+- [x] Sweep the other creator pages for the same stale `.scenario.ron` framing.
+- [x] Verify: `npm run ci` green; the page's file names match the tree; links
       resolve.
 
 ## Notes

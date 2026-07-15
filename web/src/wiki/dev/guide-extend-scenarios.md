@@ -82,8 +82,9 @@ variant (`nova_scenario`), plus the firing site.
    at the top of `lib.rs`).
 
 2. In `crates/nova_scenario/src/events.rs` add the variant to `EventConfig`
-   (~line 13) and the arm to `impl From<EventConfig> for EventHandler<NovaEventWorld>`
-   (~line 34):
+   (grep for `enum EventConfig`) and the arm to
+   `impl From<EventConfig> for EventHandler<NovaEventWorld>` (grep for
+   `impl From<EventConfig>`):
 
    ```rust
    pub enum EventConfig {
@@ -127,8 +128,9 @@ pass. Everything lives in `crates/nova_scenario/src/filters.rs`.
    }
    ```
 
-2. Add the variant to `EventFilterConfig` (~line 15) and the arm to
-   `impl EventFilter<NovaEventWorld> for EventFilterConfig` (~line 23):
+2. Add the variant to `EventFilterConfig` (grep for `enum EventFilterConfig`)
+   and the arm to `impl EventFilter<NovaEventWorld> for EventFilterConfig` (grep
+   for `impl EventFilter<NovaEventWorld> for EventFilterConfig`):
 
    ```rust
    pub enum EventFilterConfig {
@@ -172,8 +174,9 @@ An action runs when a handler passes, in order. Everything lives in
    }
    ```
 
-2. Add the variant to `EventActionConfig` (~line 27) and the arm to
-   `impl EventAction<NovaEventWorld> for EventActionConfig` (~line 52):
+2. Add the variant to `EventActionConfig` (grep for `enum EventActionConfig`)
+   and the arm to `impl EventAction<NovaEventWorld> for EventActionConfig` (grep
+   for `impl EventAction<NovaEventWorld> for EventActionConfig`):
 
    ```rust
    pub enum EventActionConfig {
@@ -241,7 +244,7 @@ A scenario object is a scoped, interpolated, dynamic body spawned by
    `AsteroidPlugin`, which takes `render`).
 
 3. In `crates/nova_scenario/src/actions.rs` add the variant to
-   `ScenarioObjectKind` (~line 1667) and the spawn arm in
+   `ScenarioObjectKind` (grep for `enum ScenarioObjectKind`) and the spawn arm in
    `impl EventAction<NovaEventWorld> for ScenarioObjectConfig`:
 
    ```rust

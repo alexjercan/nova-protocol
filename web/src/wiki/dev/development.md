@@ -48,8 +48,24 @@ the main checkout's code. Accept the cold build.
   `bevy/track_location`.
 - `dev` - alias for `debug`.
 
-Debug-only CLI flags (`src/main.rs`): `--norender` (no rendering) and
-`--debugdump` (write the system schedule graph and exit).
+### Debug tooling
+
+`cargo run --features dev` compiles in `nova_debug`'s `DebugPlugin`
+(`crates/nova_debug/src/lib.rs`), which adds the inspector, the wireframe
+toggle, and the section/gravity debug overlays. The overlays are gated on a
+`DebugEnabled` resource toggled at runtime with **F11**
+(`DEBUG_TOGGLE_KEYCODE`), so they can be flipped off without a rebuild. Note the
+feature is spelled `debug`, with `dev` as an alias for it (root `Cargo.toml`);
+`--features dev` and `--features debug` are interchangeable.
+
+Two debug-only CLI flags exist, both parsed in `src/main.rs` and both compiled
+in only under the `debug` feature:
+
+- `--norender` - build the app with rendering off (`editor_app(false)`), for
+  headless runs.
+- `--debugdump` - print the system schedule graph (via `bevy_mod_debugdump`)
+  and exit. It dumps the `Update` schedule (`debugdump` in
+  `crates/nova_debug/src/lib.rs`).
 
 ## Examples
 
@@ -223,6 +239,28 @@ Adding a devblog touches four places (mirror an existing post such as
    embed; otherwise use the `.post-card__ph` placeholder naming
    `assets/thumb-<slug>.png`.
 4. Rebuild and check it: `cd web && npm run ci` (format check, lint, build).
+
+## Contributing a change
+
+The everyday loop for landing a change:
+
+1. **Branch** off `master`. Work items are tracked as `tasks/` markdown (see
+   [Task tracking](#task-tracking) below); check the backlog first.
+2. **Build and format**: `cargo check && cargo fmt` before you commit. Do NOT
+   run `cargo test` or `cargo clippy` locally unless asked - they are slow and
+   CI is the source of truth; when you skip them, say so.
+3. **Drive it with an example.** For a substantial feature, add or extend the
+   `examples/` example that exercises it, with a harnessed autopilot assertion
+   (see [Examples](#examples)) - this repo prefers a runnable example over an
+   isolated unit test.
+4. **Open a PR.** CI (`.github/workflows/ci.yaml`) runs on every PR and push to
+   `master`: `cargo fmt --check`, `cargo clippy --workspace --all-targets
+   --features debug`, `cargo test --workspace --features debug`, then the
+   windowed `examples_smoke` suite under Xvfb/lavapipe, plus a dependency-license
+   gate. All of it must be green to merge.
+
+Commit messages are plain and use ASCII punctuation only. Releases are a
+separate, tagged flow (see [Cutting a release](#cutting-a-release)).
 
 ## Task tracking
 

@@ -178,6 +178,53 @@ flowchart LR
     render --> fixed --> post
 ```
 
+### Update vs FixedUpdate - which schedule does my system go in?
+
+The chain above is configured IDENTICALLY in `Update` and `FixedUpdate`
+(`nova_gameplay::plugin`, two `configure_sets` calls with the same set order),
+so a gameplay set can host systems in either schedule. The split is not
+cosmetic: since every dynamic body opted into avian's `TransformInterpolation`,
+the game carries two pose representations on two clocks (see the two-clocks
+record, `tasks/20260711-103527/SPIKE.md`):
+
+- **Raw physics pose** -- avian `Position`/`Rotation`, advanced on the 64 Hz
+  `FixedUpdate` tick. This is the truth the simulation integrates.
+- **Render pose** -- `Transform`, eased between the previous and current physics
+  states, with `GlobalTransform` propagated from it in `PostUpdate`.
+
+Which schedule:
+
+- Put a system in **FixedUpdate** when it feeds the physics sim -- forces and
+  impulses, spawns whose motion physics integrates (projectiles), guidance. It
+  MUST read the raw `Position`/`Rotation` (or compose the root's raw pose with a
+  local mount offset). During `FixedUpdate` of frame N, `GlobalTransform` still
+  holds the eased pose propagated in frame N-1's `PostUpdate`, so it is stale
+  render state here; the avian child-collider pose is one tick stale too.
+- Put a system in **Update** (or `PostUpdate`) when it consumes the rendered
+  frame -- camera, HUD world-to-screen projection, effects. It reads the eased
+  `Transform`/`GlobalTransform`, and every pose in one on-screen computation must
+  come from the same frame. A consumer of `PostUpdate`-written state must be
+  ordered after its producer.
+
+Why gameplay is split across both: the chain runs in `Update` for
+render-rate work and in `FixedUpdate` for sim-rate work; the same set order in
+both keeps ordering consistent wherever a system lands.
+
+What breaks if a system lands in the wrong schedule -- worked example: a
+`FixedUpdate` system reading `GlobalTransform`. `thruster_impulse_system` used to
+apply its impulse at the thruster child's `GlobalTransform`, i.e. the previous
+frame's eased pose, up to ~2 ticks of ship motion behind the raw physics it was
+pushing, while taking thrust DIRECTION from the raw `Rotation` -- mixing both
+clocks in one impulse. The application-point error is proportional to velocity;
+at speed a COM-centered engine developed an uncompensated lever arm the throttle
+balancer could not see, and the measured failure was a zero-true-torque lateral
+engine spinning the hull to 7.1 rad/s in 15 frames (0 rad/s after reading the raw
+pose). The fix (`thruster_section.rs`, see the comment above `apply_linear_impulse_at_point`)
+composes both application point and thrust direction from the root's raw
+`Position`/`Rotation`. The same footgun produced the bullet-spew, HUD-jitter and
+crosshair-twitch bugs in that family; all were error proportional to velocity,
+which is why they only showed at high speed.
+
 Cross-system communication goes through events and observers (Bevy `On<...>`
 observers, e.g. the integrity/destruction chain) rather than direct calls. Prefer
 adding an event/observer over coupling two systems.

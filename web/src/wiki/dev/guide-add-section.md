@@ -64,7 +64,7 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
 
 2. **Add the enum variant.**
    In `crates/nova_gameplay/src/sections/base_section.rs`, add the variant to
-   `SectionKind` (the enum is at ~line 38):
+   `SectionKind` (grep for `enum SectionKind`):
 
    ```rust
    pub enum SectionKind {
@@ -79,9 +79,10 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
 
 3. **Damage class + resistance rows.**
    In `crates/nova_gameplay/src/damage.rs`:
-   - Add the variant to `SectionDamageClass` (~line 73).
+   - Add the variant to `SectionDamageClass` (grep for `enum SectionDamageClass`).
    - Add one resistance row to EACH non-Kinetic group in `resistance()`
-     (~line 100): the `ArmorPiercing`, `Emp`, and `Explosive` blocks. Kinetic
+     (grep for `fn resistance`): the `ArmorPiercing`, `Emp`, and `Explosive`
+     blocks. Kinetic
      needs nothing -- the `(_, Kinetic) => 1.0` wildcard already covers every
      class.
 
@@ -100,7 +101,8 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
 
 4. **Wire the section plugin.**
    In `crates/nova_gameplay/src/sections/mod.rs`, add your plugin to the
-   `add_plugins((...))` tuple in `SpaceshipSectionPlugin::build` (~line 122),
+   `add_plugins((...))` tuple in `SpaceshipSectionPlugin::build` (grep for
+   `impl Plugin for SpaceshipSectionPlugin`),
    passing the `render` flag like the others:
 
    ```rust
@@ -111,7 +113,7 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
 
 5. **Spawn arm.**
    In `crates/nova_scenario/src/objects/spaceship.rs`, add a match arm to
-   `insert_spaceship_sections` (the `match &config.kind` at ~line 225). At
+   `insert_spaceship_sections` (grep for it, then its `match &config.kind`). At
    minimum insert the kind bundle; add input-binding / infinite-ammo handling
    only if your kind needs it (see the `Turret` / `Thruster` arms for those
    patterns):
@@ -127,7 +129,9 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
 
 6. **Editor placement arm.**
    In `crates/nova_editor/src/placement.rs`, add a `SectionKind::Shield(..)`
-   arm to the `match &section.kind` in the placement handler (~line 208). Spawn
+   arm to the `match &section.kind` in the placement handler (grep for
+   `match &section.kind` in `placement.rs` - it is the one in the placement
+   handler, not the hull/controller preview arms above it). Spawn
    a `preview_section(...) + <kind>_section(...)` child and record a
    `SpaceshipSectionConfig` in `player_config.sections`, modelling the `Hull`
    arm (no input binding) or the `Thruster` arm (rotation from surface normal +
@@ -135,7 +139,8 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
 
 7. **Editor card tint + glyph.**
    In `crates/nova_editor/src/ui/card.rs`, add an arm to BOTH `kind_tint()`
-   (~line 31) and `kind_glyph()` (~line 42) -- both match `SectionKind`
+   (grep for `fn kind_tint`) and `kind_glyph()` (grep for `fn kind_glyph`) --
+   both match `SectionKind`
    exhaustively:
 
    ```rust
@@ -147,7 +152,8 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
 
 8. **Asset prototype.**
    In `crates/nova_assets/src/sections.rs`, add a `SectionConfig` to the
-   `build_sections()` vec (~line 67) so the catalog ships a ready-to-place
+   `build_sections()` vec (grep for `fn build_sections`) so the catalog ships a
+   ready-to-place
    instance. Give it a stable snake_case `id` (this is what
    `sections.get_section("...")` and RON authors reference):
 

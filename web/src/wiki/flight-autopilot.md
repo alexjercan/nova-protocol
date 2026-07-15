@@ -21,11 +21,11 @@ Manual flight in Nova Protocol is fully **Newtonian**: momentum persists, nothin
 
 ## Manual flight
 
-You point the hull by mouse or stick - the controller section's PD attitude loop turns the ship toward your aim - and hold <kbd>W</kbd> (or the burn trigger) for an analog main-drive burn. The main drive is the sum of the thrusters that point forward; inputs spool up and down smoothly rather than snapping. A ship can carry an optional soft **speed cap** (used by training legs like the Shakedown's 25 u/s starter governor): the burn tapers to zero over the last stretch before the cap, along the burn axis only, so a held throttle levels off instead of accelerating forever. Turning and braking are never capped.
+You point the hull by mouse or stick - the controller section turns the ship toward your aim - and hold <kbd>W</kbd> (or the burn trigger) for an analog main-drive burn. The main drive is the sum of the thrusters that point forward; inputs spool up and down smoothly rather than snapping. A ship can carry an optional soft **speed cap** (used by training legs like the Shakedown's 25 u/s starter governor - `u/s` is units per second; see the [glossary](../glossary/)): the burn tapers to zero over the last stretch before the cap, along the burn axis only, so a held throttle levels off instead of accelerating forever. Turning and braking are never capped.
 
 ## Balancing thrust through the hull
 
-Because thrusters sit wherever you bolted them, an off-center burn would spin the ship. The flight computer prevents that: it solves, every tick, a small allocation that sets each engine's throttle to deliver the commanded forward thrust while **nulling the net torque** through the live center of mass, recruiting off-axis thrusters purely for counter-torque when the firing set cannot balance itself. An asymmetric or battle-damaged ship still flies straight (the tiny residual torque is mopped up by the attitude loop) - see [Thruster](../sections/thruster/).
+Because thrusters sit wherever you bolted them, an off-center burn would spin the ship. The flight computer prevents that: it sets each engine's throttle to deliver the commanded forward thrust while cancelling the twist through the live center of mass, recruiting off-axis thrusters purely for counter-torque when the firing set cannot balance itself. An asymmetric or battle-damaged ship still flies straight (any tiny leftover spin is mopped up by the steering) - see [Thruster](../sections/thruster/).
 
 ## Mass-legible handling
 
