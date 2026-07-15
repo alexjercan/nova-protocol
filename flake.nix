@@ -40,6 +40,7 @@
             pkg-config
             llvmPackages.bintools
             nodejs_22 # for the web/ landing site (matches the CI setup-node version)
+            samply # sampling profiler for the scenario-dispatch benchmarks (task 20260714-083331)
           ];
 
           buildInputs = with pkgs; [

@@ -1,8 +1,8 @@
 # Scenario dispatch benchmark + profile: baseline with a synthetic many-handler scenario
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 45
-- TAGS: v0.6.0,modding,perf,test
+- TAGS: v0.6.0, modding, perf, test
 
 Spike: tasks/20260714-083224/SPIKE.md
 

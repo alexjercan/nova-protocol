@@ -23,6 +23,8 @@ bevy_rand = { version = "0.15.0", features = ["wasm_js"] }
 
 [dev-dependencies]
 ron = { version = "0.12" }
+criterion = { version = "0.7", features = ["html_reports"] }
+serde_json = { version = "1" }
 
 [lints]
 workspace = true
@@ -30,3 +32,10 @@ workspace = true
 [features]
 debug = ["bevy/track_location", "bevy_common_systems/debug"]
 serde = ["dep:serde", "bevy/serialize", "nova_gameplay/serde"]
+
+# Baseline + regression benchmark for the scenario dispatch hot path (task
+# 20260714-083331): synthetic many-handler scenario, filter/condition micro
+# groups, and the full event-dispatch loop. `cargo bench -p nova_scenario`.
+[[bench]]
+name = "scenario_dispatch"
+harness = false
