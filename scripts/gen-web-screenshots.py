@@ -115,6 +115,11 @@ def png_dimensions(path):
         header = handle.read(24)
     if header[:8] != b"\x89PNG\r\n\x1a\n":
         raise ValueError(f"{path} is not a PNG")
+    # A truncated file that still starts with the signature would make the
+    # unpack below raise struct.error; surface it as a ValueError so the caller
+    # can report it as a normal validation failure alongside the mis-sized ones.
+    if len(header) < 24 or header[12:16] != b"IHDR":
+        raise ValueError(f"{path} is a truncated or malformed PNG (no IHDR)")
     width, height = struct.unpack(">II", header[16:24])
     return width, height
 
@@ -229,7 +234,11 @@ def process_group(entries, kind, stage_dir, expect_aspect):
         if not os.path.exists(src):
             pending.append((name, example))
             continue
-        width, height = png_dimensions(src)
+        try:
+            width, height = png_dimensions(src)
+        except ValueError as error:
+            failed.append((name, str(error)))
+            continue
         if expect_aspect is not None:
             aspect = width / height
             if abs(aspect - FIGURE_ASPECT) > ASPECT_TOLERANCE:

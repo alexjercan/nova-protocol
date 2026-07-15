@@ -305,7 +305,8 @@ impl ScreenshotReelPlugin {
 }
 
 /// Default reel capture resolution: 1920x1080, the 16:9 the web site's figures
-/// and thumbnails use (a packaging step downscales thumbnails from this).
+/// and thumbnails use (thumbnails share this capture and the site sizes them
+/// down with CSS at ~300px wide).
 pub const REEL_CAPTURE_RESOLUTION: (f32, f32) = (1920.0, 1080.0);
 
 /// The forced capture resolution; drives the startup window resize.

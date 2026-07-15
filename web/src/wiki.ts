@@ -263,7 +263,9 @@ function renderChildrenGrid(
         const icon = el("span", "wiki-child__icon");
         if (c.icon) {
             // The hatched span is the placeholder; drop the real icon in on top
-            // once it loads (and fall back to the frame if the asset 404s).
+            // only once it has loaded (mirrors upgradeFigures in site.ts). The
+            // img is built detached and appended in onload, so a not-yet-captured
+            // icon that 404s never flashes a broken-image glyph - the frame stays.
             icon.title = c.icon;
             const img = new Image();
             img.alt = c.title;
@@ -271,9 +273,10 @@ function renderChildrenGrid(
             img.style.width = "100%";
             img.style.height = "100%";
             img.style.objectFit = "contain";
-            img.onerror = (): void => img.remove();
+            img.onload = (): void => {
+                icon.appendChild(img);
+            };
             img.src = base + c.icon;
-            icon.appendChild(img);
         }
         card.appendChild(icon);
 
