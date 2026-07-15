@@ -1,8 +1,8 @@
 # Aggregate Rust dependency licenses into shipped credits (cargo-about)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 10
-- TAGS: backlog,chore,licenses,build
+- TAGS: backlog, chore, licenses, build
 
 Split out of 20260714-154958 (asset-license audit), which covered shipped
 ASSETS only. The shipped native binary statically links Bevy, avian and their

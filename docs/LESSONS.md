@@ -38,6 +38,18 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `landing-chain-and-stub-collision` (x1): land with one &&-chain
   (merge --squash && commit && sprout rm), and commit tatr stubs on master
   before sprouting so the merge cannot abort on a collision. 20260713-121605.
+- `verify-generator-stability-before-commit-diff` (x1): before gating a
+  generated artifact on "CI regenerates + `git diff --exit-code`", prove the
+  generator is byte-stable (run it twice, diff). cargo-about is NOT (~20-line
+  run-to-run drift), so generate it at BUILD time and have CI assert generation
+  succeeds, not that it matches a committed copy. 20260715-110417.
+- `toml-keys-before-tables` (x1): in TOML every top-level key must precede the
+  first `[table]` header or it silently folds into that table (cargo-about's
+  about.toml errored "unknown field targets" when a `[private]` table sat above
+  it). 20260715-110417.
+- `verify-tool-via-subcommand-not-which` (x1): a successful `cargo install`
+  puts a binary in ~/.cargo/bin which may not be on PATH; check `cargo <sub>
+  --version`, not `which`, before concluding the install failed. 20260715-110417.
 - `relocation-leaves-ignored-siblings` (x1): a sprout worktree is a fresh
   checkout, so gitignored files (autosave backups, build junk) exist only in the
   MAIN checkout; `git mv`-ing a dir's tracked files out then landing leaves the
