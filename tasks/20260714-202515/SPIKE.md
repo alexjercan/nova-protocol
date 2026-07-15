@@ -354,6 +354,16 @@ Direction-level tasks this spike seeded, for `/plan` to break into steps:
   20260715-151551: unship screenshot-reel from assets/ entirely (embed in the
   example; the hidden flag stays as a feature) - runs next, before 142900. See
   tasks/20260715-142849/{TASK,REVIEW,RETRO}.md.
+- 20260715, two-pane mods screen (142911) landed on master (`fd4c86af`): the
+  Mods overlay is now the Factorio-style screen - Installed | Explore tabs,
+  quiet per-row enable checkboxes (base locked), details pane from bundle meta
+  with a stable ModDetailsActions contract for 142916's buttons; Explore is an
+  inert placeholder; downloaded mods appear automatically. Search descoped (no
+  text-input widget; three mods). Visually verified via Xvfb screenshots -
+  which caught a real z-order bug (menu card over the panel, entity-id-
+  recycled ordering; fixed with GlobalZIndex on both overlay roots). Review
+  APPROVE rounds 1+2. Remaining: 142916 (Explore tab - the user-visible goal).
+  See tasks/20260715-142911/{TASK,REVIEW,RETRO}.md.
 - 20260715, portal client (163508, split from 142906) landed on master
   (`11e2ef89`): the game fetches catalog.json (schema-version gated) and
   installs/uninstalls portal mods over the wire - staged sha256-verified

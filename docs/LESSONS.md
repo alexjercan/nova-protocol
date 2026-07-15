@@ -146,10 +146,15 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `ci-skips-client-render` (x1): a build-only CI proves the bundle compiles, not
   that client-rendered UI works; DOM logic needs a runtime check (headless DOM
   or an eyeball), which a green build does not give. 20260713-225324.
-- `render-output-eyeball` (x1): a generated image/visual asset that validates at
+- `render-output-eyeball` (x2): a generated image/visual asset that validates at
   the right dimensions/format can still look wrong - open it. A composite that
   passed 1920x1080 was 2:1 distorted; eyeballing it drove the switch to
-  aspect-preserving contain-fit. 20260715-004216.
+  aspect-preserving contain-fit. UI variant: a layout task is not verified
+  until someone SEES it rendered (Xvfb screenshot + Read) - headless asserts
+  cannot see z-order/overlap (a menu card painted over the new mods panel,
+  ordered by recycled entity ids). Corollary: a scope change touching a past
+  deferral's premise (the panel grew 460px -> 85%) re-opens the deferral.
+  20260715-004216, 20260715-142911.
 - `roundtrip-hides-shared-bug` (x1): a codec/serializer round-trip test built on
   a self-authored forward pass proves symmetry, not correctness - a predictor/
   formula bug shared by encode and decode cancels. Re-derive the reverse against
@@ -321,7 +326,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   mechanism deleted proves nothing; copied tests inherit vacuousness - and a
   sabotage that refuses to go red refutes the assumed mechanism itself.
   20260711-180426, 20260711-212521, 20260712-115902.
-- `out-of-context-review-pass` (positive, x19): a fresh-context review of a
+- `out-of-context-review-pass` (positive, x20): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
   load-bearing claims instead of trusting them - checking cited evidence IS
   the spawn site, re-running the sabotage or the whole smoke suite, reading
