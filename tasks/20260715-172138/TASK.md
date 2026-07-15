@@ -1,6 +1,6 @@
 # Fix content_ron_parity drift: regenerate shakedown_run.content.ron after 713ac855 changed the builder
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 16
 - TAGS: bug,modding
 
@@ -26,11 +26,26 @@ regenerates on missing (content_ron_parity.rs:51, write-on-missing; its own
 failure message says "delete the file and re-run").
 
 Steps:
-- [ ] 1. Delete assets/base/scenarios/shakedown_run.content.ron; run
+- [x] 1. Delete assets/base/scenarios/shakedown_run.content.ron; run
   `cargo test -p nova_assets --test content_ron_parity` (regenerates + passes).
-- [ ] 2. Diff-review the regenerated file: position-only changes expected
+- [x] 2. Diff-review the regenerated file: position-only changes expected
   (wider crate spacing), no structural drift.
-- [ ] 3. Verify the load path: `cargo test -p nova_assets --test demo_scenario`
+- [x] 3. Verify the load path: `cargo test -p nova_assets --test demo_scenario`
   (loads the real base bundle recursively). fmt no-op (data file).
-- [ ] 4. No CHANGELOG (713ac855 already owns the user-visible change; this
+- [x] 4. No CHANGELOG (713ac855 already owns the user-visible change; this
   realigns data). Close-out notes the root cause for the retro.
+
+## Close-out (20260715)
+
+Regenerated `assets/base/scenarios/shakedown_run.content.ron` via the parity
+test's write-on-missing path (delete + re-run). Diff: exactly 8 changed lines,
+all crate position coordinates - the wider Shakedown spacing 713ac855 authored
+in the builder. Evidence: content_ron_parity 2 passed (the parity assertion IS
+the machine proof the file matches the builder); demo_scenario 11 passed (the
+real base bundle loads recursively with the regenerated file). No CHANGELOG
+(713ac855 owns the user-visible change).
+
+Root cause for the retro: 713ac855 changed a builder whose output is a
+COMMITTED generated file without re-running the generator; the parity test
+caught it, but only on the next full-suite run - the commit itself went
+through because the branch gate did not run that target.

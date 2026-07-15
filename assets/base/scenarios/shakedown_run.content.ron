@@ -368,9 +368,9 @@
                             id: "crate_1",
                             name: "Supply Crate 1",
                             position: (
-                                340.0,
-                                15.0,
-                                -175.0,
+                                345.0,
+                                30.0,
+                                -190.0,
                             ),
                             rotation: (
                                 0.0,
@@ -390,8 +390,8 @@
                             name: "Supply Crate 2",
                             position: (
                                 360.0,
-                                30.0,
-                                -150.0,
+                                5.0,
+                                -145.0,
                             ),
                             rotation: (
                                 0.0,
@@ -410,9 +410,9 @@
                             id: "crate_3",
                             name: "Supply Crate 3",
                             position: (
-                                375.0,
-                                10.0,
-                                -165.0,
+                                395.0,
+                                35.0,
+                                -110.0,
                             ),
                             rotation: (
                                 0.0,
