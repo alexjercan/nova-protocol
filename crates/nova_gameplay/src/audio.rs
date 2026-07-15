@@ -67,12 +67,16 @@ pub enum NovaSfx {
     /// A radar hold was denied - the computer grants no Lock capability
     /// (UI cue, F7/Q8a).
     RadarDeny,
+    /// A salvage crate was picked up - a light per-crate "ding", quieter than
+    /// and separate from the objective chime (task 20260714-090002). Fired
+    /// from `nova_scenario`'s salvage plugin, which owns the crate marker.
+    SalvagePickup,
 }
 
 /// The `(key, base-filename)` pairs Nova loads into its [`SoundBank`]. The bank
 /// applies the `sounds/<name>.wav` convention, so these map to
 /// `assets/sounds/<name>.wav`. Shared with `nova_assets`, which does the load.
-pub const NOVA_SFX_FILES: [(NovaSfx, &str); 11] = [
+pub const NOVA_SFX_FILES: [(NovaSfx, &str); 12] = [
     (NovaSfx::ThrusterLoop, "thruster_loop"),
     (NovaSfx::TurretFire, "turret_fire"),
     (NovaSfx::TorpedoLaunch, "torpedo_launch"),
@@ -84,6 +88,7 @@ pub const NOVA_SFX_FILES: [(NovaSfx, &str); 11] = [
     (NovaSfx::LockOff, "lock_off"),
     (NovaSfx::SafetyOn, "safety_on"),
     (NovaSfx::RadarDeny, "radar_deny"),
+    (NovaSfx::SalvagePickup, "salvage_pickup"),
 ];
 
 /// Per-cue *base* playback volumes (at point-blank; distance attenuation scales
@@ -101,6 +106,14 @@ const LOCK_ON_VOLUME: f32 = 0.30;
 const LOCK_OFF_VOLUME: f32 = 0.28;
 const SAFETY_ON_VOLUME: f32 = 0.30;
 const RADAR_DENY_VOLUME: f32 = 0.26;
+
+/// The salvage-pickup "ding". Deliberately quieter than the objective chime
+/// (`OBJECTIVE_COMPLETE_VOLUME` 0.38 / `OBJECTIVE_NEW_VOLUME` 0.30) so a crate
+/// pickup reads as a light per-item confirmation, not a beat completion (task
+/// 20260714-090002). `pub` because the cue is fired from `nova_scenario`'s
+/// salvage plugin (which owns [`SalvageCrateMarker`]), keeping every cue volume
+/// defined here in the audio module.
+pub const SALVAGE_PICKUP_VOLUME: f32 = 0.22;
 
 /// Distance-attenuation rolloff for positional cues, in world units. A cue plays
 /// at full base volume within `SFX_NEAR_DISTANCE`, is inaudible beyond
@@ -1047,7 +1060,20 @@ mod tests {
     fn every_nova_sfx_key_has_a_file() {
         // Guards against adding a NovaSfx variant without a placeholder asset.
         use NovaSfx::*;
-        for key in [ThrusterLoop, TurretFire, TorpedoLaunch, Explosion, Impact] {
+        for key in [
+            ThrusterLoop,
+            TurretFire,
+            TorpedoLaunch,
+            Explosion,
+            Impact,
+            ObjectiveNew,
+            ObjectiveComplete,
+            LockOn,
+            LockOff,
+            SafetyOn,
+            RadarDeny,
+            SalvagePickup,
+        ] {
             assert!(
                 NOVA_SFX_FILES.iter().any(|(k, _)| *k == key),
                 "NovaSfx::{key:?} is missing from NOVA_SFX_FILES"

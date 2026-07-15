@@ -54,6 +54,10 @@ SOUNDS = {
     "safety_on": ("sweep", 320.0, 180.0, 0.06, 0.22),
     # Radar denied (computer grants no Lock capability): low flat buzz.
     "radar_deny": ("tone", 110.0, 112.0, 0.16, 0.20),
+    # Salvage crate picked up: a light, bright rising "ding" - short and quiet,
+    # its own register above the near-flat objective blip (520->560) and below
+    # the radar lock chirp (700->980) so a pickup never blurs with either.
+    "salvage_pickup": ("sweep", 640.0, 860.0, 0.10, 0.20),
 }
 
 

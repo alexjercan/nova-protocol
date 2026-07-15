@@ -105,11 +105,86 @@ impl Plugin for SalvageCratePlugin {
     fn build(&self, app: &mut App) {
         debug!("SalvageCratePlugin: build");
 
+        // The per-crate pickup cue (task 20260714-090002) is audio, not render:
+        // register it regardless of the render flag. It no-ops without a
+        // SoundBank (editor, headless), so it is safe to add unconditionally.
+        app.init_resource::<DingedCrates>();
+        app.add_observer(on_crate_pickup_play_sfx);
+        app.add_observer(forget_despawned_crate);
+
         if self.render {
             app.add_observer(insert_crate_render);
             app.add_systems(Update, (tumble_crates, pulse_crate_glow));
         }
     }
+}
+
+/// Crate entities that have already sounded their pickup ding. A player ship is
+/// a compound of many section colliders on ONE rigid body, so avian fires a
+/// separate `CollisionStart` per section that enters the crate sensor
+/// (empirically 3+ for the shakedown ship). This set collapses that burst to a
+/// single ding per crate, so a pickup is one ding regardless of collider count
+/// or how the scenario's despawn happens to interleave with physics steps.
+/// Pruned by [`forget_despawned_crate`] when a crate leaves the world.
+#[derive(Resource, Default)]
+struct DingedCrates(bevy::platform::collections::HashSet<Entity>);
+
+/// Play the light pickup "ding" when the PLAYER flies into a salvage crate's
+/// sensor (task 20260714-090002). It lives here, in the crate's own plugin,
+/// because `SalvageCrateMarker` is a `nova_scenario` type and `nova_gameplay`'s
+/// audio module - which owns every other cue - cannot see it.
+///
+/// Gated to the player on purpose: the scenario pickup handler filters on the
+/// player entering, so an AI ship brushing a crate does NOT collect it and must
+/// not ding either. Non-positional, like the objective and lock UI cues: the
+/// pickup always happens at the player's own ship, so distance attenuation would
+/// be a no-op. The cue is a graceful no-op until the [`SoundBank`] exists.
+///
+/// This observes the same `CollisionStart` the area plugin turns into the
+/// scenario OnEnter - the truest pickup signal, firing on contact and never on
+/// scenario teardown (unlike an `On<Remove>` on the marker) - but dedups per
+/// crate via [`DingedCrates`] so one pickup is one ding even though a ship's
+/// many section colliders each fire the event.
+fn on_crate_pickup_play_sfx(
+    collision: On<CollisionStart>,
+    bank: Option<Res<SoundBank<NovaSfx>>>,
+    q_crate: Query<(), With<SalvageCrateMarker>>,
+    q_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut dinged: ResMut<DingedCrates>,
+    mut commands: Commands,
+) {
+    let Some(bank) = bank else { return };
+    let (Some(a), Some(b)) = (collision.body1, collision.body2) else {
+        return;
+    };
+    // Identify which body is the crate; avian does not guarantee the ordering.
+    let crate_entity = if q_crate.contains(a) {
+        a
+    } else if q_crate.contains(b) {
+        b
+    } else {
+        return;
+    };
+    let other = if crate_entity == a { b } else { a };
+    // Only the player collects a crate (the scenario handler filters on it).
+    if !q_player.contains(other) {
+        return;
+    }
+    // `insert` returns true only the first time this crate is seen, collapsing
+    // the per-section-collider burst to a single ding.
+    if dinged.0.insert(crate_entity) {
+        commands.play_sfx_volume(bank.get(NovaSfx::SalvagePickup), SALVAGE_PICKUP_VOLUME);
+    }
+}
+
+/// Drop a crate from the ding-dedup set when it leaves the world (picked up or
+/// torn down), keeping the set bounded and correct if an entity index is later
+/// reused.
+fn forget_despawned_crate(
+    remove: On<Remove, SalvageCrateMarker>,
+    mut dinged: ResMut<DingedCrates>,
+) {
+    dinged.0.remove(&remove.entity);
 }
 
 /// The visible crate: a bright box child, tumbling for life. A child (not
@@ -309,6 +384,189 @@ mod tests {
                 .get_variable("picked_up"),
             Some(&VariableLiteral::Boolean(true)),
             "the crate's OnEnter drove the filtered handler's action"
+        );
+    }
+
+    /// Count of pickup dings observed, standing in for "sounds played". This
+    /// rig wires no other cue source, so every `PlaySfx` is a crate ding.
+    #[derive(Resource, Default)]
+    struct PickupDings(usize);
+
+    /// Count of `CollisionStart`s that touched a crate - the delivery guard for
+    /// the negative test: it proves the mover really entered the sensor.
+    #[derive(Resource, Default)]
+    struct CrateCollisions(usize);
+
+    /// The proven salvage-pipeline physics rig (zero gravity, manual fixed
+    /// steps) with the pickup observer and a `PlaySfx` counter wired on. The
+    /// crate carries `CollisionEventsEnabled` directly - production attaches it
+    /// via the area plugin's `On<Add, ScenarioAreaMarker>` observer, but this
+    /// test exercises only the audio seam, so it adds the one flag that seam
+    /// needs rather than the whole ScenarioAreaPlugin.
+    fn pickup_audio_app() -> App {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            TransformPlugin,
+            AssetPlugin::default(),
+            bevy::mesh::MeshPlugin,
+            PhysicsPlugins::default(),
+        ));
+        app.init_asset::<AudioSource>();
+        app.insert_resource(Gravity(Vec3::ZERO));
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            0.02,
+        )));
+        app.insert_resource(SoundBank::load(
+            app.world().resource::<AssetServer>(),
+            NOVA_SFX_FILES,
+        ));
+        app.init_resource::<PickupDings>();
+        app.init_resource::<DingedCrates>();
+        app.add_observer(on_crate_pickup_play_sfx);
+        app.add_observer(forget_despawned_crate);
+        app.add_observer(|_: On<PlaySfx>, mut dings: ResMut<PickupDings>| dings.0 += 1);
+        app.finish();
+        app
+    }
+
+    /// Spawn a crate at the origin with the production bundle plus the
+    /// collision-events flag; return its entity.
+    fn spawn_pickup_crate(app: &mut App) -> Entity {
+        app.world_mut()
+            .spawn((
+                salvage_crate_scenario_object(SalvageCrateConfig {
+                    size: 1.5,
+                    area_radius: 6.0,
+                }),
+                CollisionEventsEnabled,
+                Transform::from_translation(Vec3::ZERO),
+            ))
+            .id()
+    }
+
+    /// Spawn a body flying straight through the crate at the origin. `mover`
+    /// gets whatever extra markers the caller bundles (the player marker, or
+    /// nothing for an AI stand-in).
+    fn spawn_mover(app: &mut App, extra: impl Bundle) {
+        app.world_mut().spawn((
+            RigidBody::Dynamic,
+            Collider::sphere(0.5),
+            ColliderDensity(1.0),
+            Transform::from_translation(Vec3::new(0.0, 0.0, 12.0)),
+            LinearVelocity(Vec3::new(0.0, 0.0, -60.0)),
+            extra,
+        ));
+    }
+
+    /// The pickup cue's happy path through real physics: a PLAYER body flying
+    /// into a crate's sensor plays exactly one pickup ding. Delivery guard: the
+    /// counter starts at zero, so a quiet sensor fails the test.
+    #[test]
+    fn a_player_flying_into_a_crate_dings_once() {
+        let mut app = pickup_audio_app();
+        spawn_pickup_crate(&mut app);
+        spawn_mover(&mut app, PlayerSpaceshipMarker);
+
+        assert_eq!(
+            app.world().resource::<PickupDings>().0,
+            0,
+            "delivery guard: silent before the pass"
+        );
+
+        // 12u at 60 u/s: inside the 6u sensor within ~0.15s; a half second of
+        // fixed ticks covers collision detection and the observer's flush.
+        for _ in 0..25 {
+            app.update();
+        }
+
+        assert_eq!(
+            app.world().resource::<PickupDings>().0,
+            1,
+            "one crate, one player pickup ding"
+        );
+    }
+
+    /// The dedup: a real ship is one RigidBody with many section colliders, so
+    /// avian fires a `CollisionStart` per section entering the sensor (this rig
+    /// reproduces the empirical 3x). The pickup must still be exactly ONE ding.
+    /// The `== 1` assertion is self-guarding: without the collision it would be
+    /// 0, and without the dedup it would be 3 (both fail the test).
+    #[test]
+    fn a_multi_collider_player_dings_once_per_crate() {
+        let mut app = pickup_audio_app();
+        spawn_pickup_crate(&mut app);
+        // One player body, three section colliders strung along the flight axis
+        // (like controller/hull/thruster on the shakedown ship).
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                PlayerSpaceshipMarker,
+                Transform::from_translation(Vec3::new(0.0, 0.0, 12.0)),
+                LinearVelocity(Vec3::new(0.0, 0.0, -60.0)),
+            ))
+            .id();
+        for dz in [0.0f32, 1.0, 2.0] {
+            app.world_mut().spawn((
+                Collider::cuboid(1.0, 1.0, 1.0),
+                ColliderDensity(1.0),
+                Transform::from_translation(Vec3::new(0.0, 0.0, dz)),
+                ChildOf(root),
+            ));
+        }
+
+        for _ in 0..25 {
+            app.update();
+        }
+
+        assert_eq!(
+            app.world().resource::<PickupDings>().0,
+            1,
+            "three section colliders entering one sensor must be one pickup ding"
+        );
+    }
+
+    /// The gate: an AI (non-player) body sweeping the same crate collects
+    /// nothing - the scenario handler ignores it - so it must not ding. The
+    /// `CrateCollisions` guard proves the stimulus fired: the mover really
+    /// entered the sensor, yet the player gate kept it silent (a bare
+    /// zero-assertion could pass on a rig the collision never reached).
+    #[test]
+    fn a_non_player_body_through_a_crate_stays_silent() {
+        let mut app = pickup_audio_app();
+        app.init_resource::<CrateCollisions>();
+        app.add_observer(
+            |collision: On<CollisionStart>,
+             q_crate: Query<(), With<SalvageCrateMarker>>,
+             mut hits: ResMut<CrateCollisions>| {
+                let touched = collision.body1.is_some_and(|e| q_crate.contains(e))
+                    || collision.body2.is_some_and(|e| q_crate.contains(e));
+                if touched {
+                    hits.0 += 1;
+                }
+            },
+        );
+        spawn_pickup_crate(&mut app);
+        // No PlayerSpaceshipMarker: an AI stand-in.
+        spawn_mover(&mut app, ());
+
+        for _ in 0..25 {
+            app.update();
+        }
+
+        assert!(
+            app.world().resource::<CrateCollisions>().0 > 0,
+            "delivery guard: the non-player mover must actually enter the sensor"
+        );
+        assert_eq!(
+            app.world().resource::<PickupDings>().0,
+            0,
+            "a non-player body collects nothing, so it must not ding"
         );
     }
 

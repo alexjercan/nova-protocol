@@ -47,10 +47,18 @@ const BEACON_2_POS: Vec3 = Vec3::new(260.0, 20.0, -200.0);
 /// Beat 3: a loose debris cluster past beacon 2 - pushed out so no crate
 /// sensor overlaps the (now standoff-sized) beacon trigger.
 const DEBRIS_CENTER: Vec3 = Vec3::new(350.0, 20.0, -160.0);
+/// The three salvage crates, strung ALONG the cluster rather than bunched
+/// (task 20260714-090002). The old scatter sat ~29-37u apart, so with the 8u
+/// pickup radius (16u sensor diameter) a fast pass could sweep two sensors
+/// almost at once and they read as a single pickup. These are spread to
+/// >=53u center-to-center (a ~37u gap between sensor surfaces), so each pickup
+/// registers as its own moment - reinforced by the per-crate pickup cue. The
+/// spread is pinned by `crates_are_spaced_for_distinct_pickups` and stays clear
+/// of beacon 2's trigger and the planetoid SOI (the geometry tests below).
 const CRATE_POSITIONS: [Vec3; 3] = [
-    Vec3::new(340.0, 15.0, -175.0),
-    Vec3::new(360.0, 30.0, -150.0),
-    Vec3::new(375.0, 10.0, -165.0),
+    Vec3::new(345.0, 30.0, -190.0),
+    Vec3::new(360.0, 5.0, -145.0),
+    Vec3::new(395.0, 35.0, -110.0),
 ];
 /// The stage dressing and late-run destination: a planetoid with a real
 /// gravity well, far enough that even the WORST-seed SOI (960u) falls
@@ -1378,6 +1386,30 @@ mod tests {
                  trigger volume",
                 i + 1
             );
+        }
+    }
+
+    /// The salvage crates must be spread far enough apart that each pickup
+    /// registers as its own moment (task 20260714-090002): the old ~29-37u
+    /// scatter let a fast pass sweep two 8u sensors almost at once. Pin every
+    /// pair at >= 5x the pickup radius center-to-center - a clear gap between
+    /// sensor surfaces (2*radius), so you cannot collect two without a
+    /// deliberate second approach. A future re-cram fails here.
+    #[test]
+    fn crates_are_spaced_for_distinct_pickups() {
+        let min_separation = 5.0 * CRATE_AREA_RADIUS;
+        for i in 0..CRATE_POSITIONS.len() {
+            for j in (i + 1)..CRATE_POSITIONS.len() {
+                let separation = CRATE_POSITIONS[i].distance(CRATE_POSITIONS[j]);
+                assert!(
+                    separation >= min_separation,
+                    "crate_{} and crate_{} are {separation:.0}u apart - too close for \
+                     distinct pickups (need >= {min_separation:.0}u, 5x the {CRATE_AREA_RADIUS}u \
+                     pickup radius)",
+                    i + 1,
+                    j + 1
+                );
+            }
         }
     }
 
