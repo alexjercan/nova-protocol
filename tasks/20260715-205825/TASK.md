@@ -1,8 +1,8 @@
 # Convert the player wiki HTML pages to markdown (unify on the pipeline)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 45
-- TAGS: feature,docs,web
+- TAGS: feature, docs, web
 
 User request: unify the whole wiki on the markdown pipeline (from 20260715-195621)
 so the hand-authored player pages are markdown too, not HTML. Feasible - the

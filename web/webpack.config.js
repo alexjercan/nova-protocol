@@ -22,85 +22,129 @@ const page = (chunk, template, filename) =>
         basePath: publicPath,
     });
 
-// Wiki sub-pages: each is `src/wiki/<slug>.html` served at `/wiki/<slug>/`, and
-// all share the `wiki` chunk (the manifest-driven sidebar/search/see-also from
-// wiki.ts + wiki-pages.ts). To add a page: author the HTML, add a manifest
-// entry in src/wiki-pages.ts, and add its slug here. Keep this list in sync
-// with wiki-pages.ts.
-// Children before their parent so the dev-server rewrites match the more
-// specific path first (/wiki/sections/hull before /wiki/sections).
-const WIKI_SLUGS = [
-    "sections/hull",
-    "sections/controller",
-    "sections/thruster",
-    "sections/turret",
-    "sections/torpedo-bay",
-    "sections",
-    "keybinds",
-    "hud",
-    "flight-autopilot",
-    "targeting-radar",
-    "combat-weapons",
-    "gravity-wells",
-    "factions",
-    "scenarios",
-    "modding",
-];
-const wikiPage = (slug) =>
-    page("wiki", `src/wiki/${slug}.html`, `wiki/${slug}/index.html`);
-
-// Developer wiki pages: rendered from markdown under `src/wiki/dev/` at build
-// time (see markdown.js). They share the `wiki` chunk and live under `/wiki/dev/`
-// so they never collide with the hand-authored player slugs above. To add one:
-// drop the `.md` in `src/wiki/dev/`, add an entry here, and add a manifest entry
-// in src/wiki-pages.ts. Keep this list in sync with wiki-pages.ts.
+// Every wiki page is markdown under `src/wiki/`, rendered at build time (see
+// markdown.js) and served at `/wiki/<slug>/`; all share the `wiki` chunk (the
+// manifest-driven sidebar/search/see-also from wiki.ts + wiki-pages.ts). To add
+// a page: drop the `.md` under `src/wiki/`, add an entry here, and add a manifest
+// entry in src/wiki-pages.ts. Keep this list in sync with wiki-pages.ts.
+// Children are listed before their parent so the dev-server rewrites match the
+// more specific path first (/wiki/sections/hull before /wiki/sections).
+const SECTIONS_CRUMB = { slug: "sections", title: "Ship sections" };
 const WIKI_DOC_PAGES = [
+    // Player pages (children before the sections parent for rewrite ordering).
+    {
+        slug: "sections/hull",
+        md: "sections/hull.md",
+        title: "Hull",
+        crumbParent: SECTIONS_CRUMB,
+    },
+    {
+        slug: "sections/controller",
+        md: "sections/controller.md",
+        title: "Controller",
+        crumbParent: SECTIONS_CRUMB,
+    },
+    {
+        slug: "sections/thruster",
+        md: "sections/thruster.md",
+        title: "Thruster",
+        crumbParent: SECTIONS_CRUMB,
+    },
+    {
+        slug: "sections/turret",
+        md: "sections/turret.md",
+        title: "Turret",
+        crumbParent: SECTIONS_CRUMB,
+    },
+    {
+        slug: "sections/torpedo-bay",
+        md: "sections/torpedo-bay.md",
+        title: "Torpedo bay",
+        crumbParent: SECTIONS_CRUMB,
+    },
+    { slug: "sections", md: "sections.md", title: "Ship sections" },
+    { slug: "keybinds", md: "keybinds.md", title: "Keybinds" },
+    { slug: "hud", md: "hud.md", title: "HUD" },
+    {
+        slug: "flight-autopilot",
+        md: "flight-autopilot.md",
+        title: "Flight & autopilot",
+    },
+    {
+        slug: "targeting-radar",
+        md: "targeting-radar.md",
+        title: "Targeting & radar",
+    },
+    {
+        slug: "combat-weapons",
+        md: "combat-weapons.md",
+        title: "Combat & weapons",
+    },
+    { slug: "gravity-wells", md: "gravity-wells.md", title: "Gravity wells" },
+    { slug: "factions", md: "factions.md", title: "Factions" },
+    { slug: "scenarios", md: "scenarios.md", title: "Scenarios" },
+    { slug: "modding", md: "modding.md", title: "Modding" },
+    // Developer pages (markdown under src/wiki/dev/).
     {
         slug: "dev/development",
-        md: "development.md",
+        md: "dev/development.md",
         title: "Building & running",
     },
-    { slug: "dev/architecture", md: "architecture.md", title: "Architecture" },
+    {
+        slug: "dev/architecture",
+        md: "dev/architecture.md",
+        title: "Architecture",
+    },
     {
         slug: "dev/sections",
-        md: "sections.md",
+        md: "dev/sections.md",
         title: "Ship sections (internals)",
     },
     {
         slug: "dev/scenario-system",
-        md: "scenario-system.md",
+        md: "dev/scenario-system.md",
         title: "Scenario engine",
     },
     {
         slug: "dev/modding-ron",
-        md: "modding-ron.md",
+        md: "dev/modding-ron.md",
         title: "Modding data format (RON)",
     },
-    { slug: "dev/mod-portal", md: "mod-portal.md", title: "Mod portal" },
-    { slug: "dev/project-tour", md: "project-tour.md", title: "Project tour" },
+    { slug: "dev/mod-portal", md: "dev/mod-portal.md", title: "Mod portal" },
+    {
+        slug: "dev/project-tour",
+        md: "dev/project-tour.md",
+        title: "Project tour",
+    },
     {
         slug: "dev/guide-add-section",
-        md: "guide-add-section.md",
+        md: "dev/guide-add-section.md",
         title: "Add a ship section",
     },
     {
         slug: "dev/guide-extend-scenarios",
-        md: "guide-extend-scenarios.md",
+        md: "dev/guide-extend-scenarios.md",
         title: "Extend the scenario engine",
     },
     {
         slug: "dev/guide-author-scenario",
-        md: "guide-author-scenario.md",
+        md: "dev/guide-author-scenario.md",
         title: "Author a scenario (RON)",
     },
     {
         slug: "dev/guide-make-a-mod",
-        md: "guide-make-a-mod.md",
+        md: "dev/guide-make-a-mod.md",
         title: "Make and publish a mod",
     },
 ];
-const docPage = ({ slug, md, title }) =>
-    wikiDocPage({ slug, mdPath: `src/wiki/dev/${md}`, title, publicPath });
+const docPage = ({ slug, md, title, crumbParent }) =>
+    wikiDocPage({
+        slug,
+        mdPath: `src/wiki/${md}`,
+        title,
+        crumbParent,
+        publicPath,
+    });
 
 const config = {
     entry: {
@@ -147,7 +191,6 @@ const config = {
         ),
         page("tutorial", "src/tutorial.html", "tutorial/index.html"),
         page("wiki", "src/wiki.html", "wiki/index.html"),
-        ...WIKI_SLUGS.map(wikiPage),
         ...WIKI_DOC_PAGES.map(docPage),
         new CopyPlugin({
             patterns: [
@@ -218,10 +261,6 @@ const config = {
                 },
                 { from: /^\/blog/, to: "/blog/index.html" },
                 { from: /^\/tutorial/, to: "/tutorial/index.html" },
-                ...WIKI_SLUGS.map((slug) => ({
-                    from: new RegExp("^/wiki/" + slug),
-                    to: "/wiki/" + slug + "/index.html",
-                })),
                 ...WIKI_DOC_PAGES.map(({ slug }) => ({
                     from: new RegExp("^/wiki/" + slug),
                     to: "/wiki/" + slug + "/index.html",

@@ -92,15 +92,32 @@ function escapeAttr(s) {
 // never runs over code samples. Unlike a `template` FILE, a templateContent
 // STRING is not run through lodash, so basePath is inlined here at config time
 // (publicPath is already known) rather than left as a <%= %> token.
-function docShell(title, basePath) {
+// opts: { description, crumbParent: { slug, title } }. A description is rendered
+// as the page meta; a crumbParent renders a two-level crumb ("Wiki / <parent> /
+// <title>") for child pages like the ship sections.
+function docShell(title, basePath, opts = {}) {
     const t = escapeAttr(title);
     const b = escapeAttr(basePath);
+    const desc = opts.description
+        ? `\n        <meta name="description" content="${escapeAttr(
+              opts.description
+          )}" />`
+        : "";
+    const parent = opts.crumbParent;
+    const crumb = parent
+        ? `<a href="${b}wiki/">Wiki</a>
+                        / <a href="${b}wiki/${escapeAttr(parent.slug)}/">${escapeAttr(
+                            parent.title
+                        )}</a>
+                        / ${t}`
+        : `<a href="${b}wiki/">Wiki</a>
+                        / ${t}`;
     return `<!doctype html>
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>${t} - Nova Protocol Wiki</title>
+        <title>${t} - Nova Protocol Wiki</title>${desc}
         <link rel="icon" href="${b}favicon.svg" />
     </head>
     <body>
@@ -114,8 +131,7 @@ function docShell(title, basePath) {
                 ></aside>
                 <article class="wiki__body prose">
                     <p class="wiki__crumb">
-                        <a href="${b}wiki/">Wiki</a>
-                        / ${t}
+                        ${crumb}
                     </p>
                     <h1>${t}</h1>
                     <div class="wiki__tags" id="wiki-tags"></div>
@@ -133,7 +149,15 @@ function docShell(title, basePath) {
 // on the plugin's `docBody` option; HtmlPartialsPlugin injects it into the
 // #doc-body placeholder at beforeEmit (see webpack-partials.js). Shares the
 // `wiki` chunk so the sidebar/search/tags/see-also all render from the manifest.
-function wikiDocPage({ slug, mdPath, title, publicPath }) {
+// `description` sets the page meta; `crumbParent` renders a child crumb.
+function wikiDocPage({
+    slug,
+    mdPath,
+    title,
+    description,
+    crumbParent,
+    publicPath,
+}) {
     const abs = path.resolve(__dirname, mdPath);
     const { html, title: h1 } = renderMarkdownFile(abs);
     const pageTitle = title || h1;
@@ -142,7 +166,10 @@ function wikiDocPage({ slug, mdPath, title, publicPath }) {
         chunks: ["wiki"],
         basePath: publicPath,
         docBody: html,
-        templateContent: docShell(pageTitle, publicPath),
+        templateContent: docShell(pageTitle, publicPath, {
+            description,
+            crumbParent,
+        }),
     });
 }
 
