@@ -149,7 +149,10 @@ pub(crate) fn menu_ambience(
         name: "Menu Ambience".to_string(),
         description: "The main menu's living backdrop.".to_string(),
         cubemap,
+        // The menu backdrop is never a player-facing scenario.
+        hidden: true,
         events,
+        ..Default::default()
     }
 }
 
@@ -509,7 +512,11 @@ pub(crate) fn asteroid_field(
         name: "Asteroid Field".to_string(),
         description: "A dense asteroid field.".to_string(),
         cubemap,
+        // A mid-story stage reached by chaining from the shakedown run, not a
+        // Scenarios-picker entry point.
+        hidden: true,
         events,
+        ..Default::default()
     }
 }
 
@@ -528,7 +535,10 @@ pub(crate) fn asteroid_next(cubemap: AssetRef<Image>) -> ScenarioConfig {
         name: "Asteroid Field - Next".to_string(),
         description: "The next scenario after the asteroid field.".to_string(),
         cubemap,
+        // A continuation reached only via NextScenario chaining, not an entry point.
+        hidden: true,
         events,
+        ..Default::default()
     }
 }
 

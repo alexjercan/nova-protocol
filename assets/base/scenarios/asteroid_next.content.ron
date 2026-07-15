@@ -4,6 +4,7 @@
         name: "Asteroid Field - Next",
         description: "The next scenario after the asteroid field.",
         cubemap: "textures/cubemap.png",
+        hidden: true,
         events: [
             (
                 name: OnStart,

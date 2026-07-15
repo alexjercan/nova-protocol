@@ -185,6 +185,7 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
         description: "Variables, events, filters and actions in one scenario.".to_string(),
         cubemap: game_assets.cubemap.clone().into(),
         events,
+        ..Default::default()
     }
 }
 

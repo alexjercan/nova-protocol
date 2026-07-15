@@ -242,6 +242,7 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         description: "Kill the prey, lock the waypoint, fly there.".to_string(),
         cubemap: game_assets.cubemap.clone().into(),
         events,
+        ..Default::default()
     }
 }
 

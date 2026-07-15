@@ -6,6 +6,7 @@
         name: "Gauntlet Run",
         description: "Thread the beacon gates from start to finish.",
         cubemap: "textures/cubemap.png",
+        thumbnail: Some("textures/cubemap.png"),
         events: [
             (
                 name: OnStart,

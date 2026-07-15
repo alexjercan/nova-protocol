@@ -256,6 +256,7 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
         description: "A test range for the torpedo bay section.".to_string(),
         cubemap: game_assets.cubemap.clone().into(),
         events,
+        ..Default::default()
     }
 }
 

@@ -4,6 +4,7 @@
         name: "Demo Scenario",
         description: "A ship-less RON modding demo: a few asteroids and a nav beacon.",
         cubemap: "textures/cubemap.png",
+        thumbnail: Some("textures/asteroid.png"),
         events: [
             (
                 name: OnStart,

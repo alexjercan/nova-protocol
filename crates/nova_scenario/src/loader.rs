@@ -22,8 +22,15 @@ pub type ScenarioId = String;
 #[derive(Resource, Clone, Debug, Deref, DerefMut, Default)]
 pub struct GameScenarios(pub HashMap<ScenarioId, ScenarioConfig>);
 
-/// Configuration for a game scenario
-#[derive(Clone, Debug)]
+/// Configuration for a game scenario.
+///
+/// `Default` exists so the many code-built literals (examples, tests) can fill
+/// the optional `thumbnail`/`hidden` fields with `..Default::default()`. Note a
+/// FULLY default `ScenarioConfig` is not serializable: its default `cubemap` is
+/// a handle-backed `AssetRef`, which errors on serialize (see `AssetRef`). Every
+/// real builder sets `cubemap` to a path, so this never bites; do not serialize
+/// `ScenarioConfig::default()` directly.
+#[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScenarioConfig {
     /// Unique identifier for the scenario
@@ -35,12 +42,36 @@ pub struct ScenarioConfig {
     /// The cubemap image used for the scenario's skybox. Authored as an asset
     /// path; resolved to a live handle at load time (see `on_load_scenario`).
     pub cubemap: AssetRef<Image>,
+    /// An optional thumbnail image for menus (the Scenarios picker renders it in
+    /// the details pane). Authored as an asset path exactly like `cubemap`, so a
+    /// mod thumbnail gets the same path handling. Serde-defaulted, so scenarios
+    /// authored before this field still parse. In strict RON an `Option` is
+    /// written with the variant, never bare: `thumbnail: Some("banner.png")`.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub thumbnail: Option<AssetRef<Image>>,
+    /// When true the scenario is hidden from the Scenarios picker (backdrops
+    /// like `menu_ambience`, mid-story continuations reached only via
+    /// `NextScenario` chaining). Mirrors the mods-catalog `hidden` flag.
+    /// Serde-defaulted to false, so most scenarios omit it; author a hidden one
+    /// as `hidden: true`.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
+    pub hidden: bool,
     /// Events associated with the scenario
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Vec::is_empty")
     )]
     pub events: Vec<ScenarioEventConfig>,
+}
+
+/// `skip_serializing_if` predicate for a `bool` that defaults to false: omit it
+/// from the serialized RON when it is false so unflagged scenarios stay clean.
+#[cfg(feature = "serde")]
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 /// Configuration for a scenario event
@@ -793,6 +824,7 @@ mod tests {
             description: "For tests".to_string(),
             cubemap: AssetRef::default(),
             events,
+            ..Default::default()
         }
     }
 
@@ -1394,6 +1426,7 @@ mod tests {
                     }),
                 ],
             }],
+            ..Default::default()
         };
 
         let ron = ron::to_string(&scenario).expect("scenario serializes to RON");
@@ -1435,5 +1468,47 @@ mod tests {
             Some(&bindings),
             "the keyboard + mouse bindings round-trip unchanged"
         );
+    }
+
+    /// The `thumbnail`/`hidden` fields are serde-defaulted, so a scenario RON
+    /// authored before they existed still parses (None/false), and a scenario
+    /// carrying them round-trips. Guards the back-compat contract the picker
+    /// depends on.
+    #[test]
+    fn thumbnail_and_hidden_default_when_absent_and_round_trip_when_present() {
+        // Legacy shape: no thumbnail, no hidden.
+        let legacy = r#"(id: "legacy", name: "Legacy", description: "old", cubemap: "sky.png")"#;
+        let parsed: ScenarioConfig = ron::from_str(legacy).expect("legacy scenario parses");
+        assert_eq!(parsed.thumbnail, None, "absent thumbnail defaults to None");
+        assert!(!parsed.hidden, "absent hidden defaults to false");
+
+        // A configured scenario round-trips both fields, and the defaulted
+        // fields stay out of the serialized form (skip_serializing_if).
+        let configured = ScenarioConfig {
+            id: "cfg".to_string(),
+            name: "Configured".to_string(),
+            description: "new".to_string(),
+            cubemap: AssetRef::from("sky.png"),
+            thumbnail: Some(AssetRef::from("thumb.png")),
+            hidden: true,
+            events: vec![],
+        };
+        // `ron::to_string` is compact (no spaces after colons).
+        let ron = ron::to_string(&configured).expect("configured scenario serializes");
+        assert!(ron.contains("thumbnail:Some(\"thumb.png\")"), "ron: {ron}");
+        assert!(ron.contains("hidden:true"), "ron: {ron}");
+        let back: ScenarioConfig = ron::from_str(&ron).expect("configured scenario parses");
+        assert_eq!(
+            back.thumbnail
+                .and_then(|t| t.path().map(String::from))
+                .as_deref(),
+            Some("thumb.png")
+        );
+        assert!(back.hidden);
+
+        // The defaulted form omits both keys.
+        let bare = ron::to_string(&parsed).expect("legacy re-serializes");
+        assert!(!bare.contains("thumbnail"), "ron: {bare}");
+        assert!(!bare.contains("hidden"), "ron: {bare}");
     }
 }

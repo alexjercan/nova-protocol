@@ -139,6 +139,7 @@ fn juice_target(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                 },
             )],
         }],
+        ..Default::default()
     }
 }
 

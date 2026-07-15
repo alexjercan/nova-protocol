@@ -174,6 +174,7 @@ fn guidance_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scena
         description: "A harness for the torpedo PN guidance.".to_string(),
         cubemap: game_assets.cubemap.clone().into(),
         events,
+        ..Default::default()
     }
 }
 

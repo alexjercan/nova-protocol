@@ -254,6 +254,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         description: "A test range for the PDC turret section.".to_string(),
         cubemap: game_assets.cubemap.clone().into(),
         events,
+        ..Default::default()
     }
 }
 

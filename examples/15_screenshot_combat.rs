@@ -178,6 +178,7 @@ fn combat_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         description: "A range for the combat-lock screenshots.".to_string(),
         cubemap: game_assets.cubemap.clone().into(),
         events,
+        ..Default::default()
     }
 }
 

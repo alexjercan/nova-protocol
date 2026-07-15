@@ -112,6 +112,7 @@ fn hull_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
                 },
             )],
         }],
+        ..Default::default()
     }
 }
 

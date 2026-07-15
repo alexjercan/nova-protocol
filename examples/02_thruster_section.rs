@@ -114,6 +114,7 @@ fn burn_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
                 },
             )],
         }],
+        ..Default::default()
     }
 }
 

@@ -4,6 +4,7 @@
         name: "Menu Ambience",
         description: "The main menu\'s living backdrop.",
         cubemap: "textures/cubemap.png",
+        hidden: true,
         events: [
             (
                 name: OnStart,

@@ -35,6 +35,7 @@ pub(crate) fn test_scenario(
         description: "A sandbox scenario: an asteroid field and a planetoid.".to_string(),
         cubemap: game_assets.cubemap.clone().into(),
         events: sandbox_events(objects),
+        ..Default::default()
     }
 }
 

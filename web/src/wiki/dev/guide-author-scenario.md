@@ -32,12 +32,19 @@ items; a scenario is one `Scenario((...))` item (a `Content` newtype):
 ]
 ```
 
-The five `ScenarioConfig` fields (`loader.rs`):
+The `ScenarioConfig` fields (`loader.rs`):
 
 - `id` - unique scenario id, the key other scenarios switch to (`NextScenario`).
 - `name`, `description` - display strings.
 - `cubemap` - skybox image, authored as a bare asset-path string (an
   `AssetRef`; resolved to a handle at load time).
+- `thumbnail` (optional) - an image path shown in the main-menu Scenarios
+  picker's details pane. Authored exactly like `cubemap` but wrapped in the
+  `Option` variant (strict RON, never bare): `thumbnail: Some("banner.png")`.
+  Omit it for no thumbnail.
+- `hidden` (optional, default `false`) - when `true`, the scenario is kept out
+  of the Scenarios picker (the menu backdrop, mid-story continuations reached
+  only via `NextScenario`). Author as `hidden: true`; omit it to be listed.
 - `events` - the list of handlers. May be empty (`events: []`), but then
   nothing happens.
 

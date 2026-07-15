@@ -107,6 +107,7 @@ fn attitude_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                 },
             )],
         }],
+        ..Default::default()
     }
 }
 

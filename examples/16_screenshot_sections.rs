@@ -141,6 +141,7 @@ fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                 },
             )],
         }],
+        ..Default::default()
     }
 }
 

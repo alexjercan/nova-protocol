@@ -130,6 +130,7 @@ fn orbit_scene(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
                 }),
             ],
         }],
+        ..Default::default()
     }
 }
 

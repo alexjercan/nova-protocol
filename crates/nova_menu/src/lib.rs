@@ -85,6 +85,12 @@ impl Plugin for NovaMenuPlugin {
         // list/details refresh systems below.
         app.init_resource::<ModsActiveTab>();
         app.init_resource::<SelectedModId>();
+        // Scenarios picker state: the selected scenario drives its own
+        // list/details refresh systems; NewGameScenario overrides which
+        // scenario the shared Playing-entry loader plays (None -> the canned
+        // New Game start, Some(id) -> that scenario).
+        app.init_resource::<SelectedScenarioId>();
+        app.init_resource::<NewGameScenario>();
         // The Explore tab's update choreography (uninstall-then-install). The
         // driver runs OUTSIDE the menu state on purpose: an update started
         // from the menu must complete even if the player closes it mid-flight.
@@ -121,6 +127,21 @@ impl Plugin for NovaMenuPlugin {
             (
                 refresh_mods_list.run_if(mods_list_dirty),
                 refresh_mod_details.run_if(mod_details_dirty),
+            )
+                .chain()
+                .run_if(in_state(GameStates::MainMenu)),
+        );
+        // The Scenarios picker's dynamic content, same dirty-chain shape as the
+        // mods screen: the list rebuilds on a scenario-registry or selection
+        // change, the details pane on selection/registry change. Chained so a
+        // default selection made while rebuilding the list renders in the same
+        // frame (setup_menu_ui re-arms both by resetting SelectedScenarioId on
+        // menu entry).
+        app.add_systems(
+            Update,
+            (
+                refresh_scenarios_list.run_if(scenarios_list_dirty),
+                refresh_scenario_details.run_if(scenario_details_dirty),
             )
                 .chain()
                 .run_if(in_state(GameStates::MainMenu)),
@@ -466,6 +487,59 @@ enum PortalActionKind {
     Dismiss,
 }
 
+// ---------------------------------------------------------------------------
+// Scenarios picker (task 20260715-200828): a second two-pane overlay in the
+// mods-screen style. Lists every `!hidden` scenario from `GameScenarios`
+// (base + enabled mods) and plays the selected one via the New Game handoff.
+// ---------------------------------------------------------------------------
+
+/// Marker for the Scenarios panel root, toggled by the Scenarios button.
+#[derive(Component)]
+struct ScenariosPanel;
+
+/// The scenario id the details pane renders. `None` until the list populates -
+/// `refresh_scenarios_list` default-selects the first row (and repairs a stale
+/// selection); `on_scenario_row_select` sets it from a row click.
+#[derive(Resource, Default)]
+struct SelectedScenarioId(Option<ScenarioId>);
+
+/// Overrides which scenario the shared `start_new_game_scenario`
+/// (OnEnter(Playing), gated `GameMode::NewGame`) loads. `None` -> the canned
+/// New Game start; `Some(id)` -> that scenario. The Scenarios picker's Play
+/// button sets it; `on_new_game` clears it so New Game always plays the story.
+#[derive(Resource, Default)]
+struct NewGameScenario(Option<ScenarioId>);
+
+/// The scrollable container holding the scenario rows; `refresh_scenarios_list`
+/// swaps its children when the registry or selection changes.
+#[derive(Component)]
+struct ScenariosList;
+
+/// One clickable scenario row: clicking it selects the scenario for the details
+/// pane.
+#[derive(Component)]
+struct ScenarioRow {
+    id: ScenarioId,
+}
+
+/// The scenario details side panel; `refresh_scenario_details` rebuilds its
+/// children (name, description, source, thumbnail, Play button) from the
+/// selected scenario.
+#[derive(Component)]
+struct ScenarioDetailsPanel;
+
+/// The scenario details pane's action area (holds the Play button). Kept as a
+/// stable marker so the container exists in every state.
+#[derive(Component)]
+struct ScenarioDetailsActions;
+
+/// A details-pane Play button: the scenario id it launches. `on_scenario_play`
+/// reads it on click.
+#[derive(Component)]
+struct ScenarioPlay {
+    id: ScenarioId,
+}
+
 /// One in-flight update request (see [`UpdateRequested`]).
 struct UpdateRequest {
     /// When the current stage started (wall clock); the timeout compares
@@ -714,6 +788,7 @@ fn setup_menu_ui(
     mut commands: Commands,
     mut active_tab: ResMut<ModsActiveTab>,
     mut selected: ResMut<SelectedModId>,
+    mut selected_scenario: ResMut<SelectedScenarioId>,
 ) {
     commands
         .spawn((
@@ -764,6 +839,11 @@ fn setup_menu_ui(
                 Name::new("Sandbox Button"),
                 button("Sandbox"),
                 observe(on_sandbox),
+            ));
+            parent.spawn((
+                Name::new("Scenarios Button"),
+                button("Scenarios"),
+                observe(on_scenarios),
             ));
             parent.spawn((Name::new("Mods Button"), button("Mods"), observe(on_mods)));
             parent.spawn((
@@ -1027,6 +1107,143 @@ fn setup_menu_ui(
                         });
                 });
         });
+
+    // Scenarios panel: hidden until the Scenarios button toggles it. A two-pane
+    // screen mirroring the mods screen - LEFT the scrollable scenario rows,
+    // RIGHT the selected scenario's details + Play button. The panes spawn
+    // EMPTY; resetting SelectedScenarioId below marks it changed, re-arming
+    // refresh_scenarios_list/refresh_scenario_details to populate them on the
+    // first Update frame after entry.
+    selected_scenario.0 = None;
+
+    commands
+        .spawn((
+            DespawnOnExit(GameStates::MainMenu),
+            Name::new("Scenarios Panel Root"),
+            ScenariosPanel,
+            Visibility::Hidden,
+            Pickable {
+                should_block_lower: false,
+                is_hoverable: false,
+            },
+            Node {
+                width: percent(100),
+                height: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            // Above the bottom-right menu card (mirrors the mods panel's 142911
+            // R1.1 fix): sibling z-order otherwise falls back to Entity id
+            // ordering, which the despawned ambience scene recycles.
+            GlobalZIndex(1),
+        ))
+        .with_children(|parent| {
+            parent
+                .spawn((
+                    Name::new("Scenarios Panel"),
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        width: percent(85),
+                        height: percent(85),
+                        padding: UiRect::all(px(20)),
+                        border: UiRect::all(px(theme::BORDER_W)),
+                        border_radius: BorderRadius::all(px(theme::RADIUS)),
+                        ..default()
+                    },
+                    BorderColor::all(theme::BORDER),
+                    BackgroundColor(theme::PANEL),
+                ))
+                .with_children(|parent| {
+                    parent.spawn((
+                        Name::new("Scenarios Title"),
+                        Text::new("Scenarios"),
+                        TextFont {
+                            font_size: FontSize::Px(24.0),
+                            ..default()
+                        },
+                        TextColor(theme::TEXT),
+                    ));
+                    parent.spawn((
+                        Name::new("Scenarios Subtitle"),
+                        Text::new("Pick a scenario to play. New Game plays the main story."),
+                        TextFont {
+                            font_size: FontSize::Px(13.0),
+                            ..default()
+                        },
+                        TextColor(theme::TEXT_MUTED),
+                    ));
+
+                    parent
+                        .spawn((
+                            Name::new("Scenarios Content"),
+                            Node {
+                                flex_direction: FlexDirection::Row,
+                                align_self: AlignSelf::Stretch,
+                                flex_grow: 1.0,
+                                min_height: px(0),
+                                column_gap: px(16),
+                                margin: UiRect::vertical(px(10)),
+                                ..default()
+                            },
+                        ))
+                        .with_children(|content| {
+                            content.spawn((
+                                Name::new("Scenarios List"),
+                                ScenariosList,
+                                Node {
+                                    flex_direction: FlexDirection::Column,
+                                    width: percent(40),
+                                    min_height: px(0),
+                                    overflow: Overflow::scroll_y(),
+                                    ..default()
+                                },
+                                ScrollPosition::default(),
+                            ));
+                            content.spawn((
+                                Name::new("Scenario Details Panel"),
+                                ScenarioDetailsPanel,
+                                Node {
+                                    flex_direction: FlexDirection::Column,
+                                    flex_grow: 1.0,
+                                    min_height: px(0),
+                                    padding: UiRect::left(px(16)),
+                                    border: UiRect::left(px(theme::BORDER_W)),
+                                    ..default()
+                                },
+                                BorderColor::all(theme::BORDER),
+                            ));
+                        });
+
+                    parent
+                        .spawn((
+                            Name::new("Scenarios Footer"),
+                            Node {
+                                align_self: AlignSelf::Stretch,
+                                flex_direction: FlexDirection::Row,
+                                justify_content: JustifyContent::FlexStart,
+                                ..default()
+                            },
+                        ))
+                        .with_children(|footer| {
+                            footer
+                                .spawn((
+                                    Name::new("Scenarios Back Slot"),
+                                    Node {
+                                        width: px(200),
+                                        ..default()
+                                    },
+                                ))
+                                .with_children(|slot| {
+                                    slot.spawn((
+                                        Name::new("Scenarios Back Button"),
+                                        button("Back"),
+                                        observe(on_scenarios_back),
+                                    ));
+                                });
+                        });
+                });
+        });
 }
 
 /// The muted "v0.2.0 - by Author" line under a mod's name (row and details
@@ -1164,11 +1381,249 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModInfo, enabled: bool, se
     });
 }
 
+/// The scenarios the picker lists: every `!hidden` entry, sorted by display
+/// name then id (a stable, deterministic order over the HashMap-backed
+/// registry).
+fn listed_scenarios(scenarios: &GameScenarios) -> Vec<ScenarioConfig> {
+    let mut out: Vec<ScenarioConfig> = scenarios.values().filter(|s| !s.hidden).cloned().collect();
+    out.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.id.cmp(&b.id)));
+    out
+}
+
+/// `refresh_scenarios_list` / `refresh_scenario_details` re-run when the
+/// scenario registry changed (an enabled mod added/removed scenarios) or the
+/// selection changed. Both refreshers share the signals; the list writes the
+/// selection (default/repair) and the chained details refresh sees that write
+/// the same frame.
+fn scenarios_list_dirty(
+    scenarios: Option<Res<GameScenarios>>,
+    selected: Res<SelectedScenarioId>,
+) -> bool {
+    scenarios.is_some_and(|s| s.is_changed()) || selected.is_changed()
+}
+
+fn scenario_details_dirty(
+    scenarios: Option<Res<GameScenarios>>,
+    selected: Res<SelectedScenarioId>,
+) -> bool {
+    scenarios.is_some_and(|s| s.is_changed()) || selected.is_changed()
+}
+
+/// Rebuild the scenario list: one clickable row per `!hidden` scenario, with a
+/// default/repaired selection so the details pane always has a target.
+fn refresh_scenarios_list(
+    mut commands: Commands,
+    scenarios: Option<Res<GameScenarios>>,
+    mut selected: ResMut<SelectedScenarioId>,
+    lists: Query<Entity, With<ScenariosList>>,
+) {
+    let Ok(list) = lists.single() else {
+        return;
+    };
+    commands.entity(list).despawn_related::<Children>();
+    let listed = scenarios
+        .as_ref()
+        .map(|s| listed_scenarios(s))
+        .unwrap_or_default();
+    // Selection repair against the visible set (the mods-list discipline): a
+    // selection that left the registry (a disabled mod) resets to the first row.
+    if !listed
+        .iter()
+        .any(|s| selected.0.as_deref() == Some(s.id.as_str()))
+    {
+        let first = listed.first().map(|s| s.id.clone());
+        if selected.0 != first {
+            selected.0 = first;
+        }
+    }
+    commands.entity(list).with_children(|list| {
+        if listed.is_empty() {
+            list.spawn((
+                Name::new("Scenarios Empty Note"),
+                Text::new("No scenarios available."),
+                TextFont {
+                    font_size: FontSize::Px(13.0),
+                    ..default()
+                },
+                TextColor(theme::TEXT_MUTED),
+            ));
+        }
+        for s in &listed {
+            let is_selected = selected.0.as_deref() == Some(s.id.as_str());
+            spawn_scenario_row(list, s, is_selected);
+        }
+    });
+}
+
+/// Spawn one clickable scenario row: name over a muted description snippet.
+fn spawn_scenario_row(list: &mut ChildSpawnerCommands, s: &ScenarioConfig, selected: bool) {
+    let mut row = list.spawn((
+        Name::new(format!("Scenario Row: {}", s.id)),
+        ScenarioRow { id: s.id.clone() },
+        Node {
+            flex_direction: FlexDirection::Column,
+            align_self: AlignSelf::Stretch,
+            row_gap: px(2),
+            padding: UiRect::all(px(8)),
+            margin: UiRect::bottom(px(4)),
+            border: UiRect::all(px(theme::BORDER_W)),
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            ..default()
+        },
+        ThemedButton,
+        Button,
+        Hovered::default(),
+        BorderColor::all(theme::BORDER),
+        BackgroundColor(theme::PANEL),
+        observe(on_scenario_row_select),
+    ));
+    if selected {
+        row.insert(Selected);
+    }
+    row.with_children(|row| {
+        row.spawn((
+            Name::new("Scenario Name"),
+            Text::new(s.name.clone()),
+            TextFont {
+                font_size: FontSize::Px(15.0),
+                ..default()
+            },
+            TextColor(theme::TEXT),
+        ));
+        if !s.description.is_empty() {
+            row.spawn((
+                Name::new("Scenario Row Blurb"),
+                Text::new(s.description.clone()),
+                TextFont {
+                    font_size: FontSize::Px(12.0),
+                    ..default()
+                },
+                TextColor(theme::TEXT_MUTED),
+            ));
+        }
+    });
+}
+
+/// Rebuild the scenario details pane from the selected scenario: name,
+/// separator, thumbnail (if authored and the asset server is available),
+/// description, and a Play button. The empty fallback keeps
+/// [`ScenarioDetailsActions`] present in every state.
+fn refresh_scenario_details(
+    mut commands: Commands,
+    scenarios: Option<Res<GameScenarios>>,
+    selected: Res<SelectedScenarioId>,
+    asset_server: Option<Res<AssetServer>>,
+    panels: Query<Entity, With<ScenarioDetailsPanel>>,
+) {
+    let Ok(panel) = panels.single() else {
+        return;
+    };
+    commands.entity(panel).despawn_related::<Children>();
+    let scenario = selected
+        .0
+        .as_ref()
+        .and_then(|id| scenarios.as_ref().and_then(|s| s.get(id)))
+        .cloned();
+    commands.entity(panel).with_children(|details| {
+        let Some(scenario) = scenario else {
+            details.spawn((
+                Name::new("Scenario Details Empty"),
+                Text::new("Select a scenario to see its details."),
+                TextFont {
+                    font_size: FontSize::Px(14.0),
+                    ..default()
+                },
+                TextColor(theme::TEXT_MUTED),
+            ));
+            details.spawn((
+                Name::new("Scenario Details Actions"),
+                ScenarioDetailsActions,
+                Node::default(),
+            ));
+            return;
+        };
+
+        details.spawn((
+            Name::new("Scenario Details Name"),
+            Text::new(scenario.name.clone()),
+            TextFont {
+                font_size: FontSize::Px(20.0),
+                ..default()
+            },
+            TextColor(theme::TEXT),
+        ));
+        details.spawn((Name::new("Scenario Details Separator"), separator()));
+        // The thumbnail: only when authored AND the asset server exists (headless
+        // test apps run this refresh without an AssetPlugin). Fixed 16:9 box so a
+        // portrait/odd source does not distort the pane.
+        if let (Some(thumb), Some(server)) = (scenario.thumbnail.as_ref(), asset_server.as_ref()) {
+            details.spawn((
+                Name::new("Scenario Details Thumbnail"),
+                ImageNode::new(thumb.resolve(server)),
+                Node {
+                    width: percent(100),
+                    max_width: px(320),
+                    aspect_ratio: Some(16.0 / 9.0),
+                    margin: UiRect::bottom(px(8)),
+                    border: UiRect::all(px(theme::BORDER_W)),
+                    ..default()
+                },
+                BorderColor::all(theme::BORDER),
+            ));
+        }
+        if !scenario.description.is_empty() {
+            details.spawn((
+                Name::new("Scenario Details Description"),
+                Text::new(scenario.description.clone()),
+                TextFont {
+                    font_size: FontSize::Px(14.0),
+                    ..default()
+                },
+                TextColor(theme::TEXT),
+                Node {
+                    margin: UiRect::bottom(px(8)),
+                    ..default()
+                },
+            ));
+        }
+        details
+            .spawn((
+                Name::new("Scenario Details Actions"),
+                ScenarioDetailsActions,
+                Node::default(),
+            ))
+            .with_children(|actions| {
+                actions
+                    .spawn((
+                        Name::new("Scenario Play Slot"),
+                        Node {
+                            width: px(140),
+                            ..default()
+                        },
+                    ))
+                    .with_children(|slot| {
+                        slot.spawn((
+                            Name::new("Scenario Play Button"),
+                            themed_button("Play"),
+                            ScenarioPlay {
+                                id: scenario.id.clone(),
+                            },
+                            observe(on_scenario_play),
+                        ));
+                    });
+            });
+    });
+}
+
 fn on_new_game(
     _activate: On<Activate>,
     mut mode: ResMut<GameMode>,
     mut state: ResMut<NextState<GameStates>>,
+    mut pick: ResMut<NewGameScenario>,
 ) {
+    // New Game always plays the main story from the top: clear any override the
+    // Scenarios picker left, so `start_new_game_scenario` loads the canned start.
+    pick.0 = None;
     *mode = GameMode::NewGame;
     state.set(GameStates::Playing);
 }
@@ -1212,6 +1667,60 @@ fn on_mods(_activate: On<Activate>, mut panel: Single<&mut Visibility, With<Mods
 
 fn on_mods_back(_activate: On<Activate>, mut panel: Single<&mut Visibility, With<ModsPanel>>) {
     **panel = Visibility::Hidden;
+}
+
+fn on_scenarios(_activate: On<Activate>, mut panel: Single<&mut Visibility, With<ScenariosPanel>>) {
+    **panel = match **panel {
+        Visibility::Hidden => Visibility::Visible,
+        _ => Visibility::Hidden,
+    };
+}
+
+fn on_scenarios_back(
+    _activate: On<Activate>,
+    mut panel: Single<&mut Visibility, With<ScenariosPanel>>,
+) {
+    **panel = Visibility::Hidden;
+}
+
+/// Select the clicked row's scenario: write [`SelectedScenarioId`] (which
+/// re-arms `refresh_scenario_details`) and move the row `Selected` highlight.
+fn on_scenario_row_select(
+    activate: On<Activate>,
+    rows: Query<(Entity, &ScenarioRow)>,
+    selected_rows: Query<Entity, (With<ScenarioRow>, With<Selected>)>,
+    mut selected: ResMut<SelectedScenarioId>,
+    mut commands: Commands,
+) {
+    let Ok((entity, row)) = rows.get(activate.entity) else {
+        return;
+    };
+    if selected.0.as_deref() == Some(row.id.as_str()) {
+        return;
+    }
+    for previous in &selected_rows {
+        commands.entity(previous).remove::<Selected>();
+    }
+    commands.entity(entity).insert(Selected);
+    selected.0 = Some(row.id.clone());
+}
+
+/// Play the selected scenario: record the override and hand off to Playing
+/// exactly like New Game (so the same OnEnter loader, camera grab and backdrop
+/// teardown apply). `start_new_game_scenario` reads [`NewGameScenario`].
+fn on_scenario_play(
+    activate: On<Activate>,
+    plays: Query<&ScenarioPlay>,
+    mut pick: ResMut<NewGameScenario>,
+    mut mode: ResMut<GameMode>,
+    mut state: ResMut<NextState<GameStates>>,
+) {
+    let Ok(play) = plays.get(activate.entity) else {
+        return;
+    };
+    pick.0 = Some(play.id.clone());
+    *mode = GameMode::NewGame;
+    state.set(GameStates::Playing);
 }
 
 /// Switch the active mods tab: write [`ModsActiveTab`] (which re-arms
@@ -2104,13 +2613,33 @@ fn on_exit(_activate: On<Activate>, mut exit: MessageWriter<AppExit>) {
     exit.write(AppExit::Success);
 }
 
-/// In `NewGame` mode the menu itself provides the game: load the canned scenario
-/// (player ship included) the moment gameplay starts. `Sandbox` mode does nothing
-/// here - the editor owns that path.
-fn start_new_game_scenario(mut commands: Commands, scenarios: Res<GameScenarios>) {
+/// In `NewGame` mode the menu itself provides the game: load a scenario (player
+/// ship included) the moment gameplay starts. `Sandbox` mode does nothing here -
+/// the editor owns that path.
+///
+/// Which scenario: the [`NewGameScenario`] override if the Scenarios picker set
+/// one (`Some(id)`), otherwise the canned New Game start. A `Some(id)` that is
+/// not registered (a mod that got disabled between pick and play) falls back to
+/// the canned start with a warning rather than panicking.
+fn start_new_game_scenario(
+    mut commands: Commands,
+    scenarios: Res<GameScenarios>,
+    pick: Res<NewGameScenario>,
+) {
+    let id = match &pick.0 {
+        Some(id) if scenarios.contains_key(id) => id.as_str(),
+        Some(missing) => {
+            warn!(
+                "start_new_game_scenario: picked scenario '{missing}' not in GameScenarios; \
+                 falling back to '{NEW_GAME_SCENARIO_ID}'"
+            );
+            NEW_GAME_SCENARIO_ID
+        }
+        None => NEW_GAME_SCENARIO_ID,
+    };
     let scenario = scenarios
-        .get(NEW_GAME_SCENARIO_ID)
-        .unwrap_or_else(|| panic!("Scenario '{NEW_GAME_SCENARIO_ID}' not found"))
+        .get(id)
+        .unwrap_or_else(|| panic!("Scenario '{id}' not found"))
         .clone();
     commands.trigger(LoadScenario(scenario));
 }
@@ -2251,6 +2780,7 @@ mod tests {
                 description: "Test".to_string(),
                 cubemap: AssetRef::default(),
                 events: vec![],
+                ..Default::default()
             },
         )
     }
@@ -2986,7 +3516,17 @@ mod tests {
                 .query_filtered::<Entity, With<SettingsPanel>>();
             q.single(app.world()).expect("one settings panel root")
         };
-        for (name, root) in [("mods", mods_root), ("settings", settings_root)] {
+        let scenarios_root = {
+            let mut q = app
+                .world_mut()
+                .query_filtered::<Entity, With<ScenariosPanel>>();
+            q.single(app.world()).expect("one scenarios panel root")
+        };
+        for (name, root) in [
+            ("mods", mods_root),
+            ("settings", settings_root),
+            ("scenarios", scenarios_root),
+        ] {
             let z = app
                 .world()
                 .get::<GlobalZIndex>(root)
@@ -3837,6 +4377,219 @@ mod tests {
         assert!(
             app.world().resource::<EnabledMods>().0.contains("base"),
             "base is locked - toggling it must not disable it"
+        );
+    }
+
+    // --- Scenarios picker (task 20260715-200828) ---------------------------
+
+    fn picker_scenario(id: &str, name: &str, hidden: bool) -> (String, ScenarioConfig) {
+        (
+            id.to_string(),
+            ScenarioConfig {
+                id: id.to_string(),
+                name: name.to_string(),
+                description: format!("{name} blurb"),
+                hidden,
+                ..Default::default()
+            },
+        )
+    }
+
+    /// A registry with a listed story entry, a listed mod scenario, and the
+    /// hidden menu backdrop (so `load_menu_ambience` on menu entry still finds
+    /// its scenario). The picker must show the two listed ones and drop the
+    /// hidden backdrop.
+    fn picker_scenarios() -> GameScenarios {
+        GameScenarios(bevy::platform::collections::HashMap::from([
+            picker_scenario(NEW_GAME_SCENARIO_ID, "Shakedown Run", false),
+            picker_scenario("gauntlet_run", "Gauntlet Run", false),
+            picker_scenario(MENU_AMBIENCE_SCENARIO_ID, "Menu Ambience", true),
+        ]))
+    }
+
+    /// Enter the menu with the picker registry; one update runs OnEnter
+    /// (setup_menu_ui) and the refresh chain, populating the scenario list and
+    /// default-selecting the first row.
+    fn scenarios_app() -> App {
+        let mut app = app();
+        app.insert_resource(picker_scenarios());
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::MainMenu);
+        app.update();
+        app
+    }
+
+    fn scenario_row(app: &mut App, id: &str) -> Option<Entity> {
+        let mut q = app.world_mut().query::<(Entity, &ScenarioRow)>();
+        q.iter(app.world())
+            .find(|(_, r)| r.id == id)
+            .map(|(e, _)| e)
+    }
+
+    fn scenario_row_ids(app: &mut App) -> Vec<String> {
+        let mut q = app.world_mut().query::<&ScenarioRow>();
+        let mut ids: Vec<String> = q.iter(app.world()).map(|r| r.id.clone()).collect();
+        ids.sort();
+        ids
+    }
+
+    fn selected_scenario(app: &App) -> Option<String> {
+        app.world().resource::<SelectedScenarioId>().0.clone()
+    }
+
+    /// The details pane's name text, read from the stable-named entity (not just
+    /// `all_texts`, which would also match the row that shares the name).
+    fn scenario_details_name(app: &mut App) -> Option<String> {
+        let ent = entity_by_name(app, "Scenario Details Name")?;
+        app.world().get::<Text>(ent).map(|t| t.0.clone())
+    }
+
+    /// The picker lists exactly the `!hidden` scenarios: the story entry and the
+    /// mod scenario show, the hidden backdrop does not. Fails if the filter is
+    /// dropped (menu_ambience would appear).
+    #[test]
+    fn scenarios_panel_lists_only_unhidden_scenarios() {
+        let mut app = scenarios_app();
+        let ids = scenario_row_ids(&mut app);
+        assert!(
+            ids.contains(&NEW_GAME_SCENARIO_ID.to_string()),
+            "the story entry is listed: {ids:?}"
+        );
+        assert!(
+            ids.contains(&"gauntlet_run".to_string()),
+            "the mod scenario is listed: {ids:?}"
+        );
+        assert!(
+            !ids.contains(&MENU_AMBIENCE_SCENARIO_ID.to_string()),
+            "the hidden backdrop scenario is NOT listed: {ids:?}"
+        );
+    }
+
+    /// The list default-selects the first row (sorted by name), and the details
+    /// pane renders that scenario's name.
+    #[test]
+    fn scenarios_panel_default_selects_first_and_renders_details() {
+        let mut app = scenarios_app();
+        // Sorted by name: "Gauntlet Run" < "Shakedown Run".
+        assert_eq!(selected_scenario(&app).as_deref(), Some("gauntlet_run"));
+        assert_eq!(
+            scenario_details_name(&mut app).as_deref(),
+            Some("Gauntlet Run"),
+            "the details pane renders the default selection"
+        );
+    }
+
+    /// Clicking a row selects that scenario: `SelectedScenarioId` moves, the
+    /// highlight moves, and the details pane rebuilds with its name.
+    #[test]
+    fn clicking_a_scenario_row_selects_it_and_renders_its_details() {
+        let mut app = scenarios_app();
+        let story_row = scenario_row(&mut app, NEW_GAME_SCENARIO_ID).expect("story row");
+
+        app.world_mut().trigger(Activate { entity: story_row });
+        app.update();
+
+        assert_eq!(
+            selected_scenario(&app).as_deref(),
+            Some(NEW_GAME_SCENARIO_ID)
+        );
+        let story_row = scenario_row(&mut app, NEW_GAME_SCENARIO_ID).unwrap();
+        let gauntlet_row = scenario_row(&mut app, "gauntlet_run").unwrap();
+        assert!(
+            app.world().entity(story_row).contains::<Selected>(),
+            "the clicked row is highlighted"
+        );
+        assert!(
+            !app.world().entity(gauntlet_row).contains::<Selected>(),
+            "the previous selection is cleared"
+        );
+        assert_eq!(
+            scenario_details_name(&mut app).as_deref(),
+            Some("Shakedown Run"),
+            "the details pane renders the clicked scenario"
+        );
+    }
+
+    /// The details pane's Play button hands off exactly like New Game AND
+    /// (delivery guard) loads the CHOSEN scenario, not the canned start: playing
+    /// gauntlet_run must fire `LoadScenario` for gauntlet_run, not shakedown_run.
+    #[test]
+    fn play_button_hands_off_and_loads_the_chosen_scenario() {
+        let mut app = scenarios_app();
+        observe_load_scenario(&mut app);
+
+        // gauntlet_run is the default selection; its Play button carries its id.
+        let play = entity_by_name(&mut app, "Scenario Play Button").expect("play button");
+        app.world_mut().trigger(Activate { entity: play });
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<NewGameScenario>().0.as_deref(),
+            Some("gauntlet_run"),
+            "Play records the scenario override"
+        );
+        assert_eq!(*app.world().resource::<GameMode>(), GameMode::NewGame);
+        assert_eq!(
+            *app.world().resource::<State<GameStates>>().get(),
+            GameStates::Playing
+        );
+        assert_eq!(
+            app.world().resource::<LoadedScenario>().0.as_deref(),
+            Some("gauntlet_run"),
+            "the chosen scenario is loaded, not the canned New Game start"
+        );
+    }
+
+    /// `start_new_game_scenario` reads the override: `Some(existing)` loads that
+    /// scenario, `None` loads the canned start, and `Some(missing)` falls back
+    /// to the canned start rather than panicking.
+    #[test]
+    fn start_new_game_scenario_honors_the_override_and_falls_back() {
+        let loaded_for = |pick: Option<&str>| -> Option<String> {
+            let mut app = app();
+            app.insert_resource(dummy_scenarios());
+            observe_load_scenario(&mut app);
+            *app.world_mut().resource_mut::<GameMode>() = GameMode::NewGame;
+            app.insert_resource(NewGameScenario(pick.map(|s| s.to_string())));
+            enter_playing(&mut app);
+            app.world().resource::<LoadedScenario>().0.clone()
+        };
+
+        assert_eq!(
+            loaded_for(Some(MENU_AMBIENCE_SCENARIO_ID)).as_deref(),
+            Some(MENU_AMBIENCE_SCENARIO_ID),
+            "an existing override loads that scenario"
+        );
+        assert_eq!(
+            loaded_for(None).as_deref(),
+            Some(NEW_GAME_SCENARIO_ID),
+            "no override loads the canned New Game start"
+        );
+        assert_eq!(
+            loaded_for(Some("no-such-scenario")).as_deref(),
+            Some(NEW_GAME_SCENARIO_ID),
+            "a missing override falls back to the canned start"
+        );
+    }
+
+    /// New Game clears any override the picker left, so it always starts the
+    /// main story even after the player used the Scenarios picker.
+    #[test]
+    fn new_game_button_clears_the_scenario_override() {
+        let mut app = app();
+        app.insert_resource(dummy_scenarios());
+        app.insert_resource(NewGameScenario(Some("gauntlet_run".to_string())));
+        let button = app.world_mut().spawn(observe(on_new_game)).id();
+        app.update();
+
+        app.world_mut().trigger(Activate { entity: button });
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<NewGameScenario>().0,
+            None,
+            "New Game resets the picker override to None"
         );
     }
 }
