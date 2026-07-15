@@ -18,7 +18,9 @@
         name: "Gauntlet Run",
         description: "A slalom race: thread the beacon gates in order, START to FINISH.",
         cubemap: "textures/cubemap.png",
-        thumbnail: Some("textures/cubemap.png"),
+        // A 2D image: a UI thumbnail must NOT be the skybox cubemap (that Image
+        // is reinterpreted to a Cube texture, which the UI pipeline cannot bind).
+        thumbnail: Some("textures/asteroid.png"),
         events: [
             (
                 name: OnStart,

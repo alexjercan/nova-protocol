@@ -41,7 +41,10 @@ The `ScenarioConfig` fields (`loader.rs`):
 - `thumbnail` (optional) - an image path shown in the main-menu Scenarios
   picker's details pane. Authored exactly like `cubemap` but wrapped in the
   `Option` variant (strict RON, never bare): `thumbnail: Some("banner.png")`.
-  Omit it for no thumbnail.
+  Omit it for no thumbnail. It MUST be a plain 2D image - NOT a skybox cubemap
+  (a cubemap is a Cube texture the UI cannot bind; the picker skips a non-2D
+  thumbnail with a warning rather than crashing). Point it at a regular
+  screenshot/art PNG, not the `cubemap` path.
 - `hidden` (optional, default `false`) - when `true`, the scenario is kept out
   of the Scenarios picker (the menu backdrop, mid-story continuations reached
   only via `NextScenario`). Author as `hidden: true`; omit it to be listed.

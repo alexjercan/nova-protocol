@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The Scenarios picker no longer crashes the renderer when a scenario's thumbnail is not a plain 2D image. A cube/array/3D texture (e.g. a scenario that pointed its thumbnail at the skybox cubemap) made wgpu reject the UI bind group and quit the app, native and web alike; the picker now skips a non-2D thumbnail with a warning, and only mounts the image once it has loaded (so the check runs against the real texture). The bundled Gauntlet Run mod's placeholder thumbnail was also corrected from the skybox cubemap to a 2D image. Thumbnails must be 2D images - documented on the scenario-authoring page
 - Local web testing of the mod portal no longer needs a cross-origin `?portal=` override (which the browser blocks on CORS). `scripts/preview-web.sh` now generates the portal as a `/mods` sibling of the `/play/` game, so the full local preview serves the game and portal SAME-ORIGIN - exactly the production layout - and the Explore tab works with no override. `Trunk.toml` also carries a dev-only proxy for the lighter `trunk serve` loop (game at root, portal proxied same-origin), and the wasm build warns clearly - naming both origins - when the portal is configured cross-origin, instead of only surfacing an opaque "Failed to fetch". Production was never affected (the deploy already serves both same-origin); this was a local-dev/docs gap
 
 ## [0.5.2] - 2026-07-14

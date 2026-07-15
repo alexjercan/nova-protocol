@@ -91,6 +91,7 @@ impl Plugin for NovaMenuPlugin {
         // New Game start, Some(id) -> that scenario).
         app.init_resource::<SelectedScenarioId>();
         app.init_resource::<NewGameScenario>();
+        app.init_resource::<PendingScenarioThumbnail>();
         // The Explore tab's update choreography (uninstall-then-install). The
         // driver runs OUTSIDE the menu state on purpose: an update started
         // from the menu must complete even if the player closes it mid-flight.
@@ -140,6 +141,7 @@ impl Plugin for NovaMenuPlugin {
         app.add_systems(
             Update,
             (
+                poll_scenario_thumbnail,
                 refresh_scenarios_list.run_if(scenarios_list_dirty),
                 refresh_scenario_details.run_if(scenario_details_dirty),
             )
@@ -509,6 +511,17 @@ struct SelectedScenarioId(Option<ScenarioId>);
 /// button sets it; `on_new_game` clears it so New Game always plays the story.
 #[derive(Resource, Default)]
 struct NewGameScenario(Option<ScenarioId>);
+
+/// The selected scenario's thumbnail image, held while it finishes loading.
+///
+/// The thumbnail can only be validated (is it a plain 2D texture the UI can
+/// bind?) once its image has loaded, so `refresh_scenario_details` defers the
+/// `ImageNode` until then: it parks the still-loading handle here and
+/// `poll_scenario_thumbnail` re-arms the refresh when the load lands. `None`
+/// when nothing is pending (no thumbnail, already mounted, or skipped as
+/// non-2D).
+#[derive(Resource, Default)]
+struct PendingScenarioThumbnail(Option<Handle<Image>>);
 
 /// The scrollable container holding the scenario rows; `refresh_scenarios_list`
 /// swaps its children when the registry or selection changes.
@@ -1513,12 +1526,17 @@ fn refresh_scenario_details(
     scenarios: Option<Res<GameScenarios>>,
     selected: Res<SelectedScenarioId>,
     asset_server: Option<Res<AssetServer>>,
+    images: Option<Res<Assets<Image>>>,
+    mut pending_thumb: ResMut<PendingScenarioThumbnail>,
     panels: Query<Entity, With<ScenarioDetailsPanel>>,
 ) {
     let Ok(panel) = panels.single() else {
         return;
     };
     commands.entity(panel).despawn_related::<Children>();
+    // Default: nothing pending. The thumbnail branch below re-parks a handle if
+    // the image is still loading.
+    pending_thumb.0 = None;
     let scenario = selected
         .0
         .as_ref()
@@ -1553,23 +1571,49 @@ fn refresh_scenario_details(
             TextColor(theme::TEXT),
         ));
         details.spawn((Name::new("Scenario Details Separator"), separator()));
-        // The thumbnail: only when authored AND the asset server exists (headless
-        // test apps run this refresh without an AssetPlugin). Fixed 16:9 box so a
-        // portrait/odd source does not distort the pane.
+        // The thumbnail (authored + asset server present; headless test apps have
+        // neither). It is only mounted once the image has LOADED and is a plain
+        // 2D single-layer texture. Both guards matter: the UI pipeline binds a D2
+        // texture, so a cube/array/3D image (e.g. a scenario that points its
+        // thumbnail at a skybox cubemap, whose Image is reinterpreted to a Cube
+        // view) makes wgpu reject the `ui_material_bind_group` - a hard render
+        // crash, native AND web. A still-loading image is parked in
+        // `PendingScenarioThumbnail` and `poll_scenario_thumbnail` re-arms this
+        // refresh when it lands; a non-2D one is skipped with a warning. Fixed
+        // 16:9 box so an odd source does not distort the pane.
         if let (Some(thumb), Some(server)) = (scenario.thumbnail.as_ref(), asset_server.as_ref()) {
-            details.spawn((
-                Name::new("Scenario Details Thumbnail"),
-                ImageNode::new(thumb.resolve(server)),
-                Node {
-                    width: percent(100),
-                    max_width: px(320),
-                    aspect_ratio: Some(16.0 / 9.0),
-                    margin: UiRect::bottom(px(8)),
-                    border: UiRect::all(px(theme::BORDER_W)),
-                    ..default()
-                },
-                BorderColor::all(theme::BORDER),
-            ));
+            let handle = thumb.resolve(server);
+            if server.is_loaded_with_dependencies(&handle) {
+                // A cube/array texture carries >1 layers; a plain 2D image has 1.
+                let is_2d = images
+                    .as_ref()
+                    .and_then(|imgs| imgs.get(&handle))
+                    .is_some_and(|img| img.texture_descriptor.size.depth_or_array_layers == 1);
+                if is_2d {
+                    details.spawn((
+                        Name::new("Scenario Details Thumbnail"),
+                        ImageNode::new(handle),
+                        Node {
+                            width: percent(100),
+                            max_width: px(320),
+                            aspect_ratio: Some(16.0 / 9.0),
+                            margin: UiRect::bottom(px(8)),
+                            border: UiRect::all(px(theme::BORDER_W)),
+                            ..default()
+                        },
+                        BorderColor::all(theme::BORDER),
+                    ));
+                } else {
+                    warn!(
+                        "scenario '{}' thumbnail is not a 2D image (cube/array/3D texture); \
+                         skipping it - a UI thumbnail must be a plain 2D image, not a skybox \
+                         cubemap.",
+                        scenario.id
+                    );
+                }
+            } else {
+                pending_thumb.0 = Some(handle);
+            }
         }
         if !scenario.description.is_empty() {
             details.spawn((
@@ -1613,6 +1657,28 @@ fn refresh_scenario_details(
                     });
             });
     });
+}
+
+/// While the selected scenario's thumbnail is still loading (parked in
+/// [`PendingScenarioThumbnail`] by `refresh_scenario_details`), re-arm that
+/// refresh the moment the image finishes loading, so it can validate the
+/// texture and mount the `ImageNode` (or skip a non-2D one). Without this the
+/// thumbnail would never appear after its first (still-loading) selection.
+/// Fires `set_changed` at most once per load (the refresh clears the pending
+/// handle when it mounts or skips the image).
+fn poll_scenario_thumbnail(
+    pending: Res<PendingScenarioThumbnail>,
+    asset_server: Option<Res<AssetServer>>,
+    mut selected: ResMut<SelectedScenarioId>,
+) {
+    let (Some(handle), Some(server)) = (pending.0.as_ref(), asset_server.as_ref()) else {
+        return;
+    };
+    if server.is_loaded_with_dependencies(handle) {
+        // `scenario_details_dirty` keys off `selected.is_changed()`; re-running
+        // the refresh mounts the now-loaded image and clears `pending`.
+        selected.set_changed();
+    }
 }
 
 fn on_new_game(
