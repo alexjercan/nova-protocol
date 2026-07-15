@@ -130,14 +130,17 @@ export NOVA_SHOT_DIR=target/reel
 BCS_REEL=1                cargo run --example 13_screenshot_reel   --features debug
 BCS_AUTOPILOT=1 BCS_REEL=1 cargo run --example 14_screenshot_ui     --features debug
 BCS_AUTOPILOT=1 BCS_REEL=1 cargo run --example 15_screenshot_combat --features debug
-python3 scripts/gen-web-screenshots.py   # validate + copy; also writes the 44x44 section icons
+python3 scripts/gen-web-screenshots.py   # validate + copy; build composites; write the 44x44 icons
 ```
 
 The example examples run headless under `BCS_AUTOPILOT`; the reel poses a
 free-fly camera per beat and captures 1920x1080 PNGs. The Python step validates
-each shot is 16:9, copies it in, generates the section icons, and reports which
-shots have no capture example yet. Commit the resulting PNGs (they are content,
-like `banner.png`).
+each shot is 16:9, copies it in, builds the composite shots a single capture
+cannot make (e.g. `devlog5-radar-stance-slots`, two lock stances side by side)
+with a stdlib PNG codec, generates the section icons, and reports which shots
+have no capture example yet. Commit the resulting PNGs (they are content, like
+`banner.png`). Run `python3 scripts/gen-web-screenshots.py --self-test` to check
+the PNG codec (decode/resize/compose) in isolation.
 
 ## Versioning and release
 
