@@ -72,6 +72,23 @@ Damage flow:
 4. `aggregate_ship_health` keeps the root's health equal to the sum of its
    living sections; when the last section dies, the root dies with it.
 
+The cascade a single section walks through:
+
+```mermaid
+flowchart TD
+    A[Section takes damage] --> B[Integrity drops]
+    B --> C{Zero health?}
+    C -->|No| A
+    C -->|Yes| D{Leaf?}
+    D -->|No, non-leaf| E[Disabled: SectionInactiveMarker]
+    D -->|Yes| F[Destroyed]
+    F --> G[Pruned from neighbors]
+    G --> H[New leaves may cascade]
+    F --> I[Root health re-aggregated]
+    I --> J{Last section dead?}
+    J -->|Yes| K[Ship dead]
+```
+
 ## Typed damage (`crates/nova_gameplay/src/damage.rs`)
 
 Weapon damage is authored, not emergent from bullet physics. A projectile

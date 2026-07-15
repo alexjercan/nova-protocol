@@ -29,7 +29,10 @@ export interface WikiPage {
     icon?: string;
 }
 
-// Sidebar group order.
+// Sidebar group order. The player-facing groups come first; the developer
+// groups (from the moved docs/ reference, rendered from markdown under
+// src/wiki/dev/) sit below them so a player never has to scroll past build
+// instructions to find the game systems.
 export const WIKI_CATEGORIES: string[] = [
     "Ships & building",
     "Flying",
@@ -37,6 +40,9 @@ export const WIKI_CATEGORIES: string[] = [
     "Interface",
     "World",
     "Modding",
+    "Contributing",
+    "Architecture",
+    "Modding (technical)",
 ];
 
 export const WIKI_PAGES: WikiPage[] = [
@@ -235,5 +241,108 @@ export const WIKI_PAGES: WikiPage[] = [
             "The data-driven scenario language for authoring your own missions - documented here once it lands.",
         related: ["scenarios"],
         headings: [],
+    },
+
+    // Developer / onboarding pages. These are rendered from markdown under
+    // src/wiki/dev/ (see WIKI_DOC_PAGES in webpack.config.js); the slugs are
+    // `dev/`-prefixed and must match that list. They carry the technical depth
+    // that used to live in docs/.
+    {
+        slug: "dev/development",
+        title: "Building & running",
+        category: "Contributing",
+        tags: ["dev", "build"],
+        summary:
+            "The developer's getting-started: toolchain, everyday cargo commands, features, examples, the web build, and the versioning/release checklist.",
+        related: ["dev/architecture", "dev/mod-portal"],
+        headings: [
+            "Toolchain",
+            "Everyday commands",
+            "Features",
+            "Examples",
+            "Web build",
+            "Versioning and release",
+        ],
+    },
+    {
+        slug: "dev/architecture",
+        title: "Architecture",
+        category: "Architecture",
+        tags: ["dev", "architecture"],
+        summary:
+            "How the codebase fits together: the crate map and dependency graph, app assembly and plugin order, the state machines, and the Update vs FixedUpdate frame flow.",
+        related: ["dev/development", "dev/scenario-system", "dev/sections"],
+        headings: [
+            "Crate map",
+            "App assembly",
+            "States",
+            "Frame flow",
+            "Assets",
+        ],
+    },
+    {
+        slug: "dev/sections",
+        title: "Ship sections (internals)",
+        category: "Architecture",
+        tags: ["dev", "architecture", "combat"],
+        summary:
+            "The section components and how a ship is built from them, the integrity pipeline (damage -> disable -> destroy), typed damage against resistances, and ammo slots.",
+        related: ["sections", "dev/architecture", "combat-weapons"],
+        headings: [
+            "Sections",
+            "Building a ship",
+            "Integrity: damage -> disable -> destroy",
+            "Typed damage",
+            "Ammo",
+        ],
+    },
+    {
+        slug: "dev/scenario-system",
+        title: "Scenario engine",
+        category: "Architecture",
+        tags: ["dev", "architecture", "modding"],
+        summary:
+            "The event-driven scenario/modding engine: scenario structure, loading, the event/filter/action pipeline, variables and the event world, scenario objects, and where to add new pieces.",
+        related: ["scenarios", "dev/modding-ron", "dev/architecture"],
+        headings: [
+            "Scenario structure",
+            "Loading / unloading",
+            "Events",
+            "Filters",
+            "Actions",
+            "Scenario objects",
+            "Adding new pieces",
+        ],
+    },
+    {
+        slug: "dev/modding-ron",
+        title: "Modding data format (RON)",
+        category: "Modding (technical)",
+        tags: ["dev", "modding"],
+        summary:
+            "The RON data format for scenarios and mods: the catalog, bundles and enabled set, the local download cache and the mods:// source, file naming, and RON syntax gotchas.",
+        related: ["dev/scenario-system", "dev/mod-portal", "modding"],
+        headings: [
+            "Architecture decisions",
+            "RON syntax notes (gotchas)",
+            "Mods: catalog + bundles + enabled set",
+            "File naming",
+        ],
+    },
+    {
+        slug: "dev/mod-portal",
+        title: "Mod portal",
+        category: "Modding (technical)",
+        tags: ["dev", "modding"],
+        summary:
+            "The static mod portal: its layout, the catalog generator, the catalog.json wire schema, how to publish a mod today, local development, and how installed mods are stored game-side.",
+        related: ["dev/modding-ron", "dev/development"],
+        headings: [
+            "Layout",
+            "The generator",
+            "The wire schema (catalog.json)",
+            "Publishing a mod",
+            "How installed mods are stored",
+        ],
     },
 ];

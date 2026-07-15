@@ -1,12 +1,10 @@
 # The static mod portal
 
-How remote mods are published and served (task 20260715-142900, spike
-tasks/20260714-202515/SPIKE.md). The portal is STATIC files on the existing
-GitHub Pages site - no server, no database - generated on every deploy, never
-hand-maintained. The game consumes it through the portal client
-(`nova_assets::portal`, task 163508): it fetches `catalog.json`, verifies and
-installs mods into the local cache (142906), and the mods menu UI (142916)
-binds on top.
+How remote mods are published and served. The portal is STATIC files on the
+existing GitHub Pages site - no server, no database - generated on every
+deploy, never hand-maintained. The game consumes it through the portal client
+(`nova_assets::portal`): it fetches `catalog.json`, verifies and installs mods
+into the local cache, and the mods menu UI binds on top.
 
 ## Layout
 
@@ -57,6 +55,27 @@ run.
 
 ## The wire schema (catalog.json)
 
+The full publish-then-install flow ties these sections together:
+
+```mermaid
+sequenceDiagram
+    participant Pub as Author
+    participant Gen as nova_portal_gen
+    participant Portal as Static portal
+    participant Game as Game client
+    participant Cache as Local cache
+
+    Pub->>Gen: run generator over webmods/
+    Gen->>Gen: validate + hash (sha256, size)
+    Gen->>Portal: write catalog.json + bundle files
+    Game->>Portal: fetch catalog.json
+    Portal-->>Game: PortalCatalog (entries)
+    Game->>Portal: download chosen bundle files
+    Portal-->>Game: files
+    Game->>Game: verify size + sha256 per file
+    Game->>Cache: commit files-first, index-last
+```
+
 Types in `crates/nova_mod_format` (shared verbatim with the game):
 `PortalCatalog { schema_version, entries }`; each `PortalEntry` carries `id`,
 `version`, `bundle` (the entry-point manifest within the mod dir), the full
@@ -99,13 +118,12 @@ A downloaded mod lands in the game's LOCAL MOD CACHE and is served back to the
 asset server through the `mods://` source - native under
 `dirs::data_dir()/nova-protocol` (files + a RON installed index), the web in
 IndexedDB + localStorage. From there it loads and merges exactly like a
-shipped mod. The full format and runtime flow live in
-docs/modding-ron-format.md, sections "Downloaded mods: the local cache + the
-`mods://` source" (task 20260715-142906) and "The portal client" (task
-20260715-163508) - the latter is the fetch/verify/install flow that fills the
-cache from this portal: staged, sequential downloads verified against the
-catalog's size + sha256 per file, committed files-first-index-last only after
-everything checks out.
+shipped mod. The full format and runtime flow live in the
+[RON data format page](../modding-ron/), sections "Downloaded mods: the local
+cache + the `mods://` source" and "The portal client" - the latter is the
+fetch/verify/install flow that fills the cache from this portal: staged,
+sequential downloads verified against the catalog's size + sha256 per file,
+committed files-first-index-last only after everything checks out.
 
 ## The real server, later
 
@@ -116,4 +134,4 @@ adds what static hosting cannot: third-party upload/publish with auth,
 server-side validation (this generator's checks become the upload gate),
 download counts, and search/pagination past the one-file catalog. The client's
 base URL is already configurable, so switching is a config change, not a
-rework. See the spike's option G discussion.
+rework.

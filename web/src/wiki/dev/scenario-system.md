@@ -54,6 +54,20 @@ all share one shape: `id` is the area/well/target,
 recurrence is deliberate: a one-shot event consumed while a beat guard rejects
 it would soft-lock the script; gated handlers make repeats no-ops.
 
+The event-driven pipeline reads like this: an event fires, its filters gate
+whether it proceeds, and if they all pass its actions run in order and mutate
+scenario state.
+
+```mermaid
+flowchart LR
+  Event["Event fires"] --> Filters["Filters gate"]
+  Filters -->|all pass| Actions["Actions run"]
+  Filters -->|any fail| Stop["No-op"]
+  Actions --> Vars["Mutate variables"]
+  Actions --> World["Mutate event world"]
+  Actions --> Objects["Spawn / affect objects"]
+```
+
 ## Filters (`EventFilterConfig`)
 
 - `Entity(EntityFilterConfig)` - match `id` / `type_name` / `other_id` /
@@ -133,7 +147,7 @@ scoped, interpolated, dynamic bodies via `base_scenario_object`.
 - `Spaceship(SpaceshipConfig)` - sections plus a `SpaceshipController`:
   `None`, `Player` (input mapping, optional `speed_cap`, `infinite_ammo`), or
   `AI` (patrol route, orbit directive, optional `leash` break-off radius).
-  See [sections.md](sections.md).
+  See [Ship sections (internals)](../sections/).
 - `Beacon(BeaconConfig)` - nav waypoint with an automatic HUD chip: label,
   radius, color, optional `lock_signature`, optional `area_radius` (the
   beacon doubles as its own `OnEnter`/`OnExit` trigger).

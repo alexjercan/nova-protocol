@@ -98,13 +98,18 @@ instead; the ledger is `docs/LESSONS.md`, never `docs/retros/LESSONS.md`.
 
 ## Docs, tasks, versioning
 
-- `docs/README.md` is the index. Reference docs: `architecture.md`,
-  `scenario-system.md`, `sections.md`, `development.md` (build/web/release).
+- The durable reference docs live in the wiki source under `web/src/wiki/dev/`
+  (rendered as public pages at `/wiki/dev/`): `architecture.md`,
+  `scenario-system.md`, `sections.md`, `development.md` (build/web/release),
+  `modding-ron.md`, `mod-portal.md`. Edit them there and keep them accurate when
+  the code they describe changes. `docs/` now holds only transient records - the
+  `LESSONS.md` ledger, `plans/`, per-task folders, and one-off writeups like the
+  Bevy migration notes; `docs/README.md` indexes it.
 - Tasks: `tatr` CLI, markdown files under `tasks/`. Check the backlog before
   starting, close tasks when done. Skills: /plan, /work, /review, /compound, /flow.
 - Version lives in root `Cargo.toml` (`workspace.package.version`). Notable
   changes go to `CHANGELOG.md` (Keep a Changelog). Release steps:
-  `docs/development.md`.
+  `web/src/wiki/dev/development.md`.
 
 ## The website (`web/`)
 
@@ -121,8 +126,8 @@ in sync by hand whenever a change makes something on it wrong or missing:
   version, patch releases folded into it as a closing note. The devlogs follow
   the Factorio Friday Facts spirit - a numbered series, multi-topic, candid and
   first-person, image-heavy, each closing with a GitHub Discussions prompt. Full
-  steps (the four files a devblog touches) are in `docs/development.md` under
-  "Writing the release devblog".
+  steps (the four files a devblog touches) are in
+  `web/src/wiki/dev/development.md` under "Writing the release devblog".
 - **New feature or mechanic worth showing**: it can also earn a screenshot or
   diagram on the site. Use the `.figure` component (see `web/src/style.css`); it
   ships a dashed placeholder frame naming the image file to capture, so you can

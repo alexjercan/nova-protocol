@@ -29,4 +29,4 @@ ENABLED subset (`EnabledMods`) by id, base first - so enabling/disabling a mod i
 live re-merge, not a reload.
 
 Naming note: manifests must be stemmed (`demo.bundle.ron`, not `bundle.ron`;
-`mods.catalog.ron`, not `catalog.ron`) - see `docs/modding-ron-format.md`.
+`mods.catalog.ron`, not `catalog.ron`) - see `web/src/wiki/dev/modding-ron.md`.

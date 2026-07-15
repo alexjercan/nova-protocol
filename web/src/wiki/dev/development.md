@@ -34,15 +34,13 @@ The dev profile uses `opt-level = 1` for our code, `3` for dependencies: slow
 first build, fast iteration. `split-debuginfo = "unpacked"` +
 `debug = "line-tables-only"` keep link-time RAM around 20 GB instead of 40
 (one Bevy-sized binary per test/example target); set `debug = true` temporarily
-if you need a debugger. Diagnosis:
-`../bevy-common-systems/docs/2026-07-03-test-memory.md`.
+if you need a debugger.
 
 **Worktree builds**: a fresh sprout worktree has an empty `target/`, so the
 first build is a cold Bevy compile. Do NOT point `CARGO_TARGET_DIR` at the main
 checkout's cache: both checkouts hold the same crates at the same versions, so
 their artifacts overwrite each other and a worktree binary can silently link
-the main checkout's code (observed in task 20260709-131502). Accept the cold
-build.
+the main checkout's code. Accept the cold build.
 
 ## Features
 
@@ -57,7 +55,7 @@ Debug-only CLI flags (`src/main.rs`): `--norender` (no rendering) and
 
 `examples/` exercises one subsystem each, end to end; this repo prefers
 runnable examples over isolated unit tests. The set reads as a curriculum in
-four blocks (task 20260712-211352):
+four blocks:
 
 - Sections: `01_controller_section` (PD attitude), `02_thruster_section`
   (burn -> thrust + plume shader), `03_hull_section` (damage -> destroy ->
@@ -73,11 +71,11 @@ four blocks (task 20260712-211352):
   included), `12_menu_newgame` (the shipped boot flow).
 
 When adding a substantial feature, add or extend the example that drives it.
-(Removed in the same task: 01_scene/03_scenario merged into 08_scenario;
+(Consolidated over time: 01_scene/03_scenario merged into 08_scenario;
 02_thruster_shader into 02_thruster_section; 05_directional into
 11_hud_range; 10_gameplay into 03_hull_section + 10_playable; 07b_slicer's
-subject lives in bevy-common-systems - see the promotions backlog, task
-20260706-151804; 04_asteroids' slider tuning tool was dropped.)
+subject lives in bevy-common-systems; 04_asteroids' slider tuning tool was
+dropped.)
 
 Every example is HARNESSED: it drives itself under `BCS_AUTOPILOT=1`, and
 `tests/examples_smoke.rs` (the `HARNESSED_EXAMPLES` list) runs the full set
@@ -91,14 +89,13 @@ sync: a new example joins the list with a harness, or it does not merge.
 
 When a bug is fixed, prefer pinning it where it lives: a unit/App test for a
 system-level mechanism, an example assertion when the bug only manifests in a
-composed scene (the 20260713-175352 precedent: `12_menu_newgame` runs the
-shipped boot flow with the ECS fallback error handler swapped to panic, so
-unhandled command errors on those transitions fail CI). An example pin is an
-autopilot-script assertion (`.input(...)` closure, staged by elapsed time -
-see `07_com_range`/`11_hud_range` for the style); the smoke suite runs it on
-every push. Caveat: the handler swap does NOT catch `remove`/`despawn`
-command warns (they bake in the WARN handler at queue time) - extending the
-smoke suite to grep stderr for those is task 20260713-203709.
+composed scene (for example, `12_menu_newgame` runs the shipped boot flow with
+the ECS fallback error handler swapped to panic, so unhandled command errors on
+those transitions fail CI). An example pin is an autopilot-script assertion
+(`.input(...)` closure, staged by elapsed time - see `07_com_range`/`11_hud_range`
+for the style); the smoke suite runs it on every push. Caveat: the handler swap
+does NOT catch `remove`/`despawn` command warns (they bake in the WARN handler
+at queue time).
 
 ## Web build
 
@@ -113,6 +110,21 @@ trunk build --release
 uses its `wasm_js` feature there. Trunk only supports the `release` profile.
 The GitHub Pages deploy (`.github/workflows/deploy-page.yaml`) builds the
 landing site (`web/`) at the root and the game under `/play/`.
+
+The same sources fan out into three build targets that combine into one
+published site:
+
+```mermaid
+flowchart LR
+  src[Sources]
+  src -->|cargo| native[Native game]
+  src -->|web build| landing[Landing + wiki]
+  src -->|trunk| wasm[Bevy WASM game]
+  landing --> pages[GitHub Pages]
+  wasm --> pages
+  pages --> root["/ (landing)"]
+  pages --> play["/play/ (game)"]
+```
 
 ### Regenerating the web screenshots
 
@@ -214,10 +226,9 @@ Adding a devblog touches four places (mirror an existing post such as
 
 ## Task tracking
 
-Work items: `tatr` CLI, markdown under `tasks/`. Check the backlog before
-starting, close tasks when done. The plan-work-review-retro loop is the
-`/plan`, `/work`, `/review`, `/compound` skills (plus `/flow` for the whole
-cycle). All task-scoped records live in the task's folder: `SPIKE.md`,
-`REVIEW.md`, `RETRO.md`, `NOTES.md` next to its `TASK.md`. Only multi-task
-plans (`docs/plans/`) and the lessons ledger (`docs/LESSONS.md`) live
-under `docs/`.
+Work items live as markdown under `tasks/` (managed with the `tatr` CLI), so
+they are versioned alongside the code. Check the backlog before starting and
+close tasks when done. Each task has its own folder holding its `TASK.md` plus
+any task-scoped records (`SPIKE.md`, `REVIEW.md`, `RETRO.md`, `NOTES.md`).
+Multi-task plans (`docs/plans/`) and the lessons ledger (`docs/LESSONS.md`)
+live under `docs/`.

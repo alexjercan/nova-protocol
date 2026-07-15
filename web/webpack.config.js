@@ -2,6 +2,7 @@ const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const HtmlPartialsPlugin = require("./webpack-partials");
 const CopyPlugin = require("copy-webpack-plugin");
+const { wikiDocPage } = require("./markdown");
 
 // PUBLIC_PATH should be "/" for local dev (default) or "/nova-protocol/" for the
 // GitHub project-pages deploy, so asset URLs and inter-page links resolve under
@@ -47,6 +48,38 @@ const WIKI_SLUGS = [
 ];
 const wikiPage = (slug) =>
     page("wiki", `src/wiki/${slug}.html`, `wiki/${slug}/index.html`);
+
+// Developer wiki pages: rendered from markdown under `src/wiki/dev/` at build
+// time (see markdown.js). They share the `wiki` chunk and live under `/wiki/dev/`
+// so they never collide with the hand-authored player slugs above. To add one:
+// drop the `.md` in `src/wiki/dev/`, add an entry here, and add a manifest entry
+// in src/wiki-pages.ts. Keep this list in sync with wiki-pages.ts.
+const WIKI_DOC_PAGES = [
+    {
+        slug: "dev/development",
+        md: "development.md",
+        title: "Building & running",
+    },
+    { slug: "dev/architecture", md: "architecture.md", title: "Architecture" },
+    {
+        slug: "dev/sections",
+        md: "sections.md",
+        title: "Ship sections (internals)",
+    },
+    {
+        slug: "dev/scenario-system",
+        md: "scenario-system.md",
+        title: "Scenario engine",
+    },
+    {
+        slug: "dev/modding-ron",
+        md: "modding-ron.md",
+        title: "Modding data format (RON)",
+    },
+    { slug: "dev/mod-portal", md: "mod-portal.md", title: "Mod portal" },
+];
+const docPage = ({ slug, md, title }) =>
+    wikiDocPage({ slug, mdPath: `src/wiki/dev/${md}`, title, publicPath });
 
 const config = {
     entry: {
@@ -94,6 +127,7 @@ const config = {
         page("tutorial", "src/tutorial.html", "tutorial/index.html"),
         page("wiki", "src/wiki.html", "wiki/index.html"),
         ...WIKI_SLUGS.map(wikiPage),
+        ...WIKI_DOC_PAGES.map(docPage),
         new CopyPlugin({
             patterns: [
                 { from: "src/assets", to: "assets" },
@@ -164,6 +198,10 @@ const config = {
                 { from: /^\/blog/, to: "/blog/index.html" },
                 { from: /^\/tutorial/, to: "/tutorial/index.html" },
                 ...WIKI_SLUGS.map((slug) => ({
+                    from: new RegExp("^/wiki/" + slug),
+                    to: "/wiki/" + slug + "/index.html",
+                })),
+                ...WIKI_DOC_PAGES.map(({ slug }) => ({
                     from: new RegExp("^/wiki/" + slug),
                     to: "/wiki/" + slug + "/index.html",
                 })),

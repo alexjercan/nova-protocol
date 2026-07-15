@@ -6,8 +6,9 @@
 // and it lights up. `base` is the deploy subpath (trailing slash), and the
 // placeholder name is asset-root-relative (e.g. "assets/feature-gravity.png").
 function upgradeFigures(base: string): void {
-    const placeholders =
-        document.querySelectorAll<HTMLElement>(".figure__placeholder");
+    const placeholders = document.querySelectorAll<HTMLElement>(
+        ".figure__placeholder"
+    );
     placeholders.forEach((placeholder) => {
         const name = placeholder
             .querySelector(".figure__placeholder-name")

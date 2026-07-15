@@ -290,10 +290,54 @@ function renderChildrenGrid(
     container.appendChild(grid);
 }
 
+// ---- mermaid diagrams -----------------------------------------------------
+
+// Developer doc pages (rendered from markdown) may hold ```mermaid blocks, which
+// markdown.js emits as <pre class="mermaid">. Mermaid needs the DOM, so it runs
+// client-side here - and only when a diagram is present, so its (large) bundle is
+// dynamically imported and never weighs on a page without one. Themed to the
+// site palette so diagrams match the sharp house style.
+async function initMermaid(): Promise<void> {
+    const blocks = document.querySelectorAll<HTMLElement>(".mermaid");
+    if (blocks.length === 0) return;
+    try {
+        const { default: mermaid } = await import("mermaid");
+        const css = getComputedStyle(document.documentElement);
+        const v = (name: string, fallback: string): string =>
+            css.getPropertyValue(name).trim() || fallback;
+        mermaid.initialize({
+            startOnLoad: false,
+            securityLevel: "strict",
+            theme: "dark",
+            fontFamily: v("--font-mono", "monospace"),
+            themeVariables: {
+                background: v("--panel", "#141a2e"),
+                primaryColor: v("--panel-2", "#0f1424"),
+                primaryBorderColor: v("--border-bright", "#3a4d7a"),
+                primaryTextColor: v("--text", "#e8eefc"),
+                lineColor: v("--cyan-deep", "#2a9fd6"),
+                secondaryColor: v("--panel", "#141a2e"),
+                tertiaryColor: v("--panel", "#141a2e"),
+            },
+        });
+        await mermaid.run({ querySelector: ".mermaid" });
+    } catch {
+        // If the mermaid chunk fails to load or a diagram fails to parse, reveal
+        // the raw source instead of leaving it invisible (the CSS hides the
+        // pre until it is processed). Mark every still-unprocessed block.
+        blocks.forEach((b) => {
+            if (b.dataset.processed !== "true")
+                b.classList.add("mermaid--failed");
+        });
+    }
+}
+
 // ---- boot -----------------------------------------------------------------
 
 const base = basePath();
 const slug = currentSlug(base);
+
+void initMermaid();
 
 const nav = document.getElementById("wiki-nav");
 if (nav) renderSidebar(nav, base, slug);

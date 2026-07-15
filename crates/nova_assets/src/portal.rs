@@ -57,7 +57,7 @@ use crate::{
 };
 
 /// The production portal base URL - the GitHub Pages tree `nova_portal_gen`
-/// publishes next to the wasm build (docs/mod-portal.md).
+/// publishes next to the wasm build (web/src/wiki/dev/mod-portal.md).
 pub const DEFAULT_PORTAL_URL: &str = "https://alexjercan.github.io/nova-protocol/mods";
 
 /// Where the portal lives: `<base_url>/catalog.json` +

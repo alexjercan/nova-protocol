@@ -39,6 +39,20 @@ class HtmlPartialsPlugin {
                         .replace('<div id="header"></div>', header)
                         .replace('<div id="footer"></div>', footer);
 
+                    // Markdown doc pages (see markdown.js / wikiDocPage) carry
+                    // their rendered body on the plugin's `docBody` option and
+                    // inject it here, after templating, so lodash never runs over
+                    // the code samples. The function form of replace() keeps `$`
+                    // sequences in the body (RON/Rust) from being treated as
+                    // replacement patterns.
+                    const docBody = data.plugin.options.docBody;
+                    if (docBody) {
+                        data.html = data.html.replace(
+                            '<div id="doc-body"></div>',
+                            () => docBody
+                        );
+                    }
+
                     callback(null, data);
                 }
             );

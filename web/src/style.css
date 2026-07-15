@@ -1274,6 +1274,135 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     }
 }
 
+/* ---- developer doc pages (markdown-rendered) ----------------------------- */
+/* Extra prose furniture the hand-authored wiki pages never needed but the moved
+   docs do: fenced code blocks, tables, mermaid diagrams and admonitions. Scoped
+   under .prose so it only touches article bodies, and built from the same
+   palette variables as the rest of the wiki. */
+
+/* Fenced code blocks. Inline `.prose code` is already styled; reset it inside a
+   <pre> so the block owns the frame and the highlight spans set the colors. */
+.prose pre {
+    margin: 1.5em 0;
+    padding: 14px 16px;
+    overflow-x: auto;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--cyan-deep);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-hard);
+    font-size: 0.85rem;
+    line-height: 1.55;
+}
+.prose pre code {
+    display: block;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    color: var(--text);
+    font-size: inherit;
+}
+
+/* A compact highlight.js theme in the site palette (highlight.js emits these
+   hljs-* classes at build time; see markdown.js). */
+.hljs-comment,
+.hljs-quote {
+    color: var(--text-muted);
+    font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-meta {
+    color: var(--cyan);
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-symbol,
+.hljs-char {
+    color: var(--amber);
+}
+.hljs-number,
+.hljs-built_in,
+.hljs-type,
+.hljs-class .hljs-title {
+    color: var(--cyan-bright);
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-section,
+.hljs-attribute,
+.hljs-attr,
+.hljs-property {
+    color: var(--amber-horizon);
+}
+.hljs-variable,
+.hljs-template-variable,
+.hljs-params,
+.hljs-punctuation {
+    color: var(--text);
+}
+.hljs-emphasis {
+    font-style: italic;
+}
+.hljs-strong {
+    font-weight: 700;
+}
+
+/* Tables (the docs lean on them heavily: crate maps, event kinds, damage types). */
+.prose table {
+    width: 100%;
+    margin: 1.5em 0;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+.prose th,
+.prose td {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+}
+.prose thead th {
+    background: var(--panel);
+    color: var(--cyan-bright);
+    font-family: var(--font-display);
+    letter-spacing: 0.02em;
+}
+.prose tbody tr:nth-child(even) {
+    background: rgba(92, 200, 255, 0.03);
+}
+
+/* Mermaid diagrams: framed as a figure, not a code block - reset the generic
+   `.prose pre` code frame (cyan left border, panel background, shadow). Until
+   mermaid.run replaces the <pre> with an <svg>, the raw source is hidden so
+   half-rendered diagram text never flashes; if rendering FAILS, wiki.ts adds
+   `.mermaid--failed` to reveal the source rather than leave it invisible. */
+.prose pre.mermaid {
+    padding: 18px;
+    overflow-x: auto;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    box-shadow: var(--bevel);
+    text-align: center;
+    color: transparent;
+    user-select: none;
+}
+.prose pre.mermaid[data-processed="true"],
+.prose pre.mermaid.mermaid--failed {
+    color: inherit;
+    user-select: auto;
+}
+.prose pre.mermaid.mermaid--failed {
+    text-align: left;
+    color: var(--text);
+}
+.prose pre.mermaid svg {
+    max-width: 100%;
+    height: auto;
+}
+
 /* ---- footer -------------------------------------------------------------- */
 .site-footer {
     flex-shrink: 0;
