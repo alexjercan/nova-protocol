@@ -21,13 +21,13 @@
 //! `target/criterion/`. To profile: `samply record -- cargo bench -p
 //! nova_scenario --bench scenario_dispatch -- --profile-time 10`.
 
+use std::hint::black_box;
+
 use bevy::prelude::*;
-use bevy_common_systems::modding::events::GameEventQueue;
-use bevy_common_systems::prelude::*;
+use bevy_common_systems::{modding::events::GameEventQueue, prelude::*};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use nova_events::prelude::*;
 use nova_scenario::prelude::*;
-use std::hint::black_box;
 
 /// Every non-`OnUpdate` event kind, so the synthetic scenario can pad itself
 /// with handlers that the `OnUpdate` frame must scan past but never name-match.
@@ -53,6 +53,34 @@ fn progress_condition() -> VariableConditionNode {
             VariableFactorNode::new_literal(VariableLiteral::Number(0.5)),
         )),
     )
+}
+
+/// A deeper condition exercising the full AST: `(progress * 2 + bonus) > (limit - 1)`.
+/// The variable AST exists to express nested arithmetic/comparison like this, so
+/// this is the worst case the condition-eval optimization would target - several
+/// Boxed nodes and variable lookups per evaluation, not the single lookup of
+/// `progress_condition`.
+fn nested_condition() -> VariableConditionNode {
+    // progress * 2 + bonus
+    let left = VariableExpressionNode::new_add(
+        VariableTermNode::new_multiply(
+            VariableFactorNode::new_name("progress"),
+            VariableTermNode::new_factor(VariableFactorNode::new_literal(VariableLiteral::Number(
+                2.0,
+            ))),
+        ),
+        VariableExpressionNode::new_term(VariableTermNode::new_factor(
+            VariableFactorNode::new_name("bonus"),
+        )),
+    );
+    // limit - 1
+    let right = VariableExpressionNode::new_subtract(
+        VariableTermNode::new_factor(VariableFactorNode::new_name("limit")),
+        VariableExpressionNode::new_term(VariableTermNode::new_factor(
+            VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
+        )),
+    );
+    VariableConditionNode::new_greater_than(left, right)
 }
 
 fn expression_filter() -> EventFilterConfig {
@@ -98,7 +126,8 @@ fn build_dispatch_app(total: usize) -> App {
             app.world_mut().spawn(handler);
         } else {
             let cfg = OTHER_EVENTS[i % OTHER_EVENTS.len()];
-            app.world_mut().spawn(EventHandler::<NovaEventWorld>::from(cfg));
+            app.world_mut()
+                .spawn(EventHandler::<NovaEventWorld>::from(cfg));
         }
     }
 
@@ -145,11 +174,19 @@ fn bench_filter_entity(c: &mut Criterion) {
 fn bench_condition_eval(c: &mut Criterion) {
     let mut world = NovaEventWorld::default();
     world.insert_variable("progress".to_string(), VariableLiteral::Number(0.75));
-    let condition = progress_condition();
+    world.insert_variable("bonus".to_string(), VariableLiteral::Number(0.2));
+    world.insert_variable("limit".to_string(), VariableLiteral::Number(1.0));
+    let simple = progress_condition();
+    let nested = nested_condition();
 
     let mut group = c.benchmark_group("condition_eval");
+    // Trivial `var > literal` - the floor, the shape today's milestone checks use.
     group.bench_function("greater_than", |b| {
-        b.iter(|| black_box(condition.evaluate(black_box(&world))))
+        b.iter(|| black_box(simple.evaluate(black_box(&world))))
+    });
+    // `(progress * 2 + bonus) > (limit - 1)` - the full-AST worst case.
+    group.bench_function("nested", |b| {
+        b.iter(|| black_box(nested.evaluate(black_box(&world))))
     });
     group.finish();
 }

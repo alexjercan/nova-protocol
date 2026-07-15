@@ -55,11 +55,15 @@ for handler in &q_handler {                 // every handler in the world
 |-------|----------|
 | `filter_entity/match`  | 13.1 ns |
 | `filter_entity/reject` | 11.2 ns |
-| `condition_eval/greater_than` | 26.1 ns |
+| `condition_eval/greater_than` (trivial `var > literal`) | 26.0 ns |
+| `condition_eval/nested` (`(progress*2 + bonus) > (limit-1)`) | 62.1 ns |
 
 These are per matching handler, per event. They are left unchanged: the
 condition/filter micro-opts (`20260714-083339`) are deferred on measured grounds
-(see Decisions #3), so there is no "after" column.
+(see Decisions #3), so there is no "after" column. The nested case (2.4x the
+trivial one) is the full-AST worst case; even at 62 ns on the once-per-frame
+`OnUpdate` pattern, 1000 handlers is ~62 µs/frame (~0.4% of a 16 ms frame), so
+the deferral holds for heavy conditions too.
 
 ### Dispatch, realistic (1 `OnUpdate`/frame, N handlers, 10% `OnUpdate`)
 
@@ -132,12 +136,17 @@ git dependency.
 
 Not justified by the numbers, per the task's own gating:
 
-- **Condition eval** (`VariableConditionNode::evaluate`, measured **26 ns**) is
-  hit only by *matching* handlers, and expression filters live on `OnUpdate`,
-  which fires **once per frame and cannot burst**. So the cost is bounded by the
-  live `OnUpdate`-handler count per frame: even 1000 such handlers = ~26 µs/frame,
-  ~0.16% of a 16 ms frame. Interning/compiling the AST might roughly halve the
-  26 ns, saving low-single-digit µs/frame on a mega-mod - deep in the noise.
+- **Condition eval** (`VariableConditionNode::evaluate`, measured **26 ns** for a
+  trivial `var > literal`) is hit only by *matching* handlers. In today's content
+  expression filters live on `OnUpdate`, which fires once per frame, so the cost
+  is bounded by the live `OnUpdate`-handler count per frame: even 1000 such
+  handlers = ~26 µs/frame, ~0.16% of a 16 ms frame. Nothing structurally stops a
+  modder attaching an expression filter to a bursty discrete event
+  (`OnDestroyed`, ...), but the index already removes the burst *scan* cost, and
+  26 ns is a floor - a deeply nested condition costs more. Interning/compiling the
+  AST might roughly halve the simple case, saving low-single-digit µs/frame on a
+  mega-mod - deep in the noise for the once-per-frame pattern. Revisit if a real
+  mod ever puts heavy conditions on bursty events.
 - **Entity-filter string equality** (`EntityFilterConfig::filter`, measured
   **13 ns match / 11 ns reject**) *can* burst (it runs on discrete events), but
   it is already cheap and the index removes the surrounding non-matching scan,

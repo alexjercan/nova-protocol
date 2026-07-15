@@ -24,10 +24,13 @@ Framed as insurance for large community mods, not for today's built-ins.
 The benchmark ran; neither half is justified at realistic event rates. See
 `docs/modding-perf-report.md` (Decisions #3) for the numbers. Summary:
 
-- Condition eval measures **26 ns**, and expression filters live on `OnUpdate`,
-  which fires once per frame and cannot burst. Cost is bounded by the live
-  `OnUpdate`-handler count per frame: ~26 us/frame even at 1000 handlers
-  (~0.16% of a 16 ms frame). Compiling the AST might halve that - noise.
+- Condition eval measures **26 ns** for a trivial `var > literal`. In today's
+  content expression filters live on `OnUpdate` (once per frame), so cost is
+  bounded by the live `OnUpdate`-handler count: ~26 us/frame even at 1000
+  handlers (~0.16% of a 16 ms frame). A modder could attach one to a bursty
+  event, and 26 ns is a floor (nested conditions cost more), but the index
+  already kills the burst scan; compiling the AST would only halve the simple
+  per-eval cost - noise for the once-per-frame pattern.
 - Entity-filter equality measures **13 ns match / 11 ns reject**. It can burst on
   discrete events, but it is already cheap, and the index handler-by-name change
   (20260525-133014) removes the surrounding non-matching scan that was the real
