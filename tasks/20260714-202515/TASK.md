@@ -1,6 +1,6 @@
 # Spike: remote mod catalog + download/cache (replace hand-maintained mods.catalog.ron; powers Explore)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 18
 - TAGS: spike, v0.6.0, modding, menu, wasm
 
