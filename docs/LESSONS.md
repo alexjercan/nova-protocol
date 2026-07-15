@@ -10,9 +10,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 
 ## Process lessons
 
-- `diagnostic-first` (x9): trace the exact reported scenario, with real
-  numbers, before theorizing a mechanism. 20260711-140241, 20260712-172035,
-  20260711-183417.
+- `diagnostic-first` (x10): trace the exact reported scenario, with real
+  numbers, before theorizing a mechanism (the wasm CORS "bug" was a
+  cross-origin `?portal=` override, not a client fetch bug - reading the deploy
+  topology dissolved it). 20260711-140241, 20260712-172035, 20260715-214540.
 - `fail-first-regression-ab` (x11, PROMOTED 2026-07-11 -> work skill): prove a
   bug fix by failing its test against the pre-fix behavior; record the numbers.
   CI history counts as the failing run when master is already red on the exact
@@ -285,10 +286,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   checkpoint on an audit/table, ship the table with ZERO implementation
   behind it; building first turns the checkpoint into sunk cost.
   20260712-211352.
-- `null-result-becomes-a-pin` (positive, x1): when an investigation lands on
-  "cannot reproduce", convert the evidence rig into a permanent harnessed pin
-  (error-handler-to-panic smoke example) so the non-behavior stays falsifiable
-  and the rig's cost buys coverage. 20260713-175352.
+- `null-result-becomes-a-pin` (positive, x2): when an investigation lands on
+  "cannot reproduce" / "not a bug", convert the evidence rig into a permanent
+  harnessed pin (error-handler-to-panic smoke example; a `url_origin`
+  same-host-different-port test proving the "prod CORS" case is same-origin) so
+  the non-behavior stays falsifiable and the rig's cost buys coverage.
+  20260713-175352, 20260715-214540.
 - `state-diff-aliases-reset` (x1): deriving events by diffing state makes a
   reset look like a batch of events; guard the non-event transitions
   (teardown, load, clear). 20260712-125342.
@@ -367,8 +370,20 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `cross-cycle-warning-with-numbers` (positive): write discovered hazards into
   the queued task's TASK.md with measured numbers and a fallback exit.
   20260711-140234.
-- `verify-at-deploy-base-path` (x1): base-path-dependent behavior must be
-  verified at the real subpath, not local root. 20260712-093048.
+- `verify-at-deploy-base-path` (x2): base-path/origin-dependent behavior must be
+  verified against the real DEPLOY topology, not a local setup. A "wasm CORS bug"
+  was a local split-port dev setup; the deploy serves game + portal same-origin
+  (siblings on one Pages origin), so production never hits it. 20260712-093048,
+  20260715-214540.
+- `dev-doc-steers-across-boundary` (x1): dev-setup docs (ports/hosts/origins/
+  auth) that cross a browser/security boundary must name it and default to the
+  safe path, or they manufacture the failure they forgot to mention - the portal
+  "Local development" doc steered web testers to a cross-origin `?portal=` the
+  browser blocks on CORS, which IS the reported bug. 20260715-214540.
+- `nix-devshell-for-cargo` (x1, toolchain): if a session's shell has no `cargo`
+  on PATH (the flake devshell is not active), prefix cargo/rustc with
+  `nix develop <repo> --command bash -c '...'` rather than assuming the toolchain
+  is present; empty command output was the tell. 20260715-214540.
 - `reuse-known-good-stack` (x1, positive): scaffold new sub-projects by copying
   a working reference toolchain verbatim. 20260712-093048.
 - `measure-before-writing-the-number` (x1): never write a specific quantity
