@@ -354,6 +354,20 @@ Direction-level tasks this spike seeded, for `/plan` to break into steps:
   20260715-151551: unship screenshot-reel from assets/ entirely (embed in the
   example; the hidden flag stays as a feature) - runs next, before 142900. See
   tasks/20260715-142849/{TASK,REVIEW,RETRO}.md.
+- 20260715, local mod cache + mods:// source (142906, rescoped: network half
+  split to 163508) landed on master (`02b0e5ad`): downloaded mods now load and
+  merge like shipped ones - `nova_assets::mod_cache` (native FS index+files
+  under data_dir, NOVA_MOD_CACHE_ROOT override; wasm localStorage index +
+  hardened hand-rolled IndexedDB for bytes), `mods://` asset source (native
+  sandboxed FileAssetReader, wasm memory Dir hydrated from IDB),
+  `DownloadedMods` + catalog/merge integration (no shadowing of shipped ids,
+  installs start disabled). E2E-tested with the real gauntlet mod; wasm
+  compile-gated (first runtime exercise = 163508). The spike's riskiest
+  unknown (wasm IDB + memory-Dir) is implemented and compile-verified. Review:
+  R1 REQUEST_CHANGES (MAJOR: load path trusted index records; fixed with
+  validation + reader sandbox; premise-corrected re bevy's Forbid gate), R2
+  APPROVE. Found pre-existing master drift -> task 172138 (runs next). See
+  tasks/20260715-142906/{TASK,REVIEW,RETRO}.md.
 - 20260715, static mod portal (142900) landed on master (`315ccde4`): the
   portal exists - `webmods/` sources publish to `/mods/catalog.json` +
   `/mods/<id>/<version>/` on every deploy via the new engine-free

@@ -46,11 +46,14 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   succeeds, not that it matches a committed copy. Byte-identity alone catches
   map-ordering only probabilistically at small N - also assert the ORDER
   (sorted keys) directly. 20260715-110417, 20260715-142900.
-- `validate-membership-not-existence` (x1): when validating user-supplied paths
+- `validate-membership-not-existence` (x2): when validating user-supplied paths
   for a serve/copy pipeline, check MEMBERSHIP in the set that will actually be
   served, never bare filesystem existence - an escaping `../` path existed,
   passed, was never copied, and published a broken artifact with exit 0.
-  20260715-142900.
+  Read-back variant: guards attached only to the WRITE side leave the read-back
+  path trusting user-writable data ("we wrote it") - validate at EVERY trust
+  boundary crossing, and state in the plan which reads are trusted and why.
+  20260715-142900, 20260715-142906.
 - `toml-keys-before-tables` (x1): in TOML every top-level key must precede the
   first `[table]` header or it silently folds into that table (cargo-about's
   about.toml errored "unknown field targets" when a `[private]` table sat above
@@ -224,11 +227,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   TS2322 (node not void) and needed a block body; a png-validation fix's comment
   claimed callers caught its ValueError when the one call site had no try/except.
   20260714-134119, 20260714-210131.
-- `agent-interrupted-verify-worktree` (x1): a subagent that hits a long build can end
+- `agent-interrupted-verify-worktree` (x2): a subagent that hits a long build can end
   with an ambiguous partial state and misleading "in progress" notifications; INSPECT
   the worktree (git status + compile + run the deterministic generators) before
   concluding done-or-broken. For data-file work the parity/generator write-on-missing
-  usually completes it deterministically. 20260714-150508.
+  usually completes it deterministically. 20260714-150508, 20260715-142906.
 - `reconcile-plan-to-shipped` (x2): at close-out reconcile the plan's aspirational
   lists (which variants/scope actually shipped, deferrals, overstated guarantees)
   with reality BEFORE review - it keeps flagging stale plan text as findings.
@@ -313,7 +316,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   mechanism deleted proves nothing; copied tests inherit vacuousness - and a
   sabotage that refuses to go red refutes the assumed mechanism itself.
   20260711-180426, 20260711-212521, 20260712-115902.
-- `out-of-context-review-pass` (positive, x18): a fresh-context review of a
+- `out-of-context-review-pass` (positive, x19): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
   load-bearing claims instead of trusting them - checking cited evidence IS
   the spawn site, re-running the sabotage or the whole smoke suite, reading
