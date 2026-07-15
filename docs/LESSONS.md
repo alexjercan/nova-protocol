@@ -38,6 +38,15 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `landing-chain-and-stub-collision` (x1): land with one &&-chain
   (merge --squash && commit && sprout rm), and commit tatr stubs on master
   before sprouting so the merge cannot abort on a collision. 20260713-121605.
+- `relocation-leaves-ignored-siblings` (x1): a sprout worktree is a fresh
+  checkout, so gitignored files (autosave backups, build junk) exist only in the
+  MAIN checkout; `git mv`-ing a dir's tracked files out then landing leaves the
+  ignored siblings behind on disk in the main checkout, which a copy-dir build
+  still ships. After landing a "stop shipping dir X" move, `rm -rf` X's leftover
+  ignored files from the main checkout. 20260714-154958.
+- `verify-stale-brief-against-tree` (x1): a task brief can be partly stale
+  (e.g. "three credits copies exist"); check the live tree before planning or
+  you chase a non-problem. 20260714-154958.
 - `landing-no-cd` (x3, PROMOTED 2026-07-11 -> flow skill): squash-merge from
   the main checkout, its own command, no cd, `pwd` first. 20260709-160753.
 - `record-the-exact-rig` (x3): evidence notes record the rig (systems run,
