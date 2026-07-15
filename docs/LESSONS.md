@@ -178,9 +178,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   migration, grep the whole target type tree for non-derivable members - raw
   `Handle`s, foreign-crate types, Reflect-only types; scope hides in the leaves
   ("2 handles" was really 13 + 3 foreign types, a whole second tier). 20260525-133028.
-- `generate-data-from-code` (x1): migrate code-defined content to data files by
+- `generate-data-from-code` (x2): migrate code-defined content to data files by
   serializing the code config with a parity test, never hand-authoring - provably
-  faithful and sidesteps every format-syntax gotcha. 20260525-133028.
+  faithful and sidesteps every format-syntax gotcha. Corollary: a change to any
+  builder behind a committed generated artifact regenerates the artifact in the
+  SAME commit (713ac855 changed the shakedown builder, left the RON stale, and
+  master's parity test went red until 172138). 20260525-133028, 20260715-172138.
 - `effect-not-just-helper` (x1): test a spawn/mutation action's EFFECT through the
   ECS harness (fire -> drain -> assert on the world), not just its pure sub-helper
   plus a non-asserting example; the helper passing hid an untested spawn loop.
