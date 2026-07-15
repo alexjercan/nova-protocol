@@ -122,8 +122,8 @@ Implemented in `bevy-common-systems` (`src/modding/events.rs`): an
 dispatch correctness tests added; all 59 nova_scenario tests pass against it.
 Measured -17-24% on burst dispatch, neutral at 1 event/frame.
 
-Landed cross-repo: committed on bcs `master` as `ae68e38` and pushed; the pinned
-git rev was bumped `4a743b2 -> ae68e38` in the four nova crates that depend on it
+Landed cross-repo: committed on bcs `master` as `4c81117` and pushed; the pinned
+git rev was bumped `4a743b2 -> 4c81117` in the four nova crates that depend on it
 (`nova_scenario`, `nova_gameplay`, `nova_events`, `nova_debug`), the temporary
 `[patch]` was removed, and `cargo check --workspace` is green against the real
 git dependency.

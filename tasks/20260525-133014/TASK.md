@@ -17,20 +17,19 @@ so this may need grouping handlers on nova's side or a change upstream; the
 benchmark clarifies which. Higher-ROI sibling optimizations (filter string
 interning, condition-eval caching) are split into 20260714-083339.
 
-## Implemented (20260715, branch `modding-perf`): upstream change, landing pending
+## Implemented and landed (20260715, branch `modding-perf`): upstream change
 
 The benchmark answered the open question: the win is upstream, in
-`bevy-common-systems`' dispatch loop, not on nova's side. Implemented there
-(committed on the `perf-event-index` branch of the local bcs checkout,
-`f788627`): `EventHandlerIndex<W>` of contiguous handler snapshots +
-`maintain_handler_index` + snapshot-driven `queue_system`. See
+`bevy-common-systems`' dispatch loop, not on nova's side. Implemented there and
+pushed to bcs `master` (`4c81117`): `EventHandlerIndex<W>` of contiguous handler
+snapshots + `maintain_handler_index` + snapshot-driven `queue_system`. See
 `docs/modding-perf-report.md`.
 
 Measured -17-24% on burst dispatch (many events in one frame) at 500-5000
 handlers, neutral at 1 event/frame. Two dispatch correctness tests upstream; all
-59 nova_scenario tests pass against the patched crate (via a temporary `[patch]`
-in the root `Cargo.toml`).
+59 nova_scenario tests pass against it.
 
-Remaining to CLOSE: push the bcs commit to the remote and bump the pinned git rev
-in the four nova crates (`nova_scenario`, `nova_gameplay`, `nova_events`,
-`nova_debug`), then drop the `[patch]`.
+Landed: the pinned git rev was bumped `4a743b2 -> 4c81117` in the four nova
+crates (`nova_scenario`, `nova_gameplay`, `nova_events`, `nova_debug`), the
+temporary `[patch]` was removed, and `cargo check --workspace` is green against
+the git dependency.
