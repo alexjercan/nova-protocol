@@ -329,6 +329,20 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   into a doc from a mental model; backfill from an actual run. 20260712-105505.
 - `ab-isolation-bench` (x1, positive): attribute one system's cost with two
   worlds identical except for that system. 20260712-105505.
+- `sweep-full-scale-before-believing-a-win` (x1): an O(N)->O(matching)
+  optimization can LOSE to a cache-friendly linear baseline; benchmark across the
+  whole scale range and both regimes - a naive handler index won at 500 handlers
+  and reversed at 5000 (random-access thrash), fixed only by contiguous
+  snapshots. 20260525-133014.
+- `lint-gate-is-the-last-step` (x1): re-run fmt/clippy/tests AFTER the final edit,
+  never before - fmt ran before a test module was added, so an unformatted commit
+  shipped and only remote CI caught it, costing a cross-repo re-push. For a repo
+  gated solely by remote CI, mirror its exact checks locally before pushing.
+  20260525-133014.
+- `benchmark-gates-both-ways` (x1, positive): a measure-first gate justifies
+  DEFERRING optimization work as legitimately as doing it; 083339's filter/
+  condition micro-opts were declined on data (noise at realistic rates), a valid
+  outcome not an unfinished task. 20260525-133014.
 - `verify-bevy-api-at-callsite` (x1): before writing an unfamiliar Bevy
   bundle/field, copy an existing in-repo callsite; the 0.x API churns.
   20260712-131348.
