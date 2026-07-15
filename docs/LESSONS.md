@@ -102,11 +102,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   20260713-175416.
 - `presence-vs-behavior-tests` (x2): component-exists assertions stay green
   while behavior regresses; assert the behavior. 20260709-160753.
-- `sweep-then-delete` (x7): before deleting, moving, or swapping a mechanism or
+- `sweep-then-delete` (x8): before deleting, moving, or swapping a mechanism or
   marker, grep the WHOLE repo for its symbol names, describing words, and
   observers/queries - including root-level docs (README, AGENTS.md), the
-  CHANGELOG, and text the same branch added earlier. 20260711-212519,
-  20260712-133343, 20260712-211352, 20260714-204219.
+  CHANGELOG, text the same branch added earlier, and PROSE inside
+  rustdoc/comments across ALL file types (a docs-folder-only sweep left three
+  stale "mod pipeline" comments for review to catch). 20260711-212519,
+  20260712-133343, 20260712-211352, 20260714-204219, 20260715-151551.
 - `reread-after-insert` (x2): after inserting into a function or test, re-read
   the whole thing for bindings, assertions, or invariants the insertion
   duplicated or broke. 20260710-214316.
@@ -304,13 +306,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   mechanism deleted proves nothing; copied tests inherit vacuousness - and a
   sabotage that refuses to go red refutes the assumed mechanism itself.
   20260711-180426, 20260711-212521, 20260712-115902.
-- `out-of-context-review-pass` (positive, x16): a fresh-context review of a
+- `out-of-context-review-pass` (positive, x17): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
   load-bearing claims instead of trusting them - checking cited evidence IS
   the spawn site, re-running the sabotage or the whole smoke suite, reading
-  the DEPENDENCY's source for composition hazards. 20260712-133343,
-  20260711-183417, 20260712-115902, 20260712-211352, 20260715-142844,
-  20260715-142849.
+  the DEPENDENCY's source for composition hazards, mutation-analyzing new
+  tests. 20260712-133343, 20260711-183417, 20260712-115902, 20260712-211352,
+  20260715-142844, 20260715-142849, 20260715-151551.
 - `required-component-in-shared-query` (x2): a required fetch added to an
   existing query narrows its membership and every gate computed from it; fetch
   `Option<&T>` or use a separate query. New `Res<T>` params also panic every

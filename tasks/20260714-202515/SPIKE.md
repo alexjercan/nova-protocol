@@ -354,6 +354,13 @@ Direction-level tasks this spike seeded, for `/plan` to break into steps:
   20260715-151551: unship screenshot-reel from assets/ entirely (embed in the
   example; the hidden flag stays as a feature) - runs next, before 142900. See
   tasks/20260715-142849/{TASK,REVIEW,RETRO}.md.
+- 20260715, unship screenshot-reel (151551, user request mid-flow) landed on
+  master (`1e5fbce1`): the reel is no longer a mod - its scenario is embedded in
+  `examples/13_screenshot_reel.rs` from `examples/data/reel.content.ron` (ships
+  nowhere); bundle/folder/catalog entry deleted. The `hidden` flag stays,
+  re-pinned by a synthetic-catalog rig. Review APPROVE round 1 (4 doc/hardening
+  findings fixed). Next: 142900 (static portal). See
+  tasks/20260715-151551/{TASK,REVIEW,RETRO}.md.
 - 20260715, hidden dev mods (142844) landed on master (`4a6d2615`): `ModEntry`
   gained `hidden: bool`; screenshot-reel is hidden from the player-facing
   `ModCatalog` (filtered in `build_mod_catalog`) while staying installed and
