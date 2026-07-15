@@ -99,6 +99,11 @@ impl Plugin for NovaMenuPlugin {
         // pause overlay; the query only matches MenuButton, so running it
         // unconditionally is a no-op elsewhere.
         app.add_systems(Update, update_button_colors);
+        // Menu-button press cue (task 20260714-090006): one global observer
+        // clicks for every MenuButton activation, so New Game / Sandbox /
+        // Settings / Exit and the pause/mods buttons all sound the same crisp
+        // click without touching each handler.
+        app.add_observer(on_menu_button_activate);
         app.add_systems(
             OnEnter(GameStates::Playing),
             start_new_game_scenario.run_if(resource_equals(GameMode::NewGame)),
@@ -125,6 +130,25 @@ impl Plugin for NovaMenuPlugin {
     }
 }
 
+/// Play the menu-button click for any [`MenuButton`] activation (task
+/// 20260714-090006). One global observer covers every menu and pause-overlay
+/// button - the `button()` helper always carries `MenuButton` - so presses that
+/// were visual-only (hover/press colours) now also have a voice. A missing
+/// [`SoundBank`] (assets not loaded) is a graceful no-op.
+fn on_menu_button_activate(
+    activate: On<Activate>,
+    q_button: Query<(), With<MenuButton>>,
+    bank: Option<Res<SoundBank<NovaSfx>>>,
+    mut commands: Commands,
+) {
+    if !q_button.contains(activate.entity) {
+        return;
+    }
+    if let Some(bank) = bank {
+        commands.play_sfx_volume(bank.get(NovaSfx::MenuSelect), MENU_SELECT_VOLUME);
+    }
+}
+
 /// ESC (or the gamepad Start button) toggles the pause overlay. Plain
 /// press-to-toggle; no existing Escape binding anywhere in the repo
 /// (checked 2026-07-11).
@@ -133,6 +157,8 @@ fn toggle_pause(
     gamepad: Option<Res<ButtonInput<GamepadButton>>>,
     current: Res<State<PauseStates>>,
     mut next: ResMut<NextState<PauseStates>>,
+    bank: Option<Res<SoundBank<NovaSfx>>>,
+    mut commands: Commands,
 ) {
     let pad = gamepad
         .map(|g| g.just_pressed(GamepadButton::Start))
@@ -142,6 +168,12 @@ fn toggle_pause(
             PauseStates::Unpaused => PauseStates::Paused,
             PauseStates::Paused => PauseStates::Unpaused,
         });
+        // The overlay open/close toggle (task 20260714-090006): a soft UI blip
+        // on both directions. The Resume/Exit buttons close it with their own
+        // MenuSelect click, so only the ESC/pad toggle needs this.
+        if let Some(bank) = bank {
+            commands.play_sfx_volume(bank.get(NovaSfx::UiToggle), UI_TOGGLE_VOLUME);
+        }
     }
 }
 
@@ -990,6 +1022,86 @@ mod tests {
         app.add_observer(|_: On<UnloadScenario>, mut unloaded: ResMut<Unloaded>| {
             unloaded.0 = true;
         });
+    }
+
+    /// Count of UI cues played, standing in for "sounds heard".
+    #[derive(Resource, Default)]
+    struct PlayedCues(usize);
+
+    /// A headless app with a loaded [`SoundBank`] and a `PlaySfx` counter, on
+    /// MinimalPlugins so the AssetPlugin task pools exist (task 20260714-090006).
+    fn cue_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.insert_resource(SoundBank::load(
+            app.world().resource::<AssetServer>(),
+            NOVA_SFX_FILES,
+        ));
+        app.init_resource::<PlayedCues>();
+        app.add_observer(|_: On<PlaySfx>, mut cues: ResMut<PlayedCues>| cues.0 += 1);
+        app
+    }
+
+    #[test]
+    fn a_menu_button_activation_clicks_and_a_bare_activation_does_not() {
+        let mut app = cue_app();
+        app.add_observer(on_menu_button_activate);
+        // A real menu button (carries MenuButton via `button()`) and a bare
+        // entity that merely gets Activate'd.
+        let menu_button = app.world_mut().spawn(button("New Game")).id();
+        let bare = app.world_mut().spawn_empty().id();
+        app.update();
+
+        app.world_mut().trigger(Activate { entity: bare });
+        app.update();
+        assert_eq!(
+            app.world().resource::<PlayedCues>().0,
+            0,
+            "a non-MenuButton activation is silent"
+        );
+
+        app.world_mut().trigger(Activate {
+            entity: menu_button,
+        });
+        app.update();
+        assert_eq!(
+            app.world().resource::<PlayedCues>().0,
+            1,
+            "pressing a menu button clicks once"
+        );
+    }
+
+    #[test]
+    fn the_escape_pause_toggle_blips_on_both_directions() {
+        let mut app = cue_app();
+        app.add_plugins(StatesPlugin);
+        app.init_state::<PauseStates>();
+        app.init_resource::<ButtonInput<KeyCode>>();
+        // Bare (no in_state run condition): drive the toggle directly.
+        app.add_systems(Update, toggle_pause);
+
+        let tap_escape = |app: &mut App| {
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .press(KeyCode::Escape);
+            app.update();
+            let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            keys.release(KeyCode::Escape);
+            keys.clear();
+            app.update();
+        };
+
+        tap_escape(&mut app); // open
+        assert_eq!(pause_state(&app), PauseStates::Paused);
+        tap_escape(&mut app); // close
+        assert_eq!(pause_state(&app), PauseStates::Unpaused);
+
+        assert_eq!(
+            app.world().resource::<PlayedCues>().0,
+            2,
+            "ESC open and ESC close each blip once"
+        );
     }
 
     #[test]

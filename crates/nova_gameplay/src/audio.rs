@@ -71,12 +71,27 @@ pub enum NovaSfx {
     /// and separate from the objective chime (task 20260714-090002). Fired
     /// from `nova_scenario`'s salvage plugin, which owns the crate marker.
     SalvagePickup,
+    /// A menu button was pressed (New Game / Sandbox / Settings / Exit and the
+    /// pause/mods buttons) - a crisp UI click (task 20260714-090006). Fired from
+    /// `nova_menu`'s global `On<Activate>` observer.
+    MenuSelect,
+    /// A pause overlay open/close toggle via ESC - a soft two-state UI blip
+    /// (task 20260714-090006).
+    UiToggle,
+    /// A turret pulled its trigger on an empty magazine - a dull dry-fire click,
+    /// so a held burst that runs dry is not silently blocked (task
+    /// 20260714-090006).
+    DryFire,
+    /// A held radar gesture re-designated to a new target - a subtle, lower
+    /// tick, distinct from the once-per-gesture [`LockOn`] acquire cue (task
+    /// 20260714-090006).
+    RadarRetarget,
 }
 
 /// The `(key, base-filename)` pairs Nova loads into its [`SoundBank`]. The bank
 /// applies the `sounds/<name>.wav` convention, so these map to
 /// `assets/sounds/<name>.wav`. Shared with `nova_assets`, which does the load.
-pub const NOVA_SFX_FILES: [(NovaSfx, &str); 12] = [
+pub const NOVA_SFX_FILES: [(NovaSfx, &str); 16] = [
     (NovaSfx::ThrusterLoop, "thruster_loop"),
     (NovaSfx::TurretFire, "turret_fire"),
     (NovaSfx::TorpedoLaunch, "torpedo_launch"),
@@ -89,6 +104,10 @@ pub const NOVA_SFX_FILES: [(NovaSfx, &str); 12] = [
     (NovaSfx::SafetyOn, "safety_on"),
     (NovaSfx::RadarDeny, "radar_deny"),
     (NovaSfx::SalvagePickup, "salvage_pickup"),
+    (NovaSfx::MenuSelect, "menu_select"),
+    (NovaSfx::UiToggle, "ui_toggle"),
+    (NovaSfx::DryFire, "dry_fire"),
+    (NovaSfx::RadarRetarget, "radar_retarget"),
 ];
 
 /// Per-cue *base* playback volumes (at point-blank; distance attenuation scales
@@ -114,6 +133,19 @@ const RADAR_DENY_VOLUME: f32 = 0.26;
 /// salvage plugin (which owns [`SalvageCrateMarker`]), keeping every cue volume
 /// defined here in the audio module.
 pub const SALVAGE_PICKUP_VOLUME: f32 = 0.22;
+
+/// UI/feedback volumes for the menu and turret/radar cues (task
+/// 20260714-090006). All non-positional, kept in the informational-tick band
+/// with the lock/safety cues. The retarget tick is the quietest - it can repeat
+/// several times within one held gesture, so it must stay well under the
+/// once-per-gesture `LOCK_ON_VOLUME` acquire cue. The dry-fire and retarget cues
+/// are played here in this module (private), but `MENU_SELECT`/`UI_TOGGLE` are
+/// fired from `nova_menu`, so those two are `pub` - keeping every cue volume
+/// defined here in the audio module.
+pub const MENU_SELECT_VOLUME: f32 = 0.28;
+pub const UI_TOGGLE_VOLUME: f32 = 0.24;
+const DRY_FIRE_VOLUME: f32 = 0.22;
+const RADAR_RETARGET_VOLUME: f32 = 0.18;
 
 /// Distance-attenuation rolloff for positional cues, in world units. A cue plays
 /// at full base volume within `SFX_NEAR_DISTANCE`, is inaudible beyond
@@ -310,8 +342,13 @@ impl Plugin for NovaAudioPlugin {
 
         // Lock/safety UI cues (spike 20260713-110039): message-driven
         // one-shots, so no gating needed - the writers (radar search, tap
-        // observer) are themselves pause-gated.
-        app.add_systems(Update, (play_lock_cues, play_safety_engaged_cue));
+        // observer) are themselves pause-gated. The dry-fire click (task
+        // 20260714-090006) polls turret input/ammo and edge-latches per turret;
+        // a pause freezes the input so no fresh edge fires while paused.
+        app.add_systems(
+            Update,
+            (play_lock_cues, play_safety_engaged_cue, play_dry_fire_cue),
+        );
 
         // The thruster hum polls `ThrusterSectionInput`, so it must be gated to
         // the running simulation exactly like the thruster physics/shader. Joining
@@ -481,13 +518,15 @@ fn on_torpedo_launch_play_sfx(
 
 /// The lock-gesture UI cues (non-positional one-shots, like the objective
 /// cues): LockOn once per radar gesture ([`RadarLockAcquired`] already
-/// fires acquire-only, Q3a), LockOff per cleared lock, and the capability
-/// deny buzz ([`RadarDenied`], F7/Q8a). One cue per kind per frame - a
+/// fires acquire-only, Q3a), LockOff per cleared lock, the capability
+/// deny buzz ([`RadarDenied`], F7/Q8a), and the subtle retarget tick
+/// ([`RadarRetargeted`], task 20260714-090006). One cue per kind per frame - a
 /// staged double-clear in one frame plays one LockOff, not a chord.
 fn play_lock_cues(
     mut commands: Commands,
     bank: Option<Res<SoundBank<NovaSfx>>>,
     mut acquired: MessageReader<RadarLockAcquired>,
+    mut retargeted: MessageReader<RadarRetargeted>,
     mut cleared: MessageReader<LockClearedToast>,
     mut denied: MessageReader<RadarDenied>,
 ) {
@@ -495,14 +534,25 @@ fn play_lock_cues(
         // No bank (headless tests, assets not loaded): drain quietly so the
         // cursors do not replay stale messages once it appears.
         acquired.read().for_each(|_| {});
+        retargeted.read().for_each(|_| {});
         cleared.read().for_each(|_| {});
         denied.read().for_each(|_| {});
         return;
     };
     // DRAIN each reader (count, not next): a leftover unread message would
     // replay the cue on the NEXT frame.
-    if acquired.read().count() > 0 {
+    let acquired_now = acquired.read().count() > 0;
+    let retargeted_now = retargeted.read().count() > 0;
+    if acquired_now {
         commands.play_sfx_volume(bank.get(NovaSfx::LockOn), LOCK_ON_VOLUME);
+    }
+    // The acquire and a retarget can both land in the frames of one gesture, but
+    // never the same frame for the same slot (acquire is the first resolve,
+    // retarget every change after). Suppress the tick on the acquire frame
+    // anyway so a gesture that resolves and immediately settles plays only the
+    // richer LockOn, never LockOn + tick.
+    if retargeted_now && !acquired_now {
+        commands.play_sfx_volume(bank.get(NovaSfx::RadarRetarget), RADAR_RETARGET_VOLUME);
     }
     if cleared.read().count() > 0 {
         commands.play_sfx_volume(bank.get(NovaSfx::LockOff), LOCK_OFF_VOLUME);
@@ -530,6 +580,45 @@ fn play_safety_engaged_cue(
             }
         }
         *was_hot = is_hot;
+    }
+}
+
+/// The dry-fire click on the PLAYER's turrets (task 20260714-090006): when a
+/// turret's trigger is held with weapons hot but its magazine is empty, the
+/// shoot system silently blocks the shot (`shoot_spawn_projectile`, the empty
+/// magazine `continue`). This gives that dead trigger a voice - a dull click on
+/// the RISING EDGE of the empty-and-pulling state, so a held burst that runs dry
+/// is not just silence.
+///
+/// Edge-latched per turret so holding an empty trigger clicks once, not every
+/// frame; a release-and-re-pull clicks again. Player-only: `q_ship` is filtered
+/// to `PlayerSpaceshipMarker`, so an AI turret running dry never reaches the cue
+/// (it would otherwise click in the player's ear). A turret with no `SectionAmmo`
+/// (unlimited ammo, e.g. the shakedown player) never dry-fires.
+fn play_dry_fire_cue(
+    mut commands: Commands,
+    bank: Option<Res<SoundBank<NovaSfx>>>,
+    q_turret: Query<
+        (Entity, &TurretSectionInput, Option<&SectionAmmo>, &ChildOf),
+        (With<TurretSectionMarker>, Without<SectionInactiveMarker>),
+    >,
+    q_ship: Query<&WeaponsHot, With<PlayerSpaceshipMarker>>,
+    mut latched: Local<HashMap<Entity, bool>>,
+) {
+    for (turret, input, ammo, ChildOf(ship)) in &q_turret {
+        // Dry-firing = trigger held, weapons hot, magazine present and empty, on
+        // the player's ship. `q_ship` matches only the player, so a non-player
+        // parent reads `hot == false` and never dry-fires.
+        let hot = q_ship.get(*ship).is_ok_and(|weapons| weapons.0);
+        let empty = ammo.is_some_and(SectionAmmo::is_empty);
+        let dry = **input && hot && empty;
+        let was = latched.entry(turret).or_insert(false);
+        if dry && !*was {
+            if let Some(bank) = &bank {
+                commands.play_sfx_volume(bank.get(NovaSfx::DryFire), DRY_FIRE_VOLUME);
+            }
+        }
+        *was = dry;
     }
 }
 
@@ -1073,12 +1162,126 @@ mod tests {
             SafetyOn,
             RadarDeny,
             SalvagePickup,
+            MenuSelect,
+            UiToggle,
+            DryFire,
+            RadarRetarget,
         ] {
             assert!(
                 NOVA_SFX_FILES.iter().any(|(k, _)| *k == key),
                 "NovaSfx::{key:?} is missing from NOVA_SFX_FILES"
             );
         }
+    }
+
+    /// An App rig for the dry-fire cue: the real `play_dry_fire_cue` system with
+    /// a loaded bank and a `PlaySfx` counter, no audio device needed.
+    fn dry_fire_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.insert_resource(SoundBank::load(
+            app.world().resource::<AssetServer>(),
+            NOVA_SFX_FILES,
+        ));
+        app.init_resource::<PlayedSfx>();
+        app.add_systems(Update, play_dry_fire_cue);
+        app.add_observer(|_: On<PlaySfx>, mut played: ResMut<PlayedSfx>| played.0 += 1);
+        app
+    }
+
+    fn dings(app: &App) -> usize {
+        app.world().resource::<PlayedSfx>().0
+    }
+
+    #[test]
+    fn dry_fire_clicks_on_the_empty_pull_edge_then_stays_quiet_while_held() {
+        let mut app = dry_fire_app();
+        let player = app
+            .world_mut()
+            .spawn((PlayerSpaceshipMarker, WeaponsHot(true)))
+            .id();
+        let turret = app
+            .world_mut()
+            .spawn((
+                TurretSectionMarker,
+                TurretSectionInput(true),
+                SectionAmmo::new(0),
+                ChildOf(player),
+            ))
+            .id();
+
+        // Trigger held on an empty magazine: one click on the rising edge.
+        app.update();
+        assert_eq!(dings(&app), 1, "the empty pull edge clicks once");
+
+        // Still held: no repeat (the latch suppresses a per-frame buzz).
+        app.update();
+        assert_eq!(
+            dings(&app),
+            1,
+            "holding an empty trigger does not machine-gun"
+        );
+
+        // Release then re-pull: a fresh edge clicks again.
+        app.world_mut()
+            .entity_mut(turret)
+            .insert(TurretSectionInput(false));
+        app.update();
+        app.world_mut()
+            .entity_mut(turret)
+            .insert(TurretSectionInput(true));
+        app.update();
+        assert_eq!(
+            dings(&app),
+            2,
+            "a re-pull on an empty magazine clicks again"
+        );
+    }
+
+    #[test]
+    fn dry_fire_is_gated_to_the_player_hot_and_empty() {
+        // Four turrets in one frame; only the player + hot + empty + held one
+        // may click. The `== 1` is self-guarding: it is also the delivery guard
+        // that the rig fires at all, so the three silent cases are real gates,
+        // not a dead system.
+        let mut app = dry_fire_app();
+        let player_hot = app
+            .world_mut()
+            .spawn((PlayerSpaceshipMarker, WeaponsHot(true)))
+            .id();
+        let player_cold = app
+            .world_mut()
+            .spawn((PlayerSpaceshipMarker, WeaponsHot(false)))
+            .id();
+        // An AI ship: hot weapons, but no player marker.
+        let ai = app.world_mut().spawn(WeaponsHot(true)).id();
+
+        let held_empty = |app: &mut App, ship: Entity| {
+            app.world_mut().spawn((
+                TurretSectionMarker,
+                TurretSectionInput(true),
+                SectionAmmo::new(0),
+                ChildOf(ship),
+            ));
+        };
+        held_empty(&mut app, player_hot); // valid: clicks (delivery guard)
+        held_empty(&mut app, player_cold); // gated: weapons cold
+        held_empty(&mut app, ai); // gated: not the player
+                                  // Player + hot but a LOADED magazine: gated on ammo.
+        app.world_mut().spawn((
+            TurretSectionMarker,
+            TurretSectionInput(true),
+            SectionAmmo::new(3),
+            ChildOf(player_hot),
+        ));
+
+        app.update();
+        assert_eq!(
+            dings(&app),
+            1,
+            "only the player's hot, empty, held turret dry-fires"
+        );
     }
 }
 

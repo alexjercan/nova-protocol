@@ -58,6 +58,17 @@ SOUNDS = {
     # its own register above the near-flat objective blip (520->560) and below
     # the radar lock chirp (700->980) so a pickup never blurs with either.
     "salvage_pickup": ("sweep", 640.0, 860.0, 0.10, 0.20),
+    # Menu button press: a crisp, short rising UI click.
+    "menu_select": ("sweep", 620.0, 720.0, 0.06, 0.18),
+    # Pause/settings toggle: a soft, slightly falling two-state blip, lower and
+    # gentler than the menu-select click so a toggle reads distinct from a press.
+    "ui_toggle": ("sweep", 430.0, 380.0, 0.05, 0.16),
+    # Turret dry-fire on an empty magazine: a dull, low descending click - a dead
+    # trigger, clearly not the noisy `turret_fire` shot.
+    "dry_fire": ("sweep", 300.0, 160.0, 0.06, 0.18),
+    # Radar re-designation tick: a very short, quiet blip - subtler than the
+    # `lock_on` acquire chirp because it can repeat across one held gesture.
+    "radar_retarget": ("sweep", 600.0, 660.0, 0.045, 0.14),
 }
 
 

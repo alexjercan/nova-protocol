@@ -38,7 +38,7 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         targeting_state, CombatLock, ComponentLock, ComponentLockMode, LockClearedToast, LockFocus,
-        LockSignature, RadarDenied, RadarLockAcquired, RadarSlot, RadarState,
+        LockSignature, RadarDenied, RadarLockAcquired, RadarRetargeted, RadarSlot, RadarState,
         SpaceshipTargetingPlugin, SpaceshipTargetingSystems, TargetingSettings, ThreatContacts,
         TravelLock, WeaponsHot, RADAR_TAP_SECS,
     };
@@ -212,6 +212,17 @@ pub struct RadarLockAcquired {
     pub combat: bool,
 }
 
+/// A held radar gesture RE-DESIGNATED to a new target - fired each frame the
+/// engaged slot changes to a different candidate AFTER the initial acquire
+/// (task 20260714-090006). The subtle retarget tick reads this; the
+/// once-per-gesture acquire is [`RadarLockAcquired`] instead, so the two never
+/// overlap (acquire on the first resolve, retarget on every change after).
+#[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RadarRetargeted {
+    /// True when the combat slot retargeted (red), false for travel (white).
+    pub combat: bool,
+}
+
 /// A tap-clear just cleared a lock. The HUD's unlatch ghost (the crosshair
 /// visibly popping off the target - the wordless replacement for the old
 /// text toast, Q7a of spike 20260713-110039) and the LockOff cue read this.
@@ -258,6 +269,7 @@ impl Plugin for SpaceshipTargetingPlugin {
         app.register_type::<ComponentLock>();
         app.add_message::<LockClearedToast>();
         app.add_message::<RadarLockAcquired>();
+        app.add_message::<RadarRetargeted>();
         app.add_message::<RadarDenied>();
 
         // The state bundle rides the player marker wherever ships spawn
@@ -637,6 +649,7 @@ fn update_radar_search(
     q_candidates: LockableQuery,
     q_hold: Query<&TriggerState, With<Action<RadarHoldInput>>>,
     mut acquired_cue: MessageWriter<RadarLockAcquired>,
+    mut retarget_cue: MessageWriter<RadarRetargeted>,
     mut spaceship: Query<
         (
             &Transform,
@@ -709,21 +722,32 @@ fn update_radar_search(
         let Some(candidate) = radar.candidate else {
             continue;
         };
-        match slot {
+        let changed = match slot {
             RadarSlot::Combat => {
-                if combat.0 != Some(candidate) {
+                let changed = combat.0 != Some(candidate);
+                if changed {
                     combat.0 = Some(candidate);
                 }
+                changed
             }
             RadarSlot::Travel => {
-                if travel.0 != Some(candidate) {
+                let changed = travel.0 != Some(candidate);
+                if changed {
                     travel.0 = Some(candidate);
                 }
+                changed
             }
-        }
+        };
         if !radar.acquired {
             radar.acquired = true;
             acquired_cue.write(RadarLockAcquired {
+                combat: slot == RadarSlot::Combat,
+            });
+        } else if changed {
+            // A re-designation within the already-acquired gesture (the slot
+            // moved to a NEW candidate): the subtle retarget tick, distinct from
+            // the once-per-gesture acquire above.
+            retarget_cue.write(RadarRetargeted {
                 combat: slot == RadarSlot::Combat,
             });
         }
@@ -1432,6 +1456,7 @@ mod tests {
         world.insert_resource(Time::<()>::default());
         world.init_resource::<TargetingSettings>();
         world.init_resource::<Messages<RadarLockAcquired>>();
+        world.init_resource::<Messages<RadarRetargeted>>();
         world.spawn((
             SpaceshipCameraInputMarker,
             SpaceshipCameraNormalInputMarker,
@@ -2184,6 +2209,11 @@ mod tests {
     #[derive(Resource, Default)]
     struct AcquiredCueCount(usize);
 
+    /// Count of [`RadarRetargeted`] ticks seen, same test-local reader pattern
+    /// (task 20260714-090006).
+    #[derive(Resource, Default)]
+    struct RetargetCueCount(usize);
+
     /// Real input -> real `Hold`/`Tap` conditions -> the REAL radar search:
     /// the full gesture e2e on the production flight rig, with
     /// `TimeUpdateStrategy::ManualDuration` driving the clock the conditions
@@ -2214,6 +2244,7 @@ mod tests {
         app.add_observer(on_lock_clear_tap);
         app.add_message::<LockClearedToast>();
         app.add_message::<RadarLockAcquired>();
+        app.add_message::<RadarRetargeted>();
         app.add_message::<RadarDenied>();
         // The live search runs inside the pause-gated input set, exactly as
         // the production plugin wires it.
@@ -2611,6 +2642,59 @@ mod tests {
             app.update();
         }
         assert_eq!(app.world().resource::<AcquiredCueCount>().0, 2);
+    }
+
+    #[test]
+    fn a_retarget_within_a_held_gesture_ticks_but_the_acquire_does_not() {
+        // Q3a keeps the ACQUIRE cue once-per-gesture; task 20260714-090006 adds
+        // the subtle retarget tick for the re-designations that follow. The
+        // acquire must NOT count as a retarget, and the first sweep to a new
+        // body must tick.
+        let (mut app, ship) = gesture_app();
+        app.init_resource::<RetargetCueCount>();
+        app.add_systems(
+            Update,
+            |mut cues: MessageReader<RadarRetargeted>, mut count: ResMut<RetargetCueCount>| {
+                count.0 += cues.read().count();
+            },
+        );
+        spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
+        let left = spawn_ship(&mut app, Vec3::new(-100.0, 0.0, 0.0));
+
+        press_ctrl(&mut app);
+        for _ in 0..6 {
+            app.update();
+        }
+        assert_eq!(
+            app.world().resource::<AcquiredCueCount>().0,
+            1,
+            "acquired once"
+        );
+        assert_eq!(
+            app.world().resource::<RetargetCueCount>().0,
+            0,
+            "the acquire is not a retarget - no tick on the first resolve"
+        );
+
+        // Sweep to the second body: the lock re-designates while still held.
+        aim_look(&mut app, Quat::from_rotation_y(std::f32::consts::FRAC_PI_2));
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(
+            travel_of(&app, ship),
+            Some(left),
+            "guard: the retarget actually happened"
+        );
+        assert_eq!(
+            app.world().resource::<AcquiredCueCount>().0,
+            1,
+            "still just the one acquire"
+        );
+        assert!(
+            app.world().resource::<RetargetCueCount>().0 >= 1,
+            "the re-designation ticked at least once"
+        );
     }
 
     #[test]
