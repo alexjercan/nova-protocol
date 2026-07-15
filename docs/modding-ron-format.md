@@ -144,10 +144,10 @@ docs/mod-portal.md (webmods/ sources, nova_portal_gen, catalog.json schema).
 
 ## Downloaded mods: the local cache + the `mods://` source
 
-Task 20260715-142906 (the LOCAL foundation; the network half - portal fetch,
-staged download, install/uninstall events - is task 20260715-163508). A mod
-whose files sit in the local cache loads and merges exactly like a shipped
-one; nothing here touches the network.
+Task 20260715-142906 (the LOCAL foundation; the network half - the portal
+client below - is task 20260715-163508). A mod whose files sit in the local
+cache loads and merges exactly like a shipped one; nothing in THIS layer
+touches the network.
 
 - The CACHE (`nova_assets::mod_cache`) stores each downloaded mod's files
   verbatim plus a small INSTALLED INDEX of DOWNLOADED mods only (the shipped
@@ -209,10 +209,48 @@ one; nothing here touches the network.
   can request one) are rejected by bevy's default `UnapprovedPathMode::Forbid`
   at load time AND by a sandboxing reader wrapped around the native `mods://`
   source, so containment does not depend on the bevy default staying in place.
-- UNINSTALL vs ENABLEMENT: uninstalling a mod while it is enabled leaves its
-  id in `EnabledMods` (and the persisted prefs), so reinstalling the same id
-  comes back enabled. Deliberate for now - the installer flow (task 163508)
-  decides whether uninstall also strips the pref.
+- UNINSTALL vs ENABLEMENT: uninstalling a mod ALSO strips its id from
+  `EnabledMods` (and, via the existing change-gated save system, from the
+  persisted prefs), so reinstalling the same id starts DISABLED - the same
+  default as any fresh install. (Resolved by task 163508; 142906 had shipped
+  the leave-it-enabled behavior as a documented interim.)
+
+## The portal client: fetch + install/uninstall over the wire
+
+Task 20260715-163508 (`nova_assets::portal`). The game fetches the static mod
+portal (docs/mod-portal.md) and installs into the cache above, on native and
+wasm alike:
+
+- EVENT/RESOURCE API (what the mods menu, task 142916, binds to): trigger
+  `FetchPortalCatalog` / `InstallPortalMod { id }` / `UninstallPortalMod
+  { id }`; read `RemoteCatalog` (Idle | Fetching | Ready(catalog) |
+  Error(msg)) and `InstallJobs` (per-id: Fetching {done, total} | Verifying |
+  Committing | Failed(msg); the entry is REMOVED on success - `DownloadedMods`
+  is the truth from there, and a Failed entry stays until a retry). The
+  transport is a `PortalTransport` trait object in the `PortalClient`
+  resource - `ehttp` in production (one API over the native ureq thread and
+  the browser fetch), mocks in tests.
+- BASE URL (`PortalConfig`): native defaults to the Pages portal
+  (`https://alexjercan.github.io/nova-protocol/mods`), overridable via
+  `NOVA_PORTAL_URL`; wasm derives it from `window.location` (game served at
+  `<root>/play/` -> sibling `<root>/mods`, so a fork's Pages deploy hits its
+  own portal with zero config), overridable via a `?portal=<url>` query
+  parameter.
+- The fetched catalog is WIRE data: an unknown `schema_version` is rejected
+  with an error that names the version (never misparsed or half-parsed), and
+  every id/version/path of an entry passes the same `is_safe_*` gates as the
+  cache API BEFORE the first byte of that mod is fetched.
+- STAGED INSTALL: files are fetched sequentially (per-file progress), each
+  verified against the catalog's size + sha256 on arrival, and held in
+  memory; only after ALL files verify does the commit write the cache (files
+  first, index last - natively `install_local`; on wasm one IndexedDB
+  transaction awaited to its `complete` event, then the index, then the
+  in-memory `mods://` Dir). Any failure - bad hash, short body, transport
+  error mid-install - leaves NO files and NO index entry. Guards: an id that
+  is already installed or that shadows a shipped catalog id is rejected
+  before any fetch. A successful install joins `DownloadedMods` live (the
+  existing load/mark/merge machinery reacts) and stays DISABLED until the
+  player enables it.
 
 ## File naming (bundles, content, catalog) - load-bearing
 

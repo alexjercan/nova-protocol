@@ -87,6 +87,29 @@ pub fn write_index(records: &[InstalledModRecord]) {
     backend::write_index(records);
 }
 
+/// Insert or replace `record` in the downloaded-mods index (keyed by id).
+/// Best-effort like [`write_index`]. Used by the portal installer's wasm
+/// commit (native goes through [`install_local`], whose `io::Result` carries
+/// the stricter files-first-index-last discipline end to end).
+pub fn upsert_index_record(record: InstalledModRecord) {
+    let mut records = read_index().unwrap_or_default();
+    match records.iter_mut().find(|r| r.id == record.id) {
+        Some(existing) => *existing = record,
+        None => records.push(record),
+    }
+    write_index(&records);
+}
+
+/// Drop `id`'s record from the downloaded-mods index (absent is fine).
+/// Best-effort like [`write_index`]. The UNINSTALL flow removes the index
+/// entry FIRST, files second - the reverse of the install order, so the index
+/// never references files that are already gone.
+pub fn remove_index_record(id: &str) {
+    let mut records = read_index().unwrap_or_default();
+    records.retain(|r| r.id != id);
+    write_index(&records);
+}
+
 /// True when every component of `path` is a plain name - no `..`, no root, no
 /// drive prefix, no `.` - so joining it under a directory can never escape it.
 /// Shared by the path validators and the native source sandbox.
@@ -169,6 +192,15 @@ pub fn install_local(
     backend::install_local(id, version, bundle, files)
 }
 
+/// Remove EVERY cached file of `id` (the whole `<data_root>/mods/<id>` tree,
+/// whatever it holds - a version's exact file list, plus any orphans an older
+/// install left behind). The uninstall flow's file half; a missing dir is fine.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn remove_mod(id: &str) -> std::io::Result<()> {
+    validate_file_op(id, std::iter::empty::<&str>()).map_err(invalid_input)?;
+    backend::remove_mod(id)
+}
+
 /// Read one cached mod file's bytes, or `None` if absent/unreadable (or the
 /// id/path is unsafe).
 #[cfg(target_arch = "wasm32")]
@@ -190,6 +222,30 @@ pub async fn store_mod_files(id: &str, files: &[(String, Vec<u8>)]) -> Result<()
 pub async fn remove_mod_files(id: &str, paths: &[String]) -> Result<(), String> {
     validate_file_op(id, paths.iter().map(String::as_str))?;
     backend::remove_mod_files(id, paths).await
+}
+
+/// Store a downloaded mod's files in ONE IndexedDB transaction, resolved on
+/// the TRANSACTION's `complete` event - NOT per-request success, which is not
+/// commit (review 142906 R1.4): a put whose request succeeded can still abort
+/// at commit time (e.g. quota exceeded). All-or-nothing, which is exactly the
+/// installer's files-first-index-last need: `Ok` here means every byte is
+/// durably committed, so writing the index record afterwards can never
+/// publish a mod whose files silently rolled back.
+#[cfg(target_arch = "wasm32")]
+pub async fn commit_mod_files(id: &str, files: &[(String, Vec<u8>)]) -> Result<(), String> {
+    validate_file_op(id, files.iter().map(|(p, _)| p.as_str()))?;
+    backend::commit_mod_files(id, files).await
+}
+
+/// Remove EVERY cached file of `id` (all IndexedDB keys under `<id>/`,
+/// whatever they are - a version's exact file list, plus any orphans an older
+/// install left behind). Returns the removed keys so the caller can also
+/// evict them from the in-memory `mods://` `Dir`. The uninstall flow's file
+/// half; no keys is fine.
+#[cfg(target_arch = "wasm32")]
+pub async fn remove_mod(id: &str) -> Result<Vec<String>, String> {
+    validate_file_op(id, std::iter::empty::<&str>())?;
+    backend::remove_mod(id).await
 }
 
 /// Register the `mods://` asset source on `app`. MUST run before `AssetPlugin`
@@ -418,6 +474,11 @@ mod backend {
         )
     }
 
+    /// Remove the whole `<data_root>/mods/<id>` tree (uninstall's file half).
+    pub fn remove_mod(id: &str) -> std::io::Result<()> {
+        remove_mod_at(&data_root().ok_or(no_data_dir())?, id)
+    }
+
     fn no_data_dir() -> std::io::Error {
         std::io::Error::new(std::io::ErrorKind::NotFound, "no data dir available")
     }
@@ -528,6 +589,20 @@ mod backend {
         }
         write_index_at(root, &records)
     }
+
+    /// Remove the mod's whole cache directory - everything under
+    /// `<root>/mods/<id>`, exact file list not required (also sweeps orphans
+    /// an older install left behind). Missing dir is fine.
+    pub fn remove_mod_at(root: &Path, id: &str) -> std::io::Result<()> {
+        if !is_safe_id(id) {
+            return Err(bad_input("mod id", id));
+        }
+        match std::fs::remove_dir_all(root.join("mods").join(id)) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -605,6 +680,81 @@ mod backend {
             idb_delete(&file_key(id, path)).await?;
         }
         Ok(())
+    }
+
+    /// Store all of a mod's files in ONE readwrite transaction and resolve on
+    /// the TRANSACTION settling - the R1.4-correct commit signal (request
+    /// `success` fires before the transaction is durable, and a later abort
+    /// rolls every put back). All-or-nothing by IDB's own transaction
+    /// semantics: the installer writes the index record only after `Ok`.
+    pub async fn commit_mod_files(id: &str, files: &[(String, Vec<u8>)]) -> Result<(), String> {
+        let (db, store) = open_store(web_sys::IdbTransactionMode::Readwrite).await?;
+        let tx = store.transaction();
+        for (path, bytes) in files {
+            let value: JsValue = js_sys::Uint8Array::from(bytes.as_slice()).into();
+            if store
+                .put_with_key(&value, &JsValue::from_str(&file_key(id, path)))
+                .is_err()
+            {
+                // A synchronously-rejected put (bad key/value) never reaches
+                // the store: abort so the earlier puts roll back too.
+                let _ = tx.abort();
+                db.close();
+                return Err("IndexedDB put failed".to_string());
+            }
+        }
+        let result = await_transaction(&tx).await;
+        db.close();
+        result
+    }
+
+    /// Remove every key under `<id>/` (uninstall's file half), returning the
+    /// removed keys so the caller can also evict them from the in-memory
+    /// `mods://` `Dir`.
+    pub async fn remove_mod(id: &str) -> Result<Vec<String>, String> {
+        let prefix = format!("{id}/");
+        let keys: Vec<String> = idb_all_keys()
+            .await?
+            .into_iter()
+            .filter(|k| k.starts_with(&prefix))
+            .collect();
+        for key in &keys {
+            idb_delete(key).await?;
+        }
+        Ok(keys)
+    }
+
+    /// Await an `IdbTransaction` settling: resolve on `complete`, reject on
+    /// `error`/`abort` - the only events that mean commit or rollback. Like
+    /// [`await_request`], the one-shot closures hand their memory to JS
+    /// (`once_into_js`): whichever of the three never fires leaks a few
+    /// bytes, once per commit - see the leak rationale there.
+    async fn await_transaction(tx: &web_sys::IdbTransaction) -> Result<(), String> {
+        let promise = js_sys::Promise::new(&mut |resolve, reject| {
+            let on_complete = Closure::once_into_js(move |_: web_sys::Event| {
+                let _ = resolve.call0(&JsValue::UNDEFINED);
+            });
+            let reject_on_abort = reject.clone();
+            let on_error = Closure::once_into_js(move |_: web_sys::Event| {
+                let _ = reject.call1(
+                    &JsValue::UNDEFINED,
+                    &JsValue::from_str("IndexedDB transaction failed"),
+                );
+            });
+            let on_abort = Closure::once_into_js(move |_: web_sys::Event| {
+                let _ = reject_on_abort.call1(
+                    &JsValue::UNDEFINED,
+                    &JsValue::from_str("IndexedDB transaction aborted"),
+                );
+            });
+            tx.set_oncomplete(Some(on_complete.unchecked_ref()));
+            tx.set_onerror(Some(on_error.unchecked_ref()));
+            tx.set_onabort(Some(on_abort.unchecked_ref()));
+        });
+        wasm_bindgen_futures::JsFuture::from(promise)
+            .await
+            .map(|_| ())
+            .map_err(|_| "IndexedDB transaction did not commit".to_string())
     }
 
     /// Every cached file as `(key, bytes)` with keys `<id>/<path>` - the
@@ -789,7 +939,7 @@ mod backend {
 mod tests {
     use super::{
         backend::{
-            install_local_at, read_index_at, read_mod_file_at, remove_mod_files_at,
+            install_local_at, read_index_at, read_mod_file_at, remove_mod_at, remove_mod_files_at,
             store_mod_files_at, write_index_at,
         },
         InstalledModRecord,
@@ -860,6 +1010,38 @@ mod tests {
         assert!(
             !root.path().join("mods").join("pack").exists(),
             "the emptied mod dir is pruned"
+        );
+    }
+
+    /// `remove_mod_at` (the uninstall flow's file half) sweeps the WHOLE mod
+    /// directory without needing the file list, leaves other mods alone, is
+    /// idempotent on a missing dir, and still rejects unsafe ids. Deleting
+    /// the backend fn is a compile error; weakening its id gate fails the
+    /// last assertion.
+    #[test]
+    fn remove_mod_sweeps_the_whole_mod_dir() {
+        let root = tempfile::tempdir().unwrap();
+        let files = vec![
+            ("pack.bundle.ron".to_string(), b"bundle".to_vec()),
+            ("scenarios/run.content.ron".to_string(), b"content".to_vec()),
+        ];
+        store_mod_files_at(root.path(), "pack", &files).unwrap();
+        store_mod_files_at(root.path(), "other", &files).unwrap();
+
+        remove_mod_at(root.path(), "pack").unwrap();
+        assert!(
+            !root.path().join("mods").join("pack").exists(),
+            "the whole mod dir is gone"
+        );
+        assert_eq!(
+            read_mod_file_at(root.path(), "other", "pack.bundle.ron"),
+            Some(b"bundle".to_vec()),
+            "other mods' files are untouched"
+        );
+        remove_mod_at(root.path(), "pack").unwrap(); // missing dir is fine
+        assert!(
+            remove_mod_at(root.path(), "../other").is_err(),
+            "an escaping id must be rejected"
         );
     }
 

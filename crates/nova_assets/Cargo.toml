@@ -14,9 +14,19 @@ bevy_asset_loader = { version = "0.27.0" }
 ron = { version = "0.12" }
 # The mod_cache InstalledModRecord derives its RON serde directly.
 serde = { version = "1", features = ["derive"] }
+# The portal client (task 20260715-163508): ehttp is the one HTTP surface for
+# native (ureq worker thread) and wasm (browser fetch); serde_json decodes the
+# portal's catalog.json; sha2 verifies each downloaded file (0.10 to share the
+# workspace's existing pin with nova_portal_gen, which hashes the same files).
+ehttp = { version = "0.7" }
+serde_json = { version = "1" }
+sha2 = { version = "0.10" }
 nova_gameplay = { path = "../nova_gameplay" }
 nova_scenario = { path = "../nova_scenario" }
 nova_modding = { path = "../nova_modding" }
+# The portal wire schema (PortalCatalog et al) - engine-free, shared verbatim
+# with the generator.
+nova_mod_format = { path = "../nova_mod_format" }
 
 # Cross-platform persistence of the enabled-mods set (task 20260714-174131)
 # and of the downloaded-mods cache (task 20260715-142906).
@@ -39,6 +49,8 @@ web-sys = { version = "0.3", features = [
     "IdbObjectStore",
     "IdbTransaction",
     "IdbTransactionMode",
+    # The portal client derives its default base URL from window.location.
+    "Location",
 ] }
 js-sys = "0.3"
 wasm-bindgen = "0.2"
@@ -50,7 +62,11 @@ bevy_rand = { version = "0.15.0", default-features = false, features = [
     "wyrand",
 ] }
 nova_events = { path = "../nova_events" }
+# The portal e2e serves a real generated portal tree over localhost HTTP
+# (tiny_http) built by the production generator (nova_portal_gen).
+nova_portal_gen = { path = "../nova_portal_gen" }
 tempfile = "3"
+tiny_http = "0.12"
 
 [lints]
 workspace = true

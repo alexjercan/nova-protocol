@@ -1,0 +1,1310 @@
+//! The PORTAL CLIENT (task 20260715-163508): fetch the static mod portal's
+//! `catalog.json` and install/uninstall portal mods over the wire, on native
+//! and wasm - the network half that fills the local mod cache (142906).
+//!
+//! No UI lives here. The mods menu (task 142916) binds to the EVENT/RESOURCE
+//! API only: trigger [`FetchPortalCatalog`] / [`InstallPortalMod`] /
+//! [`UninstallPortalMod`], read [`RemoteCatalog`] and [`InstallJobs`]. The
+//! transport sits behind the [`PortalTransport`] trait ([`EhttpTransport`] in
+//! production - one `ehttp` call surface for the native ureq thread and the
+//! browser fetch), swapped by tests via the [`PortalClient`] resource.
+//!
+//! Flow shape (the mod_cache hydration idiom): observers KICK transport
+//! fetches whose completion callbacks post [`PortalMsg`]s into a channel; the
+//! [`poll_portal_messages`] Update system consumes them and advances the
+//! state machines. Everything the wire returns is UNTRUSTED: the catalog is
+//! schema-version-gated before it is trusted at all, and every id/path of an
+//! entry passes the shared `mod_cache` safety gates BEFORE the first byte of
+//! it is fetched.
+//!
+//! INSTALLS ARE STAGED: every file is fetched sequentially (per-file progress
+//! for the UI), verified against the catalog's size + sha256 as it arrives
+//! (fail fast - a corrupt first file stops a ten-file download), and held in
+//! memory; only after the LAST file verifies does the commit write the cache
+//! (files first, index last - `install_local` natively; on wasm one IndexedDB
+//! transaction awaited to its `complete` event per review 142906 R1.4, then
+//! the index). A failure at ANY stage leaves the cache without the mod: no
+//! files, no index entry. On success the record joins [`DownloadedMods`] and
+//! the EXISTING load/mark/merge machinery takes over; installs stay DISABLED
+//! until the player enables them.
+//!
+//! UNINSTALL reverses install and also strips the id from [`EnabledMods`]
+//! (persisted by the existing save system), resolving 142906's R1.7: a
+//! reinstall starts disabled, matching the documented install default.
+//!
+//! KNOWN LIMITATION (deliberate): there is no timeout or cancel - a transport
+//! callback that never fires leaves its job wedged in `Fetching`/`Committing`
+//! until the app restarts. The recovery surface (cancel/retry buttons, and
+//! whatever timeout policy the UX wants) is the mods-menu task 142916's
+//! scope, which owns the only place a user could see or act on it.
+
+use std::{
+    collections::HashMap,
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc, Mutex,
+    },
+};
+
+use bevy::prelude::*;
+use nova_mod_format::{PortalCatalog, PortalEntry, PORTAL_SCHEMA_VERSION};
+use nova_modding::prelude::InstalledCatalog;
+use sha2::{Digest, Sha256};
+
+use crate::{
+    mod_cache::{self, InstalledModRecord},
+    DownloadedMod, DownloadedMods, EnabledMods, GameAssets,
+};
+
+/// The production portal base URL - the GitHub Pages tree `nova_portal_gen`
+/// publishes next to the wasm build (docs/mod-portal.md).
+pub const DEFAULT_PORTAL_URL: &str = "https://alexjercan.github.io/nova-protocol/mods";
+
+/// Where the portal lives: `<base_url>/catalog.json` +
+/// `<base_url>/<id>/<version>/<files...>`.
+///
+/// Defaults per platform, resolved once at plugin build by
+/// [`PortalConfig::from_environment`]:
+/// - native: [`DEFAULT_PORTAL_URL`], overridable via the `NOVA_PORTAL_URL`
+///   environment variable (dev/test builds point at localhost);
+/// - wasm: derived from `window.location` (the game is served at
+///   `<root>/play/`, the portal is its SIBLING `<root>/mods` - so a fork's
+///   Pages deploy fetches its own portal with zero config), overridable via a
+///   `?portal=<url>` query parameter.
+#[derive(Resource, Clone, Debug)]
+pub struct PortalConfig {
+    /// The portal tree's base URL, no trailing slash required.
+    pub base_url: String,
+}
+
+impl PortalConfig {
+    /// Resolve the platform default + override chain described on the type.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn from_environment() -> Self {
+        let base_url = std::env::var("NOVA_PORTAL_URL")
+            .ok()
+            .filter(|url| !url.trim().is_empty())
+            .unwrap_or_else(|| DEFAULT_PORTAL_URL.to_string());
+        Self { base_url }
+    }
+
+    /// Resolve the platform default + override chain described on the type.
+    #[cfg(target_arch = "wasm32")]
+    pub fn from_environment() -> Self {
+        let base_url = web_sys::window()
+            .map(|window| {
+                let location = window.location();
+                if let Some(url) =
+                    portal_override_from_query(&location.search().unwrap_or_default())
+                {
+                    return url;
+                }
+                portal_base_from_href(&location.href().unwrap_or_default())
+            })
+            .unwrap_or_else(|| DEFAULT_PORTAL_URL.to_string());
+        Self { base_url }
+    }
+
+    /// The catalog's URL: `<base>/catalog.json`.
+    pub fn catalog_url(&self) -> String {
+        join_url(&self.base_url, "catalog.json")
+    }
+
+    /// One mod file's URL: `<base>/<id>/<version>/<path>` (the tree layout
+    /// `nova_portal_gen` writes).
+    pub fn file_url(&self, id: &str, version: &str, path: &str) -> String {
+        join_url(&self.base_url, &format!("{id}/{version}/{path}"))
+    }
+}
+
+/// `<base>/<path>` with the trailing-slash seam normalized (a configured base
+/// may or may not carry one).
+fn join_url(base: &str, path: &str) -> String {
+    format!("{}/{path}", base.trim_end_matches('/'))
+}
+
+/// Derive the portal base from the page's own URL: drop the query/fragment
+/// and any document file name, step out of a trailing `/play` segment (the
+/// deploy serves the game at `<root>/play/`, the portal at `<root>/mods/`),
+/// and append `mods`. Pure and cfg-independent ON PURPOSE: the only caller is
+/// wasm, but the native unit tests are what pin its behavior.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+fn portal_base_from_href(href: &str) -> String {
+    let trimmed = href.split(['#', '?']).next().unwrap_or(href);
+    let Some((scheme, rest)) = trimmed.split_once("://") else {
+        return format!("{}/mods", trimmed.trim_end_matches('/'));
+    };
+    let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
+    let mut segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+    // A final dotted segment is the document (index.html), not a directory.
+    if segments.last().is_some_and(|s| s.contains('.')) {
+        segments.pop();
+    }
+    if segments.last() == Some(&"play") {
+        segments.pop();
+    }
+    segments.push("mods");
+    format!("{scheme}://{host}/{}", segments.join("/"))
+}
+
+/// The `?portal=<url>` dev override, from a `Location::search` string
+/// (`?a=b&portal=...`). Percent/plus-decoded; empty values do not override.
+/// Cfg-independent like [`portal_base_from_href`], for the native test pin.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+fn portal_override_from_query(search: &str) -> Option<String> {
+    search
+        .trim_start_matches('?')
+        .split('&')
+        .find_map(|pair| pair.strip_prefix("portal="))
+        .map(percent_decode)
+        .filter(|url| !url.is_empty())
+}
+
+/// Minimal application/x-www-form-urlencoded decode (`%XX` + `+` as space) -
+/// enough for a URL-valued query parameter without a url-crate dependency.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'%' if i + 2 < bytes.len() => {
+                let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).ok();
+                match hex.and_then(|h| u8::from_str_radix(h, 16).ok()) {
+                    Some(byte) => {
+                        out.push(byte);
+                        i += 3;
+                    }
+                    None => {
+                        out.push(bytes[i]);
+                        i += 1;
+                    }
+                }
+            }
+            b'+' => {
+                out.push(b' ');
+                i += 1;
+            }
+            byte => {
+                out.push(byte);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// A fetched body, or a human-readable failure (transport error or a non-2xx
+/// status).
+pub type FetchResult = Result<Vec<u8>, String>;
+
+/// One-shot byte fetches, callback-completed - the whole transport surface
+/// the portal client needs. Object-safe and `Send + Sync` so tests inject
+/// mocks/failures through the [`PortalClient`] resource without touching the
+/// state machines.
+pub trait PortalTransport: Send + Sync + 'static {
+    /// Fetch `url`; deliver the raw body (non-2xx statuses are `Err`) to
+    /// `on_done` from whatever context the implementation completes on (a
+    /// worker thread natively, the JS microtask queue on wasm - the callback
+    /// must only post messages, never touch world state).
+    fn fetch(&self, url: &str, on_done: Box<dyn FnOnce(FetchResult) + Send>);
+}
+
+/// The production transport: `ehttp` GETs (native: a ureq call on a spawned
+/// thread; wasm: the browser `fetch` API) under the one cross-platform API.
+pub struct EhttpTransport;
+
+impl PortalTransport for EhttpTransport {
+    fn fetch(&self, url: &str, on_done: Box<dyn FnOnce(FetchResult) + Send>) {
+        ehttp::fetch(ehttp::Request::get(url), move |result| {
+            on_done(match result {
+                Ok(response) if response.ok => Ok(response.bytes),
+                Ok(response) => Err(format!("HTTP {} {}", response.status, response.status_text)),
+                Err(error) => Err(error),
+            });
+        });
+    }
+}
+
+/// The swappable transport handle. Production inserts [`EhttpTransport`];
+/// tests replace the resource with a mock after adding [`PortalPlugin`].
+#[derive(Resource, Clone)]
+pub struct PortalClient(pub Arc<dyn PortalTransport>);
+
+/// Trigger: (re)fetch the portal catalog. Result lands in [`RemoteCatalog`].
+#[derive(Event, Clone, Debug)]
+pub struct FetchPortalCatalog;
+
+/// Trigger: install the portal mod `id` (an entry of the Ready
+/// [`RemoteCatalog`]). Progress/failure lands in [`InstallJobs`]; success
+/// lands the mod in [`DownloadedMods`] (disabled).
+#[derive(Event, Clone, Debug)]
+pub struct InstallPortalMod {
+    /// The portal entry's id.
+    pub id: String,
+}
+
+/// Trigger: uninstall the downloaded mod `id` - files, index entry,
+/// [`DownloadedMods`] record AND its [`EnabledMods`] entry (so a reinstall
+/// starts disabled, like any fresh install).
+#[derive(Event, Clone, Debug)]
+pub struct UninstallPortalMod {
+    /// The downloaded mod's id.
+    pub id: String,
+}
+
+/// The fetched portal catalog's state - what the Explore UI renders. Entries
+/// keep the catalog's own order (sorted by id at generation).
+#[derive(Resource, Clone, Debug, Default)]
+pub enum RemoteCatalog {
+    /// Nothing fetched yet.
+    #[default]
+    Idle,
+    /// A fetch is in flight.
+    Fetching,
+    /// The catalog arrived and passed the schema gate.
+    Ready(PortalCatalog),
+    /// The fetch or decode failed (message is user-presentable).
+    Error(String),
+}
+
+/// One install job's UI-visible stage. On native the non-`Fetching` stages
+/// flip within a single frame (verification and the fs commit are
+/// synchronous); on wasm `Committing` persists while the IndexedDB task runs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum InstallStatus {
+    /// Downloading file `done + 1` of `total` (each finished file was already
+    /// size/sha256-verified - failures surface as `Failed`, not a stall).
+    Fetching {
+        /// Files fetched AND verified so far.
+        done: usize,
+        /// Total files in the entry.
+        total: usize,
+    },
+    /// The last file's integrity pass.
+    Verifying,
+    /// All files verified; the cache commit is in flight.
+    Committing,
+    /// The install failed; nothing was committed (message is
+    /// user-presentable). Cleared by a retried [`InstallPortalMod`].
+    Failed(String),
+}
+
+/// In-flight/failed install jobs by mod id. An entry is REMOVED on success -
+/// [`DownloadedMods`] is then the truth; a `Failed` entry stays for the UI
+/// until a retry replaces it.
+#[derive(Resource, Clone, Debug, Default)]
+pub struct InstallJobs(pub HashMap<String, InstallStatus>);
+
+/// A completed transport call, posted from its callback into the channel the
+/// poll system drains. `job` is the install-job generation that sent the
+/// request - a stale callback (from a job that already failed and was
+/// retried) must not feed the successor.
+enum PortalMsg {
+    /// The catalog body (or fetch error).
+    Catalog(FetchResult),
+    /// File `index` of install job `job` for mod `id`.
+    File {
+        job: u64,
+        id: String,
+        index: usize,
+        result: FetchResult,
+    },
+    /// An install job finished its cache commit. No `job` generation needed:
+    /// a commit is only ever in flight while its id's status is `Committing`,
+    /// which blocks any retry until this message lands - there is no
+    /// same-id successor to confuse it with.
+    Committed {
+        record: InstalledModRecord,
+        result: Result<(), String>,
+    },
+    /// An uninstall's ASYNC file removal settled (wasm only - native removal
+    /// is synchronous); clears the id from [`PendingRemovals`]. Sent on
+    /// success AND failure: either way the removal task is no longer racing
+    /// a reinstall's writes.
+    #[cfg(target_arch = "wasm32")]
+    Removed { id: String },
+}
+
+/// The callback -> poll-system bridge. `std::sync::mpsc` (no new dependency):
+/// the senders live in `Send` callbacks, the receiver is drained single-file
+/// by [`poll_portal_messages`] (the `Mutex` exists only to make the resource
+/// `Sync`; it is never contended).
+#[derive(Resource)]
+struct PortalChannel {
+    tx: Sender<PortalMsg>,
+    rx: Mutex<Receiver<PortalMsg>>,
+}
+
+impl Default for PortalChannel {
+    fn default() -> Self {
+        let (tx, rx) = channel();
+        Self {
+            tx,
+            rx: Mutex::new(rx),
+        }
+    }
+}
+
+/// One staged install's private state: the (validated) portal entry driving
+/// it and the verified files held in memory until the commit.
+struct ActiveInstall {
+    job: u64,
+    entry: PortalEntry,
+    files: Vec<(String, Vec<u8>)>,
+}
+
+/// The staged installs by mod id, plus the monotonically increasing job
+/// generation that lets stale transport callbacks be told apart from a
+/// retry's (see [`PortalMsg`]).
+#[derive(Resource, Default)]
+struct ActiveInstalls {
+    jobs: HashMap<String, ActiveInstall>,
+    next_job: u64,
+}
+
+impl ActiveInstalls {
+    /// Register a fresh job for `entry` and return its generation.
+    fn begin(&mut self, entry: PortalEntry) -> u64 {
+        let job = self.next_job;
+        self.next_job += 1;
+        self.jobs.insert(
+            entry.id.clone(),
+            ActiveInstall {
+                job,
+                entry,
+                files: Vec::new(),
+            },
+        );
+        job
+    }
+}
+
+/// Ids whose uninstall FILE REMOVAL is still in flight. Only wasm ever fills
+/// it (its removal is a detached IndexedDB task; native removal is
+/// synchronous): an install admitted while the removal still runs could have
+/// its fresh writes deleted under it, so [`on_install_portal_mod`] rejects
+/// those ids until the task reports back through [`PortalMsg::Removed`].
+/// Cfg-INDEPENDENT so the guard itself is unit-tested natively.
+#[derive(Resource, Default)]
+struct PendingRemovals(std::collections::HashSet<String>);
+
+/// Kick a catalog fetch (idempotent while one is in flight).
+fn on_fetch_portal_catalog(
+    _: On<FetchPortalCatalog>,
+    config: Res<PortalConfig>,
+    client: Res<PortalClient>,
+    channel: Res<PortalChannel>,
+    mut remote: ResMut<RemoteCatalog>,
+) {
+    if matches!(*remote, RemoteCatalog::Fetching) {
+        warn!("portal: a catalog fetch is already in flight; ignoring the re-trigger");
+        return;
+    }
+    *remote = RemoteCatalog::Fetching;
+    let tx = channel.tx.clone();
+    client.0.fetch(
+        &config.catalog_url(),
+        Box::new(move |result| {
+            let _ = tx.send(PortalMsg::Catalog(result));
+        }),
+    );
+}
+
+/// Decode a fetched catalog body. The SCHEMA GATE runs first, on a minimal
+/// probe of `schema_version` alone: an unknown version must be reported AS
+/// unknown, never as a misparse of a shape this build does not know (and a
+/// same-shaped future catalog must not silently half-parse either).
+fn decode_catalog(result: FetchResult) -> RemoteCatalog {
+    let bytes = match result {
+        Ok(bytes) => bytes,
+        Err(error) => return RemoteCatalog::Error(format!("portal catalog fetch failed: {error}")),
+    };
+    #[derive(serde::Deserialize)]
+    struct SchemaProbe {
+        schema_version: u32,
+    }
+    let probe: SchemaProbe = match serde_json::from_slice(&bytes) {
+        Ok(probe) => probe,
+        Err(error) => {
+            return RemoteCatalog::Error(format!("portal catalog does not parse: {error}"))
+        }
+    };
+    if probe.schema_version != PORTAL_SCHEMA_VERSION {
+        return RemoteCatalog::Error(format!(
+            "portal catalog schema_version {} is not supported (this build reads {}); \
+             update the game to browse this portal",
+            probe.schema_version, PORTAL_SCHEMA_VERSION
+        ));
+    }
+    match serde_json::from_slice::<PortalCatalog>(&bytes) {
+        Ok(catalog) => RemoteCatalog::Ready(catalog),
+        Err(error) => RemoteCatalog::Error(format!("portal catalog does not parse: {error}")),
+    }
+}
+
+/// Anti-absurdity caps on a portal entry, NOT quotas: installs stage every
+/// verified file in memory, so a hostile catalog must not be able to command
+/// gigabytes of buffering (or tens of thousands of requests) before the
+/// commit. Generous against any real mod - the whole shipped webmods set is
+/// a few KiB. (A LYING server can still send an oversized body for one
+/// request - ehttp buffers it before the size check rejects it - but these
+/// caps bound what the catalog can make the client do by design.)
+const MAX_FILE_SIZE: u64 = 32 * 1024 * 1024;
+const MAX_FILE_COUNT: usize = 256;
+const MAX_TOTAL_SIZE: u64 = 128 * 1024 * 1024;
+
+/// The generator's PUBLISHED charset for the URL path segments an entry
+/// contributes (`<id>/<version>/<path>`): lowercase ascii alphanumerics plus
+/// `-` and `.` for ids/versions (`validate_id` in nova_portal_gen is even
+/// tighter - no dots - but versions like `1.0.0` need them). Never a
+/// dot-only segment (`.`/`..`).
+fn is_url_safe_segment(s: &str) -> bool {
+    !s.is_empty()
+        && s.bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'.')
+        && s.bytes().any(|b| b != b'.')
+}
+
+/// A relative file path whose every `/`-separated component is ascii
+/// alphanumeric plus `-`/`_`/`.` and never dot-only. Notably NO `%`, `?`,
+/// `#`, `\` or empty components anywhere.
+fn is_url_safe_path(path: &str) -> bool {
+    !path.is_empty()
+        && path.split('/').all(|component| {
+            !component.is_empty()
+                && component
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_' || b == b'.')
+                && component.bytes().any(|b| b != b'.')
+        })
+}
+
+/// A portal entry is WIRE data - re-validate everything a fetch or a cache
+/// path will be built from BEFORE the first request. TWO boundaries are
+/// enforced, and only these two, precisely:
+///
+/// - LOCAL cache containment: the shared `is_safe_*` gates (plain `Path`
+///   components only), the same rule the cache API re-checks at commit.
+/// - URL charset: every segment must be in the generator's published charset
+///   above. The `Path`-based check alone is NOT URL containment - a WHATWG-
+///   conformant fetcher (the browser on wasm; many CDNs) percent-decodes
+///   path segments, so a catalog component like `%2e%2e` is a plain `Normal`
+///   component locally but a dot-dot segment on the wire, steering GETs
+///   above the portal base (same-origin, and the bytes stay sha256-pinned,
+///   but the request boundary would be a lie). Rejecting `%` (and `?`, `#`,
+///   uppercase et al) outright keeps a segment's local and on-the-wire
+///   meanings identical.
+///
+/// Plus the anti-absurdity caps above, a duplicate-path check (a duplicate
+/// would double-count progress and self-overwrite in the staging buffer),
+/// and the bundle-is-among-the-files invariant.
+fn validate_entry(entry: &PortalEntry) -> Result<(), String> {
+    if !mod_cache::is_safe_id(&entry.id) || !is_url_safe_segment(&entry.id) {
+        return Err(format!("unsafe mod id '{}'", entry.id));
+    }
+    if !mod_cache::is_safe_id(&entry.version) || !is_url_safe_segment(&entry.version) {
+        return Err(format!("unsafe version '{}'", entry.version));
+    }
+    if entry.files.is_empty() {
+        return Err("the entry lists no files".to_string());
+    }
+    if entry.files.len() > MAX_FILE_COUNT {
+        return Err(format!(
+            "the entry lists {} files (max {MAX_FILE_COUNT})",
+            entry.files.len()
+        ));
+    }
+    let mut seen_paths = std::collections::HashSet::new();
+    let mut total: u64 = 0;
+    for file in &entry.files {
+        if !mod_cache::is_safe_rel_path(&file.path) || !is_url_safe_path(&file.path) {
+            return Err(format!("unsafe file path '{}'", file.path));
+        }
+        if !seen_paths.insert(file.path.as_str()) {
+            return Err(format!("duplicate file path '{}'", file.path));
+        }
+        if file.size > MAX_FILE_SIZE {
+            return Err(format!(
+                "file '{}' declares {} bytes (max {MAX_FILE_SIZE})",
+                file.path, file.size
+            ));
+        }
+        total = total.saturating_add(file.size);
+    }
+    if total > MAX_TOTAL_SIZE {
+        return Err(format!(
+            "the entry declares {total} bytes in total (max {MAX_TOTAL_SIZE})"
+        ));
+    }
+    if !entry.files.iter().any(|f| f.path == entry.bundle) {
+        return Err(format!(
+            "bundle '{}' is not among the entry's files",
+            entry.bundle
+        ));
+    }
+    Ok(())
+}
+
+/// Record a failed install: drop the staged state, keep the reason for the UI.
+fn fail_install(jobs: &mut InstallJobs, active: &mut ActiveInstalls, id: &str, reason: String) {
+    warn!("portal: install of '{id}' failed: {reason}");
+    active.jobs.remove(id);
+    jobs.0.insert(id.to_string(), InstallStatus::Failed(reason));
+}
+
+/// Kick the fetch of `entry.files[index]` for job `job`.
+fn fetch_file(
+    config: &PortalConfig,
+    client: &PortalClient,
+    tx: &Sender<PortalMsg>,
+    job: u64,
+    entry: &PortalEntry,
+    index: usize,
+) {
+    let url = config.file_url(&entry.id, &entry.version, &entry.files[index].path);
+    let id = entry.id.clone();
+    let tx = tx.clone();
+    client.0.fetch(
+        &url,
+        Box::new(move |result| {
+            let _ = tx.send(PortalMsg::File {
+                job,
+                id,
+                index,
+                result,
+            });
+        }),
+    );
+}
+
+/// Validate + guard an install request, then start its staged download.
+///
+/// Rejections land as `Failed` in [`InstallJobs`] (the UI's error surface):
+/// no Ready catalog / unknown id, an entry failing [`validate_entry`], an id
+/// already downloaded, or an id shadowing a SHIPPED catalog entry (the
+/// portal generator refuses to publish those, but the catalog is wire data -
+/// the client re-enforces the rule, mirroring the cache-side consumers). A
+/// re-trigger while a job is live is ignored; a `Failed` entry is a retry.
+fn on_install_portal_mod(
+    event: On<InstallPortalMod>,
+    config: Res<PortalConfig>,
+    client: Res<PortalClient>,
+    channel: Res<PortalChannel>,
+    remote: Res<RemoteCatalog>,
+    downloaded: Res<DownloadedMods>,
+    game_assets: Option<Res<GameAssets>>,
+    catalogs: Res<Assets<InstalledCatalog>>,
+    pending: Res<PendingRemovals>,
+    mut jobs: ResMut<InstallJobs>,
+    mut active: ResMut<ActiveInstalls>,
+) {
+    let id = event.id.clone();
+    if matches!(jobs.0.get(&id), Some(status) if !matches!(status, InstallStatus::Failed(_))) {
+        warn!("portal: an install of '{id}' is already in flight; ignoring the re-trigger");
+        return;
+    }
+    // A still-running uninstall removal (wasm's is async) would delete this
+    // install's fresh writes; checked FIRST so the rejection does not depend
+    // on any catalog state.
+    if pending.0.contains(&id) {
+        fail_install(
+            &mut jobs,
+            &mut active,
+            &id,
+            "the previous uninstall of this mod is still finishing; try again".to_string(),
+        );
+        return;
+    }
+    let RemoteCatalog::Ready(catalog) = &*remote else {
+        fail_install(
+            &mut jobs,
+            &mut active,
+            &id,
+            "the portal catalog is not loaded".to_string(),
+        );
+        return;
+    };
+    let Some(entry) = catalog.entries.iter().find(|e| e.id == id) else {
+        fail_install(
+            &mut jobs,
+            &mut active,
+            &id,
+            "the portal catalog has no such mod".to_string(),
+        );
+        return;
+    };
+    if let Err(reason) = validate_entry(entry) {
+        fail_install(
+            &mut jobs,
+            &mut active,
+            &id,
+            format!("the portal entry is invalid: {reason}"),
+        );
+        return;
+    }
+    if downloaded.0.iter().any(|m| m.record.id == id) {
+        fail_install(
+            &mut jobs,
+            &mut active,
+            &id,
+            "the mod is already installed".to_string(),
+        );
+        return;
+    }
+    // The no-shadowing rule needs the SHIPPED catalog; installs only happen
+    // from the loaded game (the portal UI lives past the Loaded state), so
+    // requiring it here is a conservative guard, not a real-flow limitation.
+    let Some(shipped) = game_assets
+        .as_ref()
+        .and_then(|ga| catalogs.get(&ga.catalog))
+    else {
+        fail_install(
+            &mut jobs,
+            &mut active,
+            &id,
+            "the shipped mods catalog is not loaded yet".to_string(),
+        );
+        return;
+    };
+    if shipped.entries.iter().any(|e| e.decl.id == id) {
+        fail_install(
+            &mut jobs,
+            &mut active,
+            &id,
+            "the id shadows a shipped mod".to_string(),
+        );
+        return;
+    }
+
+    let total = entry.files.len();
+    jobs.0
+        .insert(id.clone(), InstallStatus::Fetching { done: 0, total });
+    let entry = entry.clone();
+    let job = active.begin(entry.clone());
+    fetch_file(&config, &client, &channel.tx, job, &entry, 0);
+}
+
+/// Uninstall a DOWNLOADED mod: index entry first (the index must never point
+/// at missing files), files second, then the runtime record, any stale
+/// `Failed` job entry, and - resolving 142906's R1.7 - the id's
+/// [`EnabledMods`] entry, so a reinstall starts disabled like any fresh
+/// install (the existing change-gated save system persists the strip). A mod
+/// whose install is still in flight has nothing committed to uninstall; the
+/// trigger is ignored with a warning.
+fn on_uninstall_portal_mod(
+    event: On<UninstallPortalMod>,
+    mut jobs: ResMut<InstallJobs>,
+    mut downloaded: ResMut<DownloadedMods>,
+    mut enabled: ResMut<EnabledMods>,
+    #[cfg(target_arch = "wasm32")] channel: Res<PortalChannel>,
+    #[cfg(target_arch = "wasm32")] mut pending: ResMut<PendingRemovals>,
+    #[cfg(target_arch = "wasm32")] dir: Option<Res<mod_cache::ModsSourceDir>>,
+) {
+    let id = event.id.as_str();
+    if matches!(jobs.0.get(id), Some(status) if !matches!(status, InstallStatus::Failed(_))) {
+        warn!("portal: '{id}' is still installing; nothing committed to uninstall");
+        return;
+    }
+    if !downloaded.0.iter().any(|m| m.record.id == id) {
+        warn!("portal: '{id}' is not an installed portal mod; nothing to uninstall");
+        return;
+    }
+
+    mod_cache::remove_index_record(id);
+
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Err(error) = mod_cache::remove_mod(id) {
+        // The index entry is already gone, so the leftovers are orphans the
+        // next install of this id overwrites - log, do not resurrect.
+        warn!("portal: removing '{id}' files from the cache failed: {error}");
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        // Async on wasm; the record/index are already dropped, so a late (or
+        // failed) file removal only leaves harmless orphans. The shared
+        // memory Dir must be evicted too - it serves mods:// until reload.
+        // The id is HELD in PendingRemovals until the task reports back, so
+        // a reinstall cannot write files this removal then deletes.
+        pending.0.insert(id.to_string());
+        let id = id.to_string();
+        let tx = channel.tx.clone();
+        let dir = dir.map(|d| d.0.clone());
+        bevy::tasks::IoTaskPool::get()
+            .spawn(async move {
+                match mod_cache::remove_mod(&id).await {
+                    Ok(keys) => {
+                        if let Some(dir) = dir {
+                            for key in keys {
+                                dir.remove_asset(std::path::Path::new(&key));
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        warn!("portal: removing '{id}' files from IndexedDB failed: {error}");
+                    }
+                }
+                let _ = tx.send(PortalMsg::Removed { id });
+            })
+            .detach();
+    }
+
+    downloaded.0.retain(|m| m.record.id != id);
+    // A leftover Failed job entry must not outlive the mod it describes.
+    jobs.0.remove(id);
+    // The contains guard keeps an uninstall of a disabled mod from marking
+    // EnabledMods changed (a spurious re-merge + prefs re-save).
+    if enabled.0.contains(id) {
+        enabled.0.remove(id);
+    }
+}
+
+/// Commit a fully-verified install into the cache and report through the
+/// channel. Native: synchronous `install_local` (files first, index last);
+/// the `Committed` message is picked up by the SAME poll-system drain that
+/// called this, so the finalize logic stays in one place across platforms.
+#[cfg(not(target_arch = "wasm32"))]
+fn start_commit(tx: &Sender<PortalMsg>, install: ActiveInstall, _dir: ()) {
+    let ActiveInstall {
+        job: _,
+        entry,
+        files,
+    } = install;
+    let record = InstalledModRecord {
+        id: entry.id,
+        version: entry.version,
+        bundle: entry.bundle,
+    };
+    let result = mod_cache::install_local(&record.id, &record.version, &record.bundle, &files)
+        .map_err(|e| e.to_string());
+    if result.is_err() {
+        // Nothing may survive a failed commit: sweep any partially-stored
+        // files (best-effort; the index entry was the LAST write, so a
+        // failure before it leaves no record either way).
+        if let Err(error) = mod_cache::remove_mod(&record.id) {
+            warn!(
+                "portal: cleaning up '{}' after a failed commit also failed: {error}",
+                record.id
+            );
+        }
+    }
+    let _ = tx.send(PortalMsg::Committed { record, result });
+}
+
+/// Commit a fully-verified install into the cache and report through the
+/// channel. Wasm: an IoTaskPool task awaits the single IndexedDB transaction
+/// to its COMMIT (review 142906 R1.4), then writes the index and inserts the
+/// files into the shared `mods://` memory `Dir` (the reader the bundle load
+/// will hit - the startup hydrator only runs once, so a live install must
+/// feed the Dir itself).
+#[cfg(target_arch = "wasm32")]
+fn start_commit(
+    tx: &Sender<PortalMsg>,
+    install: ActiveInstall,
+    dir: Option<bevy::asset::io::memory::Dir>,
+) {
+    let tx = tx.clone();
+    bevy::tasks::IoTaskPool::get()
+        .spawn(async move {
+            let ActiveInstall {
+                job: _,
+                entry,
+                files,
+            } = install;
+            let record = InstalledModRecord {
+                id: entry.id,
+                version: entry.version,
+                bundle: entry.bundle,
+            };
+            let result = match mod_cache::commit_mod_files(&record.id, &files).await {
+                Ok(()) => {
+                    mod_cache::upsert_index_record(record.clone());
+                    if let Some(dir) = &dir {
+                        for (path, bytes) in files {
+                            let key = format!("{}/{path}", record.id);
+                            dir.insert_asset(std::path::Path::new(&key), bytes);
+                        }
+                    }
+                    Ok(())
+                }
+                Err(error) => {
+                    // The transaction rolled back as a unit; nothing to sweep
+                    // beyond being explicit that the install failed.
+                    Err(error)
+                }
+            };
+            let _ = tx.send(PortalMsg::Committed { record, result });
+        })
+        .detach();
+}
+
+/// Drain the transport channel and advance the state machines: catalog
+/// results into [`RemoteCatalog`], file results through verify -> next fetch
+/// -> commit, commit results into [`DownloadedMods`] / `Failed`. Runs every
+/// frame; an empty channel is a cheap `try_recv` miss.
+fn poll_portal_messages(
+    channel: Res<PortalChannel>,
+    config: Res<PortalConfig>,
+    client: Res<PortalClient>,
+    asset_server: Res<AssetServer>,
+    mut remote: ResMut<RemoteCatalog>,
+    mut jobs: ResMut<InstallJobs>,
+    mut active: ResMut<ActiveInstalls>,
+    mut downloaded: ResMut<DownloadedMods>,
+    #[cfg(target_arch = "wasm32")] mut pending: ResMut<PendingRemovals>,
+    #[cfg(target_arch = "wasm32")] dir: Option<Res<mod_cache::ModsSourceDir>>,
+) {
+    loop {
+        // The guard is dropped per-iteration so a handler's inline send (the
+        // native commit) is picked up by the NEXT recv of this same drain.
+        let message = channel.rx.lock().unwrap().try_recv();
+        let Ok(message) = message else {
+            break;
+        };
+        match message {
+            PortalMsg::Catalog(result) => {
+                *remote = decode_catalog(result);
+                if let RemoteCatalog::Error(error) = &*remote {
+                    warn!("portal: {error}");
+                }
+            }
+            PortalMsg::File {
+                job,
+                id,
+                index,
+                result,
+            } => {
+                let Some(install) = active.jobs.get_mut(&id) else {
+                    continue; // stale callback of an abandoned job
+                };
+                if install.job != job || install.files.len() != index {
+                    continue; // stale callback of a superseded job
+                }
+                let expected = install.entry.files[index].clone();
+                let bytes = match result {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        fail_install(
+                            &mut jobs,
+                            &mut active,
+                            &id,
+                            format!("fetching '{}' failed: {error}", expected.path),
+                        );
+                        continue;
+                    }
+                };
+                let last = index + 1 == install.entry.files.len();
+                if last {
+                    // The machine is in its final integrity pass; on wasm the
+                    // UI can catch this stage, natively it flips same-frame.
+                    jobs.0.insert(id.clone(), InstallStatus::Verifying);
+                }
+                if bytes.len() as u64 != expected.size {
+                    fail_install(
+                        &mut jobs,
+                        &mut active,
+                        &id,
+                        format!(
+                            "file '{}' size mismatch: got {} bytes, expected {}",
+                            expected.path,
+                            bytes.len(),
+                            expected.size
+                        ),
+                    );
+                    continue;
+                }
+                let digest = format!("{:x}", Sha256::digest(&bytes));
+                if digest != expected.sha256 {
+                    fail_install(
+                        &mut jobs,
+                        &mut active,
+                        &id,
+                        format!("file '{}' failed its sha256 check", expected.path),
+                    );
+                    continue;
+                }
+                install.files.push((expected.path, bytes));
+                if last {
+                    jobs.0.insert(id.clone(), InstallStatus::Committing);
+                    let install = active
+                        .jobs
+                        .remove(&id)
+                        .expect("the job was just mutated under this id");
+                    #[cfg(not(target_arch = "wasm32"))]
+                    start_commit(&channel.tx, install, ());
+                    #[cfg(target_arch = "wasm32")]
+                    start_commit(&channel.tx, install, dir.as_ref().map(|d| d.0.clone()));
+                } else {
+                    let total = install.entry.files.len();
+                    let done = install.files.len();
+                    jobs.0
+                        .insert(id.clone(), InstallStatus::Fetching { done, total });
+                    let entry = install.entry.clone();
+                    fetch_file(&config, &client, &channel.tx, job, &entry, index + 1);
+                }
+            }
+            PortalMsg::Committed { record, result } => match result {
+                Ok(()) => {
+                    // The job entry disappears on success: DownloadedMods is
+                    // the truth from here, and the EXISTING load/mark/merge
+                    // machinery reacts to this push. Installs stay disabled.
+                    jobs.0.remove(&record.id);
+                    let path = format!(
+                        "{}://{}/{}",
+                        mod_cache::MODS_SOURCE,
+                        record.id,
+                        record.bundle
+                    );
+                    info!(
+                        "portal: installed '{}' v{} ({} into the local cache)",
+                        record.id, record.version, path
+                    );
+                    downloaded.0.push(DownloadedMod {
+                        bundle: asset_server.load(path),
+                        record,
+                    });
+                }
+                Err(error) => {
+                    jobs.0.insert(
+                        record.id.clone(),
+                        InstallStatus::Failed(format!("cache commit failed: {error}")),
+                    );
+                    warn!("portal: install of '{}' failed: {error}", record.id);
+                }
+            },
+            #[cfg(target_arch = "wasm32")]
+            PortalMsg::Removed { id } => {
+                // The uninstall's file removal settled; installs of this id
+                // are admitted again.
+                pending.0.remove(&id);
+            }
+        }
+    }
+}
+
+/// The portal client's wiring: config + transport + state resources, the
+/// three trigger observers, and the channel poll. Added by `GameAssetsPlugin`;
+/// test rigs add it directly and then swap [`PortalClient`]/[`PortalConfig`].
+pub struct PortalPlugin;
+
+impl Plugin for PortalPlugin {
+    fn build(&self, app: &mut App) {
+        app.insert_resource(PortalConfig::from_environment());
+        app.insert_resource(PortalClient(Arc::new(EhttpTransport)));
+        app.init_resource::<PortalChannel>();
+        app.init_resource::<RemoteCatalog>();
+        app.init_resource::<InstallJobs>();
+        app.init_resource::<ActiveInstalls>();
+        app.init_resource::<PendingRemovals>();
+        app.add_observer(on_fetch_portal_catalog);
+        app.add_observer(on_install_portal_mod);
+        app.add_observer(on_uninstall_portal_mod);
+        app.add_systems(Update, poll_portal_messages);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nova_mod_format::{ModMeta, PortalFile};
+
+    use super::*;
+
+    #[test]
+    fn join_url_normalizes_the_slash_seam() {
+        assert_eq!(
+            join_url("http://x/mods", "catalog.json"),
+            "http://x/mods/catalog.json"
+        );
+        assert_eq!(
+            join_url("http://x/mods/", "catalog.json"),
+            "http://x/mods/catalog.json"
+        );
+    }
+
+    /// The wasm default derivation, pinned natively (the fn is pure): the
+    /// game under `<root>/play/` fetches the SIBLING `<root>/mods`, documents
+    /// and query/fragment noise are dropped, and a root-served page just
+    /// appends `mods`.
+    #[test]
+    fn portal_base_derives_from_the_page_location() {
+        assert_eq!(
+            portal_base_from_href("https://alexjercan.github.io/nova-protocol/play/index.html"),
+            "https://alexjercan.github.io/nova-protocol/mods"
+        );
+        assert_eq!(
+            portal_base_from_href("https://alexjercan.github.io/nova-protocol/play/"),
+            "https://alexjercan.github.io/nova-protocol/mods"
+        );
+        assert_eq!(
+            portal_base_from_href("https://example.com/play/?seed=3#frag"),
+            "https://example.com/mods"
+        );
+        assert_eq!(
+            portal_base_from_href("http://localhost:8080/"),
+            "http://localhost:8080/mods"
+        );
+        assert_eq!(
+            portal_base_from_href("http://localhost:8080/index.html"),
+            "http://localhost:8080/mods"
+        );
+    }
+
+    /// The `?portal=` override wins over the location-derived default and is
+    /// percent-decoded; other params and an empty value do not override.
+    #[test]
+    fn portal_query_override_parses() {
+        assert_eq!(
+            portal_override_from_query("?portal=http%3A%2F%2Flocalhost%3A8000%2Fmods"),
+            Some("http://localhost:8000/mods".to_string())
+        );
+        assert_eq!(
+            portal_override_from_query("?seed=1&portal=http://localhost:8000/mods"),
+            Some("http://localhost:8000/mods".to_string())
+        );
+        assert_eq!(portal_override_from_query("?seed=1"), None);
+        assert_eq!(portal_override_from_query("?portal="), None);
+        assert_eq!(portal_override_from_query(""), None);
+    }
+
+    fn catalog_json(schema_version: u32) -> Vec<u8> {
+        serde_json::to_vec(&serde_json::json!({
+            "schema_version": schema_version,
+            "entries": [],
+        }))
+        .unwrap()
+    }
+
+    /// The schema gate: a matching version parses to Ready, an unknown one is
+    /// an Error NAMING the version mismatch (never a misparse or a silent
+    /// half-parse), and garbage is a parse Error. Deleting the
+    /// `schema_version` check in `decode_catalog` fails the middle assertion:
+    /// the v999 body is shape-compatible and would decode Ready.
+    #[test]
+    fn decode_catalog_gates_on_schema_version() {
+        assert!(matches!(
+            decode_catalog(Ok(catalog_json(PORTAL_SCHEMA_VERSION))),
+            RemoteCatalog::Ready(_)
+        ));
+        match decode_catalog(Ok(catalog_json(999))) {
+            RemoteCatalog::Error(error) => {
+                assert!(
+                    error.contains("schema_version 999"),
+                    "the error must name the unknown version: {error}"
+                );
+            }
+            other => panic!("a v999 catalog must be an Error, got {other:?}"),
+        }
+        assert!(matches!(
+            decode_catalog(Ok(b"not json".to_vec())),
+            RemoteCatalog::Error(_)
+        ));
+        assert!(matches!(
+            decode_catalog(Err("connection refused".to_string())),
+            RemoteCatalog::Error(_)
+        ));
+    }
+
+    fn entry(id: &str, version: &str, bundle: &str, paths: &[&str]) -> PortalEntry {
+        PortalEntry {
+            id: id.to_string(),
+            version: version.to_string(),
+            bundle: bundle.to_string(),
+            meta: ModMeta::default(),
+            files: paths
+                .iter()
+                .map(|p| PortalFile {
+                    path: p.to_string(),
+                    size: 1,
+                    sha256: "00".repeat(32),
+                })
+                .collect(),
+            total_size: paths.len() as u64,
+        }
+    }
+
+    /// The pre-fetch gate over wire data: escaping ids/versions/paths, a
+    /// bundle outside the file list, and duplicate file paths are rejected
+    /// before any URL is built. Deleting `validate_entry`'s checks would let
+    /// a hostile catalog reach the fetch/commit stages with cache-escaping
+    /// paths (or double-count staged progress).
+    #[test]
+    fn validate_entry_rejects_hostile_catalog_data() {
+        let ok = entry("pack", "1.0.0", "pack.bundle.ron", &["pack.bundle.ron"]);
+        assert!(validate_entry(&ok).is_ok());
+
+        let bad_id = entry("../pack", "1.0.0", "pack.bundle.ron", &["pack.bundle.ron"]);
+        assert!(validate_entry(&bad_id).is_err(), "escaping id");
+        let bad_version = entry("pack", "../1.0.0", "pack.bundle.ron", &["pack.bundle.ron"]);
+        assert!(validate_entry(&bad_version).is_err(), "escaping version");
+        let bad_file = entry("pack", "1.0.0", "pack.bundle.ron", &["../evil.ron"]);
+        assert!(validate_entry(&bad_file).is_err(), "escaping file path");
+        let no_files = entry("pack", "1.0.0", "pack.bundle.ron", &[]);
+        assert!(validate_entry(&no_files).is_err(), "no files");
+        let stray_bundle = entry("pack", "1.0.0", "other.bundle.ron", &["pack.bundle.ron"]);
+        assert!(
+            validate_entry(&stray_bundle).is_err(),
+            "the bundle must be among the files"
+        );
+        let duplicate = entry(
+            "pack",
+            "1.0.0",
+            "pack.bundle.ron",
+            &["pack.bundle.ron", "pack.bundle.ron"],
+        );
+        assert!(
+            validate_entry(&duplicate).is_err(),
+            "duplicate file paths are rejected (review 163508 R1.6)"
+        );
+    }
+
+    /// Review 163508 R1.1: the local `Path`-component gates are NOT URL
+    /// containment - a WHATWG-conformant fetcher percent-decodes segments,
+    /// so `%2e%2e` is a dot-dot on the wire while being a plain `Normal`
+    /// component locally. The charset gate must reject any segment outside
+    /// the generator's published alphabet BEFORE any fetch.
+    #[test]
+    fn validate_entry_rejects_percent_encoded_and_off_charset_segments() {
+        let ok = entry("pack", "1.0.0", "pack.bundle.ron", &["pack.bundle.ron"]);
+        assert!(validate_entry(&ok).is_ok());
+
+        let encoded_version = entry("pack", "%2e%2e", "pack.bundle.ron", &["pack.bundle.ron"]);
+        assert!(
+            validate_entry(&encoded_version).is_err(),
+            "a percent-encoded dot-dot version must be rejected before any fetch"
+        );
+        let encoded_id = entry("%2e%2e", "1.0.0", "pack.bundle.ron", &["pack.bundle.ron"]);
+        assert!(validate_entry(&encoded_id).is_err(), "encoded id");
+        let encoded_path = entry(
+            "pack",
+            "1.0.0",
+            "pack.bundle.ron",
+            &["pack.bundle.ron", "%2e%2e/evil.ron"],
+        );
+        assert!(validate_entry(&encoded_path).is_err(), "encoded file path");
+        let query_path = entry(
+            "pack",
+            "1.0.0",
+            "pack.bundle.ron",
+            &["pack.bundle.ron", "a?b.ron"],
+        );
+        assert!(validate_entry(&query_path).is_err(), "query metacharacter");
+        let uppercase_id = entry("Pack", "1.0.0", "pack.bundle.ron", &["pack.bundle.ron"]);
+        assert!(
+            validate_entry(&uppercase_id).is_err(),
+            "ids/versions hold to the generator's lowercase charset"
+        );
+        // Sanity: mixed-case FILE paths stay allowed (only ids/versions are
+        // lowercase-bound; file names are authored).
+        let mixed_file = entry(
+            "pack",
+            "1.0.0",
+            "pack.bundle.ron",
+            &["pack.bundle.ron", "shots/Screen_1.png"],
+        );
+        assert!(validate_entry(&mixed_file).is_ok());
+    }
+
+    /// Review 163508 R1.4: the anti-absurdity caps - a catalog cannot make
+    /// the client stage absurd amounts of memory (or requests). One entry
+    /// per cap: per-file size, file count, summed declared size.
+    #[test]
+    fn validate_entry_enforces_the_staging_caps() {
+        let mut oversized_file = entry("pack", "1.0.0", "pack.bundle.ron", &["pack.bundle.ron"]);
+        oversized_file.files[0].size = MAX_FILE_SIZE + 1;
+        assert!(
+            validate_entry(&oversized_file).is_err(),
+            "a single file over the cap is rejected"
+        );
+
+        let many_paths: Vec<String> = (0..=MAX_FILE_COUNT).map(|i| format!("f{i}.ron")).collect();
+        let mut many_refs: Vec<&str> = many_paths.iter().map(String::as_str).collect();
+        many_refs[0] = "pack.bundle.ron";
+        let too_many = entry("pack", "1.0.0", "pack.bundle.ron", &many_refs);
+        assert!(
+            validate_entry(&too_many).is_err(),
+            "more files than the cap is rejected"
+        );
+
+        let mut total_blown = entry(
+            "pack",
+            "1.0.0",
+            "pack.bundle.ron",
+            &["pack.bundle.ron", "a.ron", "b.ron", "c.ron", "d.ron"],
+        );
+        // Each file stays under the per-file cap so ONLY the total trips
+        // (5 x (32 MiB - 1) > 128 MiB).
+        for file in &mut total_blown.files {
+            file.size = MAX_FILE_SIZE - 1;
+        }
+        assert!(
+            validate_entry(&total_blown).is_err(),
+            "a summed declared size over the total cap is rejected"
+        );
+    }
+
+    /// Review 163508 R1.2: an install for an id whose uninstall file-removal
+    /// is still in flight (wasm's is a detached task) is rejected before
+    /// anything else - a fresh write could be deleted under it. The guard
+    /// and resource are cfg-independent (only wasm ever fills the set), so
+    /// this native test pins the exact production observer.
+    #[test]
+    fn install_is_rejected_while_an_uninstall_removal_is_pending() {
+        /// A transport that must never be reached: the pending guard fires
+        /// before any catalog/fetch logic.
+        struct NeverTransport;
+        impl PortalTransport for NeverTransport {
+            fn fetch(&self, url: &str, _: Box<dyn FnOnce(FetchResult) + Send>) {
+                panic!("no fetch may happen while a removal is pending (got {url})");
+            }
+        }
+
+        let mut app = App::new();
+        app.insert_resource(PortalConfig {
+            base_url: "http://portal.test".to_string(),
+        });
+        app.insert_resource(PortalClient(Arc::new(NeverTransport)));
+        app.init_resource::<PortalChannel>();
+        app.init_resource::<RemoteCatalog>();
+        app.init_resource::<InstallJobs>();
+        app.init_resource::<ActiveInstalls>();
+        app.init_resource::<PendingRemovals>();
+        app.init_resource::<DownloadedMods>();
+        app.insert_resource(Assets::<InstalledCatalog>::default());
+        app.add_observer(on_install_portal_mod);
+
+        app.world_mut()
+            .resource_mut::<PendingRemovals>()
+            .0
+            .insert("pack".to_string());
+        app.world_mut().trigger(InstallPortalMod {
+            id: "pack".to_string(),
+        });
+
+        match app.world().resource::<InstallJobs>().0.get("pack") {
+            Some(InstallStatus::Failed(reason)) => assert!(
+                reason.contains("uninstall"),
+                "the rejection names the pending uninstall: {reason}"
+            ),
+            other => panic!("the install must fail while the removal is pending, got {other:?}"),
+        }
+
+        // Once the removal reports back (the Removed message path on wasm),
+        // the id clears and a retry passes THIS guard (it then fails later,
+        // on the empty catalog - proving the pending rejection is gone).
+        app.world_mut()
+            .resource_mut::<PendingRemovals>()
+            .0
+            .remove("pack");
+        app.world_mut().trigger(InstallPortalMod {
+            id: "pack".to_string(),
+        });
+        match app.world().resource::<InstallJobs>().0.get("pack") {
+            Some(InstallStatus::Failed(reason)) => assert!(
+                reason.contains("catalog"),
+                "with the removal settled the guard no longer fires: {reason}"
+            ),
+            other => panic!("expected the next guard's failure, got {other:?}"),
+        }
+    }
+}

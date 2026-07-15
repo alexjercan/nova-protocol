@@ -3,7 +3,10 @@
 How remote mods are published and served (task 20260715-142900, spike
 tasks/20260714-202515/SPIKE.md). The portal is STATIC files on the existing
 GitHub Pages site - no server, no database - generated on every deploy, never
-hand-maintained. The game consumes it in the Explore flow (tasks 142906/142916).
+hand-maintained. The game consumes it through the portal client
+(`nova_assets::portal`, task 163508): it fetches `catalog.json`, verifies and
+installs mods into the local cache (142906), and the mods menu UI (142916)
+binds on top.
 
 ## Layout
 
@@ -62,9 +65,10 @@ the TypeScript site and a future server API can produce/consume the same
 shape.
 
 `schema_version` (currently 1, `PORTAL_SCHEMA_VERSION`) bumps on any breaking
-wire change; clients must reject catalogs with an unknown version rather than
-misparse. The per-file sha256 is what the game verifies after download,
-before installing.
+wire change; the game rejects catalogs with an unknown version rather than
+misparse (`RemoteCatalog::Error`, test-pinned). The per-file size + sha256 is
+what the game verifies as each file downloads, before anything is committed
+to the cache.
 
 ## Publishing a mod (today)
 
@@ -83,8 +87,11 @@ cargo run -p nova_portal_gen -- --source webmods --shipped assets/mods.catalog.r
 python3 -m http.server -d /tmp/portal 8000   # portal at http://localhost:8000/mods/
 ```
 
-The game's portal base URL is a config (task 163508), so a dev build can point
-at localhost.
+The game's portal base URL is a config (`PortalConfig`): a native dev build
+points at localhost with `NOVA_PORTAL_URL=http://localhost:8000/mods`, a web
+build with a `?portal=http://localhost:8000/mods` query parameter. Without an
+override, native uses the production Pages URL and the web derives the
+sibling `mods/` tree from its own `window.location`.
 
 ## How installed mods are stored (game side)
 
@@ -93,9 +100,12 @@ asset server through the `mods://` source - native under
 `dirs::data_dir()/nova-protocol` (files + a RON installed index), the web in
 IndexedDB + localStorage. From there it loads and merges exactly like a
 shipped mod. The full format and runtime flow live in
-docs/modding-ron-format.md, section "Downloaded mods: the local cache + the
-`mods://` source" (task 20260715-142906); the fetch/verify/install flow that
-fills the cache from this portal is task 20260715-163508.
+docs/modding-ron-format.md, sections "Downloaded mods: the local cache + the
+`mods://` source" (task 20260715-142906) and "The portal client" (task
+20260715-163508) - the latter is the fetch/verify/install flow that fills the
+cache from this portal: staged, sequential downloads verified against the
+catalog's size + sha256 per file, committed files-first-index-last only after
+everything checks out.
 
 ## The real server, later
 

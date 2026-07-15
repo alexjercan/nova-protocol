@@ -15,6 +15,7 @@ use nova_scenario::prelude::GameScenarios;
 
 pub mod mod_cache;
 pub mod mod_prefs;
+pub mod portal;
 mod scenario;
 mod sections;
 
@@ -22,6 +23,10 @@ pub mod prelude {
     pub use nova_modding::prelude::ModMeta;
 
     pub use super::{
+        portal::{
+            FetchPortalCatalog, InstallJobs, InstallPortalMod, InstallStatus, PortalConfig,
+            RemoteCatalog, UninstallPortalMod,
+        },
         DownloadedMod, DownloadedMods, EnabledMods, GameAssets, GameAssetsPlugin, GameAssetsStates,
         ModCatalog, ModInfo,
     };
@@ -679,6 +684,9 @@ impl Plugin for GameAssetsPlugin {
         // Add it before the loading state runs so the loader exists when
         // bevy_asset_loader starts loading the content files below.
         app.add_plugins(nova_modding::prelude::NovaModdingPlugin);
+        // The portal client (fetch catalog + install/uninstall over the wire,
+        // task 20260715-163508) - event/resource API only; the UI binds later.
+        app.add_plugins(portal::PortalPlugin);
 
         // The enabled-mods set drives which cataloged bundles merge. Seeded from
         // the catalog's base entries at Processing; toggled by the mods menu.
