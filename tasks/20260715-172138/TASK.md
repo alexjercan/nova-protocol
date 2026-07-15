@@ -15,6 +15,22 @@ the next push unless this lands first.
 Goal: re-align the committed RON with the builder - run the parity generator's
 regeneration path (the generate-data-from-code lesson: serialize the builder
 output, never hand-edit), diff-review the regenerated file (positions only),
-confirm the parity test and the headless load path pass, and check 713ac855's
-intent (the position change was presumably deliberate; the data file just
-lagged). Steps for /plan when picked up.
+confirm the parity test and the headless load path pass.
+
+## Plan (20260715)
+
+Verified: 713ac855 ("per-crate salvage pickup cue + wider Shakedown spacing")
+deliberately changed the shakedown builder's crate positions; the committed
+`assets/base/scenarios/shakedown_run.content.ron` lagged. The parity test
+regenerates on missing (content_ron_parity.rs:51, write-on-missing; its own
+failure message says "delete the file and re-run").
+
+Steps:
+- [ ] 1. Delete assets/base/scenarios/shakedown_run.content.ron; run
+  `cargo test -p nova_assets --test content_ron_parity` (regenerates + passes).
+- [ ] 2. Diff-review the regenerated file: position-only changes expected
+  (wider crate spacing), no structural drift.
+- [ ] 3. Verify the load path: `cargo test -p nova_assets --test demo_scenario`
+  (loads the real base bundle recursively). fmt no-op (data file).
+- [ ] 4. No CHANGELOG (713ac855 already owns the user-visible change; this
+  realigns data). Close-out notes the root cause for the retro.
