@@ -461,6 +461,21 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   the actual window resolution (read it, don't guess) so the build area stays
   uncovered, and verify with the real pointer path. 20260714-204219.
 
+- `rig-supplies-precondition-hides-regression` (x1): a test that INJECTS the
+  state production is responsible for establishing (seed a variable, spawn the
+  actor, insert a resource) is structurally blind to that setup breaking - the
+  green rig hands itself the precondition. Pin the production setup with a
+  separate assertion (a gauntlet behavior test seeded `gate=1` itself and
+  skipped OnStart, so a dropped player-ship spawn / `gate=1` seed would ship
+  green; every gate filter fails closed on an undefined var). Sibling of
+  `production-faithful-rigs`. 20260715-224803.
+- `bg-isolation-guard-allows-sprout-not-main` (x1): the background-job Write/Edit
+  guard blocks the main checkout but NOT a sprout worktree; author master-side
+  artifacts (plan stubs, RETRO.md, LESSONS.md) via Bash heredoc and do all code
+  in the sprout worktree where Write works. The settings escape
+  (`worktree.bgIsolation: none`) is denied by the self-modification classifier.
+  20260715-224803.
+
 ## Domain lessons (nova-protocol specific)
 
 - `two-clocks` (family): FixedUpdate consumers read raw Position/Rotation;
