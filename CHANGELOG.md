@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Modding event dispatch is now indexed by event name (moved upstream into bevy-common-systems, rev bump to 4c81117). The dispatcher used to scan every spawned handler for every fired event; it now jumps straight to the handlers registered for that event and walks them from a contiguous snapshot, touching neither the ECS nor scattered memory. Measured on the synthetic benchmark: 17-24% faster dispatch under bursts (a wave of entities all firing in one frame) at 500-5000 handlers, and neutral at the realistic one-event-per-frame rate. First-party scenarios (1-19 handlers) are unaffected; this is insurance for large community mods. A first entity-id index that looked handlers up per-dispatch was measured, caught regressing at scale (random-access cache thrash), and replaced by the snapshot version before landing
 - The sibling filter-key-interning and condition-eval-compile optimizations (task 20260714-083339) were measured and deferred: at realistic event rates their per-handler costs (13 ns entity filter, 26 ns condition eval, and condition filters run only once per frame) are noise, so they stay documented insurance rather than serde/data-model churn
 
+### Fixed
+
+- Local web testing of the mod portal no longer needs a cross-origin `?portal=` override (which the browser blocks on CORS). `Trunk.toml` now carries a dev-only proxy that serves the local portal SAME-ORIGIN under `trunk serve`, mirroring the production layout where the game (`/play/`) and portal (`/mods/`) are siblings on one origin - so the web Explore tab fetches the catalog with no override and no CORS. The wasm build also warns clearly, naming both origins, when the portal is configured cross-origin, instead of only surfacing an opaque "Failed to fetch". Production was never affected (the deploy already serves both same-origin); this was a local-dev/docs gap
+
 ## [0.5.2] - 2026-07-14
 
 ### Added

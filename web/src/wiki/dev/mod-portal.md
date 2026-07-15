@@ -112,11 +112,38 @@ cargo run -p nova_portal_gen -- --source webmods --shipped assets/mods.catalog.r
 python3 -m http.server -d /tmp/portal 8000   # portal at http://localhost:8000/mods/
 ```
 
-The game's portal base URL is a config (`PortalConfig`): a native dev build
-points at localhost with `NOVA_PORTAL_URL=http://localhost:8000/mods`, a web
-build with a `?portal=http://localhost:8000/mods` query parameter. Without an
-override, native uses the production Pages URL and the web derives the
-sibling `mods/` tree from its own `window.location`.
+The game's portal base URL is a config (`PortalConfig::from_environment`).
+Point the game at that local portal - but MIND THE ORIGIN, because the browser
+enforces CORS on the web build (native does not):
+
+**Native** - set `NOVA_PORTAL_URL`; no origin rule applies (ureq ignores CORS):
+
+```sh
+NOVA_PORTAL_URL=http://localhost:8000/mods cargo run
+```
+
+**Web** - serve the portal SAME-ORIGIN. In production the portal is a sibling of
+the game on one Pages origin (`/play/` and `/mods/`), so a `trunk serve` build
+must mirror that. `Trunk.toml` carries a dev-only `[[proxy]]` that forwards
+`/mods` to the local portal server, so with the two commands above running,
+just:
+
+```sh
+trunk serve            # proxies /mods -> http://localhost:8000/mods
+# open http://localhost:8080  with NO ?portal= override
+```
+
+The web build then fetches `http://localhost:8080/mods/catalog.json`
+same-origin and CORS never applies. Without an override the web build derives
+the sibling `mods/` tree from its own `window.location` (production and the
+proxied dev server alike), which is why no `?portal=` is needed.
+
+A cross-origin `?portal=http://localhost:8000/mods` (page on one port, portal
+on another) is BLOCKED by the browser - the fetch fails with an opaque
+`TypeError: Failed to fetch` plus a CORS error in the console - UNLESS the
+portal server itself sends an `Access-Control-Allow-Origin` header
+(`python3 -m http.server` does not). The game logs a cross-origin warning
+naming both origins when you do this, so prefer the same-origin proxy above.
 
 ## How installed mods are stored (game side)
 

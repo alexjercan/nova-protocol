@@ -95,7 +95,9 @@ impl PortalConfig {
     /// Resolve the platform default + override chain described on the type.
     #[cfg(target_arch = "wasm32")]
     pub fn from_environment() -> Self {
-        let base_url = web_sys::window()
+        let window = web_sys::window();
+        let base_url = window
+            .as_ref()
             .map(|window| {
                 let location = window.location();
                 if let Some(url) =
@@ -106,6 +108,29 @@ impl PortalConfig {
                 portal_base_from_href(&location.href().unwrap_or_default())
             })
             .unwrap_or_else(|| DEFAULT_PORTAL_URL.to_string());
+
+        // Proactive cross-origin heads-up. A CORS failure reaches JS as an
+        // opaque `TypeError: Failed to fetch` (indistinguishable from a refused
+        // connection), so the post-failure error cannot name it - but comparing
+        // the resolved base origin to the page origin is a reliable signal we
+        // have BEFORE the fetch. Fires only when the portal is pointed
+        // cross-origin (a `?portal=` to another host); the same-origin default
+        // never trips it.
+        if let Some(window) = window.as_ref() {
+            if let (Ok(page_origin), Some(base_origin)) =
+                (window.location().origin(), url_origin(&base_url))
+            {
+                if base_origin != page_origin {
+                    warn!(
+                        "portal: base '{base_url}' is cross-origin to the page ({page_origin}); \
+                         the browser will block the catalog/file fetch unless the portal sends an \
+                         Access-Control-Allow-Origin header. For local dev, serve the portal \
+                         same-origin instead (see mod-portal.md, \"Local development\")."
+                    );
+                }
+            }
+        }
+
         Self { base_url }
     }
 
@@ -125,6 +150,20 @@ impl PortalConfig {
 /// may or may not carry one).
 fn join_url(base: &str, path: &str) -> String {
     format!("{}/{path}", base.trim_end_matches('/'))
+}
+
+/// The origin (`scheme://host[:port]`) of an absolute URL, or `None` when it
+/// carries no `scheme://` (a relative base). Used to detect a cross-origin
+/// portal config on wasm before the browser's opaque CORS failure. Pure and
+/// cfg-independent for the native test pin, like the derivation fns below.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+fn url_origin(url: &str) -> Option<String> {
+    let (scheme, rest) = url.split_once("://")?;
+    let host = rest.split(['/', '?', '#']).next().unwrap_or(rest);
+    if host.is_empty() {
+        return None;
+    }
+    Some(format!("{scheme}://{host}"))
 }
 
 /// Derive the portal base from the page's own URL: drop the query/fragment
@@ -1324,6 +1363,36 @@ mod tests {
         assert_eq!(portal_override_from_query("?seed=1"), None);
         assert_eq!(portal_override_from_query("?portal="), None);
         assert_eq!(portal_override_from_query(""), None);
+    }
+
+    /// The cross-origin detector behind the wasm heads-up: origin is
+    /// `scheme://host[:port]`, path/query/fragment dropped; a same-origin base
+    /// matches the page origin, a different port/host does not; a relative base
+    /// has no origin.
+    #[test]
+    fn url_origin_extracts_scheme_host_port() {
+        assert_eq!(
+            url_origin("http://localhost:8000/mods"),
+            Some("http://localhost:8000".to_string())
+        );
+        assert_eq!(
+            url_origin("https://alexjercan.github.io/nova-protocol/mods"),
+            Some("https://alexjercan.github.io".to_string())
+        );
+        // Same host, different port is still cross-origin (the reported bug:
+        // page :8090, portal :8000).
+        assert_ne!(
+            url_origin("http://localhost:8000/mods"),
+            url_origin("http://localhost:8090/play/"),
+        );
+        // Same origin, different path -> equal origins (the same-origin default).
+        assert_eq!(
+            url_origin("http://localhost:8080/mods"),
+            url_origin("http://localhost:8080/"),
+        );
+        // A relative base has no origin (never flagged cross-origin).
+        assert_eq!(url_origin("/mods"), None);
+        assert_eq!(url_origin("mods"), None);
     }
 
     fn catalog_json(schema_version: u32) -> Vec<u8> {
