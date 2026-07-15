@@ -39,11 +39,18 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `landing-chain-and-stub-collision` (x1): land with one &&-chain
   (merge --squash && commit && sprout rm), and commit tatr stubs on master
   before sprouting so the merge cannot abort on a collision. 20260713-121605.
-- `verify-generator-stability-before-commit-diff` (x1): before gating a
+- `verify-generator-stability-before-commit-diff` (x2): before gating a
   generated artifact on "CI regenerates + `git diff --exit-code`", prove the
   generator is byte-stable (run it twice, diff). cargo-about is NOT (~20-line
   run-to-run drift), so generate it at BUILD time and have CI assert generation
-  succeeds, not that it matches a committed copy. 20260715-110417.
+  succeeds, not that it matches a committed copy. Byte-identity alone catches
+  map-ordering only probabilistically at small N - also assert the ORDER
+  (sorted keys) directly. 20260715-110417, 20260715-142900.
+- `validate-membership-not-existence` (x1): when validating user-supplied paths
+  for a serve/copy pipeline, check MEMBERSHIP in the set that will actually be
+  served, never bare filesystem existence - an escaping `../` path existed,
+  passed, was never copied, and published a broken artifact with exit 0.
+  20260715-142900.
 - `toml-keys-before-tables` (x1): in TOML every top-level key must precede the
   first `[table]` header or it silently folds into that table (cargo-about's
   about.toml errored "unknown field targets" when a `[private]` table sat above
@@ -306,13 +313,15 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   mechanism deleted proves nothing; copied tests inherit vacuousness - and a
   sabotage that refuses to go red refutes the assumed mechanism itself.
   20260711-180426, 20260711-212521, 20260712-115902.
-- `out-of-context-review-pass` (positive, x17): a fresh-context review of a
+- `out-of-context-review-pass` (positive, x18): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
   load-bearing claims instead of trusting them - checking cited evidence IS
   the spawn site, re-running the sabotage or the whole smoke suite, reading
   the DEPENDENCY's source for composition hazards, mutation-analyzing new
-  tests. 20260712-133343, 20260711-183417, 20260712-115902, 20260712-211352,
-  20260715-142844, 20260715-142849, 20260715-151551.
+  tests, empirically reproducing a suspected hole before claiming it, and
+  reading a CI ACTION's source to settle a toolchain question.
+  20260712-133343, 20260711-183417, 20260712-115902, 20260712-211352,
+  20260715-142844, 20260715-142849, 20260715-151551, 20260715-142900.
 - `required-component-in-shared-query` (x2): a required fetch added to an
   existing query narrows its membership and every gate computed from it; fetch
   `Option<&T>` or use a separate query. New `Res<T>` params also panic every

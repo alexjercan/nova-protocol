@@ -354,6 +354,19 @@ Direction-level tasks this spike seeded, for `/plan` to break into steps:
   20260715-151551: unship screenshot-reel from assets/ entirely (embed in the
   example; the hidden flag stays as a feature) - runs next, before 142900. See
   tasks/20260715-142849/{TASK,REVIEW,RETRO}.md.
+- 20260715, static mod portal (142900) landed on master (`315ccde4`): the
+  portal exists - `webmods/` sources publish to `/mods/catalog.json` +
+  `/mods/<id>/<version>/` on every deploy via the new engine-free
+  `nova_portal_gen` (manifest gate: membership-validated content paths, sha256
+  per file, deterministic output, no shipped-id shadowing); pure format types
+  extracted to `nova_mod_format` (re-exported; the game will parse the same
+  wire schema in 142906); deep publish gate = `webmods_validation` on PR CI.
+  First portal mod: `gauntlet` (beacon slalom). SCOPE CORRECTION vs this
+  spike: demo STAYS shipped (it is the real-file test subject + in-repo
+  example); the portal dogfoods with the new mod instead. Review: R1
+  REQUEST_CHANGES (MAJOR: escaping content paths published broken mods -
+  fixed by membership validation), R2 APPROVE. Next: 142906 (download/cache
+  runtime). See tasks/20260715-142900/{TASK,REVIEW,RETRO}.md.
 - 20260715, unship screenshot-reel (151551, user request mid-flow) landed on
   master (`1e5fbce1`): the reel is no longer a mod - its scenario is embedded in
   `examples/13_screenshot_reel.rs` from `examples/data/reel.content.ron` (ships
