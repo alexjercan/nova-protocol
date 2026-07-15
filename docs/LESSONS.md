@@ -461,20 +461,28 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   the actual window resolution (read it, don't guess) so the build area stays
   uncovered, and verify with the real pointer path. 20260714-204219.
 
-- `rig-supplies-precondition-hides-regression` (x1): a test that INJECTS the
+- `rig-supplies-precondition-hides-regression` (x2): a test that INJECTS the
   state production is responsible for establishing (seed a variable, spawn the
   actor, insert a resource) is structurally blind to that setup breaking - the
   green rig hands itself the precondition. Pin the production setup with a
   separate assertion (a gauntlet behavior test seeded `gate=1` itself and
   skipped OnStart, so a dropped player-ship spawn / `gate=1` seed would ship
   green; every gate filter fails closed on an undefined var). Sibling of
-  `production-faithful-rigs`. 20260715-224803.
+  `production-faithful-rigs`. Applied PREVENTIVELY on 224812 (arena OnStart
+  structural test shipped with the behavior test). 20260715-224803, 20260715-224812.
 - `bg-isolation-guard-allows-sprout-not-main` (x1): the background-job Write/Edit
   guard blocks the main checkout but NOT a sprout worktree; author master-side
   artifacts (plan stubs, RETRO.md, LESSONS.md) via Bash heredoc and do all code
   in the sprout worktree where Write works. The settings escape
   (`worktree.bgIsolation: none`) is denied by the self-modification classifier.
   20260715-224803.
+
+- `count-gate-use-gt-not-eq` (x1): a milestone gate on a COUNTER incremented by
+  an event that can fire more than once (collisions, per-collider pairs,
+  multi-hit) must gate on `> N-1` / `>= N`, never `== N` - an overshoot past the
+  exact value skips the gate forever (arena win used `destroyed>2`, not `==3`, so
+  a double OnDestroyed can't soft-lock the clear). Counting sibling of
+  `collisionstart-is-per-collider-pair`. 20260715-224812.
 
 ## Domain lessons (nova-protocol specific)
 
