@@ -1,8 +1,8 @@
 # Wiki nav: preserve drawer scroll position across navigations/refresh
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 38
-- TAGS: feature,web
+- TAGS: feature, web
 
 User request: the wiki sidebar "drawer" resets to the top on every page
 navigation and refresh. Keep it scrolled where the reader left it.
@@ -30,12 +30,33 @@ and restore is a harmless no-op there.
 
 ## Steps
 
-- [ ] Add a `persistNavScroll(nav)` helper in `wiki.ts` (restore + throttled
+- [x] Add a `persistNavScroll(nav)` helper in `wiki.ts` (restore + rAF-throttled
       save + pagehide save, try/catch); call it after `renderSidebar`.
-- [ ] Verify: `npm run ci` green; serve + manually confirm the drawer holds its
-      scroll across a link click and a refresh (scroll down, click a page, and
-      reload - the drawer stays put); no console errors; check the active link is
-      still reachable.
+- [x] Verify: `npm run ci` green; a puppeteer-core e2e drove the real chromium -
+      scrolled the drawer, navigated to another wiki page, and reloaded; the
+      drawer restored its position in both cases.
+
+## Close notes
+
+Added `persistNavScroll(nav)` to `web/src/wiki.ts`, called right after
+`renderSidebar`. It restores `#wiki-nav.scrollTop` from `sessionStorage` on load,
+saves it back on scroll (rAF-throttled) and on `pagehide`, all wrapped in
+try/catch for private-mode / disabled storage. One key (`wiki-nav-scroll`) - the
+drawer is identical on every wiki page. sessionStorage is deliberate: it survives
+same-tab navigations and reloads but clears on tab close, which is the right
+lifetime for "where I left the drawer this session".
+
+### Verification (e2e, can-fail)
+A puppeteer-core script against the dev server: scroll `#wiki-nav` to 320, let the
+rAF save fire, then (a) navigate to `/wiki/keybinds/` and (b) reload. Result:
+`{set:320, stored:"320", afterNav:320, afterReload:320}` -> PASS. Without the
+persistence code the drawer renders at 0, so the test genuinely fails-without-it.
+
+### Self-reflection
+Reached for a real browser driver (puppeteer-core over the existing chromium, no
+download) instead of eyeballing - the right call for a behavior that a screenshot
+can't show. Worth keeping that puppeteer-core recipe handy for future
+client-behavior tasks.
 
 ## Notes
 

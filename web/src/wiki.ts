@@ -360,6 +360,48 @@ async function initMermaid(): Promise<void> {
     }
 }
 
+// ---- drawer scroll persistence --------------------------------------------
+
+// Each wiki page is a full document, so the sidebar (#wiki-nav - its own
+// overflow-y scroll container) re-renders at scrollTop 0 on every navigation and
+// refresh. Persist its scroll position in sessionStorage (per-tab; survives
+// same-tab navigations and reloads, clears on tab close) so the reader keeps
+// their place. One key: the drawer is identical on every wiki page. Storage
+// access is guarded for private mode / disabled storage, and on mobile the nav
+// is not a scroll container so scrollTop stays 0 (a harmless no-op).
+const NAV_SCROLL_KEY = "wiki-nav-scroll";
+
+function persistNavScroll(nav: HTMLElement): void {
+    const read = (): string | null => {
+        try {
+            return sessionStorage.getItem(NAV_SCROLL_KEY);
+        } catch {
+            return null;
+        }
+    };
+    const write = (v: number): void => {
+        try {
+            sessionStorage.setItem(NAV_SCROLL_KEY, String(v));
+        } catch {
+            // storage unavailable; scroll simply will not persist.
+        }
+    };
+
+    const saved = read();
+    if (saved !== null) nav.scrollTop = Number(saved) || 0;
+
+    let queued = 0;
+    nav.addEventListener("scroll", () => {
+        if (queued) return;
+        queued = requestAnimationFrame(() => {
+            queued = 0;
+            write(nav.scrollTop);
+        });
+    });
+    // A navigation can fire between throttled saves; capture the final position.
+    window.addEventListener("pagehide", () => write(nav.scrollTop));
+}
+
 // ---- boot -----------------------------------------------------------------
 
 const base = basePath();
@@ -368,7 +410,10 @@ const slug = currentSlug(base);
 void initMermaid();
 
 const nav = document.getElementById("wiki-nav");
-if (nav) renderSidebar(nav, base, slug);
+if (nav) {
+    renderSidebar(nav, base, slug);
+    persistNavScroll(nav);
+}
 
 const indexHost = document.getElementById("wiki-index");
 if (indexHost) renderIndex(indexHost, base);
