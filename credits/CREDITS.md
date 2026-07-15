@@ -19,15 +19,17 @@ assets" below:
   `scripts/gen-placeholder-sounds.py`; see `assets/sounds/README.md`.
 - **3D models** (`assets/gltf/*.glb`) - exported from the project's own Blender
   sources in `art/blender/`.
-- **Textures** (`assets/textures/*.png`, except the skybox `cubemap.png`
-  listed under "Third-party assets") and **UI icons**
+- **Textures** (`assets/textures/*.png`, except the skybox cubemaps
+  `cubemap.png` and `cubemap_alt.png` listed under "Third-party assets")
+  and **UI icons**
   (`assets/icons/*.png`, `assets/banner.png`) - authored for the project.
 - **Shaders** (`assets/shaders/*.wgsl`) - written for the project.
 
 ## Third-party assets
 
 - **Bevy icon** - [MIT License](licenses/Bevy_MIT_License.md).
-- **Skybox cubemap** (`assets/textures/cubemap.png`) - generated with
+- **Skybox cubemaps** (`assets/textures/cubemap.png`,
+  `assets/textures/cubemap_alt.png`) - generated with
   [space-3d](https://tools.wwwtyro.net/space-3d/) by Rye Terrell (wwwtyro),
   released into the public domain under
   [The Unlicense](licenses/space-3d_Unlicense.md). No attribution is
