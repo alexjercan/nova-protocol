@@ -1,8 +1,8 @@
 # Explore online tab: fetch portal catalog, install/uninstall/update from the menu, offline handling
 
 - STATUS: OPEN
-- PRIORITY: 14
-- TAGS: modding,menu,wasm
+- PRIORITY: 13
+- TAGS: modding, menu, wasm
 
 Spike: tasks/20260714-202515/SPIKE.md
 Depends on: 20260715-142906 (download runtime) and 20260715-142911 (two-pane
