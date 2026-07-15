@@ -1,5 +1,8 @@
 # Architecture
 
+> New to the codebase? Start with the [Project tour](../project-tour/) for a
+> faster orientation, then come back here for the detail.
+
 Nova Protocol is a 3D space shooter built on **Bevy 0.19** with **avian3d** physics.
 It is a Cargo workspace: the root `nova-protocol` crate is a thin shell and all the
 real code lives under `crates/`.

@@ -1,5 +1,8 @@
 # The static mod portal
 
+> To make and publish your own mod, follow the guide
+> [Make and publish a mod](../guide-make-a-mod/).
+
 How remote mods are published and served. The portal is STATIC files on the
 existing GitHub Pages site - no server, no database - generated on every
 deploy, never hand-maintained. The game consumes it through the portal client

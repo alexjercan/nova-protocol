@@ -1,5 +1,9 @@
 # Scenario / modding system
 
+> How-to companions: [Author a scenario](../guide-author-scenario/) to write one
+> in RON with existing primitives, or [Extend the scenario engine](../guide-extend-scenarios/)
+> to add new event, filter, action, or object kinds in Rust.
+
 `crates/nova_scenario` is the data-driven scenario engine, the layer for
 missions, objectives, and reactive world behavior. A scenario is a list of
 event handlers; each pairs an event with filters (all must pass) and actions

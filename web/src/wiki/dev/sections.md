@@ -1,5 +1,8 @@
 # Spaceship sections and integrity
 
+> To add a new section kind, follow the guide
+> [Add a ship section](../guide-add-section/).
+
 Ships are assembled from modular **sections**. Each section is a child entity of
 the ship root with its own collider, mass, and health, and contributes one
 behavior (structure, thrust, steering, guns). The **integrity** system tracks

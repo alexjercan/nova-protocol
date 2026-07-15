@@ -77,6 +77,27 @@ const WIKI_DOC_PAGES = [
         title: "Modding data format (RON)",
     },
     { slug: "dev/mod-portal", md: "mod-portal.md", title: "Mod portal" },
+    { slug: "dev/project-tour", md: "project-tour.md", title: "Project tour" },
+    {
+        slug: "dev/guide-add-section",
+        md: "guide-add-section.md",
+        title: "Add a ship section",
+    },
+    {
+        slug: "dev/guide-extend-scenarios",
+        md: "guide-extend-scenarios.md",
+        title: "Extend the scenario engine",
+    },
+    {
+        slug: "dev/guide-author-scenario",
+        md: "guide-author-scenario.md",
+        title: "Author a scenario (RON)",
+    },
+    {
+        slug: "dev/guide-make-a-mod",
+        md: "guide-make-a-mod.md",
+        title: "Make and publish a mod",
+    },
 ];
 const docPage = ({ slug, md, title }) =>
     wikiDocPage({ slug, mdPath: `src/wiki/dev/${md}`, title, publicPath });

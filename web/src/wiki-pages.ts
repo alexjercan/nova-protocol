@@ -40,9 +40,9 @@ export const WIKI_CATEGORIES: string[] = [
     "Interface",
     "World",
     "Modding",
-    "Contributing",
-    "Architecture",
-    "Modding (technical)",
+    "Get started",
+    "Understand",
+    "Extend the game",
 ];
 
 export const WIKI_PAGES: WikiPage[] = [
@@ -250,7 +250,7 @@ export const WIKI_PAGES: WikiPage[] = [
     {
         slug: "dev/development",
         title: "Building & running",
-        category: "Contributing",
+        category: "Get started",
         tags: ["dev", "build"],
         summary:
             "The developer's getting-started: toolchain, everyday cargo commands, features, examples, the web build, and the versioning/release checklist.",
@@ -267,7 +267,7 @@ export const WIKI_PAGES: WikiPage[] = [
     {
         slug: "dev/architecture",
         title: "Architecture",
-        category: "Architecture",
+        category: "Understand",
         tags: ["dev", "architecture"],
         summary:
             "How the codebase fits together: the crate map and dependency graph, app assembly and plugin order, the state machines, and the Update vs FixedUpdate frame flow.",
@@ -283,7 +283,7 @@ export const WIKI_PAGES: WikiPage[] = [
     {
         slug: "dev/sections",
         title: "Ship sections (internals)",
-        category: "Architecture",
+        category: "Understand",
         tags: ["dev", "architecture", "combat"],
         summary:
             "The section components and how a ship is built from them, the integrity pipeline (damage -> disable -> destroy), typed damage against resistances, and ammo slots.",
@@ -299,7 +299,7 @@ export const WIKI_PAGES: WikiPage[] = [
     {
         slug: "dev/scenario-system",
         title: "Scenario engine",
-        category: "Architecture",
+        category: "Understand",
         tags: ["dev", "architecture", "modding"],
         summary:
             "The event-driven scenario/modding engine: scenario structure, loading, the event/filter/action pipeline, variables and the event world, scenario objects, and where to add new pieces.",
@@ -317,7 +317,7 @@ export const WIKI_PAGES: WikiPage[] = [
     {
         slug: "dev/modding-ron",
         title: "Modding data format (RON)",
-        category: "Modding (technical)",
+        category: "Understand",
         tags: ["dev", "modding"],
         summary:
             "The RON data format for scenarios and mods: the catalog, bundles and enabled set, the local download cache and the mods:// source, file naming, and RON syntax gotchas.",
@@ -332,17 +332,115 @@ export const WIKI_PAGES: WikiPage[] = [
     {
         slug: "dev/mod-portal",
         title: "Mod portal",
-        category: "Modding (technical)",
+        category: "Understand",
         tags: ["dev", "modding"],
         summary:
             "The static mod portal: its layout, the catalog generator, the catalog.json wire schema, how to publish a mod today, local development, and how installed mods are stored game-side.",
-        related: ["dev/modding-ron", "dev/development"],
+        related: ["dev/modding-ron", "dev/development", "dev/guide-make-a-mod"],
         headings: [
             "Layout",
             "The generator",
             "The wire schema (catalog.json)",
             "Publishing a mod",
             "How installed mods are stored",
+        ],
+    },
+
+    // Get started
+    {
+        slug: "dev/project-tour",
+        title: "Project tour",
+        category: "Get started",
+        tags: ["dev", "onboarding"],
+        summary:
+            "The 20-minute front door: the crate map at a glance, where each kind of thing lives, the app boot path, and a 'want to change X? start here' table.",
+        related: [
+            "dev/architecture",
+            "dev/development",
+            "dev/guide-add-section",
+            "dev/guide-make-a-mod",
+        ],
+        headings: [
+            "Crate map at a glance",
+            "The boot path",
+            "Want to change X? Start here",
+            "Where to go next",
+        ],
+    },
+
+    // Extend the game (how-to guides)
+    {
+        slug: "dev/guide-add-section",
+        title: "Add a ship section",
+        category: "Extend the game",
+        tags: ["dev", "guide", "ships"],
+        summary:
+            "The ordered checklist to add a new ship-section kind - section module, the SectionKind enum, damage class and resistances, the section plugin, spawn and editor wiring, an asset prototype, and a runnable example.",
+        related: ["dev/sections", "dev/architecture", "dev/project-tour"],
+        headings: [
+            "Closed by design",
+            "The checklist",
+            "The config module",
+            "Wiring the plugin",
+            "Damage and resistances",
+            "Editor and prototype",
+        ],
+    },
+    {
+        slug: "dev/guide-extend-scenarios",
+        title: "Extend the scenario engine",
+        category: "Extend the game",
+        tags: ["dev", "guide", "modding"],
+        summary:
+            "Add a new scenario primitive in Rust - an event kind, filter, action, or scenario-object kind - via the enum-variant + trait-impl + prelude recipe, one worked example each, plus the NovaEventWorld state/command seam.",
+        related: ["dev/scenario-system", "dev/guide-author-scenario"],
+        headings: [
+            "Add an event kind",
+            "Add a filter",
+            "Add an action",
+            "Add a scenario object kind",
+            "The NovaEventWorld seam",
+        ],
+    },
+    {
+        slug: "dev/guide-author-scenario",
+        title: "Author a scenario (RON)",
+        category: "Extend the game",
+        tags: ["dev", "guide", "modding"],
+        summary:
+            "Write a scenario in RON end to end with existing primitives - the file shape, the event/filter/action structure, variables and expressions, and a worked objective loop built up from the shipped scenarios.",
+        related: [
+            "dev/scenario-system",
+            "dev/guide-make-a-mod",
+            "dev/guide-extend-scenarios",
+        ],
+        headings: [
+            "The scenario file",
+            "Events, filters, actions",
+            "Variables and expressions",
+            "A worked objective loop",
+            "Loading and testing it",
+        ],
+    },
+    {
+        slug: "dev/guide-make-a-mod",
+        title: "Make and publish a mod",
+        category: "Extend the game",
+        tags: ["dev", "guide", "modding"],
+        summary:
+            "The mod-author lifecycle end to end - bundle anatomy and the stemmed-extension rule, overlay semantics, local testing, publishing to the portal with nova_portal_gen, what the player sees, and the honest sharp edges.",
+        related: [
+            "dev/modding-ron",
+            "dev/mod-portal",
+            "dev/guide-author-scenario",
+        ],
+        headings: [
+            "Bundle anatomy",
+            "Overlay semantics",
+            "Testing locally",
+            "Publishing to the portal",
+            "What the player sees",
+            "Sharp edges",
         ],
     },
 ];

@@ -1,5 +1,8 @@
 # RON scenario/mod format
 
+> To make and publish your own mod, follow the guide
+> [Make and publish a mod](../guide-make-a-mod/).
+
 The declarative modding language for Nova Protocol: scenarios authored as
 `*.scenario.ron` data files instead of Rust. Implemented on branch
 `modding-language` (v0.6.0). For the runtime it feeds, see the
