@@ -28,9 +28,20 @@ pub struct ThemedButton;
 #[derive(Component, Debug, Clone)]
 pub struct ButtonValue<T>(pub T);
 
-/// Wire the button colour + selection observers. Call once from each app/plugin
-/// that uses themed buttons.
+/// Guard resource: the themed-widget observers are app-global, so the first
+/// [`register`] call wins and later calls are no-ops (menu and editor both
+/// register in the shipped app; doubled observers would write every colour
+/// twice per interaction).
+#[derive(Resource)]
+struct WidgetObserversRegistered;
+
+/// Wire the button colour + selection observers. Call from each app/plugin
+/// that uses themed buttons; guarded, so independent plugins can coexist.
 pub fn register(app: &mut App) {
+    if app.world().contains_resource::<WidgetObserversRegistered>() {
+        return;
+    }
+    app.insert_resource(WidgetObserversRegistered);
     app.add_observer(button_on_interaction::<Add, Pressed>)
         .add_observer(button_on_interaction::<Remove, Pressed>)
         .add_observer(button_on_interaction::<Add, InteractionDisabled>)

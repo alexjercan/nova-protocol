@@ -26,7 +26,7 @@ use bevy::{
     ui_widgets::{observe, Activate, Button},
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
-use nova_assets::prelude::{EnabledMods, ModCatalog, ModInfo};
+use nova_assets::prelude::{EnabledMods, ModCatalog, ModInfo, ModMeta};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
@@ -59,9 +59,13 @@ const ORBIT_CLEARANCE: f32 = 40.0;
 
 // The whole game UI shares one theme (task 20260714-212139): the palette + metrics
 // live in `nova_ui::theme`. The menu keeps its own tiny polling colour system
-// (`update_button_colors`) rather than nova_ui's observers, to stay self-contained,
-// but draws every colour + metric from the shared theme.
-use nova_ui::theme;
+// (`update_button_colors`) for its plain `MenuButton`s, but the mods screen's
+// tabs/rows/action button are `ThemedButton`s coloured by nova_ui's observers
+// (`widget::register`, guarded against the editor registering them too).
+use nova_ui::{
+    theme,
+    widget::{separator, themed_button, Selected, ThemedButton},
+};
 
 pub struct NovaMenuPlugin;
 
@@ -70,6 +74,14 @@ impl Plugin for NovaMenuPlugin {
         // Owned by NovaHudPlugin in the assembled app; initialized here too so
         // the menu plugin stands alone (tests, future slim apps).
         app.init_resource::<HudVisibility>();
+        // Mods screen state: the active tab and the selected mod drive the
+        // list/details refresh systems below.
+        app.init_resource::<ModsActiveTab>();
+        app.init_resource::<SelectedModId>();
+        // The mods screen's tabs/rows/action button are nova_ui ThemedButtons;
+        // their hover/press/Selected colours come from these observers
+        // (register is guarded, so the editor registering them too is fine).
+        nova_ui::widget::register(app);
         app.add_systems(
             OnEnter(GameStates::MainMenu),
             (load_menu_ambience, setup_menu_ui, hide_hud_chrome),
@@ -85,7 +97,21 @@ impl Plugin for NovaMenuPlugin {
         );
         app.add_systems(
             Update,
-            (stage_menu_camera, update_mod_toggle_labels).run_if(in_state(GameStates::MainMenu)),
+            (stage_menu_camera, update_mod_checkbox_labels).run_if(in_state(GameStates::MainMenu)),
+        );
+        // The mods screen's dynamic content: the left list rebuilds on tab or
+        // catalog change, the right details pane on selection/catalog/enabled
+        // change. Chained so a default selection made while rebuilding the list
+        // is rendered by the details refresh in the SAME frame (setup_menu_ui
+        // re-arms both by writing the resources on menu entry).
+        app.add_systems(
+            Update,
+            (
+                refresh_mods_list.run_if(mods_list_dirty),
+                refresh_mod_details.run_if(mod_details_dirty),
+            )
+                .chain()
+                .run_if(in_state(GameStates::MainMenu)),
         );
         // Wheel-scroll for the mods list: gated on the input message buffer existing
         // (the real app's InputPlugin provides it; minimal headless test apps do not).
@@ -339,14 +365,65 @@ struct SettingsPanel;
 #[derive(Component)]
 struct ModsPanel;
 
-/// The scrollable container holding the mod rows (wheel-scrolled by
-/// `scroll_mods_panel`, so a long installed-mods list stays reachable).
-#[derive(Component)]
-struct ModsScrollPanel;
+/// Which mods-screen tab is active. `Installed` lists the local catalog;
+/// `Explore` is the portal browser (an inert placeholder until task
+/// 20260715-142916 wires it to the portal client).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+enum ModsTabKind {
+    #[default]
+    Installed,
+    Explore,
+}
 
-/// A mod row's enable/disable toggle button: carries the catalog `id` it toggles
-/// and whether it is the locked `base` entry. `on_mod_toggle` reads this on click;
-/// `update_mod_toggle_labels` renders the button's state from `EnabledMods`.
+/// A tab-bar button: the tab it activates. `on_mods_tab` reads this on click.
+#[derive(Component)]
+struct ModsTab(ModsTabKind);
+
+/// The active tab; `refresh_mods_list` rebuilds the list content when it
+/// changes. Reset to `Installed` on every menu entry by `setup_menu_ui`.
+#[derive(Resource, Default, PartialEq, Eq)]
+struct ModsActiveTab(ModsTabKind);
+
+/// The mod id the details pane renders. `None` until the list populates -
+/// `refresh_mods_list` default-selects the first row (and repairs a selection
+/// that left the catalog); `on_mod_row_select` sets it from a row click.
+#[derive(Resource, Default)]
+struct SelectedModId(Option<String>);
+
+/// The scrollable container holding the mod rows (wheel-scrolled by
+/// `scroll_mods_panel`); `refresh_mods_list` swaps its children on tab or
+/// catalog change.
+#[derive(Component)]
+struct ModsList;
+
+/// One clickable installed-mod row: clicking it (anywhere but the checkbox,
+/// whose click does not propagate) selects the mod for the details pane.
+#[derive(Component)]
+struct ModRow {
+    id: String,
+}
+
+/// The details side panel container; `refresh_mod_details` rebuilds its
+/// children from the selected mod's bundle meta.
+#[derive(Component)]
+struct ModDetailsPanel;
+
+/// The details pane's action area. Holds the Enable/Disable button (or the
+/// base lock tag) today; the Explore task (20260715-142916) adds its
+/// Install/Uninstall/Update buttons into this same container - keep the
+/// marker stable.
+#[derive(Component)]
+struct ModDetailsActions;
+
+/// Marks a row's compact enable checkbox, so `update_mod_checkbox_labels`
+/// renders only checkboxes ("x"/"") and never the details pane's
+/// Enable/Disable button (whose label is baked by `refresh_mod_details`).
+#[derive(Component)]
+struct ModEnableCheckbox;
+
+/// An enable/disable control: carries the catalog `id` it toggles and whether
+/// it is the locked `base` entry. Shared by the row checkbox and the details
+/// pane's Enable/Disable button; `on_mod_toggle` reads it on click.
 #[derive(Component)]
 struct ModToggle {
     id: String,
@@ -422,8 +499,8 @@ fn restore_hud_chrome(mut level: ResMut<HudVisibility>) {
 /// scene).
 fn setup_menu_ui(
     mut commands: Commands,
-    mod_catalog: Option<Res<ModCatalog>>,
-    enabled: Option<Res<EnabledMods>>,
+    mut active_tab: ResMut<ModsActiveTab>,
+    mut selected: ResMut<SelectedModId>,
 ) {
     commands
         .spawn((
@@ -505,6 +582,10 @@ fn setup_menu_ui(
                 justify_content: JustifyContent::Center,
                 ..default()
             },
+            // Above the bottom-right menu card (review 142911 R1.1): sibling
+            // z-order otherwise falls back to Entity ordering, whose ids the
+            // despawned ambience scene recycles - nondeterministic stacking.
+            GlobalZIndex(1),
         ))
         .with_children(|parent| {
             parent
@@ -549,11 +630,15 @@ fn setup_menu_ui(
                 });
         });
 
-    // Mods panel: hidden until the Mods button toggles it. Lists the installed
-    // mods (from the catalog) with per-mod enable/disable toggles; base is shown
-    // locked-on. `Explore online` is a coming-soon placeholder.
-    let mods: Vec<ModInfo> = mod_catalog.map(|c| c.0.clone()).unwrap_or_default();
-    let is_enabled = |id: &str| enabled.as_ref().is_some_and(|e| e.0.contains(id));
+    // Mods panel: hidden until the Mods button toggles it. A two-pane screen:
+    // LEFT a tab bar (Installed | Explore online) over the scrollable mod
+    // rows, RIGHT the selected mod's details + action area. The panes spawn
+    // EMPTY here; writing the two resources below marks them changed, which
+    // re-arms refresh_mods_list/refresh_mod_details to populate the fresh
+    // containers on the first Update frame after entry - one population path
+    // for entry, tab switches and live catalog changes alike.
+    *active_tab = ModsActiveTab::default();
+    selected.0 = None;
 
     commands
         .spawn((
@@ -572,6 +657,11 @@ fn setup_menu_ui(
                 justify_content: JustifyContent::Center,
                 ..default()
             },
+            // Above the bottom-right menu card (review 142911 R1.1); the mods
+            // panel has its own Back button, so covering the card loses
+            // nothing. Rendered z-order is only visually verifiable - the
+            // component-presence test pins this.
+            GlobalZIndex(1),
         ))
         .with_children(|parent| {
             parent
@@ -579,9 +669,8 @@ fn setup_menu_ui(
                     Name::new("Mods Panel"),
                     Node {
                         flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::Center,
-                        width: px(460),
-                        max_height: percent(80),
+                        width: percent(85),
+                        height: percent(85),
                         padding: UiRect::all(px(20)),
                         border: UiRect::all(px(theme::BORDER_W)),
                         border_radius: BorderRadius::all(px(theme::RADIUS)),
@@ -610,120 +699,253 @@ fn setup_menu_ui(
                         TextColor(theme::TEXT_MUTED),
                     ));
 
-                    // The scrollable list of installed mods.
+                    // The two panes. min_height: 0 lets the list shrink below
+                    // its content height so overflow actually scrolls.
                     parent
                         .spawn((
-                            Name::new("Mods List"),
-                            ModsScrollPanel,
+                            Name::new("Mods Content"),
                             Node {
-                                flex_direction: FlexDirection::Column,
+                                flex_direction: FlexDirection::Row,
                                 align_self: AlignSelf::Stretch,
-                                overflow: Overflow::scroll_y(),
+                                flex_grow: 1.0,
+                                min_height: px(0),
+                                column_gap: px(16),
                                 margin: UiRect::vertical(px(10)),
                                 ..default()
                             },
-                            ScrollPosition::default(),
                         ))
-                        .with_children(|list| {
-                            for m in &mods {
-                                spawn_mod_row(list, m, is_enabled(&m.id));
-                            }
+                        .with_children(|content| {
+                            content
+                                .spawn((
+                                    Name::new("Mods Left Pane"),
+                                    Node {
+                                        flex_direction: FlexDirection::Column,
+                                        width: percent(40),
+                                        min_height: px(0),
+                                        ..default()
+                                    },
+                                ))
+                                .with_children(|left| {
+                                    left.spawn((
+                                        Name::new("Mods Tab Row"),
+                                        Node {
+                                            flex_direction: FlexDirection::Row,
+                                            align_self: AlignSelf::Stretch,
+                                            column_gap: px(8),
+                                            ..default()
+                                        },
+                                    ))
+                                    .with_children(|tabs| {
+                                        // setup resets ModsActiveTab to
+                                        // Installed above, so the static
+                                        // Selected marker matches it.
+                                        tabs.spawn((
+                                            Name::new("Installed Tab"),
+                                            themed_button("Installed"),
+                                            ModsTab(ModsTabKind::Installed),
+                                            Selected,
+                                            observe(on_mods_tab),
+                                        ));
+                                        tabs.spawn((
+                                            Name::new("Explore Online Tab"),
+                                            themed_button("Explore online"),
+                                            ModsTab(ModsTabKind::Explore),
+                                            observe(on_mods_tab),
+                                        ));
+                                    });
+                                    left.spawn((
+                                        Name::new("Mods List"),
+                                        ModsList,
+                                        Node {
+                                            flex_direction: FlexDirection::Column,
+                                            align_self: AlignSelf::Stretch,
+                                            flex_grow: 1.0,
+                                            min_height: px(0),
+                                            overflow: Overflow::scroll_y(),
+                                            margin: UiRect::top(px(8)),
+                                            ..default()
+                                        },
+                                        ScrollPosition::default(),
+                                    ));
+                                });
+                            content.spawn((
+                                Name::new("Mod Details Panel"),
+                                ModDetailsPanel,
+                                Node {
+                                    flex_direction: FlexDirection::Column,
+                                    flex_grow: 1.0,
+                                    min_height: px(0),
+                                    padding: UiRect::left(px(16)),
+                                    border: UiRect::left(px(theme::BORDER_W)),
+                                    ..default()
+                                },
+                                BorderColor::all(theme::BORDER),
+                            ));
                         });
 
-                    // Explore online: a disabled coming-soon placeholder (not a
-                    // MenuButton, so it takes no hover/press feedback and has no
-                    // observer - it is inert on purpose).
-                    parent.spawn((
-                        Name::new("Explore Online Button"),
-                        Node {
-                            width: percent(100),
-                            min_height: px(40),
-                            margin: UiRect::all(px(8)),
-                            justify_content: JustifyContent::Center,
-                            align_items: AlignItems::Center,
-                            border: UiRect::all(px(theme::BORDER_W)),
-                            border_radius: BorderRadius::all(px(theme::RADIUS)),
-                            ..default()
-                        },
-                        BorderColor::all(theme::BORDER),
-                        BackgroundColor(theme::BG),
-                        children![(
-                            Text::new("Explore online (coming soon)"),
-                            TextFont {
-                                font_size: FontSize::Px(14.0),
+                    // Footer: a fixed-width slot, so the percent-width Back
+                    // button does not span the whole wide panel.
+                    parent
+                        .spawn((
+                            Name::new("Mods Footer"),
+                            Node {
+                                align_self: AlignSelf::Stretch,
+                                flex_direction: FlexDirection::Row,
+                                justify_content: JustifyContent::FlexStart,
                                 ..default()
                             },
-                            TextColor(theme::TEXT_MUTED),
-                        )],
-                    ));
-
-                    parent.spawn((
-                        Name::new("Mods Back Button"),
-                        button("Back"),
-                        observe(on_mods_back),
-                    ));
+                        ))
+                        .with_children(|footer| {
+                            footer
+                                .spawn((
+                                    Name::new("Mods Back Slot"),
+                                    Node {
+                                        width: px(200),
+                                        ..default()
+                                    },
+                                ))
+                                .with_children(|slot| {
+                                    slot.spawn((
+                                        Name::new("Mods Back Button"),
+                                        button("Back"),
+                                        observe(on_mods_back),
+                                    ));
+                                });
+                        });
                 });
         });
 }
 
-/// Spawn one mod row: name + description, then either a toggle button (its label
-/// set by `update_mod_toggle_labels`) or, for the locked `base` mod, a static
-/// "Enabled (base)" tag.
-fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModInfo, enabled: bool) {
-    list.spawn((
+/// The muted "v0.2.0 - by Author" line under a mod's name (row and details
+/// pane); empty meta fields drop out, both empty yields an empty string (the
+/// caller skips spawning it).
+fn version_author_line(meta: &ModMeta) -> String {
+    let mut line = String::new();
+    if !meta.version.is_empty() {
+        line.push('v');
+        line.push_str(&meta.version);
+    }
+    if !meta.author.is_empty() {
+        if !line.is_empty() {
+            line.push_str(" - ");
+        }
+        line.push_str("by ");
+        line.push_str(&meta.author);
+    }
+    line
+}
+
+/// Spawn one installed-mod row: a clickable ThemedButton row (click selects the
+/// mod for the details pane) holding the name + muted version/author line and,
+/// right-aligned, either the quiet enable checkbox or the muted "base" tag.
+fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModInfo, enabled: bool, selected: bool) {
+    let mut row = list.spawn((
         Name::new(format!("Mod Row: {}", m.id)),
+        ModRow { id: m.id.clone() },
         Node {
-            flex_direction: FlexDirection::Column,
+            flex_direction: FlexDirection::Row,
             align_self: AlignSelf::Stretch,
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceBetween,
+            column_gap: px(8),
             padding: UiRect::all(px(8)),
             margin: UiRect::bottom(px(4)),
             border: UiRect::all(px(theme::BORDER_W)),
             border_radius: BorderRadius::all(px(theme::RADIUS)),
             ..default()
         },
+        ThemedButton,
+        Button,
+        Hovered::default(),
         BorderColor::all(theme::BORDER),
-        BackgroundColor(theme::PANEL_RAISED),
-        children![
-            (
+        BackgroundColor(theme::PANEL),
+        observe(on_mod_row_select),
+    ));
+    if selected {
+        row.insert(Selected);
+    }
+    row.with_children(|row| {
+        row.spawn((
+            Name::new("Mod Row Info"),
+            Node {
+                flex_direction: FlexDirection::Column,
+                flex_grow: 1.0,
+                ..default()
+            },
+        ))
+        .with_children(|info| {
+            info.spawn((
                 Name::new("Mod Name"),
                 Text::new(m.meta.name.clone()),
                 TextFont {
-                    font_size: FontSize::Px(16.0),
+                    font_size: FontSize::Px(15.0),
                     ..default()
                 },
                 TextColor(theme::TEXT),
-            ),
-            (
-                Name::new("Mod Description"),
-                Text::new(m.meta.description.clone()),
+            ));
+            let line = version_author_line(&m.meta);
+            if !line.is_empty() {
+                info.spawn((
+                    Name::new("Mod Version Author"),
+                    Text::new(line),
+                    TextFont {
+                        font_size: FontSize::Px(12.0),
+                        ..default()
+                    },
+                    TextColor(theme::TEXT_MUTED),
+                ));
+            }
+        });
+        if m.base {
+            row.spawn((
+                Name::new("Mod Locked Tag"),
+                Text::new("base"),
                 TextFont {
                     font_size: FontSize::Px(12.0),
                     ..default()
                 },
                 TextColor(theme::TEXT_MUTED),
-            ),
-        ],
-    ))
-    .with_children(|row| {
-        if m.base {
-            row.spawn((
-                Name::new("Mod Locked Tag"),
-                Text::new("Enabled (base)"),
-                TextFont {
-                    font_size: FontSize::Px(13.0),
-                    ..default()
-                },
-                TextColor(theme::CYAN),
             ));
         } else {
+            // The quiet checkbox: a compact MenuButton (hover colours + click
+            // cue come from the existing MenuButton systems). Its click does
+            // not propagate to the row (ui_widgets Button stops it), so
+            // toggling never re-selects.
             row.spawn((
-                Name::new("Mod Toggle Button"),
-                button(if enabled { "Enabled" } else { "Disabled" }),
+                Name::new("Mod Enable Checkbox"),
+                ModEnableCheckbox,
                 ModToggle {
                     id: m.id.clone(),
                     base: m.base,
                 },
+                Node {
+                    width: px(24),
+                    height: px(24),
+                    flex_shrink: 0.0,
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    border: UiRect::all(px(theme::BORDER_W)),
+                    border_radius: BorderRadius::all(px(theme::RADIUS)),
+                    ..default()
+                },
+                MenuButton,
+                Button,
+                Hovered::default(),
+                BorderColor::all(theme::BORDER),
+                BackgroundColor(theme::PANEL),
                 observe(on_mod_toggle),
+                children![(
+                    Text::new(if enabled { "x" } else { "" }),
+                    TextFont {
+                        font_size: FontSize::Px(14.0),
+                        ..default()
+                    },
+                    TextColor(if enabled {
+                        theme::CYAN_BRIGHT
+                    } else {
+                        theme::TEXT
+                    }),
+                )],
             ));
         }
     });
@@ -779,6 +1001,288 @@ fn on_mods_back(_activate: On<Activate>, mut panel: Single<&mut Visibility, With
     **panel = Visibility::Hidden;
 }
 
+/// Switch the active mods tab: write [`ModsActiveTab`] (which re-arms
+/// `refresh_mods_list`) and move the `Selected` highlight to the clicked tab.
+fn on_mods_tab(
+    activate: On<Activate>,
+    tabs: Query<(Entity, &ModsTab)>,
+    mut active: ResMut<ModsActiveTab>,
+    mut commands: Commands,
+) {
+    let Ok((entity, tab)) = tabs.get(activate.entity) else {
+        return;
+    };
+    if active.0 == tab.0 {
+        return;
+    }
+    active.0 = tab.0;
+    for (other, _) in &tabs {
+        commands.entity(other).remove::<Selected>();
+    }
+    commands.entity(entity).insert(Selected);
+}
+
+/// Select the clicked row's mod: write [`SelectedModId`] (which re-arms
+/// `refresh_mod_details`) and move the row `Selected` highlight. The row
+/// checkbox never reaches this - the ui_widgets Button stops the click's
+/// propagation at the checkbox.
+fn on_mod_row_select(
+    activate: On<Activate>,
+    rows: Query<(Entity, &ModRow)>,
+    selected_rows: Query<Entity, (With<ModRow>, With<Selected>)>,
+    mut selected: ResMut<SelectedModId>,
+    mut commands: Commands,
+) {
+    let Ok((entity, row)) = rows.get(activate.entity) else {
+        return;
+    };
+    if selected.0.as_deref() == Some(row.id.as_str()) {
+        return;
+    }
+    for previous in &selected_rows {
+        commands.entity(previous).remove::<Selected>();
+    }
+    commands.entity(entity).insert(Selected);
+    selected.0 = Some(row.id.clone());
+}
+
+/// `refresh_mods_list` runs when the active tab or the catalog changed (the
+/// catalog changes live: a downloaded bundle's async load upgrades its row).
+fn mods_list_dirty(active: Res<ModsActiveTab>, catalog: Option<Res<ModCatalog>>) -> bool {
+    active.is_changed() || catalog.is_some_and(|c| c.is_changed())
+}
+
+/// `refresh_mod_details` runs when the selection, the catalog (meta upgrade),
+/// or the enabled set (Enable/Disable label) changed.
+fn mod_details_dirty(
+    selected: Res<SelectedModId>,
+    catalog: Option<Res<ModCatalog>>,
+    enabled: Option<Res<EnabledMods>>,
+) -> bool {
+    selected.is_changed()
+        || catalog.is_some_and(|c| c.is_changed())
+        || enabled.is_some_and(|e| e.is_changed())
+}
+
+/// Rebuild the left list's rows for the active tab. Installed: one row per
+/// catalog entry, default-selecting the first row when nothing (still) valid
+/// is selected - written BEFORE the chained details refresh, so the pane
+/// renders it the same frame. Explore: one inert placeholder row until task
+/// 20260715-142916 wires the portal catalog in.
+fn refresh_mods_list(
+    mut commands: Commands,
+    active: Res<ModsActiveTab>,
+    catalog: Option<Res<ModCatalog>>,
+    enabled: Option<Res<EnabledMods>>,
+    mut selected: ResMut<SelectedModId>,
+    lists: Query<Entity, With<ModsList>>,
+) {
+    let Ok(list) = lists.single() else {
+        return;
+    };
+    commands.entity(list).despawn_related::<Children>();
+    match active.0 {
+        ModsTabKind::Installed => {
+            let mods: Vec<ModInfo> = catalog.map(|c| c.0.clone()).unwrap_or_default();
+            if !mods
+                .iter()
+                .any(|m| selected.0.as_deref() == Some(m.id.as_str()))
+            {
+                let first = mods.first().map(|m| m.id.clone());
+                if selected.0 != first {
+                    selected.0 = first;
+                }
+            }
+            let is_enabled = |id: &str| enabled.as_ref().is_some_and(|e| e.0.contains(id));
+            commands.entity(list).with_children(|list| {
+                for m in &mods {
+                    let is_selected = selected.0.as_deref() == Some(m.id.as_str());
+                    spawn_mod_row(list, m, is_enabled(&m.id), is_selected);
+                }
+            });
+        }
+        ModsTabKind::Explore => {
+            // No selectable entries here yet: clear the selection so the
+            // details pane drops to its fallback instead of showing a live
+            // Enable/Disable for an INSTALLED mod next to the portal
+            // placeholder (review 142911 R1.2). Switching back to Installed
+            // re-runs the default selection above. 142916 owns Explore-side
+            // selection when remote entries become selectable.
+            if selected.0.is_some() {
+                selected.0 = None;
+            }
+            commands.entity(list).with_children(|list| {
+                list.spawn((
+                    Name::new("Explore Placeholder"),
+                    Node {
+                        align_self: AlignSelf::Stretch,
+                        min_height: px(40),
+                        margin: UiRect::bottom(px(4)),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        border: UiRect::all(px(theme::BORDER_W)),
+                        border_radius: BorderRadius::all(px(theme::RADIUS)),
+                        ..default()
+                    },
+                    BorderColor::all(theme::BORDER),
+                    BackgroundColor(theme::BG),
+                    children![(
+                        Text::new("Connects to the mod portal - next update"),
+                        TextFont {
+                            font_size: FontSize::Px(13.0),
+                            ..default()
+                        },
+                        TextColor(theme::TEXT_MUTED),
+                    )],
+                ));
+            });
+        }
+    }
+}
+
+/// Rebuild the details pane from the selected mod's bundle meta: name header,
+/// version/author line, description, dependencies, then the action area
+/// ([`ModDetailsActions`]) holding the Enable/Disable button (base: a locked
+/// tag). The action container is spawned even with nothing selected, so the
+/// Explore task can rely on the marker existing.
+fn refresh_mod_details(
+    mut commands: Commands,
+    selected: Res<SelectedModId>,
+    catalog: Option<Res<ModCatalog>>,
+    enabled: Option<Res<EnabledMods>>,
+    panels: Query<Entity, With<ModDetailsPanel>>,
+) {
+    let Ok(panel) = panels.single() else {
+        return;
+    };
+    commands.entity(panel).despawn_related::<Children>();
+    let info: Option<ModInfo> = selected.0.as_ref().and_then(|id| {
+        catalog
+            .as_ref()
+            .and_then(|c| c.0.iter().find(|m| &m.id == id))
+            .cloned()
+    });
+    let is_enabled = info
+        .as_ref()
+        .is_some_and(|m| enabled.as_ref().is_some_and(|e| e.0.contains(&m.id)));
+    commands.entity(panel).with_children(|details| {
+        let Some(m) = info else {
+            details.spawn((
+                Name::new("Mod Details Empty"),
+                Text::new("Select a mod to see its details."),
+                TextFont {
+                    font_size: FontSize::Px(14.0),
+                    ..default()
+                },
+                TextColor(theme::TEXT_MUTED),
+            ));
+            details.spawn((
+                Name::new("Mod Details Actions"),
+                ModDetailsActions,
+                Node::default(),
+            ));
+            return;
+        };
+        details.spawn((
+            Name::new("Mod Details Name"),
+            Text::new(m.meta.name.clone()),
+            TextFont {
+                font_size: FontSize::Px(20.0),
+                ..default()
+            },
+            TextColor(theme::TEXT),
+        ));
+        let line = version_author_line(&m.meta);
+        if !line.is_empty() {
+            details.spawn((
+                Name::new("Mod Details Version Author"),
+                Text::new(line),
+                TextFont {
+                    font_size: FontSize::Px(13.0),
+                    ..default()
+                },
+                TextColor(theme::TEXT_MUTED),
+            ));
+        }
+        details.spawn((Name::new("Mod Details Separator"), separator()));
+        if !m.meta.description.is_empty() {
+            details.spawn((
+                Name::new("Mod Details Description"),
+                Text::new(m.meta.description.clone()),
+                TextFont {
+                    font_size: FontSize::Px(14.0),
+                    ..default()
+                },
+                TextColor(theme::TEXT),
+                Node {
+                    margin: UiRect::bottom(px(8)),
+                    ..default()
+                },
+            ));
+        }
+        let deps = if m.meta.dependencies.is_empty() {
+            "none".to_string()
+        } else {
+            m.meta.dependencies.join(", ")
+        };
+        details.spawn((
+            Name::new("Mod Details Dependencies"),
+            Text::new(format!("Dependencies: {deps}")),
+            TextFont {
+                font_size: FontSize::Px(13.0),
+                ..default()
+            },
+            TextColor(theme::TEXT_MUTED),
+        ));
+        details
+            .spawn((
+                Name::new("Mod Details Actions"),
+                ModDetailsActions,
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: px(8),
+                    margin: UiRect::top(px(12)),
+                    ..default()
+                },
+            ))
+            .with_children(|actions| {
+                if m.base {
+                    actions.spawn((
+                        Name::new("Mod Details Locked"),
+                        Text::new("Enabled (base)"),
+                        TextFont {
+                            font_size: FontSize::Px(14.0),
+                            ..default()
+                        },
+                        TextColor(theme::CYAN),
+                    ));
+                } else {
+                    // Fixed-width slot: the percent-width themed button must
+                    // not span the whole details pane.
+                    actions
+                        .spawn((
+                            Name::new("Mod Details Toggle Slot"),
+                            Node {
+                                width: px(180),
+                                ..default()
+                            },
+                        ))
+                        .with_children(|slot| {
+                            slot.spawn((
+                                Name::new("Mod Details Toggle Button"),
+                                themed_button(if is_enabled { "Disable" } else { "Enable" }),
+                                ModToggle {
+                                    id: m.id.clone(),
+                                    base: m.base,
+                                },
+                                observe(on_mod_toggle),
+                            ));
+                        });
+                }
+            });
+    });
+}
+
 /// Toggle a mod's enabled state on click. Reads the clicked button's [`ModToggle`]
 /// and flips its id in [`EnabledMods`] - which nova_assets' `resource_changed`
 /// re-merge then applies live. The `base` mod is locked on (its row has no toggle
@@ -801,20 +1305,22 @@ fn on_mod_toggle(
     }
 }
 
-/// Keep each mod toggle button's label + text colour in sync with [`EnabledMods`]
-/// (e.g. after a click, or a future persisted set). The button background is left to
-/// `update_button_colors` (hover/press); the label text carries the on/off state.
-fn update_mod_toggle_labels(
+/// Keep each row checkbox's mark ("x" enabled, "" disabled) + colour in sync
+/// with [`EnabledMods`] (after a click, or a future persisted set). Rows are
+/// only rebuilt on tab/catalog change, so the checkbox state syncs here; the
+/// details pane's Enable/Disable button is excluded (its label is baked by
+/// `refresh_mod_details` on every EnabledMods change).
+fn update_mod_checkbox_labels(
     enabled: Option<Res<EnabledMods>>,
-    toggles: Query<(&ModToggle, &Children)>,
+    checkboxes: Query<(&ModToggle, &Children), With<ModEnableCheckbox>>,
     mut texts: Query<(&mut Text, &mut TextColor)>,
 ) {
     let Some(enabled) = enabled else {
         return;
     };
-    for (toggle, children) in &toggles {
+    for (toggle, children) in &checkboxes {
         let on = enabled.0.contains(&toggle.id);
-        let label = if on { "Enabled" } else { "Disabled" };
+        let label = if on { "x" } else { "" };
         let color = if on { theme::CYAN_BRIGHT } else { theme::TEXT };
         for child in children.iter() {
             if let Ok((mut text, mut text_color)) = texts.get_mut(child) {
@@ -833,7 +1339,7 @@ fn update_mod_toggle_labels(
 /// installed-mods list stays reachable.
 fn scroll_mods_panel(
     mut wheel: MessageReader<bevy::input::mouse::MouseWheel>,
-    mut panels: Query<&mut ScrollPosition, With<ModsScrollPanel>>,
+    mut panels: Query<&mut ScrollPosition, With<ModsList>>,
 ) {
     use bevy::input::mouse::MouseScrollUnit;
     let dy: f32 = wheel
@@ -1404,29 +1910,33 @@ mod tests {
         );
     }
 
-    /// Entering the menu with a populated `ModCatalog` builds the mods list: the
-    /// demo mod gets a toggle button (it is IN the list and enableable - the flow's
-    /// goal), and the locked base mod gets NO toggle.
-    #[test]
-    fn mods_panel_lists_catalog_demo_toggle_base_locked() {
+    /// A menu app with a two-mod catalog (locked base + toggleable demo, both
+    /// with full bundle meta), entered into MainMenu and updated once so the
+    /// mods screen's refresh systems have populated the list and details pane.
+    fn mods_app() -> App {
         let mut app = app();
         app.insert_resource(dummy_scenarios());
         app.insert_resource(ModCatalog(vec![
             ModInfo {
                 id: "base".to_string(),
                 base: true,
-                meta: nova_assets::prelude::ModMeta {
+                meta: ModMeta {
                     name: "Base Game".to_string(),
-                    description: "base".to_string(),
+                    description: "The core Nova Protocol content.".to_string(),
+                    author: "Nova".to_string(),
+                    version: "1.0.0".to_string(),
                     ..Default::default()
                 },
             },
             ModInfo {
                 id: "demo".to_string(),
                 base: false,
-                meta: nova_assets::prelude::ModMeta {
+                meta: ModMeta {
                     name: "Demo Mod".to_string(),
-                    description: "demo".to_string(),
+                    description: "A demo mod for testing.".to_string(),
+                    author: "Alice".to_string(),
+                    version: "0.2.0".to_string(),
+                    dependencies: vec!["base".to_string()],
                     ..Default::default()
                 },
             },
@@ -1436,37 +1946,328 @@ mod tests {
             .resource_mut::<NextState<GameStates>>()
             .set(GameStates::MainMenu);
         app.update();
+        app
+    }
 
-        let toggles: Vec<String> = app
+    fn entity_by_name(app: &mut App, name: &str) -> Option<Entity> {
+        let mut q = app.world_mut().query::<(Entity, &Name)>();
+        q.iter(app.world())
+            .find(|(_, n)| n.as_str() == name)
+            .map(|(e, _)| e)
+    }
+
+    fn all_texts(app: &mut App) -> Vec<String> {
+        let mut q = app.world_mut().query::<&Text>();
+        q.iter(app.world()).map(|t| t.0.clone()).collect()
+    }
+
+    fn mod_row(app: &mut App, id: &str) -> Option<Entity> {
+        let mut q = app.world_mut().query::<(Entity, &ModRow)>();
+        q.iter(app.world())
+            .find(|(_, r)| r.id == id)
+            .map(|(e, _)| e)
+    }
+
+    fn checkbox_of(app: &mut App, id: &str) -> Option<Entity> {
+        let mut q = app
             .world_mut()
-            .query::<&ModToggle>()
-            .iter(app.world())
-            .map(|t| t.id.clone())
-            .collect();
+            .query_filtered::<(Entity, &ModToggle), With<ModEnableCheckbox>>();
+        q.iter(app.world())
+            .find(|(_, t)| t.id == id)
+            .map(|(e, _)| e)
+    }
+
+    /// The single Text child's content (checkbox mark, themed button label).
+    fn label_of(app: &App, entity: Entity) -> String {
+        let children = app.world().get::<Children>(entity).expect("has children");
+        let child = children.iter().next().expect("has a text child");
+        app.world()
+            .get::<Text>(child)
+            .expect("child is a Text")
+            .0
+            .clone()
+    }
+
+    fn selected_mod(app: &App) -> Option<String> {
+        app.world().resource::<SelectedModId>().0.clone()
+    }
+
+    /// Entering the menu with a populated `ModCatalog` builds the two-pane mods
+    /// screen: one row per mod rendering the bundle META (name, version/author),
+    /// a quiet enable checkbox on the demo row only (base shows the locked tag),
+    /// and the details pane default-selected to the FIRST row (base), rendering
+    /// its description and dependencies from meta.
+    #[test]
+    fn mods_panel_lists_catalog_demo_checkbox_base_locked() {
+        let mut app = mods_app();
+
+        assert!(mod_row(&mut app, "base").is_some(), "base row exists");
+        assert!(mod_row(&mut app, "demo").is_some(), "demo row exists");
+
+        let toggles: Vec<String> = {
+            let mut q = app
+                .world_mut()
+                .query_filtered::<&ModToggle, With<ModEnableCheckbox>>();
+            q.iter(app.world()).map(|t| t.id.clone()).collect()
+        };
         assert!(
             toggles.contains(&"demo".to_string()),
-            "the demo mod is listed with an enable/disable toggle"
+            "the demo mod row carries an enable checkbox"
         );
         assert!(
             !toggles.contains(&"base".to_string()),
-            "base is locked - it has no toggle button"
+            "base is locked - its row has no checkbox"
         );
 
-        // The rows render the mod's bundle META (name + description), not its id -
-        // a swapped or dropped meta field would leave these strings unrendered.
-        let texts: Vec<String> = app
-            .world_mut()
-            .query::<&Text>()
-            .iter(app.world())
-            .map(|t| t.0.clone())
-            .collect();
+        let texts = all_texts(&mut app);
         assert!(
             texts.iter().any(|t| t == "Demo Mod"),
-            "the row shows the meta name, not the id: {texts:?}"
+            "rows show the meta name, not the id: {texts:?}"
         );
         assert!(
-            texts.iter().any(|t| t == "demo"),
-            "the row shows the meta description"
+            texts.iter().any(|t| t == "Base Game"),
+            "the base row shows its meta name"
+        );
+        assert!(
+            texts.iter().any(|t| t == "v0.2.0 - by Alice"),
+            "rows show the muted version/author line: {texts:?}"
+        );
+
+        // Default selection: the first row (base), details rendered from meta.
+        assert_eq!(selected_mod(&app).as_deref(), Some("base"));
+        assert!(
+            texts.iter().any(|t| t == "The core Nova Protocol content."),
+            "the details pane renders the default selection's description"
+        );
+        assert!(
+            texts.iter().any(|t| t == "Dependencies: none"),
+            "no dependencies renders as 'none'"
+        );
+        assert!(
+            texts.iter().any(|t| t == "Enabled (base)"),
+            "base's action area shows the locked tag, not a button"
+        );
+    }
+
+    /// Clicking a row (not its checkbox) selects the mod: `SelectedModId` is set,
+    /// the row highlight moves, and the details pane rebuilds with the clicked
+    /// mod's meta (description, dependencies, Enable action).
+    #[test]
+    fn clicking_a_row_selects_it_and_renders_its_details() {
+        let mut app = mods_app();
+        let demo_row = mod_row(&mut app, "demo").expect("demo row exists");
+
+        app.world_mut().trigger(Activate { entity: demo_row });
+        app.update();
+
+        assert_eq!(selected_mod(&app).as_deref(), Some("demo"));
+        let base_row = mod_row(&mut app, "base").unwrap();
+        let demo_row = mod_row(&mut app, "demo").unwrap();
+        assert!(
+            app.world().entity(demo_row).contains::<Selected>(),
+            "the clicked row is highlighted"
+        );
+        assert!(
+            !app.world().entity(base_row).contains::<Selected>(),
+            "the previous selection is cleared"
+        );
+
+        let texts = all_texts(&mut app);
+        assert!(
+            texts.iter().any(|t| t == "A demo mod for testing."),
+            "the details pane renders the clicked mod's description: {texts:?}"
+        );
+        assert!(
+            texts.iter().any(|t| t == "Dependencies: base"),
+            "the details pane renders the dependencies from meta"
+        );
+        let button = entity_by_name(&mut app, "Mod Details Toggle Button")
+            .expect("a non-base selection has an Enable/Disable action");
+        assert_eq!(label_of(&app, button), "Enable", "demo starts disabled");
+    }
+
+    /// The row checkbox flips the mod in `EnabledMods` (absent -> present ->
+    /// absent) and its mark tracks the state; toggling never moves the selection.
+    #[test]
+    fn checkbox_click_flips_enabled_state_and_mark() {
+        let mut app = mods_app();
+        assert!(!app.world().resource::<EnabledMods>().0.contains("demo"));
+        let checkbox = checkbox_of(&mut app, "demo").expect("demo has a checkbox");
+        assert_eq!(label_of(&app, checkbox), "", "disabled renders no mark");
+
+        app.world_mut().trigger(Activate { entity: checkbox });
+        assert!(
+            app.world().resource::<EnabledMods>().0.contains("demo"),
+            "clicking an off checkbox enables the mod"
+        );
+        app.update();
+        assert_eq!(label_of(&app, checkbox), "x", "enabled renders the mark");
+
+        app.world_mut().trigger(Activate { entity: checkbox });
+        assert!(
+            !app.world().resource::<EnabledMods>().0.contains("demo"),
+            "clicking an on checkbox disables the mod"
+        );
+        app.update();
+        assert_eq!(label_of(&app, checkbox), "", "disabling clears the mark");
+
+        // Quiet: the checkbox toggles without touching the selection.
+        assert_eq!(selected_mod(&app).as_deref(), Some("base"));
+    }
+
+    /// The details pane's Enable/Disable button drives the same `EnabledMods`
+    /// toggle, and the pane rebuild relabels it.
+    #[test]
+    fn details_action_button_toggles_and_relabels() {
+        let mut app = mods_app();
+        let demo_row = mod_row(&mut app, "demo").expect("demo row exists");
+        app.world_mut().trigger(Activate { entity: demo_row });
+        app.update();
+
+        let button = entity_by_name(&mut app, "Mod Details Toggle Button").unwrap();
+        app.world_mut().trigger(Activate { entity: button });
+        assert!(
+            app.world().resource::<EnabledMods>().0.contains("demo"),
+            "the details Enable button enables the mod"
+        );
+        app.update();
+        // The pane rebuilt on the EnabledMods change: find the fresh button.
+        let button = entity_by_name(&mut app, "Mod Details Toggle Button")
+            .expect("the rebuilt pane still has the action button");
+        assert_eq!(label_of(&app, button), "Disable");
+    }
+
+    /// Switching to the Explore tab swaps the list to the inert portal
+    /// placeholder, moves the tab highlight, and clears the selection so the
+    /// details pane drops to its fallback (review R1.2: no live Enable/Disable
+    /// for an installed mod next to the portal placeholder); switching back
+    /// restores the installed rows and re-runs the default selection.
+    #[test]
+    fn tab_switch_swaps_list_to_the_explore_placeholder() {
+        let mut app = mods_app();
+        let installed_tab = entity_by_name(&mut app, "Installed Tab").expect("installed tab");
+        let explore_tab = entity_by_name(&mut app, "Explore Online Tab").expect("explore tab");
+        assert!(
+            app.world().entity(installed_tab).contains::<Selected>(),
+            "Installed is the default tab"
+        );
+        // Select demo first, so the Explore switch has a live details action
+        // to clear (the reviewer's exact scenario).
+        let demo_row = mod_row(&mut app, "demo").expect("demo row exists");
+        app.world_mut().trigger(Activate { entity: demo_row });
+        app.update();
+        assert!(entity_by_name(&mut app, "Mod Details Toggle Button").is_some());
+
+        app.world_mut().trigger(Activate {
+            entity: explore_tab,
+        });
+        app.update();
+
+        assert!(
+            app.world().entity(explore_tab).contains::<Selected>(),
+            "the highlight moved to the Explore tab"
+        );
+        assert!(
+            !app.world().entity(installed_tab).contains::<Selected>(),
+            "the Installed tab is no longer highlighted"
+        );
+        assert!(
+            mod_row(&mut app, "demo").is_none(),
+            "the installed rows are gone on the Explore tab"
+        );
+        assert_eq!(
+            selected_mod(&app),
+            None,
+            "the Explore tab clears the selection"
+        );
+        assert!(
+            entity_by_name(&mut app, "Mod Details Toggle Button").is_none(),
+            "no live Enable/Disable next to the portal placeholder"
+        );
+        let texts = all_texts(&mut app);
+        assert!(
+            texts
+                .iter()
+                .any(|t| t == "Connects to the mod portal - next update"),
+            "the Explore tab shows the portal placeholder: {texts:?}"
+        );
+        assert!(
+            texts
+                .iter()
+                .any(|t| t == "Select a mod to see its details."),
+            "the details pane shows its fallback on the Explore tab: {texts:?}"
+        );
+        assert!(
+            !texts.iter().any(|t| t == "A demo mod for testing."),
+            "the previously selected mod's details are gone"
+        );
+
+        app.world_mut().trigger(Activate {
+            entity: installed_tab,
+        });
+        app.update();
+        assert!(
+            mod_row(&mut app, "demo").is_some(),
+            "switching back restores the installed rows"
+        );
+        assert_eq!(
+            selected_mod(&app).as_deref(),
+            Some("base"),
+            "switching back re-runs the default selection"
+        );
+        let texts = all_texts(&mut app);
+        assert!(
+            !texts
+                .iter()
+                .any(|t| t == "Connects to the mod portal - next update"),
+            "the placeholder is gone again"
+        );
+    }
+
+    /// Review R1.1: both full-screen overlay roots must carry an explicit
+    /// GlobalZIndex above the default 0, so they stack over the bottom-right
+    /// menu card deterministically (sibling z-order otherwise falls back to
+    /// Entity ordering, whose ids the despawned ambience scene recycles). The
+    /// RENDERED order is only visually verifiable; this pins the component.
+    #[test]
+    fn overlay_roots_carry_an_explicit_z_index() {
+        let mut app = mods_app();
+        let mods_root = {
+            let mut q = app.world_mut().query_filtered::<Entity, With<ModsPanel>>();
+            q.single(app.world()).expect("one mods panel root")
+        };
+        let settings_root = {
+            let mut q = app
+                .world_mut()
+                .query_filtered::<Entity, With<SettingsPanel>>();
+            q.single(app.world()).expect("one settings panel root")
+        };
+        for (name, root) in [("mods", mods_root), ("settings", settings_root)] {
+            let z = app
+                .world()
+                .get::<GlobalZIndex>(root)
+                .unwrap_or_else(|| panic!("the {name} overlay root carries a GlobalZIndex"));
+            assert!(
+                z.0 > 0,
+                "the {name} overlay must stack above the menu card (z = {})",
+                z.0
+            );
+        }
+    }
+
+    /// The old standalone "Explore online (coming soon)" button was replaced by
+    /// the tab: neither its text nor its named entity may survive.
+    #[test]
+    fn the_old_coming_soon_button_is_gone() {
+        let mut app = mods_app();
+        let texts = all_texts(&mut app);
+        assert!(
+            !texts.iter().any(|t| t == "Explore online (coming soon)"),
+            "the old coming-soon button text must not render anywhere"
+        );
+        assert!(
+            entity_by_name(&mut app, "Explore Online Button").is_none(),
+            "the old standalone button entity is gone"
         );
     }
 
