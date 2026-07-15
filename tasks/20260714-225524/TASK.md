@@ -1,8 +1,16 @@
 # Align HUD accents to the exact web cyan/amber (visual QA needed)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 15
-- TAGS: ui,backlog
+- TAGS: ui, backlog, wontdo
+
+## Resolution: WONTDO (2026-07-15)
+
+User is happy with the current HUD accent colors and does not want to nudge them
+toward the exact web cyan/amber at this time. The HUD palette stays at its current
+centralized values in `nova_ui::theme::semantic` (the zero-visual-change result of
+task 20260714-214118). No code change; closing as wontdo. Can be reopened later if
+tighter web/HUD brand consistency is wanted.
 
 Umbrella: task 20260714-212139. Depends on: 20260714-214118 (HUD centralization).
 
