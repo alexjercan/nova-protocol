@@ -66,8 +66,12 @@ A content file is a `[Content]` list. Each item is externally tagged by kind:
     Scenario((
         id: "demo_mod_arena",
         name: "Demo Mod Arena",
-        description: "A scenario added by the demo mod.",
+        description: "A shooting gallery added by the demo mod: destroy the three derelict rocks.",
         cubemap: "textures/cubemap.png",
+        // OnStart spawns the player ship + three destructible asteroids and a
+        // `destroyed` counter; a per-target OnDestroyed increments it and a
+        // one-shot OnUpdate (destroyed > 2) completes the objective. See
+        // "Author a scenario" for the full event/action grammar.
         events: [ /* ... */ ],
     )),
 ]
@@ -100,7 +104,8 @@ Bundles merge in load order (base first, then mods in catalog order), by
   duplicate is skipped, and a message is recorded and logged (not a panic).
 
 The demo content does both: it reuses `reinforced_hull_section` (replace) and
-introduces `demo_mod_arena` (add).
+introduces `demo_mod_arena` (add) - a small but playable shooting gallery, so
+the example doubles as a worked scenario, not just an overlay demo.
 
 ## 3. Test it locally
 
@@ -143,7 +148,7 @@ gauntlet mod as a template:
     content: ["gauntlet.content.ron"],
     meta: (
         name: "Gauntlet Run",
-        description: "A beacon slalom course: thread the gates from start to finish.",
+        description: "A slalom race: fly your ship through the beacon gates in order, START to FINISH.",
         author: "Nova Protocol",
         version: "1.0.0",
     ),
