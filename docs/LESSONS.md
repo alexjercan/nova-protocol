@@ -114,13 +114,17 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   20260713-175416.
 - `presence-vs-behavior-tests` (x2): component-exists assertions stay green
   while behavior regresses; assert the behavior. 20260709-160753.
-- `sweep-then-delete` (x8): before deleting, moving, or swapping a mechanism or
+- `sweep-then-delete` (x9): before deleting, moving, or swapping a mechanism or
   marker, grep the WHOLE repo for its symbol names, describing words, and
   observers/queries - including root-level docs (README, AGENTS.md), the
   CHANGELOG, text the same branch added earlier, and PROSE inside
   rustdoc/comments across ALL file types (a docs-folder-only sweep left three
-  stale "mod pipeline" comments for review to catch). 20260711-212519,
-  20260712-133343, 20260712-211352, 20260714-204219, 20260715-151551.
+  stale "mod pipeline" comments for review to catch). When a FILE moves, grep the
+  bare filename/stem AND the markdown-link forms `[x](x.md)`, not the old
+  `dir/x.md` PATH - a path-prefixed grep misses relative links and renamed
+  targets (a doc move shipped four `/wiki/dev/...` 404 links past a docs/-prefixed
+  sweep). 20260711-212519, 20260712-133343, 20260712-211352, 20260714-204219,
+  20260715-151551, 20260715-195621.
 - `reread-after-insert` (x2): after inserting into a function or test, re-read
   the whole thing for bindings, assertions, or invariants the insertion
   duplicated or broke. 20260710-214316.
