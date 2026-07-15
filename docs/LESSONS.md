@@ -131,6 +131,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `does-the-old-element-survive` (x2): when a design adds an element
   overlapping an existing one, decide explicitly what happens to the old one.
   20260711-000547.
+- `destructive-chains-check-completability` (x1): a multi-step destructive
+  action (update = uninstall + install) must not START unless every step's
+  preconditions hold - an offline Update ran its local uninstall then failed
+  the Ready-gated reinstall, destroying a working install; every layer was
+  correct, the COMPOSITION was the hole. State the completability invariant in
+  the plan. 20260715-142916.
 - `removed-control-orphans-persisted-state` (x1): a change that removes or
   hides a control (row, toggle) must sweep every WRITER/persister of the state
   that control managed - not just readers of the changed resource - and answer
@@ -330,7 +336,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   mechanism deleted proves nothing; copied tests inherit vacuousness - and a
   sabotage that refuses to go red refutes the assumed mechanism itself.
   20260711-180426, 20260711-212521, 20260712-115902.
-- `out-of-context-review-pass` (positive, x20): a fresh-context review of a
+- `out-of-context-review-pass` (positive, x21): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
   load-bearing claims instead of trusting them - checking cited evidence IS
   the spawn site, re-running the sabotage or the whole smoke suite, reading

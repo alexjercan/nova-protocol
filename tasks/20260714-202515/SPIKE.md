@@ -354,6 +354,17 @@ Direction-level tasks this spike seeded, for `/plan` to break into steps:
   20260715-151551: unship screenshot-reel from assets/ entirely (embed in the
   example; the hidden flag stays as a feature) - runs next, before 142900. See
   tasks/20260715-142849/{TASK,REVIEW,RETRO}.md.
+- 20260715, Explore online tab (142916) landed on master (`e4e4aa29`): THE
+  FAMILY GOAL IS MET - the coming-soon placeholder is dead. Browse the portal
+  from the Mods screen, install with per-file progress, update (guarded
+  choreography preserving enablement), uninstall; offline last-good catalog
+  fallback (browse/uninstall only - installs require a live catalog after the
+  review's MAJOR: an offline Update could destroy an install it could not
+  replace); stall timeout + Retry/Dismiss recovery (163508's deferred R1.3
+  resolved). Visually verified through the real pipeline. Review R1
+  REQUEST_CHANGES (composition-level MAJOR) -> R2 APPROVE. FAMILY COMPLETE on
+  native; web is compile-gated pending a post-deploy manual session. See
+  tasks/20260715-142916/{TASK,REVIEW,RETRO}.md.
 - 20260715, two-pane mods screen (142911) landed on master (`fd4c86af`): the
   Mods overlay is now the Factorio-style screen - Installed | Explore tabs,
   quiet per-row enable checkboxes (base locked), details pane from bundle meta
