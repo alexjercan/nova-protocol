@@ -322,8 +322,11 @@ pub struct PendingSkyboxSwap {
 /// Readiness is "present in `Assets<Image>`" rather than the asset server's load
 /// state, because that is exactly what the skybox setup observer needs to read -
 /// and it also lets code-built swaps (a handle added straight to `Assets`) apply
-/// without a server round-trip. A genuinely failed load is dropped with a warning
-/// so a bad modder path leaves the sky unchanged instead of waiting forever.
+/// without a server round-trip. A load the *server* reports as failed is dropped
+/// with a warning so a bad modder path leaves the sky unchanged instead of
+/// waiting forever; the action always resolves through a server load, so that
+/// covers every real swap (a bare code-built handle that is never added would
+/// wait indefinitely, but nothing constructs one).
 pub fn apply_pending_skybox_swaps(
     mut commands: Commands,
     asset_server: Res<AssetServer>,

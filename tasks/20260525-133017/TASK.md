@@ -1,8 +1,8 @@
 # Allow changing skybox cubemap via action
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 22
-- TAGS: v0.6.0,modding,polish
+- TAGS: v0.6.0, modding, polish
 
 Expose cubemap swap as a modding hook. Legacy #130.
 
