@@ -86,10 +86,11 @@ The event `name` is one of these kinds (`events.rs`):
 | `OnTravelLock` | the player's TRAVEL lock lands on a scenario object (recurs every 5s while held) |
 | `OnCombatLock` | same, for the player's COMBAT lock |
 
-For the pair events (`OnEnter`/`OnExit`/`OnOrbit`/`OnTravelLock`/`OnCombatLock`)
-the filter `id` is the area/well/target and `other_id` is the ship, so they all
-filter identically. The 5s recurrence is deliberate: gate these handlers on a
-variable so the repeats are harmless no-ops (see section 6).
+The pair events (`OnEnter`/`OnExit`/`OnOrbit`/`OnTravelLock`/`OnCombatLock`)
+carry two entities - a subject (`id`) and an other party (`other_id`); which is
+which is per-event (see the table under [Entity](#entity)). The 5s recurrence on
+the orbit/lock events is deliberate: gate those handlers on a variable so the
+repeats are harmless no-ops (see section 6).
 
 ## 3. Filters
 
@@ -97,25 +98,44 @@ Three filter kinds (`filters.rs`).
 
 ### Entity
 
-Match the entity ids/types on the event. Each of the four fields is optional
-and every SET field must match:
+Match on the entities the event carries. An event has up to two participants: a
+PRIMARY entity - the event's subject, matched by `id` / `type_name` - and an
+OTHER party, matched by `other_id` / `other_type_name`. Which entity is the
+subject and which is the other party depends on the event kind:
+
+| Event | `id` / `type_name` (subject) | `other_id` / `other_type_name` (other party) |
+|---|---|---|
+| `OnDestroyed` | the destroyed object | (none) |
+| `OnEnter` / `OnExit` | the area / zone / beacon / crate entered or left | the body that entered or left it |
+| `OnOrbit` | the well being orbited | the orbiting ship |
+| `OnTravelLock` / `OnCombatLock` | the locked target | the locking ship (the player) |
+
+(`OnStart` and `OnUpdate` carry no entity, so an `Entity` filter never matches
+them.) So for `OnEnter` the classic pairing is "area entered by ship": `id` is
+the area, `other_id` is the ship. Not every event fills every field - `OnEnter` /
+`OnExit` carry the area's `id` but not its `type_name`, and `OnDestroyed` has no
+other party - and a filter on an unfilled field simply never matches, so only
+constrain the fields the event actually provides.
+
+Each of the four fields is optional; every SET field must match and omitted
+fields are unconstrained. `id: Some("beacon_1")` alone means "the beacon_1
+area"; adding `other_id` narrows it to a specific entrant:
 
 ```ron
 Entity((
-    id: Some("player_spaceship"),
+    id: Some("beacon_1"),                // the area that was entered ...
+    other_id: Some("player_spaceship"),  // ... entered by the player ship
 )),
 ```
 
-```ron
-Entity((
-    id: Some("beacon_1"),
-    other_id: Some("player_spaceship"),
-)),
-```
+`type_name` / `other_type_name` match the object KIND instead of a specific id
+(`type_name: Some("asteroid")` is any asteroid). An `Entity(())` with no fields
+set matches any event that carries entity data.
 
-Fields: `id`, `type_name`, `other_id`, `other_type_name`. Omit a field to
-leave it unconstrained. An `Entity(())` with no fields set matches any event
-that carries entity data.
+These fields only GATE the handler - they are read for filtering, never passed
+to actions. An action cannot say "spawn at the entity that entered"; it acts on
+its own configured target. Use `id` / `other_id` to decide WHETHER a handler
+runs, then have its actions address entities by their known scenario ids.
 
 ### Expression
 
@@ -579,48 +599,64 @@ load-bearing - gate on the variable, not on position.
 
 ## 7. Load and test it
 
-Two ways to get your file in front of the engine.
+A scenario only reaches the game as MOD CONTENT - it has to be listed in a
+bundle and merged by the loader. There is no standalone "run this file" mode, so
+testing means getting it in front of the loader and playing it. Loading and
+shipping a scenario is the same job as any other mod content, so this section is
+the short version of [Make & publish a mod](../guide-make-a-mod/) - read that for
+the full bundle/catalog/portal detail.
 
-### Ship it as mod content
+### Iterate locally
 
-Put the file at `assets/base/scenarios/my_scenario.content.ron` (or in your own
-mod's folder) and list it in the bundle's `content`:
+The base game is itself a mod (`assets/base/base.bundle.ron`) and is always
+enabled, so the quickest loop is to add your file to it:
+
+1. Drop the file at `assets/base/scenarios/my_scenario.content.ron`.
+2. Add its path to the base bundle's `content` list:
 
 ```ron
 (
     content: [
+        // ...the shipped scenarios...
         "scenarios/my_scenario.content.ron",
     ],
-    meta: ( name: "My Mod" ),
+    meta: (name: "Base Game", ...),
 )
 ```
 
-The loader merges every enabled bundle's content into `GameScenarios` keyed by
-scenario `id`. To make a fresh mod folder, its bundle, and its catalog entry,
-follow [Make & publish a mod](../guide-make-a-mod/). Once merged you can load
-it by id from the New Game / scenario menu, or with
-`commands.trigger(LoadScenario(cfg.clone()))` in code.
+3. `cargo run`. The loader merges every enabled bundle into `GameScenarios`,
+   keyed by scenario `id`, so yours is now registered.
 
-### Exercise it headless
+Getting INTO it: there is no in-menu scenario picker yet, so New Game always
+loads the starter (`shakedown_run`). While iterating, either repoint the New
+Game scenario at your id (`NEW_GAME_SCENARIO_ID` in
+`crates/nova_menu/src/lib.rs`) or reach your scenario with a `NextScenario`
+action from one that already runs (the way `asteroid_field` chains to
+`asteroid_next`). Sprinkle `DebugMessage` actions and run with `--features dev`
+to watch each event fire as you play, then edit, re-run, repeat.
 
-The `examples/08_scenario.rs` harness builds a scenario, loads it, and asserts
-the whole grammar ticks (variables seeded, filters gating, expressions
-advancing a beat) under the autopilot smoke test. It builds its config in code,
-but it is the reference for what "loaded and running" looks like and is the
-fastest way to confirm an event/filter/action chain behaves. Run it (needs a
-display):
+### Ship it to other players
 
-```text
-BCS_AUTOPILOT=1 cargo run --example 08_scenario --features debug
-```
+Once it works, do NOT leave it in the base bundle - package it as its OWN mod
+(its own folder, `*.bundle.ron`, and catalog entry), and optionally publish it to
+the portal so others can install it. The whole flow - bundle layout, local
+install, the `nova_portal_gen` publish step, and what a player sees - is
+[Make & publish a mod](../guide-make-a-mod/). The two guides are two halves of
+one job: THIS page is the scenario grammar; that one is how the file becomes an
+installable mod.
 
-Look for `scenario probe: handlers, filters and expressions all ticked`.
+(The `examples/08_scenario.rs` smoke test builds its `ScenarioConfig` in Rust,
+not RON - it exercises the engine grammar for contributors, not an authored
+file, so it is not a way to test your own scenario.)
 
 ## 8. Sharp edges
 
 - Asset paths (`cubemap`, `texture`) are hand-typed strings with no validation
   until load; a wrong path resolves to a broken handle. There is no visual
   editor yet.
+- No in-menu scenario picker yet: New Game loads the starter scenario, so
+  reaching your own scenario while iterating means repointing the New Game id or
+  chaining in with `NextScenario` (see section 7).
 - The loader uses STRICT RON: an unknown or misspelled field is a hard parse
   error, and enum variants must use the newtype form -
   `Asteroid((...))`, `DebugMessage((...))`, `Objective((...))` - double parens

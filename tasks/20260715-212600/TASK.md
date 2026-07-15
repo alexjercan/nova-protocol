@@ -1,8 +1,8 @@
 # Document entity-filter id vs other_id semantics in the scenario docs
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 40
-- TAGS: docs,web,modding
+- TAGS: docs, web, modding
 
 User feedback (2026-07-15): the "Author a scenario" guide (and the scenario docs
 generally) list the entity-filter fields `id, type_name, other_id,
@@ -47,17 +47,56 @@ entered and `other_id` is the entity that entered it.
 
 ## Steps
 
-- [ ] Re-verify the per-event table and the "actions ignore info" nuance against
+- [x] Re-verify the per-event table and the "actions ignore info" nuance against
       the code (the anchors above may drift).
-- [ ] In `web/src/wiki/dev/guide-author-scenario.md`: expand the filters section
+- [x] In `web/src/wiki/dev/guide-author-scenario.md`: expand the filters section
       with the subject-vs-other explanation, the per-event table, the shakedown
       OnEnter example, and the "filter-only, actions do not consume it" note.
-- [ ] In `web/src/wiki/dev/scenario-system.md` (reference): add a short
-      cross-referenced note on the same fields (or link to the guide section) so
-      the reference is not silent on it.
-- [ ] Verify: `npm run ci` green; serve + eyeball the rendered table.
+- [x] In `web/src/wiki/dev/scenario-system.md` (reference): add a short
+      cross-referenced note on the same fields (link to the guide section).
+- [x] (added, user feedback) Rework section 7 "Load and test it": the honest
+      mod-content play-test loop, tie it to Make & publish a mod, drop the
+      misleading "exercise it headless" (08_scenario builds config in Rust).
+- [x] Verify: `npm run ci` green; serve + eyeball the rendered table + section 7.
 
 ## Notes
 
 Docs-only, on the markdown wiki pipeline (20260715-195621). No code change. Do
-not invent semantics - every row must trace to a firing site.
+not invent semantics - every row traces to a firing site.
+
+Mid-work the user expanded scope: section 7 was "kind of trash" - "exercise it
+headless" made no sense (the `08_scenario` example builds its `ScenarioConfig`
+in Rust, so it cannot test an authored RON file), and "ship it as mod content"
+needed to lean on the Make-and-publish-a-mod guide (the two pages are two halves
+of one job). Reworked it around the real loop: a scenario is mod content, so
+testing = list it in a bundle (base is always enabled, quickest), boot into it
+(there is NO scenario picker yet - task 20260715-200828 is still OPEN - so you
+repoint `NEW_GAME_SCENARIO_ID` or chain in via `NextScenario`), and watch events
+with `DebugMessage` + `--features dev`; shipping to others is the make-a-mod
+flow.
+
+### What changed and why
+- guide-author-scenario.md section 3 (Entity): added the subject vs other-party
+  framing, a per-event table (verified against nova_events event infos + the
+  firing sites in area.rs/asteroid.rs/loader.rs), the OnEnter classic pairing,
+  the shakedown RON example, and the KEY nuance that the fields are filter-only
+  and never reach actions (actions.rs 1675/1776 take `info` but ignore it).
+- guide-author-scenario.md section 2: trimmed the old id/other_id aside to a
+  forward-link to the new table.
+- guide-author-scenario.md section 7: full rework (above); section 8 gains a
+  "no scenario picker yet" sharp edge.
+- scenario-system.md (reference): the Entity filter bullet now states the
+  subject/other + filter-only semantics and links the guide table; the pair-event
+  aside no longer implies the subject is always the same kind.
+
+### Verification
+`npm run ci` green; served + headless-eyeballed the guide - the per-event Entity
+table renders (columns Event / id-type_name subject / other_id-other_type_name
+other party), and the section-2 forward link + section-7 rework render correctly.
+
+### Self-reflection
+The user's instinct was right that guide + make-a-mod are coupled; the fix was to
+make section 7 explicitly the "short version" of make-a-mod rather than duplicate
+it. Worth checking whether a task should own a note about the still-missing
+scenario picker (200828) so the docs can drop the `NEW_GAME_SCENARIO_ID` hack
+once it lands.

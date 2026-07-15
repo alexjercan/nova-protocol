@@ -52,11 +52,12 @@ a scoped entity, (4) be a self-expiring `TempEntity`, or (5) be torn down by a
 | `OnTravelLock` | the player's TRAVEL lock lands on a scenario object; re-fires every 5s while held |
 | `OnCombatLock` | same as `OnTravelLock` for the COMBAT lock (player only; AI locks never fire it) |
 
-Entities carry `EntityId(String)` and `EntityTypeName(String)`. Pair events
-all share one shape: `id` is the area/well/target,
-`other_id`/`other_type_name` the ship, so filters compose identically. The
-recurrence is deliberate: a one-shot event consumed while a beat guard rejects
-it would soft-lock the script; gated handlers make repeats no-ops.
+Entities carry `EntityId(String)` and `EntityTypeName(String)`. Pair events all
+have the same filter shape - a subject `id` and an `other_id`/`other_type_name`
+- though which entity is the subject is per-event (area vs ship, well vs ship,
+target vs locker; see the Filters section). The recurrence is deliberate: a
+one-shot event consumed while a beat guard rejects it would soft-lock the
+script; gated handlers make repeats no-ops.
 
 The event-driven pipeline reads like this: an event fires, its filters gate
 whether it proceeds, and if they all pass its actions run in order and mutate
@@ -74,8 +75,13 @@ flowchart LR
 
 ## Filters (`EventFilterConfig`)
 
-- `Entity(EntityFilterConfig)` - match `id` / `type_name` / `other_id` /
-  `other_type_name` (each field optional, all set fields must match).
+- `Entity(EntityFilterConfig)` - match the event's PRIMARY entity (`id` /
+  `type_name`, the subject) and its OTHER party (`other_id` / `other_type_name`);
+  which entity is which is per-event (for `OnEnter`, `id` is the area and
+  `other_id` the body that entered). Each field optional, all set fields must
+  match, and the fields are read for FILTERING only - never passed to actions.
+  Per-event table + examples in
+  [Author a scenario](../guide-author-scenario/#entity).
 - `Expression(ExpressionFilterConfig)` - evaluate a `VariableConditionNode`
   against the scenario variables.
 - `Conditional(ConditionalFilterConfig)` - `Not` / `And` / `Or` combinators;
