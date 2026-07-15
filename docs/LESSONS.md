@@ -387,10 +387,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   safe path, or they manufacture the failure they forgot to mention - the portal
   "Local development" doc steered web testers to a cross-origin `?portal=` the
   browser blocks on CORS, which IS the reported bug. 20260715-214540.
-- `nix-devshell-for-cargo` (x1, toolchain): if a session's shell has no `cargo`
-  on PATH (the flake devshell is not active), prefix cargo/rustc with
-  `nix develop <repo> --command bash -c '...'` rather than assuming the toolchain
-  is present; empty command output was the tell. 20260715-214540.
+- `nix-devshell-for-cargo` (x2, toolchain): if a session's shell has no `cargo`
+  on PATH (the flake devshell is not active), prefix cargo/rustc/fmt with
+  `nix develop --command ...` (from the repo/worktree) rather than assuming the
+  toolchain is present - the devshell also sets `LD_LIBRARY_PATH` for the bevy
+  link; a `cargo: command not found` (or empty output) is the tell.
+  20260715-214540, 20260715-140049.
 - `reuse-known-good-stack` (x1, positive): scaffold new sub-projects by copying
   a working reference toolchain verbatim. 20260712-093048.
 - `measure-before-writing-the-number` (x1): never write a specific quantity
@@ -485,12 +487,19 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   green; every gate filter fails closed on an undefined var). Sibling of
   `production-faithful-rigs`. Applied PREVENTIVELY on 224812 (arena OnStart
   structural test shipped with the behavior test). 20260715-224803, 20260715-224812.
-- `bg-isolation-guard-allows-sprout-not-main` (x1): the background-job Write/Edit
+- `bg-isolation-guard-allows-sprout-not-main` (x2): the background-job Write/Edit
   guard blocks the main checkout but NOT a sprout worktree; author master-side
   artifacts (plan stubs, RETRO.md, LESSONS.md) via Bash heredoc and do all code
   in the sprout worktree where Write works. The settings escape
   (`worktree.bgIsolation: none`) is denied by the self-modification classifier.
-  20260715-224803.
+  20260715-224803, 20260715-140049.
+- `isolate-off-head-for-unpushed-deps` (x1): when a task's work depends on
+  commits that exist only on LOCAL master (unpushed - e.g. a just-added asset),
+  isolate off local HEAD (`sprout new`, which branches off HEAD) not a
+  fresh/origin-based worktree (`EnterWorktree` default `baseRef: fresh` cuts from
+  origin/<default>), which would omit the local commit and fail the build on a
+  missing file. Check `git remote` + the dep's commit before choosing the base.
+  20260715-140049.
 
 - `count-gate-use-gt-not-eq` (x1): a milestone gate on a COUNTER incremented by
   an event that can fire more than once (collisions, per-collider pairs,
