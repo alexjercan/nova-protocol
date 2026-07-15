@@ -10,5 +10,6 @@
         description: "A slalom race: fly your ship through the beacon gates in order, START to FINISH.",
         author: "Nova Protocol",
         version: "1.0.0",
+        dependencies: ["base", "demo"],
     ),
 )

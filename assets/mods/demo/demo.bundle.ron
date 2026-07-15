@@ -13,5 +13,6 @@
         description: "Example mod: up-armors a hull section and adds an arena scenario.",
         author: "Nova Protocol",
         version: "1.0.0",
+        dependencies: ["base"],
     ),
 )

@@ -209,6 +209,9 @@
                         id: "gate_2",
                         message: "Thread GATE 2. It is off to your other side - steer through it.",
                     )),
+                    SetSkybox((
+                        cubemap: "textures/cubemap_alt2.png",
+                    )),
                 ],
             ),
             (
