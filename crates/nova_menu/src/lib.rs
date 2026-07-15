@@ -1418,6 +1418,7 @@ mod tests {
                 description: "base".to_string(),
                 bundle: "base/base.bundle.ron".to_string(),
                 base: true,
+                hidden: false,
             },
             ModEntry {
                 id: "demo".to_string(),
@@ -1425,6 +1426,7 @@ mod tests {
                 description: "demo".to_string(),
                 bundle: "mods/demo/demo.bundle.ron".to_string(),
                 base: false,
+                hidden: false,
             },
         ]));
         app.insert_resource(EnabledMods(["base".to_string()].into_iter().collect()));

@@ -5,7 +5,9 @@
 //
 // Each entry: id (enable key + overlay namespace), name/description (shown in the
 // menu), bundle (the mod's `*.bundle.ron`, asset-root-relative), base (true = the
-// base game: enabled by default, locked on in the UI).
+// base game: enabled by default, locked on in the UI), hidden (true = dev/tooling
+// mod: kept out of the player-facing mods list, but still installed and
+// enableable by id - examples do so via EnabledMods).
 (mods: [
     (
         id: "base",
@@ -25,5 +27,6 @@
         name: "Screenshot Reel",
         description: "Capture set for the screenshot-reel example (web-site screenshots).",
         bundle: "mods/screenshot-reel/screenshot-reel.bundle.ron",
+        hidden: true,
     ),
 ])

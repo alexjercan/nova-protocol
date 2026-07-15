@@ -118,17 +118,21 @@ pub use crate::register_bundles as register_bundles_for_test;
 #[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
 pub struct EnabledMods(pub HashSet<String>);
 
-/// The installed-mods metadata, in catalog order - the menu-facing view of the
-/// [`InstalledCatalog`] asset (metadata only, no bundle handles).
+/// The PLAYER-FACING installed-mods metadata, in catalog order - the menu's view of
+/// the [`InstalledCatalog`] asset (metadata only, no bundle handles), with
+/// `hidden: true` entries (dev/tooling mods) filtered out.
 ///
 /// Built once from the loaded catalog at `OnEnter(Processing)` by
 /// [`build_mod_catalog`]. The mods menu reads this (plus [`EnabledMods`]) to render
 /// its list without touching the asset machinery. Empty until the catalog loads.
+/// Hidden mods stay installed and enableable by id (`register_bundles` reads the
+/// full catalog, not this view); they just never reach the menu.
 #[derive(Resource, Clone, Debug, Default)]
 pub struct ModCatalog(pub Vec<ModEntry>);
 
 /// Fill [`ModCatalog`] from the loaded [`InstalledCatalog`] asset (metadata only),
-/// in catalog order. Runs at `OnEnter(Processing)`, before `seed_enabled_mods`.
+/// in catalog order, skipping `hidden` entries. Runs at `OnEnter(Processing)`,
+/// before `seed_enabled_mods`.
 pub fn build_mod_catalog(
     game_assets: Res<GameAssets>,
     catalogs: Res<Assets<InstalledCatalog>>,
@@ -138,16 +142,27 @@ pub fn build_mod_catalog(
         error!("build_mod_catalog: the mods catalog was not loaded; the mods list is empty");
         return;
     };
-    mod_catalog.0 = catalog.entries.iter().map(|e| e.meta.clone()).collect();
+    mod_catalog.0 = catalog
+        .entries
+        .iter()
+        .filter(|e| !e.meta.hidden)
+        .map(|e| e.meta.clone())
+        .collect();
 }
 
-/// Ensure every `base: true` catalog entry is in [`EnabledMods`].
+/// Reconcile [`EnabledMods`] with the catalog: union `base: true` ids in, strip
+/// `hidden` (non-base) ids out.
 ///
-/// This UNIONS the base ids in (rather than seeding only when empty): it keeps base
-/// enabled regardless of what `load_enabled_mods` restored - base is locked on in the
-/// UI, so it must always be active - while preserving any persisted or toggled
-/// non-base choices. Runs at `OnEnter(Processing)`, after `load_enabled_mods` and
-/// before the merge. Idempotent.
+/// The UNION keeps base enabled regardless of what `load_enabled_mods` restored -
+/// base is locked on in the UI, so it must always be active - while preserving any
+/// persisted or toggled non-base choices. The STRIP makes a hidden (dev/tooling)
+/// mod's enablement SESSION-ONLY: without it, an example run that enables a hidden
+/// mod persists the id, and a later normal run would restore-and-merge a mod the
+/// menu has no row to disable (task 20260715-142844 R1.1). Examples re-enable by id
+/// at `OnEnter(Loaded)`, after this chain, so they are unaffected; the cleaned set
+/// is re-saved on the same change, so a polluted prefs store self-heals. The `!base`
+/// guard keeps a pathological hidden+base entry force-enabled. Runs at
+/// `OnEnter(Processing)`, after `load_enabled_mods` and before the merge. Idempotent.
 pub fn seed_enabled_mods(
     game_assets: Res<GameAssets>,
     catalogs: Res<Assets<InstalledCatalog>>,
@@ -160,6 +175,8 @@ pub fn seed_enabled_mods(
     for entry in &catalog.entries {
         if entry.meta.base {
             enabled.0.insert(entry.meta.id.clone());
+        } else if entry.meta.hidden {
+            enabled.0.remove(&entry.meta.id);
         }
     }
 }

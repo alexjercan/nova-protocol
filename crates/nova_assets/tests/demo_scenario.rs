@@ -1,7 +1,8 @@
 //! End-to-end proof of the catalog-driven modding pipeline on a headless asset
 //! server (task 20260714-174120, on 134119/134127). The real `mods.catalog.ron`
 //! loads through `nova_modding`'s `CatalogLoader`, which loads EVERY installed mod's
-//! `*.bundle.ron` (base + demo) and, through each, its `*.content.ron` files. Waiting
+//! `*.bundle.ron` (base + demo + the hidden screenshot-reel) and, through each, its
+//! `*.content.ron` files. Waiting
 //! for the catalog's RECURSIVE load state waits for that whole tree. Then the real
 //! `register_bundles` system merges only the ENABLED subset (`EnabledMods`) into
 //! `GameSections` / `GameScenarios`, base first.
@@ -105,8 +106,10 @@ fn merge_with_enabled(enabled: &[&str]) -> (GameSections, GameScenarios) {
     (sections, scenarios)
 }
 
-/// `build_mod_catalog` fills the menu-facing `ModCatalog` with every installed mod's
-/// metadata, in catalog order (base first) - the list the mods menu renders.
+/// `build_mod_catalog` fills the PLAYER-FACING `ModCatalog` with the installed mods'
+/// metadata, in catalog order (base first), FILTERING `hidden: true` entries - the
+/// real catalog ships base + demo + the hidden screenshot-reel, and the menu list
+/// must show exactly base + demo (task 20260715-142844).
 #[test]
 fn mod_catalog_lists_installed_mods_metadata() {
     let mut app = headless_app();
@@ -127,7 +130,11 @@ fn mod_catalog_lists_installed_mods_metadata() {
         .expect("build mod catalog");
 
     let mods = &app.world().resource::<ModCatalog>().0;
-    assert_eq!(mods.len(), 2, "base + demo are installed");
+    assert_eq!(
+        mods.len(),
+        2,
+        "base + demo are player-visible; the hidden screenshot-reel is filtered"
+    );
     assert_eq!(mods[0].id, "base", "base is first (load order)");
     assert!(mods[0].base, "base is flagged");
     assert_eq!(mods[1].id, "demo");
@@ -135,6 +142,23 @@ fn mod_catalog_lists_installed_mods_metadata() {
     assert!(
         !mods[1].name.is_empty() && !mods[1].description.is_empty(),
         "the demo entry carries display metadata"
+    );
+    assert!(
+        !mods.iter().any(|m| m.id == "screenshot-reel"),
+        "the hidden dev mod must not reach the player-facing list"
+    );
+}
+
+/// Hidden is NOT disabled: a `hidden: true` catalog entry stays installed and merges
+/// through the production `register_bundles` path when its id is enabled - the
+/// contract `examples/13_screenshot_reel.rs` relies on (it inserts the id into
+/// `EnabledMods` directly, no menu involved).
+#[test]
+fn hidden_mod_still_merges_when_enabled_by_id() {
+    let (_, scenarios) = merge_with_enabled(&["base", "screenshot-reel"]);
+    assert!(
+        scenarios.contains_key("screenshot_reel"),
+        "the hidden mod's scenario must register when the mod is enabled by id"
     );
 }
 
@@ -182,6 +206,22 @@ fn seed_enabled_mods_unions_base_over_any_restored_set() {
         from_demo.contains("base"),
         "base is forced on regardless of the restored set"
     );
+}
+
+/// `seed_enabled_mods` strips restored HIDDEN ids: a hidden mod's enablement is
+/// session-only, so an example run that persisted `screenshot-reel` cannot leave it
+/// stuck-enabled with no menu row to disable it (task 20260715-142844 R1.1). The
+/// visible restored choice survives; examples re-enable by id AFTER this chain
+/// (`OnEnter(Loaded)`), which `hidden_mod_still_merges_when_enabled_by_id` covers.
+#[test]
+fn seed_enabled_mods_strips_restored_hidden_ids() {
+    let seeded = seed_from(&["demo", "screenshot-reel"]);
+    assert!(
+        !seeded.contains("screenshot-reel"),
+        "a restored hidden id must be stripped (session-only enablement)"
+    );
+    assert!(seeded.contains("demo"), "visible restored choices survive");
+    assert!(seeded.contains("base"), "base is still forced on");
 }
 
 #[test]

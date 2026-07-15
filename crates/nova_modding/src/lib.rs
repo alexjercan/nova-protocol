@@ -267,6 +267,11 @@ pub struct ModEntry {
     /// True for the base game's entry: enabled by default, locked on in the UI.
     #[serde(default)]
     pub base: bool,
+    /// True for dev/tooling mods (e.g. the screenshot-reel capture set): omitted
+    /// from the player-facing mods list, but still installed - the bundle loads
+    /// and the mod is enableable by id (examples do so via `EnabledMods`).
+    #[serde(default)]
+    pub hidden: bool,
 }
 
 /// The on-disk `mods.catalog.ron`: every INSTALLED mod, in load order (base first).
@@ -456,25 +461,29 @@ mod tests {
     }
 
     /// A `mods.catalog.ron` body decodes into a [`CatalogManifest`] carrying the
-    /// installed mods in order, with `base` defaulting to false when omitted. (The
-    /// actual load of each bundle into an `InstalledCatalog` is exercised by the
-    /// `nova_assets` integration test on the real asset server.)
+    /// installed mods in order, with `base` and `hidden` defaulting to false when
+    /// omitted. (The actual load of each bundle into an `InstalledCatalog` is
+    /// exercised by the `nova_assets` integration test on the real asset server.)
     #[test]
     fn catalog_manifest_ron_decodes() {
         let ron = r#"(mods: [
             (id: "base", name: "Base Game", description: "the base", bundle: "base/base.bundle.ron", base: true),
             (id: "demo", name: "Demo Mod", description: "a demo", bundle: "mods/demo/demo.bundle.ron"),
+            (id: "reel", name: "Reel", description: "capture set", bundle: "mods/reel/reel.bundle.ron", hidden: true),
         ])"#;
         let manifest: CatalogManifest =
             ron::de::from_bytes(ron.as_bytes()).expect("catalog should decode");
-        assert_eq!(manifest.mods.len(), 2);
+        assert_eq!(manifest.mods.len(), 3);
         assert_eq!(manifest.mods[0].id, "base");
         assert!(manifest.mods[0].base, "base flag decodes");
+        assert!(!manifest.mods[0].hidden, "hidden defaults to false");
         assert_eq!(manifest.mods[1].id, "demo");
         assert!(
             !manifest.mods[1].base,
             "base defaults to false when omitted"
         );
         assert_eq!(manifest.mods[1].bundle, "mods/demo/demo.bundle.ron");
+        assert!(manifest.mods[2].hidden, "hidden flag decodes");
+        assert!(!manifest.mods[2].base);
     }
 }

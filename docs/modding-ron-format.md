@@ -105,13 +105,22 @@ The modding data model (tasks 150508 / 134119 / 134127 / 174120):
   (`assets/base/`).
 - `assets/mods.catalog.ron` is the INSTALLED-mods CATALOG - a wasm-safe manifest (never
   a directory scan) listing every installed mod with metadata (`id`, `name`,
-  `description`, `bundle`, `base`), base first. It loads as an `InstalledCatalog` asset
-  whose dependencies are EVERY installed mod's bundle, so all installed content loads at
-  startup regardless of what is enabled.
+  `description`, `bundle`, `base`, `hidden`), base first. It loads as an
+  `InstalledCatalog` asset whose dependencies are EVERY installed mod's bundle, so all
+  installed content loads at startup regardless of what is enabled.
 - `nova_assets::EnabledMods` (a runtime resource, not an asset) is the set of enabled
   mod ids. `register_bundles` merges only the enabled cataloged bundles, in catalog
   order (base first, so mods overlay it by id). Toggling it (from the main-menu Mods
   section) re-merges live. Base is enabled by default (`base: true`).
+- `hidden: true` marks a DEV/TOOLING mod (e.g. `screenshot-reel`, the capture set for
+  the website screenshots): `build_mod_catalog` filters it out of the player-facing
+  `ModCatalog`, so it never appears in the Mods menu - but it stays installed, its
+  bundle loads, and it merges like any other mod when its id is enabled (examples
+  insert the id into `EnabledMods` directly, task 20260715-142844). A hidden mod's
+  enablement is SESSION-ONLY: `seed_enabled_mods` strips hidden (non-base) ids from
+  the restored prefs at startup, so an example run can never leave a hidden mod
+  stuck-enabled with no menu row to disable it - examples re-enable by id each run,
+  after that chain.
 
 ## File naming (bundles, content, catalog) - load-bearing
 
