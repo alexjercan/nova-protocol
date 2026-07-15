@@ -28,4 +28,4 @@ This is the vocabulary the [Shakedown Run](../../tutorial/) is built from - each
 - **Asteroid Field** - a combat and gravity sandbox: a dense field, a planetoid to orbit, a fully outfitted ship and an AI drone. (A tiny _Asteroid Field - Next_ loops it.)
 - **Menu Ambience** - the living backdrop behind the main menu: a planetoid with an AI ship flying a real ORBIT, no gameplay - just scale and motion.
 
-Authoring your own scenarios is on the way - see [Modding](../modding/).
+You can author your own scenarios and mods in RON - see [Modding](../modding/).

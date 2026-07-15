@@ -1,15 +1,31 @@
 # Modding
 
-> Heads up: a data-driven modding format is **planned, not shipped yet**. This page will fill in once it lands. Here is where things actually stand today.
+Nova Protocol is data-driven: scenarios and mods are authored as **RON data
+files**, not code. Everything the game ships - the campaigns, the demo mod - is
+content loaded through the same pipeline your own content uses, so anything the
+base game does, a mod can do too. This page is the front door; the guides below
+have the detail.
 
-## Where authoring stands today
+## Author a scenario
 
-The [scenario](../scenarios/) engine is already fully expressive - objects, the events / filters / actions vocabulary, and typed variables - but it is currently driven from **code**. Every shipped scenario is a small function that builds its configuration in Rust; there is no external scenario file format (no RON, YAML or JSON) to load a mission from disk yet.
+A scenario is a list of event handlers - each pairs an event (a ship destroyed,
+an area entered, an objective met) with filters that gate it and actions that
+mutate the world. You write it in RON with the existing vocabulary, no Rust. See
+[Author a scenario (RON)](../dev/guide-author-scenario/) for the full grammar and
+a worked objective loop, and the [Scenarios](../scenarios/) page for what a
+scenario places into the world.
 
-In other words, the vocabulary a mod would use exists and is stable; what is missing is the data layer that lets you write a mission _without_ touching the codebase.
+## Package and share a mod
 
-## What is planned
+Content ships as a **bundle** - a folder with a manifest listing its scenarios
+(and any section prototypes). Add it to the game to test it, then publish it to
+the mod portal so other players can install it in-game. See
+[Make and publish a mod](../dev/guide-make-a-mod/) for the end-to-end lifecycle,
+and [Modding data format (RON)](../dev/modding-ron/) for the bundle / catalog /
+portal reference.
 
-The intended next step is a **data-driven scenario format** (most likely RON asset files) that wraps the same event / filter / action / variable vocabulary, so a scenario becomes a file you can author and share rather than compiled code. Once that format is stable, this page will document its schema, the object and event reference, and how to load your own scenarios.
+## Extend the engine
 
-Until then, the [Scenarios](../scenarios/) page is the best map of what the engine can already express.
+New event kinds, filters, actions or scenario-object types need a small Rust
+change - that is a contributor task, covered in
+[Extend the scenario engine](../dev/guide-extend-scenarios/).

@@ -1,8 +1,8 @@
 # Wiki nav: audience bands (For players/creators/developers) above categories
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 42
-- TAGS: feature,docs,web
+- TAGS: feature, docs, web
 
 User request: the dev categories (Get started / Understand / Extend the game)
 don't visibly signal they are developer material vs the player game-manual pages.
@@ -46,14 +46,41 @@ as a lead-in under Scenarios & mods).
 
 ## Steps
 
-- [ ] Add `WIKI_SECTIONS` + re-bucket categories in `wiki-pages.ts`; re-assign
-      page categories; decide the player `modding` page's fate + repoint links.
-- [ ] `wiki.ts`: render band headers in the sidebar and index; make search hide
+- [x] Add `WIKI_SECTIONS` + re-bucket categories in `wiki-pages.ts`; re-assign
+      page categories; the player `modding` page moves into "Scenarios & mods"
+      (kept, rewritten).
+- [x] `wiki.ts`: render band headers in the sidebar and index; make search hide
       empty bands.
-- [ ] `style.css`: band-header styles (sidebar + index).
-- [ ] Verify: `npm run ci` green; serve + headless-eyeball the sidebar (three
-      bands, correct pages under each) and the index; search still filters; check
-      at the deploy subpath.
+- [x] `style.css`: band-header styles (sidebar + index).
+- [x] Verify: `npm run ci` green; headless-eyeball the sidebar (three bands) and
+      index; no orphaned categories (all 9 map to a band); 26 pages emit.
+
+## Close notes
+
+### What changed
+- `wiki-pages.ts`: introduced `WIKI_SECTIONS` (the three audience bands, each an
+  ordered list of categories); `WIKI_CATEGORIES` is derived from it. Replaced the
+  flat dev categories (Understand / Extend the game / player Modding) with
+  "Scenarios & mods" (creators) and "Architecture" + "Extending" (developers),
+  and reordered the tail so array order = nav order (guides before the RON/portal
+  reference in the creators band).
+- `wiki.ts`: `renderSidebar` and `renderIndex` iterate `WIKI_SECTIONS`, emitting a
+  band header above each band's category groups; the search filter also hides a
+  band header when all its categories filter out.
+- `style.css`: `.wiki-nav__section` (amber, top rule) and `.wiki-index__band`
+  (large amber heading) set the bands apart from the cyan category labels.
+
+### The stale modding page
+The player `modding` page claimed the RON modding format was "planned, not
+shipped yet" - false since the format landed. Rewrote it as the creators-band
+front door (author a scenario / package a mod / extend the engine, each linking
+its guide) and fixed the matching "authoring is on the way" line in
+`scenarios.md`. A real content bug caught while re-homing the page.
+
+### Self-reflection
+The reshuffle was one big Edit of the manifest tail; the cheap guard is an
+orphaned-category check (every page.category in WIKI_CATEGORIES) - ran it at the
+end, worth running first next time.
 
 ## Notes
 

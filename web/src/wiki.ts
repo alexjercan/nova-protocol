@@ -1,6 +1,6 @@
 import "./style.css";
 import { initSite } from "./site";
-import { WIKI_PAGES, WIKI_CATEGORIES, WikiPage } from "./wiki-pages";
+import { WIKI_PAGES, WIKI_SECTIONS, WikiPage } from "./wiki-pages";
 
 initSite();
 
@@ -102,36 +102,50 @@ function renderSidebar(
     nav.appendChild(home);
 
     const groups: { heading: HTMLElement; items: HTMLElement[] }[] = [];
+    // Each band (audience) header plus the category groups under it, so search
+    // can hide a whole band when all its categories filter out.
+    const bands: { header: HTMLElement; cats: { heading: HTMLElement }[] }[] =
+        [];
 
-    for (const category of WIKI_CATEGORIES) {
-        const pages = WIKI_PAGES.filter((p) => p.category === category);
-        if (pages.length === 0) continue;
+    for (const section of WIKI_SECTIONS) {
+        const bandHeader = el("p", "wiki-nav__section", section.name);
+        nav.appendChild(bandHeader);
+        const bandCats: { heading: HTMLElement }[] = [];
 
-        const group = el("div", "wiki-nav__group");
-        const heading = el("p", "wiki-nav__cat", category);
-        group.appendChild(heading);
+        for (const category of section.categories) {
+            const pages = WIKI_PAGES.filter((p) => p.category === category);
+            if (pages.length === 0) continue;
 
-        const items: HTMLElement[] = [];
-        // Top-level pages, then their children nested beneath.
-        for (const p of pages.filter((x) => !x.parent)) {
-            const link = makeNavLink(p, base, active);
-            group.appendChild(link);
-            items.push(link);
+            const group = el("div", "wiki-nav__group");
+            const heading = el("p", "wiki-nav__cat", category);
+            group.appendChild(heading);
 
-            const kids = WIKI_PAGES.filter((c) => c.parent === p.slug);
-            if (kids.length > 0) {
-                const sub = el("div", "wiki-nav__sub");
-                for (const c of kids) {
-                    const clink = makeNavLink(c, base, active);
-                    clink.classList.add("wiki-nav__child");
-                    sub.appendChild(clink);
-                    items.push(clink);
+            const items: HTMLElement[] = [];
+            // Top-level pages, then their children nested beneath.
+            for (const p of pages.filter((x) => !x.parent)) {
+                const link = makeNavLink(p, base, active);
+                group.appendChild(link);
+                items.push(link);
+
+                const kids = WIKI_PAGES.filter((c) => c.parent === p.slug);
+                if (kids.length > 0) {
+                    const sub = el("div", "wiki-nav__sub");
+                    for (const c of kids) {
+                        const clink = makeNavLink(c, base, active);
+                        clink.classList.add("wiki-nav__child");
+                        sub.appendChild(clink);
+                        items.push(clink);
+                    }
+                    group.appendChild(sub);
                 }
-                group.appendChild(sub);
             }
+            nav.appendChild(group);
+            const cat = { heading, items };
+            groups.push(cat);
+            bandCats.push(cat);
         }
-        nav.appendChild(group);
-        groups.push({ heading, items });
+        bandHeader.hidden = bandCats.length === 0;
+        bands.push({ header: bandHeader, cats: bandCats });
     }
 
     const empty = el("p", "wiki-nav__empty", "No pages match.");
@@ -153,6 +167,10 @@ function renderSidebar(
             }
             heading.hidden = !groupVisible;
             if (groupVisible) anyVisible = true;
+        }
+        // A band shows only while at least one of its categories is visible.
+        for (const band of bands) {
+            band.header.hidden = !band.cats.some((c) => !c.heading.hidden);
         }
         empty.hidden = anyVisible;
     };
@@ -213,32 +231,42 @@ function renderSeeAlso(
 // ---- index page -----------------------------------------------------------
 
 function renderIndex(container: HTMLElement, base: string): void {
-    for (const category of WIKI_CATEGORIES) {
-        // Top-level pages only - children live on their parent's overview page.
-        const pages = WIKI_PAGES.filter(
-            (p) => p.category === category && !p.parent
-        );
-        if (pages.length === 0) continue;
+    const topLevel = (category: string): WikiPage[] =>
+        WIKI_PAGES.filter((p) => p.category === category && !p.parent);
 
-        container.appendChild(el("h2", "wiki-index__cat", category));
-        const grid = el("div", "wiki-index__grid");
-        for (const p of pages) {
-            const card = p.comingSoon
-                ? el("div", "wiki-index__card is-soon")
-                : el("a", "wiki-index__card");
-            if (!p.comingSoon) {
-                (card as HTMLAnchorElement).href = pageUrl(base, p.slug);
+    for (const section of WIKI_SECTIONS) {
+        if (!section.categories.some((c) => topLevel(c).length > 0)) continue;
+        container.appendChild(el("h2", "wiki-index__band", section.name));
+
+        for (const category of section.categories) {
+            // Top-level pages only - children live on their parent's overview page.
+            const pages = topLevel(category);
+            if (pages.length === 0) continue;
+
+            container.appendChild(el("h3", "wiki-index__cat", category));
+            const grid = el("div", "wiki-index__grid");
+            for (const p of pages) {
+                const card = p.comingSoon
+                    ? el("div", "wiki-index__card is-soon")
+                    : el("a", "wiki-index__card");
+                if (!p.comingSoon) {
+                    (card as HTMLAnchorElement).href = pageUrl(base, p.slug);
+                }
+                const titleRow = el("div", "wiki-index__cardhead");
+                titleRow.appendChild(
+                    el("h3", "wiki-index__cardtitle", p.title)
+                );
+                if (p.comingSoon) {
+                    titleRow.appendChild(
+                        el("span", "wiki-index__soon", "soon")
+                    );
+                }
+                card.appendChild(titleRow);
+                card.appendChild(el("p", "wiki-index__cardsum", p.summary));
+                grid.appendChild(card);
             }
-            const titleRow = el("div", "wiki-index__cardhead");
-            titleRow.appendChild(el("h3", "wiki-index__cardtitle", p.title));
-            if (p.comingSoon) {
-                titleRow.appendChild(el("span", "wiki-index__soon", "soon"));
-            }
-            card.appendChild(titleRow);
-            card.appendChild(el("p", "wiki-index__cardsum", p.summary));
-            grid.appendChild(card);
+            container.appendChild(grid);
         }
-        container.appendChild(grid);
     }
 }
 

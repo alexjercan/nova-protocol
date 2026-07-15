@@ -1057,6 +1057,25 @@ main {
     text-transform: uppercase;
     color: var(--cyan);
 }
+/* Audience band header (For players / creators / developers) - the top tier
+   above the category groups. Amber + a top rule set it apart from the cyan
+   category labels. */
+.wiki-nav__section {
+    margin: 22px 0 8px;
+    padding: 12px 8px 0;
+    border-top: 1px solid var(--border);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.82rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--amber);
+}
+.wiki-nav__section:first-of-type {
+    margin-top: 10px;
+    padding-top: 0;
+    border-top: 0;
+}
 .wiki-nav__link {
     display: flex;
     align-items: center;
@@ -1160,12 +1179,23 @@ main {
     font-size: 0.9rem;
 }
 /* Wiki index: category sections of cards. */
+/* Index band header (the audience tier), above its category subheadings. */
+.wiki-index__band {
+    font-family: var(--font-display);
+    font-size: 1.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--amber);
+    margin-top: 2em;
+}
+.wiki-index__band:first-of-type {
+    margin-top: 0.5em;
+}
 .wiki-index__cat {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     color: var(--cyan-bright);
-    border-top: 1px solid var(--border);
-    padding-top: 0.5em;
-    margin-top: 1.8em;
+    padding-top: 0.3em;
+    margin-top: 1.2em;
 }
 .wiki-index__grid {
     display: grid;
