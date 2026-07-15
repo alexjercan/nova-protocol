@@ -42,5 +42,18 @@ rm -rf web/dist/play
 mkdir -p web/dist/play
 cp -r dist/. web/dist/play/
 
+echo ">> generating the mod portal…"
+# Mirror the deploy: the portal is a SIBLING of the game (game at /play/, portal
+# at /mods/ - see .github/workflows/deploy-page.yaml). The wasm build derives its
+# portal base by stepping out of /play/ and appending /mods, so it fetches
+# <root>/mods same-origin with no ?portal= override and no CORS. Without this the
+# Explore tab 404s on /mods/catalog.json (task 20260715-214540).
+rm -rf web/dist/mods
+cargo run -p nova_portal_gen -- \
+    --source webmods \
+    --shipped assets/mods.catalog.ron \
+    --out web/dist/mods
+
 echo ">> serving http://localhost:${PORT}/  (Ctrl-C to stop)"
+echo "   game: http://localhost:${PORT}/play/   portal: http://localhost:${PORT}/mods/"
 npx --yes http-server web/dist -p "${PORT}" -c-1

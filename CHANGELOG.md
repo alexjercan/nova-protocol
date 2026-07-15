@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Local web testing of the mod portal no longer needs a cross-origin `?portal=` override (which the browser blocks on CORS). `Trunk.toml` now carries a dev-only proxy that serves the local portal SAME-ORIGIN under `trunk serve`, mirroring the production layout where the game (`/play/`) and portal (`/mods/`) are siblings on one origin - so the web Explore tab fetches the catalog with no override and no CORS. The wasm build also warns clearly, naming both origins, when the portal is configured cross-origin, instead of only surfacing an opaque "Failed to fetch". Production was never affected (the deploy already serves both same-origin); this was a local-dev/docs gap
+- Local web testing of the mod portal no longer needs a cross-origin `?portal=` override (which the browser blocks on CORS). `scripts/preview-web.sh` now generates the portal as a `/mods` sibling of the `/play/` game, so the full local preview serves the game and portal SAME-ORIGIN - exactly the production layout - and the Explore tab works with no override. `Trunk.toml` also carries a dev-only proxy for the lighter `trunk serve` loop (game at root, portal proxied same-origin), and the wasm build warns clearly - naming both origins - when the portal is configured cross-origin, instead of only surfacing an opaque "Failed to fetch". Production was never affected (the deploy already serves both same-origin); this was a local-dev/docs gap
 
 ## [0.5.2] - 2026-07-14
 

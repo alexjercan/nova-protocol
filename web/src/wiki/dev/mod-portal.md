@@ -105,45 +105,73 @@ to the cache.
 
 ## Local development
 
-Generate into a scratch dir and serve it statically:
+The one rule that governs all of this: **the web build fetches the portal
+SAME-ORIGIN.** It derives its portal base from `window.location` by stepping out
+of `/play/` and appending `/mods` as a SIBLING - so the game at
+`<origin>/play/` always fetches `<origin>/mods`, exactly the production layout
+(`.../play/` for the game, `.../mods/` for the portal). The browser enforces
+CORS, so a cross-origin portal fails; serve the portal same-origin instead.
+(Native has no such rule - ureq ignores CORS.)
+
+### Web: full site preview (recommended)
+
+`scripts/preview-web.sh` builds the game, assembles it under `/play/`, generates
+the portal as the `/mods` sibling, and serves the whole thing same-origin - the
+same layout the deploy publishes:
+
+```sh
+nix develop -c scripts/preview-web.sh            # or --release for an optimized game
+# open http://localhost:8090/play/  and click Play; Explore works with NO ?portal=
+```
+
+Running it by hand instead (the script just automates this) - note the portal
+goes to `<site>/mods`, a SIBLING of `<site>/play`, NOT inside it:
+
+```sh
+trunk build                                      # -> dist/ (the game)
+mkdir -p site/play && cp -r dist/. site/play/    # game under /play/
+cargo run -p nova_portal_gen -- --source webmods \
+  --shipped assets/mods.catalog.ron --out site/mods   # portal as the /mods sibling
+python3 -m http.server -d site 8090
+# open http://localhost:8090/play/  with NO ?portal=
+```
+
+If you put the portal INSIDE the game dir (`site/play/mods`) the game still
+looks at the `/mods` sibling and 404s - this was the bug in task 20260715-214540.
+
+### Web: lighter loop (trunk serve, game at root)
+
+For a quick iteration without assembling the full `/play/` site, run the portal
+on its own server and let `trunk serve` proxy to it same-origin:
 
 ```sh
 cargo run -p nova_portal_gen -- --source webmods --shipped assets/mods.catalog.ron --out /tmp/portal/mods
-python3 -m http.server -d /tmp/portal 8000   # portal at http://localhost:8000/mods/
+python3 -m http.server -d /tmp/portal 8000       # portal at :8000/mods/
+trunk serve                                       # Trunk.toml proxies /mods -> :8000/mods
+# open http://localhost:8080  (game at root) with NO ?portal=
 ```
 
-The game's portal base URL is a config (`PortalConfig::from_environment`).
-Point the game at that local portal - but MIND THE ORIGIN, because the browser
-enforces CORS on the web build (native does not):
+The dev-only `[[proxy]]` in `Trunk.toml` applies to `trunk serve` only (never
+`trunk build`), so it has no effect on the deploy.
 
-**Native** - set `NOVA_PORTAL_URL`; no origin rule applies (ureq ignores CORS):
+### Native
+
+No origin rule applies; point at any local portal with `NOVA_PORTAL_URL`:
 
 ```sh
+cargo run -p nova_portal_gen -- --source webmods --shipped assets/mods.catalog.ron --out /tmp/portal/mods
+python3 -m http.server -d /tmp/portal 8000
 NOVA_PORTAL_URL=http://localhost:8000/mods cargo run
 ```
 
-**Web** - serve the portal SAME-ORIGIN. In production the portal is a sibling of
-the game on one Pages origin (`/play/` and `/mods/`), so a `trunk serve` build
-must mirror that. `Trunk.toml` carries a dev-only `[[proxy]]` that forwards
-`/mods` to the local portal server, so with the two commands above running,
-just:
+### A note on cross-origin `?portal=`
 
-```sh
-trunk serve            # proxies /mods -> http://localhost:8000/mods
-# open http://localhost:8080  with NO ?portal= override
-```
-
-The web build then fetches `http://localhost:8080/mods/catalog.json`
-same-origin and CORS never applies. Without an override the web build derives
-the sibling `mods/` tree from its own `window.location` (production and the
-proxied dev server alike), which is why no `?portal=` is needed.
-
-A cross-origin `?portal=http://localhost:8000/mods` (page on one port, portal
-on another) is BLOCKED by the browser - the fetch fails with an opaque
-`TypeError: Failed to fetch` plus a CORS error in the console - UNLESS the
-portal server itself sends an `Access-Control-Allow-Origin` header
-(`python3 -m http.server` does not). The game logs a cross-origin warning
-naming both origins when you do this, so prefer the same-origin proxy above.
+A cross-origin override (page on one port, portal on another, e.g.
+`?portal=http://localhost:8000/mods`) is BLOCKED by the browser on the web
+build - an opaque `TypeError: Failed to fetch` plus a CORS error in the console -
+UNLESS the portal server itself sends an `Access-Control-Allow-Origin` header
+(`python3 -m http.server` does not). The game logs a cross-origin warning naming
+both origins when you do this, so prefer the same-origin options above.
 
 ## How installed mods are stored (game side)
 
