@@ -345,15 +345,16 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   mechanism deleted proves nothing; copied tests inherit vacuousness - and a
   sabotage that refuses to go red refutes the assumed mechanism itself.
   20260711-180426, 20260711-212521, 20260712-115902.
-- `out-of-context-review-pass` (positive, x21): a fresh-context review of a
+- `out-of-context-review-pass` (positive, x22): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
   load-bearing claims instead of trusting them - checking cited evidence IS
   the spawn site, re-running the sabotage or the whole smoke suite, reading
   the DEPENDENCY's source for composition hazards, mutation-analyzing new
-  tests, empirically reproducing a suspected hole before claiming it, and
-  reading a CI ACTION's source to settle a toolchain question.
-  20260712-133343, 20260711-183417, 20260712-115902, 20260712-211352,
-  20260715-142844, 20260715-142849, 20260715-151551, 20260715-142900.
+  tests, empirically reproducing a suspected hole before claiming it, reading
+  a CI ACTION's source to settle a toolchain question, and re-deriving an
+  algorithm (Kahn's topo sort direction) by hand to catch a doc/atomicity
+  overclaim. 20260712-133343, 20260711-183417, 20260712-115902,
+  20260715-142900, 20260715-142931.
 - `required-component-in-shared-query` (x2): a required fetch added to an
   existing query narrows its membership and every gate computed from it; fetch
   `Option<&T>` or use a separate query. New `Res<T>` params also panic every
@@ -401,11 +402,25 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   whole scale range and both regimes - a naive handler index won at 500 handlers
   and reversed at 5000 (random-access thrash), fixed only by contiguous
   snapshots. 20260525-133014.
-- `lint-gate-is-the-last-step` (x1): re-run fmt/clippy/tests AFTER the final edit,
+- `lint-gate-is-the-last-step` (x2): re-run fmt/clippy/tests AFTER the final edit,
   never before - fmt ran before a test module was added, so an unformatted commit
   shipped and only remote CI caught it, costing a cross-repo re-push. For a repo
   gated solely by remote CI, mirror its exact checks locally before pushing.
-  20260525-133014.
+  Variant: per-part feature commits ran TESTS but not fmt, so intermediate commits
+  shipped unformatted (harmless under squash-merge, but claim green only after an
+  fmt pass). 20260525-133014, 20260715-142931.
+- `document-the-async-failure-path` (x1): design notes for a concurrent/staged
+  flow must trace the async FAILURE path and state the atomicity boundary, not
+  just the happy-path intent - an out-of-context review flagged a NOTES claim of
+  dependency-SET install atomicity when it is only per-mod (deps download in
+  parallel with no join). The behavior was fine and surfaced; the words
+  overclaimed. 20260715-142931.
+- `sibling-change-leaves-stale-fixture` (x1): a parallel session's change (a mod
+  bundle's description) landed on master without updating the fixture test that
+  asserts it, leaving the branch base RED; the next branch inherits the red and
+  must realign it. Sweep test fixtures that assert on data you change
+  (`sweep-then-delete` for assertions), and expect to fix an inherited stale
+  fixture when a sibling change under-swept. 20260715-142931.
 - `benchmark-gates-both-ways` (x1, positive): a measure-first gate justifies
   DEFERRING optimization work as legitimately as doing it; 083339's filter/
   condition micro-opts were declined on data (noise at realistic rates), a valid
