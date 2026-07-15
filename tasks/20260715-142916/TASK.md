@@ -20,3 +20,11 @@ set live (existing re-merge); it appears on the Installed tab immediately.
 THE GOAL of the spike family is met here: browse the portal, install the demo
 mod, enable it, play it - on native and web.
 
+
+Note from 163508's review (20260715, R1.3): the portal client has NO
+timeout/cancel recovery - a transport callback that never fires wedges
+RemoteCatalog::Fetching (re-fetch refused) and wedges an id in
+Fetching/Committing (retry and uninstall refused). ehttp does call back on its
+own error paths, so this needs a pathological failure - but the UI must own
+the recovery surface: a cancel/retry affordance and/or a timeout that moves
+the job to Failed. Design it into the Explore tab's states.
