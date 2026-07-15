@@ -2,6 +2,8 @@
 name = "nova_core"
 version = { workspace = true }
 edition = { workspace = true }
+license = { workspace = true }
+publish = false
 description = "Core systems and modules for the Nova Protocol game"
 
 [dependencies]

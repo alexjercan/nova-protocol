@@ -51,6 +51,15 @@ jobs:
       - name: Add wasm target
         run: |
           rustup target add wasm32-unknown-unknown
+      # Generate the third-party dependency-license manifest into credits/ before
+      # the Trunk build, so `copy-dir credits` bundles it into dist/ (and thus the
+      # published /play/ site). Not committed - regenerated fresh each deploy.
+      - name: Install cargo-about
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about
+      - name: Generate third-party license manifest
+        run: cargo about generate about.hbs -o credits/THIRD-PARTY-LICENSES.md
       - name: Build game (release)
         run: |
           trunk build --release

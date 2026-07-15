@@ -65,6 +65,15 @@ jobs:
       - name: Create Universal Binary
         run: |
           lipo -create -output target/dist/${{ env.GAME_EXECUTABLE_NAME }} target/aarch64-apple-darwin/dist/${{ env.GAME_EXECUTABLE_NAME }} target/x86_64-apple-darwin/dist/${{ env.GAME_EXECUTABLE_NAME }}
+      # Generate the third-party dependency-license manifest into credits/ so the
+      # copy below bundles it. Not committed (cargo-about output is not stable);
+      # regenerated fresh here so it always matches the shipped dependency graph.
+      - name: Install cargo-about
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about
+      - name: Generate third-party license manifest
+        run: cargo about generate about.hbs -o credits/THIRD-PARTY-LICENSES.md
       - name: Create release
         run: |
           mkdir -p build/macos/src/Game.app/Contents/MacOS/assets
@@ -105,6 +114,12 @@ jobs:
         run: |
           chmod +x target/dist/${{ env.GAME_EXECUTABLE_NAME }}
           mv target/dist/${{ env.GAME_EXECUTABLE_NAME }} .
+      - name: Install cargo-about
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about
+      - name: Generate third-party license manifest
+        run: cargo about generate about.hbs -o credits/THIRD-PARTY-LICENSES.md
       - name: Bundle release
         run: |
           tar -czf ${{ env.GAME_EXECUTABLE_NAME }}_linux.tar.gz ${{ env.GAME_EXECUTABLE_NAME }} assets credits
@@ -139,6 +154,12 @@ jobs:
       - name: Build release
         run: |
           cargo build --profile dist
+      - name: Install cargo-about
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about
+      - name: Generate third-party license manifest
+        run: cargo about generate about.hbs -o credits/THIRD-PARTY-LICENSES.md
       - name: Prepare release
         run: |
           mkdir target/dist/assets && cp -r assets target/dist/assets
@@ -178,6 +199,14 @@ jobs:
       - name: Add wasm target
         run: |
           rustup target add wasm32-unknown-unknown
+      # Generate into credits/ BEFORE the Trunk build, so `copy-dir credits`
+      # bundles the manifest into dist/.
+      - name: Install cargo-about
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about
+      - name: Generate third-party license manifest
+        run: cargo about generate about.hbs -o credits/THIRD-PARTY-LICENSES.md
       - name: Build Release
         run: |
           trunk build --release

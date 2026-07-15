@@ -99,3 +99,31 @@ jobs:
         # lib, and building it with default features would flip
         # bevy/track_location back off and rebuild Bevy inside this step.
         run: xvfb-run --auto-servernum cargo test -p nova-protocol --test examples_smoke --features debug
+
+  # The dependency-license gate. The shipped manifest
+  # (credits/THIRD-PARTY-LICENSES.md) is GENERATED at build/release time, not
+  # committed (cargo-about's output is not byte-stable, so a committed copy could
+  # not be diff-checked). This job just runs the generation and lets it fail:
+  # cargo-about exits non-zero if any dependency carries a license outside
+  # about.toml's accepted permissive set, so a new copyleft/unknown-license dep
+  # is caught on the PR that adds it. No project build needed - cargo-about only
+  # reads `cargo metadata` and crate license files - so this is fast and separate
+  # from the compile/test gate above.
+  licenses:
+    name: dependency license gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      # The first cargo invocation auto-installs the rust-toolchain.toml-pinned
+      # toolchain that cargo-about's `cargo metadata` runs under.
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-about
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about
+      # Generation fails on any non-accepted license - that failure IS the gate.
+      # The output itself is discarded here; the shipped copy is generated in the
+      # release/deploy workflows.
+      - name: Check dependency licenses
+        run: cargo about generate about.hbs -o "${RUNNER_TEMP}/third-party-licenses.md"

@@ -1,0 +1,55 @@
+# cargo-about config: which licenses are allowed in Nova Protocol's shipped
+# binaries, and for which targets. `cargo about generate` reads this, walks the
+# dependency graph, and fails if any crate carries a license not in `accepted`
+# below - which is exactly how a copyleft or unknown-license dependency is
+# surfaced instead of silently shipping. Regenerate the manifest with:
+#
+#   cargo about generate about.hbs -o credits/THIRD-PARTY-LICENSES.md
+#
+# (see scripts/gen-licenses.sh). The manifest is generated fresh at build/release
+# time, not committed; CI's `licenses` job runs the same generation and fails on
+# any non-accepted license.
+
+# Dev-dependencies are not linked into the shipped binaries, so their licenses
+# are not a distribution obligation - drop them. Build-dependencies CAN embed
+# generated code, so they are kept.
+ignore-dev-dependencies = true
+
+# Only the platforms we actually ship (native release + web). This trims deps
+# that exist solely for other targets so the manifest reflects the real builds.
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+    "wasm32-unknown-unknown",
+]
+
+# Permissive licenses only. Anything outside this set (GPL/AGPL/LGPL, or an
+# unrecognised expression) makes generation FAIL - the intended gate. Widen this
+# list deliberately, never to silence a real copyleft finding.
+accepted = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "CC0-1.0",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "MPL-2.0",
+    "BSL-1.0",
+    "Unlicense",
+    "OpenSSL",
+    "NCSA",
+]
+
+# Exclude first-party crates (the nova_* workspace members + the root binary,
+# all marked `publish = false`): they are the product, covered by the top-level
+# LICENSE, not third-party material to attribute here. Keep this table LAST -
+# every top-level key above must precede it or TOML folds it into this table.
+[private]
+ignore = true

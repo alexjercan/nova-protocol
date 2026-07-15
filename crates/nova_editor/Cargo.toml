@@ -2,6 +2,8 @@
 name = "nova_editor"
 version = { workspace = true }
 edition = { workspace = true }
+license = { workspace = true }
+publish = false
 description = "Spaceship editor scene for the Nova Protocol game"
 
 [dependencies]

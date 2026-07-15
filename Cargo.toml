@@ -8,6 +8,9 @@ homepage = "https://github.com/alexjercan/nova-protocol"
 description = "A 3D space shooter game made with Bevy"
 categories = ["games"]
 exclude = ["dist", "build", "assets", "credits"]
+# Not published to crates.io (this is the game binary); also marks it first-party
+# so cargo-about's `[private] ignore` keeps it out of the third-party manifest.
+publish = false
 
 [lib]
 path = "src/lib.rs"
@@ -79,6 +82,7 @@ too_many_arguments = "allow"
 [workspace.package]
 edition = "2021"
 version = "0.5.2"
+license = "MIT"
 
 [workspace]
 members = [

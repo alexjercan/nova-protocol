@@ -2,6 +2,8 @@
 name = "nova_modding"
 version = { workspace = true }
 edition = { workspace = true }
+license = { workspace = true }
+publish = false
 description = "RON scenario/mod format and asset loader for the Nova Protocol game"
 
 [dependencies]

@@ -2,6 +2,8 @@
 name = "nova_menu"
 version = { workspace = true }
 edition = { workspace = true }
+license = { workspace = true }
+publish = false
 description = "Main menu scene for the Nova Protocol game"
 
 [dependencies]

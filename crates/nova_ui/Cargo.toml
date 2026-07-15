@@ -2,6 +2,8 @@
 name = "nova_ui"
 version = { workspace = true }
 edition = { workspace = true }
+license = { workspace = true }
+publish = false
 description = "Shared UI theme and widgets for the Nova Protocol game"
 
 [dependencies]
