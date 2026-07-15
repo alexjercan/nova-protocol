@@ -37,6 +37,10 @@ fn headless_app() -> App {
         },
     ));
     app.add_plugins(NovaModdingPlugin);
+    // Production (GameAssetsPlugin) always inits the downloaded half of the
+    // installed set; register_bundles/build_mod_catalog read it. Empty here -
+    // the download path has its own rig (tests/mod_cache_install.rs).
+    app.init_resource::<DownloadedMods>();
     app
 }
 

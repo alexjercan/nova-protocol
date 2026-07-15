@@ -142,6 +142,78 @@ docs/mod-portal.md (webmods/ sources, nova_portal_gen, catalog.json schema).
   task 20260715-151551); the flag is pinned by the synthetic-catalog tests in
   `crates/nova_assets/tests/demo_scenario.rs`.
 
+## Downloaded mods: the local cache + the `mods://` source
+
+Task 20260715-142906 (the LOCAL foundation; the network half - portal fetch,
+staged download, install/uninstall events - is task 20260715-163508). A mod
+whose files sit in the local cache loads and merges exactly like a shipped
+one; nothing here touches the network.
+
+- The CACHE (`nova_assets::mod_cache`) stores each downloaded mod's files
+  verbatim plus a small INSTALLED INDEX of DOWNLOADED mods only (the shipped
+  `mods.catalog.ron` stays the other half of the installed set). The index is
+  a RON `Vec<InstalledModRecord>`; each record is `(id, version, bundle)` where
+  `bundle` is the mod's `*.bundle.ron` path relative to its own cache
+  directory:
+
+  ```ron
+  [
+      (
+          id: "gauntlet",
+          version: "1.0.0",
+          bundle: "gauntlet.bundle.ron",
+      ),
+  ]
+  ```
+
+- NATIVE storage: index at `<data_root>/installed.mods.ron`, files at
+  `<data_root>/mods/<id>/<path>`, with `<data_root>` =
+  `dirs::data_dir()/nova-protocol` (data, not config - the config dir stays
+  prefs-only). WEB storage: index in `localStorage` under
+  `nova_protocol.installed_mods` (small + sync, the mod_prefs split), file
+  bytes in IndexedDB (database `nova-protocol`, store `mod-files`, key
+  `<id>/<path>`) via a thin hand-rolled web-sys wrapper. Both index reads are
+  best-effort: missing/corrupt degrades to "no downloaded mods", never a panic.
+  `NOVA_MOD_CACHE_ROOT` overrides the native data root (read by the cache
+  helpers AND the source registration, so they always agree) - this is how the
+  integration tests point the whole pipeline at a temp dir.
+- The `mods://` ASSET SOURCE serves the cache to the asset server, registered
+  by `mod_cache::register_mods_source` BEFORE `AssetPlugin` (bevy builds
+  sources at AssetPlugin insertion; `AppBuilder::new` makes the call). Native
+  is a `FileAssetReader` over `<data_root>/mods`; the web is a
+  `MemoryAssetReader` over a shared in-memory `Dir` that a startup task
+  hydrates from IndexedDB before any load is kicked. A downloaded mod's bundle
+  then loads as `mods://<id>/<bundle>` through the SAME loaders as a shipped
+  bundle (`BundleAssetLoader` resolves its content files bundle-relative, so
+  they stay inside the `mods://` source automatically).
+- RUNTIME: `DownloadedMods` (records + bundle handles) is the downloaded half
+  of the installed set, read from the index at startup. `build_mod_catalog`
+  appends one player-facing row per downloaded mod (bundle meta once loaded;
+  decl-only name = id while in flight) and `register_bundles` merges the
+  ENABLED downloaded bundles AFTER the shipped ones, in index order, under the
+  same overlay rules. Both re-run when `DownloadedMods` changes;
+  `mark_downloaded_bundles_loaded` flags that change when a bundle's async
+  `mods://` load completes (downloaded bundles sit OUTSIDE the `GameAssets`
+  collection gate). Downloaded mods install DISABLED - enabling is the normal
+  `EnabledMods` toggle; they carry no `base`/`hidden` flags.
+- NO SHADOWING: a downloaded record whose id matches a SHIPPED catalog entry
+  (hidden ones included - one id space) is skipped with a warning by both
+  `build_mod_catalog` and `register_bundles`, so one toggle can never drive
+  two bundles or two rows. This re-enforces the portal generator's
+  no-collision rule at the consumers, because the local index is downloaded
+  input the game must not trust.
+- TRUST BOUNDARY: index records and bundle manifests are downloaded input.
+  Unsafe ids/paths (a `..` component, an absolute path, a nested id) are
+  rejected by the public cache API on both platforms and skipped with a
+  warning when the index is read; escaping ASSET paths (a malicious manifest
+  can request one) are rejected by bevy's default `UnapprovedPathMode::Forbid`
+  at load time AND by a sandboxing reader wrapped around the native `mods://`
+  source, so containment does not depend on the bevy default staying in place.
+- UNINSTALL vs ENABLEMENT: uninstalling a mod while it is enabled leaves its
+  id in `EnabledMods` (and the persisted prefs), so reinstalling the same id
+  comes back enabled. Deliberate for now - the installer flow (task 163508)
+  decides whether uninstall also strips the pref.
+
 ## File naming (bundles, content, catalog) - load-bearing
 
 A bundle manifest MUST be named `<pack>.bundle.ron` (e.g. `assets/base/base.bundle.ron`),

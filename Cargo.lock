@@ -4503,11 +4503,16 @@ dependencies = [
  "bevy_asset_loader",
  "bevy_rand",
  "dirs",
+ "js-sys",
  "nova_events",
  "nova_gameplay",
  "nova_modding",
  "nova_scenario",
  "ron",
+ "serde",
+ "tempfile",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 

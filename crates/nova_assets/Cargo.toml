@@ -12,17 +12,37 @@ bevy_asset_loader = { version = "0.27.0" }
 # The scenario_generation module serializes the code-built configs to RON. The
 # needed Serialize derives (nova_scenario/serde) are already on via nova_modding.
 ron = { version = "0.12" }
+# The mod_cache InstalledModRecord derives its RON serde directly.
+serde = { version = "1", features = ["derive"] }
 nova_gameplay = { path = "../nova_gameplay" }
 nova_scenario = { path = "../nova_scenario" }
 nova_modding = { path = "../nova_modding" }
 
-# Cross-platform persistence of the enabled-mods set (task 20260714-174131).
-# Native: a RON file under the user config dir. Web: window.localStorage.
+# Cross-platform persistence of the enabled-mods set (task 20260714-174131)
+# and of the downloaded-mods cache (task 20260715-142906).
+# Native: RON files under the user config/data dirs. Web: window.localStorage
+# for the small sync stores, IndexedDB (hand-rolled web-sys wrapper in
+# mod_cache) for the downloaded mods' file bytes.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 dirs = "6"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-web-sys = { version = "0.3", features = ["Window", "Storage"] }
+web-sys = { version = "0.3", features = [
+    "Window",
+    "Storage",
+    "Event",
+    "DomStringList",
+    "IdbFactory",
+    "IdbOpenDbRequest",
+    "IdbRequest",
+    "IdbDatabase",
+    "IdbObjectStore",
+    "IdbTransaction",
+    "IdbTransactionMode",
+] }
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
 
 [dev-dependencies]
 avian3d = { version = "0.7" }
@@ -30,6 +50,7 @@ bevy_rand = { version = "0.15.0", default-features = false, features = [
     "wyrand",
 ] }
 nova_events = { path = "../nova_events" }
+tempfile = "3"
 
 [lints]
 workspace = true

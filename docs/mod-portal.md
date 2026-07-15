@@ -83,8 +83,19 @@ cargo run -p nova_portal_gen -- --source webmods --shipped assets/mods.catalog.r
 python3 -m http.server -d /tmp/portal 8000   # portal at http://localhost:8000/mods/
 ```
 
-The game's portal base URL is a config (task 142906), so a dev build can point
+The game's portal base URL is a config (task 163508), so a dev build can point
 at localhost.
+
+## How installed mods are stored (game side)
+
+A downloaded mod lands in the game's LOCAL MOD CACHE and is served back to the
+asset server through the `mods://` source - native under
+`dirs::data_dir()/nova-protocol` (files + a RON installed index), the web in
+IndexedDB + localStorage. From there it loads and merges exactly like a
+shipped mod. The full format and runtime flow live in
+docs/modding-ron-format.md, section "Downloaded mods: the local cache + the
+`mods://` source" (task 20260715-142906); the fetch/verify/install flow that
+fills the cache from this portal is task 20260715-163508.
 
 ## The real server, later
 

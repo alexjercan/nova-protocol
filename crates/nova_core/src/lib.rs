@@ -60,6 +60,16 @@ impl Default for AppBuilder {
 impl AppBuilder {
     pub fn new() -> Self {
         let mut app = App::new();
+        // The `mods://` source (the downloaded-mods cache, task 20260715-142906)
+        // must be registered BEFORE AssetPlugin lands with DefaultPlugins below:
+        // bevy builds the registered sources at AssetPlugin insertion, not
+        // lazily. It cannot live inside `assets_plugin()` (that returns the
+        // AssetPlugin VALUE for `.set()`; source registration needs the App), so
+        // the registration helper lives next to the cache in
+        // `nova_assets::mod_cache` and is called here - which also lets the
+        // nova_assets integration tests build their rigs on the exact production
+        // registration.
+        nova_assets::mod_cache::register_mods_source(&mut app);
         app.add_plugins(
             DefaultPlugins
                 .build()
@@ -226,6 +236,10 @@ fn log_filter_str<'a>() -> &'a str {
 /// would fire an HTTP request per asset on wasm just to 404 on the missing
 /// metas. Per-path opt-in gives the cubemap its loader settings at no cost to
 /// the rest.
+///
+/// The `mods://` source for downloaded mods is NOT configured here - it must be
+/// registered on the App before this plugin is added; `AppBuilder::new` calls
+/// `nova_assets::mod_cache::register_mods_source` for that.
 pub fn assets_plugin() -> AssetPlugin {
     AssetPlugin {
         meta_check: bevy::asset::AssetMetaCheck::Paths(
