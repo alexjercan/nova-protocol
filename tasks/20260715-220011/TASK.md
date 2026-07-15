@@ -1,8 +1,8 @@
 # Real per-scenario thumbnail art for the Scenarios picker (replace placeholder textures)
 
 - STATUS: OPEN
-- PRIORITY: 8
-- TAGS: feature,menu,scenario,art
+- PRIORITY: 0
+- TAGS: backlog,feature,menu,scenario,art
 
 ## Goal
 

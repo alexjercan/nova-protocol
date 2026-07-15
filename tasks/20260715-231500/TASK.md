@@ -1,8 +1,8 @@
 # Annotate the HUD and radar wiki screenshots with callout labels
 
 - STATUS: OPEN
-- PRIORITY: 30
-- TAGS: docs,web,assets
+- PRIORITY: 0
+- TAGS: backlog,docs,web,assets
 
 Split out from task 20260715-224013 (player docs front door). The player docs
 task delivered the getting-started page, glossary, tutorial surfacing and jargon
