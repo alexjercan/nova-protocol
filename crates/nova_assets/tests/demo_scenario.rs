@@ -106,10 +106,11 @@ fn merge_with_enabled(enabled: &[&str]) -> (GameSections, GameScenarios) {
     (sections, scenarios)
 }
 
-/// `build_mod_catalog` fills the PLAYER-FACING `ModCatalog` with the installed mods'
-/// metadata, in catalog order (base first), FILTERING `hidden: true` entries - the
-/// real catalog ships base + demo + the hidden screenshot-reel, and the menu list
-/// must show exactly base + demo (task 20260715-142844).
+/// `build_mod_catalog` fills the PLAYER-FACING `ModCatalog` with the installed
+/// mods, in catalog order (base first), FILTERING `hidden: true` entries and
+/// composing each entry with the `meta` block AUTHORED IN ITS OWN BUNDLE - the
+/// thin catalog carries no metadata, so the exact strings below passing proves
+/// the plumbing reads the bundle (task 20260715-142849 on 142844).
 #[test]
 fn mod_catalog_lists_installed_mods_metadata() {
     let mut app = headless_app();
@@ -137,16 +138,50 @@ fn mod_catalog_lists_installed_mods_metadata() {
     );
     assert_eq!(mods[0].id, "base", "base is first (load order)");
     assert!(mods[0].base, "base is flagged");
+    assert_eq!(
+        mods[0].meta.name, "Base Game",
+        "base's display name comes from base.bundle.ron's meta"
+    );
     assert_eq!(mods[1].id, "demo");
     assert!(!mods[1].base);
-    assert!(
-        !mods[1].name.is_empty() && !mods[1].description.is_empty(),
-        "the demo entry carries display metadata"
+    assert_eq!(
+        mods[1].meta.name, "Demo Mod",
+        "demo's display name comes from demo.bundle.ron's meta"
     );
+    assert_eq!(
+        mods[1].meta.description,
+        "Example mod: up-armors a hull section and adds an arena scenario.",
+        "demo's description comes from its bundle meta (the catalog has none)"
+    );
+    assert_eq!(mods[1].meta.version, "1.0.0", "bundle meta version decodes");
+    assert_eq!(mods[1].meta.author, "Nova Protocol");
     assert!(
         !mods.iter().any(|m| m.id == "screenshot-reel"),
         "the hidden dev mod must not reach the player-facing list"
     );
+}
+
+/// `ModInfo::new` normalizes: no bundle meta (or an empty name) falls back to the
+/// catalog id, so a meta-less mod still renders a usable row; an authored meta
+/// passes through untouched.
+#[test]
+fn mod_info_falls_back_to_id_when_meta_is_missing() {
+    let decl = nova_modding::prelude::ModEntry {
+        id: "bare-mod".to_string(),
+        bundle: "mods/bare/bare.bundle.ron".to_string(),
+        base: false,
+        hidden: false,
+    };
+    let info = ModInfo::new(&decl, None);
+    assert_eq!(info.meta.name, "bare-mod", "missing meta -> name = id");
+    assert!(info.meta.description.is_empty());
+
+    let authored = ModMeta {
+        name: "Bare".to_string(),
+        ..Default::default()
+    };
+    let info = ModInfo::new(&decl, Some(&authored));
+    assert_eq!(info.meta.name, "Bare", "authored meta passes through");
 }
 
 /// Hidden is NOT disabled: a `hidden: true` catalog entry stays installed and merges

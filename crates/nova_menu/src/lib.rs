@@ -26,7 +26,7 @@ use bevy::{
     ui_widgets::{observe, Activate, Button},
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
-use nova_assets::prelude::{EnabledMods, ModCatalog, ModEntry};
+use nova_assets::prelude::{EnabledMods, ModCatalog, ModInfo};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
@@ -552,7 +552,7 @@ fn setup_menu_ui(
     // Mods panel: hidden until the Mods button toggles it. Lists the installed
     // mods (from the catalog) with per-mod enable/disable toggles; base is shown
     // locked-on. `Explore online` is a coming-soon placeholder.
-    let mods: Vec<ModEntry> = mod_catalog.map(|c| c.0.clone()).unwrap_or_default();
+    let mods: Vec<ModInfo> = mod_catalog.map(|c| c.0.clone()).unwrap_or_default();
     let is_enabled = |id: &str| enabled.as_ref().is_some_and(|e| e.0.contains(id));
 
     commands
@@ -669,7 +669,7 @@ fn setup_menu_ui(
 /// Spawn one mod row: name + description, then either a toggle button (its label
 /// set by `update_mod_toggle_labels`) or, for the locked `base` mod, a static
 /// "Enabled (base)" tag.
-fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModEntry, enabled: bool) {
+fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModInfo, enabled: bool) {
     list.spawn((
         Name::new(format!("Mod Row: {}", m.id)),
         Node {
@@ -686,7 +686,7 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModEntry, enabled: bool) {
         children![
             (
                 Name::new("Mod Name"),
-                Text::new(m.name.clone()),
+                Text::new(m.meta.name.clone()),
                 TextFont {
                     font_size: FontSize::Px(16.0),
                     ..default()
@@ -695,7 +695,7 @@ fn spawn_mod_row(list: &mut ChildSpawnerCommands, m: &ModEntry, enabled: bool) {
             ),
             (
                 Name::new("Mod Description"),
-                Text::new(m.description.clone()),
+                Text::new(m.meta.description.clone()),
                 TextFont {
                     font_size: FontSize::Px(12.0),
                     ..default()
@@ -1412,21 +1412,23 @@ mod tests {
         let mut app = app();
         app.insert_resource(dummy_scenarios());
         app.insert_resource(ModCatalog(vec![
-            ModEntry {
+            ModInfo {
                 id: "base".to_string(),
-                name: "Base Game".to_string(),
-                description: "base".to_string(),
-                bundle: "base/base.bundle.ron".to_string(),
                 base: true,
-                hidden: false,
+                meta: nova_assets::prelude::ModMeta {
+                    name: "Base Game".to_string(),
+                    description: "base".to_string(),
+                    ..Default::default()
+                },
             },
-            ModEntry {
+            ModInfo {
                 id: "demo".to_string(),
-                name: "Demo Mod".to_string(),
-                description: "demo".to_string(),
-                bundle: "mods/demo/demo.bundle.ron".to_string(),
                 base: false,
-                hidden: false,
+                meta: nova_assets::prelude::ModMeta {
+                    name: "Demo Mod".to_string(),
+                    description: "demo".to_string(),
+                    ..Default::default()
+                },
             },
         ]));
         app.insert_resource(EnabledMods(["base".to_string()].into_iter().collect()));
@@ -1448,6 +1450,23 @@ mod tests {
         assert!(
             !toggles.contains(&"base".to_string()),
             "base is locked - it has no toggle button"
+        );
+
+        // The rows render the mod's bundle META (name + description), not its id -
+        // a swapped or dropped meta field would leave these strings unrendered.
+        let texts: Vec<String> = app
+            .world_mut()
+            .query::<&Text>()
+            .iter(app.world())
+            .map(|t| t.0.clone())
+            .collect();
+        assert!(
+            texts.iter().any(|t| t == "Demo Mod"),
+            "the row shows the meta name, not the id: {texts:?}"
+        );
+        assert!(
+            texts.iter().any(|t| t == "demo"),
+            "the row shows the meta description"
         );
     }
 

@@ -45,7 +45,7 @@ pub mod prelude {
     pub use super::{
         BundleAsset, BundleAssetLoader, BundleManifest, CatalogEntry, CatalogLoader,
         CatalogManifest, Content, ContentAsset, ContentAssetLoader, InstalledCatalog, ModEntry,
-        ModdingLoaderError, NovaModdingPlugin,
+        ModMeta, ModdingLoaderError, NovaModdingPlugin,
     };
 }
 
@@ -81,8 +81,45 @@ impl VisitAssetDependencies for ContentAsset {
 
 impl Asset for ContentAsset {}
 
+/// A mod's SELF-DESCRIPTION, authored in its `*.bundle.ron` manifest - the
+/// Factorio `info.json` analog and the single source of truth for mod metadata
+/// (the menu list, the details panel, and the mod portal all read it).
+///
+/// Every field is optional (serde-defaulted) so a bare `(content: [...])`
+/// manifest stays valid. Conventions: `version` is an opaque semver-ish string
+/// (empty = unversioned; the base game leaves it empty, the GAME version is
+/// authoritative there); `dependencies` lists mod ids - `base` is an IMPLICIT
+/// dependency and is not declared (resolution is task 20260715-142931);
+/// `icon`/`screenshots` are paths relative to the bundle's directory, reserved
+/// for the mod portal and the details panel.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ModMeta {
+    /// Display name for the mods list (falls back to the catalog id when empty).
+    #[serde(default)]
+    pub name: String,
+    /// One-line description for the mods list / details panel.
+    #[serde(default)]
+    pub description: String,
+    /// Author credit, shown in the details panel.
+    #[serde(default)]
+    pub author: String,
+    /// Opaque version string (semver-ish); empty = unversioned.
+    #[serde(default)]
+    pub version: String,
+    /// Ids of mods this one needs (schema-only for now; `base` is implicit).
+    #[serde(default)]
+    pub dependencies: Vec<String>,
+    /// Icon image path, relative to the bundle directory (reserved).
+    #[serde(default)]
+    pub icon: Option<String>,
+    /// Screenshot image paths, relative to the bundle directory (reserved).
+    #[serde(default)]
+    pub screenshots: Vec<String>,
+}
+
 /// The on-disk `*.bundle.ron` manifest: the list of content files a bundle
-/// folder packages, as paths RELATIVE to the manifest file's own directory.
+/// folder packages, as paths RELATIVE to the manifest file's own directory,
+/// plus the mod's [`ModMeta`] self-description.
 ///
 /// A bundle is a DIRECTORY plus this manifest - the manifest, not directory
 /// enumeration, is what makes bundles wasm-safe (`load_folder` is broken on the
@@ -92,10 +129,13 @@ pub struct BundleManifest {
     /// Content-file paths, relative to the `bundle.ron` file's directory (e.g.
     /// `"sections/base.content.ron"`, `"scenarios/demo.content.ron"`).
     pub content: Vec<String>,
+    /// The mod's self-description; defaulted so meta-less manifests stay valid.
+    #[serde(default)]
+    pub meta: ModMeta,
 }
 
 /// A loaded bundle: the [`ContentAsset`] handles for every content file its
-/// [`BundleManifest`] listed, in manifest order.
+/// [`BundleManifest`] listed, in manifest order, plus the manifest's [`ModMeta`].
 ///
 /// Unlike [`ContentAsset`] (a leaf with no dependencies), a bundle HAS
 /// dependencies - its content files. [`Asset`] and [`VisitAssetDependencies`]
@@ -107,6 +147,8 @@ pub struct BundleManifest {
 pub struct BundleAsset {
     /// One handle per content file the manifest listed, in manifest order.
     pub content: Vec<Handle<ContentAsset>>,
+    /// The mod's self-description, carried from the manifest.
+    pub meta: ModMeta,
 }
 
 impl VisitAssetDependencies for BundleAsset {
@@ -239,7 +281,10 @@ impl AssetLoader for BundleAssetLoader {
             })
             .collect();
 
-        Ok(BundleAsset { content })
+        Ok(BundleAsset {
+            content,
+            meta: manifest.meta,
+        })
     }
 
     fn extensions(&self) -> &[&str] {
@@ -247,21 +292,18 @@ impl AssetLoader for BundleAssetLoader {
     }
 }
 
-/// One INSTALLED mod's metadata + where to find it, as authored in the catalog.
+/// One INSTALLED mod's catalog DECLARATION: identity + where to find it +
+/// deployment flags. A thin pointer, not metadata - the mod's self-description
+/// (name, author, version, ...) lives in its own bundle's [`ModMeta`].
 ///
-/// This is what the mods menu shows in its list (`name`/`description`) and what
-/// `register_bundles` keys enable/disable on (`id`). `bundle` is the mod's
-/// `*.bundle.ron` manifest path, RELATIVE to the asset root (the catalog lives at
-/// the root). `base` marks the base game's own entry - it is enabled by default and
-/// (in the UI) locked on.
+/// `id` is what `register_bundles` keys enable/disable on and the merge-overlay
+/// namespace. `bundle` is the mod's `*.bundle.ron` manifest path, RELATIVE to the
+/// asset root (the catalog lives at the root). `base` marks the base game's own
+/// entry - enabled by default and (in the UI) locked on.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ModEntry {
     /// Stable id - the enable/disable key and the merge-overlay namespace.
     pub id: String,
-    /// Display name for the mods list.
-    pub name: String,
-    /// One-line description for the mods list.
-    pub description: String,
     /// The mod's `*.bundle.ron` manifest path, asset-root-relative.
     pub bundle: String,
     /// True for the base game's entry: enabled by default, locked on in the UI.
@@ -286,18 +328,18 @@ pub struct CatalogManifest {
     pub mods: Vec<ModEntry>,
 }
 
-/// One loaded catalog entry: a mod's [`ModEntry`] metadata paired with the loaded
-/// handle for its [`BundleAsset`].
+/// One loaded catalog entry: a mod's [`ModEntry`] declaration paired with the
+/// loaded handle for its [`BundleAsset`].
 #[derive(Clone, Debug)]
 pub struct CatalogEntry {
-    /// The authored metadata (id, name, description, base flag).
-    pub meta: ModEntry,
+    /// The catalog declaration (id, bundle path, base/hidden flags).
+    pub decl: ModEntry,
     /// The loaded handle for this mod's bundle.
     pub bundle: Handle<BundleAsset>,
 }
 
-/// A loaded installed-mods catalog: every installed mod's metadata + bundle handle,
-/// in catalog (load) order.
+/// A loaded installed-mods catalog: every installed mod's declaration + bundle
+/// handle, in catalog (load) order.
 ///
 /// Like [`BundleAsset`] one level up, an `InstalledCatalog` HAS dependencies - the
 /// bundle of EVERY installed mod - so [`Asset`] and [`VisitAssetDependencies`] are
@@ -325,7 +367,7 @@ impl Asset for InstalledCatalog {}
 ///
 /// Decodes the manifest, then for each installed mod issues a
 /// `load_context.load::<BundleAsset>` (the paths are asset-root-relative) and pairs
-/// each handle with its metadata into an [`InstalledCatalog`]. Mirrors
+/// each handle with its declaration into an [`InstalledCatalog`]. Mirrors
 /// [`BundleAssetLoader`] one level up (a catalog of bundles instead of a bundle of
 /// content).
 ///
@@ -359,9 +401,9 @@ impl AssetLoader for CatalogLoader {
         let entries = manifest
             .mods
             .into_iter()
-            .map(|meta| {
-                let bundle = load_context.load::<BundleAsset>(AssetPath::from(meta.bundle.clone()));
-                CatalogEntry { meta, bundle }
+            .map(|decl| {
+                let bundle = load_context.load::<BundleAsset>(AssetPath::from(decl.bundle.clone()));
+                CatalogEntry { decl, bundle }
             })
             .collect();
 
@@ -442,8 +484,12 @@ mod tests {
     /// content-file paths in order. (The actual load of each content file into a
     /// `BundleAsset` is exercised by the `nova_assets` `demo_scenario`
     /// integration test on the real asset server.)
+    /// A meta-less `(content: [...])` manifest still decodes (back-compat pin:
+    /// every field of [`ModMeta`] is serde-defaulted), and a manifest WITH a meta
+    /// block decodes every field.
     #[test]
     fn bundle_manifest_ron_decodes() {
+        // Meta-less body (the pre-142849 format) -> ModMeta::default().
         let ron = r#"(content: [
             "sections/base.content.ron",
             "scenarios/demo.content.ron",
@@ -458,18 +504,46 @@ mod tests {
                 "scenarios/demo.content.ron".to_string(),
             ]
         );
+        assert!(
+            manifest.meta.name.is_empty() && manifest.meta.dependencies.is_empty(),
+            "a meta-less manifest defaults to an empty ModMeta"
+        );
+
+        // Full meta block -> every field decodes.
+        let ron = r#"(
+            content: ["mod.content.ron"],
+            meta: (
+                name: "Demo Mod",
+                description: "a demo",
+                author: "someone",
+                version: "1.2.3",
+                dependencies: ["other-mod"],
+                icon: Some("icon.png"),
+                screenshots: ["shots/a.png"],
+            ),
+        )"#;
+        let manifest: BundleManifest =
+            ron::de::from_bytes(ron.as_bytes()).expect("meta manifest should decode");
+        assert_eq!(manifest.meta.name, "Demo Mod");
+        assert_eq!(manifest.meta.description, "a demo");
+        assert_eq!(manifest.meta.author, "someone");
+        assert_eq!(manifest.meta.version, "1.2.3");
+        assert_eq!(manifest.meta.dependencies, vec!["other-mod".to_string()]);
+        assert_eq!(manifest.meta.icon.as_deref(), Some("icon.png"));
+        assert_eq!(manifest.meta.screenshots, vec!["shots/a.png".to_string()]);
     }
 
     /// A `mods.catalog.ron` body decodes into a [`CatalogManifest`] carrying the
-    /// installed mods in order, with `base` and `hidden` defaulting to false when
-    /// omitted. (The actual load of each bundle into an `InstalledCatalog` is
-    /// exercised by the `nova_assets` integration test on the real asset server.)
+    /// installed mods' thin declarations in order, with `base` and `hidden`
+    /// defaulting to false when omitted. (The actual load of each bundle into an
+    /// `InstalledCatalog` is exercised by the `nova_assets` integration test on
+    /// the real asset server.)
     #[test]
     fn catalog_manifest_ron_decodes() {
         let ron = r#"(mods: [
-            (id: "base", name: "Base Game", description: "the base", bundle: "base/base.bundle.ron", base: true),
-            (id: "demo", name: "Demo Mod", description: "a demo", bundle: "mods/demo/demo.bundle.ron"),
-            (id: "reel", name: "Reel", description: "capture set", bundle: "mods/reel/reel.bundle.ron", hidden: true),
+            (id: "base", bundle: "base/base.bundle.ron", base: true),
+            (id: "demo", bundle: "mods/demo/demo.bundle.ron"),
+            (id: "reel", bundle: "mods/reel/reel.bundle.ron", hidden: true),
         ])"#;
         let manifest: CatalogManifest =
             ron::de::from_bytes(ron.as_bytes()).expect("catalog should decode");

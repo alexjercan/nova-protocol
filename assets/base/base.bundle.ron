@@ -1,1 +1,19 @@
-(content: ["sections/base.content.ron", "scenarios/demo.content.ron", "scenarios/asteroid_field.content.ron", "scenarios/asteroid_next.content.ron", "scenarios/menu_ambience.content.ron", "scenarios/shakedown_run.content.ron"])
+// The base game's own bundle - the base game is just a mod. `meta` is the mod's
+// SELF-DESCRIPTION (the single source of truth for name/description/author/...,
+// shown in the Mods menu); `version` stays empty for base because the GAME
+// version is authoritative here.
+(
+    content: [
+        "sections/base.content.ron",
+        "scenarios/demo.content.ron",
+        "scenarios/asteroid_field.content.ron",
+        "scenarios/asteroid_next.content.ron",
+        "scenarios/menu_ambience.content.ron",
+        "scenarios/shakedown_run.content.ron",
+    ],
+    meta: (
+        name: "Base Game",
+        description: "Nova Protocol - the core sections, ships and scenarios.",
+        author: "Nova Protocol",
+    ),
+)

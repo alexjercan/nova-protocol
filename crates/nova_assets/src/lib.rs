@@ -8,7 +8,9 @@ use bevy::{
 };
 use bevy_asset_loader::prelude::*;
 use nova_gameplay::prelude::*;
-use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, ModEntry};
+use nova_modding::prelude::{
+    BundleAsset, Content, ContentAsset, InstalledCatalog, ModEntry, ModMeta,
+};
 use nova_scenario::prelude::GameScenarios;
 
 pub mod mod_prefs;
@@ -16,9 +18,11 @@ mod scenario;
 mod sections;
 
 pub mod prelude {
-    pub use nova_modding::prelude::ModEntry;
+    pub use nova_modding::prelude::ModMeta;
 
-    pub use super::{EnabledMods, GameAssets, GameAssetsPlugin, GameAssetsStates, ModCatalog};
+    pub use super::{
+        EnabledMods, GameAssets, GameAssetsPlugin, GameAssetsStates, ModCatalog, ModInfo,
+    };
 }
 
 /// The RON generation surface for the built-in scenarios (task 20260525-133028
@@ -118,9 +122,41 @@ pub use crate::register_bundles as register_bundles_for_test;
 #[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
 pub struct EnabledMods(pub HashSet<String>);
 
-/// The PLAYER-FACING installed-mods metadata, in catalog order - the menu's view of
-/// the [`InstalledCatalog`] asset (metadata only, no bundle handles), with
-/// `hidden: true` entries (dev/tooling mods) filtered out.
+/// One PLAYER-FACING installed mod: the catalog declaration's identity + flags
+/// composed with the mod's [`ModMeta`] self-description from its own bundle.
+///
+/// Built by [`ModInfo::new`], which normalizes an empty meta name to the id so a
+/// meta-less mod still renders a usable row.
+#[derive(Clone, Debug)]
+pub struct ModInfo {
+    /// Stable id - the enable/disable key (from the catalog declaration).
+    pub id: String,
+    /// True for the base game's entry (locked on in the UI).
+    pub base: bool,
+    /// The mod's self-description, from its bundle's `meta` block; `name` is
+    /// guaranteed non-empty (falls back to `id`).
+    pub meta: ModMeta,
+}
+
+impl ModInfo {
+    /// Compose a catalog declaration with its bundle's meta (if the bundle is
+    /// loaded); an empty meta name falls back to the id.
+    pub fn new(decl: &ModEntry, meta: Option<&ModMeta>) -> Self {
+        let mut meta = meta.cloned().unwrap_or_default();
+        if meta.name.is_empty() {
+            meta.name = decl.id.clone();
+        }
+        Self {
+            id: decl.id.clone(),
+            base: decl.base,
+            meta,
+        }
+    }
+}
+
+/// The PLAYER-FACING installed-mods list, in catalog order - the menu's view of
+/// the [`InstalledCatalog`] asset composed with each mod's bundle [`ModMeta`],
+/// with `hidden: true` entries (dev/tooling mods) filtered out.
 ///
 /// Built once from the loaded catalog at `OnEnter(Processing)` by
 /// [`build_mod_catalog`]. The mods menu reads this (plus [`EnabledMods`]) to render
@@ -128,14 +164,16 @@ pub struct EnabledMods(pub HashSet<String>);
 /// Hidden mods stay installed and enableable by id (`register_bundles` reads the
 /// full catalog, not this view); they just never reach the menu.
 #[derive(Resource, Clone, Debug, Default)]
-pub struct ModCatalog(pub Vec<ModEntry>);
+pub struct ModCatalog(pub Vec<ModInfo>);
 
-/// Fill [`ModCatalog`] from the loaded [`InstalledCatalog`] asset (metadata only),
-/// in catalog order, skipping `hidden` entries. Runs at `OnEnter(Processing)`,
-/// before `seed_enabled_mods`.
+/// Fill [`ModCatalog`] from the loaded [`InstalledCatalog`] asset, composing each
+/// non-`hidden` declaration with its bundle's [`ModMeta`], in catalog order. Runs
+/// at `OnEnter(Processing)`, before `seed_enabled_mods`. A missing/unloaded
+/// bundle is logged and degrades to a decl-only row (name = id), never a panic.
 pub fn build_mod_catalog(
     game_assets: Res<GameAssets>,
     catalogs: Res<Assets<InstalledCatalog>>,
+    bundles: Res<Assets<BundleAsset>>,
     mut mod_catalog: ResMut<ModCatalog>,
 ) {
     let Some(catalog) = catalogs.get(&game_assets.catalog) else {
@@ -145,8 +183,17 @@ pub fn build_mod_catalog(
     mod_catalog.0 = catalog
         .entries
         .iter()
-        .filter(|e| !e.meta.hidden)
-        .map(|e| e.meta.clone())
+        .filter(|e| !e.decl.hidden)
+        .map(|e| {
+            let meta = bundles.get(&e.bundle).map(|b| &b.meta);
+            if meta.is_none() {
+                error!(
+                    "build_mod_catalog: bundle for mod '{}' not loaded; using its id as the name",
+                    e.decl.id
+                );
+            }
+            ModInfo::new(&e.decl, meta)
+        })
         .collect();
 }
 
@@ -173,10 +220,10 @@ pub fn seed_enabled_mods(
         return;
     };
     for entry in &catalog.entries {
-        if entry.meta.base {
-            enabled.0.insert(entry.meta.id.clone());
-        } else if entry.meta.hidden {
-            enabled.0.remove(&entry.meta.id);
+        if entry.decl.base {
+            enabled.0.insert(entry.decl.id.clone());
+        } else if entry.decl.hidden {
+            enabled.0.remove(&entry.decl.id);
         }
     }
 }
@@ -233,7 +280,7 @@ pub fn register_bundles(
     match catalogs.get(&game_assets.catalog) {
         Some(catalog) => {
             for entry in &catalog.entries {
-                if enabled.0.contains(&entry.meta.id) {
+                if enabled.0.contains(&entry.decl.id) {
                     bundle_handles.push(&entry.bundle);
                 }
             }

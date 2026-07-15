@@ -1,6 +1,6 @@
 # Bundle meta block: mod metadata moves into bundle.ron, catalogs become thin pointers
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 18
 - TAGS: modding
 
@@ -55,41 +55,41 @@ Schema decided from the code (all consumers grepped):
   (CHANGELOG still notes it).
 
 Steps:
-- [ ] 1. nova_modding: add `ModMeta` (fields above, Default + serde defaults) +
+- [x] 1. nova_modding: add `ModMeta` (fields above, Default + serde defaults) +
   `meta` on `BundleManifest` and `BundleAsset`; `BundleAssetLoader` carries it
   through. Extend `bundle_manifest_ron_decodes`: a manifest WITH a meta block
   decodes every field; the existing meta-less body still decodes to
   `ModMeta::default()` (back-compat pin).
-- [ ] 2. nova_modding: thin `ModEntry` to `{ id, bundle, base, hidden }`;
+- [x] 2. nova_modding: thin `ModEntry` to `{ id, bundle, base, hidden }`;
   rename `CatalogEntry.meta` -> `decl`. Update `catalog_manifest_ron_decodes`
   (drop name/description, keep base/hidden default assertions). Update the
   module doc + prelude (export `ModMeta`).
-- [ ] 3. assets: author `meta` blocks in `base/base.bundle.ron`,
+- [x] 3. assets: author `meta` blocks in `base/base.bundle.ron`,
   `mods/demo/demo.bundle.ron`, `mods/screenshot-reel/screenshot-reel.bundle.ron`
   (values above, moved from the catalog); thin `assets/mods.catalog.ron` to
   pointers (id, bundle, base, hidden) and update its header comment.
-- [ ] 4. nova_assets: `ModInfo` + pure `ModInfo::new` with the name-fallback;
+- [x] 4. nova_assets: `ModInfo` + pure `ModInfo::new` with the name-fallback;
   `ModCatalog(Vec<ModInfo>)`; `build_mod_catalog` composes catalog decls with
   loaded bundle metas (+ `Res<Assets<BundleAsset>>` param, decl-only fallback on
   a missing bundle). Rename the `e.meta.*` consumer sites to `e.decl.*`
   (`seed_enabled_mods`, `register_bundles`). Re-export `ModInfo`/`ModMeta` from
   the prelude; drop the now-unused `ModEntry` re-export if nothing outside
   nova_assets needs it (grep first).
-- [ ] 5. nova_menu: rows read `m.meta.name` / `m.meta.description`; update the
+- [x] 5. nova_menu: rows read `m.meta.name` / `m.meta.description`; update the
   two `ModCatalog` test literals to `ModInfo` (crates/nova_menu/src/lib.rs:1415,
   :1423).
-- [ ] 6. Tests (nova_assets): unit-test `ModInfo::new` (empty meta -> name
+- [x] 6. Tests (nova_assets): unit-test `ModInfo::new` (empty meta -> name
   falls back to id; authored meta passes through). Integration
   (tests/demo_scenario.rs): `mod_catalog_lists_installed_mods_metadata` now
   asserts demo's name/description are the strings AUTHORED IN
   demo.bundle.ron's meta (proving the plumbing reads the bundle, not the
   catalog) and still filters hidden; keep all 9 tests green.
-- [ ] 7. Docs: modding-ron-format.md - bundle manifest section gains the meta
+- [x] 7. Docs: modding-ron-format.md - bundle manifest section gains the meta
   block (fields + conventions: version is a plain semver-ish string, base dep
   implicit, icon/screenshots reserved for portal/details panel); catalog section
   updated to the thin pointer shape. CHANGELOG: Changed entry (mod metadata
   lives in bundle.ron; catalog slimmed; format break noted).
-- [ ] 8. Verify: `cargo fmt --check`; `cargo check --workspace --all-targets`
+- [x] 8. Verify: `cargo fmt --check`; `cargo check --workspace --all-targets`
   (ModEntry/ModCatalog literal breaks surface here); `cargo test -p
   nova_modding`, `-p nova_assets --test demo_scenario`, `-p nova_menu`. Full
   suite stays on CI.
@@ -109,4 +109,38 @@ Steps:
   stemmed-compound-extension rules are unaffected.
 - Assumption: version stays an opaque string this task (exact-compare update
   badges come with 142916; semver ordering deferred).
+
+## Close-out (20260715)
+
+What changed: `ModMeta` (name/description/author/version/dependencies/icon/
+screenshots, all serde-defaulted) is the mod self-description, authored in each
+`*.bundle.ron`'s new `meta` block and carried onto `BundleAsset` by the loader.
+The catalog `ModEntry` thinned to a declaration (id, bundle, base, hidden);
+`CatalogEntry.meta` renamed to `decl` accordingly. The menu-facing `ModCatalog`
+became `Vec<ModInfo>` (decl identity/flags + bundle meta, name falling back to
+id via the pure `ModInfo::new`), composed in `build_mod_catalog` from the loaded
+bundles with a logged decl-only fallback. nova_menu reads `m.meta.*`; its two
+test literals became `ModInfo`. Metas authored for base (version empty - the
+game version is authoritative), demo and screenshot-reel (1.0.0). Docs +
+CHANGELOG updated (format break noted; no out-of-tree bundles exist).
+
+Alternatives: keeping metadata in catalog entries (rejected - two hands to sync,
+and the portal would duplicate it) and a separate per-mod info file (rejected -
+third file, no loader benefit); weighed in the spike (option A).
+
+Evidence: fmt clean; `cargo check --workspace --all-targets` clean;
+`cargo test -p nova_modding` 3 passed (manifest test now pins BOTH the meta-less
+back-compat decode and a full meta block); `-p nova_assets --test demo_scenario`
+10 passed (catalog test asserts the EXACT strings authored in the bundles -
+passing proves the metadata flows from the bundle, since the thin catalog no
+longer contains them; new `mod_info_falls_back_to_id_when_meta_is_missing`);
+`-p nova_menu` 13 passed. Full suite on CI.
+
+Note: screenshot-reel's meta is short-lived - user request mid-cycle became task
+20260715-151551 (unship the reel from assets/ entirely; the hidden flag stays).
+
+Reflection: smooth cycle; the plan's consumer grep (readers AND the literal
+constructors) meant zero surprise compile breaks. Writing the exact authored
+strings into the integration assertions made the "metadata comes from the
+bundle now" claim falsifiable instead of vibes.
 

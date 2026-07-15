@@ -98,16 +98,30 @@ action instead of runtime RNG. Verified by the `12_menu_newgame` boot example.
 
 ## Mods: catalog + bundles + enabled set
 
-The modding data model (tasks 150508 / 134119 / 134127 / 174120):
+The modding data model (tasks 150508 / 134119 / 134127 / 174120 / 142849):
 
 - A MOD is a folder BUNDLE: a `*.bundle.ron` manifest listing its `*.content.ron`
-  files (`Content` items: sections, scenarios). The BASE game is just a mod
-  (`assets/base/`).
-- `assets/mods.catalog.ron` is the INSTALLED-mods CATALOG - a wasm-safe manifest (never
-  a directory scan) listing every installed mod with metadata (`id`, `name`,
-  `description`, `bundle`, `base`, `hidden`), base first. It loads as an
-  `InstalledCatalog` asset whose dependencies are EVERY installed mod's bundle, so all
-  installed content loads at startup regardless of what is enabled.
+  files (`Content` items: sections, scenarios) plus a `meta` block - the mod's
+  SELF-DESCRIPTION and the single source of truth for its metadata (the Factorio
+  `info.json` analog). The BASE game is just a mod (`assets/base/`).
+- The `meta` block (all fields optional, `ModMeta` in nova_modding):
+  `name`, `description`, `author`, `version` (opaque semver-ish string; base
+  leaves it empty - the GAME version is authoritative there),
+  `dependencies: [ids]` (schema-only until 142931; `base` is an IMPLICIT
+  dependency and is never declared), `icon` and `screenshots: [paths]`
+  (bundle-dir-relative; reserved for the mod portal and the details panel).
+  NOTE: `icon` is an Option and the loader uses strict RON, so it must be
+  written `icon: Some("icon.png")`, not `icon: "icon.png"`.
+  A meta-less `(content: [...])` manifest stays valid; the menu falls back to
+  the catalog id as the display name.
+- `assets/mods.catalog.ron` is the INSTALLED-mods CATALOG - a wasm-safe manifest
+  (never a directory scan), a THIN ordered pointer list: each entry is only
+  `id`, `bundle` (path), `base`, `hidden` - deployment concerns; the mod's
+  metadata lives in its own bundle. It loads as an `InstalledCatalog` asset
+  whose dependencies are EVERY installed mod's bundle, so all installed content
+  loads at startup regardless of what is enabled. The menu-facing
+  `ModCatalog` (`Vec<ModInfo>`) composes each non-hidden declaration with its
+  loaded bundle's meta.
 - `nova_assets::EnabledMods` (a runtime resource, not an asset) is the set of enabled
   mod ids. `register_bundles` merges only the enabled cataloged bundles, in catalog
   order (base first, so mods overlay it by id). Toggling it (from the main-menu Mods
