@@ -101,7 +101,12 @@ adding an event/observer over coupling two systems.
 
 ## Assets
 
-`assets/` holds `blender/` sources, exported `gltf/` models, `textures/`,
-`shaders/` (`.wgsl`), `sounds/`, and `icons/`. The built-in sections and scenarios
-are defined in Rust (`crates/nova_assets/src/sections.rs`, `scenario.rs`,
+`assets/` is **runtime-only** - everything the game actually loads: exported
+`gltf/` models (`.glb`), `textures/`, `shaders/` (`.wgsl`), `sounds/` (`.wav`),
+`icons/`, and the `base/`/`mods/` data (`.ron`). It is the whole directory the
+web (Trunk `copy-dir`) and native (`release.yaml`) builds ship, so non-runtime
+files must not live here. The Blender SOURCES the `gltf/` models are exported
+from live OUT of the shipped tree, in top-level `art/blender/` (they are
+2.7M that was never loaded at runtime). The built-in sections and scenarios are
+defined in Rust (`crates/nova_assets/src/sections.rs`, `scenario.rs`,
 `scenario/`); moving them to data files is a known future direction.
