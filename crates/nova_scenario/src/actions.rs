@@ -11,13 +11,14 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        base_scenario_object, BaseScenarioObjectConfig, DebugMessageActionConfig,
-        DespawnScenarioObjectActionConfig, EventActionConfig, HintEmphasisClearActionConfig,
-        HintEmphasisSetActionConfig, NextScenarioActionConfig, ObjectiveActionConfig,
-        ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
-        ObjectiveMarkerDetachActionConfig, ScatterObjectsConfig, ScatterRegion, ScenarioAreaConfig,
-        ScenarioObjectConfig, ScenarioObjectKind, ScreenshotActionConfig, SetCameraActionConfig,
-        SetControllerVerbActionConfig, SetSpeedCapActionConfig, VariableSetActionConfig,
+        apply_pending_skybox_swaps, base_scenario_object, BaseScenarioObjectConfig,
+        DebugMessageActionConfig, DespawnScenarioObjectActionConfig, EventActionConfig,
+        HintEmphasisClearActionConfig, HintEmphasisSetActionConfig, NextScenarioActionConfig,
+        ObjectiveActionConfig, ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
+        ObjectiveMarkerDetachActionConfig, PendingSkyboxSwap, ScatterObjectsConfig, ScatterRegion,
+        ScenarioAreaConfig, ScenarioObjectConfig, ScenarioObjectKind, ScreenshotActionConfig,
+        SetCameraActionConfig, SetControllerVerbActionConfig, SetSkyboxActionConfig,
+        SetSpeedCapActionConfig, VariableSetActionConfig,
     };
 }
 
@@ -43,6 +44,8 @@ pub enum EventActionConfig {
     SetCamera(SetCameraActionConfig),
     /// Capture the primary window to a PNG (photo mode).
     Screenshot(ScreenshotActionConfig),
+    /// Swap the scenario's skybox cubemap mid-scenario (modding hook).
+    SetSkybox(SetSkyboxActionConfig),
 }
 
 impl EventAction<NovaEventWorld> for EventActionConfig {
@@ -97,6 +100,9 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
                 config.action(world, info);
             }
             EventActionConfig::Screenshot(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::SetSkybox(config) => {
                 config.action(world, info);
             }
         }
@@ -220,6 +226,129 @@ impl EventAction<NovaEventWorld> for ScreenshotActionConfig {
                     .observe(save_to_disk(resolved));
             });
         });
+    }
+}
+
+/// Fallback skybox brightness, matching the value the loader spawns the scenario
+/// camera with (`loader.rs`). Only used if a swap targets a camera that somehow
+/// has no current `SkyboxConfig` to inherit brightness from.
+const DEFAULT_SKYBOX_BRIGHTNESS: f32 = 1000.0;
+
+/// Swap the scenario's skybox cubemap mid-scenario. A modding hook (task
+/// 20260525-133017): a beat can change the sky by authoring a new cubemap path,
+/// resolved through the same [`AssetRef`] path-or-handle layer the RON format
+/// uses for the initial `cubemap`.
+///
+/// The cubemap cannot be applied synchronously: the skybox setup observer in
+/// `bevy_common_systems` reads the image out of `Assets<Image>` the instant a
+/// `SkyboxConfig` is inserted and panics if it is not loaded yet - and a
+/// freshly-referenced modder path is not. So the action only *tags* the scenario
+/// camera with a [`PendingSkyboxSwap`]; [`apply_pending_skybox_swaps`] inserts the
+/// real `SkyboxConfig` once the image has finished loading.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SetSkyboxActionConfig {
+    /// The new cubemap image, authored as an asset path (e.g.
+    /// `"scenarios/space.cube.png"`) or a live handle in code-built configs.
+    pub cubemap: AssetRef<Image>,
+    /// Optional brightness multiplier. `None` keeps the current skybox brightness.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub brightness: Option<f32>,
+}
+
+impl SetSkyboxActionConfig {
+    /// Construct a swap to `cubemap`, keeping the current brightness.
+    pub fn new(cubemap: impl Into<AssetRef<Image>>) -> Self {
+        Self {
+            cubemap: cubemap.into(),
+            brightness: None,
+        }
+    }
+}
+
+impl EventAction<NovaEventWorld> for SetSkyboxActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let cubemap = self.cubemap.clone();
+        let brightness = self.brightness;
+        debug!("SetSkybox: cubemap {:?}", cubemap.path());
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                // Start the load (idempotent for an already-resolved handle).
+                let handle = {
+                    let asset_server = world.resource::<AssetServer>();
+                    cubemap.resolve(asset_server)
+                };
+
+                // Resolve the camera before taking a mutable borrow.
+                let camera = {
+                    let mut query = world.query_filtered::<Entity, With<ScenarioCameraMarker>>();
+                    query.iter(world).next()
+                };
+                let Some(camera) = camera else {
+                    warn!("SetSkybox: no scenario camera present; nothing to swap");
+                    return;
+                };
+
+                if let Ok(mut entity) = world.get_entity_mut(camera) {
+                    // Do NOT insert SkyboxConfig here - the setup observer would
+                    // read the not-yet-loaded image and panic. Tag for the
+                    // deferred applier instead.
+                    entity.insert(PendingSkyboxSwap {
+                        cubemap: handle,
+                        brightness,
+                    });
+                }
+            });
+        });
+    }
+}
+
+/// A requested skybox swap waiting on its cubemap image to finish loading. Set by
+/// [`SetSkyboxActionConfig`], consumed by [`apply_pending_skybox_swaps`].
+#[derive(Component, Clone, Debug, Reflect)]
+pub struct PendingSkyboxSwap {
+    /// The (loading) cubemap to install once it is present in `Assets<Image>`.
+    pub cubemap: Handle<Image>,
+    /// Brightness override, or `None` to keep the camera's current brightness.
+    pub brightness: Option<f32>,
+}
+
+/// Applies a [`PendingSkyboxSwap`] once its cubemap image is available.
+///
+/// Readiness is "present in `Assets<Image>`" rather than the asset server's load
+/// state, because that is exactly what the skybox setup observer needs to read -
+/// and it also lets code-built swaps (a handle added straight to `Assets`) apply
+/// without a server round-trip. A genuinely failed load is dropped with a warning
+/// so a bad modder path leaves the sky unchanged instead of waiting forever.
+pub fn apply_pending_skybox_swaps(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    images: Res<Assets<Image>>,
+    q_pending: Query<(Entity, &PendingSkyboxSwap, Option<&SkyboxConfig>)>,
+) {
+    for (entity, pending, current) in &q_pending {
+        if images.contains(&pending.cubemap) {
+            let brightness = pending
+                .brightness
+                .or_else(|| current.map(|config| config.brightness))
+                .unwrap_or(DEFAULT_SKYBOX_BRIGHTNESS);
+            debug!("SetSkybox: cubemap loaded, installing (brightness {brightness})");
+            commands
+                .entity(entity)
+                .remove::<PendingSkyboxSwap>()
+                .insert(SkyboxConfig {
+                    cubemap: pending.cubemap.clone(),
+                    brightness,
+                });
+        } else if asset_server.load_state(&pending.cubemap).is_failed() {
+            warn!("SetSkybox: cubemap failed to load; leaving the skybox unchanged");
+            commands.entity(entity).remove::<PendingSkyboxSwap>();
+        }
+        // else: still loading - keep the tag and check again next frame.
     }
 }
 
@@ -782,6 +911,101 @@ mod tests {
                 "translation must advance every render frame, got {positions:?}"
             );
         }
+    }
+
+    /// The skybox swap (task 20260525-133017) is two-step on purpose: the bcs
+    /// skybox setup observer reads the cubemap out of `Assets<Image>` the instant
+    /// a `SkyboxConfig` is inserted and panics on an unloaded handle, so
+    /// `apply_pending_skybox_swaps` holds the `PendingSkyboxSwap` until the image
+    /// is present, then installs the config - inheriting the camera's current
+    /// brightness unless the swap overrides it.
+    #[test]
+    fn skybox_swap_waits_for_load_then_installs() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+        app.init_asset::<Image>();
+        app.add_systems(Update, apply_pending_skybox_swaps);
+        app.finish();
+
+        // A scenario camera already showing a skybox at brightness 500.
+        let initial = app
+            .world_mut()
+            .resource_mut::<Assets<Image>>()
+            .add(Image::default());
+        let camera = app
+            .world_mut()
+            .spawn((
+                ScenarioCameraMarker,
+                SkyboxConfig {
+                    cubemap: initial.clone(),
+                    brightness: 500.0,
+                },
+            ))
+            .id();
+
+        // Swap to a cubemap that has NOT loaded yet: reserve an id with no asset.
+        let loading = app
+            .world_mut()
+            .resource_mut::<Assets<Image>>()
+            .reserve_handle();
+        app.world_mut()
+            .entity_mut(camera)
+            .insert(PendingSkyboxSwap {
+                cubemap: loading.clone(),
+                brightness: None,
+            });
+
+        // While the image is absent, the swap stays pending and the sky is unchanged.
+        app.update();
+        assert!(
+            app.world().get::<PendingSkyboxSwap>(camera).is_some(),
+            "swap must stay pending until the cubemap loads"
+        );
+        assert_eq!(
+            app.world().get::<SkyboxConfig>(camera).unwrap().cubemap,
+            initial,
+            "skybox must not change while the new cubemap is still loading"
+        );
+
+        // The image arrives (load finishes) -> the applier installs it and clears
+        // the tag, inheriting brightness 500 because the swap did not override it.
+        app.world_mut()
+            .resource_mut::<Assets<Image>>()
+            .insert(loading.id(), Image::default())
+            .expect("inserting the loaded cubemap asset");
+        app.update();
+        assert!(
+            app.world().get::<PendingSkyboxSwap>(camera).is_none(),
+            "swap must be consumed once the cubemap is present"
+        );
+        let config = app.world().get::<SkyboxConfig>(camera).unwrap();
+        assert_eq!(
+            config.cubemap, loading,
+            "cubemap must swap to the new handle"
+        );
+        assert_eq!(
+            config.brightness, 500.0,
+            "brightness must be inherited when the swap does not set it"
+        );
+
+        // An explicit brightness overrides the inherited one.
+        let bright = app
+            .world_mut()
+            .resource_mut::<Assets<Image>>()
+            .add(Image::default());
+        app.world_mut()
+            .entity_mut(camera)
+            .insert(PendingSkyboxSwap {
+                cubemap: bright.clone(),
+                brightness: Some(250.0),
+            });
+        app.update();
+        let config = app.world().get::<SkyboxConfig>(camera).unwrap();
+        assert_eq!(config.cubemap, bright);
+        assert_eq!(
+            config.brightness, 250.0,
+            "an explicit brightness must override the inherited one"
+        );
     }
 
     /// The despawn action removes exactly the scenario object whose id
@@ -1413,6 +1637,25 @@ mod tests {
         let ron = ron::to_string(&config).expect("serialize");
         let back: ScreenshotActionConfig = ron::from_str(&ron).expect("deserialize");
         assert_eq!(back.path, config.path);
+    }
+
+    /// A modder authors `SetSkybox` in RON as a bare cubemap path (the `AssetRef`
+    /// shape), so the whole action must round-trip through serde. Confirms the new
+    /// hook is reachable from a data file, not just from code.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn set_skybox_action_round_trips_through_ron() {
+        let action =
+            EventActionConfig::SetSkybox(SetSkyboxActionConfig::new("scenarios/nebula.cube.png"));
+        let ron = ron::to_string(&action).expect("serialize");
+        let back: EventActionConfig = ron::from_str(&ron).expect("deserialize");
+        match back {
+            EventActionConfig::SetSkybox(config) => {
+                assert_eq!(config.cubemap.path(), Some("scenarios/nebula.cube.png"));
+                assert_eq!(config.brightness, None);
+            }
+            other => panic!("expected SetSkybox, got {other:?}"),
+        }
     }
 }
 

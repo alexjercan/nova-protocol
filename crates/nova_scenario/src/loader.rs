@@ -166,6 +166,14 @@ impl Plugin for ScenarioLoaderPlugin {
         app.register_type::<LockEcho>();
         app.add_systems(Update, track_player_locks.run_if(scenario_is_live));
 
+        // Deferred skybox swap behind `EventActionConfig::SetSkybox` (task
+        // 20260525-133017): the action tags the scenario camera with a
+        // `PendingSkyboxSwap`, and this applier installs the `SkyboxConfig` once
+        // the new cubemap image has loaded - the setup observer panics on an
+        // unloaded image, so the insert cannot happen synchronously in the action.
+        app.register_type::<PendingSkyboxSwap>();
+        app.add_systems(Update, apply_pending_skybox_swaps.run_if(scenario_is_live));
+
         // Scripted-camera override (photo mode / the screenshot reel): the
         // `SetCamera` action pins a `ScriptedCameraPose` on the scenario camera;
         // enforce it in PostUpdate AFTER the WASD sync so the scripted pose wins

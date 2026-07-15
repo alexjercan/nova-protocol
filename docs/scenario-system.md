@@ -98,6 +98,15 @@ it would soft-lock the script; gated handlers make repeats no-ops.
   else it is relative to the working directory; the parent dir is created if
   missing. Pair `SetCamera` (pose) + settle frames + `Screenshot` (capture) to
   script a framed shot; the screenshot-reel example drives exactly this.
+- `SetSkybox { cubemap, brightness? }` - swap the scenario's skybox cubemap
+  mid-scenario (a modding hook). `cubemap` is authored as an asset path (the same
+  `AssetRef` layer the scenario's initial `cubemap` uses); `brightness` is
+  optional and keeps the current value when omitted. The install is deferred: the
+  action tags the scenario camera with a `PendingSkyboxSwap`, and
+  `apply_pending_skybox_swaps` inserts the real `SkyboxConfig` only once the new
+  image has loaded, because the skybox setup observer reads the image immediately
+  and would panic on a not-yet-loaded handle. A failed load leaves the sky
+  unchanged (warned); no scenario camera present is a no-op.
 
 ## Variables and the event world (`world.rs`, `variables.rs`)
 
