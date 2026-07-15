@@ -1,10 +1,22 @@
-// Gauntlet Run content: one NEW scenario (no base overrides) - a slalom of
-// beacon gates to fly through, offset laterally so the course bends.
+// Gauntlet Run content: one NEW scenario (no base overrides) - a playable
+// slalom race. Spawns a player ship at the START, then guides the pilot gate
+// by gate (objective + gold marker) through GATE 1 -> GATE 2 -> FINISH. A
+// `gate` counter variable gates each area's OnEnter so the gates must be
+// threaded IN ORDER; crossing FINISH shows a completion objective.
+// Pure data-driven RON (no engine changes); `base` is an implicit dependency
+// for the section prototypes the player ship is built from.
+//
+// INVARIANT: the gate trigger areas must not overlap. Advancing `gate` only
+// arms the next gate's handler; the pilot still has to produce a fresh OnEnter
+// on that next area. If two gate areas overlapped, a pilot already loitering
+// inside the next area when it goes live would get no re-enter event and the
+// race would soft-lock. Today the gates are ~90-140u apart with 25-30u radii,
+// so this holds - keep it that way when repositioning gates.
 [
     Scenario((
         id: "gauntlet_run",
         name: "Gauntlet Run",
-        description: "Thread the beacon gates from start to finish.",
+        description: "A slalom race: thread the beacon gates in order, START to FINISH.",
         cubemap: "textures/cubemap.png",
         thumbnail: Some("textures/cubemap.png"),
         events: [
@@ -14,6 +26,55 @@
                 actions: [
                     DebugMessage((
                         message: "Gauntlet Run loaded from the mod portal.",
+                    )),
+                    // The racer. Same section layout as the base player ship,
+                    // but with all verbs enabled (no DisableVerb): the pilot
+                    // can GOTO/lock the gates from the first second.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player_spaceship",
+                            name: "Player Spaceship",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: Player((
+                                input_mapping: {
+                                    "turret": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                },
+                                speed_cap: Some(25.0),
+                                infinite_ammo: true,
+                            )),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (0.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (0.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (0.0, 0.0, 2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                                (
+                                    id: "turret",
+                                    position: (0.0, 0.0, -1.0),
+                                    rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+                                    source: Prototype("better_turret_section"),
+                                ),
+                            ],
+                        )),
                     )),
                     SpawnScenarioObject((
                         base: (
@@ -94,6 +155,123 @@
                             area_radius: Some(30.0),
                             lock_signature: None,
                         )),
+                    )),
+                    // Race state: `gate` is the index of the gate to thread
+                    // next (1..=3). Each gate's OnEnter is guarded on it, so the
+                    // gates must be crossed IN ORDER.
+                    VariableSet((
+                        key: "gate",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    Objective((
+                        id: "gate_1",
+                        message: "Thread GATE 1. Hold [W] to burn, tap [G] to GOTO the marked gate.",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "gauntlet_gate_1",
+                        label: "GATE 1",
+                    )),
+                    HintEmphasisSet((
+                        verb: "GOTO",
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("gauntlet_gate_1"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "gate_1",
+                    )),
+                    VariableSet((
+                        key: "gate",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "gauntlet_gate_1",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "gauntlet_gate_2",
+                        label: "GATE 2",
+                    )),
+                    Objective((
+                        id: "gate_2",
+                        message: "Thread GATE 2. It is off to your other side - steer through it.",
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("gauntlet_gate_2"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "gate_2",
+                    )),
+                    VariableSet((
+                        key: "gate",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "gauntlet_gate_2",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "gauntlet_finish",
+                        label: "FINISH",
+                    )),
+                    Objective((
+                        id: "finish",
+                        message: "Home stretch - cross the FINISH gate.",
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("gauntlet_finish"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "finish",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "gauntlet_finish",
+                    )),
+                    HintEmphasisClear((
+                        verb: "GOTO",
+                    )),
+                    // Bump past the last gate so no OnEnter re-fires.
+                    VariableSet((
+                        key: "gate",
+                        expression: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                    Objective((
+                        id: "course_done",
+                        message: "Course complete - nice flying, pilot.",
                     )),
                 ],
             ),

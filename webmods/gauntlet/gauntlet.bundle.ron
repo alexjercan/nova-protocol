@@ -7,7 +7,7 @@
     content: ["gauntlet.content.ron"],
     meta: (
         name: "Gauntlet Run",
-        description: "A beacon slalom course: thread the gates from start to finish.",
+        description: "A slalom race: fly your ship through the beacon gates in order, START to FINISH.",
         author: "Nova Protocol",
         version: "1.0.0",
     ),
