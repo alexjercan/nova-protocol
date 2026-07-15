@@ -85,6 +85,10 @@ four blocks:
   pipeline: lock, kill, GOTO, arrive - watched by its own handlers),
   `11_hud_range` (screen-projected HUD indicators, velocity sphere
   included), `12_menu_newgame` (the shipped boot flow).
+- Screenshots: `13_screenshot_reel`, `14_screenshot_ui`,
+  `15_screenshot_combat`, `16_screenshot_sections`, `17_screenshot_juice`,
+  `18_screenshot_orbit` (drive the shipped scenes headless to capture the
+  wiki and marketing frames).
 
 When adding a substantial feature, add or extend the example that drives it.
 (Consolidated over time: 01_scene/03_scenario merged into 08_scenario;
@@ -94,11 +98,13 @@ subject lives in bevy-common-systems; 04_asteroids' slider tuning tool was
 dropped.)
 
 Every example is HARNESSED: it drives itself under `BCS_AUTOPILOT=1`, and
-`tests/examples_smoke.rs` (the `HARNESSED_EXAMPLES` list) runs the full set
-headless as a regression suite. Ten of the twelve carry panic-on-failure
-behavior assertions with completion backstops (a stalled script fails
-instead of passing vacuously); `06_torpedo_guidance` and `09_editor` assert
-at the scenario-load / reach-gameplay level only. Keep list and disk in
+`tests/examples_smoke.rs` (the `HARNESSED_EXAMPLES` list) runs all eighteen
+headless as a regression suite - each must reach `Playing` and exit without
+panic. The gameplay examples (01-12) additionally carry panic-on-failure
+behavior assertions with completion backstops (a stalled script fails instead
+of passing vacuously), except `06_torpedo_guidance` and `09_editor`, which
+assert at the scenario-load / reach-gameplay level; the screenshot examples
+(13-18) drive the shipped scenes to capture frames. Keep list and disk in
 sync: a new example joins the list with a harness, or it does not merge.
 
 ### Examples as bug pins

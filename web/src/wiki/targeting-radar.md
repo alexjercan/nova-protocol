@@ -40,4 +40,4 @@ Tap <kbd>Ctrl</kbd> (a press under the hold threshold) to clear in stages: with 
 
 ## Lock ranges
 
-How far you can lock depends on the target. Ships and gravity wells lock out to roughly **20 km**; a committed torpedo can be locked (to shoot it down) out to about **2.5 km**; smaller bodies carry a radar _signature_ that scales their range, and unsigned debris is point-blank only. An existing lock holds a little past its acquisition gate (hysteresis) so it does not chatter at the edge.
+How far you can lock depends on the target. Ships and gravity wells lock out to roughly **20000 u**; a committed torpedo can be locked (to shoot it down) out to about **2500 u**; smaller bodies carry a radar _signature_ that scales their range, and unsigned debris is point-blank only. An existing lock holds a little past its acquisition gate (hysteresis) so it does not chatter at the edge.
