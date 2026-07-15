@@ -98,13 +98,17 @@ action instead of runtime RNG. Verified by the `12_menu_newgame` boot example.
 
 ## Mods: catalog + bundles + enabled set
 
-The modding data model (tasks 150508 / 134119 / 134127 / 174120 / 142849):
+The modding data model (tasks 150508 / 134119 / 134127 / 174120 / 142849).
+Remote/published mods are served by the STATIC MOD PORTAL - see
+docs/mod-portal.md (webmods/ sources, nova_portal_gen, catalog.json schema).
 
 - A MOD is a folder BUNDLE: a `*.bundle.ron` manifest listing its `*.content.ron`
   files (`Content` items: sections, scenarios) plus a `meta` block - the mod's
   SELF-DESCRIPTION and the single source of truth for its metadata (the Factorio
   `info.json` analog). The BASE game is just a mod (`assets/base/`).
-- The `meta` block (all fields optional, `ModMeta` in nova_modding):
+- The `meta` block (all fields optional, `ModMeta` in `nova_mod_format`,
+  re-exported by nova_modding - the pure format types live in that engine-free
+  crate so the portal generator shares them without bevy):
   `name`, `description`, `author`, `version` (opaque semver-ish string; base
   leaves it empty - the GAME version is authoritative there),
   `dependencies: [ids]` (schema-only until 142931; `base` is an IMPLICIT

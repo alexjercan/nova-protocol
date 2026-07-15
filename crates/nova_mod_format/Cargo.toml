@@ -1,0 +1,17 @@
+[package]
+name = "nova_mod_format"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "Pure serde types for the Nova Protocol mod formats: bundle manifests, the installed catalog, and the mod-portal wire schema. Engine-free so the portal generator builds without bevy."
+
+[dependencies]
+ron = { version = "0.12" }
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = { version = "1" }
+
+[lints]
+workspace = true

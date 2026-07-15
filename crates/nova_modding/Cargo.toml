@@ -8,6 +8,9 @@ description = "RON scenario/mod format and asset loader for the Nova Protocol ga
 
 [dependencies]
 bevy = { version = "0.19.0" }
+# The pure serde format types (manifests, catalog declarations, portal wire
+# schema) - engine-free so the portal generator shares them without bevy.
+nova_mod_format = { path = "../nova_mod_format" }
 ron = { version = "0.12" }
 # The `Content` enum derives Serialize/Deserialize (it wraps the section/scenario
 # config trees, whose derives come from the features enabled below).

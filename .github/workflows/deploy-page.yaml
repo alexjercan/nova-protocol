@@ -11,6 +11,8 @@ permissions:
 #                   pages subpath /nova-protocol/
 #   /play/       -> the Bevy WASM game (Trunk, relative public_url so it is
 #                   position-independent under the subpath)
+#   /mods/       -> the static mod portal (nova_portal_gen: catalog.json +
+#                   hashed, versioned copies of every webmods/ mod)
 env:
   # Project pages are served from https://<user>.github.io/nova-protocol/, so the
   # webpack site needs its links/assets rooted at that subpath. The game keeps
@@ -79,6 +81,18 @@ jobs:
           # Serve the built files verbatim; do not let GitHub Pages run Jekyll
           # over them (harmless today, insurance against underscore paths later).
           touch site/.nojekyll
+
+      # --- static mod portal: catalog.json + hashed file copies under /mods/ ---
+      # nova_portal_gen is engine-free (no bevy), so this compiles in seconds;
+      # it validates manifests and refuses ids that collide with the shipped
+      # catalog. Deep content validation (do the bundles actually load?) is the
+      # webmods_validation test on regular CI.
+      - name: Generate mod portal
+        run: |
+          cargo run --release -p nova_portal_gen -- \
+            --source webmods \
+            --shipped assets/mods.catalog.ron \
+            --out site/mods
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4.2.5

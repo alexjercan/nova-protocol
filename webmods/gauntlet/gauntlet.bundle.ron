@@ -1,0 +1,14 @@
+// The first PORTAL mod (task 20260715-142900): published to the static mod
+// portal by nova_portal_gen, NOT shipped in the game's assets. Same bundle
+// shape as any mod - a manifest listing content files (relative to this
+// folder) plus a `meta` self-description; the generator copies this folder to
+// site/mods/gauntlet/<version>/ and lists it in catalog.json.
+(
+    content: ["gauntlet.content.ron"],
+    meta: (
+        name: "Gauntlet Run",
+        description: "A beacon slalom course: thread the gates from start to finish.",
+        author: "Nova Protocol",
+        version: "1.0.0",
+    ),
+)

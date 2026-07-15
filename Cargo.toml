@@ -98,7 +98,9 @@ members = [
   "crates/nova_gameplay",
   "crates/nova_info",
   "crates/nova_menu",
+  "crates/nova_mod_format",
   "crates/nova_modding",
+  "crates/nova_portal_gen",
   "crates/nova_scenario",
   "crates/nova_ui",
 ]

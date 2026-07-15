@@ -1,0 +1,101 @@
+// Gauntlet Run content: one NEW scenario (no base overrides) - a slalom of
+// beacon gates to fly through, offset laterally so the course bends.
+[
+    Scenario((
+        id: "gauntlet_run",
+        name: "Gauntlet Run",
+        description: "Thread the beacon gates from start to finish.",
+        cubemap: "textures/cubemap.png",
+        events: [
+            (
+                name: OnStart,
+                filters: [],
+                actions: [
+                    DebugMessage((
+                        message: "Gauntlet Run loaded from the mod portal.",
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_start",
+                            name: "Gauntlet Start",
+                            position: (0.0, 0.0, -40.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "START",
+                            radius: 2.0,
+                            color: Srgba((
+                                red: 0.2,
+                                green: 1.0,
+                                blue: 0.4,
+                                alpha: 1.0,
+                            )),
+                            area_radius: Some(25.0),
+                            lock_signature: None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_gate_1",
+                            name: "Gauntlet Gate 1",
+                            position: (35.0, 10.0, -110.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "GATE 1",
+                            radius: 2.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.8,
+                                blue: 0.2,
+                                alpha: 1.0,
+                            )),
+                            area_radius: Some(25.0),
+                            lock_signature: None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_gate_2",
+                            name: "Gauntlet Gate 2",
+                            position: (-30.0, -15.0, -180.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "GATE 2",
+                            radius: 2.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.8,
+                                blue: 0.2,
+                                alpha: 1.0,
+                            )),
+                            area_radius: Some(25.0),
+                            lock_signature: None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_finish",
+                            name: "Gauntlet Finish",
+                            position: (10.0, 5.0, -250.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "FINISH",
+                            radius: 2.5,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.3,
+                                blue: 0.3,
+                                alpha: 1.0,
+                            )),
+                            area_radius: Some(30.0),
+                            lock_signature: None,
+                        )),
+                    )),
+                ],
+            ),
+        ],
+    )),
+]
