@@ -92,6 +92,15 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `ci-skips-client-render` (x1): a build-only CI proves the bundle compiles, not
   that client-rendered UI works; DOM logic needs a runtime check (headless DOM
   or an eyeball), which a green build does not give. 20260713-225324.
+- `render-output-eyeball` (x1): a generated image/visual asset that validates at
+  the right dimensions/format can still look wrong - open it. A composite that
+  passed 1920x1080 was 2:1 distorted; eyeballing it drove the switch to
+  aspect-preserving contain-fit. 20260715-004216.
+- `roundtrip-hides-shared-bug` (x1): a codec/serializer round-trip test built on
+  a self-authored forward pass proves symmetry, not correctness - a predictor/
+  formula bug shared by encode and decode cancels. Re-derive the reverse against
+  the spec independently (PNG Paeth/Average filters re-derived vs spec 9.2).
+  20260715-004216.
 - `one-cargo-test-filter` (x4): `cargo test` takes one filter and one `-p` per
   invocation; separate runs otherwise. 20260713-082324.
 - `check-all-targets-for-struct-field` (x1): a new non-Default field breaks
