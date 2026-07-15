@@ -1,8 +1,8 @@
 # Convert blog devlog HTML posts to markdown (blog-post shell)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 43
-- TAGS: feature,docs,web
+- TAGS: feature, docs, web
 
 Part of the "unify the site on markdown" goal (with 20260715-205825). User wants
 future devlogs authorable in markdown. Depends on 20260715-205825 landing first

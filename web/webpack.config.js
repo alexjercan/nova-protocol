@@ -2,7 +2,7 @@ const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const HtmlPartialsPlugin = require("./webpack-partials");
 const CopyPlugin = require("copy-webpack-plugin");
-const { wikiDocPage } = require("./markdown");
+const { wikiDocPage, blogPostPage } = require("./markdown");
 
 // PUBLIC_PATH should be "/" for local dev (default) or "/nova-protocol/" for the
 // GitHub project-pages deploy, so asset URLs and inter-page links resolve under
@@ -146,6 +146,57 @@ const docPage = ({ slug, md, title, crumbParent }) =>
         publicPath,
     });
 
+// Blog devlog posts: markdown under `src/posts/`, rendered at build time (see
+// markdown.js blogPostPage/blogPostShell) into the standalone blog article shell
+// and served at `/blog/<slug>/`. They share the `post` chunk. The blog INDEX
+// (blog.html) stays hand-authored HTML. To add a post: drop `src/posts/<slug>.md`
+// and add an entry here (newest first). date/version fill the meta line;
+// description is the head meta.
+const BLOG_POSTS = [
+    {
+        slug: "devlog-5-radar-locking-shakedown-and-the-web",
+        title: "Devlog #5: radar locking, a tutorial, and a home on the web",
+        date: "2026-07-13",
+        version: "v0.5.0",
+        description:
+            "Nova Protocol v0.5.0: deliberate CTRL-to-sweep radar locking with stance-driven slots, a live magnified target viewfinder with a kill cam, the Shakedown Run tutorial, typed damage against per-section resistances, a main menu and pause screen, HUD visibility levels, richer objective conveyance, and a brand-new landing site on the web.",
+    },
+    {
+        slug: "devlog-4-guided-torpedoes-targeting-and-enemy-ai",
+        title: "Devlog #4: guided torpedoes, targeting and an enemy that fights back",
+        date: "2026-07-10",
+        version: "v0.4.0",
+        description:
+            "Nova Protocol v0.4.0: proportionally-navigated guided torpedoes, a full targeting arc with per-section fine-lock, turret auto-aim with true intercept lead, a faction/relation model, an AI combat wave with a real behavior state machine, a flight-assist overhaul that balances thrust through the live center of mass, and the game's first audio and combat juice.",
+    },
+    {
+        slug: "devlog-3-zones-torpedoes-and-blast-damage",
+        title: "Devlog #3: zones, torpedoes and blast damage",
+        date: "2025-11-29",
+        version: "v0.3.0",
+        description:
+            "Nova Protocol v0.3.0: OnEnter/OnExit lifecycle events and a zone-entry trigger for richer scenarios, the first area-of-effect weapon in the torpedo bay with blast damage, a reworked per-section health system, and sharper directional and thruster shaders.",
+    },
+    {
+        slug: "devlog-2-objectives-enemy-ai-and-asteroids",
+        title: "Devlog #2: objectives, enemy AI and better asteroids",
+        date: "2025-11-08",
+        version: "v0.2.0",
+        description:
+            "Nova Protocol v0.2.0: a data-driven events/filters/actions modding system for objectives, the first (gloriously dumb) enemy AI, procedurally generated asteroids, and a physics fight with GlobalTransform.",
+    },
+    {
+        slug: "devlog-1-modular-ships-and-first-combat",
+        title: "Devlog #1: modular ships and first combat",
+        date: "2025-10-21",
+        version: "v0.1.0",
+        description:
+            "How Nova Protocol v0.1.0 came together: thruster-driven modular ships, a PD-controlled mouse steering section, turrets that shoot, and a health system that blows sections into chunks.",
+    },
+];
+const postPage = (p) =>
+    blogPostPage({ ...p, mdPath: `src/posts/${p.slug}.md`, publicPath });
+
 const config = {
     entry: {
         index: "./src/index.ts",
@@ -164,31 +215,7 @@ const config = {
     plugins: [
         page("index", "src/index.html", "index.html"),
         page("blog", "src/blog.html", "blog/index.html"),
-        page(
-            "post",
-            "src/posts/devlog-5-radar-locking-shakedown-and-the-web.html",
-            "blog/devlog-5-radar-locking-shakedown-and-the-web/index.html"
-        ),
-        page(
-            "post",
-            "src/posts/devlog-4-guided-torpedoes-targeting-and-enemy-ai.html",
-            "blog/devlog-4-guided-torpedoes-targeting-and-enemy-ai/index.html"
-        ),
-        page(
-            "post",
-            "src/posts/devlog-3-zones-torpedoes-and-blast-damage.html",
-            "blog/devlog-3-zones-torpedoes-and-blast-damage/index.html"
-        ),
-        page(
-            "post",
-            "src/posts/devlog-2-objectives-enemy-ai-and-asteroids.html",
-            "blog/devlog-2-objectives-enemy-ai-and-asteroids/index.html"
-        ),
-        page(
-            "post",
-            "src/posts/devlog-1-modular-ships-and-first-combat.html",
-            "blog/devlog-1-modular-ships-and-first-combat/index.html"
-        ),
+        ...BLOG_POSTS.map(postPage),
         page("tutorial", "src/tutorial.html", "tutorial/index.html"),
         page("wiki", "src/wiki.html", "wiki/index.html"),
         ...WIKI_DOC_PAGES.map(docPage),
@@ -239,26 +266,10 @@ const config = {
         ],
         historyApiFallback: {
             rewrites: [
-                {
-                    from: /^\/blog\/devlog-5-radar-locking-shakedown-and-the-web/,
-                    to: "/blog/devlog-5-radar-locking-shakedown-and-the-web/index.html",
-                },
-                {
-                    from: /^\/blog\/devlog-4-guided-torpedoes-targeting-and-enemy-ai/,
-                    to: "/blog/devlog-4-guided-torpedoes-targeting-and-enemy-ai/index.html",
-                },
-                {
-                    from: /^\/blog\/devlog-3-zones-torpedoes-and-blast-damage/,
-                    to: "/blog/devlog-3-zones-torpedoes-and-blast-damage/index.html",
-                },
-                {
-                    from: /^\/blog\/devlog-2-objectives-enemy-ai-and-asteroids/,
-                    to: "/blog/devlog-2-objectives-enemy-ai-and-asteroids/index.html",
-                },
-                {
-                    from: /^\/blog\/devlog-1-modular-ships-and-first-combat/,
-                    to: "/blog/devlog-1-modular-ships-and-first-combat/index.html",
-                },
+                ...BLOG_POSTS.map(({ slug }) => ({
+                    from: new RegExp("^/blog/" + slug),
+                    to: "/blog/" + slug + "/index.html",
+                })),
                 { from: /^\/blog/, to: "/blog/index.html" },
                 { from: /^\/tutorial/, to: "/tutorial/index.html" },
                 ...WIKI_DOC_PAGES.map(({ slug }) => ({

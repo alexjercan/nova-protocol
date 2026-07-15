@@ -173,4 +173,87 @@ function wikiDocPage({
     });
 }
 
-module.exports = { renderMarkdownFile, wikiDocPage };
+// The page shell for a markdown BLOG POST: a standalone `.prose` article (no
+// wiki sidebar), the `prose__meta` line (back-to-devlog link + date + version),
+// the h1, a #doc-body placeholder, and the shared post footer (the GitHub
+// Discussions prompt + back-to-blog). Head carries the description meta. basePath
+// is inlined at config time (templateContent strings skip lodash).
+function blogPostShell(title, basePath, opts = {}) {
+    const t = escapeAttr(title);
+    const b = escapeAttr(basePath);
+    const desc = opts.description
+        ? `\n        <meta name="description" content="${escapeAttr(
+              opts.description
+          )}" />`
+        : "";
+    const date = escapeAttr(opts.date || "");
+    const version = escapeAttr(opts.version || "");
+    return `<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>${t} - Nova Protocol</title>${desc}
+        <link rel="icon" href="${b}favicon.svg" />
+    </head>
+    <body>
+        <div id="header"></div>
+        <main>
+            <article class="prose">
+                <p class="prose__meta">
+                    <a href="${b}blog/">&larr; Devlog</a>
+                    &nbsp;//&nbsp; ${date} &nbsp;//&nbsp; ${version}
+                </p>
+                <h1>${t}</h1>
+                <div id="doc-body"></div>
+                <footer class="post-footer">
+                    <p class="post-footer__discuss">
+                        Got a reaction, a question, or a ship you want to show
+                        off?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/discussions"
+                            target="_blank"
+                            rel="noopener"
+                            >Talk about this devlog on GitHub Discussions</a
+                        >.
+                    </p>
+                    <p class="post-footer__nav">
+                        <a href="${b}blog/">&larr; All devlogs</a>
+                    </p>
+                </footer>
+            </article>
+        </main>
+        <div id="footer"></div>
+    </body>
+</html>`;
+}
+
+// Build one HtmlWebpackPlugin for a markdown blog post. Like wikiDocPage but
+// with the standalone blog shell and the `post` chunk. `date`/`version` fill the
+// meta line; `description` the head meta.
+function blogPostPage({
+    slug,
+    mdPath,
+    title,
+    date,
+    version,
+    description,
+    publicPath,
+}) {
+    const abs = path.resolve(__dirname, mdPath);
+    const { html, title: h1 } = renderMarkdownFile(abs);
+    const pageTitle = title || h1;
+    return new HtmlWebpackPlugin({
+        filename: `blog/${slug}/index.html`,
+        chunks: ["post"],
+        basePath: publicPath,
+        docBody: html,
+        templateContent: blogPostShell(pageTitle, publicPath, {
+            date,
+            version,
+            description,
+        }),
+    });
+}
+
+module.exports = { renderMarkdownFile, wikiDocPage, blogPostPage };
