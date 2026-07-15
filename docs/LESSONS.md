@@ -30,6 +30,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `collider-needs-a-rigidbody` (x1): an avian Collider without a RigidBody
   registers no contact pair, silently; diff a silent physics test's bundle
   against a production spawn before theorizing. 20260713-150343.
+- `collisionstart-is-per-collider-pair` (x1): avian `CollisionStart` fires once
+  per collider-pair, not per body-pair, so a cue/counter keyed off a
+  multi-collider body (a ship = many section colliders) fires N times unless it
+  dedups on the body/entity; a 5-line probe test panicking `DING_COUNT=3`
+  settled it faster than reasoning. 20260714-090002.
 - `landing-chain-and-stub-collision` (x1): land with one &&-chain
   (merge --squash && commit && sprout rm), and commit tatr stubs on master
   before sprouting so the merge cannot abort on a collision. 20260713-121605.
