@@ -1,7 +1,7 @@
 //! End-to-end proof of the catalog-driven modding pipeline on a headless asset
 //! server (task 20260714-174120, on 134119/134127). The real `mods.catalog.ron`
 //! loads through `nova_modding`'s `CatalogLoader`, which loads EVERY installed mod's
-//! `*.bundle.ron` (base + demo + the hidden screenshot-reel) and, through each, its
+//! `*.bundle.ron` (base + demo) and, through each, its
 //! `*.content.ron` files. Waiting
 //! for the catalog's RECURSIVE load state waits for that whole tree. Then the real
 //! `register_bundles` system merges only the ENABLED subset (`EnabledMods`) into
@@ -20,7 +20,7 @@ use bevy::{
 use nova_assets::prelude::*;
 use nova_gameplay::prelude::GameSections;
 use nova_modding::prelude::{
-    BundleAsset, Content, ContentAsset, InstalledCatalog, NovaModdingPlugin,
+    BundleAsset, CatalogEntry, Content, ContentAsset, InstalledCatalog, ModEntry, NovaModdingPlugin,
 };
 use nova_scenario::prelude::GameScenarios;
 
@@ -80,6 +80,54 @@ fn game_assets_with_catalog(catalog: Handle<InstalledCatalog>) -> GameAssets {
     }
 }
 
+/// An app whose `GameAssets.catalog` points at a SYNTHETIC catalog: the real
+/// base + demo entries plus a `hidden: true` declaration ("hidden-fixture")
+/// whose bundle handle REUSES the loaded demo bundle. No shipped mod is hidden
+/// anymore (the screenshot-reel was unshipped, task 20260715-151551), so the
+/// hidden-flag semantics are pinned against this in-memory catalog - real
+/// loaders and real content still back every handle, no fixture files.
+fn app_with_hidden_fixture() -> App {
+    let mut app = headless_app();
+    let asset_server = app.world().resource::<AssetServer>().clone();
+    let catalog: Handle<InstalledCatalog> = asset_server.load("mods.catalog.ron");
+    wait_recursive_loaded(
+        &mut app,
+        &asset_server,
+        catalog.id().untyped(),
+        "the mods catalog",
+    );
+
+    let synthetic = {
+        let catalogs = app.world().resource::<Assets<InstalledCatalog>>();
+        let real = catalogs.get(&catalog).expect("catalog loaded");
+        let demo_bundle = real
+            .entries
+            .iter()
+            .find(|e| e.decl.id == "demo")
+            .expect("demo entry present")
+            .bundle
+            .clone();
+        let mut entries = real.entries.clone();
+        entries.push(CatalogEntry {
+            decl: ModEntry {
+                id: "hidden-fixture".to_string(),
+                bundle: "mods/demo/demo.bundle.ron".to_string(),
+                base: false,
+                hidden: true,
+            },
+            bundle: demo_bundle,
+        });
+        InstalledCatalog { entries }
+    };
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<InstalledCatalog>>()
+        .add(synthetic);
+    app.world_mut()
+        .insert_resource(game_assets_with_catalog(handle));
+    app
+}
+
 /// Load the real catalog and run `register_bundles` once with the given enabled set,
 /// returning the resulting `(GameSections, GameScenarios)`.
 fn merge_with_enabled(enabled: &[&str]) -> (GameSections, GameScenarios) {
@@ -107,10 +155,11 @@ fn merge_with_enabled(enabled: &[&str]) -> (GameSections, GameScenarios) {
 }
 
 /// `build_mod_catalog` fills the PLAYER-FACING `ModCatalog` with the installed
-/// mods, in catalog order (base first), FILTERING `hidden: true` entries and
-/// composing each entry with the `meta` block AUTHORED IN ITS OWN BUNDLE - the
-/// thin catalog carries no metadata, so the exact strings below passing proves
-/// the plumbing reads the bundle (task 20260715-142849 on 142844).
+/// mods, in catalog order (base first), composing each entry with the `meta`
+/// block AUTHORED IN ITS OWN BUNDLE - the thin catalog carries no metadata, so
+/// the exact strings below passing proves the plumbing reads the bundle (task
+/// 20260715-142849; hidden filtering is pinned separately by
+/// `hidden_entries_are_filtered_from_mod_catalog`).
 #[test]
 fn mod_catalog_lists_installed_mods_metadata() {
     let mut app = headless_app();
@@ -131,11 +180,7 @@ fn mod_catalog_lists_installed_mods_metadata() {
         .expect("build mod catalog");
 
     let mods = &app.world().resource::<ModCatalog>().0;
-    assert_eq!(
-        mods.len(),
-        2,
-        "base + demo are player-visible; the hidden screenshot-reel is filtered"
-    );
+    assert_eq!(mods.len(), 2, "base + demo are the installed catalog");
     assert_eq!(mods[0].id, "base", "base is first (load order)");
     assert!(mods[0].base, "base is flagged");
     assert_eq!(
@@ -155,9 +200,24 @@ fn mod_catalog_lists_installed_mods_metadata() {
     );
     assert_eq!(mods[1].meta.version, "1.0.0", "bundle meta version decodes");
     assert_eq!(mods[1].meta.author, "Nova Protocol");
+}
+
+/// `build_mod_catalog` FILTERS `hidden: true` entries out of the player-facing
+/// list (task 20260715-142844; synthetic-catalog rig since no shipped mod is
+/// hidden anymore).
+#[test]
+fn hidden_entries_are_filtered_from_mod_catalog() {
+    let mut app = app_with_hidden_fixture();
+    app.world_mut().init_resource::<ModCatalog>();
+    app.world_mut()
+        .run_system_once(nova_assets::build_mod_catalog)
+        .expect("build mod catalog");
+
+    let mods = &app.world().resource::<ModCatalog>().0;
+    assert_eq!(mods.len(), 2, "only base + demo are player-visible");
     assert!(
-        !mods.iter().any(|m| m.id == "screenshot-reel"),
-        "the hidden dev mod must not reach the player-facing list"
+        !mods.iter().any(|m| m.id == "hidden-fixture"),
+        "the hidden entry must not reach the player-facing list"
     );
 }
 
@@ -166,7 +226,7 @@ fn mod_catalog_lists_installed_mods_metadata() {
 /// passes through untouched.
 #[test]
 fn mod_info_falls_back_to_id_when_meta_is_missing() {
-    let decl = nova_modding::prelude::ModEntry {
+    let decl = ModEntry {
         id: "bare-mod".to_string(),
         bundle: "mods/bare/bare.bundle.ron".to_string(),
         base: false,
@@ -185,15 +245,22 @@ fn mod_info_falls_back_to_id_when_meta_is_missing() {
 }
 
 /// Hidden is NOT disabled: a `hidden: true` catalog entry stays installed and merges
-/// through the production `register_bundles` path when its id is enabled - the
-/// contract `examples/13_screenshot_reel.rs` relies on (it inserts the id into
-/// `EnabledMods` directly, no menu involved).
+/// through the production `register_bundles` path when its id is enabled by code
+/// (the dev-tooling contract the flag preserves). The hidden fixture's bundle IS
+/// the demo bundle, so its content registering proves the merge.
 #[test]
 fn hidden_mod_still_merges_when_enabled_by_id() {
-    let (_, scenarios) = merge_with_enabled(&["base", "screenshot-reel"]);
+    let mut app = app_with_hidden_fixture();
+    app.world_mut().insert_resource(EnabledMods(
+        ["hidden-fixture".to_string()].into_iter().collect(),
+    ));
+    app.world_mut()
+        .run_system_once(nova_assets::register_bundles_for_test)
+        .expect("register bundles");
+    let scenarios = app.world().resource::<GameScenarios>();
     assert!(
-        scenarios.contains_key("screenshot_reel"),
-        "the hidden mod's scenario must register when the mod is enabled by id"
+        scenarios.contains_key("demo_mod_arena"),
+        "the hidden entry's bundle content must register when its id is enabled"
     );
 }
 
@@ -244,15 +311,24 @@ fn seed_enabled_mods_unions_base_over_any_restored_set() {
 }
 
 /// `seed_enabled_mods` strips restored HIDDEN ids: a hidden mod's enablement is
-/// session-only, so an example run that persisted `screenshot-reel` cannot leave it
+/// session-only, so a dev-tool run that persisted a hidden id cannot leave it
 /// stuck-enabled with no menu row to disable it (task 20260715-142844 R1.1). The
-/// visible restored choice survives; examples re-enable by id AFTER this chain
-/// (`OnEnter(Loaded)`), which `hidden_mod_still_merges_when_enabled_by_id` covers.
+/// visible restored choice survives. Synthetic-catalog rig (no shipped hidden
+/// mod anymore).
 #[test]
 fn seed_enabled_mods_strips_restored_hidden_ids() {
-    let seeded = seed_from(&["demo", "screenshot-reel"]);
+    let mut app = app_with_hidden_fixture();
+    app.world_mut().insert_resource(EnabledMods(
+        ["demo".to_string(), "hidden-fixture".to_string()]
+            .into_iter()
+            .collect(),
+    ));
+    app.world_mut()
+        .run_system_once(nova_assets::seed_enabled_mods)
+        .expect("seed enabled mods");
+    let seeded = &app.world().resource::<EnabledMods>().0;
     assert!(
-        !seeded.contains("screenshot-reel"),
+        !seeded.contains("hidden-fixture"),
         "a restored hidden id must be stripped (session-only enablement)"
     );
     assert!(seeded.contains("demo"), "visible restored choices survive");

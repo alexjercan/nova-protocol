@@ -4440,7 +4440,9 @@ dependencies = [
  "clap",
  "embed-resource",
  "nova_core",
+ "nova_modding",
  "rand 0.10.2",
+ "ron",
  "serde",
 ]
 

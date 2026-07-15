@@ -126,15 +126,17 @@ The modding data model (tasks 150508 / 134119 / 134127 / 174120 / 142849):
   mod ids. `register_bundles` merges only the enabled cataloged bundles, in catalog
   order (base first, so mods overlay it by id). Toggling it (from the main-menu Mods
   section) re-merges live. Base is enabled by default (`base: true`).
-- `hidden: true` marks a DEV/TOOLING mod (e.g. `screenshot-reel`, the capture set for
-  the website screenshots): `build_mod_catalog` filters it out of the player-facing
-  `ModCatalog`, so it never appears in the Mods menu - but it stays installed, its
-  bundle loads, and it merges like any other mod when its id is enabled (examples
-  insert the id into `EnabledMods` directly, task 20260715-142844). A hidden mod's
-  enablement is SESSION-ONLY: `seed_enabled_mods` strips hidden (non-base) ids from
-  the restored prefs at startup, so an example run can never leave a hidden mod
-  stuck-enabled with no menu row to disable it - examples re-enable by id each run,
-  after that chain.
+- `hidden: true` marks a DEV/TOOLING mod: `build_mod_catalog` filters it out of the
+  player-facing `ModCatalog`, so it never appears in the Mods menu - but it stays
+  installed, its bundle loads, and it merges like any other mod when its id is
+  enabled programmatically (task 20260715-142844). A hidden mod's enablement is
+  SESSION-ONLY: `seed_enabled_mods` strips hidden (non-base) ids from the restored
+  prefs at startup, so a dev-tool run can never leave a hidden mod stuck-enabled
+  with no menu row to disable it. No shipped mod is hidden right now - the
+  screenshot-reel capture set left the mods system entirely (its scenario is
+  embedded in `examples/13_screenshot_reel.rs` via `examples/data/reel.content.ron`,
+  task 20260715-151551); the flag is pinned by the synthetic-catalog tests in
+  `crates/nova_assets/tests/demo_scenario.rs`.
 
 ## File naming (bundles, content, catalog) - load-bearing
 

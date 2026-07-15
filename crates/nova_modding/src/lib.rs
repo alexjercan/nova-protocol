@@ -309,9 +309,10 @@ pub struct ModEntry {
     /// True for the base game's entry: enabled by default, locked on in the UI.
     #[serde(default)]
     pub base: bool,
-    /// True for dev/tooling mods (e.g. the screenshot-reel capture set): omitted
-    /// from the player-facing mods list, but still installed - the bundle loads
-    /// and the mod is enableable by id (examples do so via `EnabledMods`).
+    /// True for dev/tooling mods: omitted from the player-facing mods list, but
+    /// still installed - the bundle loads and the mod is enableable by id from
+    /// code. No shipped mod uses it right now; the semantics are pinned by
+    /// nova_assets' synthetic-catalog tests.
     #[serde(default)]
     pub hidden: bool,
 }

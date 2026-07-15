@@ -31,6 +31,10 @@ bevy_rand = { version = "0.15.0", default-features = false, features = ["chacha2
 rand = { version = "0.10.2" }
 serde = { version = "1.0.228" }
 bevy_enhanced_input = { version = "0.26.0" }
+# The screenshot-reel example embeds and parses its scenario RON directly
+# (examples/data/reel.content.ron) instead of shipping it as a mod.
+nova_modding = { path = "crates/nova_modding" }
+ron = { version = "0.12" }
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

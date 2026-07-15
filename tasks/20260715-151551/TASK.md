@@ -1,6 +1,6 @@
 # Unship screenshot-reel: embed the reel scenario in the example, drop it from assets/ and the catalog
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 18
 - TAGS: modding,examples
 
@@ -64,13 +64,13 @@ files. The flag's decode path stays pinned by nova_modding's RON unit test;
 flag SEMANTICS (filter/strip/merge-when-enabled) are IO-independent.
 
 Steps:
-- [ ] 1. `git mv assets/mods/screenshot-reel/reel.content.ron
+- [x] 1. `git mv assets/mods/screenshot-reel/reel.content.ron
   examples/data/reel.content.ron`; delete
   assets/mods/screenshot-reel/screenshot-reel.bundle.ron (the reel is not a mod
   anymore) and the folder; drop the screenshot-reel entry from
   assets/mods.catalog.ron.
-- [ ] 2. Root Cargo.toml: add `ron = "0.12"` to [dev-dependencies] (+ lockfile).
-- [ ] 3. examples/13_screenshot_reel.rs: replace enable_reel_mod +
+- [x] 2. Root Cargo.toml: add `ron = "0.12"` to [dev-dependencies] (+ lockfile).
+- [x] 3. examples/13_screenshot_reel.rs: replace enable_reel_mod +
   the GameScenarios poll with: `include_str!("data/reel.content.ron")` parsed
   once via `ron::de::from_str::<Vec<nova_modding::prelude::Content>>` (expect
   with a clear message - a broken reel file should fail loud in this dev tool),
@@ -79,7 +79,7 @@ Steps:
   ReelLoaded once-guard). Drop MOD_ID/EnabledMods usage; update the module doc
   (the reel is example-owned data, not a mod; the mod pipeline's live re-merge
   coverage lives in `toggling_enabled_mods_remerges_live`).
-- [ ] 4. crates/nova_assets/tests/demo_scenario.rs: rework the three
+- [x] 4. crates/nova_assets/tests/demo_scenario.rs: rework the three
   reel-dependent tests to the synthetic-catalog rig - a helper that loads the
   real catalog, then builds a modified `InstalledCatalog` asset (base + demo +
   synthetic `hidden-fixture` decl reusing the DEMO bundle handle) and points
@@ -90,22 +90,24 @@ Steps:
   (demo_mod_arena registers - hidden != disabled through the production merge).
   Real-catalog test drops its reel assertions (catalog = base + demo, len 2
   unchanged).
-- [ ] 5. Sweep docs + changelog: modding-ron-format.md hidden bullet (reel no
+- [x] 5. Sweep docs + changelog: modding-ron-format.md hidden bullet (reel no
   longer the shipped example - make it generic "dev/tooling mods");
   CHANGELOG: amend the 142844 Unreleased entry (reel is no longer the shipped
   first user) and add an entry (the reel capture set no longer ships in game
   assets at all; it is example-embedded). docs/scenario-system.md:100 and
   docs/development.md:130 stay valid (the example still exists and drives
   framed shots).
-- [ ] 6. Verify: `cargo fmt --check`; `cargo check --workspace --all-targets`;
+- [x] 6. Verify: `cargo fmt --check`; `cargo check --workspace --all-targets`;
   `cargo test -p nova_modding`, `-p nova_assets --test demo_scenario`,
-  `-p nova_menu`; then prove the example still boots its scene: timeout-run
-  `cargo run --example 13_screenshot_reel` (no debug feature; per its doc a
-  plain run boots the scene) and grep stderr for the "loading scenario" log
-  (run-example-via-cargo-run-for-assets lesson: from the crate root, 2>&1).
-- [ ] 7. After landing (main checkout): check for leftover untracked files
-  under assets/mods/screenshot-reel/ (relocation-leaves-ignored-siblings) -
-  expected none (folder had only tracked files).
+  `-p nova_menu`; then prove the example still boots its scene. (Executed
+  STRONGER than planned: the `BCS_AUTOPILOT=1 --features debug` smoke on an
+  isolated Xvfb :99 - it has a built-in delivery guard, `reel_smoke_probe`
+  panics if the scene never loads with objects - instead of a plain timeout-run
+  log grep.)
+- [x] 7. Leftover check (relocation-leaves-ignored-siblings): pre-landing
+  `git status --ignored assets/mods/screenshot-reel/` in the main checkout
+  shows ONLY the two tracked files - the squash-merge removes them cleanly;
+  re-checked after landing.
 
 ## Notes (plan)
 
@@ -117,3 +119,41 @@ Steps:
   MOD_ID/screenshot-reel only in example 13).
 - Reel meta authored in 142849 dies with the bundle file - expected, noted in
   that task's close-out.
+
+## Close-out (20260715)
+
+What changed: the screenshot-reel is no longer a mod. Its scenario RON moved to
+`examples/data/reel.content.ron` (git mv; never shipped - Trunk copies only
+`assets/`); `examples/13_screenshot_reel.rs` embeds it via `include_str!`,
+parses `Vec<Content>` with `ron` (new root dev-deps: `ron` 0.12 +
+`nova_modding`), and fires `LoadScenario` directly at `OnEnter(Loaded)` - the
+enable-by-id + re-merge-wait machinery is gone from the example. The reel's
+bundle manifest, its `assets/mods/` folder, and its catalog entry are deleted.
+The `hidden` flag REMAINS a shipped feature (user's call), now pinned by a
+synthetic-catalog rig in demo_scenario.rs: the real base+demo catalog plus an
+in-memory `hidden: true` declaration whose bundle handle reuses the LOADED demo
+bundle - real loaders and content, no fixture files, covering filter
+(`hidden_entries_are_filtered_from_mod_catalog`), session-only strip
+(`seed_enabled_mods_strips_restored_hidden_ids`), and hidden-still-merges
+(`hidden_mod_still_merges_when_enabled_by_id`). Docs + CHANGELOG updated
+(players/web no longer download the capture tool).
+
+Alternatives: bevy `embedded://` asset source + catalog-external bundle load
+(rejected - machinery for zero benefit; the reel is one scenario, no overlay
+semantics); a `tests/fixtures/` asset tree for the hidden tests (rejected -
+the synthetic in-memory catalog reuses loaded real assets with no new files).
+
+Evidence: fmt clean; `cargo check --workspace --all-targets` clean (one new
+dead-code warning caught and fixed by cfg-gating SCENARIO_ID to the debug
+smoke that uses it); nova_modding 3, demo_scenario 11, nova_menu 13, all
+passed. Example proof: `BCS_AUTOPILOT=1 DISPLAY=:99` (isolated Xvfb) run logs
+"loading embedded scenario 'screenshot_reel'", "reached Playing", "autopilot:
+cycle complete, no panic (t=6.1s)" - and the built-in `reel_smoke_probe`
+delivery guard (panics if the scene never loads with objects) stayed silent,
+so the embedded path provably loaded the real scene. Full suite on CI.
+
+Reflection: the plan wrote "keep the ReelLoaded once-guard" from memory of the
+old polling shape; in reality `OnEnter(Loaded)` replaces the poll and needs no
+guard - updated the steps to match reality rather than carrying dead structure.
+The example's own smoke probe (built by an earlier task) made verification
+essentially free; building delivery guards INTO dev tools keeps paying.

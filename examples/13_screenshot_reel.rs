@@ -1,11 +1,14 @@
-//! 13_screenshot_reel: film the `screenshot-reel` mod's showcase scene into the
-//! web site's pure-3D screenshots.
+//! 13_screenshot_reel: film the showcase scene into the web site's pure-3D
+//! screenshots.
 //!
-//! Boot: enable the `screenshot-reel` mod once assets are `Loaded` (the live
-//! re-merge folds its scenario into `GameScenarios`, robust against a saved
-//! mod-prefs file that `load_enabled_mods` would otherwise restore over a startup
-//! insert), then load `screenshot_reel` as soon as it registers, and reach
-//! `Playing`. Three run modes, all off the same scene:
+//! The reel scene is EXAMPLE-OWNED data, not a mod: its scenario RON lives at
+//! `examples/data/reel.content.ron` (never shipped - only `assets/` reaches
+//! players/the web build), is embedded via `include_str!`, parsed with the same
+//! `Content` type the modding loader uses, and loaded directly with
+//! `LoadScenario` once assets are `Loaded`. No catalog entry, no `EnabledMods`;
+//! the mod pipeline's live re-merge coverage lives in nova_assets'
+//! `toggling_enabled_mods_remerges_live`. Three run modes, all off the same
+//! scene:
 //!
 //! - `BCS_REEL=1`: the [`ScreenshotReelPlugin`] poses the camera per beat and
 //!   captures each PNG (staged under `NOVA_SHOT_DIR`), then exits.
@@ -27,6 +30,7 @@
 
 use bevy::prelude::*;
 use clap::Parser;
+use nova_modding::prelude::Content;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -35,9 +39,10 @@ use nova_protocol::prelude::*;
 #[command(about = "Film the screenshot-reel scene into the web-site screenshots", long_about = None)]
 struct Cli;
 
-/// The mod whose scenario supplies the capture scene (catalog id).
-const MOD_ID: &str = "screenshot-reel";
-/// The scenario the mod registers.
+/// The embedded reel scenario source (example-owned, not shipped in assets/).
+const REEL_CONTENT_RON: &str = include_str!("data/reel.content.ron");
+/// The scenario id inside the embedded content (the smoke probe keys on it).
+#[cfg(feature = "debug")]
 const SCENARIO_ID: &str = "screenshot_reel";
 
 fn main() {
@@ -57,48 +62,49 @@ fn main() {
     app.run();
 }
 
-/// Enable the reel mod when assets are ready, and load its scenario once the
-/// live re-merge has registered it. Not debug-gated: a plain run boots the scene.
+/// Load the embedded reel scenario once assets are `Loaded` (textures the
+/// scenario references by path resolve through the normal asset server). Not
+/// debug-gated: a plain run boots the scene.
 fn custom_plugin(app: &mut App) {
-    app.add_systems(OnEnter(GameAssetsStates::Loaded), enable_reel_mod);
-    app.add_systems(
-        Update,
-        load_reel_scenario
-            .run_if(resource_exists::<GameScenarios>)
-            .run_if(not(resource_exists::<ReelLoaded>)),
+    app.add_systems(OnEnter(GameAssetsStates::Loaded), load_reel_scenario);
+}
+
+/// Parse the embedded `reel.content.ron` (a `Vec<Content>`, the same shape the
+/// modding loader reads) and return its scenario. This is a dev capture tool, so
+/// a broken reel file fails loud at startup rather than booting an empty scene -
+/// including a file that grows items this direct path would silently drop (the
+/// mod pipeline would have routed a `Section` into `GameSections`; this loads
+/// exactly one scenario and nothing else).
+fn parse_reel_scenario() -> ScenarioConfig {
+    let items: Vec<Content> = ron::de::from_str(REEL_CONTENT_RON)
+        .expect("examples/data/reel.content.ron must parse as a Vec<Content>");
+    let mut scenarios: Vec<ScenarioConfig> = items
+        .into_iter()
+        .map(|item| match item {
+            Content::Scenario(scenario) => scenario,
+            other => panic!(
+                "examples/data/reel.content.ron holds a non-Scenario item this embedded \
+                 path would drop: {other:?}"
+            ),
+        })
+        .collect();
+    assert_eq!(
+        scenarios.len(),
+        1,
+        "examples/data/reel.content.ron must hold exactly one Scenario"
     );
+    scenarios.pop().expect("length asserted above")
 }
 
-/// Turn on the reel mod. Done at `OnEnter(Loaded)` - after the whole
-/// `OnEnter(Processing)` registration chain (including `load_enabled_mods`,
-/// which would clobber an earlier insert with a saved set) - so the
-/// `resource_changed::<EnabledMods>` re-merge folds the mod in next.
-fn enable_reel_mod(mut enabled: ResMut<EnabledMods>) {
-    enabled.0.insert(MOD_ID.to_string());
-    info!("screenshot-reel: enabled mod '{MOD_ID}'");
-}
-
-/// Marker: the reel scenario has been requested, so the loader system stops.
-#[derive(Resource)]
-struct ReelLoaded;
-
-/// Once assets are `Loaded` and the re-merge has put `screenshot_reel` into
-/// `GameScenarios`, load it. Polls (returns early until ready) so it never races
-/// the live `register_bundles` re-merge.
-fn load_reel_scenario(
-    mut commands: Commands,
-    scenarios: Res<GameScenarios>,
-    assets_state: Res<State<GameAssetsStates>>,
-) {
-    if *assets_state.get() != GameAssetsStates::Loaded {
-        return;
-    }
-    let Some(scenario) = scenarios.get(SCENARIO_ID) else {
-        return; // the mod's re-merge has not landed yet; retry next frame
-    };
-    commands.trigger(LoadScenario(scenario.clone()));
-    commands.insert_resource(ReelLoaded);
-    info!("screenshot-reel: loading scenario '{SCENARIO_ID}'");
+/// Trigger the reel scenario directly - no catalog entry, no `EnabledMods`, no
+/// re-merge wait: the scenario config is embedded in this example.
+fn load_reel_scenario(mut commands: Commands) {
+    let scenario = parse_reel_scenario();
+    info!(
+        "screenshot-reel: loading embedded scenario '{}'",
+        scenario.id
+    );
+    commands.trigger(LoadScenario(scenario));
 }
 
 /// The reel: an ordered list of framed beats. Each poses the scenario camera and
@@ -131,7 +137,7 @@ fn reel_beats() -> Vec<ReelBeat> {
 }
 
 /// Set once `ScenarioLoaded` fires for the reel scenario with real content, so
-/// the smoke probe can confirm the mod-driven load actually worked.
+/// the smoke probe can confirm the embedded-scenario load actually worked.
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
 struct ReelSceneLoaded(bool);
@@ -143,10 +149,10 @@ fn note_scenario_loaded(loaded: On<ScenarioLoaded>, mut flag: ResMut<ReelSceneLo
     }
 }
 
-/// Smoke backstop: fail the `BCS_AUTOPILOT` run if the mod-driven scene never
-/// loaded within the window (a silent mod-enable or registration regression),
-/// instead of passing on `autopilot: cycle complete` alone. Checked late so the
-/// enable -> re-merge -> load chain has time to complete.
+/// Smoke backstop: fail the `BCS_AUTOPILOT` run if the embedded scene never
+/// loaded within the window (a silent parse or load regression), instead of
+/// passing on `autopilot: cycle complete` alone. Checked late so the
+/// `LoadScenario` trigger has time to complete.
 #[cfg(feature = "debug")]
 fn reel_smoke_probe(world: &mut World, elapsed: f32) {
     if elapsed > nova_protocol::nova_debug::harness::NOVA_AUTOPILOT_SECS - 0.3
@@ -154,7 +160,7 @@ fn reel_smoke_probe(world: &mut World, elapsed: f32) {
     {
         panic!(
             "screenshot-reel: scenario '{SCENARIO_ID}' never loaded with objects within the \
-             autopilot window (mod enable or registration failed)"
+             autopilot window (embedded scenario load failed)"
         );
     }
 }

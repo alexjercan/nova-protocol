@@ -18,9 +18,4 @@
         id: "demo",
         bundle: "mods/demo/demo.bundle.ron",
     ),
-    (
-        id: "screenshot-reel",
-        bundle: "mods/screenshot-reel/screenshot-reel.bundle.ron",
-        hidden: true,
-    ),
 ])

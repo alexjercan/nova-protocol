@@ -273,8 +273,8 @@ impl ReelBeat {
 ///
 /// This is the multi-shot sibling of [`nova_screenshot`] (one shot, then exit):
 /// the reel drives the *cadence* and camera framing for the pure-3D showcase
-/// beats, while the scene itself comes from a loaded scenario (e.g. the
-/// `screenshot-reel` mod). Captures are serialized - each beat waits for its PNG
+/// beats, while the scene itself comes from a loaded scenario (e.g. the embedded
+/// reel scenario in `13_screenshot_reel`). Captures are serialized - each beat waits for its PNG
 /// to land before advancing - so a shot is never taken mid-camera-move.
 ///
 /// UI/state-dependent shots (menu, editor, HUD, combat) are NOT expressible as a
