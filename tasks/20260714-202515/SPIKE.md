@@ -354,6 +354,18 @@ Direction-level tasks this spike seeded, for `/plan` to break into steps:
   20260715-151551: unship screenshot-reel from assets/ entirely (embed in the
   example; the hidden flag stays as a feature) - runs next, before 142900. See
   tasks/20260715-142849/{TASK,REVIEW,RETRO}.md.
+- 20260715, portal client (163508, split from 142906) landed on master
+  (`11e2ef89`): the game fetches catalog.json (schema-version gated) and
+  installs/uninstalls portal mods over the wire - staged sha256-verified
+  commits through the 142906 cache, event API (FetchPortalCatalog /
+  InstallPortalMod / UninstallPortalMod + RemoteCatalog / InstallJobs states)
+  ready for the Explore UI; uninstall strips EnabledMods. Real-wire e2e
+  (tiny_http + real ehttp over a generated portal of the real webmods) runs on
+  CI. ehttp 0.7.1 (rustls native / fetch wasm). Review APPROVE rounds 1+2
+  (charset/URL-domain validation, wasm reinstall-race guard, staging caps;
+  timeout/cancel recovery deferred to 142916 and recorded there). Remaining:
+  142911 (two-pane screen), 142916 (Explore tab - the user-visible goal). See
+  tasks/20260715-163508/{TASK,REVIEW,RETRO}.md.
 - 20260715, local mod cache + mods:// source (142906, rescoped: network half
   split to 163508) landed on master (`02b0e5ad`): downloaded mods now load and
   merge like shipped ones - `nova_assets::mod_cache` (native FS index+files

@@ -46,14 +46,16 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   succeeds, not that it matches a committed copy. Byte-identity alone catches
   map-ordering only probabilistically at small N - also assert the ORDER
   (sorted keys) directly. 20260715-110417, 20260715-142900.
-- `validate-membership-not-existence` (x2): when validating user-supplied paths
-  for a serve/copy pipeline, check MEMBERSHIP in the set that will actually be
-  served, never bare filesystem existence - an escaping `../` path existed,
-  passed, was never copied, and published a broken artifact with exit 0.
-  Read-back variant: guards attached only to the WRITE side leave the read-back
-  path trusting user-writable data ("we wrote it") - validate at EVERY trust
-  boundary crossing, and state in the plan which reads are trusted and why.
-  20260715-142900, 20260715-142906.
+- `validate-in-every-domain` (x3, was validate-membership-not-existence, ->
+  Pending promotions): a validation gate must check the meaning a value has in
+  EACH domain it crosses into, not the domain it was written in. Occurrences:
+  existence-checked paths that were not MEMBERS of the served set (escaping
+  `../` published a broken artifact, 142900); write-side guards that left the
+  read-back path trusting user-writable data (142906); local-Path-valid
+  segments that decode differently on the wire (`%2e%2e` is Normal locally,
+  dot-dot per WHATWG - steered same-origin GETs, 163508). Enumerate the
+  domains (fs path, URL segment, IDB key, ...) in the plan and pin a test per
+  domain. 20260715-142900, 20260715-142906, 20260715-163508.
 - `toml-keys-before-tables` (x1): in TOML every top-level key must precede the
   first `[table]` header or it silently folds into that table (cargo-about's
   about.toml errored "unknown field targets" when a `[private]` table sat above
@@ -478,6 +480,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   (webgpu present on wasm, absent on native). 20260714-233438.
 
 ## Pending promotions (3+ occurrences, user decides)
+
+- `validate-in-every-domain` (x3) -> work/review skill: a validation gate must
+  check the meaning a value has in EACH domain it crosses into (fs path, URL
+  segment, storage key, served set), not the domain it was written in; three
+  distinct escapes in one task family slipped a single-domain gate. See the
+  main-list entry. 20260715-142900, -142906, -163508.
 
 - `tatr-same-second-collision` (x7) -> tatr skill / AGENTS.md: never issue two
   `tatr new` calls in the same second or one bash line - they share a
