@@ -432,9 +432,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `advertised-but-unwired` (x3): a config surface is not a capability until its
   producer/consumer wiring, data source, and runtime preconditions are
   verified in the new context. 20260712-093044, 20260712-093831.
-- `cross-cycle-warning-with-numbers` (positive): write discovered hazards into
-  the queued task's TASK.md with measured numbers and a fallback exit.
-  20260711-140234.
+- `cross-cycle-warning-with-numbers` (positive, x2): write discovered hazards -
+  and review findings that belong to a QUEUED task - into that task's TASK.md
+  with specifics; R1.2 routed forward arrived pre-specced and cost zero design
+  time. 20260711-140234, 20260716-155823.
 - `verify-at-deploy-base-path` (x2): base-path/origin-dependent behavior must be
   verified against the real DEPLOY topology, not a local setup. A "wasm CORS bug"
   was a local split-port dev setup; the deploy serves game + portal same-origin
