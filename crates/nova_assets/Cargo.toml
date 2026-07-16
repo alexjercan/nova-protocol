@@ -63,7 +63,7 @@ bevy_rand = { version = "0.15.0", default-features = false, features = [
 ] }
 # gauntlet_race.rs drives the real scenario event bridge (EventHandler /
 # GameEventsPlugin), matching nova_scenario's own dep pin.
-bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", rev = "4c8111750fd2f0a7b277e95fc53c048ec2187e07" }
+bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", tag = "v0.19.0" }
 nova_events = { path = "../nova_events" }
 # The portal e2e serves a real generated portal tree over localhost HTTP
 # (tiny_http) built by the production generator (nova_portal_gen).
