@@ -10,6 +10,10 @@ use crate::prelude::*;
 pub struct NovaEventWorld {
     queued_commands: VecDeque<Box<dyn FnOnce(&mut Commands) + Send + Sync>>,
     objectives: Vec<ObjectiveActionConfig>,
+    /// The scenario's story-message log, in delivery order (task
+    /// 20260716-183220). Append-only within a scenario; cleared at teardown
+    /// with the rest of the event world.
+    story_messages: Vec<StoryMessageActionConfig>,
     variables: HashMap<String, VariableLiteral>,
     pub next_scenario: Option<NextScenarioActionConfig>,
     /// Logging-only: the last variable snapshot we debug-logged. `state_to_world_system`
@@ -42,6 +46,24 @@ impl EventWorld for NovaEventWorld {
                 .iter()
                 .map(|objective| Objective::new(&objective.id, &objective.message))
                 .collect();
+        }
+
+        // Copy the story log to the HUD's StoryFeed (nova_gameplay), the same
+        // write-on-diff discipline as the objectives above. Length compare is
+        // sufficient: the log is append-only within a scenario and emptied at
+        // teardown. Guarded on the resource existing so event-world rigs
+        // without the HUD half (unit tests, headless tools) keep working.
+        let story = world.resource::<Self>().story_messages.clone();
+        if let Some(mut feed) = world.get_resource_mut::<StoryFeed>() {
+            if feed.0.len() != story.len() {
+                feed.0 = story
+                    .iter()
+                    .map(|m| StoryLine {
+                        speaker: m.speaker.clone(),
+                        text: m.text.clone(),
+                    })
+                    .collect();
+            }
         }
 
         // Log variables ONLY when they change since the last log - this system runs
@@ -125,6 +147,7 @@ impl NovaEventWorld {
         }
         self.queued_commands.clear();
         self.objectives.clear();
+        self.story_messages.clear();
         self.variables.clear();
         self.next_scenario = None;
     }
@@ -134,6 +157,11 @@ impl NovaEventWorld {
         F: FnOnce(&mut Commands) + Send + Sync + 'static,
     {
         self.queued_commands.push_back(Box::new(f));
+    }
+
+    /// Append a story line for the comms panel (see `StoryMessageActionConfig`).
+    pub fn push_story_message(&mut self, message: StoryMessageActionConfig) {
+        self.story_messages.push(message);
     }
 
     pub fn push_objective(&mut self, objective: ObjectiveActionConfig) {
@@ -188,6 +216,73 @@ impl NovaEventWorld {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The story log syncs into the HUD's StoryFeed with the same
+    /// write-on-diff discipline as objectives, clears with the event world
+    /// (the teardown reset class), and the sync is a no-op - not a panic -
+    /// when the rig has no StoryFeed at all (headless event-world rigs).
+    #[test]
+    fn story_messages_sync_clear_and_tolerate_a_missing_feed() {
+        #[derive(Resource, Default)]
+        struct FeedChanges(usize);
+
+        let mut app = App::new();
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<StoryFeed>();
+        app.init_resource::<FeedChanges>();
+        app.add_systems(
+            Update,
+            (
+                NovaEventWorld::state_to_world_system,
+                (|mut changes: ResMut<FeedChanges>| changes.0 += 1)
+                    .run_if(resource_changed::<StoryFeed>),
+            )
+                .chain(),
+        );
+
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .push_story_message(StoryMessageActionConfig {
+                speaker: "Okono".to_string(),
+                text: "Strip it clean.".to_string(),
+            });
+        for _ in 0..5 {
+            app.update();
+        }
+        {
+            let feed = app.world().resource::<StoryFeed>();
+            assert_eq!(feed.0.len(), 1, "the pushed line synced into the feed");
+            assert_eq!(feed.0[0].speaker, "Okono");
+            assert_eq!(feed.0[0].text, "Strip it clean.");
+        }
+        let after_first = app.world().resource::<FeedChanges>().0;
+        assert!(
+            after_first <= 2,
+            "an unchanged log must not re-flag the feed, got {after_first} changes"
+        );
+
+        // Teardown: the event-world clear empties the feed on the next sync.
+        app.world_mut().resource_mut::<NovaEventWorld>().clear();
+        app.update();
+        assert!(
+            app.world().resource::<StoryFeed>().0.is_empty(),
+            "clearing the event world must empty the feed (no leaked lines)"
+        );
+
+        // A rig WITHOUT the feed: the sync must skip, not panic.
+        let mut bare = App::new();
+        bare.init_resource::<NovaEventWorld>();
+        bare.init_resource::<GameObjectives>();
+        bare.add_systems(Update, NovaEventWorld::state_to_world_system);
+        bare.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .push_story_message(StoryMessageActionConfig {
+                speaker: "Okono".to_string(),
+                text: "No HUD here.".to_string(),
+            });
+        bare.update();
+    }
 
     /// The objectives sync is write-on-diff (review R2.1 of task
     /// 20260711-180506): with the OnUpdate pulse keeping the event queue

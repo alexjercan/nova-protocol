@@ -19,7 +19,7 @@ pub mod prelude {
         ScatterObjectsConfig, ScatterRegion, ScenarioAreaConfig, ScenarioObjectConfig,
         ScenarioObjectKind, ScenarioOutcomeKind, ScreenshotActionConfig, SetCameraActionConfig,
         SetControllerVerbActionConfig, SetSkyboxActionConfig, SetSpeedCapActionConfig,
-        VariableSetActionConfig,
+        StoryMessageActionConfig, VariableSetActionConfig,
     };
 }
 
@@ -49,6 +49,9 @@ pub enum EventActionConfig {
     SetSkybox(SetSkyboxActionConfig),
     /// Declare the scenario's win/lose outcome (drives the outcome overlay).
     Outcome(OutcomeActionConfig),
+    /// Speaker-attributed story text, rendered by the HUD comms panel (the
+    /// story-campaign vocabulary; task 20260716-183220).
+    StoryMessage(StoryMessageActionConfig),
 }
 
 impl EventAction<NovaEventWorld> for EventActionConfig {
@@ -109,6 +112,9 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
                 config.action(world, info);
             }
             EventActionConfig::Outcome(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::StoryMessage(config) => {
                 config.action(world, info);
             }
         }
@@ -507,6 +513,26 @@ impl ObjectiveActionConfig {
 impl EventAction<NovaEventWorld> for ObjectiveActionConfig {
     fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
         world.push_objective(self.clone());
+    }
+}
+
+/// One speaker-attributed story line for the HUD comms panel (task
+/// 20260716-183220). Appends to the event world's story log; the log is
+/// scenario-scoped (cleared at teardown with the rest of the event world),
+/// so a line can never leak into the next scenario or the menu. RON:
+/// `StoryMessage((speaker: "Foreman Okono", text: "Strip it clean."))`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct StoryMessageActionConfig {
+    /// Who says it (the panel renders it as the line's prefix).
+    pub speaker: String,
+    /// The line itself.
+    pub text: String,
+}
+
+impl EventAction<NovaEventWorld> for StoryMessageActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        world.push_story_message(self.clone());
     }
 }
 
@@ -925,6 +951,27 @@ pub fn base_scenario_object(config: &BaseScenarioObjectConfig) -> impl Bundle {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The authored RON shape parses and round-trips - the exact syntax the
+    /// authoring guide documents: `StoryMessage((speaker: ..., text: ...))`.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn story_message_ron_round_trips() {
+        let authored = r#"StoryMessage((speaker: "Foreman Okono", text: "Quota's quota."))"#;
+        let parsed: EventActionConfig = ron::from_str(authored).expect("authored RON parses");
+        let EventActionConfig::StoryMessage(config) = &parsed else {
+            panic!("parsed the StoryMessage variant");
+        };
+        assert_eq!(config.speaker, "Foreman Okono");
+        assert_eq!(config.text, "Quota's quota.");
+
+        let ron = ron::to_string(&parsed).expect("serializes");
+        let back: EventActionConfig = ron::from_str(&ron).expect("round-trips");
+        let EventActionConfig::StoryMessage(again) = back else {
+            panic!("round-tripped the StoryMessage variant");
+        };
+        assert_eq!(&again, config);
+    }
 
     /// The Outcome action's EFFECT through the production drain (task
     /// 20260716-125856): the action queues a command on the event world, and

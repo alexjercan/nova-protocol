@@ -315,6 +315,22 @@ ObjectiveComplete((
 Re-adding the same id with a new `message` updates the text in place (the
 shakedown uses this for its "recovered N/3" tally).
 
+### StoryMessage
+
+Speaker-attributed story text, rendered by the HUD comms panel
+(bottom-left) as `SPEAKER > text` for about eight seconds; a new line
+replaces the previous one and rewinds the clock. This is the dialog
+surface for story content - objectives state goals, comms lines carry
+voice. Scenario-scoped like every event-world effect: teardown clears the
+log, so lines never leak into the next scenario or the menu.
+
+```ron
+StoryMessage((
+    speaker: "Foreman Okono",
+    text: "Strip it clean, Kestrel. Quota's quota.",
+)),
+```
+
 ### ObjectiveMarkerAttach / ObjectiveMarkerDetach
 
 Add or remove the gold marker chip (label + distance) on a scoped object by id.

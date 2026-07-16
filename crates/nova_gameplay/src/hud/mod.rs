@@ -4,6 +4,7 @@ use crate::prelude::*;
 
 pub mod ammo_readout;
 pub mod beacon_chips;
+pub mod comms_panel;
 pub mod component_lock;
 pub mod edge_indicators;
 pub mod flight_status;
@@ -22,14 +23,14 @@ pub mod velocity;
 
 pub mod prelude {
     pub use super::{
-        ammo_readout::prelude::*, beacon_chips::prelude::*, component_lock::prelude::*,
-        edge_indicators::prelude::*, flight_status::prelude::*, holo_instruments::prelude::*,
-        item_highlights::prelude::*, keybind_hints::prelude::*, lock_crosshairs::prelude::*,
-        maneuver_instruments::prelude::*, objective_feedback::prelude::*,
-        objective_markers::prelude::*, screen_indicator::prelude::*, target_inset::prelude::*,
-        torpedo_target::prelude::*, turret_lead::prelude::*, velocity::prelude::*,
-        HudSelfDrivenVisibility, HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin,
-        NovaHudSystems,
+        ammo_readout::prelude::*, beacon_chips::prelude::*, comms_panel::prelude::*,
+        component_lock::prelude::*, edge_indicators::prelude::*, flight_status::prelude::*,
+        holo_instruments::prelude::*, item_highlights::prelude::*, keybind_hints::prelude::*,
+        lock_crosshairs::prelude::*, maneuver_instruments::prelude::*,
+        objective_feedback::prelude::*, objective_markers::prelude::*,
+        screen_indicator::prelude::*, target_inset::prelude::*, torpedo_target::prelude::*,
+        turret_lead::prelude::*, velocity::prelude::*, HudSelfDrivenVisibility, HudTier,
+        HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
     };
 }
 
@@ -160,6 +161,7 @@ impl Plugin for NovaHudPlugin {
         // The health and objectives HUDs are now the generic bevy_common_systems widgets.
         app.add_plugins(HealthDisplayPlugin);
         app.add_plugins(ObjectivesPlugin);
+        app.add_plugins(comms_panel::CommsPanelPlugin);
         app.add_plugins(screen_indicator::ScreenIndicatorPlugin);
         app.add_plugins(torpedo_target::TorpedoTargetHudPlugin);
         app.add_plugins(turret_lead::TurretLeadPlugin);
