@@ -6,6 +6,7 @@ use bevy::prelude::*;
 pub mod ammo;
 pub mod base_section;
 pub mod controller_section;
+pub mod damage_tint;
 pub mod hull_section;
 pub mod projectile_hooks;
 pub mod thruster_section;
@@ -15,9 +16,10 @@ pub mod turret_section;
 pub mod prelude {
     pub use super::{
         ammo::prelude::*, base_section::prelude::*, controller_section::prelude::*,
-        hull_section::prelude::*, live_structure_anchor, projectile_hooks::prelude::*,
-        thruster_section::prelude::*, torpedo_section::prelude::*, turret_section::prelude::*,
-        SpaceshipRootMarker, SpaceshipSectionPlugin, SpaceshipSectionSystems,
+        damage_tint::prelude::*, hull_section::prelude::*, live_structure_anchor,
+        projectile_hooks::prelude::*, thruster_section::prelude::*, torpedo_section::prelude::*,
+        turret_section::prelude::*, SpaceshipRootMarker, SpaceshipSectionPlugin,
+        SpaceshipSectionSystems,
     };
 }
 
@@ -136,5 +138,11 @@ impl Plugin for SpaceshipSectionPlugin {
                 render: self.render,
             },
         ));
+
+        // Diegetic hull integrity: grade player-ship section materials by
+        // health. Only meaningful when sections actually render.
+        if self.render {
+            app.add_plugins(damage_tint::SectionDamageTintPlugin);
+        }
     }
 }

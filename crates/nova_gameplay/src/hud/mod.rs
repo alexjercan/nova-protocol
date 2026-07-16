@@ -158,8 +158,10 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(maneuver_instruments::ManeuverInstrumentsPlugin);
         app.add_plugins(keybind_hints::KeybindHintsPlugin);
         app.add_plugins(holo_instruments::HoloInstrumentsPlugin);
-        // The health and objectives HUDs are now the generic bevy_common_systems widgets.
-        app.add_plugins(HealthDisplayPlugin);
+        // The objectives HUD is the generic bevy_common_systems widget. The
+        // health readout is diegetic (per-section ship-mesh tint, see
+        // sections::damage_tint / task 20260717-003613); the generic
+        // HealthDisplay bar is no longer spawned for the player ship.
         app.add_plugins(ObjectivesPlugin);
         app.add_plugins(comms_panel::CommsPanelPlugin);
         app.add_plugins(screen_indicator::ScreenIndicatorPlugin);
@@ -191,14 +193,7 @@ impl Plugin for NovaHudPlugin {
         // projection runs in PostUpdate after the chase camera's final move
         // (task 20260710-231928), and the Update-schedule driver systems
         // precede it by schedule order alone.
-        app.configure_sets(
-            Update,
-            (
-                HealthDisplayPluginSystems::Sync,
-                ObjectivesPluginSystems::Sync,
-            )
-                .in_set(NovaHudSystems),
-        );
+        app.configure_sets(Update, ObjectivesPluginSystems::Sync.in_set(NovaHudSystems));
 
         // Screen indicators project through the spaceship chase camera. The
         // widget is camera-agnostic (its own marker keeps it promotable), so
@@ -211,8 +206,6 @@ impl Plugin for NovaHudPlugin {
         app.add_observer(remove_hud_velocity);
         app.add_observer(setup_hud_flight_status);
         app.add_observer(remove_hud_flight_status);
-        app.add_observer(setup_hud_health);
-        app.add_observer(remove_hud_health);
         app.add_observer(setup_hud_objectives);
         app.add_observer(remove_hud_objectives);
         app.add_observer(setup_hud_torpedo_target);
@@ -513,47 +506,6 @@ fn remove_hud_flight_status(
     }
     for hud_entity in q_spoke.iter().chain(q_ribbon.iter()).chain(&q_gate) {
         commands.entity(hud_entity).despawn();
-    }
-}
-
-fn setup_hud_health(
-    add: On<Add, PlayerSpaceshipMarker>,
-    mut commands: Commands,
-    q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
-) {
-    let entity = add.entity;
-    debug!("setup_hud_health: entity {:?}", entity);
-
-    let Ok(spaceship) = q_spaceship.get(entity) else {
-        error!(
-            "setup_hud_health: entity {:?} not found in q_spaceship",
-            entity
-        );
-        return;
-    };
-
-    commands.spawn((
-        HudTier::Instrument,
-        health_display(HealthDisplayConfig {
-            target: Some(spaceship),
-        }),
-    ));
-}
-
-fn remove_hud_health(
-    remove: On<Remove, PlayerSpaceshipMarker>,
-    mut commands: Commands,
-    q_hud: Query<(Entity, &HealthDisplayTarget), With<HealthDisplayMarker>>,
-) {
-    let entity = remove.entity;
-    debug!("remove_hud_health: entity {:?}", entity);
-
-    for (hud_entity, target) in &q_hud {
-        if let Some(target_entity) = **target {
-            if target_entity == entity {
-                commands.entity(hud_entity).despawn();
-            }
-        }
     }
 }
 

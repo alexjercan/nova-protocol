@@ -61,6 +61,14 @@ explode, PD controller, health, status bar, the generic game-event queue
 pinned as a git dependency (rev in `crates/nova_gameplay/Cargo.toml`) and re-exported
 through `nova_gameplay::prelude`. If a helper feels "generic", it lives there.
 
+The generic `HealthDisplay` bar stays here (still available for other games and
+for non-player entities), but Nova's player-ship health readout is no longer that
+bar: it is diegetic, grading each ship section's own mesh material by integrity
+(`nova_gameplay::sections::damage_tint`, task 20260717-003613). Because that
+readout keys on Nova's section graph and materials it is game-specific and is NOT
+a promotion candidate - the generic bar and the diegetic readout are different
+things at different layers.
+
 Boundary policy, from most game-agnostic to most game-specific:
 
 1. `bevy_common_systems` (external) - fully reusable Bevy primitives.
