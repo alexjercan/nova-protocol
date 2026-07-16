@@ -19,7 +19,55 @@ skill - no combat required - so it stays the game's flight-feel showcase.
 Ships as a version bump of the gauntlet portal mod (1.x), re-published via
 nova_portal_gen; enabled-state-preserving update is part of the dogfood.
 
-Direction-level; /plan breaks it into steps when picked up.
+## Steps
+
+- [ ] Read the focused spike (tasks/20260716-174631/SPIKE.md) and the current
+      webmods/gauntlet/gauntlet.content.ron end to end; keep the file's INVARIANT
+      header (gate areas must not overlap) as the top constraint.
+- [ ] Design the route on paper first: START + 6 ordered gates + FINISH across
+      three escalating acts (warmup / slalom / hazard), with real direction
+      changes and verticality. Record each object's position, gate `area_radius`
+      (aim ~18-22u, tighter than today), and pairwise gate-area separation so no
+      two areas overlap. This layout is content - keep it deterministic.
+- [ ] Rewrite gauntlet.content.ron OnStart to spawn the racer + all gates + the
+      `gate` counter (1..=7) + act-1 objective/marker chrome. Keep the racer
+      loadout (reinforced hull gives crash tolerance); drop the turret if it
+      reads as combat kit (pure-flight course, no target needed).
+- [ ] Add the obstacle field: one ScatterObjects asteroid corridor (Box region,
+      fixed seed, invulnerable rocks so they can't be shot away) threaded between
+      two act-2 gates, plus a couple of big solo invulnerable rocks to slalom.
+      Compute the flyable gap against the 3.5-6.0x geometric factor (import the
+      ASTEROID_GEOMETRIC_FACTOR_MIN/MAX constants in the rig) - do not eyeball.
+- [ ] Add the hazard section: one big asteroid with `surface_gravity` (a gravity
+      well) placed OFF the immediate gate approach line in act 3, so it pulls the
+      ship/autopilot to sling-or-avoid without soft-locking a gate thread.
+- [ ] Extend the ordered-gate OnEnter chain to all gates: each advances `gate`,
+      detaches/attaches the objective marker, sets the next objective text, and
+      swaps the skybox at act boundaries (cubemap -> cubemap_alt -> cubemap_alt2).
+- [ ] Add the outcome frames: Outcome(Victory, "...") on the FINISH OnEnter, and
+      Outcome(Defeat, "...") on an OnDestroyed handler for the player ship
+      (crashed out) - gate the Defeat handler so it cannot fire after Victory.
+- [ ] Bump webmods/gauntlet/gauntlet.bundle.ron meta.version 1.0.0 -> 1.1.0 and
+      update its description; refresh webmods/gauntlet/README.md.
+- [ ] Regenerate the portal preview: run scripts/preview-web.sh's nova_portal_gen
+      invocation to write web/dist/mods; confirm the new 1.1.0 tree + catalog.json
+      and that no stale 1.0.0 dir is left behind (clear the out dir if the
+      generator does not prune).
+- [ ] Write a production-faithful behavior rig (new
+      crates/nova_assets/tests/gauntlet_course.rs, modeled on
+      broadside_assault.rs): include_str the committed content.ron, register
+      handlers loader-faithfully, and assert - gates advance ONLY in order, all
+      gate areas are pairwise non-overlapping, each scatter corridor leaves a
+      flyable gap across the whole geometric-factor range, FINISH raises Victory,
+      player OnDestroyed raises Defeat and cannot flip a won course. Run it with
+      a unifying sibling crate (serde feature-unification quirk).
+- [ ] Verify: cargo fmt --check; run gauntlet_course + webmods_validation (with a
+      unifying sibling) and the nova_portal_gen generate tests. Report skips
+      honestly per the local-tests policy.
+- [ ] Write tasks/20260716-124722/NOTES.md: the route/act design, the hazard
+      choices, the geometric-factor gap math, and the deferred feel/balance
+      playtest verdict (crash damage, well strength, hull margin) as a hands-on
+      follow-up per the spike.
 
 ## Notes
 
