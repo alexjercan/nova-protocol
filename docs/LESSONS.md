@@ -525,6 +525,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   script TIMELINE (when does the stimulus fire, inside the window?), not by
   scene content; for idle-scene targets the plain app beats any harnessed
   example. 20260711-183417.
+- `pkill-pattern-matches-own-shell` (x1): `pkill -f <pattern>` matches the
+  invoking shell's OWN command line when the pattern appears in it (a cleanup
+  `pkill -f 'Xvfb :99'` killed its whole command chain, exit 144), and blind
+  pattern-kills can hit look-alike user processes (a second Xvfb was plausibly
+  the user's real display); record the helper's PID at spawn and kill THAT, or
+  let session-scoped helpers die with the session. 20260716-180352.
 - `silent-tool-missing-in-pipeline` (x1): a missing launcher (xvfb-run) dies
   with 127 that a trailing pipeline swallows, reading as a clean empty run;
   `which` host tools before the first long run and keep launcher exit codes
