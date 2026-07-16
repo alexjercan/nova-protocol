@@ -38,9 +38,13 @@ use nova_protocol::prelude::*;
 struct Cli;
 
 /// Seconds the autopilot holds its window - long enough to reach the menu, click
-/// into the editor, build a ship, and settle + capture each beat.
+/// into the editor, build a ship, and settle + capture each beat. Sized with
+/// headroom for a slow software-rendered CI GPU (llvmpipe), where every beat
+/// costs more wall-clock than on a real GPU; the smoke path's short frame waits
+/// (see `ui_capture_script`) keep the menu -> editor -> Playing walk well inside
+/// this on such a box.
 #[cfg(feature = "debug")]
-const UI_AUTOPILOT_SECS: f32 = 14.0;
+const UI_AUTOPILOT_SECS: f32 = 20.0;
 
 fn main() {
     let _ = Cli::parse();
@@ -118,6 +122,19 @@ fn ui_capture_script(world: &mut World, _elapsed: f32) {
 
     let capturing = std::env::var_os("BCS_REEL").is_some();
 
+    // Frames to let a beat settle before its shot. The long settles matter ONLY
+    // for the capture path (`BCS_REEL`): the scene/UI must be still and the PNG
+    // must land before we navigate away. The smoke path (`BCS_AUTOPILOT` alone)
+    // captures nothing, so it drives straight through on minimal waits - just
+    // enough frames for the next button to spawn and the state transition to
+    // apply. That keeps the menu -> editor -> Playing walk short in FRAMES, so it
+    // fits the fixed-seconds autopilot window even on a slow software-rendered CI
+    // GPU (llvmpipe), where the capture-sized 90/20/30-frame settles overran the
+    // window and the run never left MainMenu (task 20260716).
+    let settle_scene = if capturing { 90 } else { 6 };
+    let after_capture = if capturing { 20 } else { 0 };
+    let after_nav = if capturing { 30 } else { 6 };
+
     let mut state = world.remove_resource::<UiCapture>().unwrap();
     if state.wait > 0 {
         state.wait -= 1;
@@ -131,7 +148,7 @@ fn ui_capture_script(world: &mut World, _elapsed: f32) {
             // Settle the menu + ambience backdrop before the shot.
             0 => {
                 state.stage = 1;
-                state.wait = 90;
+                state.wait = settle_scene;
             }
             // Capture the menu. Hide the HUD first; wait for the PNG to land
             // BEFORE navigating away (clicking Sandbox in the same frame captured
@@ -143,7 +160,7 @@ fn ui_capture_script(world: &mut World, _elapsed: f32) {
                     info!("ui capture: tutorial-menu.png");
                 }
                 state.stage = 2;
-                state.wait = 20;
+                state.wait = after_capture;
             }
             // Now leave for the editor.
             2 => {
@@ -151,7 +168,7 @@ fn ui_capture_script(world: &mut World, _elapsed: f32) {
                     world.trigger(Activate { entity: button });
                 }
                 state.stage = 3;
-                state.wait = 30;
+                state.wait = after_nav;
             }
             _ => {}
         },
@@ -162,7 +179,7 @@ fn ui_capture_script(world: &mut World, _elapsed: f32) {
                     world.trigger(Activate { entity: button });
                 }
                 state.stage = 4;
-                state.wait = 90;
+                state.wait = settle_scene;
             }
             // Capture the editor with the built ship.
             4 => {
