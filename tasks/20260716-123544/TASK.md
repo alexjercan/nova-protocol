@@ -1,9 +1,8 @@
 # Asset variety pack: themed skyboxes, asteroid/planet texture variants, alternate hull model
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
-- TAGS: v0.7.0,art,assets,spike
-
+- TAGS: v0.7.0, art, assets, spike
 
 ## Goal
 
@@ -66,3 +65,14 @@ The mod-binary-resources pipeline is implemented and merged:
 REMAINING (the ART half): real skybox/asteroid/planet/hull art to replace the
 placeholders is split into task 20260716-205214 (user-owned sourcing decision).
 This umbrella keeps its spike tag for that fork.
+
+## CLOSED 20260716 (split, not dropped)
+
+Closing the umbrella: its two halves are delivered or migrated.
+- PIPELINE half (mods ship their own binary resources via self:// refs): DONE,
+  landed (docs/design/mod-binary-resources.md; the shipped `variety` mod
+  dogfoods it with placeholder art).
+- ART half (real themed skyboxes, asteroid/planet texture variants, alt hull,
+  wired into scenarios): migrated to 20260716-205214 (art sourcing/creation) and
+  20260716-215513 (single `example` mod that wires the art into content). The
+  real art still needs a human sourcing decision - tracked there, not here.
