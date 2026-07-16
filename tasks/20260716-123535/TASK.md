@@ -37,6 +37,37 @@ the comms/story-beat panel (20260716-183220, degradable). Full premise,
 cast, per-chapter mechanics and the rejected options live in
 tasks/20260716-183104/SPIKE.md - /plan starts there.
 
+## Steps (planned 2026-07-16, from SPIKE 20260716-183104)
+
+- [ ] Scaffold webmods/the-ledger/: the-ledger.bundle.ron (meta name
+      "The Ledger", version 1.0.0, four content files) + README.md.
+- [ ] Chapter 1 "Dead Weight" (ledger_ch1.content.ron): wreck-strip -
+      salvage-crate quota via act-gated OnEnter counting (shakedown
+      pattern), Magpie scout on patrol (Neutral, flavor), scripted
+      black-box crate twist, StoryMessage voice beats, Victory ->
+      NextScenario ch2; player-death Defeat + retry-self (broadside
+      pattern). Listed in the picker (hidden: false).
+- [ ] Chapter 2 "Claim Jumpers" (ledger_ch2.content.ron): two corvette
+      waves (per-id OnDestroyed counting, arena pattern), Neutral hauler
+      escort whose death is Defeat (broadside pattern), Victory -> ch3.
+      hidden: true.
+- [ ] Chapter 3 "The Quiet Channel" (ledger_ch3.content.ron): NAV-gate
+      threading (gauntlet expression-guarded sequencing) through a dense
+      breakable debris lane, one mid-channel ambush spawn, Victory ->
+      ch4. hidden: true.
+- [ ] Chapter 4 "The Buyer" (ledger_ch4.content.ron): HANDOFF/BURN
+      choice beacons (OnEnter branch sets `choice`), AUDITOR boss fight,
+      two Victory endings gated on `choice` with distinct closing text;
+      no NextScenario (campaign end). hidden: true.
+- [ ] Every handler act-gated (gate-scenario-handlers-to-their-acts);
+      every chapter opens with a recap objective + StoryMessage.
+- [ ] Validate: webmods_validation (real loaders over webmods/),
+      nova_portal_gen tests (generic publish gate), check/fmt; headless
+      load-smoke of each chapter if a cheap rig exists, playtest gap
+      reported honestly.
+- [ ] CHANGELOG Unreleased (Modding & Mod Portal): The Ledger published.
+- [ ] SPIKE.md fix record entry.
+
 ## Notes
 
 - Spike: tasks/20260716-122954/SPIKE.md (v0.7.0 release scope)
