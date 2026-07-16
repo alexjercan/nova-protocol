@@ -86,7 +86,7 @@ ghost would break shakedown's pirate beat and the arena mod's clear gate.
       all key on OnDestroyed - confirm the fix path fires OnDestroyed
       exactly once (no double-destroy from marker + bubble racing;
       count-gate lesson). Check the HUD health readout rounding while there:
-      if a fractional residue can display as "0" on a живой ship, file it
+      if a fractional residue can display as "0" on a living ship, file it
       separately, do not widen.
 - [ ] Verify: fmt/check --all-targets, new tests + integrity/glue suites,
       one live example-19 walk; CHANGELOG [Unreleased] Fixes line; close.
