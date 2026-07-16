@@ -54,10 +54,12 @@ md.use(anchor, {
             .replace(/\s+/g, "-"),
 });
 
-// Render a markdown file to { html, title }. The leading H1 is pulled out and
-// returned as the title (the doc shell renders it, so the body starts at the
-// first real section) - keeping the crumb/h1/tags order identical to the
-// hand-authored wiki pages.
+// Render a markdown file to { html, title, headings }. The leading H1 is pulled
+// out and returned as the title (the doc shell renders it, so the body starts at
+// the first real section) - keeping the crumb/h1/tags order identical to the
+// hand-authored wiki pages. `headings` is the list of h2/h3 sections (with the
+// markdown-it-anchor slug id and plain text), used to build the news TOC
+// sidebar; other shells ignore it.
 function renderMarkdownFile(mdPath) {
     const src = fs.readFileSync(mdPath, "utf8");
     const env = {};
@@ -73,8 +75,25 @@ function renderMarkdownFile(mdPath) {
         tokens.splice(i, 3); // heading_open, inline, heading_close
     }
 
+    // Collect h2/h3 headings for a table of contents. markdown-it-anchor has
+    // already set each heading_open token's `id` attr (it runs during parse),
+    // so the ids line up with the real in-page anchors. Strip inline markdown
+    // markers from the display text (headings are plain, but be safe).
+    const headings = [];
+    for (let j = 0; j < tokens.length; j++) {
+        const t = tokens[j];
+        if (t.type === "heading_open" && (t.tag === "h2" || t.tag === "h3")) {
+            const inline = tokens[j + 1];
+            const raw =
+                inline && inline.type === "inline" ? inline.content : "";
+            const text = raw.replace(/[*_`]/g, "").trim();
+            const id = t.attrGet("id");
+            if (id && text) headings.push({ level: t.tag, id, text });
+        }
+    }
+
     const html = md.renderer.render(tokens, md.options, env);
-    return { html, title };
+    return { html, title, headings };
 }
 
 function escapeAttr(s) {
@@ -191,6 +210,30 @@ function newsPostShell(title, basePath, opts = {}) {
         : "";
     const date = escapeAttr(opts.date || "");
     const version = escapeAttr(opts.version || "");
+    // A sticky section TOC built at build time from the post's h2/h3 headings,
+    // so it works with no JS and is SEO-visible; news.ts adds scroll-spy on top.
+    // h3s indent under their h2. Rendered only when the post has sections.
+    const headings = opts.headings || [];
+    const toc = headings.length
+        ? `<nav class="news__toc" aria-label="On this page">
+                    <p class="news__toc-title">On this page</p>
+                    ${headings
+                        .map(
+                            (h) =>
+                                `<a href="#${escapeAttr(h.id)}" class="news__toc-link${
+                                    h.level === "h3" ? " news__toc-link--sub" : ""
+                                }">${escapeAttr(h.text)}</a>`
+                        )
+                        .join("\n                    ")}
+                </nav>`
+        : "";
+    const layoutOpen = headings.length
+        ? `<div class="news">
+                ${toc}
+                <article class="prose news__body">`
+        : `<article class="prose">`;
+    const layoutClose = headings.length ? `</article>
+            </div>` : `</article>`;
     return `<!doctype html>
 <html lang="en">
     <head>
@@ -202,7 +245,7 @@ function newsPostShell(title, basePath, opts = {}) {
     <body>
         <div id="header"></div>
         <main>
-            <article class="prose">
+            ${layoutOpen}
                 <p class="prose__meta">
                     <a href="${b}news/">&larr; News</a>
                     &nbsp;//&nbsp; ${date} &nbsp;//&nbsp; ${version}
@@ -234,7 +277,7 @@ function newsPostShell(title, basePath, opts = {}) {
                         <a href="${b}news/">&larr; All news</a>
                     </p>
                 </footer>
-            </article>
+            ${layoutClose}
         </main>
         <div id="footer"></div>
     </body>
@@ -254,7 +297,7 @@ function newsPostPage({
     publicPath,
 }) {
     const abs = path.resolve(__dirname, mdPath);
-    const { html, title: h1 } = renderMarkdownFile(abs);
+    const { html, title: h1, headings } = renderMarkdownFile(abs);
     const pageTitle = title || h1;
     return new HtmlWebpackPlugin({
         filename: `news/${slug}/index.html`,
@@ -265,6 +308,7 @@ function newsPostPage({
             date,
             version,
             description,
+            headings,
         }),
     });
 }
