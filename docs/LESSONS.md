@@ -10,7 +10,8 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 
 ## Process lessons
 
-- `keep-docs-in-sync-with-code` (x2): a code change is not done until the docs
+- `keep-docs-in-sync-with-code` (x3, already enforced in AGENTS.md): a code
+  change is not done until the docs
   it invalidates are fixed in the SAME task - Nova documents itself across
   several surfaces (terse `CHANGELOG.md`, the `/news/` posts, the player wiki,
   the dev wiki, the tutorial) and none updates itself. The map of what to touch
@@ -18,7 +19,20 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   `web/src/wiki/dev/keeping-docs-in-sync.md`; the enforcement rule is in
   AGENTS.md ("The website"). Ask what a PLAYER loses or gains before filing a
   change as pure refactor (a deleted picker row needed a CHANGELOG line, caught
-  only in review). 20260716-115938, 20260716-155816.
+  only in review); removing a shipped example mod meant sweeping 4 wiki guides +
+  a design doc + CHANGELOG in the same task. 20260716-115938, 20260716-155816,
+  20260716-215513.
+- `rename-id-sweep-in-file` (x1): after renaming an entity/asset id in a
+  content file, grep the WHOLE file for the OLD id before trusting the linter -
+  `content_lint` validates spawn/prototype/filter refs but NOT AI orbit/patrol
+  targets, so a renamed menu-backdrop well left the orbiter's `orbit: Some(old
+  id)` dangling and lint stayed green; caught only in manual self-review.
+  20260716-215513.
+- `git-mv-leaves-empty-parent` (x1): `git mv` files out of a dir then `git rm`
+  the dir leaves the emptied dir ON DISK (git tracks no empty dirs), and any
+  filesystem-walking tool trips on it - a leftover `variety/textures/` crashed
+  content_lint's bundle walk ("no *.bundle.ron at its root"). `rm -rf` the old
+  dir explicitly after a relocation. 20260716-215513.
 - `truncated-sweep-is-not-a-sweep` (x3, -> Pending promotions): a grep sweep
   that feeds a work checklist must never be head-truncated - one audit's
   `| head` sweeps hid a third assertion (one failed run), a whole extra file
