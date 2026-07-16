@@ -1109,6 +1109,15 @@ fn shoot_spawn_projectile(
                 // (task 20260712-133343). Nested tuple: bundle arity.
                 (
                     Mass(NEUTRALIZED_BULLET_MASS),
+                    // A Dynamic body needs finite, non-zero ANGULAR INERTIA too, or
+                    // avian warns "no mass or inertia" once per fired round and
+                    // risks NaN (task 20260716-205025). The Sensor collider above
+                    // contributes no mass properties, and the neutralized `Mass`
+                    // carries no inertia of its own, so derive a matching sphere
+                    // inertia from the same shape + mass. The bullet never takes
+                    // torque (sensor, authored damage, no angular velocity), so the
+                    // value only has to be VALID, not tuned - flight is unaffected.
+                    AngularInertia::from_shape(&Collider::sphere(0.05), NEUTRALIZED_BULLET_MASS),
                     // The fired round comes from the turret's loaded-ammo slot,
                     // not a hardcoded type (task 20260712-133349), so a future
                     // ammo switch changes what this stamps.
@@ -1784,6 +1793,46 @@ mod tests {
         assert_eq!(
             ammo.rounds, 0,
             "the magazine must read empty after firing out"
+        );
+    }
+
+    /// Every fired round is a Dynamic body, so avian needs it to have finite,
+    /// non-zero mass AND angular inertia - otherwise it logs "no mass or inertia"
+    /// once per shot and warns of NaN (task 20260716-205025). The Sensor collider
+    /// contributes no mass properties and the neutralized `Mass` carries no
+    /// inertia of its own, so the spawn adds an explicit sphere `AngularInertia`.
+    /// Fire a real round through the production path under physics and read what
+    /// avian actually COMPUTED (not just that a component is present).
+    #[test]
+    fn a_fired_bullet_has_finite_nonzero_mass_and_inertia() {
+        use crate::integrity::test_support::{settle, unfinished_integrity_physics_app_with};
+
+        // A physics app so avian's mass-property systems actually run; the helper
+        // sets a 1/60 s manual step, and `settle` steps a few times (the first
+        // fires the round; the rest let avian finalize the new body's masses).
+        let mut app = unfinished_integrity_physics_app_with(PhysicsPlugins::default());
+        app.add_systems(Update, shoot_spawn_projectile);
+        app.finish();
+
+        spawn_firing_turret(&mut app, Some(1));
+        settle(&mut app);
+
+        let world = app.world_mut();
+        let (mass, inertia) = world
+            .query_filtered::<(&ComputedMass, &ComputedAngularInertia), With<TurretBulletProjectileMarker>>()
+            .single(world)
+            .expect("exactly one fired bullet exists");
+
+        let m = mass.value();
+        assert!(
+            m.is_finite() && m > 0.0,
+            "a fired bullet needs finite non-zero mass, got {m}"
+        );
+        let (principal, _frame) = inertia.principal_angular_inertia_with_local_frame();
+        assert!(
+            principal.is_finite() && principal.min_element() > 0.0,
+            "a fired bullet needs finite non-zero angular inertia on every axis \
+             (else avian logs 'no mass or inertia' per shot and risks NaN), got {principal:?}"
         );
     }
 

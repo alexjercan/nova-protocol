@@ -41,6 +41,7 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- Firing no longer spams the log with an avian "no mass or inertia" warning per round: turret bullets, which use a near-zero mass and a sensor collider, now carry an explicit angular inertia, removing the warning and its NaN risk.
 - Debug builds (`--features debug`) bind F12 to a screenshot that saves the primary window to your Downloads directory as `<timestamp>.png`.
 
 ## [0.6.0] - 2026-07-16
