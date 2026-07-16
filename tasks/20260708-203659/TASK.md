@@ -111,3 +111,19 @@ picker tab so it can be played directly. The alt-storyline campaign mod
 - Depends on: 20260716-125856 (outcome frame). Same-cycle sibling; land it
   first.
 - Spike: tasks/20260716-122954/SPIKE.md; plan docs/plans/20260716-v0.7.0-plan.md.
+
+## Scope direction (user, 2026-07-16, mid-flow)
+
+The scenario is NOT just the one fight - go ham on the story. The enemy can
+carry multiple weapons; there can be multiple enemies, neutrals, and other
+actors around the arc. Update the Steps' single-enemy framing accordingly
+when this task is picked up: keep the capital duel as the climax the systems
+were built for (PDC screening, torpedo offense/defense, section
+destruction), but stage it inside a real story beat structure (approach,
+escalation, twist) rather than a bare arena. The Outcome frame + buttons
+shipped in 20260716-125856; this task consumes it.
+
+- Follow-up from the outcome-frame review (R1.8, 2026-07-16): the
+  asteroid_field/asteroid_next chain still has silent lingering
+  NextScenario beats (incl. a death restart) with no Outcome - retrofit
+  them when this task lands the outcome vocabulary across base content.

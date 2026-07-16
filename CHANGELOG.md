@@ -12,6 +12,10 @@ tagged **(breaking)**.
 
 ## [Unreleased]
 
+### Scenarios & Objectives
+
+- Scenarios can declare a win/lose: the new `Outcome` action shows a VICTORY/DEFEAT overlay with real buttons (Continue/Retry riding a queued lingering `NextScenario`, Main Menu always) instead of the old silent press-Enter-to-restart; dying in Shakedown Run now presents Defeat + Retry.
+
 ### Internals & Tooling
 
 - Debug builds (`--features debug`) bind F12 to a screenshot that saves the primary window to your Downloads directory as `<timestamp>.png`.

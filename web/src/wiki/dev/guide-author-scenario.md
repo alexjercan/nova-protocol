@@ -391,12 +391,35 @@ DespawnScenarioObject((
 ### NextScenario
 
 Queue a switch to another scenario by id. `linger: true` holds on the current
-scene until the player presses Enter, then switches (used for the death /
-"press to continue" beat):
+scene until the player confirms (Enter, or the outcome overlay's
+Continue/Retry button), then switches:
 
 ```ron
 NextScenario((
     scenario_id: "asteroid_next",
+    linger: true,
+)),
+```
+
+### Outcome
+
+Declare the scenario's win/lose: shows the outcome overlay (gold VICTORY or
+red DEFEAT banner, your optional message, and buttons). Presentation only -
+compose the consequence next to it: queue a lingering `NextScenario` and the
+overlay offers Continue (Victory) or Retry (Defeat); queue nothing and it
+offers only Main Menu. Two authoring rules: the switch must LINGER - an
+instant `NextScenario` (`linger: false`) tears the scenario down the same
+frame and swallows the outcome before it can show - and note the strict-RON
+`Option`: the message keeps its `Some(...)` variant, never a bare string.
+
+```ron
+// A lose beat: declare Defeat, queue the retry.
+Outcome((
+    outcome: Defeat,
+    message: Some("Your ship broke apart in the belt."),
+)),
+NextScenario((
+    scenario_id: "my_scenario",
     linger: true,
 )),
 ```

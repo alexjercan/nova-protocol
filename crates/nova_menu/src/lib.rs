@@ -188,6 +188,22 @@ impl Plugin for NovaMenuPlugin {
         // Leaving Playing while paused (Back to Main Menu) must not leave the
         // game frozen for the next session of play.
         app.add_systems(OnExit(GameStates::Playing), force_unpause);
+
+        // The scenario outcome overlay (task 20260716-125856): the win/lose
+        // frame. A scenario declares Victory/Defeat via the `Outcome` action
+        // (nova_scenario's CurrentOutcome resource); this overlay presents it
+        // with real buttons - Continue/Retry when a lingering NextScenario is
+        // queued, Main Menu always. The scenario-advance key (Enter/DPadDown,
+        // the loader's existing path) stays live as the keyboard/gamepad
+        // route into the same mechanics. resource_exists-gated: headless rigs
+        // without the scenario loader have no CurrentOutcome.
+        app.add_systems(
+            Update,
+            (sync_outcome_overlay, sync_outcome_cursor)
+                .run_if(in_state(GameStates::Playing))
+                .run_if(resource_exists::<CurrentOutcome>),
+        );
+        app.add_observer(regrab_cursor_on_player_spawn);
     }
 }
 
@@ -273,11 +289,19 @@ fn restore_cursor(
     mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
     q_player: Query<(), With<PlayerSpaceshipMarker>>,
     game_state: Res<State<GameStates>>,
+    outcome: Option<Res<CurrentOutcome>>,
 ) {
     // The Back path exits Paused and Playing in the same transition batch
     // (GameStates applies first, it is init'd first): never re-grab when the
     // destination is the menu (review R1.4).
     if *game_state.get() != GameStates::Playing {
+        return;
+    }
+    // A live outcome overlay owns the cursor (outcome review R1.1): on
+    // Victory the ship survives, so without this guard a pause/unpause
+    // cycle over the overlay would re-lock the mouse and strand its
+    // buttons - sync_outcome_cursor only frees on outcome CHANGE.
+    if outcome.is_some_and(|outcome| outcome.0.is_some()) {
         return;
     }
     if cfg!(not(feature = "debug")) && !q_player.is_empty() {
@@ -386,6 +410,216 @@ fn on_back_to_menu(
 ) {
     state.set(GameStates::MainMenu);
     pause.set(PauseStates::Unpaused);
+}
+
+/// Marker for the outcome overlay root (see `sync_outcome_overlay`). Carries
+/// the queued-switch snapshot the overlay was built against, so the sync can
+/// rebuild when a LATER event queues a NextScenario under a shown outcome
+/// (outcome review R1.3) - otherwise the buttons/hint would say Main Menu
+/// while Enter actually releases the queued switch.
+#[derive(Component)]
+struct OutcomeOverlay {
+    queued: bool,
+}
+
+/// Spawn/despawn the win/lose overlay to mirror [`CurrentOutcome`]. Rebuilds
+/// from scratch on outcome change OR when the queued-switch snapshot goes
+/// stale - an outcome flips at most once per scenario, so there is nothing
+/// worth diffing. The overlay dies with the outcome (scenario teardown
+/// clears the resource) and with the Playing state (`DespawnOnExit`),
+/// whichever comes first.
+fn sync_outcome_overlay(
+    mut commands: Commands,
+    outcome: Res<CurrentOutcome>,
+    world: Option<Res<NovaEventWorld>>,
+    q_existing: Query<(Entity, &OutcomeOverlay)>,
+) {
+    // What Continue means is whatever the scenario queued: a Victory pairs it
+    // with the next chapter, a Defeat with a retry of itself. Nothing queued
+    // means the story ends here and the only road is back to the menu.
+    let queued = world
+        .as_ref()
+        .is_some_and(|world| world.next_scenario.is_some());
+    let stale = q_existing
+        .iter()
+        .any(|(_, overlay)| overlay.queued != queued);
+    if !outcome.is_changed() && !stale {
+        return;
+    }
+    for (entity, _) in q_existing.iter() {
+        commands.entity(entity).despawn();
+    }
+    let Some(config) = outcome.0.as_ref() else {
+        return;
+    };
+
+    let (banner, accent) = match config.outcome {
+        ScenarioOutcomeKind::Victory => ("VICTORY", theme::semantic::OBJECTIVE),
+        ScenarioOutcomeKind::Defeat => ("DEFEAT", theme::semantic::THREAT),
+    };
+    let primary = queued.then(|| match config.outcome {
+        ScenarioOutcomeKind::Victory => "Continue",
+        ScenarioOutcomeKind::Defeat => "Retry",
+    });
+    let message = config.message.clone();
+
+    commands
+        .spawn((
+            OutcomeOverlay { queued },
+            DespawnOnExit(GameStates::Playing),
+            Name::new("Outcome Overlay"),
+            // Same modal rule as the pause overlay: nothing beneath this
+            // (HUD, editor panels) may receive clicks through it.
+            Pickable {
+                should_block_lower: true,
+                is_hoverable: false,
+            },
+            Node {
+                width: percent(100),
+                height: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
+            // Above the HUD chrome, below the pause overlay (10): ESC over a
+            // shown outcome still reads as the topmost menu.
+            GlobalZIndex(9),
+        ))
+        .with_children(|parent| {
+            parent
+                .spawn((
+                    Name::new("Outcome Panel"),
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::Center,
+                        width: px(320),
+                        padding: UiRect::all(px(20)),
+                        border: UiRect::all(px(theme::BORDER_W)),
+                        border_radius: BorderRadius::all(px(theme::RADIUS)),
+                        ..default()
+                    },
+                    BorderColor::all(theme::BORDER),
+                    BackgroundColor(theme::PANEL),
+                ))
+                .with_children(|parent| {
+                    parent.spawn((
+                        Name::new("Outcome Banner"),
+                        Text::new(banner),
+                        TextFont {
+                            font_size: FontSize::Px(32.0),
+                            ..default()
+                        },
+                        TextColor(accent),
+                    ));
+                    if let Some(message) = message {
+                        parent.spawn((
+                            Name::new("Outcome Message"),
+                            Text::new(message),
+                            TextFont {
+                                font_size: FontSize::Px(16.0),
+                                ..default()
+                            },
+                            TextColor(theme::TEXT),
+                            Node {
+                                margin: UiRect::top(px(8)),
+                                max_width: px(280),
+                                ..default()
+                            },
+                        ));
+                    }
+                    if let Some(primary) = primary {
+                        parent.spawn((
+                            Name::new("Outcome Primary Button"),
+                            button(primary),
+                            observe(on_outcome_advance),
+                        ));
+                    }
+                    parent.spawn((
+                        Name::new("Outcome Menu Button"),
+                        button("Main Menu"),
+                        observe(on_back_to_menu),
+                    ));
+                    // The keyboard/gamepad route into the same mechanics
+                    // (the loader's scenario-advance input).
+                    let hint = match primary {
+                        Some(label) => format!("[Enter] {label}"),
+                        None => "[Enter] Main Menu".to_string(),
+                    };
+                    parent.spawn((
+                        Name::new("Outcome Key Hint"),
+                        Text::new(hint),
+                        TextFont {
+                            font_size: FontSize::Px(12.0),
+                            ..default()
+                        },
+                        TextColor(theme::TEXT_MUTED),
+                        Node {
+                            margin: UiRect::top(px(4)),
+                            ..default()
+                        },
+                    ));
+                });
+        });
+}
+
+/// The outcome overlay's Continue/Retry button: release the lingering
+/// `NextScenario` the scenario queued next to its `Outcome` action - the
+/// same mechanism the Enter key drives through the loader.
+fn on_outcome_advance(_activate: On<Activate>, mut world: Option<ResMut<NovaEventWorld>>) {
+    if let Some(world) = world.as_deref_mut() {
+        world.release_lingering_next();
+    }
+}
+
+/// Free the cursor while the outcome overlay is up (its buttons need a
+/// pointer, exactly like the pause overlay). Re-grabbing after a Retry is
+/// not this system's job: the old player ship is gone by the time the
+/// outcome shows, so the regrab rides the NEXT ship's spawn
+/// (`regrab_cursor_on_player_spawn`).
+fn sync_outcome_cursor(
+    outcome: Res<CurrentOutcome>,
+    mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
+) {
+    if outcome.is_changed() && outcome.0.is_some() {
+        cursor.grab_mode = CursorGrabMode::None;
+        cursor.visible = true;
+    }
+}
+
+/// Re-grab the cursor when a player ship spawns during play: a Retry reloads
+/// the scenario WITHOUT a state transition, so the editor's
+/// OnEnter(Scenario) grab never re-fires and the cursor the outcome overlay
+/// freed would leak into the replay. Same guards as `restore_cursor`
+/// (Playing only, debug builds never grab), plus unpaused - a spawn cannot
+/// race the pause overlay's freed cursor.
+fn regrab_cursor_on_player_spawn(
+    _add: On<Add, PlayerSpaceshipMarker>,
+    game_state: Res<State<GameStates>>,
+    pause: Res<State<PauseStates>>,
+    outcome: Option<Res<CurrentOutcome>>,
+    // A plain Query, not Single: an observer must stay a no-op in headless
+    // rigs with no window (Single's skip-when-unsatisfied is a system
+    // guarantee; not verified for observers, so don't lean on it here).
+    mut q_cursor: Query<&mut CursorOptions, With<PrimaryWindow>>,
+) {
+    if *game_state.get() != GameStates::Playing || *pause.get() == PauseStates::Paused {
+        return;
+    }
+    // Symmetric with restore_cursor (outcome review R1.1): never grab out
+    // from under a live outcome overlay. Teardown clears the outcome before
+    // a Retry's ship respawns, so this is a belt-and-braces guard, not the
+    // normal path.
+    if outcome.is_some_and(|outcome| outcome.0.is_some()) {
+        return;
+    }
+    let Ok(mut cursor) = q_cursor.single_mut() else {
+        return;
+    };
+    if cfg!(not(feature = "debug")) {
+        cursor.grab_mode = CursorGrabMode::Locked;
+        cursor.visible = false;
+    }
 }
 
 /// Marker for the menu's buttons, so the color feedback system only touches ours.
@@ -3194,6 +3428,251 @@ mod tests {
         );
         // The back button entity died with the overlay.
         assert!(app.world().get_entity(back).is_err());
+    }
+
+    /// Entity lookup by Name, shared by the outcome-overlay tests.
+    fn find_named(app: &mut App, name: &str) -> Option<Entity> {
+        let mut q = app.world_mut().query::<(Entity, &Name)>();
+        q.iter(app.world())
+            .find(|(_, n)| n.as_str() == name)
+            .map(|(e, _)| e)
+    }
+
+    /// Every Text value currently in the world, for banner/label asserts.
+    fn all_text(app: &mut App) -> Vec<String> {
+        let mut q = app.world_mut().query::<&Text>();
+        q.iter(app.world()).map(|t| t.0.clone()).collect()
+    }
+
+    /// A menu rig with the outcome plumbing the real app gets from the
+    /// scenario loader: the CurrentOutcome + NovaEventWorld resources.
+    fn app_with_outcome() -> App {
+        let mut app = app();
+        app.insert_resource(dummy_scenarios());
+        app.init_resource::<CurrentOutcome>();
+        app.init_resource::<NovaEventWorld>();
+        app
+    }
+
+    /// Defeat with a queued lingering retry (the shakedown death shape):
+    /// DEFEAT banner, message, a Retry button that releases the lingering
+    /// switch (the same mechanism as the Enter key), and Main Menu.
+    #[test]
+    fn defeat_overlay_offers_retry_that_releases_the_lingering_switch() {
+        let mut app = app_with_outcome();
+        enter_playing(&mut app);
+
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .next_scenario = Some(NextScenarioActionConfig {
+            scenario_id: "retry_me".to_string(),
+            linger: true,
+        });
+        app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig::new(
+            ScenarioOutcomeKind::Defeat,
+            "Your ship broke apart.",
+        ));
+        app.update();
+
+        assert!(find_named(&mut app, "Outcome Overlay").is_some());
+        let texts = all_text(&mut app);
+        assert!(texts.iter().any(|t| t == "DEFEAT"), "banner: {texts:?}");
+        assert!(texts.iter().any(|t| t == "Your ship broke apart."));
+        assert!(texts.iter().any(|t| t == "Retry"), "retry label: {texts:?}");
+        assert!(texts.iter().any(|t| t == "[Enter] Retry"), "key hint");
+
+        let retry = find_named(&mut app, "Outcome Primary Button").expect("retry button");
+        app.world_mut().trigger(Activate { entity: retry });
+        app.update();
+
+        let world = app.world().resource::<NovaEventWorld>();
+        assert_eq!(
+            world.next_scenario.as_ref().map(|next| next.linger),
+            Some(false),
+            "Retry releases the lingering switch"
+        );
+    }
+
+    /// Victory with nothing queued (end of content): VICTORY banner, no
+    /// Continue/Retry, the hint points at the menu, and the Main Menu button
+    /// exits to MainMenu. Clearing the outcome (scenario teardown) despawns
+    /// the overlay.
+    #[test]
+    fn victory_overlay_without_a_queued_next_offers_only_the_menu() {
+        let mut app = app_with_outcome();
+        enter_playing(&mut app);
+
+        app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
+            outcome: ScenarioOutcomeKind::Victory,
+            message: None,
+        });
+        app.update();
+
+        assert!(find_named(&mut app, "Outcome Overlay").is_some());
+        let texts = all_text(&mut app);
+        assert!(texts.iter().any(|t| t == "VICTORY"), "banner: {texts:?}");
+        assert!(
+            find_named(&mut app, "Outcome Primary Button").is_none(),
+            "nothing queued: no Continue/Retry"
+        );
+        assert!(texts.iter().any(|t| t == "[Enter] Main Menu"), "key hint");
+
+        // Clearing the outcome (what scenario teardown does) removes the
+        // overlay on the next frame.
+        app.world_mut().resource_mut::<CurrentOutcome>().0 = None;
+        app.update();
+        assert!(
+            find_named(&mut app, "Outcome Overlay").is_none(),
+            "overlay follows the resource"
+        );
+    }
+
+    /// The overlay's Main Menu button rides the same exit as the pause
+    /// overlay's Back button: lands in MainMenu (which is what tears the
+    /// scenario down and, with it, the outcome).
+    #[test]
+    fn outcome_menu_button_exits_to_main_menu() {
+        let mut app = app_with_outcome();
+        enter_playing(&mut app);
+
+        app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
+            outcome: ScenarioOutcomeKind::Victory,
+            message: None,
+        });
+        app.update();
+
+        let menu_button = find_named(&mut app, "Outcome Menu Button").expect("menu button");
+        app.world_mut().trigger(Activate {
+            entity: menu_button,
+        });
+        app.update();
+        app.update();
+
+        assert_eq!(
+            *app.world().resource::<State<GameStates>>().get(),
+            GameStates::MainMenu
+        );
+        assert!(
+            find_named(&mut app, "Outcome Overlay").is_none(),
+            "DespawnOnExit(Playing) takes the overlay with it"
+        );
+    }
+
+    /// Review R1.1 regression: a pause/unpause cycle over a live outcome
+    /// (Victory keeps the player ship alive) must NOT re-grab the cursor -
+    /// the overlay's buttons need the pointer. Guarded in restore_cursor.
+    #[test]
+    fn pause_cycle_over_a_live_outcome_keeps_the_cursor_free() {
+        let mut app = app_with_outcome();
+        // A real window entity so the cursor systems have a target.
+        let window = app
+            .world_mut()
+            .spawn((
+                bevy::window::Window::default(),
+                bevy::window::PrimaryWindow,
+                CursorOptions::default(),
+            ))
+            .id();
+        enter_playing(&mut app);
+        // Victory: the ship survives, which is what armed the bug.
+        app.world_mut().spawn(PlayerSpaceshipMarker);
+        app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
+            outcome: ScenarioOutcomeKind::Victory,
+            message: None,
+        });
+        app.update();
+
+        press_escape(&mut app); // pause (release_cursor frees regardless)
+        press_escape(&mut app); // resume -> restore_cursor must NOT re-grab
+
+        let cursor = app.world().get::<CursorOptions>(window).unwrap();
+        assert_eq!(
+            cursor.grab_mode,
+            CursorGrabMode::None,
+            "resume over a live outcome must leave the cursor free"
+        );
+        assert!(cursor.visible);
+
+        // Delivery guard (release builds only - debug builds never grab):
+        // with the outcome cleared, the SAME cycle re-grabs, proving the
+        // assertion above cannot pass vacuously.
+        #[cfg(not(feature = "debug"))]
+        {
+            app.world_mut().resource_mut::<CurrentOutcome>().0 = None;
+            app.update();
+            press_escape(&mut app);
+            press_escape(&mut app);
+            let cursor = app.world().get::<CursorOptions>(window).unwrap();
+            assert_eq!(
+                cursor.grab_mode,
+                CursorGrabMode::Locked,
+                "delivery guard: without an outcome the pause cycle re-grabs"
+            );
+        }
+    }
+
+    /// Review R1.7: pin the load-bearing z relation - the outcome overlay
+    /// sits BELOW the pause overlay, so ESC over a shown outcome reads as
+    /// the topmost menu.
+    #[test]
+    fn outcome_overlay_sits_below_the_pause_overlay() {
+        let mut app = app_with_outcome();
+        enter_playing(&mut app);
+        app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
+            outcome: ScenarioOutcomeKind::Defeat,
+            message: None,
+        });
+        app.update();
+        press_escape(&mut app);
+
+        let z_of = |app: &mut App, name: &str| -> i32 {
+            let entity = find_named(app, name).unwrap_or_else(|| panic!("{name} exists"));
+            app.world()
+                .get::<GlobalZIndex>(entity)
+                .unwrap_or_else(|| panic!("{name} carries an explicit GlobalZIndex"))
+                .0
+        };
+        let outcome_z = z_of(&mut app, "Outcome Overlay");
+        let pause_z = z_of(&mut app, "Pause Overlay");
+        assert!(
+            outcome_z < pause_z,
+            "outcome ({outcome_z}) must stack below pause ({pause_z})"
+        );
+    }
+
+    /// Review R1.3: a NextScenario queued by a LATER event than the Outcome
+    /// still reaches the overlay - the sync rebuilds when the queued-switch
+    /// snapshot goes stale, so the Continue button appears.
+    #[test]
+    fn outcome_overlay_rebuilds_when_a_switch_is_queued_later() {
+        let mut app = app_with_outcome();
+        enter_playing(&mut app);
+
+        app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
+            outcome: ScenarioOutcomeKind::Victory,
+            message: None,
+        });
+        app.update();
+        assert!(
+            find_named(&mut app, "Outcome Primary Button").is_none(),
+            "nothing queued yet: menu-only overlay"
+        );
+
+        // A later beat queues the next chapter, lingering.
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .next_scenario = Some(NextScenarioActionConfig {
+            scenario_id: "next_chapter".to_string(),
+            linger: true,
+        });
+        app.update();
+
+        assert!(
+            find_named(&mut app, "Outcome Primary Button").is_some(),
+            "the overlay rebuilds and offers Continue"
+        );
+        let texts = all_text(&mut app);
+        assert!(texts.iter().any(|t| t == "Continue"), "labels: {texts:?}");
     }
 
     /// Back to Main Menu from a paused game: lands in MainMenu, unpaused,

@@ -168,6 +168,7 @@ impl Plugin for ScenarioLoaderPlugin {
         app.add_observer(on_player_spaceship_destroyed);
 
         app.init_resource::<CurrentScenario>();
+        app.init_resource::<CurrentOutcome>();
         app.add_observer(on_load_scenario);
 
         app.add_observer(on_add_entity_with::<MeshFragmentMarker>);
@@ -470,6 +471,7 @@ fn teardown_scenario_entities(
     q_scoped: &Query<Entity, With<ScenarioScopedMarker>>,
     world: &mut NovaEventWorld,
     emphasis: Option<&mut HintEmphasis>,
+    outcome: Option<&mut CurrentOutcome>,
 ) {
     world.clear();
     // Scenario-driven HUD emphasis dies with the scenario: a leaked
@@ -479,6 +481,12 @@ fn teardown_scenario_entities(
     // 20260712-125342). Optional: headless rigs run without the HUD.
     if let Some(emphasis) = emphasis {
         emphasis.clear_all();
+    }
+    // The declared outcome dies with the scenario too (same reset class):
+    // a leaked Victory/Defeat would re-show the overlay over the next
+    // scenario or the menu. Optional for rigs without the loader resource.
+    if let Some(outcome) = outcome {
+        outcome.0 = None;
     }
     for entity in q_scoped.iter() {
         commands.entity(entity).despawn();
@@ -492,12 +500,14 @@ fn unload_scenario(
     mut current_scenario: ResMut<CurrentScenario>,
     mut world: ResMut<NovaEventWorld>,
     mut emphasis: Option<ResMut<HintEmphasis>>,
+    mut outcome: Option<ResMut<CurrentOutcome>>,
 ) {
     teardown_scenario_entities(
         &mut commands,
         &q_scoped,
         &mut world,
         emphasis.as_deref_mut(),
+        outcome.as_deref_mut(),
     );
     **current_scenario = None;
 }
@@ -509,6 +519,7 @@ fn on_load_scenario(
     q_scoped: Query<Entity, With<ScenarioScopedMarker>>,
     mut world: ResMut<NovaEventWorld>,
     mut emphasis: Option<ResMut<HintEmphasis>>,
+    mut outcome: Option<ResMut<CurrentOutcome>>,
     asset_server: Res<AssetServer>,
 ) {
     teardown_scenario_entities(
@@ -516,6 +527,7 @@ fn on_load_scenario(
         &q_scoped,
         &mut world,
         emphasis.as_deref_mut(),
+        outcome.as_deref_mut(),
     );
 
     let scenario = (**load).clone();
@@ -622,24 +634,60 @@ struct ScenarioInputMarker;
 #[action_output(bool)]
 struct NextScenarioInput;
 
+/// What the scenario-advance input does, given the current state. Extracted
+/// from the observer so the decision table is unit-testable (synthesizing a
+/// bevy_enhanced_input `Start<>` trigger in a rig is not worth the harness).
+#[derive(Debug, PartialEq, Eq)]
+enum AdvanceDecision {
+    /// A lingering `NextScenario` is queued: release it.
+    ReleaseQueued,
+    /// Nothing queued but an outcome is declared (victory at the end of
+    /// content): return to the main menu.
+    ExitToMenu,
+    /// Nothing to advance; the key does nothing mid-scenario.
+    Ignore,
+}
+
+fn decide_advance(paused: bool, has_queued: bool, has_outcome: bool) -> AdvanceDecision {
+    if paused {
+        return AdvanceDecision::Ignore;
+    }
+    if has_queued {
+        return AdvanceDecision::ReleaseQueued;
+    }
+    if has_outcome {
+        return AdvanceDecision::ExitToMenu;
+    }
+    AdvanceDecision::Ignore
+}
+
 fn on_next_input(
     _: On<Start<NextScenarioInput>>,
     mut world: ResMut<super::world::NovaEventWorld>,
     pause: Res<State<PauseStates>>,
+    outcome: Option<Res<CurrentOutcome>>,
+    mut game_state: Option<ResMut<NextState<GameStates>>>,
 ) {
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up (review R1.1). Releases stay ungated so held keys
     // clear cleanly during a pause.
-    if *pause.get() == PauseStates::Paused {
-        return;
+    let paused = *pause.get() == PauseStates::Paused;
+    let has_queued = world.next_scenario.is_some();
+    let has_outcome = outcome.map(|o| o.0.is_some()).unwrap_or(false);
+
+    match decide_advance(paused, has_queued, has_outcome) {
+        AdvanceDecision::ReleaseQueued => {
+            world.release_lingering_next();
+        }
+        AdvanceDecision::ExitToMenu => {
+            // Optional: headless rigs without the states plugin have no
+            // NextState resource, and the input must not panic there.
+            if let Some(state) = game_state.as_deref_mut() {
+                state.set(GameStates::MainMenu);
+            }
+        }
+        AdvanceDecision::Ignore => {}
     }
-
-    let Some(mut next_scenario) = world.next_scenario.clone() else {
-        return;
-    };
-
-    next_scenario.linger = false;
-    world.next_scenario = Some(next_scenario);
 }
 
 /// Marks the scenario's free-fly camera (the one spawned by
@@ -692,6 +740,70 @@ fn on_player_spaceship_destroyed(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The scenario-advance decision table (task 20260716-125856). Pause
+    /// always wins; a queued switch beats the outcome fallback (a Defeat
+    /// with a queued retry must retry, not exit); an outcome with nothing
+    /// queued exits to the menu; bare Enter mid-scenario stays inert.
+    #[test]
+    fn advance_decision_table() {
+        for queued in [false, true] {
+            for outcome in [false, true] {
+                assert_eq!(
+                    decide_advance(true, queued, outcome),
+                    AdvanceDecision::Ignore,
+                    "paused ignores (queued={queued}, outcome={outcome})"
+                );
+            }
+        }
+        assert_eq!(
+            decide_advance(false, true, false),
+            AdvanceDecision::ReleaseQueued
+        );
+        assert_eq!(
+            decide_advance(false, true, true),
+            AdvanceDecision::ReleaseQueued,
+            "a queued retry/continue beats the exit fallback"
+        );
+        assert_eq!(
+            decide_advance(false, false, true),
+            AdvanceDecision::ExitToMenu
+        );
+        assert_eq!(decide_advance(false, false, false), AdvanceDecision::Ignore);
+    }
+
+    /// A declared outcome dies with its scenario (task 20260716-125856,
+    /// same reset class as the emphasis clear): the unload teardown resets
+    /// `CurrentOutcome` alongside the scoped-entity sweep.
+    #[test]
+    fn teardown_clears_the_declared_outcome() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<CurrentScenario>();
+        app.init_resource::<CurrentOutcome>();
+        app.add_observer(unload_scenario);
+
+        app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
+            outcome: ScenarioOutcomeKind::Defeat,
+            message: None,
+        });
+        let scoped = app.world_mut().spawn(ScenarioScopedMarker).id();
+        app.update();
+
+        app.world_mut().trigger(UnloadScenario);
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<CurrentOutcome>().0,
+            None,
+            "unload clears the declared outcome"
+        );
+        assert!(
+            app.world().get_entity(scoped).is_err(),
+            "the scoped sweep still runs (the teardown grew a param, not a fork)"
+        );
+    }
 
     /// In-memory log sink for asserting on command warns (duplicate of
     /// nova_gameplay's crate-private `test_log::CapturedLog` - a shared

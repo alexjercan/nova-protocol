@@ -838,14 +838,23 @@ pub(crate) fn shakedown_run(
                 unmark(ID_PIRATE),
             ],
         },
-        // Player death: back to the top (Enter confirms - linger).
+        // Player death: the Defeat overlay offers Retry (the lingering
+        // restart) and Main Menu - the win/lose frame's first dogfood
+        // (task 20260716-125856). Before it, death silently queued the
+        // restart and the player had to know to press Enter.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![destroyed(ID_PLAYER)],
-            actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
-                scenario_id: SHAKEDOWN_SCENARIO_ID.to_string(),
-                linger: true,
-            })],
+            actions: vec![
+                EventActionConfig::Outcome(OutcomeActionConfig::new(
+                    ScenarioOutcomeKind::Defeat,
+                    "Your ship broke apart in the belt.",
+                )),
+                EventActionConfig::NextScenario(NextScenarioActionConfig {
+                    scenario_id: SHAKEDOWN_SCENARIO_ID.to_string(),
+                    linger: true,
+                }),
+            ],
         },
     ];
 

@@ -11,14 +11,15 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        apply_pending_skybox_swaps, base_scenario_object, BaseScenarioObjectConfig,
+        apply_pending_skybox_swaps, base_scenario_object, BaseScenarioObjectConfig, CurrentOutcome,
         DebugMessageActionConfig, DespawnScenarioObjectActionConfig, EventActionConfig,
         HintEmphasisClearActionConfig, HintEmphasisSetActionConfig, NextScenarioActionConfig,
         ObjectiveActionConfig, ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
-        ObjectiveMarkerDetachActionConfig, PendingSkyboxSwap, ScatterObjectsConfig, ScatterRegion,
-        ScenarioAreaConfig, ScenarioObjectConfig, ScenarioObjectKind, ScreenshotActionConfig,
-        SetCameraActionConfig, SetControllerVerbActionConfig, SetSkyboxActionConfig,
-        SetSpeedCapActionConfig, VariableSetActionConfig,
+        ObjectiveMarkerDetachActionConfig, OutcomeActionConfig, PendingSkyboxSwap,
+        ScatterObjectsConfig, ScatterRegion, ScenarioAreaConfig, ScenarioObjectConfig,
+        ScenarioObjectKind, ScenarioOutcomeKind, ScreenshotActionConfig, SetCameraActionConfig,
+        SetControllerVerbActionConfig, SetSkyboxActionConfig, SetSpeedCapActionConfig,
+        VariableSetActionConfig,
     };
 }
 
@@ -46,6 +47,8 @@ pub enum EventActionConfig {
     Screenshot(ScreenshotActionConfig),
     /// Swap the scenario's skybox cubemap mid-scenario (modding hook).
     SetSkybox(SetSkyboxActionConfig),
+    /// Declare the scenario's win/lose outcome (drives the outcome overlay).
+    Outcome(OutcomeActionConfig),
 }
 
 impl EventAction<NovaEventWorld> for EventActionConfig {
@@ -103,6 +106,9 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
                 config.action(world, info);
             }
             EventActionConfig::SetSkybox(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::Outcome(config) => {
                 config.action(world, info);
             }
         }
@@ -387,6 +393,72 @@ pub struct DebugMessageActionConfig {
 impl EventAction<NovaEventWorld> for DebugMessageActionConfig {
     fn action(&self, _: &mut NovaEventWorld, _: &GameEventInfo) {
         debug!("Event Action Message: {}", self.message);
+    }
+}
+
+/// Which way a scenario ended. The variant picks the overlay's banner and
+/// styling (gold VICTORY / red DEFEAT); everything else about the ending
+/// stays the author's composition.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ScenarioOutcomeKind {
+    Victory,
+    Defeat,
+}
+
+/// Declare the scenario's outcome: show the win/lose overlay. Presentation
+/// only - what happens NEXT stays composed from the existing vocabulary: pair
+/// with `NextScenario(linger: true)` so [Enter] continues (Victory) or
+/// retries (Defeat); with nothing queued, [Enter] returns to the main menu.
+/// In strict RON the optional message is written with its variant:
+/// `Outcome((outcome: Defeat, message: Some("...")))`, never a bare string.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct OutcomeActionConfig {
+    /// Victory or Defeat.
+    pub outcome: ScenarioOutcomeKind,
+    /// Optional flavor line under the banner.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub message: Option<String>,
+}
+
+impl OutcomeActionConfig {
+    /// Construct with a message.
+    pub fn new(outcome: ScenarioOutcomeKind, message: &str) -> Self {
+        Self {
+            outcome,
+            message: Some(message.to_string()),
+        }
+    }
+}
+
+/// The currently-declared scenario outcome, `None` while a scenario is in
+/// play. Written by [`OutcomeActionConfig`], cleared by scenario teardown
+/// (both the load and unload paths), read by the outcome overlay in
+/// `nova_menu` and by the Enter handler's return-to-menu fallback.
+#[derive(Resource, Debug, Default, Clone, PartialEq)]
+pub struct CurrentOutcome(pub Option<OutcomeActionConfig>);
+
+impl EventAction<NovaEventWorld> for OutcomeActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let outcome = self.clone();
+        debug!("Outcome: declaring {:?}", outcome.outcome);
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                // get_resource_mut, not resource_mut: headless rigs that
+                // exercise scenario scripts without the loader plugin have no
+                // outcome resource, and the action must not panic there.
+                let Some(mut current) = world.get_resource_mut::<CurrentOutcome>() else {
+                    warn!("Outcome: no CurrentOutcome resource (scenario loader not loaded)");
+                    return;
+                };
+                current.0 = Some(outcome);
+            });
+        });
     }
 }
 
@@ -853,6 +925,74 @@ pub fn base_scenario_object(config: &BaseScenarioObjectConfig) -> impl Bundle {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The Outcome action's EFFECT through the production drain (task
+    /// 20260716-125856): the action queues a command on the event world, and
+    /// the state sync applies it to the `CurrentOutcome` resource - fire ->
+    /// drain -> assert on the world, not just the config struct.
+    #[test]
+    fn outcome_action_sets_current_outcome_through_the_drain() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<CurrentOutcome>();
+        // state_to_world_system mirrors objectives unconditionally.
+        app.init_resource::<GameObjectives>();
+
+        let action = EventActionConfig::Outcome(OutcomeActionConfig::new(
+            ScenarioOutcomeKind::Victory,
+            "The belt is quiet again.",
+        ));
+        {
+            let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
+            action.action(&mut world, &GameEventInfo { data: None });
+        }
+        // Nothing lands before the drain: the action only queues.
+        assert_eq!(app.world().resource::<CurrentOutcome>().0, None);
+
+        NovaEventWorld::state_to_world_system(app.world_mut());
+
+        let current = app.world().resource::<CurrentOutcome>();
+        assert_eq!(
+            current.0.as_ref().map(|outcome| outcome.outcome),
+            Some(ScenarioOutcomeKind::Victory),
+            "the drained command writes the declared outcome"
+        );
+        assert_eq!(
+            current
+                .0
+                .as_ref()
+                .and_then(|outcome| outcome.message.as_deref()),
+            Some("The belt is quiet again."),
+        );
+    }
+
+    /// Graceful degradation: a headless rig without the loader's
+    /// `CurrentOutcome` resource must not panic when a script declares an
+    /// outcome - the command drops (with a warn; the log side is not
+    /// asserted here - review R1.6 renamed the test to what it pins).
+    #[test]
+    fn outcome_action_without_the_resource_does_not_panic_or_conjure_it() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        // Deliberately NO CurrentOutcome resource.
+
+        let action = EventActionConfig::Outcome(OutcomeActionConfig {
+            outcome: ScenarioOutcomeKind::Defeat,
+            message: None,
+        });
+        {
+            let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
+            action.action(&mut world, &GameEventInfo { data: None });
+        }
+        NovaEventWorld::state_to_world_system(app.world_mut());
+        assert!(
+            app.world().get_resource::<CurrentOutcome>().is_none(),
+            "the action must not conjure the resource it warns about"
+        );
+    }
 
     /// The behavior the component buys (task 20260709-160753): a moving
     /// scenario body's Transform advances on EVERY render frame, not just on

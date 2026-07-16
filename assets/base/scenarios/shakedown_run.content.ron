@@ -1230,6 +1230,10 @@
                     )),
                 ],
                 actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Your ship broke apart in the belt."),
+                    )),
                     NextScenario((
                         scenario_id: "shakedown_run",
                         linger: true,

@@ -113,6 +113,16 @@ impl EventWorld for NovaEventWorld {
 
 impl NovaEventWorld {
     pub fn clear(&mut self) {
+        // Undrained commands die with the scenario. Legitimate on teardown,
+        // but it is also how an `Outcome` composed with an INSTANT switch
+        // (`linger: false`) gets swallowed before it can show - leave a
+        // trace for the scenario author (outcome review R1.2).
+        if !self.queued_commands.is_empty() {
+            debug!(
+                "NovaEventWorld::clear: discarding {} undrained command(s) at teardown",
+                self.queued_commands.len()
+            );
+        }
         self.queued_commands.clear();
         self.objectives.clear();
         self.variables.clear();
@@ -149,6 +159,20 @@ impl NovaEventWorld {
             );
         } else {
             debug!("remove_objective: completed objective '{}'", id);
+        }
+    }
+
+    /// Release a lingering `NextScenario` request so the switch fires on the
+    /// next state sync. Returns false when nothing is queued. The one
+    /// mechanism behind both the scenario-advance input (Enter/DPadDown) and
+    /// the outcome overlay's Continue/Retry button.
+    pub fn release_lingering_next(&mut self) -> bool {
+        match self.next_scenario.as_mut() {
+            Some(request) => {
+                request.linger = false;
+                true
+            }
+            None => false,
         }
     }
 
