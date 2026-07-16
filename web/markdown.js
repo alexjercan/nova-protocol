@@ -173,12 +173,15 @@ function wikiDocPage({
     });
 }
 
-// The page shell for a markdown BLOG POST: a standalone `.prose` article (no
-// wiki sidebar), the `prose__meta` line (back-to-devlog link + date + version),
-// the h1, a #doc-body placeholder, and the shared post footer (the GitHub
-// Discussions prompt + back-to-blog). Head carries the description meta. basePath
-// is inlined at config time (templateContent strings skip lodash).
-function blogPostShell(title, basePath, opts = {}) {
+// The page shell for a NEWS post - the merged devlog + release-notes page. One
+// post per feature release: a standalone `.prose` article carrying the
+// narrative intro, the structured "what's new" highlights, any breaking-changes
+// callout, an optional in-body video companion, and a folded-in "Point releases"
+// section for that cycle's patches. The footer carries both the Discussions
+// prompt (from the old blog shell) and the pointer to the terse, exhaustive
+// CHANGELOG.md (from the old changelog shell) - News is the story, CHANGELOG.md
+// is the complete machine reference. basePath is inlined at config time.
+function newsPostShell(title, basePath, opts = {}) {
     const t = escapeAttr(title);
     const b = escapeAttr(basePath);
     const desc = opts.description
@@ -201,7 +204,7 @@ function blogPostShell(title, basePath, opts = {}) {
         <main>
             <article class="prose">
                 <p class="prose__meta">
-                    <a href="${b}blog/">&larr; Devlog</a>
+                    <a href="${b}news/">&larr; News</a>
                     &nbsp;//&nbsp; ${date} &nbsp;//&nbsp; ${version}
                 </p>
                 <h1>${t}</h1>
@@ -214,85 +217,12 @@ function blogPostShell(title, basePath, opts = {}) {
                             href="https://github.com/alexjercan/nova-protocol/discussions"
                             target="_blank"
                             rel="noopener"
-                            >Talk about this devlog on GitHub Discussions</a
+                            >Talk about this release on GitHub Discussions</a
                         >.
                     </p>
-                    <p class="post-footer__nav">
-                        <a href="${b}blog/">&larr; All devlogs</a>
-                    </p>
-                </footer>
-            </article>
-        </main>
-        <div id="footer"></div>
-    </body>
-</html>`;
-}
-
-// Build one HtmlWebpackPlugin for a markdown blog post. Like wikiDocPage but
-// with the standalone blog shell and the `post` chunk. `date`/`version` fill the
-// meta line; `description` the head meta.
-function blogPostPage({
-    slug,
-    mdPath,
-    title,
-    date,
-    version,
-    description,
-    publicPath,
-}) {
-    const abs = path.resolve(__dirname, mdPath);
-    const { html, title: h1 } = renderMarkdownFile(abs);
-    const pageTitle = title || h1;
-    return new HtmlWebpackPlugin({
-        filename: `blog/${slug}/index.html`,
-        chunks: ["post"],
-        basePath: publicPath,
-        docBody: html,
-        templateContent: blogPostShell(pageTitle, publicPath, {
-            date,
-            version,
-            description,
-        }),
-    });
-}
-
-// The page shell for a markdown CHANGELOG / release-notes page: like the blog
-// shell (standalone `.prose` article, no wiki sidebar) but crumbed to the
-// changelog index instead of the devlog, and footed with a back-to-changelog
-// link plus a pointer to the terse CHANGELOG.md on GitHub. This is the richer,
-// image-capable, theme-grouped companion to the terse CHANGELOG.md - the devlog
-// stays the narrative; each release page cross-links to its devlog in-body.
-function changelogNoteShell(title, basePath, opts = {}) {
-    const t = escapeAttr(title);
-    const b = escapeAttr(basePath);
-    const desc = opts.description
-        ? `\n        <meta name="description" content="${escapeAttr(
-              opts.description
-          )}" />`
-        : "";
-    const date = escapeAttr(opts.date || "");
-    const version = escapeAttr(opts.version || "");
-    return `<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>${t} - Nova Protocol</title>${desc}
-        <link rel="icon" href="${b}favicon.svg" />
-    </head>
-    <body>
-        <div id="header"></div>
-        <main>
-            <article class="prose">
-                <p class="prose__meta">
-                    <a href="${b}changelog/">&larr; Changelog</a>
-                    &nbsp;//&nbsp; ${date} &nbsp;//&nbsp; ${version}
-                </p>
-                <h1>${t}</h1>
-                <div id="doc-body"></div>
-                <footer class="post-footer">
                     <p class="post-footer__discuss">
-                        Want the terse, complete list for every release?
+                        Want the terse, complete list for every version
+                        (patch releases included)?
                         <a
                             href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
                             target="_blank"
@@ -301,7 +231,7 @@ function changelogNoteShell(title, basePath, opts = {}) {
                         >.
                     </p>
                     <p class="post-footer__nav">
-                        <a href="${b}changelog/">&larr; All releases</a>
+                        <a href="${b}news/">&larr; All news</a>
                     </p>
                 </footer>
             </article>
@@ -311,11 +241,10 @@ function changelogNoteShell(title, basePath, opts = {}) {
 </html>`;
 }
 
-// Build one HtmlWebpackPlugin for a markdown changelog page. Like blogPostPage
-// but with the changelog shell and the `changelog` chunk, served at
-// `/changelog/<slug>/`. `date`/`version` fill the meta line; `description` the
-// head meta.
-function changelogNotePage({
+// Build one HtmlWebpackPlugin for a markdown news post, served at
+// `/news/<slug>/` on the `news` chunk. `date`/`version` fill the meta line;
+// `description` the head meta. The page title comes from the markdown H1.
+function newsPostPage({
     slug,
     mdPath,
     title,
@@ -328,11 +257,11 @@ function changelogNotePage({
     const { html, title: h1 } = renderMarkdownFile(abs);
     const pageTitle = title || h1;
     return new HtmlWebpackPlugin({
-        filename: `changelog/${slug}/index.html`,
-        chunks: ["changelog"],
+        filename: `news/${slug}/index.html`,
+        chunks: ["news"],
         basePath: publicPath,
         docBody: html,
-        templateContent: changelogNoteShell(pageTitle, publicPath, {
+        templateContent: newsPostShell(pageTitle, publicPath, {
             date,
             version,
             description,
@@ -343,6 +272,5 @@ function changelogNotePage({
 module.exports = {
     renderMarkdownFile,
     wikiDocPage,
-    blogPostPage,
-    changelogNotePage,
+    newsPostPage,
 };

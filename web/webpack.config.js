@@ -2,7 +2,7 @@ const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const HtmlPartialsPlugin = require("./webpack-partials");
 const CopyPlugin = require("copy-webpack-plugin");
-const { wikiDocPage, blogPostPage, changelogNotePage } = require("./markdown");
+const { wikiDocPage, newsPostPage } = require("./markdown");
 
 // PUBLIC_PATH should be "/" for local dev (default) or "/nova-protocol/" for the
 // GitHub project-pages deploy, so asset URLs and inter-page links resolve under
@@ -157,68 +157,17 @@ const docPage = ({ slug, md, title, crumbParent }) =>
         publicPath,
     });
 
-// Blog devlog posts: markdown under `src/posts/`, rendered at build time (see
-// markdown.js blogPostPage/blogPostShell) into the standalone blog article shell
-// and served at `/blog/<slug>/`. They share the `post` chunk. The blog INDEX
-// (blog.html) stays hand-authored HTML. To add a post: drop `src/posts/<slug>.md`
-// and add an entry here (newest first). date/version fill the meta line;
-// description is the head meta.
-const BLOG_POSTS = [
-    {
-        slug: "devlog-5-radar-locking-shakedown-and-the-web",
-        title: "Devlog #5: radar locking, a tutorial, and a home on the web",
-        date: "2026-07-13",
-        version: "v0.5.0",
-        description:
-            "Nova Protocol v0.5.0: deliberate CTRL-to-sweep radar locking with stance-driven slots, a live magnified target viewfinder with a kill cam, the Shakedown Run tutorial, typed damage against per-section resistances, a main menu and pause screen, HUD visibility levels, richer objective conveyance, and a brand-new landing site on the web.",
-    },
-    {
-        slug: "devlog-4-guided-torpedoes-targeting-and-enemy-ai",
-        title: "Devlog #4: guided torpedoes, targeting and an enemy that fights back",
-        date: "2026-07-10",
-        version: "v0.4.0",
-        description:
-            "Nova Protocol v0.4.0: proportionally-navigated guided torpedoes, a full targeting arc with per-section fine-lock, turret auto-aim with true intercept lead, a faction/relation model, an AI combat wave with a real behavior state machine, a flight-assist overhaul that balances thrust through the live center of mass, and the game's first audio and combat juice.",
-    },
-    {
-        slug: "devlog-3-zones-torpedoes-and-blast-damage",
-        title: "Devlog #3: zones, torpedoes and blast damage",
-        date: "2025-11-29",
-        version: "v0.3.0",
-        description:
-            "Nova Protocol v0.3.0: OnEnter/OnExit lifecycle events and a zone-entry trigger for richer scenarios, the first area-of-effect weapon in the torpedo bay with blast damage, a reworked per-section health system, and sharper directional and thruster shaders.",
-    },
-    {
-        slug: "devlog-2-objectives-enemy-ai-and-asteroids",
-        title: "Devlog #2: objectives, enemy AI and better asteroids",
-        date: "2025-11-08",
-        version: "v0.2.0",
-        description:
-            "Nova Protocol v0.2.0: a data-driven events/filters/actions modding system for objectives, the first (gloriously dumb) enemy AI, procedurally generated asteroids, and a physics fight with GlobalTransform.",
-    },
-    {
-        slug: "devlog-1-modular-ships-and-first-combat",
-        title: "Devlog #1: modular ships and first combat",
-        date: "2025-10-21",
-        version: "v0.1.0",
-        description:
-            "How Nova Protocol v0.1.0 came together: thruster-driven modular ships, a PD-controlled mouse steering section, turrets that shoot, and a health system that blows sections into chunks.",
-    },
-];
-const postPage = (p) =>
-    blogPostPage({ ...p, mdPath: `src/posts/${p.slug}.md`, publicPath });
-
-// Changelog / release-notes pages: markdown under `src/releases/<version>.md`,
-// rendered at build time (see markdown.js changelogNotePage/changelogNoteShell)
-// into the standalone changelog article shell and served at
-// `/changelog/<version>/`. They share the `changelog` chunk. The changelog INDEX
-// (changelog.html) stays hand-authored HTML (like the blog index). These are the
-// richer, image-capable, theme-grouped companion to the terse root CHANGELOG.md;
-// each page cross-links to its devlog. To add a release: drop
-// `src/releases/<version>.md` and add an entry here (newest first). `slug` is the
-// version and doubles as the URL segment; date/version fill the meta line;
-// description is the head meta. The page title comes from the markdown H1.
-const RELEASE_PAGES = [
+// News: markdown under `src/news/<version>.md`, rendered at build time (see
+// markdown.js newsPostPage/newsPostShell) into the standalone news article shell
+// and served at `/news/<version>/`. News merges the old devlog and release-notes
+// sections: ONE post per FEATURE release, newest first. Patch releases are NOT
+// given their own post - they fold into their parent feature post's "Point
+// releases" section (the terse root CHANGELOG.md keeps every version). Posts
+// share the `news` chunk; the news INDEX (news.html) stays hand-authored HTML.
+// To add a release: drop `src/news/<version>.md` and add an entry here (newest
+// first). `slug` is the version and doubles as the URL segment; date/version
+// fill the meta line; description is the head meta; the title comes from the H1.
+const NEWS_POSTS = [
     {
         slug: "0.6.0",
         version: "v0.6.0",
@@ -227,87 +176,95 @@ const RELEASE_PAGES = [
             "Nova Protocol v0.6.0: a static mod portal and an in-game Explore online tab install, update and uninstall mods over the wire on native and web, mod dependencies resolve end to end, a main-menu Scenarios picker, and particles return to the web build on WebGPU.",
     },
     {
-        slug: "0.5.2",
-        version: "v0.5.2",
-        date: "2026-07-14",
-        description:
-            "Nova Protocol v0.5.2: a full web wiki and a trimmed first-scenario tutorial, rounded-out gamepad bindings, a testable numbered-example curriculum with a blocking CI smoke suite, and audio and teardown fixes.",
-    },
-    {
-        slug: "0.5.1",
-        version: "v0.5.1",
-        date: "2026-07-13",
-        description:
-            "Nova Protocol v0.5.1: a web-build shakeout patch fixing two crashes that only bit the shipped WASM app on New Game and editor Play - a WebGL2-incompatible render-target view-format override and silently ignored skybox meta settings.",
-    },
-    {
         slug: "0.5.0",
         version: "v0.5.0",
         date: "2026-07-13",
         description:
-            "Nova Protocol v0.5.0: deliberate CTRL-to-sweep radar locking with a live target viewfinder and kill cam, the Shakedown Run tutorial, typed damage against per-section resistances, a main menu and pause screen, and a landing site on the web.",
-    },
-    {
-        slug: "0.4.1",
-        version: "v0.4.1",
-        date: "2026-07-10",
-        description:
-            "Nova Protocol v0.4.1: a build and CI plumbing patch fixing the macOS universal build and consolidating clippy, tests and examples onto one Bevy feature set.",
+            "Nova Protocol v0.5.0: deliberate CTRL-to-sweep radar locking with a live target viewfinder and kill cam, the Shakedown Run tutorial, typed damage against per-section resistances, a main menu and pause screen, and a landing site on the web (with the v0.5.1 and v0.5.2 point releases).",
     },
     {
         slug: "0.4.0",
         version: "v0.4.0",
         date: "2026-07-10",
         description:
-            "Nova Protocol v0.4.0: proportionally-navigated guided torpedoes, a full targeting arc with per-section fine-lock, turret auto-aim with true intercept lead, a faction model, an AI combat wave with a behavior state machine, a center-of-mass flight-assist overhaul, and the first audio and combat juice.",
-    },
-    {
-        slug: "0.3.1",
-        version: "v0.3.1",
-        date: "2026-07-07",
-        description:
-            "Nova Protocol v0.3.1: the upgrade to Bevy 0.19 and its ecosystem, bevy_common_systems externalized as a git dependency, a new docs folder, and a post-processing camera component.",
+            "Nova Protocol v0.4.0: proportionally-navigated guided torpedoes, a full targeting arc with per-section fine-lock, turret auto-aim with true intercept lead, a faction model, an AI combat wave with a behavior state machine, a center-of-mass flight-assist overhaul, and the first audio and combat juice (with the v0.4.1 point release).",
     },
     {
         slug: "0.3.0",
         version: "v0.3.0",
         date: "2025-11-29",
         description:
-            "Nova Protocol v0.3.0: OnEnter/OnExit zone events for richer scenarios, the torpedo bay section with area-of-effect blast damage, a per-section health system, and sharper directional and thruster shaders.",
-    },
-    {
-        slug: "0.2.1",
-        version: "v0.2.1",
-        date: "2025-11-15",
-        description:
-            "Nova Protocol v0.2.1: modding documentation and examples, plus an event-system refactor.",
+            "Nova Protocol v0.3.0: OnEnter/OnExit zone events for richer scenarios, the torpedo bay section with area-of-effect blast damage, a per-section health system, and sharper directional and thruster shaders (with the v0.3.1 Bevy 0.19 point release).",
     },
     {
         slug: "0.2.0",
         version: "v0.2.0",
         date: "2025-11-08",
         description:
-            "Nova Protocol v0.2.0: a data-driven game-events and queue system, the first scenario and modding capabilities, and procedurally generated asteroids with dynamic destruction.",
+            "Nova Protocol v0.2.0: a data-driven game-events and queue system, the first scenario and modding capabilities, and procedurally generated asteroids with dynamic destruction (with a video devlog and the v0.2.1 point release).",
     },
     {
         slug: "0.1.0",
         version: "v0.1.0",
         date: "2025-10-21",
         description:
-            "Nova Protocol v0.1.0, the first release: thruster-driven modular ships, PD-controlled mouse steering, turrets that shoot, and a health system that shatters sections into chunks.",
+            "Nova Protocol v0.1.0, the first release: thruster-driven modular ships, PD-controlled mouse steering, turrets that shoot, and a health system that shatters sections into chunks. Includes the very first video devlog.",
     },
 ];
-const releasePage = (p) =>
-    changelogNotePage({ ...p, mdPath: `src/releases/${p.slug}.md`, publicPath });
+const newsPage = (p) =>
+    newsPostPage({ ...p, mdPath: `src/news/${p.slug}.md`, publicPath });
+
+// Redirect stubs for the retired /blog/ and /changelog/ URLs -> the merged
+// /news/ posts (patch versions fold into their parent feature post). Each emits
+// a tiny meta-refresh + canonical page (no chunks, no header/footer) so old
+// links and bookmarks keep resolving after the merge.
+const redirectHtml = (to) =>
+    `<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta http-equiv="refresh" content="0; url=${to}" />
+        <link rel="canonical" href="${to}" />
+        <title>Moved</title>
+    </head>
+    <body>
+        <p>This page moved to <a href="${to}">${to}</a>.</p>
+    </body>
+</html>`;
+const REDIRECTS = [
+    ["blog", "news"],
+    ["changelog", "news"],
+    ["blog/devlog-1-modular-ships-and-first-combat", "news/0.1.0"],
+    ["blog/devlog-2-objectives-enemy-ai-and-asteroids", "news/0.2.0"],
+    ["blog/devlog-3-zones-torpedoes-and-blast-damage", "news/0.3.0"],
+    ["blog/devlog-4-guided-torpedoes-targeting-and-enemy-ai", "news/0.4.0"],
+    ["blog/devlog-5-radar-locking-shakedown-and-the-web", "news/0.5.0"],
+    ["changelog/0.1.0", "news/0.1.0"],
+    ["changelog/0.2.0", "news/0.2.0"],
+    ["changelog/0.2.1", "news/0.2.0"],
+    ["changelog/0.3.0", "news/0.3.0"],
+    ["changelog/0.3.1", "news/0.3.0"],
+    ["changelog/0.4.0", "news/0.4.0"],
+    ["changelog/0.4.1", "news/0.4.0"],
+    ["changelog/0.5.0", "news/0.5.0"],
+    ["changelog/0.5.1", "news/0.5.0"],
+    ["changelog/0.5.2", "news/0.5.0"],
+    ["changelog/0.6.0", "news/0.6.0"],
+];
+const redirectPage = ([from, to]) =>
+    new HtmlWebpackPlugin({
+        filename: `${from}/index.html`,
+        chunks: [],
+        inject: false,
+        templateContent: redirectHtml(publicPath + to + "/"),
+    });
 
 const config = {
     entry: {
         index: "./src/index.ts",
-        blog: "./src/blog.ts",
-        post: "./src/post.ts",
         tutorial: "./src/tutorial.ts",
         wiki: "./src/wiki.ts",
-        changelog: "./src/changelog.ts",
+        news: "./src/news.ts",
     },
     output: {
         path: path.resolve(__dirname, "dist"),
@@ -318,13 +275,12 @@ const config = {
     },
     plugins: [
         page("index", "src/index.html", "index.html"),
-        page("blog", "src/blog.html", "blog/index.html"),
-        ...BLOG_POSTS.map(postPage),
         page("tutorial", "src/tutorial.html", "tutorial/index.html"),
         page("wiki", "src/wiki.html", "wiki/index.html"),
         ...WIKI_DOC_PAGES.map(docPage),
-        page("changelog", "src/changelog.html", "changelog/index.html"),
-        ...RELEASE_PAGES.map(releasePage),
+        page("news", "src/news.html", "news/index.html"),
+        ...NEWS_POSTS.map(newsPage),
+        ...REDIRECTS.map(redirectPage),
         new CopyPlugin({
             patterns: [
                 { from: "src/assets", to: "assets" },
@@ -372,21 +328,25 @@ const config = {
         ],
         historyApiFallback: {
             rewrites: [
-                ...BLOG_POSTS.map(({ slug }) => ({
-                    from: new RegExp("^/blog/" + slug),
-                    to: "/blog/" + slug + "/index.html",
-                })),
-                { from: /^\/blog/, to: "/blog/index.html" },
                 { from: /^\/tutorial/, to: "/tutorial/index.html" },
                 ...WIKI_DOC_PAGES.map(({ slug }) => ({
                     from: new RegExp("^/wiki/" + slug),
                     to: "/wiki/" + slug + "/index.html",
                 })),
                 { from: /^\/wiki/, to: "/wiki/index.html" },
-                ...RELEASE_PAGES.map(({ slug }) => ({
-                    from: new RegExp("^/changelog/" + slug),
-                    to: "/changelog/" + slug + "/index.html",
+                ...NEWS_POSTS.map(({ slug }) => ({
+                    from: new RegExp("^/news/" + slug),
+                    to: "/news/" + slug + "/index.html",
                 })),
+                { from: /^\/news/, to: "/news/index.html" },
+                // Retired sections: the physical redirect stubs under
+                // dist/blog|changelog are served directly; these fallbacks catch
+                // any sub-path that misses a stub and bounce it to the index.
+                ...REDIRECTS.map(([from]) => ({
+                    from: new RegExp("^/" + from.replace(/[.]/g, "\\$&")),
+                    to: "/" + from + "/index.html",
+                })),
+                { from: /^\/blog/, to: "/blog/index.html" },
                 { from: /^\/changelog/, to: "/changelog/index.html" },
             ],
         },

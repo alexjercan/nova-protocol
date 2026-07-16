@@ -206,44 +206,44 @@ The workflow uploads four assets to a release named after the tag: macOS
 universal `.dmg`, Linux `.tar.gz`, Windows `.zip`, and a wasm-opt'd web zip.
 It can also be re-run via `workflow_dispatch` with a `version` input.
 
-### Writing the release devblog
+### Writing the release news post
 
-Every release cycle also gets a devblog on the site, in `web/`. The devlogs
-are numbered (`#1`..`#N`) and track the minor versions: one devlog per minor
-release (`v0.4.0` -> Devlog #4, `v0.5.0` -> Devlog #5), with the cycle's patch
-releases folded into that same post as a short closing note rather than getting
-their own devlog. Source the content straight from the `CHANGELOG.md` sections
-for the versions in the cycle.
+Every release cycle gets one **News** post on the site (`/news/`, markdown under
+`web/src/news/`). News is the merged devlog + release notes: **one post per
+FEATURE release** (`v0.1.0`, `v0.2.0`, ... `v0.6.0`). Patch releases do NOT get
+their own post - they fold into the parent feature post's `## Point releases`
+section (`v0.5.0`'s post covers `v0.5.1` and `v0.5.2`). The terse per-version
+list stays in `CHANGELOG.md`; source the post's content from the cycle's
+`CHANGELOG.md` sections.
 
-The devlogs follow the spirit of Factorio's Friday Facts: a running numbered
-series, each issue broken into a handful of distinct topic sections, written
-candidly in the first person (the reasoning, the dead-ends, the "the piece I am
-proudest of"), leaning on screenshots and diagrams, and closing with a prompt to
-discuss. Match that tone; do not write terse release notes (the `CHANGELOG.md`
-already is those).
+A News post follows the spirit of Factorio's Friday Facts: a narrative lead,
+then a handful of feature-by-feature `##` sections written candidly (the
+reasoning, the dead-ends, the piece you are proudest of), leaning on screenshots,
+and - where a devlog video exists - an optional `## Watch the devlog` companion
+near the top (the written highlights must stand on their own; the video is an
+extra). Do not just restate the terse `CHANGELOG.md`.
 
-Adding a devblog touches four places (mirror an existing post such as
-`devlog-4-guided-torpedoes-targeting-and-enemy-ai`):
+Adding a post touches three places (mirror an existing post such as
+`web/src/news/0.5.0.md`):
 
-1. Write the post at `web/src/posts/<slug>.html`. Copy an existing devlog for
-   the structure:
-   - the `prose__meta` line carries `<date> // v<X.Y.0>`, and the
-     `<title>`/`<meta name="description">` summarize the release;
-   - a `<!-- Devlog video ... -->` placeholder for the recorded footage;
-   - one `<h2>` per topic, in the candid FFF voice described above;
-   - `.figure` blocks for screenshots/diagrams (they ship a dashed placeholder
-     naming the image to capture later - see the component in `web/src/style.css`);
-   - the standard `.post-footer` closer (the "discuss on GitHub Discussions"
-     prompt plus the "All devlogs" link) before `</article>`.
-2. Register the page in `web/webpack.config.js`: add a `page("post", ...)`
-   entry in `plugins` and a matching `historyApiFallback` rewrite (keep both
-   lists newest-first, above the previous devlog).
-3. Add a `.post-card` to `web/src/blog.html` at the top of `.post-grid` (newest
-   first): a media thumbnail plus the date/version, title, and one-line excerpt.
-   For the thumbnail, use the YouTube thumbnail
-   (`https://img.youtube.com/vi/<id>/hqdefault.jpg`) once the post has a video
-   embed; otherwise use the `.post-card__ph` placeholder naming
-   `assets/thumb-<slug>.png`.
+1. Write the post at `web/src/news/<version>.md` (e.g. `0.6.0.md`). The page
+   shell (`newsPostShell` in `web/markdown.js`) renders the H1, the
+   `<date> // v<version>` meta line, and the footer (the Discussions prompt plus
+   the `CHANGELOG.md` pointer and "All news" link), so the markdown is just the
+   body: the H1 (`# vX.Y.0 - <title>`), the lead, the `##` sections, `.figure`
+   placeholder blocks for screenshots to capture later, an optional
+   `.video-embed` companion, a `.callout.callout--breaking` block for any format
+   break, and a closing `## Point releases` section for the cycle's patches.
+   Do not add a footer or a `CHANGELOG.md` link yourself - the shell adds them.
+2. Register it in `web/webpack.config.js`: add an entry to `NEWS_POSTS`
+   (newest-first) with `slug`/`version`/`date`/`description`. The plugin list and
+   the `historyApiFallback` rewrite both derive from `NEWS_POSTS`, so no other
+   wiring is needed.
+3. Add a `.post-card` to `web/src/news.html` at the top of `.post-grid`
+   (newest-first): a media thumbnail plus the date/version, title, and one-line
+   excerpt. For the thumbnail, use the YouTube thumbnail
+   (`https://img.youtube.com/vi/<id>/hqdefault.jpg`) if the release has a video,
+   otherwise the `.post-card__ph` placeholder naming `assets/thumb-news-<version>.png`.
 4. Rebuild and check it: `cd web && npm run ci` (format check, lint, build).
 
 ## Contributing a change
