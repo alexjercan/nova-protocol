@@ -445,13 +445,16 @@ NextScenario((
 ### Outcome
 
 Declare the scenario's win/lose: shows the outcome overlay (gold VICTORY or
-red DEFEAT banner, your optional message, and buttons). Presentation only -
-compose the consequence next to it: queue a lingering `NextScenario` and the
-overlay offers Continue (Victory) or Retry (Defeat); queue nothing and it
-offers only Main Menu. Two authoring rules: the switch must LINGER - an
-instant `NextScenario` (`linger: false`) tears the scenario down the same
-frame and swallows the outcome before it can show - and note the strict-RON
-`Option`: the message keeps its `Some(...)` variant, never a bare string.
+red DEFEAT banner, your optional message, and buttons) and freezes the
+simulation behind it exactly like the pause menu - physics, AI, weapons and
+timers stop while the banner is up (the buttons and [Enter] still work), and
+resume when the outcome clears. Presentation only - compose the consequence
+next to it: queue a lingering `NextScenario` and the overlay offers Continue
+(Victory) or Retry (Defeat); queue nothing and it offers only Main Menu. Two
+authoring rules: the switch must LINGER - an instant `NextScenario`
+(`linger: false`) tears the scenario down the same frame and swallows the
+outcome before it can show - and note the strict-RON `Option`: the message
+keeps its `Some(...)` variant, never a bare string.
 
 ```ron
 // A lose beat: declare Defeat, queue the retry.

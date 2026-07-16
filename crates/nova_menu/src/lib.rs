@@ -197,9 +197,17 @@ impl Plugin for NovaMenuPlugin {
         // the loader's existing path) stays live as the keyboard/gamepad
         // route into the same mechanics. resource_exists-gated: headless rigs
         // without the scenario loader have no CurrentOutcome.
+        // sync_outcome_pause freezes the sim behind the overlay the same way
+        // the pause menu does (task 20260716-214919): a shown outcome holds
+        // the app in PauseStates::Paused (clocks + input gates), and clearing
+        // it (scenario teardown, on Continue/Retry) releases the pause.
         app.add_systems(
             Update,
-            (sync_outcome_overlay, sync_outcome_cursor)
+            (
+                sync_outcome_overlay,
+                sync_outcome_cursor,
+                sync_outcome_pause,
+            )
                 .run_if(in_state(GameStates::Playing))
                 .run_if(resource_exists::<CurrentOutcome>),
         );
@@ -249,8 +257,17 @@ fn toggle_pause(
     current: Res<State<PauseStates>>,
     mut next: ResMut<NextState<PauseStates>>,
     bank: Option<Res<SoundBank<NovaSfx>>>,
+    outcome: Option<Res<CurrentOutcome>>,
     mut commands: Commands,
 ) {
+    // A shown outcome frame is its own paused modal (`sync_outcome_pause`
+    // holds the app in `Paused` while `CurrentOutcome` is set), with its own
+    // Continue/Retry/Main Menu buttons: ESC/Start must not toggle here, or it
+    // would either resume the sim behind the still-open overlay or stack the
+    // pause panel over it (task 20260716-214919).
+    if outcome.is_some_and(|outcome| outcome.0.is_some()) {
+        return;
+    }
     let pad = gamepad
         .map(|g| g.just_pressed(GamepadButton::Start))
         .unwrap_or(false);
@@ -312,9 +329,11 @@ fn restore_cursor(
         return;
     }
     // A live outcome overlay owns the cursor (outcome review R1.1): on
-    // Victory the ship survives, so without this guard a pause/unpause
-    // cycle over the overlay would re-lock the mouse and strand its
-    // buttons - sync_outcome_cursor only frees on outcome CHANGE.
+    // Victory the ship survives, so without this guard exiting Paused with
+    // the overlay still up would re-lock the mouse and strand its buttons -
+    // sync_outcome_cursor only frees on outcome CHANGE. Since task
+    // 20260716-214919 the outcome drives the pause itself and ESC is inert
+    // over it, so this is now a defensive guard rather than the normal path.
     if outcome.is_some_and(|outcome| outcome.0.is_some()) {
         return;
     }
@@ -339,7 +358,18 @@ fn force_unpause(
 /// The pause overlay: a dim full-screen layer with a centered panel.
 /// `CurrentScenario` is optional for the same reason it is in the loader's
 /// consumers: headless menu rigs run without the scenario loader.
-fn setup_pause_ui(mut commands: Commands, current: Option<Res<CurrentScenario>>) {
+fn setup_pause_ui(
+    mut commands: Commands,
+    current: Option<Res<CurrentScenario>>,
+    outcome: Option<Res<CurrentOutcome>>,
+) {
+    // The outcome frame also enters `Paused` (`sync_outcome_pause`) to freeze
+    // the sim, but it is its own modal with its own buttons: do not stack the
+    // pause panel underneath it (task 20260716-214919). The ESC toggle is
+    // already inert here, so this only fires on the outcome-driven pause.
+    if outcome.is_some_and(|outcome| outcome.0.is_some()) {
+        return;
+    }
     // Retry only makes sense over a live scenario. The editor's build mode
     // pauses through this same overlay but never has one loaded, so it gets
     // no dead button.
@@ -532,8 +562,10 @@ fn sync_outcome_overlay(
                 ..default()
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
-            // Above the HUD chrome, below the pause overlay (10): ESC over a
-            // shown outcome still reads as the topmost menu.
+            // Above the HUD chrome. Below the pause overlay's z (10) as a
+            // defensive ordering, though the two no longer coexist: a shown
+            // outcome holds its own pause and makes ESC inert (task
+            // 20260716-214919), so the pause overlay cannot stack over it.
             GlobalZIndex(9),
         ))
         .with_children(|parent| {
@@ -748,6 +780,38 @@ fn sync_outcome_cursor(
     if outcome.is_changed() && outcome.0.is_some() {
         cursor.grab_mode = CursorGrabMode::None;
         cursor.visible = true;
+    }
+}
+
+/// Freeze the simulation while the win/lose overlay is up, exactly like the
+/// pause menu (task 20260716-214919): mirror [`CurrentOutcome`] into
+/// [`PauseStates`] so entering it fires the same `OnEnter(Paused)` freeze
+/// (`pause_clocks` + the `Unpaused` set-gates) that ESC does, and clearing it
+/// releases the pause. The overlay's own input stays live because it is a
+/// modal over a paused world (the pause overlay is interactive the same way):
+/// the buttons dispatch through observers, and the [Enter] advance is
+/// re-allowed under an outcome by `decide_advance`.
+///
+/// Single source of truth is `CurrentOutcome`: teardown clears it on
+/// Continue/Retry (the queued switch still processes - `state_to_world_system`
+/// runs in PostUpdate ungated by pause), and this unpauses on the next frame.
+/// The Main Menu / Enter-to-menu paths leave `Playing`, where `force_unpause`
+/// already resets the pause, so those need no explicit unpause here.
+fn sync_outcome_pause(
+    outcome: Res<CurrentOutcome>,
+    current: Res<State<PauseStates>>,
+    mut next: ResMut<NextState<PauseStates>>,
+) {
+    if !outcome.is_changed() {
+        return;
+    }
+    if outcome.0.is_some() {
+        next.set(PauseStates::Paused);
+    } else if *current.get() == PauseStates::Paused {
+        // Only an outcome-driven pause can be live here: the ESC toggle is
+        // suppressed while an outcome is shown, so a set outcome is the only
+        // reason we could be Paused when it clears.
+        next.set(PauseStates::Unpaused);
     }
 }
 
@@ -3915,11 +3979,14 @@ mod tests {
         );
     }
 
-    /// Review R1.1 regression: a pause/unpause cycle over a live outcome
-    /// (Victory keeps the player ship alive) must NOT re-grab the cursor -
-    /// the overlay's buttons need the pointer. Guarded in restore_cursor.
+    /// Review R1.1 regression, updated for task 20260716-214919: a live
+    /// outcome (Victory keeps the player ship alive) now holds the app in
+    /// Paused of its own accord, and ESC is inert over it - so no ESC cycle
+    /// can strand the cursor by re-grabbing it. The cursor stays free the
+    /// whole time the overlay is up; only clearing the outcome (and a real
+    /// ESC pause after) re-grabs, which is the delivery guard.
     #[test]
-    fn pause_cycle_over_a_live_outcome_keeps_the_cursor_free() {
+    fn a_shown_outcome_keeps_the_cursor_free_and_esc_cannot_regrab_it() {
         let mut app = app_with_outcome();
         // A real window entity so the cursor systems have a target.
         let window = app
@@ -3931,31 +3998,37 @@ mod tests {
             ))
             .id();
         enter_playing(&mut app);
-        // Victory: the ship survives, which is what armed the bug.
+        // Victory: the ship survives, which is what armed the original bug.
         app.world_mut().spawn(PlayerSpaceshipMarker);
         app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
             outcome: ScenarioOutcomeKind::Victory,
             message: None,
         });
         app.update();
+        app.update();
 
-        press_escape(&mut app); // pause (release_cursor frees regardless)
-        press_escape(&mut app); // resume -> restore_cursor must NOT re-grab
-
+        // The outcome pause holds and ESC does nothing to it.
+        press_escape(&mut app);
+        assert_eq!(
+            pause_state(&app),
+            PauseStates::Paused,
+            "ESC over a shown outcome must not unpause into the live sim"
+        );
         let cursor = app.world().get::<CursorOptions>(window).unwrap();
         assert_eq!(
             cursor.grab_mode,
             CursorGrabMode::None,
-            "resume over a live outcome must leave the cursor free"
+            "the cursor stays free while the outcome overlay is up"
         );
         assert!(cursor.visible);
 
         // Delivery guard (release builds only - debug builds never grab):
-        // with the outcome cleared, the SAME cycle re-grabs, proving the
-        // assertion above cannot pass vacuously.
+        // clear the outcome (scenario teardown) and a real ESC pause cycle
+        // re-grabs, proving the free-cursor assertion above is not vacuous.
         #[cfg(not(feature = "debug"))]
         {
             app.world_mut().resource_mut::<CurrentOutcome>().0 = None;
+            app.update();
             app.update();
             press_escape(&mut app);
             press_escape(&mut app);
@@ -3968,11 +4041,128 @@ mod tests {
         }
     }
 
-    /// Review R1.7: pin the load-bearing z relation - the outcome overlay
-    /// sits BELOW the pause overlay, so ESC over a shown outcome reads as
-    /// the topmost menu.
+    /// The core of task 20260716-214919: a shown outcome freezes the sim the
+    /// SAME way the pause menu does - it enters `PauseStates::Paused` and both
+    /// clocks stop - and clearing it (Continue/Retry teardown) resumes. Run
+    /// across the outcome variants (`probe-the-adversarial-variant`): Victory
+    /// keeps the player ship alive, the case most likely to keep the sim
+    /// visibly running behind the banner.
     #[test]
-    fn outcome_overlay_sits_below_the_pause_overlay() {
+    fn a_shown_outcome_freezes_the_sim_like_the_pause_menu() {
+        let cases = [
+            (
+                ScenarioOutcomeKind::Victory,
+                Some(NextScenarioActionConfig {
+                    scenario_id: "next".to_string(),
+                    linger: true,
+                }),
+            ),
+            (
+                ScenarioOutcomeKind::Defeat,
+                Some(NextScenarioActionConfig {
+                    scenario_id: "retry".to_string(),
+                    linger: true,
+                }),
+            ),
+            (ScenarioOutcomeKind::Victory, None),
+        ];
+        for (kind, queued) in cases {
+            let mut app = app_with_outcome();
+            enter_playing(&mut app);
+            app.world_mut().spawn(PlayerSpaceshipMarker);
+
+            // Baseline: play is live, clocks run (delivery guard for the freeze).
+            assert_eq!(
+                pause_state(&app),
+                PauseStates::Unpaused,
+                "{kind:?}: starts live"
+            );
+            assert_eq!(clocks_paused(&app), (false, false), "{kind:?}: clocks run");
+
+            app.world_mut()
+                .resource_mut::<NovaEventWorld>()
+                .next_scenario = queued;
+            app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
+                outcome: kind,
+                message: None,
+            });
+            app.update();
+            app.update();
+
+            assert_eq!(
+                pause_state(&app),
+                PauseStates::Paused,
+                "{kind:?}: outcome pauses"
+            );
+            assert_eq!(
+                clocks_paused(&app),
+                (true, true),
+                "{kind:?}: both clocks freeze behind the overlay"
+            );
+
+            // Clearing the outcome (what Continue/Retry teardown does) resumes.
+            app.world_mut().resource_mut::<CurrentOutcome>().0 = None;
+            app.update();
+            app.update();
+
+            assert_eq!(
+                pause_state(&app),
+                PauseStates::Unpaused,
+                "{kind:?}: clear unpauses"
+            );
+            assert_eq!(
+                clocks_paused(&app),
+                (false, false),
+                "{kind:?}: both clocks resume for the next scenario"
+            );
+        }
+    }
+
+    /// The outcome pause must NOT stack the pause-menu panel under the outcome
+    /// overlay: `setup_pause_ui` skips while an outcome is set. Delivery guard:
+    /// a plain ESC pause (no outcome) DOES spawn the pause panel.
+    #[test]
+    fn the_outcome_pause_does_not_spawn_the_pause_menu_panel() {
+        let mut app = app_with_outcome();
+        enter_playing(&mut app);
+
+        app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
+            outcome: ScenarioOutcomeKind::Victory,
+            message: None,
+        });
+        app.update();
+        app.update();
+
+        assert_eq!(pause_state(&app), PauseStates::Paused, "outcome paused");
+        assert!(
+            find_named(&mut app, "Outcome Overlay").is_some(),
+            "the outcome overlay is the modal"
+        );
+        assert!(
+            find_named(&mut app, "Pause Overlay").is_none(),
+            "the pause-menu panel must not stack under the outcome"
+        );
+
+        // Delivery guard: without an outcome, a real ESC pause spawns the panel.
+        app.world_mut().resource_mut::<CurrentOutcome>().0 = None;
+        app.update();
+        app.update();
+        press_escape(&mut app);
+        assert_eq!(pause_state(&app), PauseStates::Paused, "ESC paused");
+        assert!(
+            find_named(&mut app, "Pause Overlay").is_some(),
+            "delivery guard: a plain pause DOES spawn the panel"
+        );
+    }
+
+    /// Supersedes review R1.7's stack-order pin (task 20260716-214919): the
+    /// outcome frame and the pause menu are now mutually exclusive rather than
+    /// stacked. The outcome enters Paused of its own accord and ESC is inert
+    /// over it, so ESC can never raise the pause overlay on top of a shown
+    /// outcome - the case R1.7's z relation was guarding no longer occurs. The
+    /// outcome overlay keeps its explicit GlobalZIndex (above the HUD chrome).
+    #[test]
+    fn esc_over_a_shown_outcome_never_raises_the_pause_overlay() {
         let mut app = app_with_outcome();
         enter_playing(&mut app);
         app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
@@ -3980,20 +4170,30 @@ mod tests {
             message: None,
         });
         app.update();
+        app.update();
+
+        let before = pause_state(&app);
+        assert_eq!(before, PauseStates::Paused, "the outcome pause is live");
         press_escape(&mut app);
 
-        let z_of = |app: &mut App, name: &str| -> i32 {
-            let entity = find_named(app, name).unwrap_or_else(|| panic!("{name} exists"));
-            app.world()
-                .get::<GlobalZIndex>(entity)
-                .unwrap_or_else(|| panic!("{name} carries an explicit GlobalZIndex"))
-                .0
-        };
-        let outcome_z = z_of(&mut app, "Outcome Overlay");
-        let pause_z = z_of(&mut app, "Pause Overlay");
+        assert_eq!(
+            pause_state(&app),
+            before,
+            "ESC must not toggle the outcome's own pause"
+        );
         assert!(
-            outcome_z < pause_z,
-            "outcome ({outcome_z}) must stack below pause ({pause_z})"
+            find_named(&mut app, "Pause Overlay").is_none(),
+            "ESC must not stack the pause overlay over the outcome"
+        );
+        let outcome = find_named(&mut app, "Outcome Overlay").expect("the sole modal");
+        let outcome_z = app
+            .world()
+            .get::<GlobalZIndex>(outcome)
+            .expect("the outcome overlay carries an explicit GlobalZIndex")
+            .0;
+        assert!(
+            outcome_z > 0,
+            "the outcome overlay must stack above the HUD chrome (z = {outcome_z})"
         );
     }
 

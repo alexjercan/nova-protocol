@@ -775,7 +775,12 @@ enum AdvanceDecision {
 }
 
 fn decide_advance(paused: bool, has_queued: bool, has_outcome: bool) -> AdvanceDecision {
-    if paused {
+    // A shown outcome frame pauses the sim (task 20260716-214919), but its
+    // [Enter] advance is exactly the input we want live under that pause -
+    // the overlay is a paused modal with its own Continue/Retry route. A
+    // plain pause-menu pause (no outcome) still swallows the key, so ESC
+    // mid-scenario cannot skip ahead.
+    if paused && !has_outcome {
         return AdvanceDecision::Ignore;
     }
     if has_queued {
@@ -992,33 +997,41 @@ mod tests {
         );
     }
 
-    /// The scenario-advance decision table (task 20260716-125856). Pause
-    /// always wins; a queued switch beats the outcome fallback (a Defeat
-    /// with a queued retry must retry, not exit); an outcome with nothing
-    /// queued exits to the menu; bare Enter mid-scenario stays inert.
+    /// The scenario-advance decision table (task 20260716-125856, extended by
+    /// 20260716-214919). A plain pause (pause menu, no outcome) always wins; a
+    /// queued switch beats the outcome fallback (a Defeat with a queued retry
+    /// must retry, not exit); an outcome with nothing queued exits to the
+    /// menu; bare Enter mid-scenario stays inert. The outcome frame now
+    /// FREEZES the sim (it enters Paused), so its Enter advance must stay live
+    /// UNDER that pause - `paused && has_outcome` is no longer ignored.
     #[test]
     fn advance_decision_table() {
+        // A plain pause (no outcome) swallows the key regardless of a queue.
         for queued in [false, true] {
-            for outcome in [false, true] {
-                assert_eq!(
-                    decide_advance(true, queued, outcome),
-                    AdvanceDecision::Ignore,
-                    "paused ignores (queued={queued}, outcome={outcome})"
-                );
-            }
+            assert_eq!(
+                decide_advance(true, queued, false),
+                AdvanceDecision::Ignore,
+                "a plain pause ignores the advance key (queued={queued})"
+            );
+        }
+        // The outcome frame's own pause does NOT swallow it: the advance is
+        // the intended input under the outcome modal. Both paused and unpaused
+        // (the pre-freeze phase) resolve the same way.
+        for paused in [false, true] {
+            assert_eq!(
+                decide_advance(paused, true, true),
+                AdvanceDecision::ReleaseQueued,
+                "a queued retry/continue beats the exit fallback (paused={paused})"
+            );
+            assert_eq!(
+                decide_advance(paused, false, true),
+                AdvanceDecision::ExitToMenu,
+                "an unqueued outcome exits to the menu (paused={paused})"
+            );
         }
         assert_eq!(
             decide_advance(false, true, false),
             AdvanceDecision::ReleaseQueued
-        );
-        assert_eq!(
-            decide_advance(false, true, true),
-            AdvanceDecision::ReleaseQueued,
-            "a queued retry/continue beats the exit fallback"
-        );
-        assert_eq!(
-            decide_advance(false, false, true),
-            AdvanceDecision::ExitToMenu
         );
         assert_eq!(decide_advance(false, false, false), AdvanceDecision::Ignore);
     }

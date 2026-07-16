@@ -18,7 +18,7 @@ Objectives are wired with a three-layer reactive system. An **event** fires unde
 
 - **Events**: OnStart, OnUpdate, OnDestroyed, OnEnter / OnExit (a trigger area), OnOrbit (an orbit held a few seconds), OnTravelLock / OnCombatLock (a [lock](../targeting-radar/) landed on an object).
 - **Filters**: match by object id or type (asteroid / beacon / salvage crate), combine with not / or / and, or test a variable expression.
-- **Actions**: post or complete an objective, attach or detach the gold objective marker, emphasize a keybind hint, set a variable, spawn or despawn an object, install or lift a speed cap, grant or withhold a flight verb, create a trigger area, queue the next scenario, or declare the outcome - a victory or defeat screen with Continue/Retry and Main Menu.
+- **Actions**: post or complete an objective, attach or detach the gold objective marker, emphasize a keybind hint, set a variable, spawn or despawn an object, install or lift a speed cap, grant or withhold a flight verb, create a trigger area, queue the next scenario, or declare the outcome - a victory or defeat screen with Continue/Retry and Main Menu that pauses the game behind it.
 
 This is the vocabulary the [Shakedown Run](../../tutorial/) is built from - each beat is an event handler that grants the next verb, posts the next objective, and moves a beat counter forward.
 

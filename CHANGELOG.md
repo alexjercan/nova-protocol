@@ -14,7 +14,7 @@ tagged **(breaking)**.
 
 ### Scenarios & Objectives
 
-- Scenarios can declare a win/lose: the new `Outcome` action shows a VICTORY/DEFEAT overlay with real buttons (Continue/Retry riding a queued lingering `NextScenario`, Main Menu always) instead of the old silent press-Enter-to-restart; dying in Shakedown Run now presents Defeat + Retry.
+- Scenarios can declare a win/lose: the new `Outcome` action shows a VICTORY/DEFEAT overlay with real buttons (Continue/Retry riding a queued lingering `NextScenario`, Main Menu always) instead of the old silent press-Enter-to-restart; dying in Shakedown Run now presents Defeat + Retry. The overlay freezes the simulation the same way the pause menu does - physics, AI, weapons and timers stop behind the banner (Enter/Continue/Retry stay live) instead of the world running on underneath it.
 - Broadside, chapter two of the base storyline: answer a neutral hauler's distress call, break a two-corvette ambush, then screen the gang gunship's torpedoes with your PDC and break it apart - the capital-combat slice, in the Scenarios picker and chained from Shakedown Run's victory screen.
 - Ships in scenario RON can author their side: an optional `allegiance` field (`Some(Neutral)` for bystanders like Broadside's hauler) overrides the controller default.
 - The Asteroid Field sandbox joined the outcome frame: reaching the zone declares Victory (Continue reruns the field) and dying declares Defeat + Retry, replacing its silent switches.

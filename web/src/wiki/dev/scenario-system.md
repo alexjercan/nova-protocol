@@ -112,12 +112,16 @@ flowchart LR
   scenario-advance input, or the outcome overlay's Continue/Retry button).
 - `Outcome { outcome, message? }` - declare the scenario's win/lose: shows the
   outcome overlay (gold VICTORY / red DEFEAT banner, the optional message, and
-  buttons). Presentation only; compose what happens next from the existing
-  vocabulary: pair with `NextScenario(linger: true)` so Continue/Retry (or
-  Enter) rides the queued switch, or queue nothing and the overlay offers only
-  Main Menu (Enter exits there too). In strict RON the optional message keeps
-  its variant: `Outcome((outcome: Defeat, message: Some("...")))`. Cleared by
-  scenario teardown like emphasis and objectives.
+  buttons) and freezes the simulation behind it the same way the pause menu
+  does - the app enters `PauseStates::Paused` while the outcome is set, so
+  physics, AI, weapons and timers stop until it clears (the overlay's own
+  buttons and the [Enter] advance stay live). Presentation only; compose what
+  happens next from the existing vocabulary: pair with `NextScenario(linger:
+  true)` so Continue/Retry (or Enter) rides the queued switch, or queue nothing
+  and the overlay offers only Main Menu (Enter exits there too). In strict RON
+  the optional message keeps its variant: `Outcome((outcome: Defeat, message:
+  Some("...")))`. Cleared by scenario teardown like emphasis and objectives
+  (clearing it also releases the pause).
 - `SetCamera { position, look_at }` - pose the scenario camera (the
   `ScenarioCameraMarker` entity) at `position` looking at `look_at`. It drops
   `WASDCameraController` so the scripted pose holds - the free-fly controller's
