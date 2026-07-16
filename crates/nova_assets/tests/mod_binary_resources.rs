@@ -1,11 +1,15 @@
-//! Mods ship their own binary resources (task 20260716-123544). Two proofs on a
-//! headless asset server reading the real workspace `assets/`:
+//! Mods ship their own binary resources (task 20260716-123544) and reference a
+//! declared dependency's resources (task 20260716-215423). Proofs on a headless
+//! asset server:
 //!
 //! 1. DOGFOOD: enabling the shipped `example` mod merges a scenario whose skybox
 //!    and asteroid texture are the mod's OWN files - its `self://` refs resolve
 //!    to `mods/example/...` (the shipped folder), not to base `assets/`.
 //! 2. GATE: a `self://` ref that names no declared `resources` member is
 //!    recorded as an Error content issue, so the runtime gate refuses it.
+//! 3. CROSS-MOD: a `dep://<id>/` ref in a consumer resolves against dependency
+//!    `<id>`'s folder; a ref to a non-declared dependency, an undeclared resource
+//!    of a declared dependency, or `dep://base` is an Error content issue.
 
 use std::time::{Duration, Instant};
 
@@ -206,6 +210,276 @@ fn an_undeclared_self_ref_is_an_error_content_issue() {
     assert!(
         errors[0].message.contains("self://textures/missing.png"),
         "the error names the undeclared resource: {}",
+        errors[0].message,
+    );
+}
+
+/// Merge a synthetic two-mod set through `register_bundles`: an `art` mod that
+/// ships `art_resources` (no content), and a `consumer` mod whose scenario's
+/// skybox is `reference`, declaring `consumer_deps`. Both are enabled. The
+/// consumer merges AFTER art (it lists art as a dependency in the topo cases),
+/// so art's `resource_base`/`resources` are known when the consumer is flattened.
+fn merge_cross_mod(reference: &str, consumer_deps: &[&str], art_resources: &[&str]) -> App {
+    let mut app = headless_app();
+
+    // `art`: ships resources at `mods/art`, no content of its own.
+    let art_bundle = app
+        .world_mut()
+        .resource_mut::<Assets<BundleAsset>>()
+        .add(BundleAsset {
+            content: vec![],
+            meta: ModMeta::default(),
+            new_game_scenario: None,
+            resources: art_resources.iter().map(|s| s.to_string()).collect(),
+            resource_base: "mods/art".to_string(),
+        });
+
+    // `consumer`: one scenario whose skybox is the ref under test.
+    let scenario = ScenarioConfig {
+        id: "consumer_scenario".to_string(),
+        name: "Consumer".to_string(),
+        description: "references a dependency's resource".to_string(),
+        cubemap: nova_gameplay::prelude::AssetRef::from(reference.to_string()),
+        ..Default::default()
+    };
+    let content = app
+        .world_mut()
+        .resource_mut::<Assets<ContentAsset>>()
+        .add(ContentAsset(vec![Content::Scenario(scenario)]));
+    let consumer_bundle = app
+        .world_mut()
+        .resource_mut::<Assets<BundleAsset>>()
+        .add(BundleAsset {
+            content: vec![content],
+            meta: ModMeta {
+                dependencies: consumer_deps.iter().map(|s| s.to_string()).collect(),
+                ..Default::default()
+            },
+            new_game_scenario: None,
+            resources: vec![],
+            resource_base: "mods/consumer".to_string(),
+        });
+
+    let entry = |id: &str, bundle| CatalogEntry {
+        decl: ModEntry {
+            id: id.to_string(),
+            bundle: format!("mods/{id}/{id}.bundle.ron"),
+            base: false,
+            hidden: false,
+        },
+        bundle,
+    };
+    let catalog = InstalledCatalog {
+        entries: vec![entry("art", art_bundle), entry("consumer", consumer_bundle)],
+    };
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<InstalledCatalog>>()
+        .add(catalog);
+    app.world_mut()
+        .insert_resource(game_assets_with_catalog(handle));
+    app.world_mut().insert_resource(EnabledMods(
+        ["art".to_string(), "consumer".to_string()]
+            .into_iter()
+            .collect(),
+    ));
+    app.world_mut()
+        .run_system_once(nova_assets::register_bundles_for_test)
+        .expect("register bundles");
+    app
+}
+
+#[test]
+fn a_dep_ref_resolves_against_the_dependency_folder() {
+    let app = merge_cross_mod(
+        "dep://art/textures/sky.png",
+        &["art"],
+        &["textures/sky.png"],
+    );
+    let scenarios = app.world().resource::<GameScenarios>();
+    let scenario = scenarios
+        .get("consumer_scenario")
+        .expect("the consumer scenario merged");
+    assert_eq!(
+        scenario.cubemap.path(),
+        Some("mods/art/textures/sky.png"),
+        "the dep:// ref resolves against the DEPENDENCY's folder, not the consumer's",
+    );
+    assert!(
+        app.world()
+            .resource::<ContentIssues>()
+            .errors("consumer_scenario")
+            .is_empty(),
+        "a declared dep + declared resource merges issue-free",
+    );
+}
+
+#[test]
+fn a_dep_ref_to_a_non_declared_mod_is_an_error() {
+    // The consumer references `art` but does NOT declare it as a dependency.
+    let app = merge_cross_mod("dep://art/textures/sky.png", &[], &["textures/sky.png"]);
+    let issues = app.world().resource::<ContentIssues>();
+    let errors = issues.errors("consumer_scenario");
+    assert_eq!(errors.len(), 1, "one gate error: {:?}", issues.0);
+    assert!(
+        errors[0].message.contains("not a declared dependency"),
+        "the error explains the missing dependency: {}",
+        errors[0].message,
+    );
+    // The ungated ref is left LITERAL (fails to load loudly), never rewritten
+    // into a mod the consumer may not reach.
+    let scenarios = app.world().resource::<GameScenarios>();
+    assert_eq!(
+        scenarios.get("consumer_scenario").unwrap().cubemap.path(),
+        Some("dep://art/textures/sky.png"),
+    );
+}
+
+#[test]
+fn a_dep_ref_to_an_undeclared_resource_of_a_dependency_is_an_error() {
+    // `art` is a declared dependency but ships no `textures/missing.png`.
+    let app = merge_cross_mod(
+        "dep://art/textures/missing.png",
+        &["art"],
+        &["textures/sky.png"],
+    );
+    let issues = app.world().resource::<ContentIssues>();
+    let errors = issues.errors("consumer_scenario");
+    assert_eq!(errors.len(), 1, "one gate error: {:?}", issues.0);
+    assert!(
+        errors[0]
+            .message
+            .contains("undeclared resource 'dep://art/textures/missing.png'"),
+        "the error names the undeclared dependency resource: {}",
+        errors[0].message,
+    );
+}
+
+#[test]
+fn a_nested_dep_ref_is_rewritten() {
+    // The whole point of the generic serde-value walk is catching refs BURIED in
+    // the content tree, not just top-level `cubemap`. Here the dep:// ref is an
+    // asteroid texture nested in a spawn action.
+    let mut app = headless_app();
+    let art_bundle = app
+        .world_mut()
+        .resource_mut::<Assets<BundleAsset>>()
+        .add(BundleAsset {
+            content: vec![],
+            meta: ModMeta::default(),
+            new_game_scenario: None,
+            resources: vec!["textures/rock.png".to_string()],
+            resource_base: "mods/art".to_string(),
+        });
+    let ron = r#"(
+        id: "consumer_scenario",
+        name: "Consumer",
+        description: "",
+        cubemap: "textures/base.png",
+        events: [
+            (
+                name: OnStart,
+                filters: [],
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "rock",
+                            name: "Rock",
+                            position: (0.0, 0.0, -10.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 2.0,
+                            texture: "dep://art/textures/rock.png",
+                            health: 50.0,
+                            surface_gravity: None,
+                            invulnerable: false,
+                            lock_signature: None,
+                        )),
+                    )),
+                ],
+            ),
+        ],
+    )"#;
+    let scenario: ScenarioConfig = ron::from_str(ron).expect("scenario parses");
+    let content = app
+        .world_mut()
+        .resource_mut::<Assets<ContentAsset>>()
+        .add(ContentAsset(vec![Content::Scenario(scenario)]));
+    let consumer_bundle = app
+        .world_mut()
+        .resource_mut::<Assets<BundleAsset>>()
+        .add(BundleAsset {
+            content: vec![content],
+            meta: ModMeta {
+                dependencies: vec!["art".to_string()],
+                ..Default::default()
+            },
+            new_game_scenario: None,
+            resources: vec![],
+            resource_base: "mods/consumer".to_string(),
+        });
+    let entry = |id: &str, bundle| CatalogEntry {
+        decl: ModEntry {
+            id: id.to_string(),
+            bundle: format!("mods/{id}/{id}.bundle.ron"),
+            base: false,
+            hidden: false,
+        },
+        bundle,
+    };
+    let catalog = InstalledCatalog {
+        entries: vec![entry("art", art_bundle), entry("consumer", consumer_bundle)],
+    };
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<InstalledCatalog>>()
+        .add(catalog);
+    app.world_mut()
+        .insert_resource(game_assets_with_catalog(handle));
+    app.world_mut().insert_resource(EnabledMods(
+        ["art".to_string(), "consumer".to_string()]
+            .into_iter()
+            .collect(),
+    ));
+    app.world_mut()
+        .run_system_once(nova_assets::register_bundles_for_test)
+        .expect("register bundles");
+
+    let scenarios = app.world().resource::<GameScenarios>();
+    let scenario = scenarios
+        .get("consumer_scenario")
+        .expect("the consumer scenario merged");
+    let json = serde_json::to_string(scenario).expect("scenario serializes");
+    assert!(
+        json.contains("mods/art/textures/rock.png"),
+        "the NESTED asteroid-texture dep:// ref is rewritten against the dependency folder: {json}",
+    );
+    assert!(
+        !json.contains("dep://"),
+        "no dep:// sentinel survives the merge: {json}",
+    );
+    assert!(
+        app.world()
+            .resource::<ContentIssues>()
+            .errors("consumer_scenario")
+            .is_empty(),
+        "a declared dep + declared resource merges issue-free",
+    );
+}
+
+#[test]
+fn a_dep_ref_to_base_is_an_error() {
+    // base is implicit; base files use a bare path, never dep://.
+    let app = merge_cross_mod("dep://base/textures/cubemap.png", &["base"], &[]);
+    let issues = app.world().resource::<ContentIssues>();
+    let errors = issues.errors("consumer_scenario");
+    assert_eq!(errors.len(), 1, "one gate error: {:?}", issues.0);
+    assert!(
+        errors[0]
+            .message
+            .contains("base game files use a bare path"),
+        "the error steers back to a bare path: {}",
         errors[0].message,
     );
 }

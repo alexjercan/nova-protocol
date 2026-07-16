@@ -12,16 +12,18 @@
 //! Validation here is the PUBLISH gate a manifest can support: the bundle
 //! parses, the meta is publishable (non-empty name + version), every listed
 //! content file AND declared resource exists, every `self://` asset ref in the
-//! content names a declared resource, ids are well-formed and unique (including
-//! against the SHIPPED catalog, so a portal mod can never shadow an installed
-//! one), and declared dependencies resolve within the portal + shipped set.
-//! Content is parsed (to a `ron::Value`) only to walk its `self://` refs, never
+//! content names a declared resource, every `dep://<id>/` ref targets a declared
+//! dependency (and, when that dependency is another portal mod, a declared
+//! resource of it), ids are well-formed and unique (including against the SHIPPED
+//! catalog, so a portal mod can never shadow an installed one), and declared
+//! dependencies resolve within the portal + shipped set.
+//! Content is parsed (to a `ron::Value`) only to walk its resource refs, never
 //! LOADED - whether it actually loads against the bevy loaders is the
 //! `webmods_validation` integration test's job (real loaders on PR CI), keeping
 //! this binary engine-free and the deploy job fast.
 
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
 };
@@ -127,6 +129,59 @@ fn collect_self_refs(value: &ron::Value, out: &mut Vec<String>) {
     }
 }
 
+/// A `dep://<id>/<path>` cross-mod ref found in content: the target dependency
+/// id and the file (label-stripped), or a `dep://` leaf that is not
+/// `dep://<id>/<path>` shaped. Mirrors `nova_assets`' `mod_refs` on `ron::Value`.
+enum DepRef {
+    Ref { id: String, file: String },
+    Malformed(String),
+}
+
+/// Collect every `dep://<id>/<path>` ref in a parsed content `ron::Value`,
+/// scheme-detected and (for the file) `#label`-stripped. Comments are already
+/// gone (this walks the PARSED value), so a `dep://` in a comment is not a false
+/// positive. Engine-free, like `collect_self_refs`.
+fn collect_dep_refs(value: &ron::Value, out: &mut Vec<DepRef>) {
+    match value {
+        ron::Value::String(s) => {
+            if let Some(rest) = s.strip_prefix("dep://") {
+                match rest.split_once('/') {
+                    Some((id, path)) if !id.is_empty() && !path.is_empty() => {
+                        out.push(DepRef::Ref {
+                            id: id.to_string(),
+                            file: path.split('#').next().unwrap_or(path).to_string(),
+                        })
+                    }
+                    _ => out.push(DepRef::Malformed(s.clone())),
+                }
+            }
+        }
+        ron::Value::Seq(items) => items.iter().for_each(|v| collect_dep_refs(v, out)),
+        ron::Value::Map(map) => map.iter().for_each(|(_k, v)| collect_dep_refs(v, out)),
+        ron::Value::Option(Some(inner)) => collect_dep_refs(inner, out),
+        _ => {}
+    }
+}
+
+/// One `dep://` cross-mod ref a mod makes, kept for the cross-mod membership
+/// check in [`generate`] (where every portal mod's resources are known).
+struct DepUse {
+    /// The content file the ref appears in (for the error message).
+    content: String,
+    /// The dependency id targeted.
+    dep_id: String,
+    /// The referenced file, label-stripped.
+    file: String,
+}
+
+/// A validated portal entry plus the cross-mod data [`generate`] needs: the
+/// mod's declared resources and every `dep://` ref it makes.
+struct BuiltEntry {
+    entry: PortalEntry,
+    resources: Vec<String>,
+    dep_refs: Vec<DepUse>,
+}
+
 /// Forward-slash string form of a relative path (portal paths are URL segments).
 fn rel_str(path: &Path) -> String {
     path.components()
@@ -136,7 +191,7 @@ fn rel_str(path: &Path) -> String {
 }
 
 /// Validate one mod directory and build its catalog entry (no copying yet).
-fn build_entry(mod_dir: &Path, id: &str) -> Result<PortalEntry, GenError> {
+fn build_entry(mod_dir: &Path, id: &str) -> Result<BuiltEntry, GenError> {
     validate_id(id)?;
 
     // Exactly one *.bundle.ron at the mod root is the entry point.
@@ -220,13 +275,27 @@ fn build_entry(mod_dir: &Path, id: &str) -> Result<PortalEntry, GenError> {
     }
 
     // The reverse membership: a `self://` asset ref in the content may only name
-    // a DECLARED resource. The runtime merge and the static content lint enforce
-    // this over the repo tree; enforcing it here too closes the publish-time hole
-    // for a mod published from OUTSIDE the repo (never repo-linted) - it cannot
-    // ship a dangling mod-relative ref. Content is parsed to a `ron::Value`
-    // (comments stripped, unlike a text scan) and every `self://` string leaf is
-    // checked; the generator stays engine-free (no bevy, no typed `Content`).
+    // a DECLARED resource, and a `dep://<id>/` ref may only target a DECLARED
+    // dependency. The runtime merge and the static content lint enforce this over
+    // the repo tree; enforcing it here too closes the publish-time hole for a mod
+    // published from OUTSIDE the repo (never repo-linted) - it cannot ship a
+    // dangling ref. Content is parsed to a `ron::Value` (comments stripped, unlike
+    // a text scan) and every resource-ref string leaf is checked; the generator
+    // stays engine-free (no bevy, no typed `Content`).
+    //
+    // The `dep://` cross-mod resource membership (the file is one of `<id>`'s
+    // declared resources) needs the OTHER mod's manifest, so it is deferred to
+    // `generate` where every portal mod's resources are known; here we only pin
+    // that `<id>` is a declared dependency of THIS mod (and not the implicit
+    // `base`, whose files use a bare path).
     let resource_set: BTreeSet<&str> = manifest.resources.iter().map(|s| s.as_str()).collect();
+    let declared_deps: BTreeSet<&str> = manifest
+        .meta
+        .dependencies
+        .iter()
+        .map(|s| s.as_str())
+        .collect();
+    let mut dep_refs = Vec::new();
     for content in &manifest.content {
         let text = fs::read_to_string(mod_dir.join(content))
             .map_err(|e| GenError(format!("mod '{id}': cannot read content '{content}': {e}")))?;
@@ -245,19 +314,55 @@ fn build_entry(mod_dir: &Path, id: &str) -> Result<PortalEntry, GenError> {
                 ));
             }
         }
+        let mut deps_used = Vec::new();
+        collect_dep_refs(&value, &mut deps_used);
+        for dep in deps_used {
+            let (dep_id, file) = match dep {
+                DepRef::Ref { id, file } => (id, file),
+                DepRef::Malformed(raw) => {
+                    return err(format!(
+                        "mod '{id}': content '{content}' has a malformed dependency resource ref \
+                         '{raw}' - expected 'dep://<id>/<path>'"
+                    ))
+                }
+            };
+            if dep_id == "base" {
+                return err(format!(
+                    "mod '{id}': content '{content}' references 'dep://base/{file}' - base game \
+                     files use a bare path (no scheme), not dep://"
+                ));
+            }
+            if !declared_deps.contains(dep_id.as_str()) {
+                return err(format!(
+                    "mod '{id}': content '{content}' references resource 'dep://{dep_id}/{file}' \
+                     but '{dep_id}' is not a declared dependency - add it to the bundle \
+                     manifest's `meta.dependencies`"
+                ));
+            }
+            dep_refs.push(DepUse {
+                content: content.clone(),
+                dep_id,
+                file,
+            });
+        }
     }
 
-    Ok(PortalEntry {
-        id: id.to_string(),
-        version: manifest.meta.version.clone(),
-        bundle: rel_str(
-            bundle_path
-                .strip_prefix(mod_dir)
-                .expect("bundle path is under the mod dir"),
-        ),
-        meta: manifest.meta,
-        files,
-        total_size,
+    let resources = manifest.resources.clone();
+    Ok(BuiltEntry {
+        entry: PortalEntry {
+            id: id.to_string(),
+            version: manifest.meta.version.clone(),
+            bundle: rel_str(
+                bundle_path
+                    .strip_prefix(mod_dir)
+                    .expect("bundle path is under the mod dir"),
+            ),
+            meta: manifest.meta,
+            files,
+            total_size,
+        },
+        resources,
+        dep_refs,
     })
 }
 
@@ -283,7 +388,7 @@ pub fn generate(
         .collect();
     mod_dirs.sort();
 
-    let mut entries = Vec::new();
+    let mut built = Vec::new();
     for mod_dir in &mod_dirs {
         let id = mod_dir
             .file_name()
@@ -295,14 +400,14 @@ pub fn generate(
                 "mod '{id}' collides with a SHIPPED catalog id; portal mods must not shadow installed ones"
             ));
         }
-        entries.push(build_entry(mod_dir, &id)?);
+        built.push(build_entry(mod_dir, &id)?);
     }
     // Subdirectory names are unique by the filesystem; sorted by the dir sort.
     // (A "duplicate id" case is therefore impossible by construction.)
 
     // Zero mods is a broken invocation (wrong --source path, bad checkout),
     // not an empty portal to publish silently (review R1.4).
-    if entries.is_empty() {
+    if built.is_empty() {
         return err(format!(
             "no mods found under {}; refusing to publish an empty portal",
             source.display()
@@ -311,21 +416,50 @@ pub fn generate(
 
     // Dependencies must resolve within the portal + shipped set ('base' is
     // implicit and shipped, so declaring it also resolves).
-    let portal_ids: BTreeSet<&str> = entries.iter().map(|e| e.id.as_str()).collect();
-    for entry in &entries {
-        for dep in &entry.meta.dependencies {
+    let portal_ids: BTreeSet<&str> = built.iter().map(|b| b.entry.id.as_str()).collect();
+    for b in &built {
+        for dep in &b.entry.meta.dependencies {
             if !portal_ids.contains(dep.as_str()) && !shipped.contains(dep) {
                 return err(format!(
                     "mod '{}': dependency '{dep}' is neither a portal mod nor shipped",
-                    entry.id
+                    b.entry.id
                 ));
+            }
+        }
+    }
+
+    // Cross-mod resource membership: a `dep://<id>/<file>` ref may only name a
+    // DECLARED resource of dependency `<id>`. When `<id>` is another PORTAL mod
+    // its resources are known here, so the file is checked; when `<id>` is SHIPPED
+    // only its id is known (the shipped catalog is a thin id list), so the
+    // membership half is left to the runtime gate and the repo lint - the id is
+    // still verified declared + resolvable above.
+    let resources_by_id: BTreeMap<&str, BTreeSet<&str>> = built
+        .iter()
+        .map(|b| {
+            (
+                b.entry.id.as_str(),
+                b.resources.iter().map(|s| s.as_str()).collect(),
+            )
+        })
+        .collect();
+    for b in &built {
+        for dep in &b.dep_refs {
+            if let Some(dep_resources) = resources_by_id.get(dep.dep_id.as_str()) {
+                if !dep_resources.contains(dep.file.as_str()) {
+                    return err(format!(
+                        "mod '{}': content '{}' references undeclared resource \
+                         'dep://{}/{}' of dependency '{}' - add it to that mod's `resources` list",
+                        b.entry.id, dep.content, dep.dep_id, dep.file, dep.dep_id
+                    ));
+                }
             }
         }
     }
 
     let catalog = PortalCatalog {
         schema_version: PORTAL_SCHEMA_VERSION,
-        entries,
+        entries: built.into_iter().map(|b| b.entry).collect(),
     };
 
     // Write the tree: files first, catalog last (a readable-but-incomplete

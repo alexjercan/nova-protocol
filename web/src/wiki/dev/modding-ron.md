@@ -143,6 +143,12 @@ flowchart TD
   static `content_lint`, and the runtime content gate all reject an undeclared
   one. Sidecar `.meta` files (a skybox's `RowCount` cube reinterpret) ship
   automatically and are NOT listed. `assets/mods/example/` is the worked example.
+  A second scheme, `dep://<id>/<path>`, references a DECLARED dependency's
+  resource (a shared "art pack" reused without copying bytes): `<id>` must be in
+  this bundle's `meta.dependencies` and `<path>` a declared resource of THAT mod,
+  and it resolves against `<id>`'s own folder with the same shipped/downloaded
+  transparency. `dep://base/` is rejected - base files use a bare path. The same
+  three gates enforce both halves. `self://` remains own-folder only.
 - The `meta` block (all fields optional, `ModMeta` in `nova_mod_format`,
   re-exported by nova_modding - the pure format types live in that engine-free
   crate so the portal generator shares them without bevy):

@@ -614,15 +614,18 @@ pub fn register_bundles(
         .collect();
 
     // Flatten each enabled bundle into its ordered `Content` items (missing content
-    // is logged and skipped), rewriting the bundle's mod-relative `self://` asset
-    // refs against its own folder (task 20260716-123544). Items are OWNED because
+    // is logged and skipped), rewriting the bundle's resource refs - `self://`
+    // against its own folder (task 20260716-123544) and `dep://<id>/` against a
+    // declared dependency's folder (task 20260716-215423). Items are OWNED because
     // the rewrite produces new configs. Kept as one Vec per bundle so
     // `merge_bundles` can tell intra-bundle duplicates from cross-bundle overlay.
     //
-    // A `self://` ref that names no declared `resources` member is the mod
-    // pointing at a file it does not ship: recorded as an Error content issue for
-    // the owning scenario (below) so the runtime gate refuses it, mirroring the
-    // portal generator's and static lint's membership checks.
+    // A ref that names no declared resource (a `self://` file the mod does not
+    // ship, or a `dep://` file/dependency it may not reach) is recorded as an
+    // Error content issue for the owning scenario (below) so the runtime gate
+    // refuses it, mirroring the portal generator's and static lint's checks. The
+    // topological order guarantees a dependency is flattened before its
+    // dependents, so its `resource_base`/`resources` are already loaded here.
     let mut bundle_items: Vec<Vec<Content>> = Vec::new();
     let mut undeclared_ref_issues: Vec<(String, String)> = Vec::new();
     for bundle_handle in bundle_handles {
@@ -633,6 +636,33 @@ pub fn register_bundles(
             );
             continue;
         };
+        // The owning bundle's resolution context: its own folder + the DECLARED
+        // dependencies whose bundles are enabled+loaded (looked up in the merge
+        // set `by_id`). A declared dep absent here is unavailable, so a `dep://`
+        // to it is a violation; `base` is implicit and never a `dep://` target.
+        let declared_deps: HashSet<String> = bundle.meta.dependencies.iter().cloned().collect();
+        let mut dep_refs: HashMap<String, mod_refs::DepRef> = HashMap::new();
+        for dep_id in &bundle.meta.dependencies {
+            if dep_id == "base" {
+                continue;
+            }
+            if let Some(dep_bundle) = by_id.get(dep_id.as_str()).and_then(|h| bundles.get(*h)) {
+                dep_refs.insert(
+                    dep_id.clone(),
+                    mod_refs::DepRef {
+                        base: Some(dep_bundle.resource_base.as_str()),
+                        resources: Some(dep_bundle.resources.as_slice()),
+                    },
+                );
+            }
+        }
+        let scope = mod_refs::RefScope {
+            self_base: &bundle.resource_base,
+            self_resources: &bundle.resources,
+            declared_deps: &declared_deps,
+            deps: &dep_refs,
+        };
+
         let mut items: Vec<Content> = Vec::new();
         for content_handle in &bundle.content {
             let Some(content) = contents.get(content_handle) else {
@@ -643,17 +673,13 @@ pub fn register_bundles(
                 continue;
             };
             for item in &content.0 {
-                for file in mod_refs::undeclared_self_refs(item, &bundle.resources) {
-                    let message = format!(
-                        "references undeclared mod resource 'self://{file}' - add it to \
-                         the bundle manifest's `resources` list"
-                    );
+                for message in mod_refs::resource_ref_violations(item, &scope) {
                     error!("register_bundles: content {message}");
                     if let Content::Scenario(cfg) = item {
                         undeclared_ref_issues.push((cfg.id.clone(), message));
                     }
                 }
-                items.push(mod_refs::rewrite_self_refs(item, &bundle.resource_base));
+                items.push(mod_refs::rewrite_refs(item, &scope));
             }
         }
         bundle_items.push(items);
@@ -724,8 +750,9 @@ pub fn register_bundles(
             content_issues.0.insert(scenario.id.clone(), found);
         }
     }
-    // Fold in the undeclared-`self://`-resource findings gathered while flattening:
-    // an Error per (scenario, missing resource) so the gate refuses the scenario.
+    // Fold in the resource-ref findings gathered while flattening (undeclared
+    // `self://` and ungated `dep://<id>/` refs): an Error per (scenario, message)
+    // so the gate refuses the scenario.
     for (scenario_id, message) in undeclared_ref_issues {
         content_issues
             .0
@@ -1353,6 +1380,8 @@ pub mod lint_walk {
     fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, LintIssue)> {
         let sections_by_id: HashMap<&str, &HashSet<String>> =
             all.iter().map(|b| (b.id.as_str(), &b.sections)).collect();
+        let bundles_by_id: HashMap<&str, &WalkedBundle> =
+            all.iter().map(|b| (b.id.as_str(), b)).collect();
         let mut known_scenarios: HashSet<String> = all
             .iter()
             .flat_map(|b| b.scenarios.iter().map(|s| s.id.clone()))
@@ -1377,29 +1406,52 @@ pub mod lint_walk {
             for issue in lint_scenario(scenario, &known_sections, &known_scenarios) {
                 issues.push((bundle.id.clone(), issue));
             }
-            // Mod-relative resource membership (task 20260716-123544): every
-            // `self://` ref in this bundle's content - section OR scenario - must
-            // name a file the manifest declares in `resources`. Same gate the
-            // portal generator and the runtime merge apply, in the static domain.
-            for item in &bundle.content {
-                for file in crate::mod_refs::undeclared_self_refs(item, &bundle.manifest.resources)
-                {
-                    let (scenario, kind) = match item {
-                        Content::Scenario(cfg) => (cfg.id.clone(), "scenario"),
-                        Content::Section(cfg) => (cfg.base.id.clone(), "section"),
-                    };
-                    issues.push((
-                        bundle.id.clone(),
-                        LintIssue {
-                            severity: LintSeverity::Error,
-                            scenario,
-                            message: format!(
-                                "{kind} references undeclared mod resource 'self://{file}' - \
-                                 add it to the bundle manifest's `resources` list"
-                            ),
-                        },
-                    ));
-                }
+        }
+
+        // Resource-ref membership (tasks 20260716-123544 + 20260716-215423): every
+        // `self://` ref in this bundle's content - section OR scenario - must name
+        // a declared `resources` member of THIS bundle, and every `dep://<id>/`
+        // ref must target a DECLARED dependency and name a declared resource of
+        // it. Same gate the portal generator and the runtime merge apply, in the
+        // static domain (the deps' resources come from the walked set `all`).
+        // Validated once over `bundle.content`, independent of the scenario loop.
+        let declared_deps: HashSet<String> =
+            bundle.manifest.meta.dependencies.iter().cloned().collect();
+        let mut dep_refs: HashMap<String, crate::mod_refs::DepRef> = HashMap::new();
+        for dep_id in &bundle.manifest.meta.dependencies {
+            if dep_id == "base" {
+                continue;
+            }
+            if let Some(dep_bundle) = bundles_by_id.get(dep_id.as_str()) {
+                dep_refs.insert(
+                    dep_id.clone(),
+                    crate::mod_refs::DepRef {
+                        base: None,
+                        resources: Some(dep_bundle.manifest.resources.as_slice()),
+                    },
+                );
+            }
+        }
+        let scope = crate::mod_refs::RefScope {
+            self_base: "",
+            self_resources: &bundle.manifest.resources,
+            declared_deps: &declared_deps,
+            deps: &dep_refs,
+        };
+        for item in &bundle.content {
+            let (scenario, kind) = match item {
+                Content::Scenario(cfg) => (cfg.id.clone(), "scenario"),
+                Content::Section(cfg) => (cfg.base.id.clone(), "section"),
+            };
+            for message in crate::mod_refs::resource_ref_violations(item, &scope) {
+                issues.push((
+                    bundle.id.clone(),
+                    LintIssue {
+                        severity: LintSeverity::Error,
+                        scenario: scenario.clone(),
+                        message: format!("{kind} {message}"),
+                    },
+                ));
             }
         }
         issues
@@ -1455,5 +1507,208 @@ pub mod lint_walk {
             .filter(|b| b.id != target.id)
             .collect();
         lint_bundle(&target, &repo)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use std::collections::HashSet;
+
+        use nova_gameplay::prelude::AssetRef;
+        use nova_mod_format::{BundleManifest, ModMeta};
+        use nova_modding::prelude::Content;
+        use nova_scenario::prelude::ScenarioConfig;
+
+        use super::{lint_bundle, WalkedBundle};
+
+        fn scenario(id: &str, cubemap: &str) -> Content {
+            Content::Scenario(ScenarioConfig {
+                id: id.to_string(),
+                name: id.to_string(),
+                description: String::new(),
+                cubemap: AssetRef::from(cubemap.to_string()),
+                ..Default::default()
+            })
+        }
+
+        /// A hull section whose render mesh is `render_mesh` (a resource ref).
+        fn section(id: &str, render_mesh: &str) -> Content {
+            let ron = format!(
+                r#"Section((base: (id: "{id}", name: "{id}", description: "", mass: 1.0, health: 100.0), kind: Hull((render_mesh: Some("{render_mesh}")))))"#
+            );
+            ron::from_str(&ron).expect("section parses")
+        }
+
+        /// A walked bundle from its id, declared deps, declared resources, and
+        /// content items (its scenario/section views are derived, as `read_bundle`
+        /// does).
+        fn walked(
+            id: &str,
+            deps: &[&str],
+            resources: &[&str],
+            content: Vec<Content>,
+        ) -> WalkedBundle {
+            let scenarios = content
+                .iter()
+                .filter_map(|c| match c {
+                    Content::Scenario(s) => Some(s.clone()),
+                    _ => None,
+                })
+                .collect();
+            let sections = content
+                .iter()
+                .filter_map(|c| match c {
+                    Content::Section(s) => Some(s.base.id.clone()),
+                    _ => None,
+                })
+                .collect();
+            WalkedBundle {
+                id: id.to_string(),
+                manifest: BundleManifest {
+                    content: Vec::new(),
+                    resources: resources.iter().map(|s| s.to_string()).collect(),
+                    meta: ModMeta {
+                        dependencies: deps.iter().map(|s| s.to_string()).collect(),
+                        ..Default::default()
+                    },
+                    new_game_scenario: None,
+                },
+                sections,
+                scenarios,
+                content,
+            }
+        }
+
+        /// The messages `lint_bundle` raised for `bundle` against `all`.
+        fn messages(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<String> {
+            lint_bundle(bundle, all)
+                .into_iter()
+                .map(|(_, issue)| issue.message)
+                .collect()
+        }
+
+        fn count_containing(msgs: &[String], needle: &str) -> usize {
+            msgs.iter().filter(|m| m.contains(needle)).count()
+        }
+
+        #[test]
+        fn an_undeclared_self_ref_is_reported_once_for_a_multi_scenario_bundle() {
+            // Two scenarios; the FIRST carries one undeclared self:// ref. The
+            // membership check must fire ONCE, not once per scenario - the
+            // pre-refactor loop nested the content walk inside the scenario loop
+            // and double-reported.
+            let b = walked(
+                "mod",
+                &[],
+                &[],
+                vec![
+                    scenario("a", "self://textures/missing.png"),
+                    scenario("b", "textures/base.png"),
+                ],
+            );
+            let msgs = messages(&b, std::slice::from_ref(&b));
+            assert_eq!(
+                count_containing(&msgs, "self://textures/missing.png"),
+                1,
+                "reported exactly once, not per scenario: {msgs:?}"
+            );
+        }
+
+        #[test]
+        fn a_section_only_bundle_still_gets_its_refs_checked() {
+            // A bundle with ZERO scenarios (only a section). The pre-refactor loop
+            // was nested in `for scenario in scenarios`, so a scenario-less bundle
+            // skipped the membership check entirely; the refactor checks content
+            // regardless of scenario count.
+            let b = walked(
+                "artmod",
+                &[],
+                &[],
+                vec![section("hull", "self://models/hull.glb")],
+            );
+            let msgs = messages(&b, std::slice::from_ref(&b));
+            assert_eq!(
+                count_containing(&msgs, "self://models/hull.glb"),
+                1,
+                "a section-only bundle's undeclared ref is still caught: {msgs:?}"
+            );
+            assert!(
+                msgs.iter().any(|m| m.starts_with("section ")),
+                "the finding is attributed to the section: {msgs:?}"
+            );
+        }
+
+        #[test]
+        fn a_valid_dep_ref_across_the_walked_set_is_clean() {
+            let art = walked("art", &[], &["textures/sky.png"], vec![]);
+            let consumer = walked(
+                "consumer",
+                &["art"],
+                &[],
+                vec![scenario("c", "dep://art/textures/sky.png")],
+            );
+            let all = vec![art, consumer];
+            let msgs = messages(&all[1], &all);
+            assert!(
+                !msgs.iter().any(|m| m.contains("dep://")),
+                "a declared dep + declared resource lints clean: {msgs:?}"
+            );
+        }
+
+        #[test]
+        fn dep_ref_static_lint_flags_every_bad_case() {
+            // `WalkedBundle` is not `Clone`, so each sub-case rebuilds the `art`
+            // dependency (ships `textures/sky.png`) fresh alongside its consumer.
+
+            // Undeclared resource OF a declared dependency.
+            let all = vec![
+                walked("art", &[], &["textures/sky.png"], vec![]),
+                walked(
+                    "consumer",
+                    &["art"],
+                    &[],
+                    vec![scenario("c", "dep://art/textures/missing.png")],
+                ),
+            ];
+            assert!(
+                messages(&all[1], &all)
+                    .iter()
+                    .any(|m| m.contains("undeclared resource 'dep://art/textures/missing.png'")),
+                "an undeclared dependency resource is flagged"
+            );
+
+            // A dep that is NOT declared as a dependency.
+            let all = vec![
+                walked("art", &[], &["textures/sky.png"], vec![]),
+                walked(
+                    "consumer",
+                    &[],
+                    &[],
+                    vec![scenario("c", "dep://art/textures/sky.png")],
+                ),
+            ];
+            assert!(
+                messages(&all[1], &all)
+                    .iter()
+                    .any(|m| m.contains("not a declared dependency")),
+                "a ref to a non-declared dependency is flagged"
+            );
+
+            // dep://base is rejected regardless of the walked set.
+            let all = vec![
+                walked("art", &[], &["textures/sky.png"], vec![]),
+                walked(
+                    "consumer",
+                    &["base"],
+                    &[],
+                    vec![scenario("c", "dep://base/textures/cubemap.png")],
+                ),
+            ];
+            assert!(
+                messages(&all[1], &all)
+                    .iter()
+                    .any(|m| m.contains("base game files use a bare path")),
+                "dep://base is steered back to a bare path"
+            );
+        }
     }
 }

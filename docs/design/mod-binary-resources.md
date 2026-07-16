@@ -112,6 +112,78 @@ name a declared `resources` member is rejected wherever the data is checked:
   path fails to load loudly. Extending the runtime gate to sections is left to
   the gate's own follow-up rather than special-cased here.
 
+## Cross-mod references (`dep://<id>/`, task 20260716-215423)
+
+`self://` is deliberately own-folder only. Task 20260716-215423 adds a second
+sentinel, `dep://<id>/<path>`, so a mod can reference a file shipped by a
+DECLARED DEPENDENCY `<id>` - enabling a shared "art pack" several mods depend on
+for a common look without each copying the bytes.
+
+### Scheme choice: `dep://`, not `mod://`
+
+The obvious `mod://<id>/` was rejected: the codebase already uses `mods://` (WITH
+an `s`) as a LIVE bevy asset SOURCE for downloaded bundles, so `mod://` is one
+keystroke from a real source - a sentinel a typo away from silently loading real
+bytes. `dep://` is unambiguous and states the gate (the target must be a declared
+DEPendency). It pairs with `self://`: `self://X` = my own folder, `dep://<id>/X`
+= dependency `<id>`'s folder.
+
+`dep://base/...` is REJECTED. `base` is an implicit dependency whose files are
+referenced with a bare (root-relative) path already; base's `resource_base` is
+its own folder (`base`), so rewriting `dep://base/textures/x` would wrongly point
+at `assets/base/textures/x` instead of the root `assets/textures/x`.
+
+### Resolution (same rewrite-at-flatten)
+
+`register_bundles` merges bundles in dependency-topological order, so a
+dependency's `BundleAsset` (its `resource_base` + `resources`) is already loaded
+when a dependent is flattened. During the flatten, each owning bundle gets a
+`mod_refs::RefScope` carrying its own `resource_base`/`resources`, its declared
+dependency ids, and - for the declared deps that are enabled+loaded - their
+`resource_base`/`resources`. Then:
+
+- `self://X`     -> `<own resource_base>/X`   (unchanged).
+- `dep://<id>/X` -> `<dep's resource_base>/X` when `<id>` is a declared, available
+  dependency (shipped -> `mods/<id>/X`, downloaded -> `mods://<id>/X`); otherwise
+  LEFT LITERAL (an unknown `dep` source that fails to load loudly, exactly as an
+  undeclared `self://` resolves-but-404s), with the violation recorded for the
+  gate.
+
+The rewrite stays the generic serde-value string-leaf walk; the two schemes share
+one `RefScope`, and the typed-`Content` helpers (`rewrite_refs`,
+`resource_ref_violations`) are used by BOTH the runtime and the static lint.
+
+### Validation (both halves, in every domain)
+
+A `dep://<id>/X` ref is valid iff (a) `<id>` is a declared dependency of the
+referencing bundle (and not `base`), AND (b) `X` is a declared `resources`
+member of dependency `<id>`. Enforced everywhere `self://` is:
+
+- Portal generator (engine-free `ron::Value`): `build_entry` checks half (a)
+  locally against the mod's own `meta.dependencies` (and rejects `dep://base` and
+  malformed `dep://` leaves); `generate` checks half (b) across all portal
+  entries, where every portal mod's `resources` are known. When `<id>` is a
+  SHIPPED dependency the portal knows only its id (the shipped catalog is a thin
+  id list), so half (b) is skipped there - backstopped by the runtime gate and
+  the repo lint. Half (a) still holds via the existing dependency-resolution
+  check.
+- Static lint walk (`lint_walk`): both halves over the repo tree; the deps'
+  `resources` come from the walked set.
+- Runtime (`register_bundles`): both halves on the merged/enabled set; an
+  undeclared/ungated `dep://` ref in a SCENARIO is an Error content issue so the
+  gate refuses the scenario (sections logged, matching the `self://` policy).
+
+A declared-but-unavailable dependency (not installed, or a downloaded dep still
+loading) yields a "not available" violation and a literal ref; the loaded-event
+re-run of `register_bundles` fixes the transient download case, as for `self://`.
+
+### Shipped dogfood: a follow-up
+
+Shipping an actual art-pack + consumer pair ripples through installed-count
+assertions and wants real art, so it is a separate CONTENT task. This task
+proves the pipeline end-to-end with SYNTHETIC bundles (the cross-mod cases in
+`mod_binary_resources.rs`) plus unit tests, mirroring the `self://` gate test.
+
 ## Dogfood
 
 The shipped `example` mod (`assets/mods/example/`) carries placeholder binaries -

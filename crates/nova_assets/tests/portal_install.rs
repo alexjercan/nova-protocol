@@ -811,9 +811,9 @@ fn install_guards_reject_shadowing_and_double_install() {
     let guard = cache_root_guard();
     let files = mock_files();
     let mock_entry = entry_for("mockmod", &files);
-    // "demo" is a SHIPPED catalog id; the portal generator refuses to publish
+    // "example" is a SHIPPED catalog id; the portal generator refuses to publish
     // it, but the client must not trust the catalog on that.
-    let demo_entry = entry_for("demo", &files);
+    let example_entry = entry_for("example", &files);
 
     let served: Vec<(String, FetchResult)> = files
         .iter()
@@ -822,21 +822,21 @@ fn install_guards_reject_shadowing_and_double_install() {
     let mut routes = mock_routes(&mock_entry, &served);
     routes.insert(
         format!("{MOCK_BASE}/catalog.json"),
-        Ok(catalog_bytes(vec![demo_entry, mock_entry.clone()])),
+        Ok(catalog_bytes(vec![example_entry, mock_entry.clone()])),
     );
     let mut app = mock_app(routes);
 
-    // Shadowing: rejected with no job files fetched (the mock has no demo
+    // Shadowing: rejected with no job files fetched (the mock has no example
     // file routes to hit - a fetch attempt would 404 into a different error).
     app.world_mut().trigger(InstallPortalMod {
-        id: "demo".to_string(),
+        id: "example".to_string(),
     });
-    let reason = pump_install_failure(&mut app, "demo");
+    let reason = pump_install_failure(&mut app, "example");
     assert!(
         reason.contains("shadows a shipped mod"),
         "the failure names the shadowing rule: {reason}"
     );
-    assert_nothing_committed(&app, &guard, "demo", &paths_of(&files));
+    assert_nothing_committed(&app, &guard, "example", &paths_of(&files));
 
     // A clean install commits (presence contrast for the absence asserts).
     app.world_mut().trigger(InstallPortalMod {

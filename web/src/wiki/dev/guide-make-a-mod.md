@@ -115,6 +115,34 @@ texture: "self://textures/rock.png",
   with `self://` would be treated as a resource ref. In practice nothing legit
   does; just do not open a free-text string with it.
 
+`self://` is your OWN folder only. To reuse another mod's shipped resources - a
+shared "art pack" several mods depend on for a common look, without each copying
+the bytes - reference them with `dep://<id>/<path>`, where `<id>` is a DECLARED
+dependency of your mod:
+
+```ron
+// your bundle declares the dependency:
+meta: (name: "My Campaign", version: "0.1.0", dependencies: ["art_pack"]),
+```
+
+```ron
+// in your content - dep://<id>/ = "the file <path> that dependency <id> ships"
+cubemap: "dep://art_pack/textures/nebula.png",
+```
+
+- `<id>` MUST be a mod you declare in `meta.dependencies` (enabling your mod
+  auto-enables it, and it merges first, so its files are available). Reaching
+  into a mod you do not depend on is rejected by all three gates.
+- The `<path>` must be a DECLARED `resources` member of that dependency - the
+  same membership rule `self://` follows, checked against the OTHER mod's
+  manifest.
+- Resolution is transparent across shipped vs downloaded, exactly like `self://`:
+  `dep://art_pack/x` resolves to `mods/art_pack/x` (shipped) or `mods://art_pack/x`
+  (downloaded), native and web.
+- `dep://base/...` is NOT allowed. `base` is an implicit dependency whose files
+  are the default: reference a base-game file with a BARE path (`textures/x.png`),
+  no scheme.
+
 A content file is a `[Content]` list. Each item is externally tagged by kind:
 
 ```ron

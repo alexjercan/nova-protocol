@@ -171,7 +171,7 @@ fn synthetic_valid_mod_publishes() {
 #[test]
 fn id_colliding_with_shipped_catalog_is_rejected() {
     let (source, out) = synthetic_mod(
-        "demo", // shipped catalog installs 'demo'
+        "example", // shipped catalog installs 'example'
         &valid_bundle("0.1.0"),
         &[("mod.content.ron", VALID_CONTENT)],
     );
@@ -342,4 +342,126 @@ fn unresolvable_dependency_is_rejected() {
     let err = nova_portal_gen::generate(source.path(), None, out.path())
         .expect_err("unresolvable dependency must fail");
     assert!(err.0.contains("dependency"), "got: {err}");
+}
+
+/// Build a synthetic MULTI-mod source: `(id, bundle_body, extra_files)` per mod.
+/// Returns (source_dir, out_dir). Used for the cross-mod `dep://` tests.
+fn synthetic_source(
+    mods: &[(&str, &str, &[(&str, &str)])],
+) -> (tempfile::TempDir, tempfile::TempDir) {
+    let source = tempfile::tempdir().expect("source tempdir");
+    for (id, bundle_body, extra_files) in mods {
+        let mod_dir = source.path().join(id);
+        fs::create_dir_all(&mod_dir).expect("mod dir");
+        fs::write(mod_dir.join(format!("{id}.bundle.ron")), bundle_body).expect("bundle");
+        for (path, body) in *extra_files {
+            let p = mod_dir.join(path);
+            if let Some(parent) = p.parent() {
+                fs::create_dir_all(parent).expect("parents");
+            }
+            fs::write(p, body).expect("extra file");
+        }
+    }
+    (source, tempfile::tempdir().expect("out tempdir"))
+}
+
+// An `art` mod that ships one texture resource - the dependency in the tests below.
+const ART_BUNDLE: &str = r#"(content: ["mod.content.ron"], resources: ["textures/sky.png"], meta: (name: "Art", version: "0.1.0"))"#;
+const ART_FILES: &[(&str, &str)] = &[("mod.content.ron", "[]"), ("textures/sky.png", "bytes")];
+
+/// A `dep://<id>/` ref to a DECLARED dependency's DECLARED resource publishes -
+/// the cross-mod positive path (art ships the texture, consumer declares art).
+#[test]
+fn dep_ref_to_declared_dependency_resource_publishes() {
+    let consumer = r#"(content: ["mod.content.ron"], meta: (name: "Consumer", version: "0.1.0", dependencies: ["art"]))"#;
+    let (source, out) = synthetic_source(&[
+        ("art", ART_BUNDLE, ART_FILES),
+        (
+            "consumer",
+            consumer,
+            &[("mod.content.ron", r#"["dep://art/textures/sky.png"]"#)],
+        ),
+    ]);
+    let catalog = nova_portal_gen::generate(source.path(), None, out.path())
+        .expect("a declared cross-mod dep ref publishes");
+    assert_eq!(catalog.entries.len(), 2);
+}
+
+/// A `dep://<id>/` ref whose `<id>` is NOT a declared dependency is rejected at
+/// publish (the referencing mod may not reach into an arbitrary other mod).
+#[test]
+fn dep_ref_to_non_declared_dependency_is_rejected() {
+    // consumer references art but does NOT declare it as a dependency.
+    let consumer = r#"(content: ["mod.content.ron"], meta: (name: "Consumer", version: "0.1.0"))"#;
+    let (source, out) = synthetic_source(&[
+        ("art", ART_BUNDLE, ART_FILES),
+        (
+            "consumer",
+            consumer,
+            &[("mod.content.ron", r#"["dep://art/textures/sky.png"]"#)],
+        ),
+    ]);
+    let err = nova_portal_gen::generate(source.path(), None, out.path())
+        .expect_err("a dep:// to a non-declared dependency must fail");
+    assert!(err.0.contains("not a declared dependency"), "got: {err}");
+}
+
+/// A `dep://<id>/<file>` ref to a DECLARED dependency that does not ship `<file>`
+/// is rejected in `generate`, where the dependency's resources are known.
+#[test]
+fn dep_ref_to_undeclared_resource_of_dependency_is_rejected() {
+    let consumer = r#"(content: ["mod.content.ron"], meta: (name: "Consumer", version: "0.1.0", dependencies: ["art"]))"#;
+    let (source, out) = synthetic_source(&[
+        ("art", ART_BUNDLE, ART_FILES),
+        (
+            "consumer",
+            consumer,
+            // art declares `textures/sky.png`, not `textures/missing.png`.
+            &[("mod.content.ron", r#"["dep://art/textures/missing.png"]"#)],
+        ),
+    ]);
+    let err = nova_portal_gen::generate(source.path(), None, out.path())
+        .expect_err("a dep:// to an undeclared dependency resource must fail");
+    assert!(err.0.contains("undeclared resource"), "got: {err}");
+    assert!(
+        err.0.contains("dep://art/textures/missing.png"),
+        "got: {err}"
+    );
+}
+
+/// `dep://base/` is rejected: base is implicit and its files use a bare path.
+#[test]
+fn dep_ref_to_base_is_rejected() {
+    let consumer = r#"(content: ["mod.content.ron"], meta: (name: "Consumer", version: "0.1.0", dependencies: ["base"]))"#;
+    let (source, out) = synthetic_source(&[(
+        "consumer",
+        consumer,
+        &[("mod.content.ron", r#"["dep://base/textures/cubemap.png"]"#)],
+    )]);
+    let err = nova_portal_gen::generate(source.path(), Some(Path::new(SHIPPED)), out.path())
+        .expect_err("a dep://base ref must fail");
+    assert!(
+        err.0.contains("base game files use a bare path"),
+        "got: {err}"
+    );
+}
+
+/// A malformed `dep://` leaf (no `<id>/<path>`) is rejected.
+#[test]
+fn malformed_dep_ref_is_rejected() {
+    let consumer = r#"(content: ["mod.content.ron"], meta: (name: "Consumer", version: "0.1.0", dependencies: ["art"]))"#;
+    let (source, out) = synthetic_source(&[
+        ("art", ART_BUNDLE, ART_FILES),
+        (
+            "consumer",
+            consumer,
+            &[("mod.content.ron", r#"["dep://art"]"#)],
+        ),
+    ]);
+    let err = nova_portal_gen::generate(source.path(), None, out.path())
+        .expect_err("a malformed dep:// ref must fail");
+    assert!(
+        err.0.contains("malformed dependency resource ref"),
+        "got: {err}"
+    );
 }

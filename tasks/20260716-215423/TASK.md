@@ -1,8 +1,20 @@
 # Cross-mod resource refs: reference a declared dependency's shipped resources
 
-- STATUS: OPEN
+- STATUS: IN_PROGRESS
 - PRIORITY: 46
 - TAGS: v0.7.0,modding,feature,assets,spike
+
+## Steps
+
+- [x] Spike: decide scheme + gating + resolution (SPIKE.md) - `dep://<id>/<path>`, gated on a declared dependency, rejects `dep://base`.
+- [x] `mod_refs.rs`: unify `self://` + `dep://` behind a `RefScope` with `resource_ref_violations` + `rewrite_refs`; keep the generic serde-value walk. Unit tests for both schemes and every violation case (13 tests).
+- [x] Runtime (`register_bundles`): build a per-owning-bundle `RefScope` (own base/resources + declared deps + available deps) and route both schemes through it; record `dep://` violations as content issues like `self://`.
+- [x] Static lint (`lint_walk`): build the `RefScope` from walked bundles; validate `dep://` membership across the repo tree. Also fixed a latent bug (resource-ref loop was nested in the scenario loop, double-reporting for multi-scenario bundles).
+- [x] Portal generator (`nova_portal_gen`): mirror on `ron::Value` - local "declared dependency" check in `build_entry`, cross-mod resource membership in `generate`.
+- [x] Integration tests (synthetic bundles, mirroring the `self://` gate test): dep ref resolves against the dependency's folder; non-declared dep, undeclared dep resource, and `dep://base` are errors (6 integration + 6 portal tests).
+- [x] Docs: `guide-make-a-mod.md`, `modding-ron.md`, `docs/design/mod-binary-resources.md` - document `dep://<id>/`; note `self://` is own-folder only.
+- [x] Seed a follow-up tatr task for a shipped "art pack" dogfood (task 20260716-231341).
+- [x] Full check suite green: workspace `cargo check --all-targets` clean; mod_refs 13, integration 6, portal 21, nova_assets lib 59, content_lint gate 2 - all pass.
 
 
 ## Gap (surfaced by user 2026-07-16)
