@@ -108,6 +108,14 @@ instead; the ledger is `docs/LESSONS.md`, never `docs/retros/LESSONS.md`.
   and one-off writeups like the Bevy migration notes; `docs/README.md` indexes it.
 - Tasks: `tatr` CLI, markdown files under `tasks/`. Check the backlog before
   starting, close tasks when done. Skills: /plan, /work, /review, /compound, /flow.
+- Task tags encode scheduling - EVERY new tatr task carries exactly one of:
+  - `backlog` with priority 0: not scheduled for the current release; or
+  - the current release tag (e.g. `v0.7.0` - the newest `vX.Y.Z` plan in
+    `docs/plans/`): scheduled work, with a priority slotted RELATIVE to the
+    other open tasks of that release (`tatr ls -f ':tags contains vX.Y.Z'
+    --sort priority` first, then pick where it belongs).
+  Topical tags (`bug`, `scenario`, `ui`, ...) come on top. Pulling a backlog
+  task into a release means swapping the tag and re-slotting the priority.
 - Version lives in root `Cargo.toml` (`workspace.package.version`). Notable
   changes go to `CHANGELOG.md` (Keep a Changelog). Release steps:
   `web/src/wiki/dev/development.md`.
