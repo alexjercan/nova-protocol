@@ -10,6 +10,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 
 ## Process lessons
 
+- `conserve-on-regroup` (x1): when mechanically rewriting or regrouping a
+  list-shaped doc (changelog, index, manifest), silent drops are the main
+  risk - regrouping N bullets into M sections by hand has no conservation
+  check. Verify by grepping each source item's distinctive token/number
+  against the new file AND reconciling counts, before review, not by
+  eyeballing the diff (a CHANGELOG regroup dropped the "Screenshot Reel"
+  entry; a token cross-check + 93=94-1 count caught it). 20260716-102950.
 - `diagnostic-first` (x10): trace the exact reported scenario, with real
   numbers, before theorizing a mechanism (the wasm CORS "bug" was a
   cross-origin `?portal=` override, not a client fetch bug - reading the deploy
