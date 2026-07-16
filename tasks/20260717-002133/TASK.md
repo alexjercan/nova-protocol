@@ -1,6 +1,6 @@
 # Canonical enforcement: lint rejects bare asset refs in content (Option A)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 48
 - TAGS: v0.7.0,modding,lint,feature
 
