@@ -7,9 +7,15 @@
     content: ["gauntlet.content.ron"],
     meta: (
         name: "Gauntlet Run",
-        description: "A slalom race: fly your ship through the beacon gates in order, START to FINISH.",
+        description: "A parkour course: thread six gates through asteroid slaloms and a gravity well, START to FINISH. Fly clean or wreck.",
         author: "Nova Protocol",
-        version: "1.0.0",
-        dependencies: ["base", "demo"],
+        version: "1.1.0",
+        // base ALONE: the racer's sections and the course textures all live in
+        // base. v1.0.0 also depended on "demo", which silently overrode
+        // reinforced_hull_section's health 200 -> 400 and forced players to
+        // enable the demo arena. 2.0 drops that coupling: the crash tolerance is
+        // base's honest 200-health hull (tuned by playtest), and the mod no
+        // longer rides a scenario slated for removal (task 20260716-155816).
+        dependencies: ["base"],
     ),
 )

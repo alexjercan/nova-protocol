@@ -1,22 +1,40 @@
-// Gauntlet Run content: one NEW scenario (no base overrides) - a playable
-// slalom race. Spawns a player ship at the START, then guides the pilot gate
-// by gate (objective + gold marker) through GATE 1 -> GATE 2 -> FINISH. A
-// `gate` counter variable gates each area's OnEnter so the gates must be
-// threaded IN ORDER; crossing FINISH shows a completion objective.
-// Pure data-driven RON (no engine changes); `base` is an implicit dependency
-// for the section prototypes the player ship is built from.
+// Gauntlet Run 2.0 content: one NEW scenario (no base overrides) - a real
+// parkour/slalom course. Spawns a player racer at the START, then guides the
+// pilot gate by gate (objective + gold marker) through SIX gates to the
+// FINISH, over three escalating acts (warmup / slalom / hazard). The route
+// turns and climbs; invulnerable asteroids crowd the racing line to punish
+// sloppy flying (collision damage), and an act-3 gravity well tugs the pilot
+// off-line to sling or avoid. Crossing FINISH declares Victory; wrecking your
+// ship on the rocks declares Defeat with a Retry. Pure flying skill, no combat.
+// Data-driven RON (no engine changes); `base` is the only dependency - it owns
+// the section prototypes the racer is built from and the shared textures. The
+// racer's crash tolerance is base's reinforced_hull_section (200 health); it is
+// tuned by playtest, NOT by the demo mod's hull override that v1.0.0 rode.
 //
-// INVARIANT: the gate trigger areas must not overlap. Advancing `gate` only
-// arms the next gate's handler; the pilot still has to produce a fresh OnEnter
-// on that next area. If two gate areas overlapped, a pilot already loitering
-// inside the next area when it goes live would get no re-enter event and the
-// race would soft-lock. Today the gates are ~90-140u apart with 25-30u radii,
-// so this holds - keep it that way when repositioning gates.
+// INVARIANT 1 (gate areas must not overlap): a `gate` counter (1..=7) gates
+// each area's OnEnter, so the gates must be threaded IN ORDER; advancing `gate`
+// only arms the NEXT gate's handler - the pilot still has to produce a fresh
+// OnEnter on that area. If two gate areas overlapped, a pilot already loitering
+// inside the next area when it went live would get no re-enter event and the
+// race would soft-lock. Gates here sit 81-102u apart with 16-28u area radii, so
+// this holds (min pairwise area gap ~36u); the gauntlet_course rig asserts
+// pairwise non-overlap - keep it green when repositioning gates.
+//
+// INVARIANT 2 (the racing line stays flyable): every asteroid's WORST-CASE body
+// (nominal radius * ASTEROID_GEOMETRIC_FACTOR_MAX = 6.0x - noise displaces the
+// mesh far past its nominal radius; shakedown_run soft-locked a beat on exactly
+// this) must clear the straight START->gate->...->FINISH polyline by a ship's
+// margin. The autopilot GOTO flies that line, so a clear line means no
+// soft-lock; rocks flank the line (the tightest ~9u past the ship margin), so
+// the ideal line is safe but a wide, sloppy turn clips a rock. The rig measures
+// this gap for every rock and the scatter field against the whole 3.5-6.0
+// factor range - do not eyeball it. (Playtest may want the rocks pulled tighter
+// to the line to bite harder; that is a feel pass, not a correctness change.)
 [
     Scenario((
         id: "gauntlet_run",
         name: "Gauntlet Run",
-        description: "A slalom race: thread the beacon gates in order, START to FINISH.",
+        description: "A parkour course: thread six gates through asteroid slaloms and a gravity well, START to FINISH. Fly clean or wreck.",
         cubemap: "textures/cubemap.png",
         // A 2D image: a UI thumbnail must NOT be the skybox cubemap (that Image
         // is reinterpreted to a Cube texture, which the UI pipeline cannot bind).
@@ -27,11 +45,13 @@
                 filters: [],
                 actions: [
                     DebugMessage((
-                        message: "Gauntlet Run loaded from the mod portal.",
+                        message: "Gauntlet Run 2.0 loaded from the mod portal.",
                     )),
                     // The racer. Same section layout as the base player ship,
-                    // but with all verbs enabled (no DisableVerb): the pilot
-                    // can GOTO/lock the gates from the first second.
+                    // with all verbs enabled (no DisableVerb): the pilot can
+                    // GOTO/lock the gates from the first second. The reinforced
+                    // hull buys crash tolerance so the course is run-and-fail,
+                    // not one-touch death.
                     SpawnScenarioObject((
                         base: (
                             id: "player_spaceship",
@@ -78,6 +98,7 @@
                             ],
                         )),
                     )),
+                    // --- Gates: START, six threaded gates, FINISH ---
                     SpawnScenarioObject((
                         base: (
                             id: "gauntlet_start",
@@ -88,12 +109,7 @@
                         kind: Beacon((
                             label: "START",
                             radius: 2.0,
-                            color: Srgba((
-                                red: 0.2,
-                                green: 1.0,
-                                blue: 0.4,
-                                alpha: 1.0,
-                            )),
+                            color: Srgba((red: 0.2, green: 1.0, blue: 0.4, alpha: 1.0)),
                             area_radius: Some(25.0),
                             lock_signature: None,
                         )),
@@ -102,19 +118,14 @@
                         base: (
                             id: "gauntlet_gate_1",
                             name: "Gauntlet Gate 1",
-                            position: (35.0, 10.0, -110.0),
+                            position: (30.0, 8.0, -115.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "GATE 1",
                             radius: 2.0,
-                            color: Srgba((
-                                red: 1.0,
-                                green: 0.8,
-                                blue: 0.2,
-                                alpha: 1.0,
-                            )),
-                            area_radius: Some(25.0),
+                            color: Srgba((red: 1.0, green: 0.85, blue: 0.2, alpha: 1.0)),
+                            area_radius: Some(20.0),
                             lock_signature: None,
                         )),
                     )),
@@ -122,19 +133,74 @@
                         base: (
                             id: "gauntlet_gate_2",
                             name: "Gauntlet Gate 2",
-                            position: (-30.0, -15.0, -180.0),
+                            position: (-25.0, -6.0, -195.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "GATE 2",
                             radius: 2.0,
-                            color: Srgba((
-                                red: 1.0,
-                                green: 0.8,
-                                blue: 0.2,
-                                alpha: 1.0,
-                            )),
-                            area_radius: Some(25.0),
+                            color: Srgba((red: 1.0, green: 0.8, blue: 0.2, alpha: 1.0)),
+                            area_radius: Some(20.0),
+                            lock_signature: None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_gate_3",
+                            name: "Gauntlet Gate 3",
+                            position: (20.0, 12.0, -280.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "GATE 3",
+                            radius: 2.0,
+                            color: Srgba((red: 1.0, green: 0.75, blue: 0.2, alpha: 1.0)),
+                            area_radius: Some(18.0),
+                            lock_signature: None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_gate_4",
+                            name: "Gauntlet Gate 4",
+                            position: (-18.0, -4.0, -365.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "GATE 4",
+                            radius: 2.0,
+                            color: Srgba((red: 1.0, green: 0.7, blue: 0.2, alpha: 1.0)),
+                            area_radius: Some(18.0),
+                            lock_signature: None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_gate_5",
+                            name: "Gauntlet Gate 5",
+                            position: (28.0, -10.0, -450.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "GATE 5",
+                            radius: 2.0,
+                            color: Srgba((red: 1.0, green: 0.6, blue: 0.2, alpha: 1.0)),
+                            area_radius: Some(16.0),
+                            lock_signature: None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gauntlet_gate_6",
+                            name: "Gauntlet Gate 6",
+                            position: (-22.0, 14.0, -535.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "GATE 6",
+                            radius: 2.0,
+                            color: Srgba((red: 1.0, green: 0.5, blue: 0.2, alpha: 1.0)),
+                            area_radius: Some(16.0),
                             lock_signature: None,
                         )),
                     )),
@@ -142,25 +208,181 @@
                         base: (
                             id: "gauntlet_finish",
                             name: "Gauntlet Finish",
-                            position: (10.0, 5.0, -250.0),
+                            position: (0.0, 0.0, -615.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "FINISH",
                             radius: 2.5,
-                            color: Srgba((
-                                red: 1.0,
-                                green: 0.3,
-                                blue: 0.3,
-                                alpha: 1.0,
-                            )),
-                            area_radius: Some(30.0),
+                            color: Srgba((red: 1.0, green: 0.3, blue: 0.3, alpha: 1.0)),
+                            area_radius: Some(28.0),
                             lock_signature: None,
                         )),
                     )),
-                    // Race state: `gate` is the index of the gate to thread
-                    // next (1..=3). Each gate's OnEnter is guarded on it, so the
-                    // gates must be crossed IN ORDER.
+                    // --- Act 1 (warmup): one sparse rock off the first turn ---
+                    SpawnScenarioObject((
+                        base: (
+                            id: "rock_1",
+                            name: "Course Rock 1",
+                            position: (36.0, 12.0, -150.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 1.5,
+                            texture: "textures/asteroid.png",
+                            health: 500.0,
+                            invulnerable: true,
+                        )),
+                    )),
+                    // --- Act 2 (slalom): rocks crowd the racing line ---
+                    SpawnScenarioObject((
+                        base: (
+                            id: "rock_2",
+                            name: "Course Rock 2",
+                            position: (-34.0, -10.0, -240.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 2.0,
+                            texture: "textures/asteroid.png",
+                            health: 500.0,
+                            invulnerable: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "rock_3",
+                            name: "Course Rock 3",
+                            position: (30.0, 24.0, -238.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 2.0,
+                            texture: "textures/asteroid.png",
+                            health: 500.0,
+                            invulnerable: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "rock_4",
+                            name: "Course Rock 4",
+                            position: (-36.0, 18.0, -322.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 2.0,
+                            texture: "textures/asteroid.png",
+                            health: 500.0,
+                            invulnerable: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "rock_5",
+                            name: "Course Rock 5",
+                            position: (36.0, -6.0, -320.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 2.0,
+                            texture: "textures/asteroid.png",
+                            health: 500.0,
+                            invulnerable: true,
+                        )),
+                    )),
+                    // A dense asteroid wall off the +x side of the act-2/3
+                    // corridor: atmosphere and depth, set back from the racing
+                    // line so no scattered rock can reach it (rig-checked).
+                    ScatterObjects((
+                        id_prefix: "gwall_",
+                        count: 22,
+                        seed: 433757350076153856,
+                        region: Box(
+                            min: (72.0, -45.0, -500.0),
+                            max: (135.0, 45.0, -250.0),
+                        ),
+                        template: (
+                            base: (
+                                id: "gwall_",
+                                name: "Belt Wall Rock",
+                                position: (0.0, 0.0, 0.0),
+                                rotation: (0.0, 0.0, 0.0, 1.0),
+                            ),
+                            kind: Asteroid((
+                                radius: 1.5,
+                                texture: "textures/asteroid.png",
+                                health: 500.0,
+                                invulnerable: true,
+                            )),
+                        ),
+                        asteroid_radius: Some((1.5, 3.0)),
+                    )),
+                    // --- Act 3 (hazard): more rocks + a gravity well to sling ---
+                    SpawnScenarioObject((
+                        base: (
+                            id: "rock_6",
+                            name: "Course Rock 6",
+                            position: (38.0, 10.0, -405.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 2.5,
+                            texture: "textures/asteroid.png",
+                            health: 500.0,
+                            invulnerable: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "rock_7",
+                            name: "Course Rock 7",
+                            position: (-34.0, -22.0, -410.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 2.0,
+                            texture: "textures/asteroid.png",
+                            health: 500.0,
+                            invulnerable: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "rock_8",
+                            name: "Course Rock 8",
+                            position: (-44.0, 22.0, -575.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 2.0,
+                            texture: "textures/asteroid.png",
+                            health: 500.0,
+                            invulnerable: true,
+                        )),
+                    )),
+                    // The gravity well: a big invulnerable planetoid off the
+                    // G5->G6 line. Its surface gravity tugs ship and autopilot
+                    // as you pass (SOI reaches the line); the BODY stays clear
+                    // of the line so a gate is always reachable. Sling or avoid.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gravity_well",
+                            name: "Belt Planetoid",
+                            position: (-58.0, 12.0, -490.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 4.0,
+                            texture: "textures/asteroid.png",
+                            health: 2000.0,
+                            surface_gravity: Some(8.0),
+                            invulnerable: true,
+                        )),
+                    )),
+                    // Race state: `gate` is the index of the gate to thread next
+                    // (1..=7; 7 is FINISH, 8 is the terminal done-state). Each
+                    // gate's OnEnter is guarded on it, so gates cross IN ORDER.
                     VariableSet((
                         key: "gate",
                         expression: Term(Factor(Literal(Number(1.0)))),
@@ -191,26 +413,16 @@
                     ))),
                 ],
                 actions: [
-                    ObjectiveComplete((
-                        id: "gate_1",
-                    )),
+                    ObjectiveComplete((id: "gate_1")),
                     VariableSet((
                         key: "gate",
                         expression: Term(Factor(Literal(Number(2.0)))),
                     )),
-                    ObjectiveMarkerDetach((
-                        target_id: "gauntlet_gate_1",
-                    )),
-                    ObjectiveMarkerAttach((
-                        target_id: "gauntlet_gate_2",
-                        label: "GATE 2",
-                    )),
+                    ObjectiveMarkerDetach((target_id: "gauntlet_gate_1")),
+                    ObjectiveMarkerAttach((target_id: "gauntlet_gate_2", label: "GATE 2")),
                     Objective((
                         id: "gate_2",
-                        message: "Thread GATE 2. It is off to your other side - steer through it.",
-                    )),
-                    SetSkybox((
-                        cubemap: "textures/cubemap_alt2.png",
+                        message: "GATE 2 is off to your other side - roll and steer through it.",
                     )),
                 ],
             ),
@@ -227,20 +439,121 @@
                     ))),
                 ],
                 actions: [
-                    ObjectiveComplete((
-                        id: "gate_2",
-                    )),
+                    ObjectiveComplete((id: "gate_2")),
                     VariableSet((
                         key: "gate",
                         expression: Term(Factor(Literal(Number(3.0)))),
                     )),
-                    ObjectiveMarkerDetach((
-                        target_id: "gauntlet_gate_2",
+                    ObjectiveMarkerDetach((target_id: "gauntlet_gate_2")),
+                    ObjectiveMarkerAttach((target_id: "gauntlet_gate_3", label: "GATE 3")),
+                    Objective((
+                        id: "gate_3",
+                        message: "Into the belt - GATE 3. Thread the rocks, do not kiss them.",
                     )),
-                    ObjectiveMarkerAttach((
-                        target_id: "gauntlet_finish",
-                        label: "FINISH",
+                    // Act 2 begins: the belt closes in.
+                    SetSkybox((cubemap: "textures/cubemap_alt.png")),
+                ],
+            ),
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("gauntlet_gate_3"),
+                        other_id: Some("player_spaceship"),
                     )),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveComplete((id: "gate_3")),
+                    VariableSet((
+                        key: "gate",
+                        expression: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                    ObjectiveMarkerDetach((target_id: "gauntlet_gate_3")),
+                    ObjectiveMarkerAttach((target_id: "gauntlet_gate_4", label: "GATE 4")),
+                    Objective((
+                        id: "gate_4",
+                        message: "GATE 4 - tight left through the debris. Hold your line.",
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("gauntlet_gate_4"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(4.0)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveComplete((id: "gate_4")),
+                    VariableSet((
+                        key: "gate",
+                        expression: Term(Factor(Literal(Number(5.0)))),
+                    )),
+                    ObjectiveMarkerDetach((target_id: "gauntlet_gate_4")),
+                    ObjectiveMarkerAttach((target_id: "gauntlet_gate_5", label: "GATE 5")),
+                    Objective((
+                        id: "gate_5",
+                        message: "GATE 5 ahead - and a planetoid's pull off to port. Sling or avoid.",
+                    )),
+                    // Act 3 begins: the hazard field.
+                    SetSkybox((cubemap: "textures/cubemap_alt2.png")),
+                ],
+            ),
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("gauntlet_gate_5"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(5.0)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveComplete((id: "gate_5")),
+                    VariableSet((
+                        key: "gate",
+                        expression: Term(Factor(Literal(Number(6.0)))),
+                    )),
+                    ObjectiveMarkerDetach((target_id: "gauntlet_gate_5")),
+                    ObjectiveMarkerAttach((target_id: "gauntlet_gate_6", label: "GATE 6")),
+                    Objective((
+                        id: "gate_6",
+                        message: "GATE 6 - break hard around the well's pull.",
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("gauntlet_gate_6"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(6.0)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveComplete((id: "gate_6")),
+                    VariableSet((
+                        key: "gate",
+                        expression: Term(Factor(Literal(Number(7.0)))),
+                    )),
+                    ObjectiveMarkerDetach((target_id: "gauntlet_gate_6")),
+                    ObjectiveMarkerAttach((target_id: "gauntlet_finish", label: "FINISH")),
                     Objective((
                         id: "finish",
                         message: "Home stretch - cross the FINISH gate.",
@@ -256,27 +569,51 @@
                     )),
                     Expression((Equal(
                         Term(Factor(Name("gate"))),
-                        Term(Factor(Literal(Number(3.0)))),
+                        Term(Factor(Literal(Number(7.0)))),
                     ))),
                 ],
                 actions: [
-                    ObjectiveComplete((
-                        id: "finish",
-                    )),
-                    ObjectiveMarkerDetach((
-                        target_id: "gauntlet_finish",
-                    )),
-                    HintEmphasisClear((
-                        verb: "GOTO",
-                    )),
-                    // Bump past the last gate so no OnEnter re-fires.
+                    ObjectiveComplete((id: "finish")),
+                    ObjectiveMarkerDetach((target_id: "gauntlet_finish")),
+                    HintEmphasisClear((verb: "GOTO")),
+                    // Terminal: bump past the last gate so no OnEnter re-fires
+                    // AND the player-death Defeat handler (gated gate < 8) can
+                    // never flip an earned Victory to Defeat.
                     VariableSet((
                         key: "gate",
-                        expression: Term(Factor(Literal(Number(4.0)))),
+                        expression: Term(Factor(Literal(Number(8.0)))),
                     )),
                     Objective((
                         id: "course_done",
-                        message: "Course complete - nice flying, pilot.",
+                        message: "Course complete - clean flying, pilot.",
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("You ran the gauntlet clean. The belt keeps its rocks; you keep your paint."),
+                    )),
+                ],
+            ),
+            // Wreck out on the rocks (or the well) before FINISH: Defeat + Retry.
+            // Gated gate < 8 so a death AFTER the win declares nothing.
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("You wore your hull down to nothing on the belt. Line it up and run it again."),
+                    )),
+                    NextScenario((
+                        scenario_id: "gauntlet_run",
+                        linger: true,
                     )),
                 ],
             ),

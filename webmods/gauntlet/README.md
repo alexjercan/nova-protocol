@@ -4,8 +4,14 @@ The first PORTAL mod: published to the static mod portal by `nova_portal_gen`,
 NOT shipped inside the game's `assets/`. A mod is the same shape as the base
 game: a folder with a `*.bundle.ron` manifest listing its `*.content.ron` files.
 
-This mod adds one scenario, `gauntlet_run` - a beacon slalom course: thread the
-gates from start to finish.
+This mod adds one scenario, `gauntlet_run` - a parkour course (v1.1.0, was a
+thin four-gate slalom in v1.0.0): six ordered gates across three escalating acts
+(warmup / slalom / hazard), invulnerable asteroids crowding the racing line, and
+an act-3 gravity well to sling or avoid. Crossing FINISH declares Victory;
+wrecking your hull on the rocks declares Defeat with a Retry. Pure flying skill,
+no combat. It is also a worked example of the data-driven scenario vocabulary -
+`ScatterObjects`, `Asteroid` (`invulnerable`, `surface_gravity`), ordered
+`OnEnter` gates, `SetSkybox` per act, and `Outcome` frames - all in RON.
 
 ## The copy-me publish example
 

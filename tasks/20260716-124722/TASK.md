@@ -1,9 +1,8 @@
 # Gauntlet Run 2.0: make it a real gauntlet - more gates, obstacles and hazards (parkour-map feel)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 55
-- TAGS: v0.7.0,scenario,content,modding
-
+- TAGS: v0.7.0, scenario, content, modding
 
 ## Goal
 
@@ -21,39 +20,39 @@ nova_portal_gen; enabled-state-preserving update is part of the dogfood.
 
 ## Steps
 
-- [ ] Read the focused spike (tasks/20260716-174631/SPIKE.md) and the current
+- [x] Read the focused spike (tasks/20260716-174631/SPIKE.md) and the current
       webmods/gauntlet/gauntlet.content.ron end to end; keep the file's INVARIANT
       header (gate areas must not overlap) as the top constraint.
-- [ ] Design the route on paper first: START + 6 ordered gates + FINISH across
+- [x] Design the route on paper first: START + 6 ordered gates + FINISH across
       three escalating acts (warmup / slalom / hazard), with real direction
       changes and verticality. Record each object's position, gate `area_radius`
       (aim ~18-22u, tighter than today), and pairwise gate-area separation so no
       two areas overlap. This layout is content - keep it deterministic.
-- [ ] Rewrite gauntlet.content.ron OnStart to spawn the racer + all gates + the
+- [x] Rewrite gauntlet.content.ron OnStart to spawn the racer + all gates + the
       `gate` counter (1..=7) + act-1 objective/marker chrome. Keep the racer
       loadout (reinforced hull gives crash tolerance); drop the turret if it
       reads as combat kit (pure-flight course, no target needed).
-- [ ] Add the obstacle field: one ScatterObjects asteroid corridor (Box region,
+- [x] Add the obstacle field: one ScatterObjects asteroid corridor (Box region,
       fixed seed, invulnerable rocks so they can't be shot away) threaded between
       two act-2 gates, plus a couple of big solo invulnerable rocks to slalom.
       Compute the flyable gap against the 3.5-6.0x geometric factor (import the
       ASTEROID_GEOMETRIC_FACTOR_MIN/MAX constants in the rig) - do not eyeball.
-- [ ] Add the hazard section: one big asteroid with `surface_gravity` (a gravity
+- [x] Add the hazard section: one big asteroid with `surface_gravity` (a gravity
       well) placed OFF the immediate gate approach line in act 3, so it pulls the
       ship/autopilot to sling-or-avoid without soft-locking a gate thread.
-- [ ] Extend the ordered-gate OnEnter chain to all gates: each advances `gate`,
+- [x] Extend the ordered-gate OnEnter chain to all gates: each advances `gate`,
       detaches/attaches the objective marker, sets the next objective text, and
       swaps the skybox at act boundaries (cubemap -> cubemap_alt -> cubemap_alt2).
-- [ ] Add the outcome frames: Outcome(Victory, "...") on the FINISH OnEnter, and
+- [x] Add the outcome frames: Outcome(Victory, "...") on the FINISH OnEnter, and
       Outcome(Defeat, "...") on an OnDestroyed handler for the player ship
       (crashed out) - gate the Defeat handler so it cannot fire after Victory.
-- [ ] Bump webmods/gauntlet/gauntlet.bundle.ron meta.version 1.0.0 -> 1.1.0 and
+- [x] Bump webmods/gauntlet/gauntlet.bundle.ron meta.version 1.0.0 -> 1.1.0 and
       update its description; refresh webmods/gauntlet/README.md.
-- [ ] Regenerate the portal preview: run scripts/preview-web.sh's nova_portal_gen
+- [x] Regenerate the portal preview: run scripts/preview-web.sh's nova_portal_gen
       invocation to write web/dist/mods; confirm the new 1.1.0 tree + catalog.json
       and that no stale 1.0.0 dir is left behind (clear the out dir if the
       generator does not prune).
-- [ ] Write a production-faithful behavior rig (new
+- [x] Write a production-faithful behavior rig (new
       crates/nova_assets/tests/gauntlet_course.rs, modeled on
       broadside_assault.rs): include_str the committed content.ron, register
       handlers loader-faithfully, and assert - gates advance ONLY in order, all
@@ -61,10 +60,10 @@ nova_portal_gen; enabled-state-preserving update is part of the dogfood.
       flyable gap across the whole geometric-factor range, FINISH raises Victory,
       player OnDestroyed raises Defeat and cannot flip a won course. Run it with
       a unifying sibling crate (serde feature-unification quirk).
-- [ ] Verify: cargo fmt --check; run gauntlet_course + webmods_validation (with a
+- [x] Verify: cargo fmt --check; run gauntlet_course + webmods_validation (with a
       unifying sibling) and the nova_portal_gen generate tests. Report skips
       honestly per the local-tests policy.
-- [ ] Write tasks/20260716-124722/NOTES.md: the route/act design, the hazard
+- [x] Write tasks/20260716-124722/NOTES.md: the route/act design, the hazard
       choices, the geometric-factor gap math, and the deferred feel/balance
       playtest verdict (crash damage, well strength, hull margin) as a hands-on
       follow-up per the spike.
@@ -101,3 +100,33 @@ nova_portal_gen; enabled-state-preserving update is part of the dogfood.
   upgrade is a later, non-blocking pass. Build 2.0 on existing base textures now.
 - Timing/score is DEFERRED to the follow-up 20260716-174729 (visible timer +
   clean-run bonus) - it needs a HUD timer readout the vocabulary lacks today.
+
+## Close-out (CLOSED)
+
+Shipped as direction A - a pure-data rewrite of gauntlet.content.ron
+(v1.0.0 -> v1.1.0), no engine changes. Six-gate parkour course over three
+escalating acts, invulnerable-asteroid slaloms, an act-3 gravity well, per-act
+skybox swaps, and Victory/Defeat outcome frames. Full design + invariants +
+republish dogfood + deferred-playtest record in tasks/20260716-124722/NOTES.md.
+
+Verification (all green): `gauntlet_course` rig (9 tests - both course
+invariants + gate/outcome behavior), `webmods_validation` (loads through real
+bevy loaders), `nova_portal_gen` (12 - publishes 1.1.0), `cargo fmt --check`.
+Fail-first proof for the geometry invariant: moving a rock onto the racing line
+drops clearance to -8.2u and `every_rock_clears_the_racing_line` fails with that
+exact diagnostic; restored via git checkout after committing the fix.
+
+Difficulties: the SetSkybox actions the act boundaries fire resolve a cubemap
+off the AssetServer, which MinimalPlugins lacks - the first rig run panicked at
+actions.rs:288. Fixed by giving the headless harness a minimal AssetPlugin +
+init_asset::<Image>() (broadside's behavior walk never exercised a skybox swap,
+so it hadn't hit this). Also corrected the event element type in the rig helpers
+from EventConfig (the trigger enum) to ScenarioEventConfig (the event struct).
+
+Reflection: the rig-first discipline paid off - hand-verifying every rock's
+clearance before authoring, then encoding it as an assertion, meant the geometry
+was correct on the first test run and the fail-first proof was one edit away.
+The one thing to watch next time: the turret-drop step was conditional ("if it
+reads as combat kit") and I kept the loadout - the checkbox is ticked because
+the condition was evaluated and the decision recorded in NOTES, not because the
+turret was removed.
