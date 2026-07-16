@@ -61,3 +61,12 @@
 - [x] v0.7.0 plan doc updated: outcome frame + slice marked shipped.
 - [ ] Feel/balance playtest of Broadside is the user's; findings become
       `bug`/`balance` tasks at release priority per the plan's policy.
+
+## Playtest addendum (2026-07-16, task 20260716-160159)
+
+The deferred balance verdict arrived same-day: "too hard" - player torpedo
+bay removed (enemy-only this chapter; story: not unlocked yet) and infinite
+turret ammo (chapter-one precedent; no resupply mechanic). Landed 484c66ef
+with flipped/extended pins. Process note: the deferral was the right call -
+the harness could not have produced this verdict, and the fix cost one
+small same-day cycle.
