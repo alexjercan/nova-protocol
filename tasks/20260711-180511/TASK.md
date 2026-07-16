@@ -1,8 +1,8 @@
 # Settings menu content: graphics quality, keybinds, audio
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,ui,menu,spike
+- PRIORITY: 45
+- TAGS: v0.7.0,ui,menu,spike
 
 Goal: fill the Settings placeholder panel with real content: visual quality
 options (relates to task 20260525-133013, spawn-less visual mode), keybinds,
@@ -19,3 +19,11 @@ Notes:
   wheel section-cycle) and gamepad alternatives (press-toggle radar) - see
   task 20260710-231927 for the remap mechanics; this task owns the settings
   UI surface.
+
+## v0.7.0 scope (20260716, spike tasks/20260716-122954/SPIKE.md)
+
+Pulled into v0.7.0 (p45). Scope for this release: audio volume, graphics
+quality preset (consumes the low-end spawn-less mode 20260525-133013, tuned
+against the perf baseline 20260716-123551), and a READ-ONLY keybind reference.
+Full remapping + hint icons stay backlog (20260710-231927). Plan:
+docs/plans/20260716-v0.7.0-plan.md, strand 3.

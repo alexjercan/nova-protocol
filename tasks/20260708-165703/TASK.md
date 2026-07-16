@@ -1,8 +1,8 @@
 # Lock-on dwell + acquire/lock cue (HUD)
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,hud,torpedo,spike
+- PRIORITY: 25
+- TAGS: v0.7.0,hud,torpedo,spike
 
 Spike: tasks/20260708-165647/SPIKE.md
 

@@ -1,8 +1,8 @@
 # AI self-preservation: retreat on low integrity
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,ai,spike,health
+- PRIORITY: 65
+- TAGS: v0.7.0,ai,spike,health
 
 Spike: tasks/20260709-225508/SPIKE.md (wave 3)
 

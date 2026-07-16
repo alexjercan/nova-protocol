@@ -10,3 +10,5 @@ Add an index line here when adding a file.
 - [20260707-v0.4.0-plan.md](20260707-v0.4.0-plan.md) - v0.4.0 plan: sections polish + testability
 - [20260711-sdlc-skill-suggestions.md](20260711-sdlc-skill-suggestions.md) - SDLC skill suggestions from the twitching-family session (2026-07-11)
 - [20260713-v0.5.2-plan.md](20260713-v0.5.2-plan.md) - v0.5.2 plan: playtest bugfixes + example testability
+- [20260714-v0.6.0-plan.md](20260714-v0.6.0-plan.md) - v0.6.0 plan: modding & authoring
+- [20260716-v0.7.0-plan.md](20260716-v0.7.0-plan.md) - v0.7.0 plan: content & polish

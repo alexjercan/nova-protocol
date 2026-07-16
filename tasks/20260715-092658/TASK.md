@@ -35,3 +35,10 @@ Suggested reuse (from the original follow-up's analysis):
    thumbnails; check the devlog post cards render the images
    (`cd web && npm run build`, hard-refresh).
 </content>
+
+## Rename note (20260716, v0.7.0 planning pass)
+
+Stays backlog (blocked on the user choosing source images), but note: after
+the news merge the site now references thumb-news-0.3.0/0.4.0/0.5.0/0.6.0.png
+while scripts/gen-web-screenshots.py still lists thumb-devlog-3/4/5.png -
+reconcile the naming (and add the 0.6.0 thumb) when picked up.

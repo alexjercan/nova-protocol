@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 20
-- TAGS: v0.6.0,audio,test,testing
+- TAGS: v0.7.0,audio,test,testing
 
 ## Goal
 
@@ -48,3 +48,8 @@ the wiring, without needing an audio device.
   runs in CI/headless like the rest of the suite.
 - Check how bcs tests `SfxPlugin` (`~/personal/bevy-common-systems/src/audio/`)
   for the minimal-app + `PlaySfx`/`AudioPlayer` assertion pattern to reuse.
+
+## v0.7.0 (20260716)
+
+Carried over: the one v0.6.0 leftover, retagged v0.7.0 unchanged (p20).
+Plan: docs/plans/20260716-v0.7.0-plan.md, strand 2.

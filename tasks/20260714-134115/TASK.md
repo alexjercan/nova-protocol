@@ -1,8 +1,8 @@
 # Ship-prototype content kind: GameShips + *.ship.ron + ShipSource + ship-modifications (folds 113414)
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog, modding, scenario, spike
+- PRIORITY: 24
+- TAGS: v0.7.0,modding,scenario,spike
 
 Spike: tasks/20260714-113418/SPIKE.md
 
@@ -40,3 +40,11 @@ On the content-model foundation (150508) the DEFINE side is just a `Content::Shi
 + a `GameShips` registry + one router arm; the reference side is the real work and needs a
 consumer to justify its shape. Ship-modifications stay deferred too (mirror
 SectionModification when needed). Priority dropped to 22.
+
+## v0.7.0 (20260716, spike tasks/20260716-122954/SPIKE.md)
+
+Tagged v0.7.0 as a CONDITIONAL member (p24): the deferral decision above
+stands. Activate mid-release only if the vertical slice (20260708-203659) or
+the scenario pack (20260716-123535) actually wants a shared ship definition -
+that consumer is the trigger. If every scenario inlines its ships, this rolls
+forward untouched. Plan: docs/plans/20260716-v0.7.0-plan.md, strand 1.

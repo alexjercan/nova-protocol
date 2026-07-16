@@ -1,8 +1,8 @@
 # Playable capital-combat vertical-slice scenario
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,example,scenario
+- PRIORITY: 85
+- TAGS: v0.7.0,example,scenario
 
 Spike: tasks/20260708-203517/SPIKE.md
 
@@ -25,3 +25,11 @@ v0.5.0, and an explicit win/lose state was never built - it belongs here, on top
 of the RON format, as part of the vertical slice rather than as a standalone
 legacy task.
 
+
+## v0.7.0 (20260716, spike tasks/20260716-122954/SPIKE.md)
+
+Pulled into v0.7.0 as the flagship content task (p85): the RON scenario format
+it was gated on shipped in v0.6.0, so it is unblocked. Still owns the explicit
+WIN/LOSE frame (the game has none). Include torpedo detonation/impact visual
+polish (the projectile.rs explosion-visuals TODO) as slice juice. Plan:
+docs/plans/20260716-v0.7.0-plan.md, strand 1.
