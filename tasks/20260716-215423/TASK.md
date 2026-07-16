@@ -20,7 +20,7 @@ and is not validated by any gate - a footgun, not a feature.
 
 Let a mod reference a DECLARED DEPENDENCY's resources with the same
 shipped-vs-downloaded transparency `self://` gives, so shared art/audio packs
-are possible without每 mod copying the bytes.
+are possible without every mod copying the bytes.
 
 ## Spike (design decision first - hence the spike tag)
 
