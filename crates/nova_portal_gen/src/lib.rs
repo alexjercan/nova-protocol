@@ -11,12 +11,14 @@
 //!
 //! Validation here is the PUBLISH gate a manifest can support: the bundle
 //! parses, the meta is publishable (non-empty name + version), every listed
-//! content file exists, ids are well-formed and unique (including against the
-//! SHIPPED catalog, so a portal mod can never shadow an installed one), and
-//! declared dependencies resolve within the portal + shipped set. Whether the
-//! CONTENT actually loads is deliberately not checked here - that is the
-//! `webmods_validation` integration test's job (it drives the real bevy loaders
-//! on PR CI), keeping this binary engine-free and the deploy job fast.
+//! content file AND declared resource exists, every `self://` asset ref in the
+//! content names a declared resource, ids are well-formed and unique (including
+//! against the SHIPPED catalog, so a portal mod can never shadow an installed
+//! one), and declared dependencies resolve within the portal + shipped set.
+//! Content is parsed (to a `ron::Value`) only to walk its `self://` refs, never
+//! LOADED - whether it actually loads against the bevy loaders is the
+//! `webmods_validation` integration test's job (real loaders on PR CI), keeping
+//! this binary engine-free and the deploy job fast.
 
 use std::{
     collections::BTreeSet,
@@ -105,6 +107,26 @@ fn walk_files(dir: &Path) -> Result<Vec<PathBuf>, GenError> {
     Ok(files)
 }
 
+/// Collect every mod-relative (`self://`) asset FILE referenced anywhere in a
+/// parsed content `ron::Value`, scheme- and label-stripped
+/// (`self://models/hull.glb#Scene0` -> `models/hull.glb`). Comments are already
+/// gone (this walks the PARSED value, not text), so a `self://` mentioned in a
+/// content comment is not a false positive. Mirrors `nova_assets`'
+/// `mod_refs::collect_self_refs`, but engine-free on `ron::Value`.
+fn collect_self_refs(value: &ron::Value, out: &mut Vec<String>) {
+    match value {
+        ron::Value::String(s) => {
+            if let Some(rest) = s.strip_prefix("self://") {
+                out.push(rest.split('#').next().unwrap_or(rest).to_string());
+            }
+        }
+        ron::Value::Seq(items) => items.iter().for_each(|v| collect_self_refs(v, out)),
+        ron::Value::Map(map) => map.iter().for_each(|(_k, v)| collect_self_refs(v, out)),
+        ron::Value::Option(Some(inner)) => collect_self_refs(inner, out),
+        _ => {}
+    }
+}
+
 /// Forward-slash string form of a relative path (portal paths are URL segments).
 fn rel_str(path: &Path) -> String {
     path.components()
@@ -180,6 +202,48 @@ fn build_entry(mod_dir: &Path, id: &str) -> Result<PortalEntry, GenError> {
                 "mod '{id}': listed content file '{content}' is not a file inside the mod \
                  directory (missing, escaping, or not slash-normalized)"
             ));
+        }
+    }
+
+    // Declared binary resources (task 20260716-123544) get the SAME membership
+    // gate as content: a `self://` content ref may only name a listed resource,
+    // and the portal only serves files it walked+hashed. A resource that is
+    // missing, escaping, or not slash-normalized would publish a mod whose
+    // content points at a file the portal never serves.
+    for resource in &manifest.resources {
+        if !file_set.contains(resource.as_str()) {
+            return err(format!(
+                "mod '{id}': listed resource file '{resource}' is not a file inside the mod \
+                 directory (missing, escaping, or not slash-normalized)"
+            ));
+        }
+    }
+
+    // The reverse membership: a `self://` asset ref in the content may only name
+    // a DECLARED resource. The runtime merge and the static content lint enforce
+    // this over the repo tree; enforcing it here too closes the publish-time hole
+    // for a mod published from OUTSIDE the repo (never repo-linted) - it cannot
+    // ship a dangling mod-relative ref. Content is parsed to a `ron::Value`
+    // (comments stripped, unlike a text scan) and every `self://` string leaf is
+    // checked; the generator stays engine-free (no bevy, no typed `Content`).
+    let resource_set: BTreeSet<&str> = manifest.resources.iter().map(|s| s.as_str()).collect();
+    for content in &manifest.content {
+        let text = fs::read_to_string(mod_dir.join(content))
+            .map_err(|e| GenError(format!("mod '{id}': cannot read content '{content}': {e}")))?;
+        let value: ron::Value = ron::de::from_str(&text).map_err(|e| {
+            GenError(format!(
+                "mod '{id}': content '{content}' does not parse: {e}"
+            ))
+        })?;
+        let mut refs = Vec::new();
+        collect_self_refs(&value, &mut refs);
+        for file in refs {
+            if !resource_set.contains(file.as_str()) {
+                return err(format!(
+                    "mod '{id}': content '{content}' references undeclared mod resource \
+                     'self://{file}' - add it to the bundle manifest's `resources` list"
+                ));
+            }
         }
     }
 

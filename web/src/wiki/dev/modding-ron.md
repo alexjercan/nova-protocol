@@ -133,6 +133,16 @@ flowchart TD
   files (`Content` items: sections, scenarios) plus a `meta` block - the mod's
   SELF-DESCRIPTION and the single source of truth for its metadata (the Factorio
   `info.json` analog). The BASE game is just a mod (`assets/base/`).
+- `resources: [paths]` (optional, bundle-dir-relative) declares the BINARY files
+  the bundle ships - textures, skyboxes, models, audio. Content references one
+  with the reserved `self://<path>` scheme in any asset ref
+  (`cubemap: "self://textures/nebula.png"`), which resolves against the mod's OWN
+  folder (shipped `assets/mods/<id>/`, or `mods://<id>/` for a downloaded bundle)
+  instead of the base game - so a mod's look is its own, and it never hard-codes
+  its id. A `self://` ref must name a listed resource: the portal generator, the
+  static `content_lint`, and the runtime content gate all reject an undeclared
+  one. Sidecar `.meta` files (a skybox's `RowCount` cube reinterpret) ship
+  automatically and are NOT listed. `assets/mods/variety/` is the worked example.
 - The `meta` block (all fields optional, `ModMeta` in `nova_mod_format`,
   re-exported by nova_modding - the pure format types live in that engine-free
   crate so the portal generator shares them without bevy):

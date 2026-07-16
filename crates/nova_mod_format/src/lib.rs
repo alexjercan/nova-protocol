@@ -78,6 +78,19 @@ pub struct BundleManifest {
     /// Content-file paths, relative to the `bundle.ron` file's directory (e.g.
     /// `"sections/base.content.ron"`, `"scenarios/shakedown_run.content.ron"`).
     pub content: Vec<String>,
+    /// Binary resource files the bundle ships (PNG/skybox textures, GLB models,
+    /// audio, ...), as paths RELATIVE to the `bundle.ron` file's directory - the
+    /// same base as `content` and `meta.icon`. Content references one with the
+    /// reserved `self://` scheme in any asset path
+    /// (`cubemap: "self://textures/nebula.png"`), which resolves against the
+    /// mod's OWN folder (shipped `assets/mods/<id>/` or downloaded
+    /// `mods://<id>/`) instead of the base game. A `self://` ref that names no
+    /// listed resource is rejected by the portal generator, the static content
+    /// lint, and the runtime content gate. Sidecar `.meta` files ride along
+    /// automatically and are NOT listed here. Defaulted so existing
+    /// resource-less manifests stay valid; omitted from output when empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resources: Vec<String>,
     /// The mod's self-description; defaulted so meta-less manifests stay valid.
     #[serde(default)]
     pub meta: ModMeta,

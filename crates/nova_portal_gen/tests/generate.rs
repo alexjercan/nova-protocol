@@ -204,6 +204,83 @@ fn escaping_content_path_is_rejected() {
     assert!(err.0.contains("not a file inside"), "got: {err}");
 }
 
+/// A bundle may declare binary `resources`; each is walked, hashed and copied
+/// like any file, and appears in the published file list (task 20260716-123544).
+#[test]
+fn declared_resources_publish_as_files() {
+    let bundle = r#"(content: ["mod.content.ron"], resources: ["textures/rock.png"], meta: (name: "M", version: "0.1.0"))"#;
+    let (source, out) = synthetic_mod(
+        "ok-mod",
+        bundle,
+        &[
+            ("mod.content.ron", VALID_CONTENT),
+            ("textures/rock.png", "not really a png but bytes are bytes"),
+        ],
+    );
+    let catalog =
+        nova_portal_gen::generate(source.path(), None, out.path()).expect("resource mod publishes");
+    assert!(
+        catalog.entries[0]
+            .files
+            .iter()
+            .any(|f| f.path == "textures/rock.png"),
+        "the declared resource is a published file"
+    );
+}
+
+/// A declared resource that is not actually a file (missing/escaping) gets the
+/// same membership rejection as a bogus content path - the portal must not
+/// publish a mod whose content can point at a file it never serves.
+#[test]
+fn missing_resource_file_is_rejected() {
+    let bundle = r#"(content: ["mod.content.ron"], resources: ["textures/rock.png"], meta: (name: "M", version: "0.1.0"))"#;
+    let (source, out) = synthetic_mod("ok-mod", bundle, &[("mod.content.ron", VALID_CONTENT)]);
+    let err = nova_portal_gen::generate(source.path(), None, out.path())
+        .expect_err("missing resource file must fail");
+    assert!(err.0.contains("resource file"), "got: {err}");
+    assert!(err.0.contains("not a file inside"), "got: {err}");
+}
+
+/// A content `self://` ref that names no declared resource is rejected at
+/// publish - the reverse membership the runtime and static lint enforce, closing
+/// the hole for a mod published from outside the repo tree.
+#[test]
+fn content_ref_to_undeclared_resource_is_rejected() {
+    let bundle = r#"(content: ["mod.content.ron"], meta: (name: "M", version: "0.1.0"))"#;
+    let (source, out) = synthetic_mod(
+        "ok-mod",
+        bundle,
+        // Valid RON with a self:// ref, but `resources` is empty (undeclared).
+        &[("mod.content.ron", r#"["self://textures/missing.png"]"#)],
+    );
+    let err = nova_portal_gen::generate(source.path(), None, out.path())
+        .expect_err("an undeclared self:// content ref must fail");
+    assert!(err.0.contains("undeclared mod resource"), "got: {err}");
+    assert!(err.0.contains("self://textures/missing.png"), "got: {err}");
+}
+
+/// A content `self://` ref that DOES name a declared, shipped resource publishes
+/// cleanly (the positive path; a comment mentioning self:// is not a false hit).
+#[test]
+fn content_ref_to_declared_resource_publishes() {
+    let bundle = r#"(content: ["mod.content.ron"], resources: ["textures/rock.png"], meta: (name: "M", version: "0.1.0"))"#;
+    let (source, out) = synthetic_mod(
+        "ok-mod",
+        bundle,
+        &[
+            // `#Scene0`-style label is stripped before the membership check; the
+            // comment's self:// is ignored (the value is parsed, not text-scanned).
+            (
+                "mod.content.ron",
+                "// a self://textures/typo.png in a comment must not trip the gate\n[\"self://textures/rock.png\"]",
+            ),
+            ("textures/rock.png", "bytes"),
+        ],
+    );
+    nova_portal_gen::generate(source.path(), None, out.path())
+        .expect("a declared self:// content ref publishes");
+}
+
 #[test]
 fn empty_name_is_rejected() {
     let bundle = r#"(content: ["mod.content.ron"], meta: (name: "", version: "0.1.0"))"#;

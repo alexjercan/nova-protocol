@@ -15,6 +15,7 @@ use nova_scenario::prelude::{GameScenarios, NewGameStart};
 
 pub mod mod_cache;
 pub mod mod_prefs;
+pub mod mod_refs;
 pub mod portal;
 mod scenario;
 mod sections;
@@ -612,10 +613,18 @@ pub fn register_bundles(
         .filter_map(|id| by_id.get(id.as_str()).copied())
         .collect();
 
-    // Flatten each enabled bundle into its ordered `&Content` items (missing content
-    // is logged and skipped). Kept as one Vec per bundle so `merge_bundles` can tell
-    // intra-bundle duplicates from cross-bundle overlay.
-    let mut bundle_items: Vec<Vec<&Content>> = Vec::new();
+    // Flatten each enabled bundle into its ordered `Content` items (missing content
+    // is logged and skipped), rewriting the bundle's mod-relative `self://` asset
+    // refs against its own folder (task 20260716-123544). Items are OWNED because
+    // the rewrite produces new configs. Kept as one Vec per bundle so
+    // `merge_bundles` can tell intra-bundle duplicates from cross-bundle overlay.
+    //
+    // A `self://` ref that names no declared `resources` member is the mod
+    // pointing at a file it does not ship: recorded as an Error content issue for
+    // the owning scenario (below) so the runtime gate refuses it, mirroring the
+    // portal generator's and static lint's membership checks.
+    let mut bundle_items: Vec<Vec<Content>> = Vec::new();
+    let mut undeclared_ref_issues: Vec<(String, String)> = Vec::new();
     for bundle_handle in bundle_handles {
         let Some(bundle) = bundles.get(bundle_handle) else {
             error!(
@@ -624,7 +633,7 @@ pub fn register_bundles(
             );
             continue;
         };
-        let mut items: Vec<&Content> = Vec::new();
+        let mut items: Vec<Content> = Vec::new();
         for content_handle in &bundle.content {
             let Some(content) = contents.get(content_handle) else {
                 error!(
@@ -633,12 +642,24 @@ pub fn register_bundles(
                 );
                 continue;
             };
-            items.extend(content.0.iter());
+            for item in &content.0 {
+                for file in mod_refs::undeclared_self_refs(item, &bundle.resources) {
+                    let message = format!(
+                        "references undeclared mod resource 'self://{file}' - add it to \
+                         the bundle manifest's `resources` list"
+                    );
+                    error!("register_bundles: content {message}");
+                    if let Content::Scenario(cfg) = item {
+                        undeclared_ref_issues.push((cfg.id.clone(), message));
+                    }
+                }
+                items.push(mod_refs::rewrite_self_refs(item, &bundle.resource_base));
+            }
         }
         bundle_items.push(items);
     }
 
-    let outcome = merge_bundles(bundle_items.iter().map(|items| items.iter().copied()));
+    let outcome = merge_bundles(bundle_items.iter().map(|items| items.iter()));
     for conflict in &outcome.conflicts {
         error!("register_bundles: {conflict}");
     }
@@ -702,6 +723,19 @@ pub fn register_bundles(
         if !found.is_empty() {
             content_issues.0.insert(scenario.id.clone(), found);
         }
+    }
+    // Fold in the undeclared-`self://`-resource findings gathered while flattening:
+    // an Error per (scenario, missing resource) so the gate refuses the scenario.
+    for (scenario_id, message) in undeclared_ref_issues {
+        content_issues
+            .0
+            .entry(scenario_id.clone())
+            .or_default()
+            .push(nova_scenario::prelude::LintIssue {
+                severity: nova_scenario::prelude::LintSeverity::Error,
+                scenario: scenario_id,
+                message,
+            });
     }
     commands.insert_resource(content_issues);
 
@@ -1214,15 +1248,18 @@ pub mod lint_walk {
 
     use nova_mod_format::BundleManifest;
     use nova_modding::prelude::Content;
-    use nova_scenario::prelude::{lint_scenario, LintIssue, ScenarioConfig};
+    use nova_scenario::prelude::{lint_scenario, LintIssue, LintSeverity, ScenarioConfig};
 
-    /// One walked bundle: its id (directory-derived), manifest, and parsed
-    /// content items.
+    /// One walked bundle: its id (directory-derived), manifest, parsed content
+    /// items, and the section-id / scenario views derived from them.
     struct WalkedBundle {
         id: String,
         manifest: BundleManifest,
         sections: HashSet<String>,
         scenarios: Vec<ScenarioConfig>,
+        /// Every parsed content item (sections and scenarios), kept so the
+        /// mod-relative `self://` resource-ref check can see both kinds.
+        content: Vec<Content>,
     }
 
     /// The workspace root (this crate sits at `crates/nova_assets`).
@@ -1249,8 +1286,7 @@ pub mod lint_walk {
         )
         .unwrap_or_else(|err| panic!("parse {}: {err}", manifest_path.display()));
 
-        let mut sections = HashSet::new();
-        let mut scenarios = Vec::new();
+        let mut content = Vec::new();
         for rel in &manifest.content {
             let path = dir.join(rel);
             let items: Vec<Content> = ron::de::from_str(
@@ -1258,13 +1294,16 @@ pub mod lint_walk {
                     .unwrap_or_else(|err| panic!("read {}: {err}", path.display())),
             )
             .unwrap_or_else(|err| panic!("parse {}: {err}", path.display()));
-            for item in items {
-                match item {
-                    Content::Section(section) => {
-                        sections.insert(section.base.id.clone());
-                    }
-                    Content::Scenario(scenario) => scenarios.push(scenario),
+            content.extend(items);
+        }
+        let mut sections = HashSet::new();
+        let mut scenarios = Vec::new();
+        for item in &content {
+            match item {
+                Content::Section(section) => {
+                    sections.insert(section.base.id.clone());
                 }
+                Content::Scenario(scenario) => scenarios.push(scenario.clone()),
             }
         }
         WalkedBundle {
@@ -1272,6 +1311,7 @@ pub mod lint_walk {
             manifest,
             sections,
             scenarios,
+            content,
         }
     }
 
@@ -1336,6 +1376,30 @@ pub mod lint_walk {
         for scenario in &bundle.scenarios {
             for issue in lint_scenario(scenario, &known_sections, &known_scenarios) {
                 issues.push((bundle.id.clone(), issue));
+            }
+            // Mod-relative resource membership (task 20260716-123544): every
+            // `self://` ref in this bundle's content - section OR scenario - must
+            // name a file the manifest declares in `resources`. Same gate the
+            // portal generator and the runtime merge apply, in the static domain.
+            for item in &bundle.content {
+                for file in crate::mod_refs::undeclared_self_refs(item, &bundle.manifest.resources)
+                {
+                    let (scenario, kind) = match item {
+                        Content::Scenario(cfg) => (cfg.id.clone(), "scenario"),
+                        Content::Section(cfg) => (cfg.base.id.clone(), "section"),
+                    };
+                    issues.push((
+                        bundle.id.clone(),
+                        LintIssue {
+                            severity: LintSeverity::Error,
+                            scenario,
+                            message: format!(
+                                "{kind} references undeclared mod resource 'self://{file}' - \
+                                 add it to the bundle manifest's `resources` list"
+                            ),
+                        },
+                    ));
+                }
             }
         }
         issues

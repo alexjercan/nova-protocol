@@ -46,3 +46,23 @@ with mod-relative AssetRef paths, linked to the owning mod:
 - dogfood: the new skybox/texture variants from this task load from a mod,
   not just from base assets/ - consumers are the story campaign
   (20260716-123535) and Gauntlet 2.0 (20260716-124722) wanting their own look.
+
+## PIPELINE half LANDED 20260716 (feature/mod-binary-assets)
+
+The mod-binary-resources pipeline is implemented and merged:
+
+- `BundleManifest.resources: Vec<String>` declares the binary files a bundle
+  ships; content references them with the reserved `self://<path>` scheme.
+- `self://` refs rewrite to the owning mod's folder at merge time
+  (`mods/<id>/` shipped, `mods://<id>/` downloaded), native + web, via a generic
+  serde-value rewrite that covers every AssetRef field.
+- Membership validation in all three domains (portal generator, static
+  `content_lint`, runtime content gate): a `self://` ref must name a declared
+  resource.
+- Dogfood: the shipped `variety` mod (`assets/mods/variety/`) renders from its
+  own skybox + asteroid texture (PLACEHOLDER art).
+- Design + rationale: docs/design/mod-binary-resources.md.
+
+REMAINING (the ART half): real skybox/asteroid/planet/hull art to replace the
+placeholders is split into task 20260716-205214 (user-owned sourcing decision).
+This umbrella keeps its spike tag for that fork.

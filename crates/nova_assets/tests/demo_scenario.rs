@@ -184,7 +184,11 @@ fn mod_catalog_lists_installed_mods_metadata() {
         .expect("build mod catalog");
 
     let mods = &app.world().resource::<ModCatalog>().0;
-    assert_eq!(mods.len(), 2, "base + demo are the installed catalog");
+    assert_eq!(
+        mods.len(),
+        3,
+        "base + demo + variety are the installed catalog"
+    );
     assert_eq!(mods[0].id, "base", "base is first (load order)");
     assert!(mods[0].base, "base is flagged");
     assert_eq!(
@@ -204,6 +208,12 @@ fn mod_catalog_lists_installed_mods_metadata() {
     );
     assert_eq!(mods[1].meta.version, "1.0.0", "bundle meta version decodes");
     assert_eq!(mods[1].meta.author, "Nova Protocol");
+    assert_eq!(mods[2].id, "variety");
+    assert!(!mods[2].base);
+    assert_eq!(
+        mods[2].meta.name, "Variety Pack",
+        "variety's display name comes from variety.bundle.ron's meta"
+    );
 }
 
 /// `build_mod_catalog` FILTERS `hidden: true` entries out of the player-facing
@@ -218,7 +228,11 @@ fn hidden_entries_are_filtered_from_mod_catalog() {
         .expect("build mod catalog");
 
     let mods = &app.world().resource::<ModCatalog>().0;
-    assert_eq!(mods.len(), 2, "only base + demo are player-visible");
+    assert_eq!(
+        mods.len(),
+        3,
+        "only base + demo + variety are player-visible (the hidden fixture is filtered)"
+    );
     assert!(
         !mods.iter().any(|m| m.id == "hidden-fixture"),
         "the hidden entry must not reach the player-facing list"
@@ -590,11 +604,15 @@ fn new_game_declaration_is_honored_only_from_base() {
                 content: vec![],
                 meta: ModMeta::default(),
                 new_game_scenario: Some("base_start".to_string()),
+                resources: vec![],
+                resource_base: "base".to_string(),
             }),
             bundles.add(BundleAsset {
                 content: vec![],
                 meta: ModMeta::default(),
                 new_game_scenario: Some("hijacked_start".to_string()),
+                resources: vec![],
+                resource_base: "mods/hijack".to_string(),
             }),
         )
     };
@@ -702,6 +720,8 @@ fn merge_sweep_flags_bad_content_and_passes_the_shipped_tree() {
             content: vec![content],
             meta: ModMeta::default(),
             new_game_scenario: None,
+            resources: vec![],
+            resource_base: "mods/broken".to_string(),
         });
     let synthetic = InstalledCatalog {
         entries: vec![CatalogEntry {

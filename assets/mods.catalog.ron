@@ -18,4 +18,8 @@
         id: "demo",
         bundle: "mods/demo/demo.bundle.ron",
     ),
+    (
+        id: "variety",
+        bundle: "mods/variety/variety.bundle.ron",
+    ),
 ])

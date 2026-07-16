@@ -328,16 +328,16 @@ fn mod_catalog_lists_the_downloaded_mod_with_its_bundle_meta() {
         let mods = &app.world().resource::<ModCatalog>().0;
         assert_eq!(
             mods.len(),
-            3,
-            "base + demo (shipped) + fixture (downloaded)"
+            4,
+            "base + demo + variety (shipped) + fixture (downloaded)"
         );
         assert_eq!(
-            mods[2].id, "fixture-slalom",
+            mods[3].id, "fixture-slalom",
             "downloaded rows append after shipped"
         );
-        assert!(!mods[2].base, "a downloaded mod is never the base entry");
+        assert!(!mods[3].base, "a downloaded mod is never the base entry");
         assert_eq!(
-            mods[2].meta.name, "fixture-slalom",
+            mods[3].meta.name, "fixture-slalom",
             "an in-flight bundle degrades to the decl-only row (name = id)"
         );
     }
@@ -358,16 +358,16 @@ fn mod_catalog_lists_the_downloaded_mod_with_its_bundle_meta() {
         .run_system_once(nova_assets::build_mod_catalog)
         .expect("rebuild mod catalog");
     let mods = &app.world().resource::<ModCatalog>().0;
-    assert_eq!(mods.len(), 3);
-    assert_eq!(mods[2].id, "fixture-slalom");
+    assert_eq!(mods.len(), 4);
+    assert_eq!(mods[3].id, "fixture-slalom");
     assert_eq!(
-        mods[2].meta.name, "Fixture Slalom",
+        mods[3].meta.name, "Fixture Slalom",
         "the display name comes from the cached bundle's meta"
     );
-    assert_eq!(mods[2].meta.version, "1.0.0");
-    assert_eq!(mods[2].meta.author, "tests");
+    assert_eq!(mods[3].meta.version, "1.0.0");
+    assert_eq!(mods[3].meta.author, "tests");
     assert_eq!(
-        mods[2].meta.description, "Synthetic install fixture.",
+        mods[3].meta.description, "Synthetic install fixture.",
         "the description comes from the cached bundle's meta"
     );
 }
@@ -713,7 +713,11 @@ fn downloaded_id_shadowing_a_shipped_mod_is_skipped() {
         .run_system_once(nova_assets::build_mod_catalog)
         .expect("build mod catalog");
     let mods = &app.world().resource::<ModCatalog>().0;
-    assert_eq!(mods.len(), 2, "the shadowing downloaded row is hidden");
+    assert_eq!(
+        mods.len(),
+        3,
+        "the shadowing downloaded row is hidden; base + demo + variety remain"
+    );
     assert_eq!(mods[1].id, "demo");
     assert_eq!(
         mods[1].meta.name, "Demo Mod",

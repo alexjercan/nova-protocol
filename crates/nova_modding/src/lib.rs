@@ -104,6 +104,16 @@ pub struct BundleAsset {
     /// The manifest's New Game declaration, carried through verbatim; the
     /// merge honors it only from the base bundle (see `BundleManifest`).
     pub new_game_scenario: Option<String>,
+    /// The binary resource files the manifest declared (bundle-dir-relative),
+    /// carried verbatim. The merge validates every `self://` content ref against
+    /// this list before rewriting it (see `BundleManifest::resources`).
+    pub resources: Vec<String>,
+    /// The bundle's own folder as an asset-path prefix, computed from this
+    /// bundle's load path with the source scheme preserved: `mods/<id>` for a
+    /// shipped bundle (default source), `mods://<id>` for a downloaded one. A
+    /// `self://X` content ref rewrites to `<resource_base>/X` at merge time, so
+    /// it resolves against the mod's own folder on native and web alike.
+    pub resource_base: String,
 }
 
 impl VisitAssetDependencies for BundleAsset {
@@ -236,10 +246,19 @@ impl AssetLoader for BundleAssetLoader {
             })
             .collect();
 
+        // `base` is the bundle DIRECTORY as an `AssetPath`, source preserved:
+        // its `Display` is `mods/<id>` for a shipped bundle (default source) or
+        // `mods://<id>` for a downloaded one - exactly the prefix a `self://`
+        // content ref rewrites against at merge time. Computed after the content
+        // map (which borrows `base`) has finished.
+        let resource_base = base.to_string();
+
         Ok(BundleAsset {
             content,
             meta: manifest.meta,
             new_game_scenario: manifest.new_game_scenario,
+            resources: manifest.resources,
+            resource_base,
         })
     }
 

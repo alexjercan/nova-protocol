@@ -20,9 +20,12 @@ with a `Section` overlay, so the section guide is the one that explains its
 
 A mod is a DIRECTORY containing:
 
-- one `<id>.bundle.ron` manifest (a `BundleManifest`: `content` list + `meta`),
+- one `<id>.bundle.ron` manifest (a `BundleManifest`: `content` list + `meta`,
+  and an optional `resources` list of binary files it ships),
 - one or more `*.content.ron` files it lists (a `[Content]` list of
-  `Section((..))` / `Scenario((..))` items).
+  `Section((..))` / `Scenario((..))` items),
+- optionally, the binary assets it ships (textures, skyboxes, models, audio)
+  under the folder, declared in `resources` and referenced with `self://`.
 
 Start by copying `assets/mods/demo/`. Its manifest:
 
@@ -60,6 +63,49 @@ bundle: the merge warns and ignores it on any other bundle, so a mod cannot
 redirect the New Game start. Mods influence the menu through the Scenarios
 picker and the `menu_backdrop` scenario flag instead (see the scenario
 authoring guide).
+
+### Shipping your own art (mod-relative resources)
+
+By default an asset path in your content resolves against the BASE game
+(`cubemap: "textures/cubemap.png"` is a base file). To ship and use your OWN
+textures, skyboxes, models or audio, put the files in the mod folder, list them
+in `resources`, and reference them with the reserved `self://` scheme:
+
+```ron
+(
+    content: ["variety.content.ron"],
+    resources: [
+        "textures/nebula.png",
+        "textures/rock.png",
+    ],
+    meta: (name: "Variety Pack", version: "0.1.0"),
+)
+```
+
+```ron
+// in variety.content.ron - self:// = "this mod's own folder"
+cubemap: "self://textures/nebula.png",
+// ...
+texture: "self://textures/rock.png",
+// a model keeps its label: render_mesh: Some("self://models/hull.glb#Scene0")
+```
+
+- `resources` paths are relative to the manifest's directory (the same base as
+  `content` and `meta.icon`). A `self://` ref may only name a listed resource -
+  the portal generator, the static `content_lint`, and the in-game content gate
+  all reject a `self://` ref that is not in `resources`.
+- `self://` resolves against the mod's own folder whether the mod is shipped
+  (`assets/mods/<id>/`) or downloaded from the portal (`mods://<id>/`), on native
+  and web alike - you never hard-code your own id.
+- A skybox needs its `<name>.png.meta` sidecar (the `RowCount` cube reinterpret,
+  copy `assets/textures/cubemap.png.meta`); sidecar `.meta` files ship
+  automatically and are NOT listed in `resources`.
+- `assets/mods/variety/` is the copy-me example; a `self://` ref that names a
+  missing file fails the mod's gates before it ever runs.
+- `self://` is a RESERVED leading token for every string in your content, not
+  just asset paths: a message, objective text or variable string that STARTS
+  with `self://` would be treated as a resource ref. In practice nothing legit
+  does; just do not open a free-text string with it.
 
 A content file is a `[Content]` list. Each item is externally tagged by kind:
 
@@ -236,7 +282,8 @@ flowchart LR
 ## Sharp edges (today)
 
 - Asset references (meshes, cubemaps, textures) are hand-typed path strings; a
-  typo is not caught until spawn.
+  typo in a BASE-relative path is not caught until spawn (a mod-relative
+  `self://` ref, by contrast, is validated against `resources` at the gates).
 - `version` is an opaque string - no semver comparison, no update detection.
 - No scenario editor and no in-game schema reference: content is authored by
   hand against these examples.
