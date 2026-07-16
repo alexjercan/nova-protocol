@@ -138,20 +138,41 @@ declarative format hitting a ceiling, which more content will test.
 Direction-level tasks (priorities encode order; `/plan` breaks each into steps
 when picked up). Release plan: `docs/plans/20260716-v0.7.0-plan.md`.
 
-- tatr 20260708-203659 (p85): capital-combat vertical slice + win/lose frame
+- tatr 20260708-203659 (p85): capital-combat vertical slice + win/lose frame (base game: New Game progression + picker entry)
 - tatr 20260709-225734 (p65): AI retreat on low integrity
-- tatr NEW (p60): scenario content pack - two new playable scenarios, one as a portal mod
-- tatr NEW (p50): asset variety pack - skyboxes, textures, hull variant
-- tatr 20260711-180511 (p45): settings menu content
-- tatr NEW (p40): gameplay performance baseline + measured fixes
+- tatr 20260716-123535 (p60): story campaign mod - alt storyline across multiple scenarios, on the portal (amended from "scenario content pack")
+- tatr 20260716-124722 (p55): Gauntlet Run 2.0 - a real parkour-style gauntlet (added in review)
+- tatr 20260716-123544 (p50): asset variety pack - skyboxes, textures, hull variant + mod-shippable resources
+- tatr 20260711-180511 (p45): settings menu content (main menu + pause menu)
+- tatr 20260716-123551 (p40): gameplay performance baseline + measured fixes
 - tatr 20260714-214329 (p35): in-game web fonts
-- tatr NEW (p32): ammo/magazine HUD readout
+- tatr 20260716-123556 (p32): ammo/magazine HUD readout
 - tatr 20260711-202901 (p30): diegetic HP spike
 - tatr 20260715-220011 (p28): real per-scenario picker thumbnails
 - tatr 20260708-165703 (p25): lock acquire/lock cue polish
 - tatr 20260714-134115 (p24, conditional): ship-prototype content kind
 - tatr 20260525-133013 (p22): low-end graphics preset (rides settings + perf numbers)
 - tatr 20260708-224303 (p20): SFX event->sound integration test (v0.6.0 carryover)
+
+## Amendments (20260716, user review)
+
+The user reviewed the seeded scope and adjusted it; the plan doc and tasks
+carry the detail:
+
+- The scenario content pack (20260716-123535) became a STORY CAMPAIGN mod: an
+  alt storyline across multiple chained scenarios with a real narrative,
+  downloadable from the portal - the base game keeps its own storyline.
+- The vertical slice (20260708-203659) ships in the BASE game, both as the
+  next New Game progression scenario and as a standalone Scenarios-picker
+  entry.
+- New task 20260716-124722 (p55): Gauntlet Run 2.0 - more gates, obstacles
+  and hazards, a real parkour-map-style gauntlet, re-published as a portal
+  version bump.
+- The asset variety pack (20260716-123544) also owns the mod-resources gap:
+  bundles must be able to ship their own PNGs/models/audio and link them with
+  mod-relative references (today mods can only point at base-game asset
+  paths).
+- Settings menu (20260711-180511): also reachable from the pause menu.
 
 ## Fix record
 

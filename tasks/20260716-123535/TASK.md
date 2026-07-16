@@ -1,30 +1,38 @@
-# Scenario content pack: two new playable scenarios, one published as a second portal mod
+# Story campaign mod: an alt storyline across multiple scenarios with a real story, published on the portal
 
 - STATUS: OPEN
 - PRIORITY: 60
-- TAGS: v0.7.0,scenario,content,spike
+- TAGS: v0.7.0,scenario,content,story,spike
 
+## Goal (reframed 20260716, user direction)
 
-## Goal
+An ALT STORYLINE shipped as a downloadable portal mod: a big story told
+across MULTIPLE scenarios, with a real narrative arc - not a bag of unrelated
+one-offs. The base game's New Game progression stays its own storyline (the
+vertical slice 20260708-203659 is its next chapter); this campaign is the
+alternative one you install from the portal. Chapters chain with
+NextScenario, the story carries between them (objective text, variables,
+scripted beats), and each chapter should have its own fantasy and look.
 
-Fill the v0.6.0 authoring platform with real content: two new playable
-scenarios beyond the capital-combat vertical slice, each a distinct fantasy
-rather than another mechanics tutorial (candidates to weigh when planning:
-a defense/escort stand where the PDC screens a convoy, a salvage run gone
-wrong, an asteroid-belt ambush). At least ONE ships as a second published
-portal mod (webmods/, after gauntlet) so the portal pipeline - authoring,
-nova_portal_gen validation, install-over-the-wire, enable/merge - gets
-dogfooded end to end by a real release artifact.
+Write a cool story first - premise, cast of ships, escalation, ending - then
+lower it into chapters. Candidates to weigh when planning: a salvage crew in
+over its head, a convoy escort arc that goes wrong, a hunt across the belt.
+Authoring is hand-written RON per the proven gauntlet path (the editor
+builder stays backlog). Publishing it dogfoods the portal pipeline -
+authoring, nova_portal_gen validation, install-over-the-wire, enable/merge,
+multi-file bundles - end to end with a real release artifact.
 
-Direction-level; /plan breaks it into steps when picked up. Authoring is
-hand-written RON per the proven gauntlet path (the editor builder stays
-backlog). Reuse the asset variety pack (20260716-123544) so the two
-scenarios look like different places; coordinate with the vertical slice
-(20260708-203659) on which fantasy it already covers.
+Direction-level; /plan breaks it into steps when picked up.
 
 ## Notes
 
 - Spike: tasks/20260716-122954/SPIKE.md (v0.7.0 release scope)
 - Plan: docs/plans/20260716-v0.7.0-plan.md, strand 1
-- If either scenario wants a shared enemy ship definition, that is the
-  consumer that activates ship prototypes (20260714-134115).
+- Campaign-own art (skybox, textures) rides the mod-resources support in the
+  asset variety pack (20260716-123544); until that lands, chapters can only
+  reference base-game assets like gauntlet does today.
+- If chapters share an enemy ship definition, that is the consumer that
+  activates ship prototypes (20260714-134115).
+- A multi-scenario story will stress the scenario vocabulary (persistent
+  state between chapters, story text presentation); gaps found are v0.7.0
+  modding-surface work, which is part of the point.

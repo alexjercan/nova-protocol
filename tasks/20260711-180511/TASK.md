@@ -27,3 +27,7 @@ quality preset (consumes the low-end spawn-less mode 20260525-133013, tuned
 against the perf baseline 20260716-123551), and a READ-ONLY keybind reference.
 Full remapping + hint icons stay backlog (20260710-231927). Plan:
 docs/plans/20260716-v0.7.0-plan.md, strand 3.
+
+- 2026-07-16 (v0.7.0 planning, user note): the settings panel should be
+  reachable from the PAUSE menu too, not only the main menu - same modal,
+  both entry points.

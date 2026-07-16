@@ -33,3 +33,11 @@ it was gated on shipped in v0.6.0, so it is unblocked. Still owns the explicit
 WIN/LOSE frame (the game has none). Include torpedo detonation/impact visual
 polish (the projectile.rs explosion-visuals TODO) as slice juice. Plan:
 docs/plans/20260716-v0.7.0-plan.md, strand 1.
+
+## Placement (added 20260716, user direction)
+
+Ships in the BASE game, surfaced twice: wired into the New Game progression
+as the next scenario after the current chain (the base storyline continues
+into it via NextScenario), AND listed as a standalone entry in the Scenarios
+picker tab so it can be played directly. The alt-storyline campaign mod
+(20260716-123535) is the portal counterpart; this one is core content.
