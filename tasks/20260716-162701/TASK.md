@@ -49,3 +49,57 @@ ghost would break shakedown's pirate beat and the arena mod's clear gate.
   flagship scenario when it fires).
 - Needs /plan before /work (no Steps yet; the boundary-test rig above is
   the starting shape).
+
+## Steps (planned 20260716, /flow)
+
+- [ ] Record the verified mechanism in NOTES.md: HealthZeroMarker is inserted
+      ONLY by bcs on_damage (health/mod.rs; zero writes from
+      aggregate_ship_health in integrity/glue.rs carry no marker), bubbles
+      are clamped to min(amount, section.current) and swallowed (amount=0.0)
+      by already-zero/already-marked nodes, and the root recompute overwrites
+      root.current with the section sum every frame - so any path where the
+      sum reaches 0 without a qualifying bubble is a permanent unmarked ghost.
+- [ ] Boundary rig in crates/nova_gameplay (integrity tests, reuse
+      test_support.rs): a production-faithful multi-section ship driven
+      through the candidate ghost paths, asserting root despawn +
+      OnDestroyed within N frames for each: (a) exact-kill of the last
+      section; (b) double-hit on the same section in one tick (per-collider
+      multi-hit: second bubble swallowed); (c) fractional-resistance residue
+      then kill; (d) last section REMOVED without the damage path (despawn/
+      detach - the recompute-only zero); (e) direct-to-root damage
+      interleaved with the recompute overwrite. Expect at least (d), likely
+      others, to reproduce a live 0-HP root.
+- [ ] Fix at the seam that owns the aggregate: aggregate_ship_health (or a
+      sibling in the same set) inserts HealthZeroMarker on a ship root whose
+      section sum is <= 0 with max > 0 (i.e. it HAD sections and they are
+      all dead/gone) and which is not yet marked - making root death
+      structural (no living sections) instead of dependent on the last
+      bubble's arithmetic. Keep the bubble path; the structural check is the
+      backstop. Pin at this boundary (unit-level), not only e2e.
+- [ ] Fail-first A/B: commit the fix, then run the rig against the pre-fix
+      code (revert/sabotage per commit-before-sabotage) and record which
+      cases go red and their numbers in TASK.md.
+- [ ] Keep ALL rig cases as regression tests, including the ones that never
+      reproduced (they pin the non-behavior; null-result-becomes-a-pin).
+- [ ] Sweep the consumers: the player root rides the same chain (Defeat
+      overlay), shakedown pirate / broadside corvettes+gunship / arena gates
+      all key on OnDestroyed - confirm the fix path fires OnDestroyed
+      exactly once (no double-destroy from marker + bubble racing;
+      count-gate lesson). Check the HUD health readout rounding while there:
+      if a fractional residue can display as "0" on a живой ship, file it
+      separately, do not widen.
+- [ ] Verify: fmt/check --all-targets, new tests + integrity/glue suites,
+      one live example-19 walk; CHANGELOG [Unreleased] Fixes line; close.
+
+## Planning notes (verified in source, 2026-07-16)
+
+- bcs health/mod.rs on_damage: applies min(amount, current), mutates
+  damage.amount to the applied value for the ChildOf propagation, inserts
+  HealthZeroMarker at <= 0, and EARLY-RETURNS with amount=0.0 on
+  already-marked or already-zero nodes (swallowing the bubble).
+- integrity/glue.rs aggregate_ship_health: recomputes root Health =
+  sum(section children) every frame, ships only; its doc admits root death
+  leans on the bubbled fatal hit reaching the root with a nonzero amount.
+- integrity/explode.rs: IntegrityDestroyMarker -> fragments/despawn +
+  OnDestroyed fire; meshless entities (root, sections) despawn directly.
+- The ghost is at the JOINT of these: recompute-zero without marker.
