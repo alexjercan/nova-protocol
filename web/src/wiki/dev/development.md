@@ -95,6 +95,9 @@ four blocks:
   `15_screenshot_combat`, `16_screenshot_sections`, `17_screenshot_juice`,
   `18_screenshot_orbit` (drive the shipped scenes headless to capture the
   wiki and marketing frames).
+- Slice: `19_broadside` (the chapter-two scenario end to end through the
+  Scenarios picker: defeat -> Retry reload -> the full act machine -> the
+  Victory overlay, all staged on scenario state).
 
 When adding a substantial feature, add or extend the example that drives it.
 (Consolidated over time: 01_scene/03_scenario merged into 08_scenario;

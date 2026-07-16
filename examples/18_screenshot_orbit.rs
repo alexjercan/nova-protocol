@@ -82,6 +82,7 @@ fn orbit_scene(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
         modifications: vec![],
     };
     let player = SpaceshipConfig {
+        allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: bevy::platform::collections::HashMap::new(),
             speed_cap: None,

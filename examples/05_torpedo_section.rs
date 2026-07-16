@@ -148,6 +148,7 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
     // torpedo bay under test. The bay's section id "torpedo" is what the input
     // mapping binds the fire key to.
     let ship = SpaceshipConfig {
+        allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: HashMap::from([(
                 "torpedo".to_string(),

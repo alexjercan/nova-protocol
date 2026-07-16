@@ -1,0 +1,826 @@
+[
+    Scenario((
+        id: "broadside",
+        name: "Broadside",
+        description: "The scavengers come back in force: answer a hauler\'s distress call, break an ambush, and screen the gang gunship\'s torpedoes with your PDC. Chapter two of the base storyline.",
+        cubemap: "textures/cubemap_alt2.png",
+        thumbnail: Some("banner.png"),
+        events: [
+            (
+                name: OnStart,
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "corvette_a_down",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "corvette_b_down",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player_spaceship",
+                            name: "Player Spaceship",
+                            position: (
+                                0.0,
+                                0.0,
+                                40.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            controller: Player((
+                                input_mapping: {
+                                    "turret": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                    "torpedo": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger),
+                                    ],
+                                },
+                                infinite_ammo: false,
+                            )),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "hull_back",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                                (
+                                    id: "turret",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        -0.70710677,
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("better_turret_section"),
+                                ),
+                                (
+                                    id: "torpedo",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("torpedo_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "hauler",
+                            name: "Hauler Ceres Queen",
+                            position: (
+                                0.0,
+                                10.0,
+                                -450.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.29552022,
+                                0.0,
+                                0.9553365,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            controller: r#None,
+                            allegiance: Some(Neutral),
+                            sections: [
+                                (
+                                    id: "hull_bow",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("light_hull_section"),
+                                ),
+                                (
+                                    id: "hull_mid",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("light_hull_section"),
+                                ),
+                                (
+                                    id: "hull_stern",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("light_hull_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "cover_rock_",
+                        count: 24,
+                        seed: 433757350076153856,
+                        region: Box(
+                            min: (
+                                -200.0,
+                                -45.0,
+                                -430.0,
+                            ),
+                            max: (
+                                200.0,
+                                45.0,
+                                -80.0,
+                            ),
+                        ),
+                        template: (
+                            base: (
+                                id: "cover_rock_",
+                                name: "Derelict Field Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 1.0,
+                                texture: "textures/asteroid.png",
+                                health: 100.0,
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            1.5,
+                            4.0,
+                        )),
+                    )),
+                    CreateScenarioArea((
+                        id: "hauler_area",
+                        name: "Hauler Approach",
+                        position: (
+                            0.0,
+                            10.0,
+                            -450.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        radius: 130.0,
+                    )),
+                    Objective((
+                        id: "contact",
+                        message: "A distress call crackles out of the derelict field: \"Ceres Queen, drive\'s stripped, they\'re coming back for the hull.\" Find the hauler.",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "hauler",
+                        label: "CERES QUEEN",
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("hauler_area"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "contact",
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "corvette_a",
+                            name: "Scavenger Corvette",
+                            position: (
+                                140.0,
+                                30.0,
+                                -560.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                1.0,
+                                0.0,
+                                -0.00000004371139,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            controller: AI((
+                                patrol: [
+                                    (
+                                        140.0,
+                                        30.0,
+                                        -560.0,
+                                    ),
+                                    (
+                                        0.0,
+                                        50.0,
+                                        -390.0,
+                                    ),
+                                ],
+                                leash: Some(420.0),
+                            )),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("light_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                                (
+                                    id: "turret",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        -0.70710677,
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("light_turret_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "corvette_b",
+                            name: "Scavenger Corvette",
+                            position: (
+                                -150.0,
+                                -20.0,
+                                -540.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                1.0,
+                                0.0,
+                                -0.00000004371139,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            controller: AI((
+                                patrol: [
+                                    (
+                                        -150.0,
+                                        -20.0,
+                                        -540.0,
+                                    ),
+                                    (
+                                        0.0,
+                                        50.0,
+                                        -390.0,
+                                    ),
+                                ],
+                                leash: Some(420.0),
+                            )),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("light_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                                (
+                                    id: "turret",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        -0.70710677,
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("light_turret_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    Objective((
+                        id: "defend",
+                        message: "Two scavenger corvettes drop off the rocks - the gang\'s pickers. Drive them off the Ceres Queen.",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "hauler",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "corvette_a",
+                        label: "CORVETTE",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "corvette_b",
+                        label: "CORVETTE",
+                    )),
+                    HintEmphasisSet((
+                        verb: "RADAR",
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("corvette_a"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "corvette_a_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "corvette_a",
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("corvette_b"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "corvette_b_down",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "corvette_b",
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("corvette_a_down"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("corvette_b_down"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "defend",
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "gunship",
+                            name: "Gunship Rust Tally",
+                            position: (
+                                80.0,
+                                60.0,
+                                -1170.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                1.0,
+                                0.0,
+                                -0.00000004371139,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            controller: AI(()),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_bow",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "hull_mid",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "hull_aft",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                                (
+                                    id: "turret_dorsal",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        -0.70710677,
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("better_turret_section"),
+                                ),
+                                (
+                                    id: "turret_ventral",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        -0.70710677,
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("better_turret_section"),
+                                ),
+                                (
+                                    id: "tube_port",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("torpedo_section"),
+                                ),
+                                (
+                                    id: "tube_starboard",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("torpedo_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    Objective((
+                        id: "screen",
+                        message: "The gang\'s gunship burns in from the dark, tubes open. Lock the incoming torpedoes and screen them with your PDC.",
+                    )),
+                    Objective((
+                        id: "break",
+                        message: "Break the Rust Tally, section by section.",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "gunship",
+                        label: "GUNSHIP",
+                    )),
+                    HintEmphasisSet((
+                        verb: "RADAR",
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("gunship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "screen",
+                    )),
+                    ObjectiveComplete((
+                        id: "break",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "gunship",
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("The Rust Tally breaks apart. The gang is done picking this belt clean."),
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("hauler"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveMarkerDetach((
+                        target_id: "hauler",
+                    )),
+                    Objective((
+                        id: "hauler_lost",
+                        message: "The Ceres Queen is gone. Make it cost them.",
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("The scavengers strip your wreck for parts."),
+                    )),
+                    NextScenario((
+                        scenario_id: "broadside",
+                        linger: true,
+                    )),
+                ],
+            ),
+        ],
+    )),
+]

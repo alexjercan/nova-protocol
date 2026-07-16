@@ -2,6 +2,7 @@ use bevy::{platform::collections::HashMap, prelude::*};
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
+pub mod broadside;
 pub mod shakedown;
 
 /// The seed of the built-in scenarios' scatter fields. A fixed value: the
@@ -104,6 +105,7 @@ pub(crate) fn menu_ambience(
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            allegiance: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 orbit: Some("menu_planetoid".to_string()),
                 ..Default::default()
@@ -217,6 +219,7 @@ pub(crate) fn asteroid_field(
     });
 
     let spaceship = SpaceshipConfig {
+        allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             // Translation is no longer a per-section binding: the flight
             // layer (nova_gameplay::flight) owns it through the flight input
@@ -285,6 +288,7 @@ pub(crate) fn asteroid_field(
 
     let spaceship = SpaceshipConfig {
         controller: SpaceshipController::None,
+        allegiance: None,
         sections: vec![
             SpaceshipSectionConfig {
                 id: "controller".to_string(),
@@ -398,6 +402,12 @@ pub(crate) fn asteroid_field(
                 EventActionConfig::DebugMessage(DebugMessageActionConfig {
                     message: "The player's spaceship was destroyed!".to_string(),
                 }),
+                // The outcome frame's Defeat + lingering retry (retrofit,
+                // outcome review R1.8): before it this restart was silent.
+                EventActionConfig::Outcome(OutcomeActionConfig::new(
+                    ScenarioOutcomeKind::Defeat,
+                    "Your ship is one more rock in the field.",
+                )),
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: "asteroid_field".to_string(),
                     linger: true,
@@ -499,6 +509,14 @@ pub(crate) fn asteroid_field(
                 EventActionConfig::ObjectiveComplete(ObjectiveCompleteActionConfig {
                     id: "reach_zone".to_string(),
                 }),
+                // Clearing the field is a win; the overlay's Continue rides
+                // the lingering loop through asteroid_next (retrofit,
+                // outcome review R1.8; re-landed by slice review R1.1 after
+                // the first application was lost in a retry).
+                EventActionConfig::Outcome(OutcomeActionConfig::new(
+                    ScenarioOutcomeKind::Victory,
+                    "Zone reached - the field is yours to run again.",
+                )),
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: "asteroid_next".to_string(),
                     linger: true,

@@ -310,6 +310,7 @@ mod tests {
                 Transform::default(),
                 spaceship_scenario_object(SpaceshipConfig {
                     controller: SpaceshipController::None,
+                    allegiance: None,
                     sections: vec![SpaceshipSectionConfig {
                         id: "controller".to_string(),
                         position: Vec3::ZERO,

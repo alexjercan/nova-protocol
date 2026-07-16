@@ -43,6 +43,7 @@ const HARNESSED_EXAMPLES: &[&str] = &[
     "16_screenshot_sections",
     "17_screenshot_juice",
     "18_screenshot_orbit",
+    "19_broadside",
 ];
 
 /// Run each harnessed example headless and assert it reaches gameplay and exits
@@ -88,9 +89,18 @@ fn harnessed_examples_reach_playing_without_panic() {
             "example {example} never reached Playing\n--- stderr tail ---\n{}",
             tail(&stderr),
         );
+        // Two completion contracts: examples that run out the autopilot's
+        // lifetime print its "cycle complete"; SELF-ENDING examples
+        // (19_broadside walks a scripted arc and exits on its final stage)
+        // print their own sentinel instead - idling out a long lifetime to
+        // hear the autopilot say it would waste ~30s per CI run. A stalled
+        // self-ending script cannot slip through the OR: its in-example
+        // completion guard panics on an unfinished exit (non-zero status,
+        // caught above).
         assert!(
-            stderr.contains("autopilot: cycle complete, no panic"),
-            "example {example} did not complete the autopilot cycle\n--- stderr tail ---\n{}",
+            stderr.contains("autopilot: cycle complete, no panic")
+                || stderr.contains("probe: script complete, exiting"),
+            "example {example} did not complete its cycle\n--- stderr tail ---\n{}",
             tail(&stderr),
         );
         // Command errors gate the run too (task 20260713-203709): the

@@ -335,6 +335,10 @@
                     DebugMessage((
                         message: "The player\'s spaceship was destroyed!",
                     )),
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Your ship is one more rock in the field."),
+                    )),
                     NextScenario((
                         scenario_id: "asteroid_field",
                         linger: true,
@@ -405,6 +409,10 @@
                 actions: [
                     ObjectiveComplete((
                         id: "reach_zone",
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("Zone reached - the field is yours to run again."),
                     )),
                     NextScenario((
                         scenario_id: "asteroid_next",

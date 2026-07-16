@@ -24,7 +24,8 @@ This is the vocabulary the [Shakedown Run](../../tutorial/) is built from - each
 
 ## The shipped scenarios
 
-- **Shakedown Run** - the New Game starter: a guided tutorial that teaches one gesture per beat (burn, freelook, salvage, GOTO, ORBIT, radar lock, a live-fire rehearsal, and a scavenger fight).
+- **Shakedown Run** - the New Game starter: a guided tutorial that teaches one gesture per beat (burn, freelook, salvage, GOTO, ORBIT, radar lock, a live-fire rehearsal, and a scavenger fight). Winning it offers to continue straight into Broadside.
+- **Broadside** - chapter two: the scavengers come back in force. Answer a neutral hauler's distress call across an asteroid cover field, break a two-corvette ambush, then screen the gang gunship's torpedoes with your PDC and take it apart section by section - under a real victory/defeat screen.
 - **Asteroid Field** - a combat and gravity sandbox: a dense field, a planetoid to orbit, a fully outfitted ship and an AI drone. (A tiny _Asteroid Field - Next_ loops it.)
 - **Menu Ambience** - the living backdrop behind the main menu: a planetoid with an AI ship flying a real ORBIT, no gameplay - just scale and motion.
 

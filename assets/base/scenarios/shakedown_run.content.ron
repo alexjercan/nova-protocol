@@ -1220,6 +1220,14 @@
                     ObjectiveMarkerDetach((
                         target_id: "pirate",
                     )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("The scavenger is scrap - but it was flying scout. A distress call is already crackling from the deep field."),
+                    )),
+                    NextScenario((
+                        scenario_id: "broadside",
+                        linger: true,
+                    )),
                 ],
             ),
             (

@@ -994,6 +994,62 @@ mod tests {
         );
     }
 
+    /// The authored `SpaceshipConfig.allegiance` override, through the
+    /// production spawn path (task 20260708-203659): a NEUTRAL AI ship ends
+    /// NEUTRAL even though `AISpaceshipMarker` requires
+    /// `Allegiance = Enemy` - the spawn action's explicit insert wins over
+    /// the requirement default regardless of command ordering (observer
+    /// commands apply before the queue's remaining commands, and a plain
+    /// insert overwrites). Companion delivery guard: the same spawn WITHOUT
+    /// the override ends Enemy, so the Neutral assert cannot pass vacuously.
+    #[test]
+    fn authored_allegiance_overrides_the_controller_default() {
+        fn spawn_ship(allegiance: Option<Allegiance>) -> Option<Allegiance> {
+            let mut app = App::new();
+            app.add_plugins(MinimalPlugins);
+            app.add_plugins(crate::objects::spaceship::SpaceshipPlugin);
+            app.init_resource::<NovaEventWorld>();
+            app.init_resource::<GameObjectives>();
+
+            let config = ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: "ship".to_string(),
+                    name: "Ship".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                    controller: SpaceshipController::AI(AIControllerConfig::default()),
+                    allegiance,
+                    sections: vec![],
+                }),
+            };
+            {
+                let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
+                EventActionConfig::SpawnScenarioObject(config)
+                    .action(&mut world, &GameEventInfo { data: None });
+            }
+            NovaEventWorld::state_to_world_system(app.world_mut());
+            app.update();
+
+            let mut q = app
+                .world_mut()
+                .query_filtered::<&Allegiance, With<SpaceshipRootMarker>>();
+            q.iter(app.world()).next().copied()
+        }
+
+        assert_eq!(
+            spawn_ship(Some(Allegiance::Neutral)),
+            Some(Allegiance::Neutral),
+            "the authored override survives the AI marker's Enemy default"
+        );
+        assert_eq!(
+            spawn_ship(None),
+            Some(Allegiance::Enemy),
+            "delivery guard: without the override the AI default applies"
+        );
+    }
+
     /// The behavior the component buys (task 20260709-160753): a moving
     /// scenario body's Transform advances on EVERY render frame, not just on
     /// fixed physics ticks. 4 ms frames against the 15.6 ms tick mean at
@@ -1825,6 +1881,16 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
                 }
                 ScenarioObjectKind::Spaceship(config) => {
                     entity_commands.insert(spaceship_scenario_object(config.clone()));
+                    // The authored allegiance override. Ordering is safe
+                    // either way: observer-queued commands (the controller
+                    // marker whose requirement defaults Player/Enemy) apply
+                    // BEFORE this queue's remaining commands (ledger:
+                    // verify-engine-guarantees-in-source), and a plain
+                    // insert overwrites the requirement default - so the
+                    // authored side always wins.
+                    if let Some(allegiance) = config.allegiance {
+                        entity_commands.insert(allegiance);
+                    }
                 }
                 ScenarioObjectKind::Beacon(config) => {
                     entity_commands.insert(beacon_scenario_object(config.clone()));

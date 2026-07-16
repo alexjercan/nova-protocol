@@ -178,3 +178,12 @@ carry the detail:
 
 (Appended by each implementing task as it lands - what shipped, the headline
 number, a pointer to its TASK.md.)
+- 20260716-125856 (outcome frame): SHIPPED - Outcome action + overlay with
+  Continue/Retry/Main Menu, Enter parity; shakedown death dogfoods it.
+  Landed 9a27efac after 2 review rounds. tasks/20260716-125856/.
+- 20260708-203659 (vertical slice): SHIPPED - Broadside, a three-act
+  chapter two (neutral hauler, corvette ambush, torpedo-gunship climax)
+  in the picker + chained from shakedown's Victory screen; new authorable
+  ship allegiance; loader skybox install made deferred (mod-sky crash
+  fixed); example 19 walks defeat->retry->victory in CI.
+  tasks/20260708-203659/.

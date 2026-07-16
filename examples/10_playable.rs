@@ -87,6 +87,7 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     };
 
     let ship = SpaceshipConfig {
+        allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: HashMap::from([(
                 "guns".to_string(),

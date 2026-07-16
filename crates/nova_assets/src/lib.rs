@@ -54,6 +54,9 @@ pub mod scenario_generation {
 
     /// The skybox cubemap asset path (matches `GameAssets::cubemap`).
     const CUBEMAP_PATH: &str = "textures/cubemap.png";
+    /// Broadside's deep-field sky: the alt cubemap, so chapter two reads as
+    /// a different place than the trainer belt.
+    const CUBEMAP_ALT2_PATH: &str = "textures/cubemap_alt2.png";
     /// The asteroid texture asset path (matches `GameAssets::asteroid_texture`).
     const ASTEROID_TEXTURE_PATH: &str = "textures/asteroid.png";
 
@@ -66,7 +69,7 @@ pub mod scenario_generation {
         build_sections(&SectionMeshRefs::from_paths())
     }
 
-    /// Build all four built-in configs with path-based asset refs, in a stable
+    /// Build the built-in configs with path-based asset refs, in a stable
     /// order. This is the source the parity test serializes and compares. The
     /// ships now reference the section catalog by prototype id, so the scenario
     /// generators no longer need the resolved `GameSections`.
@@ -79,6 +82,10 @@ pub mod scenario_generation {
             crate::scenario::asteroid_field(cubemap(), texture()),
             crate::scenario::menu_ambience(cubemap(), texture()),
             crate::scenario::shakedown::shakedown_run(cubemap(), texture()),
+            crate::scenario::broadside::broadside(
+                AssetRef::from(CUBEMAP_ALT2_PATH.to_string()),
+                texture(),
+            ),
         ]
     }
 

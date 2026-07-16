@@ -116,6 +116,7 @@ fn combat_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         modifications: vec![],
     });
     let player = SpaceshipConfig {
+        allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: HashMap::new(),
             speed_cap: None,
@@ -124,6 +125,7 @@ fn combat_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         sections: player_sections,
     };
     let target = SpaceshipConfig {
+        allegiance: None,
         controller: SpaceshipController::None,
         sections: sections_line("target"),
     };

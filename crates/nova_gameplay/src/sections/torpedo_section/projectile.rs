@@ -53,7 +53,9 @@ pub(super) fn update_torpedo_arming(
     }
 }
 
-// TODO(20260525-133023): Add some nice visuals for the explosion itself
+// Detonation visuals live in render.rs (expanding blast sphere + hanabi
+// burst, on web since the v0.6.0 WebGPU move); a stale TODO asking for them
+// was dropped in task 20260708-203659.
 pub(super) fn torpedo_detonate_system(
     mut commands: Commands,
     q_torpedo: Query<

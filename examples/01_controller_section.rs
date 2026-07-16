@@ -68,6 +68,7 @@ fn attitude_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     };
 
     let ship = SpaceshipConfig {
+        allegiance: None,
         controller: SpaceshipController::None,
         sections: vec![
             SpaceshipSectionConfig {

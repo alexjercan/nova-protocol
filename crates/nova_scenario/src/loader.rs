@@ -537,6 +537,14 @@ fn on_load_scenario(
     // Setup Scenario Camera. `SfxListenerMarker` makes this the explicit
     // SFX/juice listener (attenuation, camera shake, flash facing); the editor
     // camera deliberately never carries it.
+    //
+    // The skybox goes on DEFERRED (PendingSkyboxSwap, the SetSkybox action's
+    // applier): the bcs skybox setup observer reads the image out of
+    // `Assets<Image>` the instant a `SkyboxConfig` lands and panics on a
+    // not-yet-loaded handle. Preloaded cubemaps (the GameAssets set) apply on
+    // the next frame; a cubemap the collection does NOT preload - broadside's
+    // alt sky, any mod shipping its own - loads in and applies when ready
+    // instead of crashing the load (found by example 19, task 20260708-203659).
     commands.spawn((
         ScenarioScopedMarker,
         ScenarioCameraMarker,
@@ -546,9 +554,9 @@ fn on_load_scenario(
         PostProcessingCamera,
         WASDCameraController,
         Transform::from_xyz(0.0, 10.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
-        SkyboxConfig {
+        PendingSkyboxSwap {
             cubemap: scenario.cubemap.resolve(&asset_server),
-            brightness: 1000.0,
+            brightness: Some(1000.0),
         },
     ));
 
@@ -740,6 +748,49 @@ fn on_player_spaceship_destroyed(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The loader's skybox install is DEFERRED (task 20260708-203659, found
+    /// by example 19): an eager `SkyboxConfig` insert panics inside the bcs
+    /// setup observer for any cubemap not already sitting in
+    /// `Assets<Image>` - which is every non-preloaded scenario/mod sky. Pin
+    /// the invariant at the loader's own boundary: after a load, the camera
+    /// carries `PendingSkyboxSwap` and NOT `SkyboxConfig`.
+    #[test]
+    fn scenario_load_defers_the_skybox_install() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+        app.init_asset::<Image>();
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<CurrentScenario>();
+        // state_to_world_system mirrors objectives unconditionally.
+        app.init_resource::<GameObjectives>();
+        app.add_observer(on_load_scenario);
+
+        app.world_mut().trigger(LoadScenario(ScenarioConfig {
+            id: "sky_test".to_string(),
+            name: "Sky Test".to_string(),
+            description: "deferred skybox pin".to_string(),
+            cubemap: AssetRef::from("textures/never_preloaded.png".to_string()),
+            events: vec![],
+            ..Default::default()
+        }));
+        app.update();
+
+        let mut q = app.world_mut().query_filtered::<(
+            Option<&PendingSkyboxSwap>,
+            Option<&SkyboxConfig>,
+        ), With<ScenarioCameraMarker>>();
+        let (pending, installed) = q.single(app.world()).expect("scenario camera spawned");
+        assert!(
+            pending.is_some(),
+            "the loader hands the skybox to the deferred applier"
+        );
+        assert!(
+            installed.is_none(),
+            "no eager SkyboxConfig: the bcs observer would panic on an unloaded image"
+        );
+    }
 
     /// The scenario-advance decision table (task 20260716-125856). Pause
     /// always wins; a queued switch beats the outcome fallback (a Defeat
@@ -1467,6 +1518,7 @@ mod tests {
         input_mapping.insert("thruster".to_string(), bindings.clone());
 
         let ship = SpaceshipConfig {
+            allegiance: None,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping,
                 speed_cap: Some(100.0),

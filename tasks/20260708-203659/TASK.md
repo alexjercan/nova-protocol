@@ -1,8 +1,8 @@
 # Playable capital-combat vertical-slice scenario
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 85
-- TAGS: v0.7.0,example,scenario
+- TAGS: v0.7.0, example, scenario
 
 Spike: tasks/20260708-203517/SPIKE.md
 
@@ -44,7 +44,7 @@ picker tab so it can be played directly. The alt-storyline campaign mod
 
 ## Steps (planned 20260716, /flow)
 
-- [ ] Builder module crates/nova_assets/src/scenario/broadside.rs (working
+- [x] Builder module crates/nova_assets/src/scenario/broadside.rs (working
       id "broadside"; pick final name/copy during implementation - story
       continuity: the scavengers from shakedown_run return in force): staging
       with the alt skybox (cubemap_alt2), a seeded asteroid-cover
@@ -52,47 +52,47 @@ picker tab so it can be played directly. The alt-storyline campaign mod
       bay), enemy capital ship - controller + reinforced hull sections +
       2x better_turret + torpedo_section + thruster - with AIControllerConfig
       (patrol + leash so it commits when the player closes).
-- [ ] Verify-first: confirm the AI engage range and torpedo launch-envelope
+- [x] Verify-first: confirm the AI engage range and torpedo launch-envelope
       constants in crates/nova_gameplay/src/input/ai.rs (survey claims
       engage ~600u; launch range band 1x-4x blast_radius with forward
       alignment > 0.5), then size arena distances so the enemy actually
       launches torpedoes at the player through the approach.
-- [ ] Beats/events in the builder: contact objective (approach + lock),
+- [x] Beats/events in the builder: contact objective (approach + lock),
       screen-the-torpedoes beat (HintEmphasis on combat stance + radar lock;
       the PDC can shoot down committed torpedoes - verified, 1 HP sections,
       silent fizzle), kill objective; win: OnDestroyed(enemy) ->
       ObjectiveComplete + Outcome(Victory) with NO queued next (Enter returns
       to menu per 20260716-125856); lose: OnDestroyed(player) ->
       Outcome(Defeat) + NextScenario("broadside", linger: true) retry.
-- [ ] Register in build_scenarios() (crates/nova_assets/src/lib.rs:73),
+- [x] Register in build_scenarios() (crates/nova_assets/src/lib.rs:73),
       non-hidden with a real description (placeholder thumbnail from existing
       assets; real art comes with 20260715-220011); regenerate
       assets/base/scenarios/broadside.content.ron via the content_ron_parity
       test.
-- [ ] New Game chain: shakedown_run's final beat (the "done" objective after
+- [x] New Game chain: shakedown_run's final beat (the "done" objective after
       the pirate dies, crates/nova_assets/src/scenario/shakedown.rs) gains
       NextScenario("broadside", linger: true) + objective copy prompting
       [Enter] when ready; regenerate shakedown_run.content.ron.
-- [ ] Self-driving example examples/19_broadside.rs on the 01-12 curriculum
+- [x] Self-driving example examples/19_broadside.rs on the 01-12 curriculum
       pattern (BCS_AUTOPILOT + assertions + completion backstop): script the
       win path (close, engage, enemy destroyed -> assert Victory overlay up)
       and a defeat-path assertion (scripted player destruction -> Defeat
       overlay + lingering restart queued); add to the CI smoke list
       (tests/examples_smoke.rs).
-- [ ] Balance playtest under Xvfb: tune enemy torpedo cadence/magazine,
+- [x] Balance playtest under Xvfb: tune enemy torpedo cadence/magazine,
       turret damage, hull counts for a fair first-try-losable fight; record
       the numbers and reasoning in tasks/20260708-203659/NOTES.md; screenshot
       eyeball of the arena (render-output-eyeball).
-- [ ] Drive-by: delete the stale TODO at
+- [x] Drive-by: delete the stale TODO at
       crates/nova_gameplay/src/sections/torpedo_section/projectile.rs:56 -
       detonation visuals shipped in v0.6.0 (particle burst + blast sphere,
       render.rs:139-344); the "detonation FX juice" scope collapses to this
       unless the playtest says otherwise - if it does, file a new task with
       the observation, do not widen this one.
-- [ ] Docs per keeping-docs-in-sync: player wiki scenarios page, CHANGELOG
+- [x] Docs per keeping-docs-in-sync: player wiki scenarios page, CHANGELOG
       [Unreleased] (Scenarios & Objectives), dev wiki only if the authoring
       surface changed.
-- [ ] Verify: cargo check/fmt, new example green in the smoke suite, both
+- [x] Verify: cargo check/fmt, new example green in the smoke suite, both
       outcome paths eyeballed.
 
 ## Notes (from the 20260716 planning survey; file:line verified in-repo)
@@ -127,3 +127,29 @@ shipped in 20260716-125856; this task consumes it.
   asteroid_field/asteroid_next chain still has silent lingering
   NextScenario beats (incl. a death restart) with no Outcome - retrofit
   them when this task lands the outcome vocabulary across base content.
+
+## As-built deltas (2026-07-16, /work)
+
+- The scenario grew from "one fight" into a three-act story per the user's
+  mid-flow scope direction: NEUTRAL hauler (new authorable
+  `SpaceshipConfig.allegiance` surface), two-corvette ambush, gunship
+  climax. Design record + measured numbers: NOTES.md.
+- Survey correction: torpedo cadence is 10s (AI_TORPEDO_COOLDOWN_SECS), not
+  the planned step's ~4s claim; distances sized against the source.
+- Found + fixed by the example: the loader's EAGER SkyboxConfig insert
+  panics on any non-preloaded cubemap (bcs unwrap hazard) - broadside's alt
+  sky and every future mod sky hit it. The loader now defers through
+  PendingSkyboxSwap; boundary pin scenario_load_defers_the_skybox_install.
+- Example 19 walks BOTH outcome paths in one run (defeat -> Retry reload ->
+  victory) and self-ends; the smoke suite gained a documented second
+  completion sentinel for self-ending examples.
+- Asteroid-field R1.8 retrofits landed here (Defeat on death, Victory on
+  zone-clear - the Victory half was lost in an edit retry and re-landed by
+  this branch's review R1.1).
+- Balance step: distances/staging authored against measured AI constants and
+  exercised by the harness; FEEL tuning (fair, first-try-losable) is
+  explicitly deferred to user playtest per the v0.7.0 plan's bug policy -
+  a harness cannot judge fair.
+- Victory eyeball: target/shots capture verified (gold banner, message,
+  Main Menu, hint); Defeat variant eyeballed in cycle 1's probe. Real
+  interactive balance/look pass remains the user's.

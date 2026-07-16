@@ -18,7 +18,10 @@ pub mod prelude {
 /// Which side an entity fights for. Lives on ship roots (the Player/AI
 /// spaceship markers require it) and is copied onto projectiles at spawn so
 /// "your own torpedo" keeps reading as yours even if the shooter dies.
+/// Serde: authorable in scenario RON via `SpaceshipConfig.allegiance`
+/// (neutral haulers, scripted bystanders).
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[reflect(Component)]
 pub enum Allegiance {
     Player,

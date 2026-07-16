@@ -84,6 +84,7 @@ fn juice_target(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     let upright = Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2);
 
     let ship = SpaceshipConfig {
+        allegiance: None,
         controller: SpaceshipController::None,
         sections: vec![
             at(

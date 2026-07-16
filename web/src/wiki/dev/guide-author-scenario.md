@@ -233,7 +233,11 @@ SpawnScenarioObject((
 
 Object kinds also include `Spaceship` and `SalvageCrate`; ships inline a whole
 section list and are verbose to hand-author (see the sharp edges in section 8,
-and [Ship sections (internals)](../sections/)).
+and [Ship sections (internals)](../sections/)). A ship's side is authorable:
+omit `allegiance` and the controller decides (Player ships fight for the
+player, AI ships are hostile), or override it for bystanders - in strict RON
+the `Option` keeps its variant, `allegiance: Some(Neutral)` (Broadside's
+drifting hauler: no AI targets it, but stray blast damage still hurts it).
 
 ### ScatterObjects
 

@@ -128,6 +128,18 @@ pub struct SpaceshipSectionsConfig(pub Vec<SpaceshipSectionConfig>);
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SpaceshipConfig {
     pub controller: SpaceshipController,
+    /// Which side the ship fights for. `None` (the authored default - omit
+    /// the field) keeps the controller marker's requirement default: Player
+    /// ships read `Allegiance::Player`, AI ships `Allegiance::Enemy`.
+    /// `Some(..)` overrides it - the authorable surface for NEUTRAL
+    /// bystanders (a drifting hauler the AI must not shoot) or scripted
+    /// exceptions. In strict RON the `Option` keeps its variant:
+    /// `allegiance: Some(Neutral)`.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub allegiance: Option<Allegiance>,
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Vec::is_empty")
@@ -344,6 +356,7 @@ mod tests {
                     // scenario bundle.
                     Transform::default(),
                     spaceship_scenario_object(SpaceshipConfig {
+                        allegiance: None,
                         controller: SpaceshipController::AI(config),
                         sections: vec![],
                     }),
@@ -404,6 +417,7 @@ mod tests {
             world.spawn((
                 Transform::default(),
                 spaceship_scenario_object(SpaceshipConfig {
+                    allegiance: None,
                     controller: SpaceshipController::Player(PlayerControllerConfig {
                         infinite_ammo,
                         ..default()

@@ -66,6 +66,7 @@ fn hull_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
     };
 
     let ship = SpaceshipConfig {
+        allegiance: None,
         controller: SpaceshipController::None,
         sections: vec![
             SpaceshipSectionConfig {

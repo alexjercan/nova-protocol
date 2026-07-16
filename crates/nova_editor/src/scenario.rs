@@ -97,6 +97,7 @@ fn sandbox_objects(
     });
 
     let player_spaceship = SpaceshipConfig {
+        allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: player_config
                 .inputs

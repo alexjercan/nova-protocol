@@ -165,7 +165,7 @@ const VAR_TALLY_SHOWN: &str = "tally_shown";
 // Expression / action shorthands - the raw node constructors are too
 // verbose to keep a 14-handler script readable.
 
-fn num(value: f64) -> VariableExpressionNode {
+pub(crate) fn num(value: f64) -> VariableExpressionNode {
     VariableExpressionNode::new_term(VariableTermNode::new_factor(
         VariableFactorNode::new_literal(VariableLiteral::Number(value)),
     ))
@@ -177,7 +177,7 @@ fn var(name: &str) -> VariableExpressionNode {
     )))
 }
 
-fn set(key: &str, expression: VariableExpressionNode) -> EventActionConfig {
+pub(crate) fn set(key: &str, expression: VariableExpressionNode) -> EventActionConfig {
     EventActionConfig::VariableSet(VariableSetActionConfig {
         key: key.to_string(),
         expression,
@@ -194,21 +194,21 @@ fn add_one(key: &str) -> EventActionConfig {
     )
 }
 
-fn eq_num(name: &str, value: f64) -> EventFilterConfig {
+pub(crate) fn eq_num(name: &str, value: f64) -> EventFilterConfig {
     EventFilterConfig::Expression(ExpressionFilterConfig(VariableConditionNode::new_equals(
         var(name),
         num(value),
     )))
 }
 
-fn lt_num(name: &str, value: f64) -> EventFilterConfig {
+pub(crate) fn lt_num(name: &str, value: f64) -> EventFilterConfig {
     EventFilterConfig::Expression(ExpressionFilterConfig(
         VariableConditionNode::new_less_than(var(name), num(value)),
     ))
 }
 
 /// OnEnter of `area` by the player ship.
-fn player_enters(area: &str) -> EventFilterConfig {
+pub(crate) fn player_enters(area: &str) -> EventFilterConfig {
     EventFilterConfig::Entity(EntityFilterConfig {
         id: Some(area.to_string()),
         other_id: Some(ID_PLAYER.to_string()),
@@ -216,18 +216,18 @@ fn player_enters(area: &str) -> EventFilterConfig {
     })
 }
 
-fn destroyed(id: &str) -> EventFilterConfig {
+pub(crate) fn destroyed(id: &str) -> EventFilterConfig {
     EventFilterConfig::Entity(EntityFilterConfig {
         id: Some(id.to_string()),
         ..default()
     })
 }
 
-fn objective(id: &str, message: &str) -> EventActionConfig {
+pub(crate) fn objective(id: &str, message: &str) -> EventActionConfig {
     EventActionConfig::Objective(ObjectiveActionConfig::new(id, message))
 }
 
-fn complete(id: &str) -> EventActionConfig {
+pub(crate) fn complete(id: &str) -> EventActionConfig {
     EventActionConfig::ObjectiveComplete(ObjectiveCompleteActionConfig { id: id.to_string() })
 }
 
@@ -238,25 +238,25 @@ fn despawn(id: &str) -> EventActionConfig {
 /// Attach the gold objective marker to a scenario entity (task
 /// 20260712-093831). Ordered AFTER the target's spawn action when both sit
 /// in one handler - actions queue in list order.
-fn mark(target_id: &str, label: &str) -> EventActionConfig {
+pub(crate) fn mark(target_id: &str, label: &str) -> EventActionConfig {
     EventActionConfig::ObjectiveMarkerAttach(ObjectiveMarkerAttachActionConfig::new(
         target_id, label,
     ))
 }
 
-fn unmark(target_id: &str) -> EventActionConfig {
+pub(crate) fn unmark(target_id: &str) -> EventActionConfig {
     EventActionConfig::ObjectiveMarkerDetach(ObjectiveMarkerDetachActionConfig::new(target_id))
 }
 
-fn emphasize(verb: &str) -> EventActionConfig {
+pub(crate) fn emphasize(verb: &str) -> EventActionConfig {
     EventActionConfig::HintEmphasisSet(HintEmphasisSetActionConfig::new(verb))
 }
 
-fn deemphasize(verb: &str) -> EventActionConfig {
+pub(crate) fn deemphasize(verb: &str) -> EventActionConfig {
     EventActionConfig::HintEmphasisClear(HintEmphasisClearActionConfig::new(verb))
 }
 
-fn spawn(object: ScenarioObjectConfig) -> EventActionConfig {
+pub(crate) fn spawn(object: ScenarioObjectConfig) -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(object)
 }
 
@@ -338,7 +338,7 @@ fn crate_object(index: usize, position: Vec3) -> ScenarioObjectConfig {
     }
 }
 
-fn section(id: &str, section_id: &str, position: Vec3) -> SpaceshipSectionConfig {
+pub(crate) fn section(id: &str, section_id: &str, position: Vec3) -> SpaceshipSectionConfig {
     SpaceshipSectionConfig {
         id: id.to_string(),
         position,
@@ -398,6 +398,7 @@ fn player_ship() -> ScenarioObjectConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            allegiance: None,
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping: HashMap::from([(
                     "turret".to_string(),
@@ -445,6 +446,7 @@ fn pirate_ship() -> ScenarioObjectConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            allegiance: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: PIRATE_PATROL.to_vec(),
                 // Territorial: the scavenger fights AT the debris field
@@ -821,21 +823,32 @@ pub(crate) fn shakedown_run(
                 mark(ID_PIRATE, "SCAVENGER"),
             ],
         },
-        // Beat 12 end: pirate destroyed.
+        // Beat 12 end: pirate destroyed - the chapter is won. The Victory
+        // overlay chains into Broadside (chapter two, task 20260708-203659)
+        // via the lingering switch: Continue (or Enter) answers the call,
+        // Main Menu keeps the win. The stand-down lesson line stays in the
+        // objective under the overlay - input still works behind it, and
+        // the gesture recurs naturally in the next chapter's fights.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![destroyed(ID_PIRATE), eq_num(VAR_BEAT, 12.0)],
             actions: vec![
                 set(VAR_BEAT, num(13.0)),
                 complete(OBJ_B12),
-                // The stand-down closes the loop: the tap-clear pops the
-                // unlatch ghosts and the safety click answers - the last
-                // radar gesture the tutorial has not shown.
                 objective(
                     OBJ_DONE,
                     "Shakedown complete. Tap [CTRL] to stand down your locks - the belt is yours.",
                 ),
                 unmark(ID_PIRATE),
+                EventActionConfig::Outcome(OutcomeActionConfig::new(
+                    ScenarioOutcomeKind::Victory,
+                    "The scavenger is scrap - but it was flying scout. A \
+                     distress call is already crackling from the deep field.",
+                )),
+                EventActionConfig::NextScenario(NextScenarioActionConfig {
+                    scenario_id: super::broadside::BROADSIDE_SCENARIO_ID.to_string(),
+                    linger: true,
+                }),
             ],
         },
         // Player death: the Defeat overlay offers Retry (the lingering

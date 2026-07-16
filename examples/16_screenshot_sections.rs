@@ -79,6 +79,7 @@ fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     // thruster) along -/+Z, with the turret and the torpedo bay mounted on the
     // left/right flanks rather than stacked in front.
     let ship = SpaceshipConfig {
+        allegiance: None,
         controller: SpaceshipController::None,
         sections: vec![
             at(
