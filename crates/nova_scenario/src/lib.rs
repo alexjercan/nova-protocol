@@ -1,6 +1,7 @@
 pub mod actions;
 pub mod events;
 pub mod filters;
+pub mod lint;
 pub mod loader;
 pub mod objects;
 pub mod variables;
@@ -8,8 +9,9 @@ pub mod world;
 
 pub mod prelude {
     pub use super::{
-        actions::prelude::*, events::prelude::*, filters::prelude::*, loader::prelude::*,
-        objects::prelude::*, variables::prelude::*, world::NovaEventWorld, NovaScenarioPlugin,
+        actions::prelude::*, events::prelude::*, filters::prelude::*, lint::prelude::*,
+        loader::prelude::*, objects::prelude::*, variables::prelude::*, world::NovaEventWorld,
+        NovaScenarioPlugin,
     };
 }
 

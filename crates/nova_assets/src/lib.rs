@@ -1171,3 +1171,143 @@ mod tests {
         );
     }
 }
+
+/// The content-lint tree walk (task 20260716-191543): parse every installed
+/// bundle's content straight from the repo tree - `assets/base`,
+/// `assets/mods/*`, `webmods/*` - and run `nova_scenario::lint` over every
+/// scenario. The known-section set per bundle is base + the bundle's own
+/// `Content::Section` items + its declared dependencies' (resolved by id);
+/// the known-scenario set is every scenario id across all walked bundles
+/// (cross-mod `NextScenario` chains within the repo are visible). Shared by
+/// the `content_lint` bin (author CLI) and the CI gate test; not part of the
+/// game's public API.
+#[doc(hidden)]
+pub mod lint_walk {
+    use std::{
+        collections::{HashMap, HashSet},
+        path::{Path, PathBuf},
+    };
+
+    use nova_mod_format::BundleManifest;
+    use nova_modding::prelude::Content;
+    use nova_scenario::prelude::{lint_scenario, LintIssue, ScenarioConfig};
+
+    /// One walked bundle: its id (directory-derived), manifest, and parsed
+    /// content items.
+    struct WalkedBundle {
+        id: String,
+        manifest: BundleManifest,
+        sections: HashSet<String>,
+        scenarios: Vec<ScenarioConfig>,
+    }
+
+    /// The workspace root (this crate sits at `crates/nova_assets`).
+    fn workspace_root() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+    }
+
+    /// Parse the single `*.bundle.ron` at `dir`'s root plus its content
+    /// files. Panics with a readable message on unreadable/unparsable files
+    /// (the loaders' own gates cover load-ability; the lint walk assumes a
+    /// tree that passes them).
+    fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
+        let manifest_path = std::fs::read_dir(dir)
+            .unwrap_or_else(|err| panic!("read {}: {err}", dir.display()))
+            .filter_map(|e| Some(e.ok()?.path()))
+            .find(|p| {
+                p.file_name()
+                    .is_some_and(|n| n.to_string_lossy().ends_with(".bundle.ron"))
+            })
+            .unwrap_or_else(|| panic!("{} has no *.bundle.ron at its root", dir.display()));
+        let manifest: BundleManifest = ron::de::from_str(
+            &std::fs::read_to_string(&manifest_path)
+                .unwrap_or_else(|err| panic!("read {}: {err}", manifest_path.display())),
+        )
+        .unwrap_or_else(|err| panic!("parse {}: {err}", manifest_path.display()));
+
+        let mut sections = HashSet::new();
+        let mut scenarios = Vec::new();
+        for rel in &manifest.content {
+            let path = dir.join(rel);
+            let items: Vec<Content> = ron::de::from_str(
+                &std::fs::read_to_string(&path)
+                    .unwrap_or_else(|err| panic!("read {}: {err}", path.display())),
+            )
+            .unwrap_or_else(|err| panic!("parse {}: {err}", path.display()));
+            for item in items {
+                match item {
+                    Content::Section(section) => {
+                        sections.insert(section.base.id.clone());
+                    }
+                    Content::Scenario(scenario) => scenarios.push(scenario),
+                }
+            }
+        }
+        WalkedBundle {
+            id: id.to_string(),
+            manifest,
+            sections,
+            scenarios,
+        }
+    }
+
+    /// Every mod directory under `parent` (one bundle per subdirectory).
+    fn bundle_dirs(parent: &Path) -> Vec<(String, PathBuf)> {
+        let Ok(entries) = std::fs::read_dir(parent) else {
+            return Vec::new();
+        };
+        let mut dirs: Vec<(String, PathBuf)> = entries
+            .filter_map(|e| {
+                let path = e.ok()?.path();
+                if !path.is_dir() {
+                    return None;
+                }
+                let id = path.file_name()?.to_string_lossy().into_owned();
+                Some((id, path))
+            })
+            .collect();
+        dirs.sort();
+        dirs
+    }
+
+    /// Walk the whole repo content tree and lint every scenario. Returns
+    /// `(bundle id, issue)` pairs in a stable order.
+    pub fn lint_content_tree() -> Vec<(String, LintIssue)> {
+        let root = workspace_root();
+        let mut bundles = vec![read_bundle("base", &root.join("assets/base"))];
+        for (id, dir) in bundle_dirs(&root.join("assets/mods")) {
+            bundles.push(read_bundle(&id, &dir));
+        }
+        for (id, dir) in bundle_dirs(&root.join("webmods")) {
+            bundles.push(read_bundle(&id, &dir));
+        }
+
+        let sections_by_id: HashMap<&str, &HashSet<String>> = bundles
+            .iter()
+            .map(|b| (b.id.as_str(), &b.sections))
+            .collect();
+        let known_scenarios: HashSet<String> = bundles
+            .iter()
+            .flat_map(|b| b.scenarios.iter().map(|s| s.id.clone()))
+            .collect();
+
+        let mut issues = Vec::new();
+        for bundle in &bundles {
+            // Visible prototypes: base + this bundle's own + its declared
+            // dependencies' ('base' is implicit and never declared).
+            let mut known_sections: HashSet<String> = sections_by_id["base"].clone();
+            known_sections.extend(bundle.sections.iter().cloned());
+            for dep in &bundle.manifest.meta.dependencies {
+                if let Some(dep_sections) = sections_by_id.get(dep.as_str()) {
+                    known_sections.extend(dep_sections.iter().cloned());
+                }
+            }
+            for scenario in &bundle.scenarios {
+                for issue in lint_scenario(scenario, &known_sections, &known_scenarios) {
+                    issues.push((bundle.id.clone(), issue));
+                }
+            }
+        }
+        issues
+    }
+}

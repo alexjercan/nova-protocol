@@ -60,6 +60,12 @@ The `ScenarioConfig` fields (`loader.rs`):
 - `events` - the list of handlers. May be empty (`events: []`), but then
   nothing happens.
 
+Lint your content before shipping it: `cargo run -p nova_assets --bin
+content_lint` checks what the loaders cannot - section prototype ids,
+`NextScenario` targets, filter/action target ids, duplicate object ids
+(these all resolve at SPAWN time, so a typo loads green and misbehaves
+in-game). CI runs the same checks; an Error fails the build.
+
 One file can hold several content items (sections, more scenarios). This guide
 covers the scenario item; a file that is just one scenario is fine.
 
