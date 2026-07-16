@@ -1,8 +1,18 @@
 # Tighten and re-section CHANGELOG.md: terse subsystem-grouped entries
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
-- TAGS: spike,docs
+- TAGS: spike, docs
+
+## Outcome
+
+CHANGELOG.md rewritten: Added/Changed/Fixed replaced with 11 subsystem sections
+(canonical order, empties dropped per release), every entry collapsed to one
+scannable line, `X -> Y` deltas, the one format break tagged **(breaking)**, and
+the header line rewritten to describe the subsystem grouping honestly. All 12
+version headers and 11 compare-links preserved. Review (REVIEW.md) caught one
+dropped entry (Screenshot Reel), restored under a 0.6.0 Internals & Tooling
+section; bullet reconciliation confirms no other loss. APPROVE in round 2.
 
 ## Goal
 

@@ -1,197 +1,239 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to this project are documented here.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
+but groups each release by subsystem (Gameplay & Flight, Combat & Weapons,
+Ships & Sections, Scenarios & Objectives, Modding & Mod Portal, Interface & HUD,
+Web & Platform, Audio & Visuals, Performance, Fixes, Internals & Tooling) rather
+than by Added/Changed/Fixed. This project adheres to
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html). Breaking changes are
+tagged **(breaking)**.
 
 ## [Unreleased]
 
 ## [0.6.0] - 2026-07-16
 
-### Added
+### Scenarios & Objectives
 
-- Mod dependencies now resolve end to end: installs auto-pull missing deps, enabling a mod auto-enables its transitive deps, disabling a still-depended-on mod is refused, and merge order is dependency-respecting topological order (ids only, no version constraints yet)
-- A Scenarios picker on the main menu lists every playable scenario (base plus mod-added) in a two-pane overlay with a details pane and Play button; scenarios gained optional `thumbnail` and `hidden` fields
-- Particle effects (muzzle flash, projectile trail, torpedo launch and detonation bursts) now render in the web build after moving from WebGL2 to WebGPU
-- Browsers without WebGPU now show a clear "WebGPU required" message instead of a black canvas, plus a heads-up under the landing page's "Play in browser" button
-- A criterion benchmark for the modding scenario-dispatch hot path (`cargo bench -p nova_scenario --bench scenario_dispatch`), the measure-before-optimizing gate documented in `docs/modding-perf-report.md`
-- Scenarios can swap the skybox cubemap mid-scenario with a new `SetSkybox` action, deferred until the new image loads so a bad path leaves the sky unchanged
-- A static mod portal now publishes alongside the game on every deploy: validated, sha256-hashed bundles under `/mods/<id>/<version>/` with a generated `catalog.json`, first mod being Gauntlet Run
-- The local mod cache foundation for downloaded mods: a `mods://` asset source, a RON installed index, and downloaded bundles that load and merge through the same pipeline as shipped ones (network fetch comes next)
-- The portal client fetches the portal's `catalog.json` and installs/uninstalls mods over the wire on native and web, with staged installs verified against size + sha256 and committed only once every file checks out
-- The Explore online tab is real: browse the portal in-game and install, update or uninstall mods on native and web, with per-file progress, offline catalog fallback, and enabled-state-preserving updates, completing the mod-portal arc
+- Scenarios picker on the main menu: two-pane overlay listing every base and mod-added scenario, with a details pane and Play button; scenarios gained optional `thumbnail` and `hidden` fields.
+- New `SetSkybox` action swaps the skybox cubemap mid-scenario, deferred until the image loads so a bad path leaves the sky unchanged.
 
-### Changed
+### Modding & Mod Portal
 
-- The Mods menu is now a two-pane screen (Factorio-style): `Installed` | `Explore online` tabs over the scrollable mod list with per-row enable checkboxes, and a details side panel rendered from the selected mod's bundle meta
-- The Mods menu no longer lists dev/tooling mods: catalog entries marked `hidden: true` stay installed and enableable by id from code but are kept out of the player-facing list
-- The Screenshot Reel capture set no longer ships in the game assets: its scenario moved into the example that films it, so players and the web build stop downloading a capture tool
-- Mod metadata now lives in each mod's own `*.bundle.ron` as a `meta` block, with `assets/mods.catalog.ron` slimmed to a thin pointer list (format break for the catalog and any out-of-tree bundles)
-- Modding event dispatch is now indexed by event name (upstreamed to bevy-common-systems, rev 4c81117), measuring 17-24% faster dispatch under bursts at 500-5000 handlers and neutral at the realistic one-event-per-frame rate
-- The sibling filter-key-interning and condition-eval-compile optimizations were measured and deferred: at realistic event rates their per-handler costs are noise, so they stay documented insurance
+- Mod dependencies resolve end to end: installs auto-pull missing deps, enabling a mod auto-enables its transitive deps, disabling a still-depended-on mod is refused, and merge order is dependency-respecting topological (ids only, no version constraints yet).
+- Static mod portal now publishes on every deploy: validated, sha256-hashed bundles under `/mods/<id>/<version>/` with a generated `catalog.json` (first mod: Gauntlet Run).
+- Local mod cache foundation: a `mods://` asset source, a RON installed index, and downloaded bundles that load and merge through the same pipeline as shipped ones.
+- Portal client fetches `catalog.json` and installs/uninstalls over the wire on native and web, staged installs verified against size + sha256 and committed only once every file checks out.
+- Explore online tab is real: browse the portal in-game and install/update/uninstall on native and web, with per-file progress, offline catalog fallback, and enabled-state-preserving updates.
+- Mods menu is a two-pane Factorio-style screen: `Installed` | `Explore online` tabs over the scrollable list with per-row enable checkboxes and a details panel from bundle meta.
+- Mods menu hides dev/tooling mods: `hidden: true` entries stay installed and code-enableable by id but drop out of the player list.
+- **(breaking)** Mod metadata moved into each `*.bundle.ron` as a `meta` block; `assets/mods.catalog.ron` slimmed to a thin pointer list (catalog and out-of-tree bundle format break).
 
-### Fixed
+### Web & Platform
 
-- The Scenarios picker no longer crashes the renderer when a scenario's thumbnail is not a plain 2D image: non-2D thumbnails are now skipped with a warning and images mount only once loaded
-- Local web testing of the mod portal no longer needs a cross-origin `?portal=` override: `scripts/preview-web.sh` now serves the portal same-origin as the game, matching production (a local-dev/docs gap)
+- Particle effects (muzzle flash, projectile trail, torpedo launch/detonation bursts) now render in the web build after moving from WebGL2 to WebGPU.
+- Browsers without WebGPU get a clear "WebGPU required" message instead of a black canvas, plus a heads-up under the landing page's "Play in browser" button.
+
+### Performance
+
+- Modding event dispatch is indexed by event name (upstreamed to bevy-common-systems rev 4c81117): 17-24% faster under bursts of 500-5000 handlers, neutral at the realistic one-event-per-frame rate.
+- Added a criterion benchmark for the scenario-dispatch hot path (`cargo bench -p nova_scenario --bench scenario_dispatch`); the measure-first gate is documented in `docs/modding-perf-report.md`.
+- Sibling filter-key-interning and condition-eval-compile optimizations were measured and deferred: at realistic event rates their per-handler cost is noise, kept as documented insurance.
+
+### Fixes
+
+- Scenarios picker no longer crashes the renderer on a non-2D thumbnail: such thumbnails are skipped with a warning, and images mount only once loaded.
+- Local mod-portal web testing no longer needs a cross-origin `?portal=` override: `scripts/preview-web.sh` serves the portal same-origin as the game, matching production.
+
+### Internals & Tooling
+
+- Screenshot Reel capture set no longer ships in the game assets: its scenario moved into the example that films it, so players and the web build stop downloading a capture tool.
 
 ## [0.5.2] - 2026-07-14
 
-### Added
+### Gameplay & Flight
 
-- The web site grew a full wiki (gameplay, ship sections, keybinds, world and meta pages), two new devlogs, and a tutorial trimmed to first-scenario onboarding
+- Gamepad bindings rounded out: ORBIT -> South, scenario-advance confirm -> DPadDown, and HUD cycle / pause / back-to-editor gained buttons.
 
-### Changed
+### Web & Platform
 
-- Gamepad bindings rounded out: ORBIT moved to South, the scenario-advance confirm to DPadDown, and HUD cycle / pause / back-to-editor gained buttons
+- The site grew a full wiki (gameplay, ship sections, keybinds, world and meta pages), two new devlogs, and a tutorial trimmed to first-scenario onboarding.
 
-- CI's example smoke suite is BLOCKING again: the GitHub-runner-only taffy panic is gone, so the 12-example suite gates every push
-- The examples are a testable curriculum now - twelve numbered examples from controller PD through the boot flow, each self-driving under BCS_AUTOPILOT with behavior assertions and a completion backstop, all run by the CI smoke list
-- The example smoke suite now fails on ANY logged command error, closing the gap where handled remove/despawn warns (the stale-entity teardown race class) sailed past the panic gate
-- The weapon test ranges fire again: the weapons safety had silently disarmed both, so their scripts now raise the stance first and new outcome assertions pin the fire -> hit chain
+### Fixes
 
-### Fixed
+- Thruster hum now attenuates with distance per ship, so another ship's or torpedo's burn no longer plays at full volume from anywhere (your own ship stays exempt).
+- Scenario teardown no longer logs an "Entity despawned" command error when a ship despawns with autopilot engaged: the telemetry-cleanup observer uses the fallible remove variant, pinned by regression tests.
+- Debug inspector's window-camera placement fix moved upstream into bevy-common-systems (rev 4a743b2), deleting nova's local workaround.
 
-- The debug inspector's window-camera placement fix moved upstream into bevy-common-systems (rev 4a743b2), deleting nova's local workaround
-- The thruster hum now attenuates with distance per ship, so another ship's or torpedo's burn no longer plays at full volume from anywhere in the scene (your own ship stays exempt)
-- Scenario teardown no longer logs an "Entity despawned" command error when a ship despawns with its autopilot engaged: the telemetry-cleanup observer now uses the fallible remove variant, with regression tests pinning the command ordering
+### Internals & Tooling
+
+- CI's example smoke suite is BLOCKING again: the GitHub-runner-only taffy panic is gone, so the 12-example suite gates every push.
+- Examples are a testable curriculum: twelve numbered examples from controller PD through the boot flow, each self-driving under BCS_AUTOPILOT with behavior assertions and a completion backstop, all on the CI smoke list.
+- Example smoke now fails on ANY logged command error, closing the gap where handled remove/despawn warnings (the stale-entity teardown race) sailed past the panic gate.
+- Weapon test ranges fire again: the weapons safety had silently disarmed both, so their scripts raise the stance first, with new assertions pinning the fire -> hit chain.
 
 ## [0.5.1] - 2026-07-13
 
-### Fixed
+### Fixes
 
-- The web build no longer quits with a fatal render validation error on New Game / editor Play: the target inset's render target used a view-format override (`view_formats`), which WebGL2 does not support; it is now a plain sRGB target
-- The skybox cubemap's `.meta` loader settings now actually apply in the shipped app: `AssetMetaCheck::Never` had silently ignored them, resurrecting the oversized-upload race on GPUs with a 16384 texture limit
+- Web build no longer quits with a fatal render validation error on New Game / editor Play: the target inset dropped its `view_formats` override (unsupported on WebGL2) for a plain sRGB target.
+- Skybox cubemap's `.meta` loader settings now actually apply in the shipped app: `AssetMetaCheck::Never` had silently ignored them, resurrecting the oversized-upload race on GPUs with a 16384 texture limit.
 
 ## [0.5.0] - 2026-07-13
 
-### Added
+### Gameplay & Flight
 
-- Deliberate radar locking replaces all passive targeting: hold CTRL to sweep and live-lock what you look at, with your stance picking the slot (lowered NAV vs raised combat) and a tap to clear; locks stick until the target dies, leaves range, or goes cold
-- Target viewfinder: a corner inset renders a live magnified 3D view of the combat lock via a second camera; red armed frame while weapons are hot, NO-SIGNAL panel for non-scopeable bodies, and a ~2 s freeze-frame kill cam when the target dies. The fine-locked section glows in both views
-- Shakedown Run: New Game starts a ~12-beat tutorial (burn, freelook, stop, salvage, GOTO, gravity coast, ORBIT, radar lock, live-fire rehearsal on a derelict, scavenger fight); each beat teaches one gesture and completes the instant the gesture lands
-- Typed damage (Kinetic / AP / EMP / Explosive) against per-section resistance tables; each turret carries a loaded-ammo slot that sets its rounds' type, and the ammo readout is color-coded by type
-- Main menu (live ambient scene: an AI ship flying a thruster-driven orbit) and ESC pause menu; the game boots into the menu (new `nova_menu` crate)
-- HUD visibility levels: grave/tilde cycles ALL -> MINIMAL -> NONE
-- Objective conveyance: gold marker chip with live distance on the current target, salvage-crate glow and brackets, keybind emphasis pulses, completion chime and posting blip
-- Scenario primitives: nav beacons and salvage crates (with authorable radar signatures), despawn-by-id, and new events/actions (OnOrbit, OnTravelLock/OnCombatLock, SetSpeedCap, objective markers, hint emphasis)
-- Editor: placed sections show their bound key as a chip; click a section to rebind it (keys or mouse buttons); the build panel scrolls
-- Web landing site (`web/`: TypeScript + Webpack + Tailwind); the Pages deploy serves it at the root with the game under `/play/`
-- Turret rounds curve through gravity wells, like ships and torpedoes
+- Diegetic flight readouts replace the bottom-left status text: speed and engaged-mode chips beside the velocity sphere, an ORBIT radius spoke, and a nav-cyan tint while the autopilot flies.
+- Keybind cluster is contextual: rows appear only while their verb can act; scenario-emphasized keys show early, pulsing gold.
 
-### Changed
+### Combat & Weapons
 
-- Diegetic flight readouts replace the bottom-left status text: speed and engaged-mode chips beside the velocity sphere, an ORBIT radius spoke, and the velocity sphere tints nav-cyan while the autopilot flies
-- The keybind cluster is contextual: rows appear only while their verb can do something; scenario-emphasized keys show early, pulsing gold
-- Lock language is slot-colored: RED bracket = combat lock, WHITE = nav lock; relation tint and reticle pips retired. Turrets hold the combat lock even during manual aim
-- PDC retuned to point defense: per-hit damage 20 -> 4, so the stream chips targets down over a visible burst instead of one-shotting them
-- The editor's play-test ship is a passive target instead of an AI combatant
+- Deliberate radar locking replaces all passive targeting: hold CTRL to sweep and live-lock what you look at, stance picking the slot (lowered NAV vs raised combat) and a tap to clear; locks stick until the target dies, leaves range, or goes cold.
+- Typed damage (Kinetic / AP / EMP / Explosive) against per-section resistance tables; each turret carries a loaded-ammo slot setting its rounds' type, with a color-coded ammo readout.
+- Lock language is slot-colored: RED bracket = combat lock, WHITE = nav lock; relation tint and reticle pips retired, turrets hold the combat lock even during manual aim.
+- Turret rounds curve through gravity wells, like ships and torpedoes.
+- PDC retuned to point defense: per-hit damage 20 -> 4, so the stream chips targets down over a visible burst instead of one-shotting them.
 
-### Fixed
+### Ships & Sections
 
-- Debug builds no longer crash when a scenario advances (the smoke assertion now covers only the boot load), and scenario teardown no longer warns about despawned entities
-- Asteroid kills now emit OnDestroyed under the scenario id, so scripts can react to them (this soft-locked the derelict beat)
-- The target inset zooms combat bodies only (ships, torpedoes, asteroids), not beacons, and frames section-less bodies by collider bounds
-- The debug inspector stays on a window camera instead of leaking into render-to-texture cameras
-- HUD apparent-size elements (reticles, brackets) measure real colliders, not invisible trigger volumes
-- Turret bullets are sensor projectiles: same damage, no physical shove, expended on first contact
-- Many Shakedown playtest fixes: park points inside beacon triggers, orbit-hold completion, scavenger spawn timing and a 150u combat leash, invulnerable planetoids, speed-cap teaching, objective text wrapping and sound pacing, readable gold pulses
-- F1 back-to-editor is sandbox-only; the debug ammo readout no longer lingers when debug mode is off
+- Editor: placed sections show their bound key as a chip and can be clicked to rebind (keys or mouse buttons); the build panel scrolls.
+- Editor play-test ship is now a passive target instead of an AI combatant.
+
+### Scenarios & Objectives
+
+- Shakedown Run: New Game starts a ~12-beat tutorial (burn, freelook, stop, salvage, GOTO, gravity coast, ORBIT, radar lock, live-fire rehearsal, scavenger fight); each beat teaches one gesture and completes the instant it lands.
+- Objective conveyance: gold marker chip with live distance to the current target, salvage-crate glow and brackets, keybind emphasis pulses, completion chime and posting blip.
+- Scenario primitives: nav beacons and salvage crates (authorable radar signatures), despawn-by-id, and new events/actions (OnOrbit, OnTravelLock/OnCombatLock, SetSpeedCap, objective markers, hint emphasis).
+
+### Interface & HUD
+
+- Target viewfinder: a corner inset renders a live magnified 3D view of the combat lock via a second camera; red armed frame while hot, NO-SIGNAL for non-scopeable bodies, and a ~2 s freeze-frame kill cam on death, the fine-locked section glowing in both views.
+- Main menu (live ambient scene: an AI ship flying a thruster-driven orbit) and ESC pause menu; the game now boots into the menu (new `nova_menu` crate).
+- HUD visibility levels: grave/tilde cycles ALL -> MINIMAL -> NONE.
+
+### Web & Platform
+
+- Web landing site (`web/`: TypeScript + Webpack + Tailwind); the Pages deploy serves it at the root with the game under `/play/`.
+
+### Fixes
+
+- Debug builds no longer crash when a scenario advances (the smoke assertion now covers only the boot load), and teardown no longer warns about despawned entities.
+- Asteroid kills emit OnDestroyed under the scenario id so scripts can react (this had soft-locked the derelict beat).
+- Target inset zooms combat bodies only (ships, torpedoes, asteroids), not beacons, and frames section-less bodies by collider bounds.
+- Debug inspector stays on a window camera instead of leaking into render-to-texture cameras.
+- HUD apparent-size elements (reticles, brackets) measure real colliders, not invisible trigger volumes.
+- Turret bullets are sensor projectiles: same damage, no physical shove, expended on first contact.
+- Many Shakedown playtest fixes: park points inside beacon triggers, orbit-hold completion, scavenger spawn timing and a 150u combat leash, invulnerable planetoids, speed-cap teaching, objective text wrapping and sound pacing, readable gold pulses.
+- F1 back-to-editor is sandbox-only; the debug ammo readout no longer lingers when debug mode is off.
 
 ## [0.4.1] - 2026-07-10
 
-### Fixed
+### Internals & Tooling
 
-- release-flow: install the `x86_64-apple-darwin` std for the pinned nightly, fixing the macOS universal build
-
-### Changed
-
-- CI: one `--features debug` feature set across clippy/tests/examples (one Bevy build), cache saved on failure, windowed examples smoke as a separate non-blocking step
+- release-flow: install the `x86_64-apple-darwin` std for the pinned nightly, fixing the macOS universal build.
+- CI: one `--features debug` feature set across clippy/tests/examples (one Bevy build), cache saved on failure, windowed examples smoke as a separate non-blocking step.
 
 ## [0.4.0] - 2026-07-10
 
-### Added
+### Gameplay & Flight
 
-- Torpedo guidance: proportional navigation, angular lock-on aim-assist, arming gate, blast-radius visual, launch particle burst
-- Player targeting arc: signature auto-acquisition (550 m), focus dwell, per-section component fine-lock with aim-snap and cycling, HUD lock markers and focus meter
-- Turret auto-aim with true intercept lead, fed by fine-locked section, else live structure, else camera ray
-- HUD substrate: screen-projected indicators (entity/point anchors, apparent-size sizing, clamp-to-edge arrows), turret lead pips, locked-target readout (range, closing speed, health)
-- Faction/relation model (hostile/neutral/own): drives acquisition, projectile allegiance, reticle tint
-- AI combat wave: behavior state machine (Idle/Patrol/Engage/Evade/Retreat), fire discipline, point-defense priority on inbound torpedoes, standoff orbit/strafe, autopilot-flown patrol routes, threat-memory evasion, enveloped torpedo launches
-- Flight-assist overhaul: assisted velocity-hold mode (WASDQE nudges, X brake latch, soft cap), Z direct Newtonian mode, RCS budget, FA/speed readout
-- The flight computer balances thrust through the live center of mass: differential throttle nulls burn torque; off-axis thrusters recruited for counter-torque
-- First audio: placeholder SFX (explosions, impacts, turret fire, torpedo launch, throttle-tracking thruster loop) with distance attenuation and throttling
-- Combat juice: trauma-model camera shake and expanding hit/impact flash rings, distance-attenuated and throttled
-- Example test ranges (`06_torpedo_range`, `08_turret_range`, `10_gameplay`, `11_com_range`) with live tuning sliders, FPS/version overlay, and a headless autopilot + screenshot smoke harness that asserts scenario init
-- CI workflow: fmt, clippy, and the workspace test suite (windowed examples under Xvfb) on every PR and push to master
+- Flight-assist overhaul: assisted velocity-hold mode (WASDQE nudges, X brake latch, soft cap), Z direct Newtonian mode, RCS budget, FA/speed readout.
+- Flight computer balances thrust through the live center of mass: differential throttle nulls burn torque, off-axis thrusters recruited for counter-torque.
+- Mass-legible handling: turn rate derived from the torque budget and live inertia (stripped ships snap, heavy builds lumber); max_torque 100 -> 40.
+- Chase camera: smoothing on all gameplay modes plus a burn push-back lean.
 
-### Changed
+### Combat & Weapons
 
-- Mass-legible handling: turn rate derived from the torque budget and live inertia (stripped ships snap, heavy builds lumber); max_torque 100 -> 40
-- Chase camera: smoothing on all gameplay modes plus a burn push-back lean
-- Integrity, health, blast and mesh-slicer systems consumed from `bevy-common-systems` instead of in-tree copies; torpedo section split into its own module
-- Player lock range 2 km -> 20 km (AI sensor scan unchanged)
-- The SFX/juice listener is an explicit marker on the gameplay camera, not "any Camera3d"
+- Torpedo guidance: proportional navigation, angular lock-on aim-assist, arming gate, blast-radius visual, launch particle burst.
+- Player targeting arc: signature auto-acquisition (550 m), focus dwell, per-section fine-lock with aim-snap and cycling, HUD lock markers and focus meter.
+- Turret auto-aim with true intercept lead, fed by fine-locked section, else live structure, else camera ray.
+- Faction/relation model (hostile/neutral/own) drives acquisition, projectile allegiance, and reticle tint.
+- AI combat wave: behavior state machine (Idle/Patrol/Engage/Evade/Retreat), fire discipline, point-defense priority on inbound torpedoes, standoff orbit/strafe, patrol routes, threat-memory evasion, enveloped torpedo launches.
+- Player lock range 2 km -> 20 km (AI sensor scan unchanged).
 
-### Fixed
+### Interface & HUD
 
-- Skybox cubemap reinterpreted into a 6-layer array at load time; the raw 24576 px image exceeded smaller GPUs' texture limit and killed the app
-- Blast damage reaches every body overlapping the blast, not just one
-- Ships, asteroids and torpedoes interpolate between physics ticks (camera twitch); the chase camera anchors on the live center of mass
-- Projectiles no longer collide with their shooter; shot-down torpedoes die whole and blast-free; destroyed asteroids no longer leave rigid-body husks
-- Section overkill is absorbed instead of propagated; a disabled controller stops torquing the hull
-- Bullet lead solved in the shooter's frame, so a moving shooter's rounds land; the AI helm writes slewed absolute rotation commands
-- One hit plays one cue: audio/juice observers ignore propagation re-entry
-- Misc: editor preview controller made inert, turret resting position, one-frame origin snap on camera-mode switch
+- HUD substrate: screen-projected indicators (entity/point anchors, apparent-size sizing, clamp-to-edge arrows), turret lead pips, and a locked-target readout (range, closing speed, health).
+
+### Audio & Visuals
+
+- First audio: placeholder SFX (explosions, impacts, turret fire, torpedo launch, throttle-tracking thruster loop) with distance attenuation and throttling.
+- Combat juice: trauma-model camera shake and expanding hit/impact flash rings, distance-attenuated and throttled.
+- The SFX/juice listener is an explicit marker on the gameplay camera, not "any Camera3d".
+
+### Fixes
+
+- Skybox cubemap reinterpreted into a 6-layer array at load time; the raw 24576 px image exceeded smaller GPUs' texture limit and killed the app.
+- Blast damage reaches every body overlapping the blast, not just one.
+- Ships, asteroids and torpedoes interpolate between physics ticks (no camera twitch); the chase camera anchors on the live center of mass.
+- Projectiles no longer collide with their shooter; shot-down torpedoes die whole and blast-free; destroyed asteroids no longer leave rigid-body husks.
+- Section overkill is absorbed instead of propagated; a disabled controller stops torquing the hull.
+- Bullet lead solved in the shooter's frame so a moving shooter's rounds land; the AI helm writes slewed absolute rotation commands.
+- One hit plays one cue: audio/juice observers ignore propagation re-entry.
+- Misc: editor preview controller made inert, turret resting position, one-frame origin snap on camera-mode switch.
+
+### Internals & Tooling
+
+- Example test ranges (`06_torpedo_range`, `08_turret_range`, `10_gameplay`, `11_com_range`) with live tuning sliders, FPS/version overlay, and a headless autopilot + screenshot smoke harness that asserts scenario init.
+- CI workflow: fmt, clippy, and the workspace test suite (windowed examples under Xvfb) on every PR and push to master.
+- Integrity, health, blast and mesh-slicer systems consumed from `bevy-common-systems` instead of in-tree copies; torpedo section split into its own module.
 
 ## [0.3.1] - 2026-07-07
 
-### Added
+### Audio & Visuals
 
-- Post-processing camera component
+- Post-processing camera component.
 
-### Changed
+### Internals & Tooling
 
-- Upgrade to Bevy 0.19 (avian3d 0.7, bevy_rand 0.15, bevy_enhanced_input 0.26, rand 0.10)
-- `bevy_common_systems` externalized as a git dependency; vendored copy removed
-
-### Docs
-
-- `AGENTS.md` and a `docs/` folder (architecture, scenario system, sections, development, migration notes)
+- Upgrade to Bevy 0.19 (avian3d 0.7, bevy_rand 0.15, bevy_enhanced_input 0.26, rand 0.10).
+- `bevy_common_systems` externalized as a git dependency; vendored copy removed.
+- Added `AGENTS.md` and a `docs/` folder (architecture, scenario system, sections, development, migration notes).
 
 ## [0.3.0] - 2025-11-29
 
-### Added
+### Combat & Weapons
 
-- OnEnter/OnExit zone events
-- Torpedo bay section and blast damage
-- Per-section health system
+- Torpedo bay section and blast damage.
 
-### Changed
+### Ships & Sections
 
-- Improved directional and thruster shaders
+- Per-section health system.
+
+### Scenarios & Objectives
+
+- OnEnter/OnExit zone events.
+
+### Audio & Visuals
+
+- Improved directional and thruster shaders.
 
 ## [0.2.1] - 2025-11-15
 
-### Chores
+### Modding & Mod Portal
 
-- Modding documentation and examples; event system refactor
+- Modding documentation and examples; event system refactor.
 
 ## [0.2.0] - 2025-11-08
 
-### Added
+### Modding & Mod Portal
 
-- Game events and a queue system
-- Scenario and modding capabilities
-- Asteroids with procedural mesh and dynamic destruction
+- Game events and a queue system; scenario and modding capabilities.
+
+### Scenarios & Objectives
+
+- Asteroids with procedural mesh and dynamic destruction.
 
 ## [0.1.0] - 2025-10-21
 
-### Added
+### Ships & Sections
 
-- Basic spaceship sections
-- Editor and simulation scenes
+- Basic spaceship sections.
+
+### Scenarios & Objectives
+
+- Editor and simulation scenes.
 
 [unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.6.0...HEAD
 [0.6.0]: https://github.com/alexjercan/nova-protocol/compare/v0.5.2...v0.6.0
