@@ -193,7 +193,7 @@ kind: Torpedo((
 
 ## A section in a mod
 
-The demo mod (`assets/mods/demo/mod.content.ron`) overlays the base
+The example mod (`assets/mods/example/example.content.ron`) overlays the base
 `reinforced_hull_section` - same id, so it REPLACES the base part everywhere
 (editor palette, ships) with more health and a renamed label:
 
@@ -201,8 +201,8 @@ The demo mod (`assets/mods/demo/mod.content.ron`) overlays the base
 Section((
     base: (
         id: "reinforced_hull_section",
-        name: "Reinforced Hull Section (Demo Mod)",
-        description: "Base hull, up-armored by the demo mod to show section overlay.",
+        name: "Reinforced Hull Section (Example Mod)",
+        description: "Base hull, up-armored by the example mod to show section overlay by id.",
         mass: 1.0,
         health: 400.0,
     ),

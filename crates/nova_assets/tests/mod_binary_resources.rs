@@ -1,9 +1,9 @@
 //! Mods ship their own binary resources (task 20260716-123544). Two proofs on a
 //! headless asset server reading the real workspace `assets/`:
 //!
-//! 1. DOGFOOD: enabling the shipped `variety` mod merges a scenario whose skybox
+//! 1. DOGFOOD: enabling the shipped `example` mod merges a scenario whose skybox
 //!    and asteroid texture are the mod's OWN files - its `self://` refs resolve
-//!    to `mods/variety/...` (the shipped folder), not to base `assets/`.
+//!    to `mods/example/...` (the shipped folder), not to base `assets/`.
 //! 2. GATE: a `self://` ref that names no declared `resources` member is
 //!    recorded as an Error content issue, so the runtime gate refuses it.
 
@@ -92,25 +92,25 @@ fn merge_with_enabled(enabled: &[&str]) -> App {
 }
 
 #[test]
-fn variety_mod_self_refs_resolve_against_its_own_folder() {
-    let app = merge_with_enabled(&["base", "variety"]);
+fn example_mod_self_refs_resolve_against_its_own_folder() {
+    let app = merge_with_enabled(&["base", "example"]);
     let scenarios = app.world().resource::<GameScenarios>();
     let scenario = scenarios
-        .get("variety_pack_showcase")
-        .expect("the variety scenario merged");
+        .get("example_arena")
+        .expect("the example scenario merged");
 
     // The skybox is a top-level AssetRef: it must point at the mod's own folder.
     assert_eq!(
         scenario.cubemap.path(),
-        Some("mods/variety/textures/nebula.png"),
-        "the scenario skybox self:// ref resolves against mods/variety",
+        Some("mods/example/textures/nebula.png"),
+        "the scenario skybox self:// ref resolves against mods/example",
     );
 
     // The asteroid texture is nested in a spawn action; assert on the serialized
     // tree so the deep AssetRef is covered without hand-walking the action enum.
     let json = serde_json::to_string(scenario).expect("scenario serializes");
     assert!(
-        json.contains("mods/variety/textures/rock.png"),
+        json.contains("mods/example/textures/rock.png"),
         "the nested asteroid texture self:// ref is rewritten too: {json}",
     );
     assert!(
@@ -122,16 +122,16 @@ fn variety_mod_self_refs_resolve_against_its_own_folder() {
     assert!(
         app.world()
             .resource::<ContentIssues>()
-            .errors("variety_pack_showcase")
+            .errors("example_arena")
             .is_empty(),
-        "the variety scenario has no content-gate errors",
+        "the example scenario has no content-gate errors",
     );
 
     // The rewritten skybox path must point at a real shipped file (asset root is
     // `../../assets` for these tests), and its `.meta` sidecar - the cube
     // reinterpret - must ship alongside it. Proves the dogfood art is actually
     // where the resolved refs point, without standing up an image loader.
-    let skybox = std::path::Path::new("../../assets/mods/variety/textures/nebula.png");
+    let skybox = std::path::Path::new("../../assets/mods/example/textures/nebula.png");
     assert!(
         skybox.exists(),
         "the shipped skybox file exists at the rewritten path"
@@ -141,7 +141,7 @@ fn variety_mod_self_refs_resolve_against_its_own_folder() {
         "the skybox's RowCount .meta sidecar ships next to it",
     );
     assert!(
-        std::path::Path::new("../../assets/mods/variety/textures/rock.png").exists(),
+        std::path::Path::new("../../assets/mods/example/textures/rock.png").exists(),
         "the shipped asteroid texture exists at the rewritten path",
     );
 }

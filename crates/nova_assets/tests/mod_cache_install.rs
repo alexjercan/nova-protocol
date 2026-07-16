@@ -113,7 +113,7 @@ fn app_with_mods_source() -> App {
 }
 
 /// Pump updates until `handle`'s recursive dependency load state is `Loaded`,
-/// panicking on failure or timeout (the demo_scenario rig idiom).
+/// panicking on failure or timeout (the example_scenario rig idiom).
 fn wait_recursive_loaded(
     app: &mut App,
     asset_server: &AssetServer,
@@ -136,7 +136,7 @@ fn wait_recursive_loaded(
 }
 
 /// A `GameAssets` with default raw handles (never resolved by the systems under
-/// test) and the given loaded catalog handle (the demo_scenario rig idiom).
+/// test) and the given loaded catalog handle (the example_scenario rig idiom).
 fn game_assets_with_catalog(catalog: Handle<InstalledCatalog>) -> GameAssets {
     GameAssets {
         cubemap: Handle::default(),
@@ -328,16 +328,16 @@ fn mod_catalog_lists_the_downloaded_mod_with_its_bundle_meta() {
         let mods = &app.world().resource::<ModCatalog>().0;
         assert_eq!(
             mods.len(),
-            4,
-            "base + demo + variety (shipped) + fixture (downloaded)"
+            3,
+            "base + example (shipped) + fixture (downloaded)"
         );
         assert_eq!(
-            mods[3].id, "fixture-slalom",
+            mods[2].id, "fixture-slalom",
             "downloaded rows append after shipped"
         );
-        assert!(!mods[3].base, "a downloaded mod is never the base entry");
+        assert!(!mods[2].base, "a downloaded mod is never the base entry");
         assert_eq!(
-            mods[3].meta.name, "fixture-slalom",
+            mods[2].meta.name, "fixture-slalom",
             "an in-flight bundle degrades to the decl-only row (name = id)"
         );
     }
@@ -358,16 +358,16 @@ fn mod_catalog_lists_the_downloaded_mod_with_its_bundle_meta() {
         .run_system_once(nova_assets::build_mod_catalog)
         .expect("rebuild mod catalog");
     let mods = &app.world().resource::<ModCatalog>().0;
-    assert_eq!(mods.len(), 4);
-    assert_eq!(mods[3].id, "fixture-slalom");
+    assert_eq!(mods.len(), 3);
+    assert_eq!(mods[2].id, "fixture-slalom");
     assert_eq!(
-        mods[3].meta.name, "Fixture Slalom",
+        mods[2].meta.name, "Fixture Slalom",
         "the display name comes from the cached bundle's meta"
     );
-    assert_eq!(mods[3].meta.version, "1.0.0");
-    assert_eq!(mods[3].meta.author, "tests");
+    assert_eq!(mods[2].meta.version, "1.0.0");
+    assert_eq!(mods[2].meta.author, "tests");
     assert_eq!(
-        mods[3].meta.description, "Synthetic install fixture.",
+        mods[2].meta.description, "Synthetic install fixture.",
         "the description comes from the cached bundle's meta"
     );
 }
@@ -664,18 +664,18 @@ fn escaping_bundle_manifest_cannot_read_outside_the_mods_root() {
 /// entry is skipped with a warning (the portal generator's no-shadowing rule,
 /// re-enforced at the consumers because the index is downloaded input) - one
 /// toggle must never drive two bundles or two rows. The downloaded copy here
-/// is the fixture content installed under the shipped id "demo", so the
+/// is the fixture content installed under the shipped id "example", so the
 /// assertions can tell the two bundles apart by their scenarios and meta.
 #[test]
 fn downloaded_id_shadowing_a_shipped_mod_is_skipped() {
     let _guard = cache_root_guard();
     mod_cache::install_local(
-        "demo",
+        "example",
         "9.9.9",
         "fixture-slalom.bundle.ron",
         &fixture_files(),
     )
-    .expect("install a downloaded mod under the shipped 'demo' id");
+    .expect("install a downloaded mod under the shipped 'example' id");
 
     let mut app = app_with_mods_source();
     app.world_mut()
@@ -703,36 +703,36 @@ fn downloaded_id_shadowing_a_shipped_mod_is_skipped() {
     app.world_mut()
         .insert_resource(game_assets_with_catalog(catalog));
     app.world_mut().insert_resource(EnabledMods(
-        ["base".to_string(), "demo".to_string()]
+        ["base".to_string(), "example".to_string()]
             .into_iter()
             .collect(),
     ));
 
-    // The rows: no third entry, and "demo" keeps its SHIPPED meta.
+    // The rows: no third entry, and "example" keeps its SHIPPED meta.
     app.world_mut()
         .run_system_once(nova_assets::build_mod_catalog)
         .expect("build mod catalog");
     let mods = &app.world().resource::<ModCatalog>().0;
     assert_eq!(
         mods.len(),
-        3,
-        "the shadowing downloaded row is hidden; base + demo + variety remain"
+        2,
+        "the shadowing downloaded row is hidden; base + example remain"
     );
-    assert_eq!(mods[1].id, "demo");
+    assert_eq!(mods[1].id, "example");
     assert_eq!(
-        mods[1].meta.name, "Demo Mod",
+        mods[1].meta.name, "Example Mod",
         "the shipped meta wins - the downloaded copy's 'Fixture Slalom' meta must not surface"
     );
 
-    // The merge: the shipped demo's content registers, the downloaded copy's
+    // The merge: the shipped example's content registers, the downloaded copy's
     // does not - one enabled id, one bundle.
     app.world_mut()
         .run_system_once(nova_assets::register_bundles_for_test)
         .expect("register bundles");
     let scenarios = app.world().resource::<GameScenarios>();
     assert!(
-        scenarios.contains_key("demo_mod_arena"),
-        "the SHIPPED demo bundle merges as usual"
+        scenarios.contains_key("example_arena"),
+        "the SHIPPED example bundle merges as usual"
     );
     assert!(
         !scenarios.contains_key("fixture_slalom_run"),

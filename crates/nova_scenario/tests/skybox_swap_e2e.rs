@@ -13,7 +13,7 @@
 //!   -> real asset load -> apply_pending_skybox_swaps installs SkyboxConfig
 //!   -> SkyboxPlugin observer -> the scenario camera's `Skybox.image` swaps.
 //!
-//! Modeled on `nova_assets/tests/demo_scenario.rs` (real headless asset IO). Asset IO
+//! Modeled on `nova_assets/tests/example_scenario.rs` (real headless asset IO). Asset IO
 //! reads the real workspace `assets/` (tests run with the crate root as cwd).
 
 use std::time::{Duration, Instant};

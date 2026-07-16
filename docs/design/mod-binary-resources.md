@@ -114,10 +114,12 @@ name a declared `resources` member is rejected wherever the data is checked:
 
 ## Dogfood
 
-A shipped `variety` mod (`assets/mods/variety/`) carries placeholder binaries -
+The shipped `example` mod (`assets/mods/example/`) carries placeholder binaries -
 a `nebula.png` skybox (+ `.meta`) and a `rock.png` asteroid texture - referenced
 via `self://`, proving a scenario renders from mod-owned assets, not base
-`assets/`. The real art replaces the placeholders under task 20260716-205214.
+`assets/`. (The dogfood originally shipped as a standalone `variety` mod; it was
+folded into the single `example` tutorial mod under task 20260716-215513.) The
+real art replaces the placeholders under task 20260716-205214.
 
 ## Implementation notes & reflection
 

@@ -1,7 +1,7 @@
 //! End-to-end proof of the catalog-driven modding pipeline on a headless asset
 //! server (task 20260714-174120, on 134119/134127). The real `mods.catalog.ron`
 //! loads through `nova_modding`'s `CatalogLoader`, which loads EVERY installed mod's
-//! `*.bundle.ron` (base + demo) and, through each, its
+//! `*.bundle.ron` (base + example) and, through each, its
 //! `*.content.ron` files. Waiting
 //! for the catalog's RECURSIVE load state waits for that whole tree. Then the real
 //! `register_bundles` system merges only the ENABLED subset (`EnabledMods`) into
@@ -85,8 +85,8 @@ fn game_assets_with_catalog(catalog: Handle<InstalledCatalog>) -> GameAssets {
 }
 
 /// An app whose `GameAssets.catalog` points at a SYNTHETIC catalog: the real
-/// base + demo entries plus a `hidden: true` declaration ("hidden-fixture")
-/// whose bundle handle REUSES the loaded demo bundle. No shipped mod is hidden
+/// base + example entries plus a `hidden: true` declaration ("hidden-fixture")
+/// whose bundle handle REUSES the loaded example bundle. No shipped mod is hidden
 /// anymore (the screenshot-reel was unshipped, task 20260715-151551), so the
 /// hidden-flag semantics are pinned against this in-memory catalog - real
 /// loaders and real content still back every handle, no fixture files.
@@ -104,22 +104,22 @@ fn app_with_hidden_fixture() -> App {
     let synthetic = {
         let catalogs = app.world().resource::<Assets<InstalledCatalog>>();
         let real = catalogs.get(&catalog).expect("catalog loaded");
-        let demo_bundle = real
+        let example_bundle = real
             .entries
             .iter()
-            .find(|e| e.decl.id == "demo")
-            .expect("demo entry present")
+            .find(|e| e.decl.id == "example")
+            .expect("example entry present")
             .bundle
             .clone();
         let mut entries = real.entries.clone();
         entries.push(CatalogEntry {
             decl: ModEntry {
                 id: "hidden-fixture".to_string(),
-                bundle: "mods/demo/demo.bundle.ron".to_string(),
+                bundle: "mods/example/example.bundle.ron".to_string(),
                 base: false,
                 hidden: true,
             },
-            bundle: demo_bundle,
+            bundle: example_bundle,
         });
         InstalledCatalog { entries }
     };
@@ -184,36 +184,26 @@ fn mod_catalog_lists_installed_mods_metadata() {
         .expect("build mod catalog");
 
     let mods = &app.world().resource::<ModCatalog>().0;
-    assert_eq!(
-        mods.len(),
-        3,
-        "base + demo + variety are the installed catalog"
-    );
+    assert_eq!(mods.len(), 2, "base + example are the installed catalog");
     assert_eq!(mods[0].id, "base", "base is first (load order)");
     assert!(mods[0].base, "base is flagged");
     assert_eq!(
         mods[0].meta.name, "Base Game",
         "base's display name comes from base.bundle.ron's meta"
     );
-    assert_eq!(mods[1].id, "demo");
+    assert_eq!(mods[1].id, "example");
     assert!(!mods[1].base);
     assert_eq!(
-        mods[1].meta.name, "Demo Mod",
-        "demo's display name comes from demo.bundle.ron's meta"
+        mods[1].meta.name, "Example Mod",
+        "example's display name comes from example.bundle.ron's meta"
     );
     assert_eq!(
         mods[1].meta.description,
-        "Example mod: up-armors a hull section and adds an arena scenario.",
-        "demo's description comes from its bundle meta (the catalog has none)"
+        "The copy-me tutorial mod: a section overlay, a new section, a playable arena, mod-shipped art, and a menu backdrop - a little of everything.",
+        "example's description comes from its bundle meta (the catalog has none)"
     );
     assert_eq!(mods[1].meta.version, "1.0.0", "bundle meta version decodes");
     assert_eq!(mods[1].meta.author, "Nova Protocol");
-    assert_eq!(mods[2].id, "variety");
-    assert!(!mods[2].base);
-    assert_eq!(
-        mods[2].meta.name, "Variety Pack",
-        "variety's display name comes from variety.bundle.ron's meta"
-    );
 }
 
 /// `build_mod_catalog` FILTERS `hidden: true` entries out of the player-facing
@@ -230,8 +220,8 @@ fn hidden_entries_are_filtered_from_mod_catalog() {
     let mods = &app.world().resource::<ModCatalog>().0;
     assert_eq!(
         mods.len(),
-        3,
-        "only base + demo + variety are player-visible (the hidden fixture is filtered)"
+        2,
+        "only base + example are player-visible (the hidden fixture is filtered)"
     );
     assert!(
         !mods.iter().any(|m| m.id == "hidden-fixture"),
@@ -265,7 +255,7 @@ fn mod_info_falls_back_to_id_when_meta_is_missing() {
 /// Hidden is NOT disabled: a `hidden: true` catalog entry stays installed and merges
 /// through the production `register_bundles` path when its id is enabled by code
 /// (the dev-tooling contract the flag preserves). The hidden fixture's bundle IS
-/// the demo bundle, so its content registering proves the merge.
+/// the example bundle, so its content registering proves the merge.
 #[test]
 fn hidden_mod_still_merges_when_enabled_by_id() {
     let mut app = app_with_hidden_fixture();
@@ -277,7 +267,7 @@ fn hidden_mod_still_merges_when_enabled_by_id() {
         .expect("register bundles");
     let scenarios = app.world().resource::<GameScenarios>();
     assert!(
-        scenarios.contains_key("demo_mod_arena"),
+        scenarios.contains_key("example_arena"),
         "the hidden entry's bundle content must register when its id is enabled"
     );
 }
@@ -313,17 +303,17 @@ fn seed_enabled_mods_unions_base_over_any_restored_set() {
     // No restored prefs -> base-only default.
     let from_empty = seed_from(&[]);
     assert!(from_empty.contains("base"), "base is enabled by default");
-    assert!(!from_empty.contains("demo"), "demo is off by default");
+    assert!(!from_empty.contains("example"), "example is off by default");
 
-    // A restored set with a non-base mod (and NO base) -> keep the demo choice AND
+    // A restored set with a non-base mod (and NO base) -> keep the example choice AND
     // force base on (so base is never left disabled, even from a base-less set).
-    let from_demo = seed_from(&["demo"]);
+    let from_example = seed_from(&["example"]);
     assert!(
-        from_demo.contains("demo"),
-        "the restored demo choice is preserved"
+        from_example.contains("example"),
+        "the restored example choice is preserved"
     );
     assert!(
-        from_demo.contains("base"),
+        from_example.contains("base"),
         "base is forced on regardless of the restored set"
     );
 }
@@ -337,7 +327,7 @@ fn seed_enabled_mods_unions_base_over_any_restored_set() {
 fn seed_enabled_mods_strips_restored_hidden_ids() {
     let mut app = app_with_hidden_fixture();
     app.world_mut().insert_resource(EnabledMods(
-        ["demo".to_string(), "hidden-fixture".to_string()]
+        ["example".to_string(), "hidden-fixture".to_string()]
             .into_iter()
             .collect(),
     ));
@@ -349,13 +339,16 @@ fn seed_enabled_mods_strips_restored_hidden_ids() {
         !seeded.contains("hidden-fixture"),
         "a restored hidden id must be stripped (session-only enablement)"
     );
-    assert!(seeded.contains("demo"), "visible restored choices survive");
+    assert!(
+        seeded.contains("example"),
+        "visible restored choices survive"
+    );
     assert!(seeded.contains("base"), "base is still forced on");
 }
 
 #[test]
 fn catalog_loads_and_base_only_merges_by_default() {
-    // Only base enabled (the startup default) -> base content merges, the demo mod
+    // Only base enabled (the startup default) -> base content merges, the example mod
     // is loaded-but-not-merged.
     let (sections, scenarios) = merge_with_enabled(&["base"]);
 
@@ -363,7 +356,7 @@ fn catalog_loads_and_base_only_merges_by_default() {
         sections.get_section("basic_controller_section").is_some(),
         "the base section catalog loaded into GameSections"
     );
-    // Base hull is the base's 200, NOT the demo mod's 400 override (demo disabled).
+    // Base hull is the base's 200, NOT the example mod's 400 override (example disabled).
     assert_eq!(
         sections
             .get_section("reinforced_hull_section")
@@ -371,7 +364,7 @@ fn catalog_loads_and_base_only_merges_by_default() {
             .base
             .health,
         200.0,
-        "with demo disabled, the base section is un-overridden"
+        "with example disabled, the base section is un-overridden"
     );
 
     for built_in in [
@@ -389,32 +382,32 @@ fn catalog_loads_and_base_only_merges_by_default() {
         );
     }
     assert!(
-        !scenarios.contains_key("demo_mod_arena"),
-        "the demo mod's scenario must NOT be registered while it is disabled"
+        !scenarios.contains_key("example_arena"),
+        "the example mod's scenario must NOT be registered while it is disabled"
     );
 }
 
 #[test]
-fn enabling_demo_overrides_a_section_and_adds_a_scenario() {
-    // base + demo enabled -> the demo mod overlays the base by id and adds its scenario.
-    let (sections, scenarios) = merge_with_enabled(&["base", "demo"]);
+fn enabling_example_overrides_a_section_and_adds_a_scenario() {
+    // base + example enabled -> the example mod overlays the base by id and adds its scenario.
+    let (sections, scenarios) = merge_with_enabled(&["base", "example"]);
 
     let hull = sections
         .get_section("reinforced_hull_section")
         .expect("the overridden base section is present");
     assert_eq!(
         hull.base.health, 400.0,
-        "the enabled demo mod must overlay the base section"
+        "the enabled example mod must overlay the base section"
     );
     assert!(
-        hull.base.name.contains("Demo Mod"),
+        hull.base.name.contains("Example Mod"),
         "the mod's renamed label won: {}",
         hull.base.name
     );
 
     assert!(
-        scenarios.contains_key("demo_mod_arena"),
-        "the enabled demo mod's scenario must be registered"
+        scenarios.contains_key("example_arena"),
+        "the enabled example mod's scenario must be registered"
     );
     assert!(
         scenarios.contains_key("shakedown_run"),
@@ -453,21 +446,21 @@ fn toggling_enabled_mods_remerges_live() {
     assert!(
         !app.world()
             .resource::<GameScenarios>()
-            .contains_key("demo_mod_arena"),
-        "demo disabled -> its scenario absent"
+            .contains_key("example_arena"),
+        "example disabled -> its scenario absent"
     );
 
-    // Enable demo -> the change triggers a live re-merge on the next frame.
+    // Enable example -> the change triggers a live re-merge on the next frame.
     app.world_mut()
         .resource_mut::<EnabledMods>()
         .0
-        .insert("demo".to_string());
+        .insert("example".to_string());
     app.update();
     assert!(
         app.world()
             .resource::<GameScenarios>()
-            .contains_key("demo_mod_arena"),
-        "enabling demo must re-merge live and register its scenario"
+            .contains_key("example_arena"),
+        "enabling example must re-merge live and register its scenario"
     );
     assert_eq!(
         app.world()
@@ -477,7 +470,7 @@ fn toggling_enabled_mods_remerges_live() {
             .base
             .health,
         400.0,
-        "the re-merge applied the demo mod's section override"
+        "the re-merge applied the example mod's section override"
     );
 }
 
@@ -501,15 +494,15 @@ fn catalog_untyped_load_resolves_the_loader() {
 }
 
 /// Lower-level proof of the overlay itself (task 20260714-134127): load the base and
-/// demo bundles directly, flatten to `Content`, and run the pure `merge_bundles` with
+/// example bundles directly, flatten to `Content`, and run the pure `merge_bundles` with
 /// the mod after the base. Complements the system-level tests above by pinning the
 /// merge core independent of the catalog/EnabledMods plumbing.
 #[test]
-fn merge_bundles_overlays_demo_over_base() {
+fn merge_bundles_overlays_example_over_base() {
     let mut app = headless_app();
     let asset_server = app.world().resource::<AssetServer>().clone();
     let base: Handle<BundleAsset> = asset_server.load("base/base.bundle.ron");
-    let demo: Handle<BundleAsset> = asset_server.load("mods/demo/demo.bundle.ron");
+    let example: Handle<BundleAsset> = asset_server.load("mods/example/example.bundle.ron");
     wait_recursive_loaded(
         &mut app,
         &asset_server,
@@ -519,8 +512,8 @@ fn merge_bundles_overlays_demo_over_base() {
     wait_recursive_loaded(
         &mut app,
         &asset_server,
-        demo.id().untyped(),
-        "the demo bundle",
+        example.id().untyped(),
+        "the example bundle",
     );
 
     let bundles = app.world().resource::<Assets<BundleAsset>>();
@@ -535,9 +528,9 @@ fn merge_bundles_overlays_demo_over_base() {
             .collect()
     };
     let base_items = flatten(&base);
-    let demo_items = flatten(&demo);
+    let example_items = flatten(&example);
 
-    let outcome = nova_assets::merge_bundles([base_items.iter(), demo_items.iter()]);
+    let outcome = nova_assets::merge_bundles([base_items.iter(), example_items.iter()]);
     assert!(
         outcome.conflicts.is_empty(),
         "clean data has no intra-bundle conflicts: {:?}",
@@ -553,7 +546,7 @@ fn merge_bundles_overlays_demo_over_base() {
         "the mod's section overlays the base"
     );
     assert!(
-        outcome.scenarios.contains_key("demo_mod_arena"),
+        outcome.scenarios.contains_key("example_arena"),
         "the mod's new scenario is added"
     );
     assert!(

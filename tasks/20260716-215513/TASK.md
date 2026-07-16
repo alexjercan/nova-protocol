@@ -1,8 +1,36 @@
 # Consolidate demo + variety into ONE self-contained 'example' tutorial mod (a little of everything)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 47
 - TAGS: v0.7.0,modding,example,content,docs
+
+## Outcome (2026-07-16)
+
+Shipped `assets/mods/example/` as the single copy-me tutorial mod (bundle +
+content + README + moved skybox/.meta + rock texture). It demonstrates: a
+Section overlay of `reinforced_hull_section` (health 400, renamed) AND a new
+`example_plated_hull_section`; a playable `example_arena` (base prototypes +
+both mod sections, a range beacon, two self://-textured targets, an objective,
+a `destroyed > 1` win gate, two StoryMessage beats, Victory + Defeat Outcomes);
+`self://` skybox + `.meta` + rock texture declared in `resources`; and a
+`menu_backdrop`-flagged `example_menu` scene. Removed `assets/mods/{demo,
+variety}/`, repointed `mods.catalog.ron` (installed count 3 -> 2).
+
+Swept every live reference: renamed `tests/demo_scenario.rs` ->
+`example_scenario.rs` (counts 3 -> 2, ids/meta repointed), updated
+`mod_cache_install.rs` (4 -> 3, downloaded-row index shift) and
+`mod_binary_resources.rs` (example_arena self:// paths), `mod_refs.rs`
+fixtures, a `nova_assets` doc comment; and the four wiki docs
+(guide-make-a-mod, guide-author-section, modding-ron, modding), the
+binary-resources design doc, the gauntlet content comment, and CHANGELOG.
+
+Review APPROVEd round 1 (independent out-of-context pass). Two self-review
+catches: menu orbiter pointed at a stale `menu_planetoid` id (fixed); a stale
+"Variety Demo" fixture label (fixed). Left generic `nova_mod_format`/`nova_menu`
+decoder test doubles (invented authors, a fabricated `reel` mod) untouched -
+they load nothing removed. Verified: content_lint clean, workspace check
+--all-targets, fmt, and nova_assets example_scenario 14 / mod_binary_resources 2
+/ mod_cache_install 7 / mod_refs 7 all green.
 
 
 ## Goal (user direction 2026-07-16)

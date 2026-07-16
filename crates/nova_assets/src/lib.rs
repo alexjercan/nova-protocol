@@ -116,7 +116,7 @@ pub mod scenario_generation {
     }
 
     /// The deterministic pretty-printer for the built-in content RON. Matches
-    /// the hand-authored mod content style (e.g. `assets/mods/demo/mod.content.ron`):
+    /// the hand-authored mod content style (e.g. `assets/mods/example/example.content.ron`):
     /// struct names omitted, indented, so the data files stay diff-friendly and
     /// reviewable.
     pub fn pretty_config() -> ron::ser::PrettyConfig {

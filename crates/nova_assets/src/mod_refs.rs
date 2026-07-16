@@ -155,8 +155,8 @@ mod tests {
     /// the "leave base refs alone" rule across a nested tree.
     fn scenario_with_refs() -> ScenarioConfig {
         let ron = r#"(
-            id: "variety_demo",
-            name: "Variety Demo",
+            id: "example_scenario",
+            name: "Example Demo",
             description: "",
             cubemap: "self://textures/nebula.png",
             events: [
@@ -190,13 +190,13 @@ mod tests {
     #[test]
     fn rewrites_self_refs_against_the_bundle_base() {
         let content = Content::Scenario(scenario_with_refs());
-        let rewritten = rewrite_self_refs(&content, "mods/variety");
+        let rewritten = rewrite_self_refs(&content, "mods/example");
         let Content::Scenario(cfg) = rewritten else {
             panic!("still a scenario");
         };
         assert_eq!(
             cfg.cubemap.path(),
-            Some("mods/variety/textures/nebula.png"),
+            Some("mods/example/textures/nebula.png"),
             "the skybox self:// ref resolves against the mod folder"
         );
     }
@@ -204,13 +204,13 @@ mod tests {
     #[test]
     fn downloaded_base_keeps_the_mods_scheme() {
         let content = Content::Scenario(scenario_with_refs());
-        let rewritten = rewrite_self_refs(&content, "mods://variety");
+        let rewritten = rewrite_self_refs(&content, "mods://example");
         let Content::Scenario(cfg) = rewritten else {
             panic!("still a scenario");
         };
         assert_eq!(
             cfg.cubemap.path(),
-            Some("mods://variety/textures/nebula.png"),
+            Some("mods://example/textures/nebula.png"),
             "a downloaded bundle's self:// ref keeps the mods:// source"
         );
     }
@@ -221,7 +221,7 @@ mod tests {
         let mut cfg = scenario_with_refs();
         cfg.cubemap = AssetRef::from("textures/cubemap.png".to_string());
         let content = Content::Scenario(cfg);
-        let rewritten = rewrite_self_refs(&content, "mods/variety");
+        let rewritten = rewrite_self_refs(&content, "mods/example");
         let Content::Scenario(cfg) = rewritten else {
             panic!("still a scenario");
         };
@@ -243,7 +243,7 @@ mod tests {
             "precondition: a handle, not a path"
         );
         let content = Content::Scenario(cfg);
-        let rewritten = rewrite_self_refs(&content, "mods/variety");
+        let rewritten = rewrite_self_refs(&content, "mods/example");
         let Content::Scenario(cfg) = rewritten else {
             panic!("still a scenario");
         };
@@ -293,10 +293,10 @@ mod tests {
             Vec::<String>::new(),
             "the bare file path satisfies the label-bearing ref"
         );
-        let rewritten = rewrite_self_refs(&content, "mods/variety");
+        let rewritten = rewrite_self_refs(&content, "mods/example");
         let ron_out = ron::to_string(&rewritten).expect("re-serializes");
         assert!(
-            ron_out.contains("mods/variety/models/hull.glb#Scene0"),
+            ron_out.contains("mods/example/models/hull.glb#Scene0"),
             "the rewrite keeps the #Scene0 label: {ron_out}"
         );
     }

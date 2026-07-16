@@ -9,7 +9,8 @@
 // Data-driven RON (no engine changes); `base` is the only dependency - it owns
 // the section prototypes the racer is built from and the shared textures. The
 // racer's crash tolerance is base's reinforced_hull_section (200 health); it is
-// tuned by playtest, NOT by the demo mod's hull override that v1.0.0 rode.
+// tuned by playtest against that base value, NOT by any mod's overlay of that
+// section (an enabled overlay could buff it, but gauntlet depends only on base).
 //
 // INVARIANT 1 (gate areas must not overlap): a `gate` counter (1..=7) gates
 // each area's OnEnter, so the gates must be threaded IN ORDER; advancing `gate`

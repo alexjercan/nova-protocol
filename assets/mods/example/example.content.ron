@@ -1,0 +1,397 @@
+// The example mod's content - a guided tour of what a mod can do, in one file.
+// A `*.content.ron` is a `[Content]` list; each item is externally tagged by
+// kind (`Section((..))` / `Scenario((..))`). One file may freely mix them.
+//
+// This bundle loads AFTER base (base first, mods in catalog order), so overlay
+// is last-wins by id: an item whose id already exists REPLACES it; a fresh id
+// ADDS alongside. This file does four things, in order:
+//
+//   1. OVERRIDE a base section  - `reinforced_hull_section` (same id -> replace)
+//   2. ADD a new section        - `example_plated_hull_section` (new id -> add)
+//   3. ADD a playable scenario  - `example_arena` (mod-shipped skybox + rocks,
+//                                  a StoryMessage comms beat, an objective, a
+//                                  win check, and Victory/Defeat Outcomes)
+//   4. ADD a menu backdrop      - `example_menu` (a menu_backdrop scene: mods
+//                                  can ship main-menu ambience)
+//
+// Everything here is pure data - no engine changes. For the field-by-field
+// grammar behind it see the wiki: "Author a section", "Author a scenario",
+// "Make and publish a mod", and "Modding data format (RON)".
+[
+    // -- 1. SECTION OVERLAY -------------------------------------------------
+    // Same id as the base `reinforced_hull_section`, so this REPLACES the base
+    // one everywhere it is used (the editor palette, every ship that references
+    // the id) - last-wins overlay. Here we up-armor it and rename the label so
+    // the override is visible. This is how a mod rebalances or re-skins base
+    // content without touching base files.
+    Section((
+        base: (
+            id: "reinforced_hull_section",
+            name: "Reinforced Hull Section (Example Mod)",
+            description: "Base hull, up-armored by the example mod to show section overlay by id.",
+            mass: 1.0,
+            health: 400.0,
+        ),
+        kind: Hull((
+            render_mesh: Some("gltf/hull-01.glb#Scene0"),
+        )),
+    )),
+    // -- 2. NEW SECTION -----------------------------------------------------
+    // A fresh id, so this is ADDED alongside the base sections - it shows up in
+    // the editor palette and can be bolted onto any ship. The arena ship below
+    // uses it, so you can see it in play. `kind: Hull` reuses the base hull
+    // mesh; a real mod could point `render_mesh` at its own `self://` model.
+    Section((
+        base: (
+            id: "example_plated_hull_section",
+            name: "Plated Hull Section (Example Mod)",
+            description: "A brand-new section the example mod adds: heavier plating than the base hull.",
+            mass: 1.2,
+            health: 500.0,
+        ),
+        kind: Hull((
+            render_mesh: Some("gltf/hull-01.glb#Scene0"),
+        )),
+    )),
+    // -- 3. PLAYABLE SCENARIO ----------------------------------------------
+    // A small, self-contained shooting gallery. Its LOOK is owned by this mod:
+    // the skybox is `self://textures/nebula.png`, shipped in this folder and
+    // declared in `resources`. `self://` resolves to this mod's own folder
+    // whether shipped (`mods/example/...`) or downloaded (`mods://example/...`),
+    // so you never hard-code your id. (A non-`self://` path like
+    // "textures/cubemap.png" would resolve against the BASE game instead.)
+    Scenario((
+        id: "example_arena",
+        name: "Example Arena",
+        description: "The example mod's playable scenario: destroy two drifting rocks under a mod-shipped skybox.",
+        cubemap: "self://textures/nebula.png",
+        events: [
+            (
+                name: OnStart,
+                filters: [],
+                actions: [
+                    // DebugMessage prints to the log/console - handy while
+                    // authoring to confirm your scenario actually loaded.
+                    DebugMessage((
+                        message: "Example arena loaded from the example mod's overlaid bundle.",
+                    )),
+                    // StoryMessage appends a line to the comms panel (speaker +
+                    // text). The story log is scenario-scoped: it clears at
+                    // teardown, so a line never leaks into the next scenario.
+                    StoryMessage((
+                        speaker: "Range Control",
+                        text: "Welcome to the range. Two derelicts on the board - clear them at your leisure.",
+                    )),
+                    // The player ship, assembled from base prototypes PLUS this
+                    // mod's own sections: `reinforced_hull_section` is the one we
+                    // OVERRODE above, and `example_plated_hull_section` is the
+                    // NEW section we added - both ride on this hull.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player_spaceship",
+                            name: "Player Spaceship",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: Player((
+                                input_mapping: {
+                                    "turret": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                },
+                                speed_cap: Some(25.0),
+                                infinite_ammo: true,
+                            )),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (0.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (0.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    // the OVERRIDDEN base section (id 1 above)
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "hull_rear",
+                                    position: (0.0, 0.0, 2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    // the NEW section this mod adds (id 2 above)
+                                    source: Prototype("example_plated_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (0.0, 0.0, 3.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                                (
+                                    id: "turret",
+                                    position: (0.0, 0.0, -1.0),
+                                    rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+                                    source: Prototype("better_turret_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    // A lit beacon centrepiece the rocks sit in front of. Purely
+                    // visual here - nothing consumes an OnEnter on it, so it
+                    // carries no area.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "example_beacon",
+                            name: "Range Beacon",
+                            position: (0.0, 0.0, -60.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "RANGE",
+                            radius: 2.0,
+                            color: Srgba((
+                                red: 0.4,
+                                green: 0.8,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            area_radius: None,
+                            lock_signature: None,
+                        )),
+                    )),
+                    // Two destructible targets, textured from THIS mod's own PNG
+                    // (`self://textures/rock.png`), not a base texture.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "example_target_1",
+                            name: "Derelict 1",
+                            position: (-14.0, 4.0, -45.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 2.5,
+                            texture: "self://textures/rock.png",
+                            health: 50.0,
+                            surface_gravity: None,
+                            invulnerable: false,
+                            lock_signature: None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "example_target_2",
+                            name: "Derelict 2",
+                            position: (15.0, -5.0, -60.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 3.0,
+                            texture: "self://textures/rock.png",
+                            health: 50.0,
+                            surface_gravity: None,
+                            invulnerable: false,
+                            lock_signature: None,
+                        )),
+                    )),
+                    // Win state: `destroyed` counts kills (0..2); `arena_done`
+                    // makes the OnUpdate win check fire exactly once.
+                    VariableSet((
+                        key: "destroyed",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "arena_done",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    Objective((
+                        id: "clear_range",
+                        message: "Destroy the two derelict rocks. Aim with the mouse, [Left Mouse] fires.",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "example_target_1",
+                        label: "DERELICT",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "example_target_2",
+                        label: "DERELICT",
+                    )),
+                ],
+            ),
+            // One OnDestroyed per target: each kill bumps `destroyed` and drops
+            // that target's marker. The filter matches the target's id - the id
+            // the integrity bridge fires OnDestroyed under.
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("example_target_1"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "destroyed",
+                        expression: Add(
+                            Factor(Name("destroyed")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "example_target_1",
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("example_target_2"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "destroyed",
+                        expression: Add(
+                            Factor(Name("destroyed")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "example_target_2",
+                    )),
+                ],
+            ),
+            // The win, checked every frame but gated to fire once. `> 1` (not
+            // `== 2`): if a target ever fired OnDestroyed twice the counter
+            // would overshoot and an `== 2` gate would be skipped forever
+            // (an uncompletable arena). OnUpdate, not the last OnDestroyed, so
+            // it never depends on handler order within one destroy event.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((GreaterThan(
+                        Term(Factor(Name("destroyed"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("arena_done"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "arena_done",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "clear_range",
+                    )),
+                    StoryMessage((
+                        speaker: "Range Control",
+                        text: "Board's clear. Nice shooting - range is yours.",
+                    )),
+                    // Outcome ends the run with a result banner. Victory here;
+                    // the player-destroyed handler below ends in Defeat.
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("Range cleared - both derelicts are scrap."),
+                    )),
+                ],
+            ),
+            // Lose condition: if the player's ship is destroyed, end in Defeat.
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Your ship broke apart on the range."),
+                    )),
+                ],
+            ),
+        ],
+    )),
+    // -- 4. MENU BACKDROP ---------------------------------------------------
+    // A scenario flagged `menu_backdrop: true` can drive the main-menu ambience:
+    // mods can ship their own menu scene, not just playable levels. `hidden:
+    // true` keeps it out of the player-facing Scenarios picker (it is menu
+    // dressing, not a level you launch). It renders under this mod's own skybox
+    // and uses this mod's own rock texture, all via `self://`.
+    Scenario((
+        id: "example_menu",
+        name: "Example Menu Backdrop",
+        description: "A menu-ambience scene shipped by the example mod, under its own skybox.",
+        cubemap: "self://textures/nebula.png",
+        hidden: true,
+        menu_backdrop: true,
+        events: [
+            (
+                name: OnStart,
+                filters: [],
+                actions: [
+                    // A slow, invulnerable planetoid to anchor the view, plus an
+                    // AI ship set to orbit it - calm motion, nothing to fight.
+                    // The well is id `menu_planetoid`: the menu's cinematic
+                    // camera frames on exactly that id (any other id makes the
+                    // menu fall back to the scenario's own camera pose).
+                    SpawnScenarioObject((
+                        base: (
+                            id: "menu_planetoid",
+                            name: "Planetoid",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 18.0,
+                            texture: "self://textures/rock.png",
+                            health: 2000.0,
+                            surface_gravity: Some(6.0),
+                            invulnerable: true,
+                            lock_signature: None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "example_menu_orbiter",
+                            name: "Orbiter",
+                            position: (130.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: AI((
+                                orbit: Some("menu_planetoid"),
+                            )),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (0.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (0.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (0.0, 0.0, 2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                ],
+            ),
+        ],
+    )),
+]

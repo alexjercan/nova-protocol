@@ -111,7 +111,7 @@ fn pump_until<T>(app: &mut App, what: &str, mut f: impl FnMut(&mut App) -> Optio
 }
 
 /// Pump updates until `handle`'s recursive dependency load state is `Loaded`,
-/// panicking on failure or timeout (the demo_scenario rig idiom).
+/// panicking on failure or timeout (the example_scenario rig idiom).
 fn wait_recursive_loaded(
     app: &mut App,
     asset_server: &AssetServer,
@@ -132,7 +132,7 @@ fn wait_recursive_loaded(
 }
 
 /// A `GameAssets` with default raw handles (never resolved by the systems
-/// under test) and the given loaded catalog handle (the demo_scenario rig
+/// under test) and the given loaded catalog handle (the example_scenario rig
 /// idiom).
 fn game_assets_with_catalog(catalog: Handle<InstalledCatalog>) -> GameAssets {
     GameAssets {

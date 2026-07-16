@@ -15,11 +15,7 @@
         base: true,
     ),
     (
-        id: "demo",
-        bundle: "mods/demo/demo.bundle.ron",
-    ),
-    (
-        id: "variety",
-        bundle: "mods/variety/variety.bundle.ron",
+        id: "example",
+        bundle: "mods/example/example.bundle.ron",
     ),
 ])

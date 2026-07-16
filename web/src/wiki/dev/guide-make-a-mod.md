@@ -4,15 +4,17 @@ Task-oriented walkthrough: build a mod, test it locally, and publish it to the
 static mod portal. For the data-model reference behind these steps, see
 [Modding data format (RON)](../modding-ron/) and [Mod portal](../mod-portal/).
 
-A mod is the same folder-bundle shape as the base game. The shipped demo mod
-(`assets/mods/demo/`) is the copy-me example; the first portal mod
+A mod is the same folder-bundle shape as the base game. The shipped example mod
+(`assets/mods/example/`) is the copy-me example - one self-contained tutorial mod
+that does a little of everything (a section overlay, a new section, a playable
+scenario, its own skybox and texture, and a menu backdrop). The first portal mod
 (`webmods/gauntlet/`) is the copy-me publish example.
 
 A mod's content is `Scenario` and `Section` items. If you have not authored those
 yet, write them first with the two authoring guides -
 [Author a scenario](../guide-author-scenario/) for the `Scenario` grammar and
 [Author a section](../guide-author-section/) for the `Section` (ship-part)
-grammar - then come back here to package and ship them. The demo mod below leads
+grammar - then come back here to package and ship them. The example mod below leads
 with a `Section` overlay, so the section guide is the one that explains its
 `base`/`kind` shape.
 
@@ -27,16 +29,21 @@ A mod is a DIRECTORY containing:
 - optionally, the binary assets it ships (textures, skyboxes, models, audio)
   under the folder, declared in `resources` and referenced with `self://`.
 
-Start by copying `assets/mods/demo/`. Its manifest:
+Start by copying `assets/mods/example/`. Its manifest:
 
 ```ron
 (
-    content: ["mod.content.ron"],
+    content: ["example.content.ron"],
+    resources: [
+        "textures/nebula.png",
+        "textures/rock.png",
+    ],
     meta: (
-        name: "Demo Mod",
-        description: "Example mod: up-armors a hull section and adds an arena scenario.",
+        name: "Example Mod",
+        description: "The copy-me tutorial mod: a section overlay, a new section, a playable arena, mod-shipped art, and a menu backdrop - a little of everything.",
         author: "Nova Protocol",
         version: "1.0.0",
+        dependencies: ["base"],
     ),
 )
 ```
@@ -73,17 +80,17 @@ in `resources`, and reference them with the reserved `self://` scheme:
 
 ```ron
 (
-    content: ["variety.content.ron"],
+    content: ["example.content.ron"],
     resources: [
         "textures/nebula.png",
         "textures/rock.png",
     ],
-    meta: (name: "Variety Pack", version: "0.1.0"),
+    meta: (name: "Example Mod", version: "1.0.0"),
 )
 ```
 
 ```ron
-// in variety.content.ron - self:// = "this mod's own folder"
+// in example.content.ron - self:// = "this mod's own folder"
 cubemap: "self://textures/nebula.png",
 // ...
 texture: "self://textures/rock.png",
@@ -100,8 +107,9 @@ texture: "self://textures/rock.png",
 - A skybox needs its `<name>.png.meta` sidecar (the `RowCount` cube reinterpret,
   copy `assets/textures/cubemap.png.meta`); sidecar `.meta` files ship
   automatically and are NOT listed in `resources`.
-- `assets/mods/variety/` is the copy-me example; a `self://` ref that names a
-  missing file fails the mod's gates before it ever runs.
+- `assets/mods/example/` is the copy-me example (it ships this skybox and rock
+  texture and renders its arena and menu backdrop from them); a `self://` ref
+  that names a missing file fails the mod's gates before it ever runs.
 - `self://` is a RESERVED leading token for every string in your content, not
   just asset paths: a message, objective text or variable string that STARTS
   with `self://` would be treated as a resource ref. In practice nothing legit
@@ -114,8 +122,8 @@ A content file is a `[Content]` list. Each item is externally tagged by kind:
     Section((
         base: (
             id: "reinforced_hull_section",
-            name: "Reinforced Hull Section (Demo Mod)",
-            description: "Base hull, up-armored by the demo mod.",
+            name: "Reinforced Hull Section (Example Mod)",
+            description: "Base hull, up-armored by the example mod.",
             mass: 1.0,
             health: 400.0,
         ),
@@ -124,14 +132,16 @@ A content file is a `[Content]` list. Each item is externally tagged by kind:
         )),
     )),
     Scenario((
-        id: "demo_mod_arena",
-        name: "Demo Mod Arena",
-        description: "A shooting gallery added by the demo mod: destroy the three derelict rocks.",
-        cubemap: "textures/cubemap.png",
-        // OnStart spawns the player ship + three destructible asteroids and a
+        id: "example_arena",
+        name: "Example Arena",
+        description: "The example mod's playable scenario: destroy two drifting rocks under a mod-shipped skybox.",
+        cubemap: "self://textures/nebula.png",
+        // OnStart spawns the player ship + two destructible asteroids and a
         // `destroyed` counter; a per-target OnDestroyed increments it and a
-        // one-shot OnUpdate (destroyed > 2) completes the objective. See
-        // "Author a scenario" for the full event/action grammar.
+        // one-shot OnUpdate (destroyed > 1) completes the objective, ending in a
+        // Victory Outcome. See "Author a scenario" for the full event/action
+        // grammar. The example mod's content file also adds a second, new
+        // section and a `menu_backdrop` scenario.
         events: [ /* ... */ ],
     )),
 ]
@@ -143,12 +153,12 @@ event/action shapes, see [Author a scenario](../guide-author-scenario/).
 
 ### The stemmed-extension rule (load-bearing)
 
-The manifest MUST be named `<id>.bundle.ron` (e.g. `demo.bundle.ron`), NEVER a
+The manifest MUST be named `<id>.bundle.ron` (e.g. `example.bundle.ron`), NEVER a
 bare `bundle.ron`. Bevy resolves an untyped load (how `bevy_asset_loader` kicks
 off collection fields) by the file's FULL extension - everything after the
 FIRST dot. `bundle.ron` yields the bare `ron` extension, which no loader is
 registered for, so the load fails in-game with "Could not find an asset
-loader"; `demo.bundle.ron` yields `bundle.ron`, which matches. The same rule
+loader"; `example.bundle.ron` yields `bundle.ron`, which matches. The same rule
 applies to `<name>.content.ron` and `<name>.catalog.ron`.
 
 ## 2. Overlay semantics
@@ -163,9 +173,10 @@ Bundles merge in load order (base first, then mods in catalog order), by
 - SAME id twice WITHIN one bundle = a conflict: the FIRST item is kept, the
   duplicate is skipped, and a message is recorded and logged (not a panic).
 
-The demo content does both: it reuses `reinforced_hull_section` (replace) and
-introduces `demo_mod_arena` (add) - a small but playable shooting gallery, so
-the example doubles as a worked scenario, not just an overlay demo.
+The example content does both: it reuses `reinforced_hull_section` (replace) and
+introduces both a NEW section (`example_plated_hull_section`) and a new playable
+scenario (`example_arena`, a small shooting gallery), so the one mod doubles as a
+worked scenario, not just an overlay demonstration.
 
 ## 3. Test it locally
 
@@ -180,8 +191,8 @@ ordered pointer list (`base` first so mods overlay it):
         base: true,
     ),
     (
-        id: "demo",
-        bundle: "mods/demo/demo.bundle.ron",
+        id: "example",
+        bundle: "mods/example/example.bundle.ron",
     ),
 ])
 ```

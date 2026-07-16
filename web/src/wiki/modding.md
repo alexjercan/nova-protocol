@@ -1,7 +1,7 @@
 # Modding
 
 Nova Protocol is data-driven: scenarios and mods are authored as **RON data
-files**, not code. Everything the game ships - the campaigns, the demo mod - is
+files**, not code. Everything the game ships - the campaigns, the example mod - is
 content loaded through the same pipeline your own content uses, so anything the
 base game does, a mod can do too. This page is the front door; the guides below
 have the detail.

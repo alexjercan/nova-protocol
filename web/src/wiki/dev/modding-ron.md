@@ -40,7 +40,7 @@ resource.
 - `nova_assets` registers the plugin, loads the enabled bundles' `*.content.ron`
   files (the base game's live under `assets/base/scenarios/`) as part of the
   `GameAssets` collection, and merges their scenarios into `GameScenarios`. See
-  `assets/mods/demo/mod.content.ron` for a worked example authored by hand.
+  `assets/mods/example/example.content.ron` for a worked example authored by hand.
 
 ## Architecture decisions
 
@@ -142,7 +142,7 @@ flowchart TD
   its id. A `self://` ref must name a listed resource: the portal generator, the
   static `content_lint`, and the runtime content gate all reject an undeclared
   one. Sidecar `.meta` files (a skybox's `RowCount` cube reinterpret) ship
-  automatically and are NOT listed. `assets/mods/variety/` is the worked example.
+  automatically and are NOT listed. `assets/mods/example/` is the worked example.
 - The `meta` block (all fields optional, `ModMeta` in `nova_mod_format`,
   re-exported by nova_modding - the pure format types live in that engine-free
   crate so the portal generator shares them without bevy):
@@ -182,7 +182,7 @@ flowchart TD
   screenshot-reel capture set left the mods system entirely (its scenario is
   embedded in `examples/13_screenshot_reel.rs` via `examples/data/reel.content.ron`);
   the flag is pinned by the synthetic-catalog tests in
-  `crates/nova_assets/tests/demo_scenario.rs`.
+  `crates/nova_assets/tests/example_scenario.rs`.
 
 ## Downloaded mods: the local cache + the `mods://` source
 
