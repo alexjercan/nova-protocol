@@ -290,6 +290,61 @@ pub fn resource_ref_violations(content: &Content, scope: &RefScope) -> Vec<Strin
     out
 }
 
+/// Binary-asset file extensions an authored asset ref carries. A content string
+/// ending in one of these (optionally with a `#label`) but WITHOUT a `self://` /
+/// `dep://` scheme is almost certainly a forgotten scheme - the canonical model
+/// (task 20260717-002133) requires every asset ref be namespaced.
+const ASSET_EXTENSIONS: &[&str] = &[
+    "png", "jpg", "jpeg", "glb", "gltf", "ktx2", "exr", "hdr", "dds", "basis", "ogg", "wav", "mp3",
+    "flac",
+];
+
+/// Whether a scheme-less string leaf LOOKS like a bare asset-path ref: it ends in
+/// a known binary-asset extension (after stripping any `#label`). Ids, scenario
+/// names, messages and variable keys do not end in an asset extension, so this
+/// does not flag them. HEURISTIC by necessity - the generic content walk cannot
+/// type-distinguish an `AssetRef` string from any other string, and `AssetRef`'s
+/// dual authoring/resolved role rules out a deserialize-level ban (the merge
+/// rewrite round-trips bare RESOLVED paths back through it). The HARD guarantee is
+/// structural: a bare ref resolves against the default source and 404s at load
+/// (base art now lives under `assets/base/`); this is the author-time catch.
+fn looks_like_bare_asset(s: &str) -> bool {
+    if s.starts_with(SELF_SCHEME) || s.starts_with(DEP_SCHEME) {
+        return false;
+    }
+    let file = s.split('#').next().unwrap_or(s);
+    match file.rsplit_once('.') {
+        Some((_, ext)) => ASSET_EXTENSIONS.iter().any(|e| ext.eq_ignore_ascii_case(e)),
+        None => false,
+    }
+}
+
+/// Every BARE (scheme-less) asset-path ref a content item makes - the canonical
+/// gate's finding set (task 20260717-002133), sorted and deduplicated. Empty
+/// means every asset ref carries a `self://` or `dep://` scheme.
+pub fn bare_asset_refs(content: &Content) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Ok(value) = serde_json::to_value(content) {
+        collect_bare(&value, &mut out);
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
+fn collect_bare(value: &serde_json::Value, out: &mut Vec<String>) {
+    match value {
+        serde_json::Value::String(s) => {
+            if looks_like_bare_asset(s) {
+                out.push(s.clone());
+            }
+        }
+        serde_json::Value::Array(items) => items.iter().for_each(|i| collect_bare(i, out)),
+        serde_json::Value::Object(map) => map.values().for_each(|v| collect_bare(v, out)),
+        _ => {}
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use nova_gameplay::prelude::AssetRef;
@@ -667,5 +722,62 @@ mod tests {
         let violations = resource_ref_violations(&content, &dep_scope(&declared, &deps));
         assert_eq!(violations.len(), 1, "{violations:?}");
         assert!(violations[0].contains("malformed"), "{}", violations[0]);
+    }
+
+    #[test]
+    fn a_bare_asset_ref_is_flagged_and_schemed_refs_are_not() {
+        // A bare cubemap ref (no scheme, asset extension) is flagged.
+        let bare = scenario_with_dep_ref("textures/cubemap.png");
+        assert_eq!(
+            bare_asset_refs(&bare),
+            vec!["textures/cubemap.png".to_string()],
+            "a scheme-less asset-extension ref is a bare ref"
+        );
+        // self:// and dep:// refs are NOT flagged.
+        assert!(
+            bare_asset_refs(&scenario_with_dep_ref("dep://base/textures/cubemap.png")).is_empty(),
+            "a dep:// ref is not bare"
+        );
+        assert!(
+            bare_asset_refs(&Content::Scenario(scenario_with_refs())).is_empty(),
+            "self:// refs are not bare"
+        );
+    }
+
+    #[test]
+    fn a_bare_labeled_model_ref_is_flagged() {
+        let ron = r#"Section((
+            base: (id: "hull", name: "Hull", description: "", mass: 1.0, health: 100.0),
+            kind: Hull((render_mesh: Some("gltf/hull-01.glb#Scene0"))),
+        ))"#;
+        let content: Content = ron::from_str(ron).expect("section parses");
+        assert_eq!(
+            bare_asset_refs(&content),
+            vec!["gltf/hull-01.glb#Scene0".to_string()],
+            "a bare model ref is flagged with its #label intact"
+        );
+    }
+
+    #[test]
+    fn non_asset_strings_are_not_flagged() {
+        // Scenario id, name, description, and a slashed non-asset message must NOT
+        // be flagged - none end in an asset extension.
+        let ron = r#"(
+            id: "shakedown_run",
+            name: "Shakedown Run",
+            description: "a mission with a slash and/or two",
+            cubemap: "self://textures/nebula.png",
+            events: [
+                ( name: OnStart, filters: [], actions: [
+                    DebugMessage((message: "hold and/or release; see the readme")),
+                ] ),
+            ],
+        )"#;
+        let content: Content = Content::Scenario(ron::from_str(ron).expect("scenario parses"));
+        assert!(
+            bare_asset_refs(&content).is_empty(),
+            "ids/names/messages are not asset refs: {:?}",
+            bare_asset_refs(&content)
+        );
     }
 }

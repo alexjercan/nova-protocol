@@ -265,7 +265,7 @@ fn write_fixture_mod(root: &Path) -> Vec<(String, Vec<u8>)> {
         id: "fixture_slalom_run",
         name: "Fixture Slalom Run",
         description: "A minimal scenario for install-pipeline assertions.",
-        cubemap: "textures/cubemap.png",
+        cubemap: "dep://base/textures/cubemap.png",
     )),
 ]
 "#;

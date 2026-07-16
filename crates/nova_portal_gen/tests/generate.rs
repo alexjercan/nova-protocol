@@ -463,3 +463,19 @@ fn malformed_dep_ref_is_rejected() {
         "got: {err}"
     );
 }
+
+/// A BARE (scheme-less) asset-path ref in content is rejected at publish - the
+/// canonical model requires every asset ref be namespaced (task 20260717-002133).
+#[test]
+fn bare_asset_ref_in_content_is_rejected() {
+    let bundle = r#"(content: ["mod.content.ron"], meta: (name: "M", version: "0.1.0"))"#;
+    let (source, out) = synthetic_mod(
+        "ok-mod",
+        bundle,
+        &[("mod.content.ron", r#"["textures/cubemap.png"]"#)],
+    );
+    let err = nova_portal_gen::generate(source.path(), None, out.path())
+        .expect_err("a bare asset ref must fail");
+    assert!(err.0.contains("with no scheme"), "got: {err}");
+    assert!(err.0.contains("textures/cubemap.png"), "got: {err}");
+}

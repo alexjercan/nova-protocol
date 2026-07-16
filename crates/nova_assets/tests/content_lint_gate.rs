@@ -68,7 +68,7 @@ fn target_mode_lints_one_mod_in_repo_or_external() {
         id: "my_scenario",
         name: "My Scenario",
         description: "external lint fixture",
-        cubemap: "textures/cubemap.png",
+        cubemap: "dep://base/textures/cubemap.png",
         events: [
             (
                 name: OnStart,

@@ -23,22 +23,22 @@ static layer - NOT the runtime gate, NOT `AssetRef::deserialize`.
 
 ## Steps
 
-- [ ] Decide the typed-visitor mechanism: how to enumerate the `AssetRef` string
+- [x] Decide the typed-visitor mechanism: how to enumerate the `AssetRef` string
       fields of a `Content` item for validation without the generic walk (a small
       targeted visitor, or a serde-based pass that only inspects fields known to
       be asset refs). Confirm it does NOT false-positive on non-asset strings
       (section ids, scenario ids, messages, variable names).
-- [ ] `content_lint` (static `lint_walk`): flag every bare asset-path ref in any
+- [x] `content_lint` (static `lint_walk`): flag every bare asset-path ref in any
       bundle's content with an Error - "asset ref '<path>' has no scheme; use
       'self://<path>' or 'dep://<id>/<path>'".
-- [ ] `nova_portal_gen` (engine-free `ron::Value`): mirror the check at publish.
-- [ ] Do NOT add a runtime gate (user decision) - runtime keeps working via the
+- [x] `nova_portal_gen` (engine-free `ron::Value`): mirror the check at publish.
+- [x] Do NOT add a runtime gate (user decision) - runtime keeps working via the
       rewrite; bare simply fails to load. Document that the enforcement is
       static (author/publish time).
-- [ ] Tests: a bare asset ref in content is a lint error (static + portal); a
+- [x] Tests: a bare asset ref in content is a lint error (static + portal); a
       schemed ref passes; a non-asset string that happens to look path-like is
       NOT flagged.
-- [ ] Ensure the repo tree passes the new gate (all base + mod content already
+- [x] Ensure the repo tree passes the new gate (all base + mod content already
       migrated to schemes by task 002105).
 
 ## Notes

@@ -163,6 +163,37 @@ fn collect_dep_refs(value: &ron::Value, out: &mut Vec<DepRef>) {
     }
 }
 
+/// Binary-asset extensions - mirror of `nova_assets::mod_refs::ASSET_EXTENSIONS`,
+/// engine-free. A scheme-less content string ending in one of these is a bare
+/// asset ref (the canonical model requires a `self://`/`dep://` scheme).
+const ASSET_EXTENSIONS: &[&str] = &[
+    "png", "jpg", "jpeg", "glb", "gltf", "ktx2", "exr", "hdr", "dds", "basis", "ogg", "wav", "mp3",
+    "flac",
+];
+
+/// Collect every BARE (scheme-less) asset-path ref in a parsed content value - a
+/// string ending in a known asset extension (after `#label` stripping) with no
+/// `self://`/`dep://` scheme. Mirrors `nova_assets::mod_refs::bare_asset_refs`
+/// on `ron::Value`; see it for why this is an extension heuristic.
+fn collect_bare_refs(value: &ron::Value, out: &mut Vec<String>) {
+    match value {
+        ron::Value::String(s) => {
+            if !s.starts_with("self://") && !s.starts_with("dep://") {
+                let file = s.split('#').next().unwrap_or(s);
+                if let Some((_, ext)) = file.rsplit_once('.') {
+                    if ASSET_EXTENSIONS.iter().any(|e| ext.eq_ignore_ascii_case(e)) {
+                        out.push(s.clone());
+                    }
+                }
+            }
+        }
+        ron::Value::Seq(items) => items.iter().for_each(|v| collect_bare_refs(v, out)),
+        ron::Value::Map(map) => map.iter().for_each(|(_k, v)| collect_bare_refs(v, out)),
+        ron::Value::Option(Some(inner)) => collect_bare_refs(inner, out),
+        _ => {}
+    }
+}
+
 /// One `dep://` cross-mod ref a mod makes, kept for the cross-mod membership
 /// check in [`generate`] (where every portal mod's resources are known).
 struct DepUse {
@@ -343,6 +374,19 @@ fn build_entry(mod_dir: &Path, id: &str) -> Result<BuiltEntry, GenError> {
                 dep_id,
                 file,
             });
+        }
+        // Canonical enforcement (task 20260717-002133): every asset ref must carry
+        // a scheme. A bare (scheme-less) asset-path ref is rejected at publish -
+        // the same gate the repo lint applies, closing the hole for a mod
+        // published from outside the repo.
+        let mut bare = Vec::new();
+        collect_bare_refs(&value, &mut bare);
+        if let Some(bare_ref) = bare.into_iter().next() {
+            return err(format!(
+                "mod '{id}': content '{content}' references asset '{bare_ref}' with no scheme - \
+                 use 'self://{bare_ref}' (this mod's own art) or 'dep://<id>/{bare_ref}' (a \
+                 dependency's, e.g. 'dep://base/{bare_ref}')"
+            ));
         }
     }
 

@@ -1479,6 +1479,24 @@ pub mod lint_walk {
                     },
                 ));
             }
+            // Canonical enforcement (task 20260717-002133): every asset ref must
+            // carry a scheme. A bare (scheme-less) asset-path ref no longer
+            // resolves (base art lives under assets/base/), so it is an Error -
+            // caught here at author time rather than as a runtime 404.
+            for bare in crate::mod_refs::bare_asset_refs(item) {
+                issues.push((
+                    bundle.id.clone(),
+                    LintIssue {
+                        severity: LintSeverity::Error,
+                        scenario: scenario.clone(),
+                        message: format!(
+                            "{kind} references asset '{bare}' with no scheme - use \
+                             'self://{bare}' for this mod's own art or 'dep://<id>/{bare}' for a \
+                             dependency's (e.g. 'dep://base/{bare}' for a base-game asset)"
+                        ),
+                    },
+                ));
+            }
         }
         issues
     }
@@ -1623,10 +1641,10 @@ pub mod lint_walk {
             let b = walked(
                 "mod",
                 &[],
-                &[],
+                &["textures/base.png"],
                 vec![
                     scenario("a", "self://textures/missing.png"),
-                    scenario("b", "textures/base.png"),
+                    scenario("b", "self://textures/base.png"),
                 ],
             );
             let msgs = messages(&b, std::slice::from_ref(&b));
@@ -1751,6 +1769,35 @@ pub mod lint_walk {
                     .iter()
                     .any(|m| m.contains("undeclared resource 'dep://base/textures/missing.png'")),
                 "an undeclared base resource is flagged"
+            );
+        }
+
+        #[test]
+        fn a_bare_asset_ref_is_a_lint_error() {
+            // A scheme-less asset ref (the retired bare convention) is now an
+            // Error - it no longer resolves, so it is caught at author time.
+            let b = walked("mod", &[], &[], vec![scenario("s", "textures/cubemap.png")]);
+            let msgs = messages(&b, std::slice::from_ref(&b));
+            assert!(
+                msgs.iter()
+                    .any(|m| m.contains("references asset 'textures/cubemap.png' with no scheme")),
+                "a bare asset ref is flagged: {msgs:?}"
+            );
+            // A schemed ref is clean (base ships the resource in the walked set).
+            let all = vec![
+                walked("base", &[], &["textures/cubemap.png"], vec![]),
+                walked(
+                    "mod",
+                    &[],
+                    &[],
+                    vec![scenario("s", "dep://base/textures/cubemap.png")],
+                ),
+            ];
+            assert!(
+                !messages(&all[1], &all)
+                    .iter()
+                    .any(|m| m.contains("no scheme")),
+                "a schemed ref is not flagged as bare"
             );
         }
     }
