@@ -24,23 +24,23 @@ existing dep:// gate tests); task 2 makes it resolve against real moved files.
 
 ## Steps
 
-- [ ] Remove the `id == "base"` REJECTION in `mod_refs.rs` (`rewrite_leaf` and
+- [x] Remove the `id == "base"` REJECTION in `mod_refs.rs` (`rewrite_leaf` and
       `violation`); treat `base` as declared+available when it is present in the
       scope's deps map.
-- [ ] Gate logic: `dep://base/X` is allowed even though `base` is never in
+- [x] Gate logic: `dep://base/X` is allowed even though `base` is never in
       `declared_deps` - base is the implicit universal dep. Other ids still
       require a `meta.dependencies` entry.
-- [ ] `register_bundles`: add `base` (the `base: true` catalog entry / id
+- [x] `register_bundles`: add `base` (the `base: true` catalog entry / id
       "base") to EVERY owning bundle's deps map (its `resource_base` +
       `resources`), so `dep://base` resolves and is membership-checked.
-- [ ] Mirror in the static `lint_walk` and the engine-free `nova_portal_gen`
+- [x] Mirror in the static `lint_walk` and the engine-free `nova_portal_gen`
       (base implicit-allowed; membership against base's declared resources; the
       portal knows base only from the shipped catalog - resolve how it validates
       `dep://base`, or document the gap as it does for shipped deps).
-- [ ] Unit + synthetic-bundle tests: `dep://base/X` resolves against base's
+- [x] Unit + synthetic-bundle tests: `dep://base/X` resolves against base's
       folder; a declared base resource validates; an undeclared one is a gate
       error in all three domains; `dep://base` needs no `meta.dependencies` entry.
-- [ ] Decision record: update SPIKE.md (mark Option A chosen over B; FIX the
+- [x] Decision record: update SPIKE.md (mark Option A chosen over B; FIX the
       "declare base as a dependency" error - base stays implicit).
 
 ## Notes

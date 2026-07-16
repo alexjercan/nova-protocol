@@ -8,8 +8,9 @@
 //! 2. GATE: a `self://` ref that names no declared `resources` member is
 //!    recorded as an Error content issue, so the runtime gate refuses it.
 //! 3. CROSS-MOD: a `dep://<id>/` ref in a consumer resolves against dependency
-//!    `<id>`'s folder; a ref to a non-declared dependency, an undeclared resource
-//!    of a declared dependency, or `dep://base` is an Error content issue.
+//!    `<id>`'s folder; a ref to a non-declared dependency or an undeclared
+//!    resource of a declared dependency is an Error content issue. `dep://base`
+//!    resolves against base's folder without declaring base (base is implicit).
 
 use std::time::{Duration, Instant};
 
@@ -469,17 +470,96 @@ fn a_nested_dep_ref_is_rewritten() {
 }
 
 #[test]
-fn a_dep_ref_to_base_is_an_error() {
-    // base is implicit; base files use a bare path, never dep://.
-    let app = merge_cross_mod("dep://base/textures/cubemap.png", &["base"], &[]);
-    let issues = app.world().resource::<ContentIssues>();
-    let errors = issues.errors("consumer_scenario");
-    assert_eq!(errors.len(), 1, "one gate error: {:?}", issues.0);
+fn a_dep_ref_to_base_resolves_against_base_folder_without_declaring_base() {
+    // `base` is the implicit universal dependency: a consumer references
+    // `dep://base/X` WITHOUT listing base in meta.dependencies, and it resolves
+    // against base's own folder. (Synthetic base bundle; the real base art moves
+    // under assets/base/ in the migration task.)
+    let mut app = headless_app();
+    let base_bundle = app
+        .world_mut()
+        .resource_mut::<Assets<BundleAsset>>()
+        .add(BundleAsset {
+            content: vec![],
+            meta: ModMeta::default(),
+            new_game_scenario: None,
+            resources: vec!["textures/cubemap.png".to_string()],
+            resource_base: "base".to_string(),
+        });
+    let scenario = ScenarioConfig {
+        id: "consumer_scenario".to_string(),
+        name: "Consumer".to_string(),
+        description: "reuses base art".to_string(),
+        cubemap: nova_gameplay::prelude::AssetRef::from(
+            "dep://base/textures/cubemap.png".to_string(),
+        ),
+        ..Default::default() // NOTE: no `dependencies: ["base"]` - base is implicit
+    };
+    let content = app
+        .world_mut()
+        .resource_mut::<Assets<ContentAsset>>()
+        .add(ContentAsset(vec![Content::Scenario(scenario)]));
+    let consumer_bundle = app
+        .world_mut()
+        .resource_mut::<Assets<BundleAsset>>()
+        .add(BundleAsset {
+            content: vec![content],
+            meta: ModMeta::default(),
+            new_game_scenario: None,
+            resources: vec![],
+            resource_base: "mods/consumer".to_string(),
+        });
+    let catalog = InstalledCatalog {
+        entries: vec![
+            CatalogEntry {
+                decl: ModEntry {
+                    id: "base".to_string(),
+                    bundle: "base/base.bundle.ron".to_string(),
+                    base: true,
+                    hidden: false,
+                },
+                bundle: base_bundle,
+            },
+            CatalogEntry {
+                decl: ModEntry {
+                    id: "consumer".to_string(),
+                    bundle: "mods/consumer/consumer.bundle.ron".to_string(),
+                    base: false,
+                    hidden: false,
+                },
+                bundle: consumer_bundle,
+            },
+        ],
+    };
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<InstalledCatalog>>()
+        .add(catalog);
+    app.world_mut()
+        .insert_resource(game_assets_with_catalog(handle));
+    app.world_mut().insert_resource(EnabledMods(
+        ["base".to_string(), "consumer".to_string()]
+            .into_iter()
+            .collect(),
+    ));
+    app.world_mut()
+        .run_system_once(nova_assets::register_bundles_for_test)
+        .expect("register bundles");
+
+    let scenarios = app.world().resource::<GameScenarios>();
+    let scenario = scenarios
+        .get("consumer_scenario")
+        .expect("the consumer scenario merged");
+    assert_eq!(
+        scenario.cubemap.path(),
+        Some("base/textures/cubemap.png"),
+        "dep://base resolves against base's own folder",
+    );
     assert!(
-        errors[0]
-            .message
-            .contains("base game files use a bare path"),
-        "the error steers back to a bare path: {}",
-        errors[0].message,
+        app.world()
+            .resource::<ContentIssues>()
+            .errors("consumer_scenario")
+            .is_empty(),
+        "dep://base to a declared base resource merges issue-free (base implicit)",
     );
 }

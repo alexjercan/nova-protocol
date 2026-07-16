@@ -64,10 +64,12 @@ true canonical uniformity, or keep it).
   `__base__/` model). One canonical way if bare is dropped.
 - Cons: **breaks every shipped mod** (bare base refs stop resolving) unless bare
   is preserved; taxes the most common case (reusing a stock hull/skybox) with a
-  `dep://base/` prefix + declaring `base` as a dependency; base must enumerate its
-  whole art set in `resources` and the membership gate now polices base's own art;
-  touches content + Rust `GameAssets` + `gen_content` + `meta_check` config + docs
-  + 7 mods. Large, breaking, mostly-aesthetic.
+  `dep://base/` prefix (NOTE: base does NOT need to be declared as a dependency -
+  it is the implicit universal dep, so `dep://base` is allowed without a
+  `meta.dependencies` entry; an earlier draft of this con wrongly said otherwise);
+  base must enumerate its whole art set in `resources` and the membership gate now
+  polices base's own art; touches content + Rust `GameAssets` + `gen_content` +
+  `meta_check` config + docs + 7 mods. Large, breaking, mostly-aesthetic.
 
 ### B. Root-relative base bundle - `dep://base` works WITHOUT moving files (recommended core)
 
@@ -138,6 +140,21 @@ so they should be a separate, deliberate decision AFTER B is in hand and the tea
 can feel whether the root clutter or the two-ways-to-reference actually bothers
 anyone. B is also a clean stepping stone: once `dep://base` works, a later
 relocation only has to move files + repoint, not invent the scheme.
+
+## Decision (user, 2026-07-16): Option A
+
+The user chose **Option A** over this doc's Option B recommendation: they want the
+canonical, one-way-to-reference Factorio model (base art physically under
+`assets/base/`, every ref namespaced, bare retired in content), and judged the
+migration worth doing NOW while the mod ecosystem is small and first-party. The
+"Canonical vs additive" open question is thereby resolved in favor of canonical.
+
+Implementation is broken into: 20260717-000416 (dep://base mechanism - base as
+the implicit universal dep), 20260717-002105 (the migration - move art, repoint
+base + GameAssets + gen_content + all 7 mods), 20260717-002133 (canonical
+author-time lint that rejects bare asset refs), 20260717-002203 (docs). Bare
+enforcement is a STATIC lint only (user decision), not a runtime gate. `sounds/`
+stays at root until 20260717-002228 gives sections authorable sounds.
 
 ## Open questions
 

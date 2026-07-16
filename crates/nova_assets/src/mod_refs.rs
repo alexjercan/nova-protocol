@@ -9,12 +9,15 @@
 //! - `self://X` -> the file `X` THIS mod ships, against its own folder (shipped
 //!   `assets/mods/<id>/` or downloaded `mods://<id>/`).
 //! - `dep://<id>/X` -> the file `X` that DEPENDENCY `<id>` ships, against `<id>`'s
-//!   own folder - so a shared "art pack" mod can be referenced without copying its
-//!   bytes. `<id>` must be a DECLARED dependency (`meta.dependencies`) of the
-//!   referencing bundle, and not the implicit `base` (base files use a bare path).
+//!   own folder - so a shared "art pack" mod (or the base game) can be referenced
+//!   without copying its bytes. `<id>` must be a DECLARED dependency
+//!   (`meta.dependencies`) of the referencing bundle, OR the special id `base`:
+//!   `base` is the implicit universal dependency, so `dep://base/X` is always
+//!   allowed (base need not be declared).
 //!
 //! Both are gated in every domain: the ref must name a DECLARED resource of the
-//! mod it points at, and a `dep://` target must be a declared dependency.
+//! mod it points at, and a `dep://` target must be a declared dependency (or
+//! `base`).
 
 use std::collections::{HashMap, HashSet};
 
@@ -49,11 +52,13 @@ pub struct RefScope<'a> {
     pub self_base: &'a str,
     /// The owning bundle's declared `resources` (for `self://` membership).
     pub self_resources: &'a [String],
-    /// Every id the owning bundle DECLARES as a dependency (`base` excluded - it
-    /// is implicit and referenced with a bare path, never `dep://`).
+    /// Every id the owning bundle DECLARES as a dependency (`base` excluded from
+    /// this set - it is the implicit universal dependency, allowed for `dep://`
+    /// without being declared, and supplied in `deps` instead).
     pub declared_deps: &'a HashSet<String>,
-    /// The declared deps that are AVAILABLE (installed + loaded), by id. A
-    /// declared id ABSENT here is declared-but-unavailable - `dep://` to it is a
+    /// The available `dep://` targets by id - the declared deps that are loaded,
+    /// PLUS `base` (the implicit universal dep). A declared id ABSENT here is
+    /// declared-but-unavailable - `dep://` to it is a
     /// violation and its ref is left literal.
     pub deps: &'a HashMap<String, DepRef<'a>>,
 }
@@ -71,10 +76,12 @@ impl RefScope<'_> {
         }
         if let Some(rest) = s.strip_prefix(DEP_SCHEME) {
             let (id, path) = rest.split_once('/')?;
-            if id.is_empty() || path.is_empty() || id == "base" {
+            if id.is_empty() || path.is_empty() {
                 return None;
             }
-            if !self.declared_deps.contains(id) {
+            // `base` is the implicit universal dependency: allowed without being
+            // in `declared_deps`. Every other id must be declared.
+            if id != "base" && !self.declared_deps.contains(id) {
                 return None;
             }
             let base = self.deps.get(id)?.base?;
@@ -97,13 +104,10 @@ impl RefScope<'_> {
                 })
             }
             ResourceRef::DepRef { id, file } => {
-                if id == "base" {
-                    return Some(format!(
-                        "references '{DEP_SCHEME}base/{file}' - base game files use a bare path \
-                         (no scheme), not {DEP_SCHEME}"
-                    ));
-                }
-                if !self.declared_deps.contains(id) {
+                // `base` is the implicit universal dependency - `dep://base/X` is
+                // always allowed (base need not be in `meta.dependencies`). Every
+                // other id must be a declared dependency.
+                if id != "base" && !self.declared_deps.contains(id) {
                     return Some(format!(
                         "references resource '{DEP_SCHEME}{id}/{file}' but '{id}' is not a \
                          declared dependency - add '{id}' to the bundle manifest's \
@@ -602,23 +606,57 @@ mod tests {
     }
 
     #[test]
-    fn dep_ref_to_base_is_rejected() {
-        let content = scenario_with_dep_ref("dep://base/textures/sky.png");
-        let declared: HashSet<String> = ["base".to_string()].into_iter().collect();
-        let deps: HashMap<String, DepRef> = HashMap::new();
-        let scope = dep_scope(&declared, &deps);
-        let violations = resource_ref_violations(&content, &scope);
-        assert_eq!(violations.len(), 1, "{violations:?}");
-        assert!(
-            violations[0].contains("base game files use a bare path"),
-            "{}",
-            violations[0]
+    fn dep_ref_to_base_resolves_without_being_declared() {
+        // `base` is the implicit universal dependency: `dep://base/X` is allowed
+        // even though `base` is NOT in `declared_deps`. Base is supplied in the
+        // `deps` map (as callers always do), with base's own `resource_base`.
+        let content = scenario_with_dep_ref("dep://base/textures/cubemap.png");
+        let declared: HashSet<String> = HashSet::new(); // base NOT declared
+        let base_resources = vec!["textures/cubemap.png".to_string()];
+        let mut deps = HashMap::new();
+        deps.insert(
+            "base".to_string(),
+            DepRef {
+                base: Some("base"),
+                resources: Some(&base_resources),
+            },
         );
-        // And it is left literal, never rewritten against base's own folder.
+        let scope = dep_scope(&declared, &deps);
+        assert!(
+            resource_ref_violations(&content, &scope).is_empty(),
+            "dep://base with a declared base resource is valid without declaring base",
+        );
         let Content::Scenario(cfg) = rewrite_refs(&content, &scope) else {
             panic!("still a scenario");
         };
-        assert_eq!(cfg.cubemap.path(), Some("dep://base/textures/sky.png"));
+        assert_eq!(
+            cfg.cubemap.path(),
+            Some("base/textures/cubemap.png"),
+            "dep://base resolves against base's own folder",
+        );
+    }
+
+    #[test]
+    fn dep_ref_to_an_undeclared_base_resource_is_a_violation() {
+        // base is available but does not declare the referenced file.
+        let content = scenario_with_dep_ref("dep://base/textures/missing.png");
+        let declared: HashSet<String> = HashSet::new();
+        let base_resources = vec!["textures/cubemap.png".to_string()];
+        let mut deps = HashMap::new();
+        deps.insert(
+            "base".to_string(),
+            DepRef {
+                base: Some("base"),
+                resources: Some(&base_resources),
+            },
+        );
+        let violations = resource_ref_violations(&content, &dep_scope(&declared, &deps));
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(
+            violations[0].contains("undeclared resource 'dep://base/textures/missing.png'"),
+            "{}",
+            violations[0]
+        );
     }
 
     #[test]

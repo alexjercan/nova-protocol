@@ -429,21 +429,19 @@ fn dep_ref_to_undeclared_resource_of_dependency_is_rejected() {
     );
 }
 
-/// `dep://base/` is rejected: base is implicit and its files use a bare path.
+/// `dep://base/` publishes WITHOUT declaring base: base is the implicit universal
+/// dependency. Its resource membership is not checked at the portal (base is
+/// shipped, so only its id is known) - backstopped by the repo lint + runtime.
 #[test]
-fn dep_ref_to_base_is_rejected() {
-    let consumer = r#"(content: ["mod.content.ron"], meta: (name: "Consumer", version: "0.1.0", dependencies: ["base"]))"#;
+fn dep_ref_to_base_publishes_without_declaring_base() {
+    let consumer = r#"(content: ["mod.content.ron"], meta: (name: "Consumer", version: "0.1.0"))"#;
     let (source, out) = synthetic_source(&[(
         "consumer",
         consumer,
         &[("mod.content.ron", r#"["dep://base/textures/cubemap.png"]"#)],
     )]);
-    let err = nova_portal_gen::generate(source.path(), Some(Path::new(SHIPPED)), out.path())
-        .expect_err("a dep://base ref must fail");
-    assert!(
-        err.0.contains("base game files use a bare path"),
-        "got: {err}"
-    );
+    nova_portal_gen::generate(source.path(), Some(Path::new(SHIPPED)), out.path())
+        .expect("a dep://base ref publishes even though base is not declared");
 }
 
 /// A malformed `dep://` leaf (no `<id>/<path>`) is rejected.

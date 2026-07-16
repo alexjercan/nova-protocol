@@ -326,13 +326,12 @@ fn build_entry(mod_dir: &Path, id: &str) -> Result<BuiltEntry, GenError> {
                     ))
                 }
             };
-            if dep_id == "base" {
-                return err(format!(
-                    "mod '{id}': content '{content}' references 'dep://base/{file}' - base game \
-                     files use a bare path (no scheme), not dep://"
-                ));
-            }
-            if !declared_deps.contains(dep_id.as_str()) {
+            // `base` is the implicit universal dependency - `dep://base/<path>` is
+            // always allowed (base need not be in `meta.dependencies`). Its
+            // resource membership is not checked here: base is SHIPPED, so the
+            // portal knows only its id, not its `resources` - backstopped by the
+            // repo lint and the runtime gate (same as any shipped dependency).
+            if dep_id != "base" && !declared_deps.contains(dep_id.as_str()) {
                 return err(format!(
                     "mod '{id}': content '{content}' references resource 'dep://{dep_id}/{file}' \
                      but '{dep_id}' is not a declared dependency - add it to the bundle \

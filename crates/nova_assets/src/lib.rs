@@ -638,10 +638,24 @@ pub fn register_bundles(
         };
         // The owning bundle's resolution context: its own folder + the DECLARED
         // dependencies whose bundles are enabled+loaded (looked up in the merge
-        // set `by_id`). A declared dep absent here is unavailable, so a `dep://`
-        // to it is a violation; `base` is implicit and never a `dep://` target.
+        // set `by_id`), PLUS `base` (the implicit universal `dep://base` target).
+        // A declared dep absent here is unavailable, so a `dep://` to it is a
+        // violation.
         let declared_deps: HashSet<String> = bundle.meta.dependencies.iter().cloned().collect();
         let mut dep_refs: HashMap<String, mod_refs::DepRef> = HashMap::new();
+        // `base` is always enabled (the `base: true` catalog entry) and in `by_id`;
+        // supply it so `dep://base/X` resolves and is membership-checked without a
+        // `meta.dependencies` entry. Any explicit `base` in `meta.dependencies` is
+        // subsumed here (and skipped below).
+        if let Some(base_bundle) = by_id.get("base").and_then(|h| bundles.get(*h)) {
+            dep_refs.insert(
+                "base".to_string(),
+                mod_refs::DepRef {
+                    base: Some(base_bundle.resource_base.as_str()),
+                    resources: Some(base_bundle.resources.as_slice()),
+                },
+            );
+        }
         for dep_id in &bundle.meta.dependencies {
             if dep_id == "base" {
                 continue;
@@ -1418,6 +1432,18 @@ pub mod lint_walk {
         let declared_deps: HashSet<String> =
             bundle.manifest.meta.dependencies.iter().cloned().collect();
         let mut dep_refs: HashMap<String, crate::mod_refs::DepRef> = HashMap::new();
+        // `base` is the implicit universal `dep://base` target: supply it from the
+        // walked set so `dep://base/X` validates without a `meta.dependencies`
+        // entry. (`base: None` - the static lint validates but never rewrites.)
+        if let Some(base_bundle) = bundles_by_id.get("base") {
+            dep_refs.insert(
+                "base".to_string(),
+                crate::mod_refs::DepRef {
+                    base: None,
+                    resources: Some(base_bundle.manifest.resources.as_slice()),
+                },
+            );
+        }
         for dep_id in &bundle.manifest.meta.dependencies {
             if dep_id == "base" {
                 continue;
@@ -1691,21 +1717,40 @@ pub mod lint_walk {
                 "a ref to a non-declared dependency is flagged"
             );
 
-            // dep://base is rejected regardless of the walked set.
+            // dep://base to a DECLARED base resource is valid WITHOUT the consumer
+            // declaring base (base is the implicit universal dependency).
             let all = vec![
-                walked("art", &[], &["textures/sky.png"], vec![]),
+                walked("base", &[], &["textures/cubemap.png"], vec![]),
                 walked(
                     "consumer",
-                    &["base"],
+                    &[],
                     &[],
                     vec![scenario("c", "dep://base/textures/cubemap.png")],
                 ),
             ];
             assert!(
+                !messages(&all[1], &all)
+                    .iter()
+                    .any(|m| m.contains("dep://base")),
+                "dep://base to a declared base resource lints clean without declaring base: {:?}",
+                messages(&all[1], &all)
+            );
+
+            // dep://base to an UNDECLARED base resource is still flagged.
+            let all = vec![
+                walked("base", &[], &["textures/cubemap.png"], vec![]),
+                walked(
+                    "consumer",
+                    &[],
+                    &[],
+                    vec![scenario("c", "dep://base/textures/missing.png")],
+                ),
+            ];
+            assert!(
                 messages(&all[1], &all)
                     .iter()
-                    .any(|m| m.contains("base game files use a bare path")),
-                "dep://base is steered back to a bare path"
+                    .any(|m| m.contains("undeclared resource 'dep://base/textures/missing.png'")),
+                "an undeclared base resource is flagged"
             );
         }
     }
