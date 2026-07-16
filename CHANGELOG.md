@@ -33,6 +33,10 @@ tagged **(breaking)**.
 - `cargo run -p nova_assets --bin content_lint` lints every scenario in the repo (base, shipped mods, portal mods) for the reference bugs the loaders cannot see - unknown section prototypes, dangling chapter chains, filter targets nothing spawns; CI enforces it. Mod developers can check just their own mod with `-- --target <mod dir or id>`.
 - The Ledger, the first campaign mod on the portal: a four-chapter salvage arc (strip the wreck, break the claim jumpers, run the quiet channel, pick the buyer - or the buoy) with comms-driven story beats and a two-ending finale. Install from Mods > Explore.
 
+### Interface & HUD
+
+- The pause menu (Esc) gained a Retry button: restart the current scenario from scratch without going back through the main menu. Offered only while a scenario is live, so the editor's build mode does not show it.
+
 ### Internals & Tooling
 
 - Debug builds (`--features debug`) bind F12 to a screenshot that saves the primary window to your Downloads directory as `<timestamp>.png`.

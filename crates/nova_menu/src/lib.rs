@@ -337,7 +337,13 @@ fn force_unpause(
 }
 
 /// The pause overlay: a dim full-screen layer with a centered panel.
-fn setup_pause_ui(mut commands: Commands) {
+/// `CurrentScenario` is optional for the same reason it is in the loader's
+/// consumers: headless menu rigs run without the scenario loader.
+fn setup_pause_ui(mut commands: Commands, current: Option<Res<CurrentScenario>>) {
+    // Retry only makes sense over a live scenario. The editor's build mode
+    // pauses through this same overlay but never has one loaded, so it gets
+    // no dead button.
+    let live = current.is_some_and(|current| current.is_some());
     commands
         .spawn((
             DespawnOnExit(PauseStates::Paused),
@@ -391,6 +397,13 @@ fn setup_pause_ui(mut commands: Commands) {
                         button("Resume"),
                         observe(on_resume),
                     ));
+                    if live {
+                        parent.spawn((
+                            Name::new("Pause Retry Button"),
+                            button("Retry"),
+                            observe(on_retry),
+                        ));
+                    }
                     parent.spawn((
                         Name::new("Back To Menu Button"),
                         button("Back to Main Menu"),
@@ -410,6 +423,29 @@ fn setup_pause_ui(mut commands: Commands) {
 
 fn on_resume(_activate: On<Activate>, mut next: ResMut<NextState<PauseStates>>) {
     next.set(PauseStates::Unpaused);
+}
+
+/// The pause overlay's Retry: restart the running scenario from scratch by
+/// re-triggering [`LoadScenario`] with the live config - the same
+/// teardown-then-spawn path every load takes, so the event world (including
+/// any lingering `NextScenario`), a declared outcome, and every scoped entity
+/// reset exactly like on a scenario switch. Unpauses in the same activation;
+/// the cursor re-grab rides the new player ship's spawn
+/// (`regrab_cursor_on_player_spawn`), as for the outcome overlay's Retry.
+fn on_retry(
+    _activate: On<Activate>,
+    current: Option<Res<CurrentScenario>>,
+    mut pause: ResMut<NextState<PauseStates>>,
+    mut commands: Commands,
+) {
+    // The button only spawns over a live scenario (setup_pause_ui), but the
+    // scenario could in principle die between spawn and click: stay a no-op
+    // rather than reload a stale config.
+    let Some(scenario) = current.and_then(|current| current.0.clone()) else {
+        return;
+    };
+    commands.trigger(LoadScenario(scenario));
+    pause.set(PauseStates::Unpaused);
 }
 
 /// Back out to the front door. Unpauses in the same transition batch (a
@@ -3689,7 +3725,69 @@ mod tests {
         assert!(app.world().get_entity(back).is_err());
     }
 
-    /// Entity lookup by Name, shared by the outcome-overlay tests.
+    /// Retry needs something to reload: over a live scenario the pause
+    /// overlay offers it, in the editor's build mode (CurrentScenario is
+    /// None there) it does not. The Resume button pins that the overlay
+    /// itself spawned in both rigs.
+    #[test]
+    fn pause_overlay_offers_retry_only_over_a_live_scenario() {
+        // A paused rig with the given loader state (the editor's build mode
+        // holds a CurrentScenario of None; scenario play holds Some).
+        let paused_app = |current: CurrentScenario| {
+            let mut app = app();
+            app.insert_resource(dummy_scenarios());
+            app.insert_resource(current);
+            enter_playing(&mut app);
+            press_escape(&mut app);
+            app
+        };
+
+        let mut editor_shape = paused_app(CurrentScenario(None));
+        assert!(find_named(&mut editor_shape, "Resume Button").is_some());
+        assert!(
+            find_named(&mut editor_shape, "Pause Retry Button").is_none(),
+            "no scenario loaded: nothing to retry"
+        );
+
+        let mut scenario_shape = paused_app(CurrentScenario(Some(dummy_scenario("live_run").1)));
+        assert!(find_named(&mut scenario_shape, "Resume Button").is_some());
+        assert!(
+            find_named(&mut scenario_shape, "Pause Retry Button").is_some(),
+            "a live scenario earns the Retry button"
+        );
+    }
+
+    /// The Retry button reloads the CURRENT scenario (the same config the
+    /// loader holds) and unpauses: overlay gone, both clocks running.
+    #[test]
+    fn pause_retry_reloads_the_current_scenario_and_unpauses() {
+        let mut app = app();
+        app.insert_resource(dummy_scenarios());
+        app.insert_resource(CurrentScenario(Some(dummy_scenario("live_run").1)));
+        observe_load_scenario(&mut app);
+        enter_playing(&mut app);
+        press_escape(&mut app);
+        assert_eq!(clocks_paused(&app), (true, true));
+
+        let retry = find_named(&mut app, "Pause Retry Button").expect("retry button");
+        app.world_mut().trigger(Activate { entity: retry });
+        app.update();
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<LoadedScenario>().0.as_deref(),
+            Some("live_run"),
+            "Retry re-triggers LoadScenario with the live config"
+        );
+        assert_eq!(pause_state(&app), PauseStates::Unpaused);
+        assert_eq!(clocks_paused(&app), (false, false), "both clocks resume");
+        assert!(
+            find_named(&mut app, "Pause Overlay").is_none(),
+            "the overlay despawns with the pause state"
+        );
+    }
+
+    /// Entity lookup by Name, shared by the pause- and outcome-overlay tests.
     fn find_named(app: &mut App, name: &str) -> Option<Entity> {
         let mut q = app.world_mut().query::<(Entity, &Name)>();
         q.iter(app.world())
