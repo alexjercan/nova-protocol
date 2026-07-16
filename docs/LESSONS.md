@@ -10,11 +10,20 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 
 ## Process lessons
 
-- `exemplar-first-fanout` (x1): to produce many similar artifacts (per-release
-  changelog pages, per-module docs), hand-write ONE gold-standard exemplar
+- `check-adjacent-sections-for-overlap` (x1): when a spike proposes a new
+  user-facing section (a web section, a docs area, a menu), enumerate the
+  existing adjacent sections FIRST and ask "does this duplicate or belong
+  merged with one?" before designing it standalone. A standalone `/changelog/`
+  section was built and then merged away one cycle later into `/news/` because
+  the spike never checked it against the existing devlog/blog covering the same
+  per-release ground - the duplication only surfaced when the user saw them side
+  by side. 20260716-111557.
+- `exemplar-first-fanout` (x2): to produce many similar artifacts (per-release
+  news/changelog pages, per-module docs), hand-write ONE gold-standard exemplar
   first, then fan out parallel drafters against it plus a strict per-item spec -
   shape/voice stay consistent in one review round. Pair with an out-of-context
-  reviewer that sees all parts at once. 20260716-102954.
+  reviewer that sees all parts at once. Held for both the 11 changelog pages and
+  the 6 merged news posts. 20260716-102954, 20260716-111557.
 - `cross-boundary-attribution` (x1): a per-part drafter (per-release,
   per-module) cannot see the boundary, so it will attribute a neighbor's feature
   to its own part if the shared source mentions it (a 0.5.0 page claimed the
