@@ -29,6 +29,7 @@ use bevy::{
     ui_widgets::{observe, Activate, Button},
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
+use bevy_rand::prelude::*;
 use nova_assets::prelude::{
     DownloadedMods, EnabledMods, FetchPortalCatalog, InstallJobs, InstallPortalMod, InstallStatus,
     ModCatalog, ModInfo, ModMeta, PendingRemovals, PortalEntry, RemoteCatalog, RemoteCatalogState,
@@ -37,19 +38,18 @@ use nova_assets::prelude::{
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
+use rand::Rng as _;
 
 pub mod prelude {
     pub use super::NovaMenuPlugin;
 }
 
-/// The scenario New Game drops the player into: the Shakedown Run starter
-/// tutorial (task 20260711-180506, spike 20260712-092926). Registered by
-/// `nova_assets` with its own canned player ship, so the menu needs no
-/// content of its own.
-const NEW_GAME_SCENARIO_ID: &str = "shakedown_run";
+// The menu names NO scenario ids (task 20260716-155849): the New Game start
+// comes from the base bundle's `new_game_scenario` declaration (the
+// `NewGameStart` resource, written by the bundle merge - not moddable), and
+// the backdrop comes from the `menu_backdrop` scenario flag (moddable; the
+// menu picks one flagged scenario at random on entry).
 
-/// The backdrop scenario (nova_assets registers it; task 20260711-180455).
-const MENU_AMBIENCE_SCENARIO_ID: &str = "menu_ambience";
 /// EntityId of the planetoid whose well anchors the camera framing (the
 /// orbit itself is the AI orbiter's business, nova_assets). Selected by id
 /// (not "any well") so a second big rock in the backdrop cannot silently
@@ -964,17 +964,51 @@ fn on_catalog_retry(
     commands.trigger(FetchPortalCatalog);
 }
 
-/// The living backdrop: load the ambient scenario behind the menu. The loader
-/// brings its own camera + skybox and tears down whatever was loaded before;
-/// the uniform OnExit(MainMenu) teardown (unload_menu_ambience) tears this
-/// down again on the way out, whatever the exit path.
-fn load_menu_ambience(mut commands: Commands, scenarios: Res<GameScenarios>) {
-    let scenario = scenarios
-        .get(MENU_AMBIENCE_SCENARIO_ID)
-        .unwrap_or_else(|| panic!("Scenario '{MENU_AMBIENCE_SCENARIO_ID}' not found"))
-        .clone();
-    commands.trigger(LoadScenario(scenario));
+/// The living backdrop: load one of the `menu_backdrop`-flagged scenarios
+/// behind the menu, picked at RANDOM so several ambience scenes (base or
+/// mod-added) can rotate across menu entries. The loader brings its own
+/// camera + skybox and tears down whatever was loaded before; the uniform
+/// OnExit(MainMenu) teardown (unload_menu_ambience) tears this down again on
+/// the way out, whatever the exit path.
+///
+/// NOTHING flagged is a warned degradation, not a panic (a mod set that
+/// removes every backdrop must not brick the menu): a plain fixed camera
+/// spawns instead so the UI still renders, over empty space.
+fn load_menu_ambience(
+    mut commands: Commands,
+    scenarios: Res<GameScenarios>,
+    mut rng: Single<&mut WyRand, With<GlobalRng>>,
+) {
+    // Deterministic candidate order before the draw (the registry is
+    // HashMap-backed; iteration order must not leak into the pick).
+    let mut backdrops: Vec<&ScenarioConfig> =
+        scenarios.values().filter(|s| s.menu_backdrop).collect();
+    backdrops.sort_by(|a, b| a.id.cmp(&b.id));
+
+    if backdrops.is_empty() {
+        warn!(
+            "load_menu_ambience: no registered scenario is flagged menu_backdrop; \
+             the menu renders without a living backdrop"
+        );
+        commands.spawn((
+            DespawnOnExit(GameStates::MainMenu),
+            Name::new("Menu Fallback Camera"),
+            Camera3d::default(),
+            Transform::IDENTITY,
+        ));
+        return;
+    }
+
+    let pick = backdrops[rng.next_u32() as usize % backdrops.len()].clone();
+    commands.trigger(LoadScenario(pick));
 }
+
+/// How many frames `stage_menu_camera` waits for the backdrop's
+/// `menu_planetoid` well before giving up on cinematic framing and activating
+/// the camera at the scenario's own pose. Long enough for a scenario's
+/// OnStart spawns to settle; short enough that a well-less mod backdrop shows
+/// within a second instead of leaving the menu on a blank camera forever.
+const MENU_CAMERA_GRACE_FRAMES: u32 = 60;
 
 /// Turn the loader's flyable camera into a fixed cinematic viewpoint: strip the
 /// WASD controller (the user must not be able to fly the menu backdrop), then
@@ -984,6 +1018,12 @@ fn load_menu_ambience(mut commands: Commands, scenarios: Res<GameScenarios>) {
 /// overwritten before the removal applies (observed: camera stuck at the
 /// loader's default inside the planetoid). The camera spawns a frame after
 /// LoadScenario, so an OnEnter hook would miss it - this polls instead.
+///
+/// A backdrop WITHOUT a `menu_planetoid` well (possible once mods can flag
+/// backdrops) must not leave the camera deactivated forever - that would
+/// render the menu unusable, since the UI draws through this camera. After
+/// [`MENU_CAMERA_GRACE_FRAMES`] without the well, the camera activates at the
+/// scenario's own pose: the mod author's framing, unstaged.
 fn stage_menu_camera(
     mut commands: Commands,
     mut controlled: Query<(Entity, &mut Camera), (With<Camera3d>, With<WASDCameraController>)>,
@@ -992,6 +1032,7 @@ fn stage_menu_camera(
         (With<Camera3d>, Without<WASDCameraController>),
     >,
     wells: Query<(&Transform, &GravityWell, &EntityId), Without<Camera3d>>,
+    mut frames_without_well: Local<u32>,
 ) {
     // Blank the frame while the controller is still attached: the loader
     // spawns the camera inside the planetoid's geometric radius, and staging
@@ -1000,13 +1041,28 @@ fn stage_menu_camera(
     for (entity, mut camera) in &mut controlled {
         camera.is_active = false;
         commands.entity(entity).remove::<WASDCameraController>();
+        // A fresh backdrop camera restarts the well grace period.
+        *frames_without_well = 0;
     }
     // Frame the planetoid + orbit from ITS well's real geometry (the body
     // radius is only known at runtime; see ORBIT_CLEARANCE).
     let Some((well_transform, well, _)) = wells.iter().find(|(_, _, id)| id.0 == MENU_PLANETOID_ID)
     else {
+        *frames_without_well += 1;
+        if *frames_without_well == MENU_CAMERA_GRACE_FRAMES {
+            warn!(
+                "stage_menu_camera: the backdrop has no '{MENU_PLANETOID_ID}' gravity well; \
+                 activating the camera at the scenario's own pose (no cinematic framing)"
+            );
+        }
+        if *frames_without_well >= MENU_CAMERA_GRACE_FRAMES {
+            for (_, mut camera) in &mut staged {
+                camera.is_active = true;
+            }
+        }
         return;
     };
+    *frames_without_well = 0;
     let r_orbit = well.body_radius + ORBIT_CLEARANCE;
     let pose = well_transform.translation + Vec3::new(0.0, r_orbit * 0.75, r_orbit * 2.5);
     for (mut transform, mut camera) in &mut staged {
@@ -3032,29 +3088,69 @@ fn on_exit(_activate: On<Activate>, mut exit: MessageWriter<AppExit>) {
 /// ship included) the moment gameplay starts. `Sandbox` mode does nothing here -
 /// the editor owns that path.
 ///
-/// Which scenario: the [`NewGameScenario`] override if the Scenarios picker set
-/// one (`Some(id)`), otherwise the canned New Game start. A `Some(id)` that is
-/// not registered (a mod that got disabled between pick and play) falls back to
-/// the canned start with a warning rather than panicking.
+/// Which scenario, in fallback order (each miss warns and falls through):
+/// 1. the [`NewGameScenario`] override, if the Scenarios picker set one and it
+///    is still registered (a mod can get disabled between pick and play);
+/// 2. the base bundle's declared start ([`NewGameStart`], written by the
+///    bundle merge from `base.bundle.ron`'s `new_game_scenario` - base-owned,
+///    not moddable);
+/// 3. the first LISTED scenario (the picker's own order), so a base bundle
+///    that forgot to declare a start still launches something;
+/// 4. nothing registered at all: log an error and load nothing.
 fn start_new_game_scenario(
     mut commands: Commands,
     scenarios: Res<GameScenarios>,
+    start: Res<NewGameStart>,
     pick: Res<NewGameScenario>,
 ) {
-    let id = match &pick.0 {
-        Some(id) if scenarios.contains_key(id) => id.as_str(),
-        Some(missing) => {
+    let picked = pick.0.as_ref().filter(|id| {
+        let registered = scenarios.contains_key(*id);
+        if !registered {
             warn!(
-                "start_new_game_scenario: picked scenario '{missing}' not in GameScenarios; \
-                 falling back to '{NEW_GAME_SCENARIO_ID}'"
+                "start_new_game_scenario: picked scenario '{id}' not in GameScenarios; \
+                 falling back to the base-declared start"
             );
-            NEW_GAME_SCENARIO_ID
         }
-        None => NEW_GAME_SCENARIO_ID,
+        registered
+    });
+    let declared = picked.is_none().then(|| {
+        start.0.as_ref().filter(|id| {
+            let registered = scenarios.contains_key(*id);
+            if !registered {
+                warn!(
+                    "start_new_game_scenario: the base-declared start '{id}' is not \
+                     registered; falling back to the first listed scenario"
+                );
+            }
+            registered
+        })
+    });
+
+    let id = match (picked, declared) {
+        (Some(id), _) => id.clone(),
+        (None, Some(Some(id))) => id.clone(),
+        _ => {
+            if start.0.is_none() {
+                warn!(
+                    "start_new_game_scenario: the base bundle declares no \
+                     new_game_scenario; falling back to the first listed scenario"
+                );
+            }
+            match listed_scenarios(&scenarios).into_iter().next() {
+                Some(first) => first.id,
+                None => {
+                    error!(
+                        "start_new_game_scenario: no scenario is registered at all; \
+                         New Game loads nothing"
+                    );
+                    return;
+                }
+            }
+        }
     };
     let scenario = scenarios
-        .get(id)
-        .unwrap_or_else(|| panic!("Scenario '{id}' not found"))
+        .get(&id)
+        .expect("the fallback chain only yields registered ids")
         .clone();
     commands.trigger(LoadScenario(scenario));
 }
@@ -3130,13 +3226,23 @@ mod tests {
     /// the OnEnter systems (setup_menu_ui spawns plain components; the HUD
     /// level is a plain resource write), so insert `dummy_scenarios()` first -
     /// load_menu_ambience reads GameScenarios.
+    /// Fixture ids: the tests own their registry; production names no
+    /// scenario ids (task 20260716-155849).
+    const TEST_START_ID: &str = "story_start";
+    const TEST_BACKDROP_ID: &str = "test_backdrop";
+
     fn app() -> App {
         let mut app = App::new();
         app.add_plugins(StatesPlugin);
+        // Seeded so the backdrop draw is deterministic across runs.
+        app.add_plugins(EntropyPlugin::<WyRand>::with_seed(42u64.to_ne_bytes()));
         app.init_state::<GameStates>();
         app.init_state::<PauseStates>();
         app.init_resource::<GameMode>();
         app.init_resource::<ButtonInput<KeyCode>>();
+        // The base bundle's declared New Game start (register_bundles writes
+        // this in production).
+        app.insert_resource(NewGameStart(Some(TEST_START_ID.to_string())));
         // Headless: no TimePlugin, so provide the clocks the pause systems
         // touch.
         app.insert_resource(Time::<Virtual>::default());
@@ -3200,10 +3306,16 @@ mod tests {
         )
     }
 
+    fn dummy_backdrop(id: &str) -> (String, ScenarioConfig) {
+        let (key, mut config) = dummy_scenario(id);
+        config.menu_backdrop = true;
+        (key, config)
+    }
+
     fn dummy_scenarios() -> GameScenarios {
         GameScenarios(bevy::platform::collections::HashMap::from([
-            dummy_scenario(NEW_GAME_SCENARIO_ID),
-            dummy_scenario(MENU_AMBIENCE_SCENARIO_ID),
+            dummy_scenario(TEST_START_ID),
+            dummy_backdrop(TEST_BACKDROP_ID),
         ]))
     }
 
@@ -3317,7 +3429,7 @@ mod tests {
         // flip states.
         assert_eq!(
             app.world().resource::<LoadedScenario>().0.as_deref(),
-            Some(NEW_GAME_SCENARIO_ID)
+            Some(TEST_START_ID)
         );
     }
 
@@ -3370,7 +3482,7 @@ mod tests {
 
         assert_eq!(
             app.world().resource::<LoadedScenario>().0.as_deref(),
-            Some(MENU_AMBIENCE_SCENARIO_ID)
+            Some(TEST_BACKDROP_ID)
         );
         // The menu is a cinematic shot: entering drives the HUD level to None
         // (the absorbed status-bar hide, task 20260711-180501).
@@ -3710,7 +3822,7 @@ mod tests {
         assert_eq!(clocks_paused(&app), (false, false));
         assert_eq!(
             app.world().resource::<LoadedScenario>().0.as_deref(),
-            Some(MENU_AMBIENCE_SCENARIO_ID)
+            Some(TEST_BACKDROP_ID)
         );
     }
 
@@ -3748,7 +3860,7 @@ mod tests {
         );
         assert_eq!(
             app.world().resource::<LoadedScenario>().0.as_deref(),
-            Some(NEW_GAME_SCENARIO_ID)
+            Some(TEST_START_ID)
         );
     }
 
@@ -5176,9 +5288,9 @@ mod tests {
     /// hidden backdrop.
     fn picker_scenarios() -> GameScenarios {
         GameScenarios(bevy::platform::collections::HashMap::from([
-            picker_scenario(NEW_GAME_SCENARIO_ID, "Shakedown Run", false),
+            picker_scenario(TEST_START_ID, "Shakedown Run", false),
             picker_scenario("practice_run", "Practice Run", false),
-            picker_scenario(MENU_AMBIENCE_SCENARIO_ID, "Menu Ambience", true),
+            picker_scenario(TEST_BACKDROP_ID, "Menu Ambience", true),
         ]))
     }
 
@@ -5228,7 +5340,7 @@ mod tests {
         let mut app = scenarios_app();
         let ids = scenario_row_ids(&mut app);
         assert!(
-            ids.contains(&NEW_GAME_SCENARIO_ID.to_string()),
+            ids.contains(&TEST_START_ID.to_string()),
             "the story entry is listed: {ids:?}"
         );
         assert!(
@@ -5236,7 +5348,7 @@ mod tests {
             "the mod scenario is listed: {ids:?}"
         );
         assert!(
-            !ids.contains(&MENU_AMBIENCE_SCENARIO_ID.to_string()),
+            !ids.contains(&TEST_BACKDROP_ID.to_string()),
             "the hidden backdrop scenario is NOT listed: {ids:?}"
         );
     }
@@ -5260,16 +5372,13 @@ mod tests {
     #[test]
     fn clicking_a_scenario_row_selects_it_and_renders_its_details() {
         let mut app = scenarios_app();
-        let story_row = scenario_row(&mut app, NEW_GAME_SCENARIO_ID).expect("story row");
+        let story_row = scenario_row(&mut app, TEST_START_ID).expect("story row");
 
         app.world_mut().trigger(Activate { entity: story_row });
         app.update();
 
-        assert_eq!(
-            selected_scenario(&app).as_deref(),
-            Some(NEW_GAME_SCENARIO_ID)
-        );
-        let story_row = scenario_row(&mut app, NEW_GAME_SCENARIO_ID).unwrap();
+        assert_eq!(selected_scenario(&app).as_deref(), Some(TEST_START_ID));
+        let story_row = scenario_row(&mut app, TEST_START_ID).unwrap();
         let practice_row = scenario_row(&mut app, "practice_run").unwrap();
         assert!(
             app.world().entity(story_row).contains::<Selected>(),
@@ -5332,19 +5441,129 @@ mod tests {
         };
 
         assert_eq!(
-            loaded_for(Some(MENU_AMBIENCE_SCENARIO_ID)).as_deref(),
-            Some(MENU_AMBIENCE_SCENARIO_ID),
+            loaded_for(Some(TEST_BACKDROP_ID)).as_deref(),
+            Some(TEST_BACKDROP_ID),
             "an existing override loads that scenario"
         );
         assert_eq!(
             loaded_for(None).as_deref(),
-            Some(NEW_GAME_SCENARIO_ID),
+            Some(TEST_START_ID),
             "no override loads the canned New Game start"
         );
         assert_eq!(
             loaded_for(Some("no-such-scenario")).as_deref(),
-            Some(NEW_GAME_SCENARIO_ID),
+            Some(TEST_START_ID),
             "a missing override falls back to the canned start"
+        );
+    }
+
+    /// The rest of the New Game fallback chain (task 20260716-155849): a
+    /// missing or absent base declaration falls back to the first LISTED
+    /// scenario, and an empty registry loads nothing without panicking.
+    #[test]
+    fn start_new_game_scenario_falls_back_past_a_bad_declaration() {
+        let loaded_with = |start: Option<&str>, scenarios: GameScenarios| -> Option<String> {
+            let mut app = app();
+            app.insert_resource(scenarios);
+            app.insert_resource(NewGameStart(start.map(|s| s.to_string())));
+            observe_load_scenario(&mut app);
+            *app.world_mut().resource_mut::<GameMode>() = GameMode::NewGame;
+            app.insert_resource(NewGameScenario(None));
+            enter_playing(&mut app);
+            app.world().resource::<LoadedScenario>().0.clone()
+        };
+
+        // Both dummy fixtures share the display name, so the LISTED order
+        // tiebreaks on id: TEST_START_ID ("story_start") sorts first.
+        assert_eq!(
+            loaded_with(Some("gone-with-a-mod"), dummy_scenarios()).as_deref(),
+            Some(TEST_START_ID),
+            "an unregistered base declaration falls back to the first listed scenario"
+        );
+        assert_eq!(
+            loaded_with(None, dummy_scenarios()).as_deref(),
+            Some(TEST_START_ID),
+            "no declaration at all falls back to the first listed scenario"
+        );
+        assert_eq!(
+            loaded_with(Some("gone"), GameScenarios::default()),
+            None,
+            "an empty registry loads nothing - and must not panic"
+        );
+    }
+
+    /// The backdrop draw stays inside the `menu_backdrop`-flagged set and,
+    /// over a seeded 8-entry rotation, reaches more than one backdrop -
+    /// the flag is a ROTATION, not a single hardcoded scene.
+    #[test]
+    fn menu_backdrop_pick_stays_flagged_and_rotates() {
+        let mut app = app();
+        app.insert_resource(GameScenarios(bevy::platform::collections::HashMap::from([
+            dummy_scenario(TEST_START_ID),
+            dummy_backdrop("backdrop_a"),
+            dummy_backdrop("backdrop_b"),
+        ])));
+        observe_load_scenario(&mut app);
+        app.update();
+
+        let mut seen = std::collections::BTreeSet::new();
+        for _ in 0..8 {
+            app.world_mut()
+                .resource_mut::<NextState<GameStates>>()
+                .set(GameStates::MainMenu);
+            app.update();
+            let picked = app
+                .world_mut()
+                .resource_mut::<LoadedScenario>()
+                .0
+                .take()
+                .expect("entering the menu loads a backdrop");
+            assert!(
+                picked == "backdrop_a" || picked == "backdrop_b",
+                "the pick must be a flagged backdrop, got '{picked}'"
+            );
+            seen.insert(picked);
+            app.world_mut()
+                .resource_mut::<NextState<GameStates>>()
+                .set(GameStates::Playing);
+            app.update();
+        }
+        assert_eq!(
+            seen.len(),
+            2,
+            "a seeded 8-draw rotation reaches both backdrops"
+        );
+    }
+
+    /// NOTHING flagged degrades to a bare camera (the UI must keep
+    /// rendering), never a panic - a mod set may deregister every backdrop.
+    #[test]
+    fn no_menu_backdrop_degrades_to_a_bare_camera() {
+        let mut app = app();
+        app.insert_resource(GameScenarios(bevy::platform::collections::HashMap::from([
+            dummy_scenario(TEST_START_ID),
+        ])));
+        observe_load_scenario(&mut app);
+        app.update();
+
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::MainMenu);
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<LoadedScenario>().0,
+            None,
+            "no backdrop scenario loads"
+        );
+        let cameras = app
+            .world_mut()
+            .query_filtered::<(), With<Camera3d>>()
+            .iter(app.world())
+            .count();
+        assert_eq!(
+            cameras, 1,
+            "the fallback camera spawns so the menu UI still renders"
         );
     }
 

@@ -151,8 +151,11 @@ pub(crate) fn menu_ambience(
         name: "Menu Ambience".to_string(),
         description: "The main menu's living backdrop.".to_string(),
         cubemap,
-        // The menu backdrop is never a player-facing scenario.
+        // The menu backdrop is never a player-facing scenario (hidden from
+        // the picker) but IS in the menu's backdrop rotation (menu_backdrop):
+        // the menu picks one flagged scenario at random on entry.
         hidden: true,
+        menu_backdrop: true,
         events,
         ..Default::default()
     }

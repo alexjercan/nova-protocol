@@ -48,6 +48,15 @@ The `ScenarioConfig` fields (`loader.rs`):
 - `hidden` (optional, default `false`) - when `true`, the scenario is kept out
   of the Scenarios picker (the menu backdrop, mid-story continuations reached
   only via `NextScenario`). Author as `hidden: true`; omit it to be listed.
+- `menu_backdrop` (optional, default `false`) - when `true`, the scenario
+  joins the main menu's BACKDROP ROTATION: on every menu entry the game picks
+  one flagged scenario at random, so several ambience scenes (base or
+  mod-added) can share the slot. Backdrops normally also set `hidden: true`
+  (the flags are orthogonal: `menu_backdrop` opts INTO the menu rotation,
+  `hidden` opts OUT of the picker). For the cinematic camera framing, include
+  a gravity-well object with entity id `menu_planetoid` (see the base
+  `menu_ambience` scenario); without one the menu falls back to your
+  scenario's own camera pose after a short grace period.
 - `events` - the list of handlers. May be empty (`events: []`), but then
   nothing happens.
 

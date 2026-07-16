@@ -81,6 +81,13 @@ pub struct BundleManifest {
     /// The mod's self-description; defaulted so meta-less manifests stay valid.
     #[serde(default)]
     pub meta: ModMeta,
+    /// The scenario id New Game launches. HONORED ONLY when this bundle is
+    /// the catalog's `base: true` entry - the merge warns and ignores it on
+    /// any other bundle, so a mod cannot redirect the New Game start (task
+    /// 20260716-155849). Strict RON writes the Option variant explicitly:
+    /// `new_game_scenario: Some("shakedown_run")`, never a bare string.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub new_game_scenario: Option<String>,
 }
 
 /// One INSTALLED mod's catalog DECLARATION: identity + where to find it +
@@ -192,6 +199,10 @@ mod tests {
             manifest.meta.name.is_empty() && manifest.meta.dependencies.is_empty(),
             "a meta-less manifest defaults to an empty ModMeta"
         );
+        assert_eq!(
+            manifest.new_game_scenario, None,
+            "an undeclared new_game_scenario defaults to None"
+        );
 
         // Full meta block -> every field decodes.
         let ron = r#"(
@@ -205,6 +216,7 @@ mod tests {
                 icon: Some("icon.png"),
                 screenshots: ["shots/a.png"],
             ),
+            new_game_scenario: Some("story_start"),
         )"#;
         let manifest: BundleManifest =
             ron::de::from_bytes(ron.as_bytes()).expect("meta manifest should decode");

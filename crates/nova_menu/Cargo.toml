@@ -9,12 +9,19 @@ description = "Main menu scene for the Nova Protocol game"
 [dependencies]
 avian3d = { version = "0.7" }
 bevy = { version = "0.19.0" }
+# The menu-backdrop rotation draws its random pick from the shared GlobalRng
+# entity (EntropyPlugin is registered by nova_gameplay's plugin in production).
+bevy_rand = { version = "0.15.0", default-features = false, features = ["wyrand"] }
+rand = { version = "0.10.2" }
 nova_assets = { path = "../nova_assets" }
 nova_events = { path = "../nova_events" }
 nova_mod_format = { path = "../nova_mod_format" }
 nova_gameplay = { path = "../nova_gameplay" }
 nova_scenario = { path = "../nova_scenario" }
 nova_ui = { path = "../nova_ui" }
+
+[target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]
+bevy_rand = { version = "0.15.0", features = ["wasm_js"] }
 
 [lints]
 workspace = true

@@ -24,6 +24,10 @@ tagged **(breaking)**.
 
 - A ship that loses its last section outside the damage path no longer lingers as a targetable 0-HP ghost hull: the health aggregate now carries a structural death backstop (no living sections = dead), closing a soft-lock where Broadside's act gates waited on a kill that never registered.
 
+### Modding & Mod Portal
+
+- Scenarios gained a `menu_backdrop` flag: on every menu entry the game picks one flagged scenario at random, so mods can ship their own menu ambience scenes (the base backdrop is just the first of them). The New Game start moved from code into the base bundle's `new_game_scenario` declaration - honored only from the base game, so mods cannot redirect it.
+
 ### Internals & Tooling
 
 - Debug builds (`--features debug`) bind F12 to a screenshot that saves the primary window to your Downloads directory as `<timestamp>.png`.

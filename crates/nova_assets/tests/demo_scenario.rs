@@ -22,7 +22,7 @@ use nova_gameplay::prelude::GameSections;
 use nova_modding::prelude::{
     BundleAsset, CatalogEntry, Content, ContentAsset, InstalledCatalog, ModEntry, NovaModdingPlugin,
 };
-use nova_scenario::prelude::GameScenarios;
+use nova_scenario::prelude::{GameScenarios, NewGameStart};
 
 /// A headless app with the asset server pointed at the workspace `assets/` and the
 /// modding plugin (which registers the content/bundle/catalog loaders).
@@ -543,5 +543,100 @@ fn merge_bundles_overlays_demo_over_base() {
     assert!(
         outcome.scenarios.contains_key("shakedown_run"),
         "a base scenario remains after overlay"
+    );
+}
+
+/// The shipped base bundle declares the New Game start: after the real merge,
+/// `NewGameStart` carries `base.bundle.ron`'s `new_game_scenario` (the menu
+/// reads this resource instead of naming any id; task 20260716-155849).
+#[test]
+fn base_bundle_declares_the_new_game_start() {
+    let mut app = headless_app();
+    let asset_server = app.world().resource::<AssetServer>().clone();
+    let catalog: Handle<InstalledCatalog> = asset_server.load("mods.catalog.ron");
+    wait_recursive_loaded(
+        &mut app,
+        &asset_server,
+        catalog.id().untyped(),
+        "the mods catalog",
+    );
+    app.world_mut()
+        .insert_resource(game_assets_with_catalog(catalog));
+    app.world_mut()
+        .insert_resource(EnabledMods(["base".to_string()].into_iter().collect()));
+    app.world_mut()
+        .run_system_once(nova_assets::register_bundles_for_test)
+        .expect("register bundles");
+
+    assert_eq!(
+        app.world().resource::<NewGameStart>(),
+        &NewGameStart(Some("shakedown_run".to_string())),
+        "the merge writes the base bundle's declared start"
+    );
+}
+
+/// Only the BASE bundle's `new_game_scenario` is honored: a non-base bundle
+/// declaring one is ignored (warned), so a mod cannot redirect New Game
+/// (task 20260716-155849, the trust rule).
+#[test]
+fn new_game_declaration_is_honored_only_from_base() {
+    let mut app = headless_app();
+    let (base_bundle, mod_bundle) = {
+        let mut bundles = app.world_mut().resource_mut::<Assets<BundleAsset>>();
+        (
+            bundles.add(BundleAsset {
+                content: vec![],
+                meta: ModMeta::default(),
+                new_game_scenario: Some("base_start".to_string()),
+            }),
+            bundles.add(BundleAsset {
+                content: vec![],
+                meta: ModMeta::default(),
+                new_game_scenario: Some("hijacked_start".to_string()),
+            }),
+        )
+    };
+    let synthetic = InstalledCatalog {
+        entries: vec![
+            CatalogEntry {
+                decl: ModEntry {
+                    id: "base".to_string(),
+                    bundle: "base/base.bundle.ron".to_string(),
+                    base: true,
+                    hidden: false,
+                },
+                bundle: base_bundle,
+            },
+            CatalogEntry {
+                decl: ModEntry {
+                    id: "sneaky".to_string(),
+                    bundle: "mods/sneaky/sneaky.bundle.ron".to_string(),
+                    base: false,
+                    hidden: false,
+                },
+                bundle: mod_bundle,
+            },
+        ],
+    };
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<InstalledCatalog>>()
+        .add(synthetic);
+    app.world_mut()
+        .insert_resource(game_assets_with_catalog(handle));
+    // BOTH enabled: enablement must not grant the non-base bundle the start.
+    app.world_mut().insert_resource(EnabledMods(
+        ["base".to_string(), "sneaky".to_string()]
+            .into_iter()
+            .collect(),
+    ));
+    app.world_mut()
+        .run_system_once(nova_assets::register_bundles_for_test)
+        .expect("register bundles");
+
+    assert_eq!(
+        app.world().resource::<NewGameStart>(),
+        &NewGameStart(Some("base_start".to_string())),
+        "the enabled non-base declaration must not override the base one"
     );
 }

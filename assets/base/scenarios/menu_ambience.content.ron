@@ -5,6 +5,7 @@
         description: "The main menu\'s living backdrop.",
         cubemap: "textures/cubemap.png",
         hidden: true,
+        menu_backdrop: true,
         events: [
             (
                 name: OnStart,

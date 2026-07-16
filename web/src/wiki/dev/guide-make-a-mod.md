@@ -47,6 +47,13 @@ is a list of mod ids; `base` is an IMPLICIT dependency and is never declared.
 `icon` is an `Option`, so write `icon: Some("icon.png")`, not `icon:
 "icon.png"`.
 
+A manifest may also declare `new_game_scenario: Some("<scenario id>")` - the
+scenario New Game launches - but it is HONORED ONLY from the base game's own
+bundle: the merge warns and ignores it on any other bundle, so a mod cannot
+redirect the New Game start. Mods influence the menu through the Scenarios
+picker and the `menu_backdrop` scenario flag instead (see the scenario
+authoring guide).
+
 A content file is a `[Content]` list. Each item is externally tagged by kind:
 
 ```ron

@@ -16,4 +16,7 @@
         description: "Nova Protocol - the core sections, ships and scenarios.",
         author: "Nova Protocol",
     ),
+    // The New Game start. Honored ONLY from the base bundle; the merge warns
+    // and ignores it on any other bundle (mods cannot redirect New Game).
+    new_game_scenario: Some("shakedown_run"),
 )

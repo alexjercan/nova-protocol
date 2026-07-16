@@ -101,6 +101,9 @@ pub struct BundleAsset {
     pub content: Vec<Handle<ContentAsset>>,
     /// The mod's self-description, carried from the manifest.
     pub meta: ModMeta,
+    /// The manifest's New Game declaration, carried through verbatim; the
+    /// merge honors it only from the base bundle (see `BundleManifest`).
+    pub new_game_scenario: Option<String>,
 }
 
 impl VisitAssetDependencies for BundleAsset {
@@ -236,6 +239,7 @@ impl AssetLoader for BundleAssetLoader {
         Ok(BundleAsset {
             content,
             meta: manifest.meta,
+            new_game_scenario: manifest.new_game_scenario,
         })
     }
 

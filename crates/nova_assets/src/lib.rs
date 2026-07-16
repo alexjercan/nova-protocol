@@ -11,7 +11,7 @@ use nova_gameplay::prelude::*;
 use nova_modding::prelude::{
     BundleAsset, Content, ContentAsset, InstalledCatalog, ModEntry, ModMeta,
 };
-use nova_scenario::prelude::GameScenarios;
+use nova_scenario::prelude::{GameScenarios, NewGameStart};
 
 pub mod mod_cache;
 pub mod mod_prefs;
@@ -640,6 +640,44 @@ pub fn register_bundles(
     for conflict in &outcome.conflicts {
         error!("register_bundles: {conflict}");
     }
+
+    // The New Game start comes from the BASE bundle's manifest and ONLY from
+    // it (task 20260716-155849): any other bundle declaring
+    // `new_game_scenario` - shipped or downloaded - is warned about and
+    // ignored, so a mod can never redirect what New Game launches.
+    let mut new_game: Option<String> = None;
+    if let Some(catalog) = catalog {
+        for entry in &catalog.entries {
+            let Some(bundle) = bundles.get(&entry.bundle) else {
+                continue;
+            };
+            let Some(declared) = &bundle.new_game_scenario else {
+                continue;
+            };
+            if entry.decl.base {
+                new_game = Some(declared.clone());
+            } else {
+                warn!(
+                    "register_bundles: mod '{}' declares new_game_scenario '{declared}'; \
+                     ignored - only the base bundle picks the New Game start",
+                    entry.decl.id
+                );
+            }
+        }
+    }
+    for m in &downloaded.0 {
+        if let Some(declared) = bundles
+            .get(&m.bundle)
+            .and_then(|b| b.new_game_scenario.as_ref())
+        {
+            warn!(
+                "register_bundles: downloaded mod '{}' declares new_game_scenario '{declared}'; \
+                 ignored - only the base bundle picks the New Game start",
+                m.record.id
+            );
+        }
+    }
+    commands.insert_resource(NewGameStart(new_game));
 
     commands.insert_resource(GameSections(outcome.sections));
     commands.insert_resource(outcome.scenarios);

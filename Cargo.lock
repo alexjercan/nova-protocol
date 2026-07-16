@@ -4652,12 +4652,14 @@ version = "0.6.0"
 dependencies = [
  "avian3d",
  "bevy",
+ "bevy_rand",
  "nova_assets",
  "nova_events",
  "nova_gameplay",
  "nova_mod_format",
  "nova_scenario",
  "nova_ui",
+ "rand 0.10.2",
 ]
 
 [[package]]

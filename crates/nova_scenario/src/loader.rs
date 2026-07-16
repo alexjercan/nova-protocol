@@ -9,9 +9,9 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        scenario_is_live, CurrentScenario, GameScenarios, LoadScenario, ScenarioCameraMarker,
-        ScenarioConfig, ScenarioEventConfig, ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin,
-        ScenarioScopedMarker, ScriptedCameraPose, UnloadScenario,
+        scenario_is_live, CurrentScenario, GameScenarios, LoadScenario, NewGameStart,
+        ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig, ScenarioId, ScenarioLoaded,
+        ScenarioLoaderPlugin, ScenarioScopedMarker, ScriptedCameraPose, UnloadScenario,
     };
 }
 
@@ -21,6 +21,16 @@ pub type ScenarioId = String;
 /// The collection of available game scenarios
 #[derive(Resource, Clone, Debug, Deref, DerefMut, Default)]
 pub struct GameScenarios(pub HashMap<ScenarioId, ScenarioConfig>);
+
+/// The scenario New Game launches, declared by the BASE bundle's manifest
+/// (`new_game_scenario` in `base.bundle.ron`) and written by the bundle merge
+/// (task 20260716-155849). Deliberately NOT a scenario flag and NOT
+/// overlayable: only the catalog entry marked `base: true` is honored, so a
+/// non-base mod can never redirect what New Game starts (mods add PICKER
+/// entries and `menu_backdrop` scenarios instead). `None` when base declares
+/// nothing; the menu then falls back to the first listed scenario.
+#[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
+pub struct NewGameStart(pub Option<ScenarioId>);
 
 /// Configuration for a game scenario.
 ///
@@ -59,6 +69,17 @@ pub struct ScenarioConfig {
     /// as `hidden: true`.
     #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
     pub hidden: bool,
+    /// When true the scenario is a MENU BACKDROP candidate: on menu entry the
+    /// menu collects every registered scenario with this flag and loads one at
+    /// random, so several ambience scenes can ship and mods can add their own.
+    /// Backdrops normally also set `hidden: true` (the flags are orthogonal -
+    /// this one opts INTO the menu rotation, `hidden` opts OUT of the picker).
+    /// A backdrop should contain a gravity well with entity id
+    /// `menu_planetoid` for the cinematic camera framing; without one the menu
+    /// falls back to the scenario's own camera pose after a short grace.
+    /// Serde-defaulted to false; author as `menu_backdrop: true`.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
+    pub menu_backdrop: bool,
     /// Events associated with the scenario
     #[cfg_attr(
         feature = "serde",
@@ -169,6 +190,9 @@ impl Plugin for ScenarioLoaderPlugin {
 
         app.init_resource::<CurrentScenario>();
         app.init_resource::<CurrentOutcome>();
+        // Default None until the bundle merge writes the base declaration, so
+        // a `Res<NewGameStart>` never panics on ordering.
+        app.init_resource::<NewGameStart>();
         app.add_observer(on_load_scenario);
 
         app.add_observer(on_add_entity_with::<MeshFragmentMarker>);
@@ -1634,19 +1658,24 @@ mod tests {
         );
     }
 
-    /// The `thumbnail`/`hidden` fields are serde-defaulted, so a scenario RON
-    /// authored before they existed still parses (None/false), and a scenario
-    /// carrying them round-trips. Guards the back-compat contract the picker
-    /// depends on.
+    /// The `thumbnail`/`hidden`/`menu_backdrop` fields are serde-defaulted, so
+    /// a scenario RON authored before they existed still parses
+    /// (None/false/false), and a scenario carrying them round-trips. Guards
+    /// the back-compat contract the picker and the menu-backdrop rotation
+    /// depend on.
     #[test]
     fn thumbnail_and_hidden_default_when_absent_and_round_trip_when_present() {
-        // Legacy shape: no thumbnail, no hidden.
+        // Legacy shape: no thumbnail, no hidden, no menu_backdrop.
         let legacy = r#"(id: "legacy", name: "Legacy", description: "old", cubemap: "sky.png")"#;
         let parsed: ScenarioConfig = ron::from_str(legacy).expect("legacy scenario parses");
         assert_eq!(parsed.thumbnail, None, "absent thumbnail defaults to None");
         assert!(!parsed.hidden, "absent hidden defaults to false");
+        assert!(
+            !parsed.menu_backdrop,
+            "absent menu_backdrop defaults to false"
+        );
 
-        // A configured scenario round-trips both fields, and the defaulted
+        // A configured scenario round-trips the fields, and the defaulted
         // fields stay out of the serialized form (skip_serializing_if).
         let configured = ScenarioConfig {
             id: "cfg".to_string(),
@@ -1655,12 +1684,14 @@ mod tests {
             cubemap: AssetRef::from("sky.png"),
             thumbnail: Some(AssetRef::from("thumb.png")),
             hidden: true,
+            menu_backdrop: true,
             events: vec![],
         };
         // `ron::to_string` is compact (no spaces after colons).
         let ron = ron::to_string(&configured).expect("configured scenario serializes");
         assert!(ron.contains("thumbnail:Some(\"thumb.png\")"), "ron: {ron}");
         assert!(ron.contains("hidden:true"), "ron: {ron}");
+        assert!(ron.contains("menu_backdrop:true"), "ron: {ron}");
         let back: ScenarioConfig = ron::from_str(&ron).expect("configured scenario parses");
         assert_eq!(
             back.thumbnail
@@ -1669,10 +1700,12 @@ mod tests {
             Some("thumb.png")
         );
         assert!(back.hidden);
+        assert!(back.menu_backdrop);
 
-        // The defaulted form omits both keys.
+        // The defaulted form omits the keys.
         let bare = ron::to_string(&parsed).expect("legacy re-serializes");
         assert!(!bare.contains("thumbnail"), "ron: {bare}");
         assert!(!bare.contains("hidden"), "ron: {bare}");
+        assert!(!bare.contains("menu_backdrop"), "ron: {bare}");
     }
 }
