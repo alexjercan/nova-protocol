@@ -7,7 +7,7 @@
 //! LAST bridge: bevy_common_systems' `SkyboxPlugin` runs an `On<Insert, SkyboxConfig>`
 //! observer that reads the loaded image, reinterprets the stacked cubemap, and
 //! attaches a bevy `Skybox` to the camera. This test drives the whole chain on the
-//! real `textures/cubemap_alt2.png` file:
+//! real `textures/cubemap_alt.png` file:
 //!
 //!   SetSkybox action -> NovaEventWorld command flush -> PendingSkyboxSwap
 //!   -> real asset load -> apply_pending_skybox_swaps installs SkyboxConfig
@@ -110,7 +110,7 @@ fn set_skybox_swaps_a_real_cubemap_on_the_scenario_camera() {
     );
 
     // The swap target is a DIFFERENT real asset (distinct path -> distinct id).
-    let swapped: Handle<Image> = asset_server.load("textures/cubemap_alt2.png");
+    let swapped: Handle<Image> = asset_server.load("textures/cubemap_alt.png");
     assert_ne!(
         swapped, initial,
         "the swap must target a different cubemap than the initial one"
@@ -121,7 +121,7 @@ fn set_skybox_swaps_a_real_cubemap_on_the_scenario_camera() {
     // queued command (-> PendingSkyboxSwap) exactly as it does in game.
     {
         let mut event_world = app.world_mut().resource_mut::<NovaEventWorld>();
-        SetSkyboxActionConfig::new("textures/cubemap_alt2.png")
+        SetSkyboxActionConfig::new("textures/cubemap_alt.png")
             .action(&mut event_world, &GameEventInfo::default());
     }
 

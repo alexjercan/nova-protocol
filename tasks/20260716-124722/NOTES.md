@@ -22,7 +22,7 @@ counter (now 1..=7; 8 is the terminal done-state):
   gates (GATE 3-4, radius 18u), four rocks flanking the line (~9-17u past the
   ship margin - scenery-tight now; playtest may pull them in), and a `ScatterObjects`
   belt-wall field off the +x side for depth.
-- **Act 3 (hazard)** - `cubemap_alt2.png` (swapped in GATE 5's OnEnter). Tightest
+- **Act 3 (hazard)** - `cubemap_alt.png` (swapped in GATE 5's OnEnter). Tightest
   gates (GATE 5-6, radius 16u), three more rocks, and a big invulnerable
   `surface_gravity` planetoid off the G5->G6 line whose SOI tugs the pilot.
 

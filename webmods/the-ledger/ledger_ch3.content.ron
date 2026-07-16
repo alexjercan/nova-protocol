@@ -11,7 +11,7 @@
         id: "ledger_ch3_quiet_channel",
         name: "The Ledger 3: The Quiet Channel",
         description: "Go dark and thread the debris channel to Vesh's yard. Chapter three of The Ledger.",
-        cubemap: "textures/cubemap_alt2.png",
+        cubemap: "textures/cubemap_alt.png",
         thumbnail: Some("textures/asteroid.png"),
         hidden: true,
         events: [

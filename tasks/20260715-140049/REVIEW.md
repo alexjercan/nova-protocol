@@ -23,7 +23,7 @@ Verified independently (not just read):
   `initial` first, so the swap assertion proves an actual change - the delivery
   guard the "nothing happens" lesson asks for, inverted to "the change happened".
 - **Real assets.** Loads the shipped `textures/cubemap.png` and
-  `textures/cubemap_alt2.png` off the real workspace `assets/` (headless IO,
+  `textures/cubemap_alt.png` off the real workspace `assets/` (headless IO,
   modeled on demo_scenario.rs / cubemap_meta.rs).
 - **Real flush path.** The swap is fired through the real
   `SetSkyboxActionConfig::action` on the real `NovaEventWorld`, and drained by

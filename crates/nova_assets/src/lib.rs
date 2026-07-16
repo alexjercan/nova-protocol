@@ -58,7 +58,7 @@ pub mod scenario_generation {
     const CUBEMAP_PATH: &str = "textures/cubemap.png";
     /// Broadside's deep-field sky: the alt cubemap, so chapter two reads as
     /// a different place than the trainer belt.
-    const CUBEMAP_ALT2_PATH: &str = "textures/cubemap_alt2.png";
+    const CUBEMAP_ALT_PATH: &str = "textures/cubemap_alt.png";
     /// The asteroid texture asset path (matches `GameAssets::asteroid_texture`).
     const ASTEROID_TEXTURE_PATH: &str = "textures/asteroid.png";
 
@@ -87,7 +87,7 @@ pub mod scenario_generation {
             crate::scenario::menu_scrapyard(cubemap(), texture()),
             crate::scenario::shakedown::shakedown_run(cubemap(), texture()),
             crate::scenario::broadside::broadside(
-                AssetRef::from(CUBEMAP_ALT2_PATH.to_string()),
+                AssetRef::from(CUBEMAP_ALT_PATH.to_string()),
                 texture(),
             ),
         ]

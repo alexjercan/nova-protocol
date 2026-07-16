@@ -20,11 +20,11 @@ camera's `Skybox.image` handle changed. Model on `nova_assets/tests/demo_scenari
       cubemap and drives SetSkybox through the full chain (action -> flush ->
       PendingSkyboxSwap -> load -> applier -> bcs SkyboxPlugin observer).
 - [x] Assert the scenario camera's live `Skybox.image` handle swapped, brightness
-      inherited, pending tag consumed. Use the shipped `textures/cubemap_alt2.png`.
+      inherited, pending tag consumed. Use the shipped `textures/cubemap_alt.png`.
 - [x] cargo fmt + run the new test green.
 
 ## Notes
-- Uses cubemap_alt2.png (added this session) as the swap target; cubemap.png as
+- Uses cubemap_alt.png (added this session) as the swap target; cubemap.png as
   the initial sky. Both load as 6-layer arrays via their .meta.
 - Applier registered ungated in the rig (production gates it on scenario_is_live,
   an orthogonal scheduling concern).
@@ -32,7 +32,7 @@ camera's `Skybox.image` handle changed. Model on `nova_assets/tests/demo_scenari
 ## Outcome (CLOSED)
 
 Added `crates/nova_scenario/tests/skybox_swap_e2e.rs`: a headless integration test
-that fires the real `SetSkybox` action for `textures/cubemap_alt2.png` and asserts
+that fires the real `SetSkybox` action for `textures/cubemap_alt.png` and asserts
 the scenario camera's live `Skybox.image` swaps (brightness inherited, pending tag
 consumed), driving the previously-untested `apply_pending_skybox_swaps` ->
 bcs `SkyboxPlugin` observer bridge on real assets. Test green (1 passed); fmt clean.

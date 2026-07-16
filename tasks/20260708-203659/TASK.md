@@ -47,7 +47,7 @@ picker tab so it can be played directly. The alt-storyline campaign mod
 - [x] Builder module crates/nova_assets/src/scenario/broadside.rs (working
       id "broadside"; pick final name/copy during implementation - story
       continuity: the scavengers from shakedown_run return in force): staging
-      with the alt skybox (cubemap_alt2), a seeded asteroid-cover
+      with the alt skybox (cubemap_alt), a seeded asteroid-cover
       ScatterObjects field, player ship with full loadout (turret + torpedo
       bay), enemy capital ship - controller + reinforced hull sections +
       2x better_turret + torpedo_section + thruster - with AIControllerConfig

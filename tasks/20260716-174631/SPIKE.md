@@ -59,7 +59,7 @@ research agents' output):
 - **SetSpeedCap / SetControllerVerb**: pacing knobs (e.g. disable GOTO in a
   section to force manual threading).
 - Three skyboxes exist for per-act sense-of-place: assets/textures/cubemap.png,
-  cubemap_alt.png, cubemap_alt2.png (base assets, referenced as
+  cubemap_alt.png, cubemap_alt.png (base assets, referenced as
   `textures/*.png` since the mod depends on base).
 
 Republish path (research agent 2): bump `meta.version` in

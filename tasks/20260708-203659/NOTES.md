@@ -53,7 +53,7 @@ delivery-guard test actually pins.
 Example 19's first run crashed in bcs `skybox.rs` `.unwrap()`: the loader
 inserted `SkyboxConfig` eagerly, which only ever worked because every prior
 scenario used the PRELOADED `textures/cubemap.png`. Broadside's
-`cubemap_alt2.png` - and any mod shipping its own sky - hit the known bcs
+`cubemap_alt.png` - and any mod shipping its own sky - hit the known bcs
 panic-on-unloaded-asset hazard. Fix: the loader now hands the camera a
 `PendingSkyboxSwap` (the SetSkybox action's deferred applier, which handles
 fresh installs - it falls back to the pending brightness when no SkyboxConfig

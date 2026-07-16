@@ -42,7 +42,7 @@ the gap), and decides fill-vs-work-around for each gap.
 - Mod constraints: portal mod ids are lowercase/digits/dash (the
   "fixture-slalom" lesson); base assets only until the asset variety
   pack (20260716-123544) lands mod-resource support - three cubemaps
-  exist (cubemap, cubemap_alt, cubemap_alt2) for per-chapter skies;
+  exist (cubemap, cubemap_alt, cubemap_alt) for per-chapter skies;
   ships build from base section prototypes (ship-prototype content kind
   20260714-134115 is not needed for v1 - chapters can inline ship
   configs, sharing via authoring discipline).
@@ -114,7 +114,7 @@ working-class, dry humor, cozy-grim - the Factorio-cute of it.
   (gauntlet's expression-guarded gate sequencing) through a dense
   hazard scatter, with one mid-channel ambush beat (act-gated spawns,
   broadside pattern - and gate every handler to its act, per the
-  act-gating domain lesson). Victory -> ch4. Sky: cubemap_alt2.
+  act-gating domain lesson). Victory -> ch4. Sky: cubemap_alt.
 - **Chapter 4 - The Buyer** (finale, branching). The handoff sours:
   the AUDITOR arrives. TWO beacons open a choice (OnEnter branch sets
   a variable, gauntlet-style): fly the crate to Vesh's HANDOFF berth

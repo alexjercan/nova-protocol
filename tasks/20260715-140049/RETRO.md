@@ -12,7 +12,7 @@
   the test would import. Payoff: the test compiled and passed first try and the
   review found zero blockers - the ~5m cold build was spent once, not iterated.
 - **Checked the isolation base before sprouting.** The swap target
-  `cubemap_alt2.png` was an unpushed local-only commit; confirmed `git remote`
+  `cubemap_alt.png` was an unpushed local-only commit; confirmed `git remote`
   + the asset's commit and used `sprout new` (off local HEAD) rather than a
   fresh/origin worktree, so the asset was present. A fresh-from-origin worktree
   would have failed the test on a missing file.

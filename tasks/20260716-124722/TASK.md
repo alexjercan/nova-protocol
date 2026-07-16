@@ -42,7 +42,7 @@ nova_portal_gen; enabled-state-preserving update is part of the dogfood.
       ship/autopilot to sling-or-avoid without soft-locking a gate thread.
 - [x] Extend the ordered-gate OnEnter chain to all gates: each advances `gate`,
       detaches/attaches the objective marker, sets the next objective text, and
-      swaps the skybox at act boundaries (cubemap -> cubemap_alt -> cubemap_alt2).
+      swaps the skybox at act boundaries (cubemap -> cubemap_alt -> cubemap_alt).
 - [x] Add the outcome frames: Outcome(Victory, "...") on the FINISH OnEnter, and
       Outcome(Defeat, "...") on an OnDestroyed handler for the player ship
       (crashed out) - gate the Defeat handler so it cannot fire after Victory.
@@ -81,7 +81,7 @@ nova_portal_gen; enabled-state-preserving update is part of the dogfood.
   (gravity well to sling/avoid), collision = bcs impact damage (the punish);
   Beacon `area_radius` gates (ordered by the proven `gate` counter);
   Outcome(Victory) at FINISH + Outcome(Defeat) on player-ship OnDestroyed;
-  per-act SetSkybox across the three cubemaps (cubemap/_alt/_alt2).
+  per-act SetSkybox across the three cubemaps (cubemap/_alt/_alt).
 - AUTHORING HAZARDS the plan must respect (spike section "Recommendation"):
   (1) keep all gate areas pairwise NON-overlapping or the race soft-locks -
   assert it in the rig; (2) asteroid geometric factor is 3.5-6.0x nominal, so

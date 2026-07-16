@@ -3,7 +3,7 @@
         id: "broadside",
         name: "Broadside",
         description: "The scavengers come back in force: answer a hauler\'s distress call, break an ambush, and screen the gang gunship\'s torpedoes with your PDC. Chapter two of the base storyline.",
-        cubemap: "textures/cubemap_alt2.png",
+        cubemap: "textures/cubemap_alt.png",
         thumbnail: Some("banner.png"),
         events: [
             (

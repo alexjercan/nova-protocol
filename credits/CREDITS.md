@@ -20,8 +20,7 @@ assets" below:
 - **3D models** (`assets/gltf/*.glb`) - exported from the project's own Blender
   sources in `art/blender/`.
 - **Textures** (`assets/textures/*.png`, except the skybox cubemaps
-  `cubemap.png`, `cubemap_alt.png` and `cubemap_alt2.png` listed under
-  "Third-party assets")
+  `cubemap.png` and `cubemap_alt.png` listed under "Third-party assets")
   and **UI icons**
   (`assets/icons/*.png`, `assets/banner.png`) - authored for the project.
 - **Shaders** (`assets/shaders/*.wgsl`) - written for the project.
@@ -30,8 +29,7 @@ assets" below:
 
 - **Bevy icon** - [MIT License](licenses/Bevy_MIT_License.md).
 - **Skybox cubemaps** (`assets/textures/cubemap.png`,
-  `assets/textures/cubemap_alt.png`, `assets/textures/cubemap_alt2.png`) -
-  generated with
+  `assets/textures/cubemap_alt.png`) - generated with
   [space-3d](https://tools.wwwtyro.net/space-3d/) by Rye Terrell (wwwtyro),
   released into the public domain under
   [The Unlicense](licenses/space-3d_Unlicense.md). No attribution is

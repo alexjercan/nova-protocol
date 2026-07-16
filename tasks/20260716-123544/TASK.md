@@ -8,7 +8,7 @@
 ## Goal
 
 Scenarios stop all looking the same. Today the shipped art is 1 asteroid
-texture, 3 same-style skyboxes (cubemap, cubemap_alt, cubemap_alt2), 1 hull
+texture, 3 same-style skyboxes (cubemap, cubemap_alt, cubemap_alt), 1 hull
 model and the turret/torpedo part models. Add: at least one THEMED skybox
 (so SetSkybox has somewhere interesting to go), asteroid and planet(oid)
 texture variants, and at least one alternate hull or section model variant,
