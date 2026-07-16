@@ -2,7 +2,7 @@
 
 - STATUS: CLOSED
 - PRIORITY: 50
-- TAGS: research, docs
+- TAGS: v0.7.0,research,docs
 
 Research task: find every place where source code references specific
 scenario ids or specific mods, document them, and honestly answer "should

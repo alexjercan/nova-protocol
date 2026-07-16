@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 70
-- TAGS: testing, refactor
+- TAGS: v0.7.0,testing,refactor
 
 ## Goal
 

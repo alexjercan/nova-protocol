@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 60
-- TAGS: feature
+- TAGS: v0.7.0,feature
 
 ## Goal
 

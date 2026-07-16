@@ -2,7 +2,7 @@
 
 - STATUS: CLOSED
 - PRIORITY: 100
-- TAGS: refactor, content
+- TAGS: v0.7.0,refactor,content
 
 ## Goal
 

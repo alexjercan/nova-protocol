@@ -2,7 +2,7 @@
 
 - STATUS: CLOSED
 - PRIORITY: 90
-- TAGS: refactor, testing
+- TAGS: v0.7.0,refactor,testing
 
 ## Goal
 
