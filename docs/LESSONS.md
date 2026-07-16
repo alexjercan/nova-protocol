@@ -310,8 +310,9 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `agent-interrupted-verify-worktree` (x2): a subagent that hits a long build can end
   with an ambiguous partial state and misleading "in progress" notifications; INSPECT
   the worktree (git status + compile + run the deterministic generators) before
-  concluding done-or-broken. For data-file work the parity/generator write-on-missing
-  usually completes it deterministically. 20260714-150508, 20260715-142906.
+  concluding done-or-broken. For data-file work `cargo run -p nova_assets --bin
+  gen_content` completes it deterministically (the parity test no longer writes,
+  20260716-155823). 20260714-150508, 20260715-142906.
 - `reconcile-plan-to-shipped` (x2): at close-out reconcile the plan's aspirational
   lists (which variants/scope actually shipped, deferrals, overstated guarantees)
   with reality BEFORE review - it keeps flagging stale plan text as findings.

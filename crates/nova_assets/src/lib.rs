@@ -36,10 +36,12 @@ pub mod prelude {
 
 /// The RON generation surface for the built-in scenarios (task 20260525-133028
 /// follow-up). The scenario builders are the single definition of each
-/// built-in; production loads their serialized RON, and this module lets the
-/// generator/parity test rebuild them with PATH-based asset refs and serialize
-/// them deterministically. Not part of the game's public API - it exists for
-/// the `content_ron_parity` integration test.
+/// built-in; production loads their serialized RON. This module rebuilds them
+/// with PATH-based asset refs and serializes them deterministically for two
+/// consumers that must agree byte for byte: the `gen_content` bin WRITES the
+/// committed files (`cargo run -p nova_assets --bin gen_content`, task
+/// 20260716-155823) and the `content_ron_parity` integration test ASSERTS
+/// them. Not part of the game's public API.
 ///
 /// The `ScenarioConfig` serde derives are already present in this crate's
 /// build: `nova_modding` (a dependency) turns on `nova_scenario/serde`, and
@@ -119,6 +121,32 @@ pub mod scenario_generation {
             .struct_names(false)
             .separate_tuple_members(true)
             .enumerate_arrays(false)
+    }
+
+    /// Serialize one content `Vec` the way the committed files are authored:
+    /// the deterministic pretty config plus a trailing newline (POSIX-clean).
+    pub fn serialize_content(content: &[Content]) -> String {
+        let body = ron::ser::to_string_pretty(&content.to_vec(), pretty_config())
+            .expect("serialize content Vec");
+        format!("{body}\n")
+    }
+
+    /// Every builder-backed content file as (assets-root-relative path,
+    /// serialized body), in a stable order. The single file map both the
+    /// `gen_content` bin (writes) and the parity test (asserts) walk, so the
+    /// two can never disagree about what exists or what it contains.
+    pub fn content_files() -> Vec<(String, String)> {
+        let mut files = vec![(
+            "base/sections/base.content.ron".to_string(),
+            serialize_content(&build_section_content()),
+        )];
+        files.extend(build_scenario_contents().into_iter().map(|(id, content)| {
+            (
+                format!("base/scenarios/{id}.content.ron"),
+                serialize_content(&content),
+            )
+        }));
+        files
     }
 }
 
