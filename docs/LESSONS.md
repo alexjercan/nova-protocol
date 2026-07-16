@@ -45,6 +45,16 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   definite answer. Here two shipped-id fixtures (`demo`) were already red on
   master from a parallel task's rename; fixed as merge integration (naming the
   source task) rather than mis-blamed on this branch. 20260716-215423.
+- `sweep-content-repo-wide-not-just-assets` (x1): when relocating/renaming an
+  ASSET, grep EVERY content-shaped file repo-wide - `examples/**`, `include_str!`
+  embedded RON, test data - not just the shipped `assets/` tree. Content loaded
+  OUTSIDE the mod merge (directly via the default asset source) won't be caught by
+  a `self://`/`dep://` sweep of `assets/`+`webmods/` NOR by a `.rs`
+  `asset_server.load` grep. `examples/data/reel.content.ron` kept bare base refs
+  after a base-art move and 404'd in the shipped screenshot tool; `cargo test`
+  never runs that example, so the full green suite hid it - the independent
+  completeness review caught it. A green suite proves the TESTED paths; it says
+  nothing about a shipped tool no test exercises. 20260717-002105.
 - `truncated-sweep-is-not-a-sweep` (x3, -> Pending promotions): a grep sweep
   that feeds a work checklist must never be head-truncated - one audit's
   `| head` sweeps hid a third assertion (one failed run), a whole extra file

@@ -21,7 +21,7 @@ Locking is deliberate: there is no passive auto-targeting. You sweep the radar y
 
 ## Holding to sweep
 
-Hold <kbd>Ctrl</kbd> to run the radar: it live-locks the best body on your look ray, re-targeting as you sweep. Cross the ~0.25 s hold threshold and the lock latches and is written every frame while you hold; release past the threshold commits it. The radar only considers candidates within a cone (about 18 degrees) around your aim.
+Hold <kbd>Ctrl</kbd> to run the radar: it tracks the best body on your look ray, re-targeting as you sweep, considering only candidates within a cone (about 18 degrees) around your aim. Cross the ~0.25 s hold threshold and the slot arms (your stance picks which - see below); then a **lock-on dwell** has to fill while you keep the target under your aim before the lock actually commits. The dwell takes longer the farther away the target is, and sweeping off the target before it fills cancels it - so a lock is earned by holding steady, not granted the instant you point. Re-designating to a new target starts a fresh dwell while the old lock holds. Once a lock commits it sticks; releasing just ends the sweep.
 
 ## Stances and slots
 

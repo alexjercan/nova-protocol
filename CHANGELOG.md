@@ -12,6 +12,10 @@ tagged **(breaking)**.
 
 ## [Unreleased]
 
+### Combat & Weapons
+
+- Locking is no longer instant: once the radar settles on a target you now hold steady through a short lock-on dwell before it commits, and the dwell is longer the farther away the target is. Sweeping off the target before it fills cancels the acquisition, and re-designating to a new target earns a fresh dwell while the old lock holds - so a lock is something you earn by keeping the target under your aim, not granted the moment you point at it.
+
 ### Scenarios & Objectives
 
 - Scenarios can declare a win/lose: the new `Outcome` action shows a VICTORY/DEFEAT overlay with real buttons (Continue/Retry riding a queued lingering `NextScenario`, Main Menu always) instead of the old silent press-Enter-to-restart; dying in Shakedown Run now presents Defeat + Retry. The overlay freezes the simulation the same way the pause menu does - physics, AI, weapons and timers stop behind the banner (Enter/Continue/Retry stay live) instead of the world running on underneath it.

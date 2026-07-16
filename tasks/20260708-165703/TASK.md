@@ -1,6 +1,6 @@
 # Lock-on acquisition dwell (radar hold-to-lock)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 25
 - TAGS: v0.7.0,targeting,torpedo,hud
 
@@ -58,12 +58,12 @@ completed per-target dwell.
 
 ## Steps
 
-- [ ] Extend `RadarState` (targeting.rs ~128-140) with dwell bookkeeping:
+- [x] Extend `RadarState` (targeting.rs ~128-140) with dwell bookkeeping:
       `dwell_target: Option<Entity>` (the candidate the timer is charging on)
       and `dwell_secs: f32`. Keep `Reflect`/`Default`. Doc-comment that the
       slot is only written at dwell completion now, so keep-last holds the
       prior lock while a NEW candidate charges.
-- [ ] Add a pure dwell-duration helper
+- [x] Add a pure dwell-duration helper
       `fn lock_dwell_secs(distance: f32, effective_range: f32, modifier: f32)
       -> f32` (or a small `LockDwellCtx` struct): base + distance term, so far
       targets take longer, times `modifier`, clamped to
@@ -74,7 +74,7 @@ completed per-target dwell.
       `modifier` defaults to 1.0; it is the stealth/aspect extension point
       (read from an OPTIONAL per-target component in a later task, NOT built
       here - just plumb the argument as 1.0 for now).
-- [ ] Add the dwell tunables to `TargetingSettings` (the reflected tunables
+- [x] Add the dwell tunables to `TargetingSettings` (the reflected tunables
       resource, ~60-92) so they are inspector-tunable like the range knobs:
       `lock_dwell_base` (start 0.6 s), `lock_dwell_range_factor` (start ~1.5,
       so a target at its range edge dwells ~2.5x base), `lock_dwell_min`
@@ -82,7 +82,7 @@ completed per-target dwell.
       range fields for the `effective_range` the formula divides by (the same
       per-candidate gate `collect_lockable` already computes - surface it or
       recompute distance/effective range for the resolved candidate).
-- [ ] Rewrite the commit path in `update_radar_search` (~705-753): after
+- [x] Rewrite the commit path in `update_radar_search` (~705-753): after
       `radar_pick` resolves `radar.candidate`, while the hold has fired,
       charge the dwell instead of writing the slot:
       - If `radar.candidate != radar.dwell_target`: reset
@@ -98,12 +98,12 @@ completed per-target dwell.
       Preserve the existing combat-sweep decay-hold (F12, ~716-721) and the
       empty-space keep-last (no candidate -> continue, slot untouched).
       Note the `Time` resource must be added to the system's params.
-- [ ] Confirm the cancel/abort paths still hold: releasing CTRL before
+- [x] Confirm the cancel/abort paths still hold: releasing CTRL before
       completion commits nothing (existing abort, `on_radar_cancel`/no write);
       an in-flight dwell is dropped when `RadarState` is removed at gesture
       end. Reset `dwell_target`/`dwell_secs` wherever `engaged` is cleared so a
       new gesture starts clean.
-- [ ] Tests (world tests, advance `Time` manually, targeting.rs test module):
+- [x] Tests (world tests, advance `Time` manually, targeting.rs test module):
       dwell accumulates on a held candidate and the slot stays empty until it
       completes; slot commits + `RadarLockAcquired` fires ONCE at completion,
       not before; sweeping to a different candidate mid-dwell resets the timer
@@ -112,7 +112,7 @@ completed per-target dwell.
       before completion commits nothing; BOTH slots gated (a travel-engaged
       gesture dwells too). Pure `lock_dwell_secs` unit tests: monotonic in
       distance, `modifier` scales linearly, clamps at MIN/MAX.
-- [ ] Verify: cargo fmt, cargo check --workspace, new + touched targeting
+- [x] Verify: cargo fmt, cargo check --workspace, new + touched targeting
       tests only (report skips per repo policy - CI runs the full suite).
 
 ## Notes
@@ -141,3 +141,68 @@ completed per-target dwell.
 - Consider exposing a read helper on `RadarState` (e.g. `dwell_fraction(&self,
   needed: f32) -> f32`) so the HUD task and tests read the fill cleanly rather
   than recomputing.
+
+## Resolution (CLOSED 2026-07-17)
+
+Shipped in `input/targeting.rs`:
+
+- `RadarState` gained `dwell_target: Option<Entity>` + `dwell_secs: f32` and a
+  `dwell_fraction(needed)` helper (what the ring HUD 20260717-004302 will
+  render).
+- `TargetingSettings` gained five reflected knobs: `lock_dwell_base` (0.6),
+  `lock_dwell_range_factor` (1.5), `lock_dwell_reference_range` (2000),
+  `lock_dwell_min` (0.25), `lock_dwell_max` (2.5).
+- Pure `lock_dwell_secs(distance, modifier, settings)`: base + a distance term
+  scaling to the range factor at the reference range and saturating beyond,
+  times `modifier` (the stealth/aspect seam, 1.0 today), clamped to [min, max].
+- `update_radar_search` now takes `Res<Time>` and gates every slot write behind
+  a completed dwell: settle -> charge on the candidate -> commit only at
+  completion; a candidate change or drop-to-None resets the dwell (cancel);
+  keep-last holds the prior lock while a new candidate charges; the acquire/
+  retarget cues moved to the commit (so `NovaSfx::LockOn` now lands on the snap
+  for free).
+
+Tests: 5 new (`lock_dwell_scales_with_distance_and_clamps`,
+`the_dwell_gates_the_slot_commit_and_the_ring_fills`,
+`sweeping_off_before_the_ring_fills_cancels_and_keeps_last`,
+`a_re_designation_earns_its_own_dwell`, `the_combat_slot_is_dwell_gated_too`);
+`input::targeting` 47 passed, `hud::lock_crosshairs` 4 passed. cargo fmt +
+`cargo check -p nova_gameplay` clean. Full local suite + clippy skipped per
+repo policy (CI runs them).
+
+### Deviations from the plan
+
+- **Distance normalized by a tunable `lock_dwell_reference_range`, not the
+  per-target effective lock range.** The plan proposed dividing by the
+  candidate's effective range (from `collect_lockable`), but that couples dwell
+  to object class oddly (a ship lockable at 20 km would dwell ~instantly while a
+  torpedo at 2 km dwells near-max). A fixed reference range is simpler, needs no
+  `Lockable` tuple change, and matches the user's "depends on distance" intent
+  directly. The distance to the pending candidate is read from the already
+  collected `candidates` list.
+- **Gesture tests neutralize the dwell to zero in `gesture_app`.** The ~10
+  existing gesture tests assert latch / keep-last / tap-clear semantics that are
+  orthogonal to the dwell; rather than churn each with +13 frames, `gesture_app`
+  sets the dwell to zero (instant commit = their original assumption) and the
+  dwell GATE has its own five focused tests with real durations. Documented in
+  `gesture_app`.
+
+### Docs synced (keep-docs-in-sync lesson)
+
+The change invalidated the "written every frame while you hold" description, so
+in the same task: `web/src/wiki/targeting-radar.md` and `getting-started.md`
+now describe the hold-to-lock dwell (cancelable, distance-scaled), and a
+CHANGELOG `[Unreleased] > Combat & Weapons` entry was added. The ring VISUAL
+description (hud.md, the ring image) is deliberately left to 20260717-004302,
+which adds the visible feedback - documenting a ring that does not exist yet
+would be false at this task's landing.
+
+### Self-reflection
+
+Reading the real `update_radar_search` first paid off: the lock was already a
+deliberate hold gesture (not "instant" as the stale spike said), so the change
+was a clean one-point gate rather than a new subsystem. One compile round was
+lost to a test-only `RadarState { .. }` literal in `hud/lock_crosshairs.rs`
+that `cargo check` (non-test) did not catch - a reminder that adding a field to
+a `Default` struct still needs a test-target compile. Next time, grep for
+`StructName {` across the crate before trusting a green `check`.

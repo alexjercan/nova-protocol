@@ -78,6 +78,27 @@ pub struct TargetingSettings {
     /// real point-defense engagement (AI launch range 1000u, heat
     /// fallback 550u) with margin; a playtest knob.
     pub torpedo_lock_range: f32,
+    /// Acquisition dwell (hold-to-lock, 20260708-165703): a candidate must
+    /// stay steady under the ray for this many seconds AT POINT-BLANK before
+    /// it hard-commits to its slot; the radial ring HUD fills over it and
+    /// sweeping off before it completes cancels. Distance scales it up (see
+    /// the other `lock_dwell_*` knobs), so far locks are a real skill beat.
+    pub lock_dwell_base: f32,
+    /// Extra dwell at [`lock_dwell_reference_range`] as a multiple of
+    /// [`lock_dwell_base`]: at 1.5 a lock at the reference distance costs
+    /// `base * (1 + 1.5)` = 2.5x the point-blank dwell. Beyond the reference
+    /// range the term saturates.
+    pub lock_dwell_range_factor: f32,
+    /// The distance (world units) at which the distance term reaches full
+    /// strength ([`lock_dwell_range_factor`]); closer targets scale linearly
+    /// between point-blank and here. Covers the torpedo engagement band.
+    pub lock_dwell_reference_range: f32,
+    /// Floor on the computed dwell, seconds - even a point-blank lock is not
+    /// instant (the ring must be visible to be cancelable).
+    pub lock_dwell_min: f32,
+    /// Ceiling on the computed dwell, seconds - a very distant lock never
+    /// takes longer than this.
+    pub lock_dwell_max: f32,
 }
 
 impl Default for TargetingSettings {
@@ -87,6 +108,11 @@ impl Default for TargetingSettings {
             unsigned_lock_range: 5.0,
             range_hysteresis: 1.15,
             torpedo_lock_range: 2500.0,
+            lock_dwell_base: 0.6,
+            lock_dwell_range_factor: 1.5,
+            lock_dwell_reference_range: 2000.0,
+            lock_dwell_min: 0.25,
+            lock_dwell_max: 2.5,
         }
     }
 }
@@ -137,6 +163,28 @@ pub struct RadarState {
     /// Whether this gesture has acquired yet - first-write bookkeeping for
     /// the once-per-gesture [`RadarLockAcquired`] cue (Q3a).
     pub acquired: bool,
+    /// The candidate the acquisition dwell is currently charging on
+    /// (20260708-165703). The engaged slot is written only once the dwell
+    /// completes, so this is the PENDING target, which can differ from the
+    /// still-committed lock while a new candidate charges (keep-last). Resets
+    /// (canceling the dwell) whenever the candidate changes or drops to `None`.
+    pub dwell_target: Option<Entity>,
+    /// Seconds the current [`dwell_target`](Self::dwell_target) has been held
+    /// steady under the ray. Reaches the per-target dwell
+    /// ([`lock_dwell_secs`]) before the slot commits.
+    pub dwell_secs: f32,
+}
+
+impl RadarState {
+    /// Fill fraction of the acquisition dwell against a `needed` duration,
+    /// clamped to `[0, 1]` - what the ring HUD renders (20260717-004302).
+    /// A non-positive `needed` reads as instantly full.
+    pub fn dwell_fraction(&self, needed: f32) -> f32 {
+        if needed <= 0.0 {
+            return 1.0;
+        }
+        (self.dwell_secs / needed).clamp(0.0, 1.0)
+    }
 }
 
 /// The weapons safety, derived every frame on any ship carrying a
@@ -645,6 +693,7 @@ fn update_contacts_and_locks(
 #[allow(clippy::type_complexity)]
 fn update_radar_search(
     look_ray: ActiveLookRay,
+    time: Res<Time>,
     settings: Res<TargetingSettings>,
     q_candidates: LockableQuery,
     q_hold: Query<&TriggerState, With<Action<RadarHoldInput>>>,
@@ -720,8 +769,40 @@ fn update_radar_search(
             decay.0 = 0.0;
         }
         let Some(candidate) = radar.candidate else {
+            // Sweeping onto empty space cancels the in-progress acquisition
+            // dwell; the committed lock keeps-last (nothing new commits).
+            radar.dwell_target = None;
+            radar.dwell_secs = 0.0;
             continue;
         };
+
+        // Acquisition dwell (20260708-165703): charge a timer on the settled
+        // candidate; the slot is written only once it completes. Moving to a
+        // DIFFERENT candidate (or off, above) restarts the dwell - that is the
+        // cancel-by-sweeping-off beat, and it means a re-designation must earn
+        // a fresh dwell too, not just the first acquire.
+        if radar.dwell_target != Some(candidate) {
+            radar.dwell_target = Some(candidate);
+            radar.dwell_secs = 0.0;
+        }
+        radar.dwell_secs += time.delta_secs();
+
+        // Distance to the pending candidate drives the dwell curve (the
+        // collected list already carries its world position).
+        let distance = candidates
+            .iter()
+            .find(|(entity, ..)| *entity == candidate)
+            .map_or(0.0, |(_, position, ..)| position.distance(origin));
+        // 1.0 = the stealth/aspect extension seam (no such mechanic yet).
+        let needed = lock_dwell_secs(distance, 1.0, &settings);
+        if radar.dwell_secs < needed {
+            // Still charging: the ring fills, but nothing commits and the
+            // previous lock (if any) holds under the sweep.
+            continue;
+        }
+
+        // Dwell complete: hard-commit the slot (the write the instant path
+        // used to do the moment a candidate settled).
         let changed = match slot {
             RadarSlot::Combat => {
                 let changed = combat.0 != Some(candidate);
@@ -745,12 +826,15 @@ fn update_radar_search(
             });
         } else if changed {
             // A re-designation within the already-acquired gesture (the slot
-            // moved to a NEW candidate): the subtle retarget tick, distinct from
-            // the once-per-gesture acquire above.
+            // moved to a NEW candidate, after its own dwell): the subtle
+            // retarget tick, distinct from the once-per-gesture acquire above.
             retarget_cue.write(RadarRetargeted {
                 combat: slot == RadarSlot::Combat,
             });
         }
+        // dwell_secs stays >= needed: holding the same candidate re-runs this
+        // block harmlessly (equality-skip, no cue); a new candidate resets it
+        // above. This keeps the committed lock stable without re-firing.
     }
 }
 
@@ -793,6 +877,33 @@ fn radar_pick(
         }
     }
     Some(best)
+}
+
+/// The acquisition dwell (seconds) a candidate at `distance` from the ship
+/// needs before it hard-commits to its lock slot (20260708-165703): the
+/// point-blank [`TargetingSettings::lock_dwell_base`] plus a distance term
+/// that scales linearly to [`TargetingSettings::lock_dwell_range_factor`] at
+/// [`TargetingSettings::lock_dwell_reference_range`] and saturates beyond it,
+/// all times `modifier` and clamped to `[min, max]`.
+///
+/// `modifier` is the stealth / aspect EXTENSION SEAM (a future "harder to lock
+/// at a bad aspect" mechanic multiplies here); today the caller passes 1.0.
+/// Pure so the curve is unit-testable.
+fn lock_dwell_secs(distance: f32, modifier: f32, settings: &TargetingSettings) -> f32 {
+    let reach = if settings.lock_dwell_reference_range > 0.0 {
+        (distance / settings.lock_dwell_reference_range).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let raw = settings.lock_dwell_base
+        * (1.0 + settings.lock_dwell_range_factor * reach)
+        * modifier.max(0.0);
+    // `min.max(max)` guards the inspector case where the two knobs are set out
+    // of order - `f32::clamp` panics if min > max.
+    raw.clamp(
+        settings.lock_dwell_min,
+        settings.lock_dwell_min.max(settings.lock_dwell_max),
+    )
 }
 
 /// Rank the lockable hostile COMBAT targets (ships + committed torpedoes) for
@@ -2236,6 +2347,18 @@ mod tests {
             Duration::from_millis(50),
         ));
         app.init_resource::<TargetingSettings>();
+        // These gesture tests exercise the LATCH / keep-last / tap-clear axis,
+        // which is orthogonal to the acquisition dwell (20260708-165703).
+        // Neutralize the dwell to zero here so a candidate commits the moment
+        // it settles (the pre-dwell semantics these tests were written for);
+        // the dwell GATE has its own focused tests (`dwell_*`) that set a real
+        // duration.
+        {
+            let mut settings = app.world_mut().resource_mut::<TargetingSettings>();
+            settings.lock_dwell_base = 0.0;
+            settings.lock_dwell_range_factor = 0.0;
+            settings.lock_dwell_min = 0.0;
+        }
         app.init_resource::<AcquiredCueCount>();
         app.add_input_context::<FlightInputMarker>();
         app.add_observer(on_radar_start);
@@ -2773,6 +2896,269 @@ mod tests {
             travel_of(&app, ship),
             Some(ahead),
             "the pre-pause acquisition sticks"
+        );
+    }
+
+    // -- acquisition dwell (20260708-165703) --
+
+    /// Give a gesture app a deterministic dwell: `base` seconds, distance-flat
+    /// (range_factor 0) so the frame count is exact, and a wide clamp so the
+    /// floor/ceiling never interfere. With `TimeUpdateStrategy` at 50 ms,
+    /// `base` seconds is `base / 0.05` held frames past the hold threshold.
+    fn set_dwell(app: &mut App, base: f32) {
+        let mut settings = app.world_mut().resource_mut::<TargetingSettings>();
+        settings.lock_dwell_base = base;
+        settings.lock_dwell_range_factor = 0.0;
+        settings.lock_dwell_min = 0.0;
+        settings.lock_dwell_max = 5.0;
+    }
+
+    fn radar_of(app: &App, ship: Entity) -> RadarState {
+        *app.world().get::<RadarState>(ship).expect("search open")
+    }
+
+    #[test]
+    fn lock_dwell_scales_with_distance_and_clamps() {
+        let s = TargetingSettings::default();
+        let near = lock_dwell_secs(0.0, 1.0, &s);
+        let mid = lock_dwell_secs(1000.0, 1.0, &s);
+        let far = lock_dwell_secs(4000.0, 1.0, &s);
+        assert!(near < mid && mid < far, "dwell grows with distance");
+        assert!(
+            (near - s.lock_dwell_base).abs() < 1e-6,
+            "point-blank dwell is the base"
+        );
+        let at_ref = lock_dwell_secs(s.lock_dwell_reference_range, 1.0, &s);
+        assert!(
+            (at_ref - s.lock_dwell_base * (1.0 + s.lock_dwell_range_factor)).abs() < 1e-4,
+            "at the reference range the distance term is full strength"
+        );
+        assert!(
+            (far - at_ref).abs() < 1e-6,
+            "the distance term saturates beyond the reference range"
+        );
+        let single = lock_dwell_secs(500.0, 1.0, &s);
+        let doubled = lock_dwell_secs(500.0, 2.0, &s);
+        assert!(
+            (doubled - 2.0 * single).abs() < 1e-4,
+            "the modifier is a linear multiplier (the stealth/aspect seam)"
+        );
+        assert!(
+            (lock_dwell_secs(0.0, 100.0, &s) - s.lock_dwell_max).abs() < 1e-6,
+            "a huge modifier clamps to the ceiling"
+        );
+        assert!(
+            (lock_dwell_secs(0.0, 0.0, &s) - s.lock_dwell_min).abs() < 1e-6,
+            "a zero modifier clamps to the floor"
+        );
+
+        // Misordered knobs (min > max) must not panic (f32::clamp would); the
+        // floor wins.
+        let mut bad = s.clone();
+        bad.lock_dwell_min = 3.0;
+        bad.lock_dwell_max = 1.0;
+        assert!(
+            (lock_dwell_secs(0.0, 1.0, &bad) - 3.0).abs() < 1e-6,
+            "an out-of-order min/max clamps to the floor without panicking"
+        );
+    }
+
+    #[test]
+    fn the_dwell_gates_the_slot_commit_and_the_ring_fills() {
+        // A 1.0 s dwell (20 held frames): after the threshold the candidate is
+        // PENDING (ring filling) and nothing is written; only once the dwell
+        // completes does the slot commit and the acquire cue fire.
+        let (mut app, ship) = gesture_app();
+        set_dwell(&mut app, 1.0);
+        let ahead = spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
+
+        // Threshold (5) + a few dwell frames: still charging.
+        press_ctrl(&mut app);
+        for _ in 0..10 {
+            app.update();
+        }
+        let radar = radar_of(&app, ship);
+        assert_eq!(radar.candidate, Some(ahead), "the picker settled");
+        assert_eq!(
+            radar.dwell_target,
+            Some(ahead),
+            "the dwell is charging on it"
+        );
+        let fraction = radar.dwell_fraction(1.0);
+        assert!(
+            fraction > 0.0 && fraction < 1.0,
+            "the ring is partway (fraction {fraction})"
+        );
+        assert_eq!(
+            travel_of(&app, ship),
+            None,
+            "nothing commits while the dwell is incomplete"
+        );
+        assert_eq!(
+            app.world().resource::<AcquiredCueCount>().0,
+            0,
+            "no acquire cue before the snap"
+        );
+
+        // Hold through the rest of the dwell: it commits and cues once.
+        for _ in 0..20 {
+            app.update();
+        }
+        assert_eq!(
+            travel_of(&app, ship),
+            Some(ahead),
+            "the completed dwell hard-commits the slot"
+        );
+        assert_eq!(
+            app.world().resource::<AcquiredCueCount>().0,
+            1,
+            "the acquire cue fires at the snap, once"
+        );
+    }
+
+    #[test]
+    fn sweeping_off_before_the_ring_fills_cancels_and_keeps_last() {
+        // A prior travel lock plus a 1.0 s dwell: charge partway on a new
+        // body, then sweep to empty space - the dwell resets (cancel) and the
+        // prior lock is kept (keep-last), nothing new commits.
+        let (mut app, ship) = gesture_app();
+        set_dwell(&mut app, 1.0);
+        let prior = spawn_ship(&mut app, Vec3::new(0.0, 0.0, 100.0)); // behind
+        let ahead = spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(TravelLock(Some(prior)));
+
+        press_ctrl(&mut app);
+        for _ in 0..10 {
+            app.update();
+        }
+        assert_eq!(
+            radar_of(&app, ship).dwell_target,
+            Some(ahead),
+            "charging on the new body"
+        );
+        assert_eq!(
+            travel_of(&app, ship),
+            Some(prior),
+            "the prior lock still holds mid-dwell (keep-last)"
+        );
+
+        // Sweep 90 degrees right onto empty space before the dwell completes.
+        aim_look(
+            &mut app,
+            Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
+        );
+        for _ in 0..3 {
+            app.update();
+        }
+        let radar = radar_of(&app, ship);
+        assert_eq!(radar.candidate, None, "the picker sees empty space");
+        assert_eq!(radar.dwell_target, None, "the dwell was cancelled");
+        assert_eq!(radar.dwell_secs, 0.0, "and reset to zero");
+        assert_eq!(
+            travel_of(&app, ship),
+            Some(prior),
+            "keep-last: the cancelled acquisition never touched the lock"
+        );
+    }
+
+    #[test]
+    fn a_re_designation_earns_its_own_dwell() {
+        // Commit `ahead`, then sweep to `left`: the committed lock keeps-last
+        // through the SECOND dwell and only moves once it completes, firing the
+        // retarget tick (not a fresh acquire).
+        let (mut app, ship) = gesture_app();
+        set_dwell(&mut app, 1.0);
+        app.init_resource::<RetargetCueCount>();
+        app.add_systems(
+            Update,
+            |mut cues: MessageReader<RadarRetargeted>, mut count: ResMut<RetargetCueCount>| {
+                count.0 += cues.read().count();
+            },
+        );
+        let ahead = spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
+        let left = spawn_ship(&mut app, Vec3::new(-100.0, 0.0, 0.0));
+
+        press_ctrl(&mut app);
+        for _ in 0..30 {
+            app.update();
+        }
+        assert_eq!(travel_of(&app, ship), Some(ahead), "first lock committed");
+        assert_eq!(app.world().resource::<AcquiredCueCount>().0, 1);
+
+        // Sweep to the left body: a fresh dwell starts, the old lock holds.
+        aim_look(&mut app, Quat::from_rotation_y(std::f32::consts::FRAC_PI_2));
+        for _ in 0..10 {
+            app.update();
+        }
+        assert_eq!(
+            radar_of(&app, ship).dwell_target,
+            Some(left),
+            "the re-designation is charging its own dwell"
+        );
+        assert_eq!(
+            travel_of(&app, ship),
+            Some(ahead),
+            "keep-last: the lock stays on the first target until the new dwell completes"
+        );
+        assert_eq!(
+            app.world().resource::<RetargetCueCount>().0,
+            0,
+            "no retarget tick before the second dwell completes"
+        );
+
+        for _ in 0..20 {
+            app.update();
+        }
+        assert_eq!(
+            travel_of(&app, ship),
+            Some(left),
+            "the second dwell moves the lock"
+        );
+        assert_eq!(
+            app.world().resource::<AcquiredCueCount>().0,
+            1,
+            "a re-designation is not a fresh acquire"
+        );
+        assert!(
+            app.world().resource::<RetargetCueCount>().0 >= 1,
+            "it ticks the retarget cue at the snap"
+        );
+    }
+
+    #[test]
+    fn the_combat_slot_is_dwell_gated_too() {
+        // The dwell gates BOTH slots (user decision 2026-07-17), not combat
+        // only: a raised (combat) gesture is pending mid-dwell and commits at
+        // completion.
+        let (mut app, ship) = gesture_app();
+        set_dwell(&mut app, 1.0);
+        app.world_mut().entity_mut(ship).insert(WeaponsRaised(true));
+        let enemy = spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
+
+        press_ctrl(&mut app);
+        for _ in 0..10 {
+            app.update();
+        }
+        assert_eq!(
+            radar_of(&app, ship).engaged,
+            Some(RadarSlot::Combat),
+            "the combat slot latched at the threshold"
+        );
+        assert_eq!(
+            combat_of(&app, ship),
+            None,
+            "but the combat lock is pending through the dwell"
+        );
+
+        for _ in 0..20 {
+            app.update();
+        }
+        assert_eq!(
+            combat_of(&app, ship),
+            Some(enemy),
+            "the completed dwell commits the combat lock"
         );
     }
 }

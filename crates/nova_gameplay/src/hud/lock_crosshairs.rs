@@ -501,6 +501,7 @@ mod tests {
             engaged: None,
             candidate: Some(target),
             acquired: false,
+            ..default()
         });
         world.run_system_once(drive_radar_candidate).unwrap();
         assert_eq!(
