@@ -5,7 +5,10 @@
 //! act machine by firing `OnDestroyedEvent` - the same info the integrity
 //! bridge emits when a ship root dies (the physical bridge itself is pinned
 //! in nova_scenario/nova_gameplay; what this file owns is the SCENARIO
-//! DATA's consumption of it, the arena_combat.rs division of labor).
+//! DATA's consumption of it, and the filter/action machinery the data leans
+//! on is pinned by nova_scenario's filters.rs tests). BASE story content
+//! gets this depth of coverage in core CI; MOD content deliberately does
+//! not (task 20260716-155830).
 //!
 //! Structural pins ride along for what the behavior rig seeds for itself
 //! (rig-supplies-precondition): the OnStart stage - player loadout, the
