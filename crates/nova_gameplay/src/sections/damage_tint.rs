@@ -443,7 +443,8 @@ mod tests {
                     base_color: pristine,
                     ..default()
                 },
-            );
+            )
+            .expect("insert material asset");
         app.update();
 
         let tint = app

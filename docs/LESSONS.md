@@ -33,12 +33,14 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   filesystem-walking tool trips on it - a leftover `variety/textures/` crashed
   content_lint's bundle walk ("no *.bundle.ron at its root"). `rm -rf` the old
   dir explicitly after a relocation. 20260716-215513.
-- `warnings-clean-before-land` (x1): run a warnings-SURFACED build (`cargo
-  build`/`clippy`, not `cargo test | grep 'test result'`) on new/changed modules
-  BEFORE the squash-land - a filtered test run is green while an unused import
-  rides into the landed commit. An unused `use HashSet` (only used via `.collect()`
-  type inference, never by name) landed and needed a follow-up sprout to remove.
-  20260716-215423.
+- `warnings-clean-before-land` (x2): run a warnings-SURFACED build and READ the
+  warnings (`cargo build`/`clippy`; never `cargo ... | grep -E 'error|test
+  result'`, which discards them) on new/changed modules BEFORE the squash-land -
+  a filtered run is green while a warning rides into the landed commit, needing a
+  follow-up sprout. Seen as an unused `use HashSet` (215423) and an unused
+  `Assets::insert` `Result` (`#[must_use]`) in a test - both hidden by an
+  error-only grep and caught only by the editor's post-land LSP diagnostic.
+  20260716-215423, 20260717-003613.
 - `merge-red-check-preexisting` (x1): when merging the default branch surfaces a
   red test, `git show <default>:<file>` the failing test FIRST to decide whether
   your change caused it or you inherited it - turns "did I break this?" into a
@@ -126,10 +128,16 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   skill): "nothing happens" tests need proof the stimulus fired, IN the same
   test - a cross-test guard through a shared helper does not count.
   20260710-231931, 20260711-183417.
-- `verify-first-plan-steps` (x7, PROMOTED 2026-07-11 -> plan skill): plan steps
+- `verify-first-plan-steps` (x8, PROMOTED 2026-07-11 -> plan skill): plan steps
   that state a mechanism, formula, ordering, API shape, or "system Y will
   accept X" must cite the verifying file; follow data into the consumer's
-  gates and enumerate consumers of shared state. 20260712-093044, 20260712-203353.
+  gates and enumerate consumers of shared state. Extends to shipped CONTENT DATA,
+  not just code: a spike/plan assumed the ship rendered via default cuboids, but
+  `assets/base/sections/base.content.ron` sets gltf `render_mesh` on every
+  section - so the real tint mechanism was gltf material cloning, not a cuboid
+  colour swap. Grep the shipped `.content.ron`/data when the data picks the
+  mechanism; caught at work-time here, but it belonged in the plan.
+  20260712-093044, 20260712-203353, 20260717-003613.
 - `scripted-walks-skip-the-bridges` (x1): a scenario walk that fires events by
   hand proves the script, not the game; each consumed event needs one pin that
   drives the production bridge. 20260713-150343.
