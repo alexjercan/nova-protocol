@@ -6,6 +6,7 @@ use nova_gameplay::GameStates;
 
 pub mod gravity;
 pub mod harness;
+pub mod screenshot;
 pub mod sections;
 
 pub mod prelude {
@@ -19,6 +20,7 @@ pub mod prelude {
             assert_scenario_loaded, capture_window, hide_dev_overlays, nova_autopilot,
             nova_screenshot, reel_pose_camera, ReelBeat, ReelCamera, ScreenshotReelPlugin,
         },
+        screenshot::{ScreenshotHotkeyPlugin, SCREENSHOT_KEYCODE},
         DebugPlugin,
     };
 }
@@ -44,6 +46,7 @@ impl Plugin for DebugPlugin {
         app.add_plugins(WireframeDebugPlugin);
         app.add_plugins(sections::SectionsDebugPlugin);
         app.add_plugins(gravity::GravityDebugPlugin);
+        app.add_plugins(screenshot::ScreenshotHotkeyPlugin);
 
         app.add_systems(Update, toggle_debug_mode);
 

@@ -4595,6 +4595,7 @@ dependencies = [
  "bevy",
  "bevy_common_systems",
  "bevy_mod_debugdump",
+ "dirs",
  "itertools 0.15.0",
  "nova_gameplay",
  "nova_scenario",

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Debug builds (`--features debug`) bind F12 to a screenshot that saves the primary window to your Downloads directory as `<timestamp>.png`
+
 ## [0.6.0] - 2026-07-16
 
 ### Added
