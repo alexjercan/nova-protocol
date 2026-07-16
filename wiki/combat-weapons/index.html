@@ -3,15 +3,8 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Combat & weapons - Nova Protocol Wiki</title>
-        <meta
-            name="description"
-            content="Nova Protocol weapons: turrets with true intercept lead, proportional-navigation torpedoes with blast damage, and typed damage (Kinetic / AP / EMP / Explosive) against per-section resistances."
-        />
-        <link
-            rel="icon"
-            href="/nova-protocol/favicon.svg"
-        />
+        <title>Combat &amp; weapons - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
     <script defer src="/nova-protocol/wiki.js"></script></head>
     <body>
         <header class="site-header">
@@ -40,152 +33,72 @@
                 ></aside>
                 <article class="wiki__body prose">
                     <p class="wiki__crumb">
-                        <a href="/nova-protocol/wiki/"
-                            >Wiki</a
-                        >
+                        <a href="/nova-protocol/wiki/">Wiki</a>
                         / Combat &amp; weapons
                     </p>
                     <h1>Combat &amp; weapons</h1>
                     <div class="wiki__tags" id="wiki-tags"></div>
-
-                    <p>
-                        Two weapon families - precise turrets and area-effect
-                        torpedoes - feed one typed-damage model, so what you
-                        shoot matters as much as where you shoot it.
-                    </p>
-
-                    <figure class="figure">
-                        <!-- Capture: assets/wiki-combat.png -->
-                        <div class="figure__placeholder">
-                            <span class="figure__placeholder-tag"
-                                >Screenshot needed</span
-                            >
-                            <span class="figure__placeholder-name"
-                                >assets/wiki-combat.png</span
-                            >
-                            <span class="figure__placeholder-note"
-                                >A firefight: turret tracers with a lead pip on
-                                the target and a torpedo curving in, ideally
-                                with a section being blown off.</span
-                            >
-                        </div>
-                    </figure>
-
-                    <h2 id="turrets">Turrets</h2>
-                    <p>
-                        A
-                        <a
-                            href="/nova-protocol/wiki/sections/turret/"
-                            >turret</a
-                        >
-                        is an articulated mount that aims at your combat lock
-                        with
-                        <strong>true intercept lead</strong> - the solution is
-                        computed in the shooter's own frame, so a moving ship's
-                        rounds actually land - bounded by its yaw and pitch
-                        limits and fire rate. Its rounds are sensor projectiles:
-                        they deal damage on first contact with no physical
-                        shove, and they curve through
-                        <a
-                            href="/nova-protocol/wiki/gravity-wells/"
-                            >gravity wells</a
-                        >
-                        like everything else. The point-defense cannon is tuned
-                        to chip a target down over a visible burst rather than
-                        delete it, and prioritizes shooting down inbound
-                        torpedoes.
-                    </p>
-
-                    <h2 id="torpedoes">Torpedoes</h2>
-                    <p>
-                        A torpedo homes on the combat lock with
-                        <strong>proportional-navigation</strong> guidance -
-                        turning toward where the target will be - after an
-                        arming gate clears (a short time or distance from
-                        launch, so it cannot go off in your lap). It detonates
-                        on a proximity fuze and deals
-                        <strong>blast (area) damage</strong> that falls off from
-                        the center, so torpedoes are about zoning and catching
-                        clustered or fragile targets where turret fire is
-                        precise and pointed.
-                    </p>
-
-                    <h2 id="damage-types">Damage types</h2>
-                    <p>
-                        Every round carries a damage type, and each turret has a
-                        loaded-ammo slot that sets its rounds' type (the ammo
-                        readout is color-coded to match):
-                    </p>
-                    <ul>
-                        <li>
-                            <strong>Kinetic</strong> - a plain slug; the
-                            generalist, unmodified against everything.
-                        </li>
-                        <li>
-                            <strong>Armor-piercing (AP)</strong> - a dense
-                            penetrator, strong against armor and turrets.
-                        </li>
-                        <li>
-                            <strong>EMP</strong> - anti-electronics; wrecks
-                            controllers, barely dents hull.
-                        </li>
-                        <li>
-                            <strong>Explosive</strong> - concussive area damage
-                            (what torpedo blasts deal); shreds thrusters,
-                            bounces off turret armor.
-                        </li>
-                    </ul>
-
-                    <h2 id="resistances">Section resistances</h2>
-                    <p>
-                        Damage is scaled by a resistance table keyed on the
-                        <a
-                            href="/nova-protocol/wiki/sections/"
-                            >section</a
-                        >
-                        it hits. Kinetic is 1.0 everywhere (the feel baseline);
-                        the multipliers:
-                    </p>
-                    <table class="controls">
-                        <tr>
-                            <td><strong>Section</strong></td>
-                            <td>
-                                Kinetic &nbsp;/&nbsp; AP &nbsp;/&nbsp; EMP
-                                &nbsp;/&nbsp; Explosive
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>Hull</td>
-                            <td>1.0 / 1.5 / 0.1 / 1.0</td>
-                        </tr>
-                        <tr>
-                            <td>Thruster</td>
-                            <td>1.0 / 0.75 / 0.25 / 1.5</td>
-                        </tr>
-                        <tr>
-                            <td>Controller</td>
-                            <td>1.0 / 1.0 / 3.0 / 1.0</td>
-                        </tr>
-                        <tr>
-                            <td>Turret</td>
-                            <td>1.0 / 1.75 / 1.5 / 0.5</td>
-                        </tr>
-                        <tr>
-                            <td>Torpedo bay</td>
-                            <td>1.0 / 1.0 / 1.25 / 1.25</td>
-                        </tr>
-                    </table>
-                    <p>
-                        So EMP into a controller (3.0x) cripples a ship's
-                        steering, while the same round barely scratches its hull
-                        (0.1x); AP is the answer to turret armor. Which weapon
-                        section fires which control is per-ship and rebindable
-                        in the editor (see
-                        <a
-                            href="/nova-protocol/wiki/keybinds/"
-                            >Keybinds</a
-                        >).
-                    </p>
+                    <p>Two weapon families - precise turrets and area-effect torpedoes - feed one typed-damage model, so what you shoot matters as much as where you shoot it.</p>
+<figure class="figure">
+    <!-- Capture: assets/wiki-combat.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-combat.png</span
+        >
+        <span class="figure__placeholder-note"
+            >A firefight: turret tracers with a lead pip on
+            the target and a torpedo curving in, ideally
+            with a section being blown off.</span
+        >
+    </div>
+</figure>
+<h2 id="turrets" tabindex="-1">Turrets</h2>
+<p>A <a href="../sections/turret/">turret</a> is an articulated mount that aims at your combat lock with <strong>true intercept lead</strong> - the solution is computed in the shooter's own frame, so a moving ship's rounds actually land - bounded by its yaw and pitch limits and fire rate. Its rounds are sensor projectiles: they deal damage on first contact with no physical shove, and they curve through <a href="../gravity-wells/">gravity wells</a> like everything else. The point-defense cannon is tuned to chip a target down over a visible burst rather than delete it, and prioritizes shooting down inbound torpedoes.</p>
+<h2 id="torpedoes" tabindex="-1">Torpedoes</h2>
+<p>A torpedo homes on the combat lock with <strong>proportional-navigation</strong> guidance - turning toward where the target will be - after an arming gate clears (a short time or distance from launch, so it cannot go off in your lap). It detonates on a proximity fuze and deals <strong>blast (area) damage</strong> that falls off from the center, so torpedoes are about zoning and catching clustered or fragile targets where turret fire is precise and pointed.</p>
+<h2 id="damage-types" tabindex="-1">Damage types</h2>
+<p>Every round carries a damage type, and each turret has a loaded-ammo slot that sets its rounds' type (the ammo readout is color-coded to match):</p>
+<ul>
+<li><strong>Kinetic</strong> - a plain slug; the generalist, unmodified against everything.</li>
+<li><strong>Armor-piercing (AP)</strong> - a dense penetrator, strong against armor and turrets.</li>
+<li><strong>EMP</strong> - anti-electronics; wrecks controllers, barely dents hull.</li>
+<li><strong>Explosive</strong> - concussive area damage (what torpedo blasts deal); shreds thrusters, bounces off turret armor.</li>
+</ul>
+<h2 id="section-resistances" tabindex="-1">Section resistances</h2>
+<p>Damage is scaled by a resistance table keyed on the <a href="../sections/">section</a> it hits. Kinetic is 1.0 everywhere (the feel baseline); the multipliers:</p>
+<table class="controls">
+    <tr>
+        <td><strong>Section</strong></td>
+        <td>
+            Kinetic &nbsp;/&nbsp; AP &nbsp;/&nbsp; EMP
+            &nbsp;/&nbsp; Explosive
+        </td>
+    </tr>
+    <tr>
+        <td>Hull</td>
+        <td>1.0 / 1.5 / 0.1 / 1.0</td>
+    </tr>
+    <tr>
+        <td>Thruster</td>
+        <td>1.0 / 0.75 / 0.25 / 1.5</td>
+    </tr>
+    <tr>
+        <td>Controller</td>
+        <td>1.0 / 1.0 / 3.0 / 1.0</td>
+    </tr>
+    <tr>
+        <td>Turret</td>
+        <td>1.0 / 1.75 / 1.5 / 0.5</td>
+    </tr>
+    <tr>
+        <td>Torpedo bay</td>
+        <td>1.0 / 1.0 / 1.25 / 1.25</td>
+    </tr>
+</table>
+<p>So EMP into a controller (3.0x) cripples a ship's steering, while the same round barely scratches its hull (0.1x); AP is the answer to turret armor. Which weapon section fires which control is per-ship and rebindable in the editor (see <a href="../keybinds/">Keybinds</a>).</p>
 
                     <div id="wiki-seealso"></div>
                 </article>

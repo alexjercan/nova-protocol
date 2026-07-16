@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Scenario engine - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / Scenario engine
+                    </p>
+                    <h1>Scenario engine</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <blockquote>
+<p>How-to companions: <a href="../guide-author-scenario/">Author a scenario</a> to write one
+in RON with existing primitives, or <a href="../guide-extend-scenarios/">Extend the scenario engine</a>
+to add new event, filter, action, or object kinds in Rust.</p>
+</blockquote>
+<p><code>crates/nova_scenario</code> is the data-driven scenario engine, the layer for
+missions, objectives, and reactive world behavior. A scenario is a list of
+event handlers; each pairs an event with filters (all must pass) and actions
+(run in order). It builds on <code>GameEventsPlugin</code>/<code>EventWorld</code> from
+<code>bevy-common-systems</code>; nova provides <code>NovaEventWorld</code> and the enums below.</p>
+<h2 id="scenario-structure" tabindex="-1">Scenario structure</h2>
+<ul>
+<li><code>ScenarioConfig</code> - <code>id</code>, <code>name</code>, <code>description</code>, <code>cubemap</code> (skybox), <code>events</code>.</li>
+<li><code>ScenarioEventConfig</code> - one handler: <code>name: EventConfig</code>, <code>filters</code>, <code>actions</code>.</li>
+<li><code>GameScenarios(HashMap&lt;ScenarioId, ScenarioConfig&gt;)</code> - all known scenarios,
+populated by <code>nova_assets</code> (ready at <code>GameAssetsStates::Loaded</code>).</li>
+<li><code>CurrentScenario(Option&lt;ScenarioConfig&gt;)</code> - the loaded scenario, if any. The
+<code>scenario_is_live</code> run condition gates the ship input/section sets on it.</li>
+</ul>
+<h2 id="loading-unloading-loaderrs" tabindex="-1">Loading / unloading (<code>loader.rs</code>)</h2>
+<ul>
+<li><code>LoadScenario(ScenarioConfig)</code> - trigger to load: look one up in
+<code>GameScenarios</code>, <code>commands.trigger(LoadScenario(cfg.clone()))</code> (see
+<code>examples/08_scenario.rs</code>). Load tears down the previous scenario, spawns
+the camera, light, input context, one handler per event, fires <code>OnStart</code>.</li>
+<li><code>ScenarioLoaded</code> - fired after a load; carries <code>scenario_id</code>,
+<code>handler_count</code>, <code>object_count</code> for smoke-test assertions.</li>
+<li><code>UnloadScenario</code> - tears everything down and clears <code>CurrentScenario</code>.</li>
+<li><code>ScenarioScopedMarker</code> - any entity carrying it is despawned (recursively)
+on load/unload. Teardown also runs <code>NovaEventWorld::clear()</code> and clears all
+HUD hint emphasis.</li>
+</ul>
+<p>Cleanup contract: every entity spawned while a scenario is live must (1) carry
+<code>ScenarioScopedMarker</code> (all scenario objects do), (2) carry a marker
+registered with <code>on_add_entity_with</code> (<code>MeshFragmentMarker</code>,
+<code>TurretBulletProjectileMarker</code>, <code>TorpedoProjectileMarker</code>), (3) be a child of
+a scoped entity, (4) be a self-expiring <code>TempEntity</code>, or (5) be torn down by a
+<code>Remove</code> observer (the HUDs on <code>PlayerSpaceshipMarker</code>). Anything else leaks.</p>
+<h2 id="events-eventconfig---nova_events" tabindex="-1">Events (<code>EventConfig</code> -&gt; <code>nova_events</code>)</h2>
+<table>
+<thead>
+<tr>
+<th><code>EventConfig</code></th>
+<th>Fires when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>OnStart</code></td>
+<td>once, right after a scenario loads</td>
+</tr>
+<tr>
+<td><code>OnUpdate</code></td>
+<td>every frame while a scenario is live</td>
+</tr>
+<tr>
+<td><code>OnDestroyed</code></td>
+<td>an entity is destroyed</td>
+</tr>
+<tr>
+<td><code>OnEnter</code></td>
+<td>a body enters an area/zone</td>
+</tr>
+<tr>
+<td><code>OnExit</code></td>
+<td>a body leaves an area/zone</td>
+</tr>
+<tr>
+<td><code>OnOrbit</code></td>
+<td>a ship has held an engaged autopilot ORBIT around a well for 5s; re-fires every further 5s window while the hold continues</td>
+</tr>
+<tr>
+<td><code>OnTravelLock</code></td>
+<td>the player's TRAVEL lock lands on a scenario object; re-fires every 5s while held</td>
+</tr>
+<tr>
+<td><code>OnCombatLock</code></td>
+<td>same as <code>OnTravelLock</code> for the COMBAT lock (player only; AI locks never fire it)</td>
+</tr>
+</tbody>
+</table>
+<p>Entities carry <code>EntityId(String)</code> and <code>EntityTypeName(String)</code>. Pair events all
+have the same filter shape - a subject <code>id</code> and an <code>other_id</code>/<code>other_type_name</code></p>
+<ul>
+<li>though which entity is the subject is per-event (area vs ship, well vs ship,
+target vs locker; see the Filters section). The recurrence is deliberate: a
+one-shot event consumed while a beat guard rejects it would soft-lock the
+script; gated handlers make repeats no-ops.</li>
+</ul>
+<p>The event-driven pipeline reads like this: an event fires, its filters gate
+whether it proceeds, and if they all pass its actions run in order and mutate
+scenario state.</p>
+<pre class="mermaid">flowchart LR
+  Event[&quot;Event fires&quot;] --&gt; Filters[&quot;Filters gate&quot;]
+  Filters --&gt;|all pass| Actions[&quot;Actions run&quot;]
+  Filters --&gt;|any fail| Stop[&quot;No-op&quot;]
+  Actions --&gt; Vars[&quot;Mutate variables&quot;]
+  Actions --&gt; World[&quot;Mutate event world&quot;]
+  Actions --&gt; Objects[&quot;Spawn / affect objects&quot;]
+</pre>
+<h2 id="filters-eventfilterconfig" tabindex="-1">Filters (<code>EventFilterConfig</code>)</h2>
+<ul>
+<li><code>Entity(EntityFilterConfig)</code> - match the event's PRIMARY entity (<code>id</code> /
+<code>type_name</code>, the subject) and its OTHER party (<code>other_id</code> / <code>other_type_name</code>);
+which entity is which is per-event (for <code>OnEnter</code>, <code>id</code> is the area and
+<code>other_id</code> the body that entered). Each field optional, all set fields must
+match, and the fields are read for FILTERING only - never passed to actions.
+Per-event table + examples in
+<a href="../guide-author-scenario/#entity">Author a scenario</a>.</li>
+<li><code>Expression(ExpressionFilterConfig)</code> - evaluate a <code>VariableConditionNode</code>
+against the scenario variables.</li>
+<li><code>Conditional(ConditionalFilterConfig)</code> - <code>Not</code> / <code>And</code> / <code>Or</code> combinators;
+build with <code>ConditionalFilterConfig::not/and/or(...)</code>.</li>
+</ul>
+<h2 id="actions-eventactionconfig" tabindex="-1">Actions (<code>EventActionConfig</code>)</h2>
+<ul>
+<li><code>DebugMessage</code> - log a message.</li>
+<li><code>VariableSet</code> - evaluate an expression into a scenario variable.</li>
+<li><code>Objective</code> / <code>ObjectiveComplete</code> - add or complete a HUD objective by id.</li>
+<li><code>ObjectiveMarkerAttach</code> / <code>ObjectiveMarkerDetach</code> - add/remove the gold
+marker chip (label + distance) on the scoped object by id; a despawned
+target detaches implicitly.</li>
+<li><code>HintEmphasisSet</code> / <code>HintEmphasisClear</code> - pulse one keybind-hint row gold
+(verbs: STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT); availability never
+changes, and teardown clears all emphasis.</li>
+<li><code>SpawnScenarioObject(ScenarioObjectConfig)</code> - spawn an object (see below).</li>
+<li><code>DespawnScenarioObject</code> - despawn the scoped object whose id matches
+(scoped-only lookup, so ship sections with colliding ids are safe).</li>
+<li><code>SetSpeedCap</code> - install (<code>Some(cap)</code>) or remove (<code>None</code>) the manual
+<code>FlightSpeedCap</code> on a scoped ship by id.</li>
+<li><code>SetControllerVerb</code> - enable/disable one flight verb (STOP/GOTO/ORBIT) on a
+scoped ship's controller sections by id.</li>
+<li><code>CreateScenarioArea(ScenarioAreaConfig)</code> - spawn a spherical sensor zone
+(id, name, position, rotation, radius) that drives <code>OnEnter</code>/<code>OnExit</code>.</li>
+<li><code>NextScenario</code> - queue a switch to another scenario by id; <code>linger: true</code>
+defers the switch until something clears the flag (e.g. the Enter key input).</li>
+<li><code>SetCamera { position, look_at }</code> - pose the scenario camera (the
+<code>ScenarioCameraMarker</code> entity) at <code>position</code> looking at <code>look_at</code>. It drops
+<code>WASDCameraController</code> so the scripted pose holds - the free-fly controller's
+<code>sync_transform</code> would otherwise overwrite the camera <code>Transform</code> every frame
+(same swap the player-ship-spawn observer does). No-op with a warning if no
+scenario camera is present. Part of the in-engine photo-mode surface.</li>
+<li><code>Screenshot { path }</code> - capture the primary window to a PNG at <code>path</code>, built
+on Bevy's <code>Screenshot::primary_window()</code> + <code>save_to_disk</code> (no capture crate).
+A relative <code>path</code> resolves under the <code>NOVA_SHOT_DIR</code> env var when set (so an
+example or a packaging script can redirect all captures to a staging folder),
+else it is relative to the working directory; the parent dir is created if
+missing. Pair <code>SetCamera</code> (pose) + settle frames + <code>Screenshot</code> (capture) to
+script a framed shot; the screenshot-reel example drives exactly this.</li>
+<li><code>SetSkybox { cubemap, brightness? }</code> - swap the scenario's skybox cubemap
+mid-scenario (a modding hook). <code>cubemap</code> is authored as an asset path (the same
+<code>AssetRef</code> layer the scenario's initial <code>cubemap</code> uses); <code>brightness</code> is
+optional and keeps the current value when omitted. The install is deferred: the
+action tags the scenario camera with a <code>PendingSkyboxSwap</code>, and
+<code>apply_pending_skybox_swaps</code> inserts the real <code>SkyboxConfig</code> only once the new
+image has loaded, because the skybox setup observer reads the image immediately
+and would panic on a not-yet-loaded handle. A failed load leaves the sky
+unchanged (warned); no scenario camera present is a no-op.</li>
+</ul>
+<h2 id="variables-and-the-event-world-worldrs-variablesrs" tabindex="-1">Variables and the event world (<code>world.rs</code>, <code>variables.rs</code>)</h2>
+<p><code>NovaEventWorld</code> holds the scenario state: variables, objectives,
+<code>next_scenario</code>, and a queue of deferred command closures. Filters and actions
+mutate only this resource, never the Bevy <code>World</code>; world access goes through
+<code>world.push_command(|commands| ...)</code>. Each frame <code>state_to_world_system</code> syncs
+objectives into <code>GameObjectives</code> (write-on-diff), runs a queued non-lingering
+<code>NextScenario</code> switch, and flushes the command queue.</p>
+<p>Variables are typed literals (<code>String</code>, <code>Number</code>, <code>Boolean</code>) with a small
+expression tree: <code>VariableExpressionNode</code> (add/subtract), <code>VariableTermNode</code>
+(multiply/divide), <code>VariableFactorNode</code> (literal/name/parens);
+<code>VariableConditionNode</code> (less/greater/equal) yields booleans for filters.</p>
+<h2 id="scenario-objects-objects-scenarioobjectkind" tabindex="-1">Scenario objects (<code>objects/</code>, <code>ScenarioObjectKind</code>)</h2>
+<p>All share <code>BaseScenarioObjectConfig</code> (id, name, position, rotation) and spawn
+scoped, interpolated, dynamic bodies via <code>base_scenario_object</code>.</p>
+<ul>
+<li><code>Asteroid(AsteroidConfig)</code> - radius, texture, health, <code>surface_gravity</code>
+override, <code>invulnerable</code> (no health node, so its gravity well cannot die),
+<code>lock_signature</code> override.</li>
+<li><code>Spaceship(SpaceshipConfig)</code> - sections plus a <code>SpaceshipController</code>:
+<code>None</code>, <code>Player</code> (input mapping, optional <code>speed_cap</code>, <code>infinite_ammo</code>), or
+<code>AI</code> (patrol route, orbit directive, optional <code>leash</code> break-off radius).
+See <a href="../sections/">Ship sections (internals)</a>.</li>
+<li><code>Beacon(BeaconConfig)</code> - nav waypoint with an automatic HUD chip: label,
+radius, color, optional <code>lock_signature</code>, optional <code>area_radius</code> (the
+beacon doubles as its own <code>OnEnter</code>/<code>OnExit</code> trigger).</li>
+<li><code>SalvageCrate(SalvageCrateConfig)</code> - proximity pickup (<code>size</code>,
+<code>area_radius</code>): flying through fires <code>OnEnter</code> under the crate's id; pair
+with <code>DespawnScenarioObject</code> and a counter variable.</li>
+</ul>
+<h2 id="built-in-scenarios" tabindex="-1">Built-in scenarios</h2>
+<p><code>crates/nova_assets/src/scenario.rs</code> builds <code>asteroid_field</code>, <code>asteroid_next</code>,
+and <code>menu_ambience</code> in Rust; <code>scenario/shakedown.rs</code> adds <code>shakedown_run</code>, the
+New Game starter and the beat-chain reference: one <code>beat</code> counter gates every
+handler, and count milestones run on <code>OnUpdate</code> handlers keyed on the counter
+(handler order within one event is not load-bearing). Loading scenarios from
+data files instead of Rust is still a TODO.</p>
+<h2 id="adding-new-pieces" tabindex="-1">Adding new pieces</h2>
+<ul>
+<li>Event: event + info structs in <code>nova_events/src/lib.rs</code>, an <code>EventConfig</code>
+variant in <code>events.rs</code>, and something that fires it (engine-driven events
+live in <code>loader.rs</code>, area events in <code>objects/area.rs</code>).</li>
+<li>Action: config struct + <code>EventAction&lt;NovaEventWorld&gt;</code> impl in <code>actions.rs</code>,
+plus an <code>EventActionConfig</code> variant.</li>
+<li>Filter: same pattern in <code>filters.rs</code> (<code>EventFilterConfig</code>).</li>
+<li>Object: a module under <code>objects/</code> (config + bundle function, plugin in
+<code>objects/mod.rs</code>) plus a <code>ScenarioObjectKind</code> variant/match in <code>actions.rs</code>.</li>
+</ul>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

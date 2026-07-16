@@ -1,0 +1,285 @@
+// Demo mod content. Loaded AFTER the base bundle, so:
+//   - the Section below shares the base id "reinforced_hull_section", so it
+//     OVERRIDES the base one by id (last-wins overlay): buffed health + a renamed
+//     label the editor palette will show.
+//   - the Scenario below is a NEW id ("demo_mod_arena"), so it is ADDED alongside
+//     the base scenarios. It is a small, playable shooting gallery: the player
+//     spawns in a turreted ship and must destroy three derelict rocks; a
+//     `destroyed` counter (incremented by each target's OnDestroyed) drives a
+//     one-shot OnUpdate win when it reaches 3. Pure data-driven RON, no engine
+//     changes; the destroy->OnDestroyed bridge itself is pinned by
+//     nova_scenario's asteroid tests.
+[
+    Section((
+        base: (
+            id: "reinforced_hull_section",
+            name: "Reinforced Hull Section (Demo Mod)",
+            description: "Base hull, up-armored by the demo mod to show section overlay.",
+            mass: 1.0,
+            health: 400.0,
+        ),
+        kind: Hull((
+            render_mesh: Some("gltf/hull-01.glb#Scene0"),
+        )),
+    )),
+    Scenario((
+        id: "demo_mod_arena",
+        name: "Demo Mod Arena",
+        description: "A shooting gallery added by the demo mod: destroy the three derelict rocks.",
+        cubemap: "textures/cubemap.png",
+        events: [
+            (
+                name: OnStart,
+                filters: [],
+                actions: [
+                    DebugMessage((
+                        message: "Demo mod arena loaded from an overlaid bundle.",
+                    )),
+                    // The player: a turreted ship (Mouse(Left) fires), all verbs
+                    // enabled, infinite ammo - a simple gallery, not a survival run.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player_spaceship",
+                            name: "Player Spaceship",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: Player((
+                                input_mapping: {
+                                    "turret": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                },
+                                speed_cap: Some(25.0),
+                                infinite_ammo: true,
+                            )),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (0.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (0.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (0.0, 0.0, 2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                                (
+                                    id: "turret",
+                                    position: (0.0, 0.0, -1.0),
+                                    rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+                                    source: Prototype("better_turret_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    // Arena centrepiece - a lit beacon the rocks orbit visually.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "demo_mod_beacon",
+                            name: "Arena Beacon",
+                            position: (0.0, 0.0, -55.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Beacon((
+                            label: "ARENA",
+                            radius: 2.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.6,
+                                blue: 0.2,
+                                alpha: 1.0,
+                            )),
+                            // Purely a visual centrepiece - no OnEnter consumes an
+                            // area here, so it carries none.
+                            area_radius: None,
+                            lock_signature: None,
+                        )),
+                    )),
+                    // Three destructible targets, spread in front of the pilot.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "arena_target_1",
+                            name: "Derelict 1",
+                            position: (-15.0, 5.0, -40.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 2.0,
+                            texture: "textures/asteroid.png",
+                            health: 50.0,
+                            surface_gravity: None,
+                            invulnerable: false,
+                            lock_signature: None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "arena_target_2",
+                            name: "Derelict 2",
+                            position: (15.0, -5.0, -55.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 2.0,
+                            texture: "textures/asteroid.png",
+                            health: 50.0,
+                            surface_gravity: None,
+                            invulnerable: false,
+                            lock_signature: None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "arena_target_3",
+                            name: "Derelict 3",
+                            position: (0.0, 10.0, -70.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 2.0,
+                            texture: "textures/asteroid.png",
+                            health: 50.0,
+                            surface_gravity: None,
+                            invulnerable: false,
+                            lock_signature: None,
+                        )),
+                    )),
+                    // Win state: `destroyed` counts kills (0..3); `arena_done`
+                    // makes the OnUpdate win check one-shot.
+                    VariableSet((
+                        key: "destroyed",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "arena_done",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    Objective((
+                        id: "clear_arena",
+                        message: "Destroy the three derelict rocks. Aim with the mouse, [Left Mouse] fires.",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "arena_target_1",
+                        label: "DERELICT",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "arena_target_2",
+                        label: "DERELICT",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "arena_target_3",
+                        label: "DERELICT",
+                    )),
+                ],
+            ),
+            // One OnDestroyed per target: each kill increments `destroyed` and
+            // drops that target's marker. Filtered on the target's id, which is
+            // the id the integrity bridge fires OnDestroyed under (pinned by
+            // nova_scenario's `destroying_an_asteroid_node_fires_on_destroyed_for_the_root`).
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("arena_target_1"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "destroyed",
+                        expression: Add(
+                            Factor(Name("destroyed")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "arena_target_1",
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("arena_target_2"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "destroyed",
+                        expression: Add(
+                            Factor(Name("destroyed")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "arena_target_2",
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("arena_target_3"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "destroyed",
+                        expression: Add(
+                            Factor(Name("destroyed")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "arena_target_3",
+                    )),
+                ],
+            ),
+            // The win, checked every frame but gated to fire once: when all
+            // three are down, complete the objective and show the clear line.
+            // OnUpdate (not the last OnDestroyed) so it never depends on handler
+            // execution order within one destroy event.
+            (
+                name: OnUpdate,
+                filters: [
+                    // `>` not `==`: if a target ever fired OnDestroyed twice the
+                    // counter would overshoot 3, and an `== 3` gate would be
+                    // skipped forever (uncompletable arena). `> 2` still wins.
+                    Expression((GreaterThan(
+                        Term(Factor(Name("destroyed"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("arena_done"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "arena_done",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "clear_arena",
+                    )),
+                    Objective((
+                        id: "arena_clear",
+                        message: "Arena cleared - all targets down. Nice shooting.",
+                    )),
+                ],
+            ),
+        ],
+    )),
+]

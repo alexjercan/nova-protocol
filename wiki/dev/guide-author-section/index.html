@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Author a section (RON) - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / Author a section (RON)
+                    </p>
+                    <h1>Author a section (RON)</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <p>A how-to for content authors. A <code>Section</code> is the other kind of <code>*.content.ron</code>
+item alongside <code>Scenario</code> (see <a href="../guide-author-scenario/">Author a scenario</a>):
+a ship part - hull, thruster, controller, turret, or torpedo bay - authored as
+RON data, no Rust. A mod ships sections to add new parts to the editor palette
+or to re-balance a base part by reusing its id (overlay by id; see
+<a href="../guide-make-a-mod/">Make and publish a mod</a>).</p>
+<p>Every field below is copied from the shipped catalog
+(<code>assets/base/sections/base.content.ron</code>) or the config struct that parses it
+(<code>crates/nova_gameplay/src/sections/</code>). The loader uses strict RON, so a
+misspelled or unknown field is a hard parse error, not a silent default. For the
+RON gotchas (newtype double-parens, <code>Some(...)</code>, tagged enums) shared with
+scenarios, see <a href="../modding-ron/">RON scenario/mod format</a>.</p>
+<h2 id="the-section-item" tabindex="-1">The Section item</h2>
+<p>A section is a <code>Section((base: ..., kind: ...))</code> content item (a <code>SectionConfig</code>):</p>
+<pre><code class="hljs">Section((
+    base: (
+        id: &quot;basic_thruster_section&quot;,
+        name: &quot;Basic Thruster Section&quot;,
+        description: &quot;A basic thruster section for spaceships.&quot;,
+        mass: 1.0,
+        health: 70.0,
+    ),
+    kind: Thruster((
+        magnitude: 1.0,
+    )),
+)),
+</code></pre>
+<ul>
+<li><code>base</code> is a <code>BaseSectionConfig</code>, shared by every section kind:
+<ul>
+<li><code>id</code> - unique section id; the key a ship's <code>source: Prototype(&quot;&lt;id&gt;&quot;)</code>
+references, and the key a mod overlays to replace a base part.</li>
+<li><code>name</code>, <code>description</code> - display strings (editor palette, tooltips).</li>
+<li><code>mass</code> - contributes to the ship's total mass and center of mass.</li>
+<li><code>health</code> - the section's hit points before it is disabled/destroyed.</li>
+</ul>
+</li>
+<li><code>kind</code> selects the behavior and carries that kind's own config. It is one of
+<code>Hull</code> / <code>Thruster</code> / <code>Controller</code> / <code>Turret</code> / <code>Torpedo</code>, each documented
+below.</li>
+</ul>
+<p>The render meshes and effect fields are all <code>Option</code>s that default to <code>None</code>
+(the built-in prototype mesh), so omit them for the default look or write
+<code>Some(&quot;path&quot;)</code> for a custom asset (an asset ref is a bare path string).</p>
+<h2 id="hull" tabindex="-1">Hull</h2>
+<p><code>HullSectionConfig</code> - passive armor. One optional field:</p>
+<pre><code class="hljs">Section((
+    base: (
+        id: &quot;reinforced_hull_section&quot;,
+        name: &quot;Reinforced Hull Section&quot;,
+        description: &quot;A reinforced hull section for spaceships.&quot;,
+        mass: 1.0,
+        health: 200.0,
+    ),
+    kind: Hull((
+        render_mesh: Some(&quot;gltf/hull-01.glb#Scene0&quot;),
+    )),
+)),
+</code></pre>
+<ul>
+<li><code>render_mesh</code> (optional) - the hull mesh; omit for a default 1x1x1 cuboid.</li>
+</ul>
+<h2 id="thruster" tabindex="-1">Thruster</h2>
+<p><code>ThrusterSectionConfig</code> - forward thrust.</p>
+<pre><code class="hljs">kind: Thruster((
+    magnitude: 1.0,
+)),
+</code></pre>
+<ul>
+<li><code>magnitude</code> - the thrust force this section produces at full throttle.</li>
+<li><code>render_mesh</code> (optional) - custom mesh; omit for the default thruster body.</li>
+</ul>
+<h2 id="controller" tabindex="-1">Controller</h2>
+<p><code>ControllerSectionConfig</code> - the steering PD controller; a ship needs a live one
+to fly.</p>
+<pre><code class="hljs">kind: Controller((
+    frequency: 4.0,
+    damping_ratio: 4.0,
+    max_torque: 40.0,
+)),
+</code></pre>
+<ul>
+<li><code>frequency</code> - the PD controller frequency in Hz (how stiffly it chases the
+commanded heading).</li>
+<li><code>damping_ratio</code> - the PD damping ratio (overshoot vs settle).</li>
+<li><code>max_torque</code> - the maximum torque the controller may apply.</li>
+<li><code>render_mesh</code> (optional) - custom mesh; omit for the default body.</li>
+</ul>
+<h2 id="turret" tabindex="-1">Turret</h2>
+<p><code>TurretSectionConfig</code> - an articulated gun that aims with intercept lead and
+fires bullets. The most field-heavy kind; the shipped <code>better_turret_section</code>
+is the reference:</p>
+<pre><code class="hljs">kind: Turret((
+    yaw_speed: 3.1415927,
+    pitch_speed: 3.1415927,
+    min_pitch: Some(-0.5235988),
+    max_pitch: Some(1.5707964),
+    base_offset: (0.0, -0.5, 0.0),
+    render_mesh_yaw: Some(&quot;gltf/turret-yaw-01.glb#Scene0&quot;),
+    yaw_offset: (0.0, 0.1, 0.0),
+    render_mesh_pitch: Some(&quot;gltf/turret-pitch-01.glb#Scene0&quot;),
+    pitch_offset: (0.0, 0.332706, 0.303954),
+    render_mesh_barrel: Some(&quot;gltf/turret-barrel-01.glb#Scene0&quot;),
+    barrel_offset: (0.0, 0.128437, -0.110729),
+    muzzle_offset: (0.0, 0.0, -1.2),
+    fire_rate: 100.0,
+    muzzle_speed: 100.0,
+    projectile_lifetime: 5.0,
+    bullet_damage: 4.0,
+    bullet_kind: Kinetic,
+    ammo_capacity: Some(500),
+)),
+</code></pre>
+<ul>
+<li><code>yaw_speed</code>, <code>pitch_speed</code> - traverse speeds in radians per second.</li>
+<li><code>min_pitch</code>, <code>max_pitch</code> (optional) - pitch limits in radians; <code>None</code> for no
+limit.</li>
+<li><code>base_offset</code>, <code>yaw_offset</code>, <code>pitch_offset</code>, <code>barrel_offset</code>,
+<code>muzzle_offset</code> - <code>Vec3</code> mount offsets stacking base -&gt; yaw -&gt; pitch -&gt; barrel
+-&gt; muzzle (bare 3-tuples).</li>
+<li><code>render_mesh_base</code>, <code>render_mesh_yaw</code>, <code>render_mesh_pitch</code>,
+<code>render_mesh_barrel</code> (all optional) - the per-part meshes; omit for defaults.</li>
+<li><code>fire_rate</code> - rounds per second.</li>
+<li><code>muzzle_speed</code> - projectile launch speed in units per second.</li>
+<li><code>projectile_lifetime</code> - projectile lifetime in seconds.</li>
+<li><code>bullet_damage</code> - authored per-hit damage (pre-resistance).</li>
+<li><code>bullet_kind</code> - the damage type of the loaded round (<code>Kinetic</code>, and the other
+<code>DamageType</code> variants).</li>
+<li><code>ammo_capacity</code> (optional) - magazine size; <code>None</code> fires without a limit,
+<code>Some(n)</code> gives an ammo slot of <code>n</code> rounds.</li>
+</ul>
+<h2 id="torpedo" tabindex="-1">Torpedo</h2>
+<p><code>TorpedoSectionConfig</code> - a bay that launches guided, proportional-navigation
+torpedoes dealing blast damage. The shipped <code>torpedo_section</code>:</p>
+<pre><code class="hljs">kind: Torpedo((
+    render_mesh: Some(&quot;gltf/torpedo-bay-01.glb#Scene0&quot;),
+    spawn_offset: (0.0, 0.0, -2.0),
+    spawn_rotation: (0.0, 0.0, 0.0, 1.0),
+    fire_rate: 1.0,
+    spawner_speed: 1.0,
+    projectile_lifetime: 100.0,
+    arm_time: 0.5,
+    arm_distance: 5.0,
+    nav_constant: 3.0,
+    max_speed: 35.0,
+    linear_damping: 0.8,
+    blast_radius: 30.0,
+    blast_damage: 100.0,
+    ammo_capacity: Some(6),
+)),
+</code></pre>
+<ul>
+<li><code>render_mesh</code>, <code>projectile_render_mesh</code> (both optional) - the bay mesh and the
+torpedo mesh; omit for defaults.</li>
+<li><code>spawn_offset</code> (<code>Vec3</code>), <code>spawn_rotation</code> (<code>Quat</code>, a bare 4-tuple) - where the
+torpedo leaves the bay, relative to the section.</li>
+<li><code>fire_rate</code> - launches per second.</li>
+<li><code>spawner_speed</code> - launch speed in units per second.</li>
+<li><code>projectile_lifetime</code> - torpedo lifetime in seconds.</li>
+<li><code>arm_time</code>, <code>arm_distance</code> - the torpedo may detonate only after this many
+seconds OR this distance from the muzzle (arms on whichever comes first), so
+it clears the firing ship.</li>
+<li><code>nav_constant</code> - the proportional-navigation constant <code>N</code> (typically 3-5;
+higher leads a moving target harder).</li>
+<li><code>max_speed</code> - cruise speed cap in units per second.</li>
+<li><code>linear_damping</code> - drag on the torpedo body (gives a real terminal velocity so
+the flight path follows guidance).</li>
+<li><code>blast_radius</code>, <code>blast_damage</code> - detonation radius and peak centre damage
+(falls off to zero at the radius).</li>
+<li><code>blast_effect</code>, <code>launch_effect</code> (both optional) - custom particle effects;
+omit for the built-in bursts.</li>
+<li><code>ammo_capacity</code> (optional) - magazine size in torpedoes; <code>None</code> for unlimited.</li>
+</ul>
+<h2 id="a-section-in-a-mod" tabindex="-1">A section in a mod</h2>
+<p>The demo mod (<code>assets/mods/demo/mod.content.ron</code>) overlays the base
+<code>reinforced_hull_section</code> - same id, so it REPLACES the base part everywhere
+(editor palette, ships) with more health and a renamed label:</p>
+<pre><code class="hljs">Section((
+    base: (
+        id: &quot;reinforced_hull_section&quot;,
+        name: &quot;Reinforced Hull Section (Demo Mod)&quot;,
+        description: &quot;Base hull, up-armored by the demo mod to show section overlay.&quot;,
+        mass: 1.0,
+        health: 400.0,
+    ),
+    kind: Hull((
+        render_mesh: Some(&quot;gltf/hull-01.glb#Scene0&quot;),
+    )),
+)),
+</code></pre>
+<p>Reuse a base id to REBALANCE or re-skin that part; give a NEW id to ADD a part
+alongside the base catalog. Either way, a ship references the section by id via
+<code>source: Prototype(&quot;&lt;id&gt;&quot;)</code> in its <code>sections</code> list. To ship the section, package
+the file as a mod - <a href="../guide-make-a-mod/">Make and publish a mod</a> is the full
+flow.</p>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Extend the scenario engine - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / Extend the scenario engine
+                    </p>
+                    <h1>Extend the scenario engine</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <p>The scenario engine is config-open but code-closed. Authoring a scenario in RON
+from the primitives that already exist is a data change and lives in its own
+guide (see <a href="../guide-author-scenario/">Author a scenario</a>). Adding a NEW
+primitive - a new event, filter, action, or object kind - is a Rust change, and
+each of the four follows one repeated recipe: define the config, wire it into
+the matching dispatch enum, add the arm on the trait impl that fans out to it,
+and export it. This is the &quot;how to add&quot; companion to
+<a href="../scenario-system/">Scenario engine</a> (the &quot;what it is&quot; reference); read that
+first for the vocabulary (<code>NovaEventWorld</code>, handlers, filters, actions, scoped
+objects).</p>
+<p>The dispatch shape is identical everywhere: an enum variant carries a config
+struct, a <code>match</code> arm on the trait impl delegates to that config's own impl.</p>
+<pre class="mermaid">flowchart LR
+  Variant[&quot;Config enum variant&quot;] --&gt; Arm[&quot;match arm on the trait impl&quot;]
+  Arm --&gt; Impl[&quot;config's own trait impl&quot;]
+  Impl --&gt; Effect[&quot;fires / filters / mutates&quot;]
+</pre>
+<h2 id="the-novaeventworld-seam" tabindex="-1">The NovaEventWorld seam</h2>
+<p>Read this once; recipes 2 and 3 depend on it. Filters and actions never touch
+the Bevy <code>World</code> directly. They see only <code>NovaEventWorld</code>
+(<code>crates/nova_scenario/src/world.rs</code>), the resource that holds scenario state:
+variables, objectives, <code>next_scenario</code>, and a queue of deferred command
+closures. What a filter or action may touch:</p>
+<ul>
+<li><code>world.get_variable(key)</code> / <code>world.insert_variable(key, VariableLiteral)</code> -
+the typed scenario variables.</li>
+<li><code>world.push_objective(ObjectiveActionConfig)</code> /
+<code>world.remove_objective(id)</code> - HUD objectives (synced write-on-diff into
+<code>GameObjectives</code>).</li>
+<li><code>world.next_scenario = Some(NextScenarioActionConfig { .. })</code> - queue a
+scenario switch.</li>
+<li><code>world.push_command(|commands| ...)</code> - defer anything that needs real world
+access (spawning, querying entities, resource mutation). The closure gets a
+<code>&amp;mut Commands</code>; for a full <code>&amp;mut World</code> (id -&gt; Entity lookups) queue a
+<code>commands.queue(move |world: &amp;mut World| ...)</code> inside it, the shape
+<code>DespawnScenarioObjectActionConfig</code> uses.</li>
+</ul>
+<p>Nothing runs against the world synchronously. Each frame
+<code>NovaEventWorld::state_to_world_system</code> (in <code>world.rs</code>) syncs objectives into
+<code>GameObjectives</code>, runs a queued non-lingering <code>NextScenario</code> switch, then drains
+the command queue - so every <code>push_command</code> closure lands at frame end, in
+order. The unit tests in <code>actions.rs</code> exercise exactly this: mutate a
+<code>NovaEventWorld</code>, call <code>NovaEventWorld::state_to_world_system(&amp;mut world)</code> to
+drain, then assert on the world (see <code>despawn_action_removes_the_scoped_object_by_id</code>).</p>
+<h2 id="recipe-1-add-an-event-kind" tabindex="-1">Recipe 1: add an event kind</h2>
+<p>An event is fired somewhere in the engine, and scenarios react to it through a
+handler. Adding one is two files: the event type (<code>nova_events</code>) and its config
+variant (<code>nova_scenario</code>), plus the firing site.</p>
+<ol>
+<li>
+<p>In <code>crates/nova_events/src/lib.rs</code> define the marker event and its info
+struct with the <code>EventKind</code> derive. The info is what a handler's filters
+read; give it the pair shape (<code>id</code>, <code>other_id</code>, <code>other_type_name</code>) if it
+targets an object so the <code>Entity</code> filter composes like the others.</p>
+<pre><code class="hljs language-rust"><span class="hljs-meta">#[derive(Debug, Clone, EventKind, Reflect)]</span>
+<span class="hljs-meta">#[event_name(<span class="hljs-string">&quot;ondocked&quot;</span>)]</span>
+<span class="hljs-meta">#[event_info(OnDockedEventInfo)]</span>
+<span class="hljs-keyword">pub</span> <span class="hljs-keyword">struct</span> <span class="hljs-title class_">OnDockedEvent</span>;
+
+<span class="hljs-meta">#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]</span>
+<span class="hljs-keyword">pub</span> <span class="hljs-keyword">struct</span> <span class="hljs-title class_">OnDockedEventInfo</span> {
+    <span class="hljs-meta">#[serde(rename = <span class="hljs-string">&quot;id&quot;</span>)]</span>
+    <span class="hljs-keyword">pub</span> id: <span class="hljs-type">String</span>,
+    <span class="hljs-meta">#[serde(rename = <span class="hljs-string">&quot;other_id&quot;</span>)]</span>
+    <span class="hljs-keyword">pub</span> other_id: <span class="hljs-type">String</span>,
+    <span class="hljs-meta">#[serde(rename = <span class="hljs-string">&quot;other_type_name&quot;</span>)]</span>
+    <span class="hljs-keyword">pub</span> other_type_name: <span class="hljs-type">String</span>,
+}
+</code></pre>
+<p>Export both from the <code>nova_events</code> prelude (the <code>pub use super::{...}</code> block
+at the top of <code>lib.rs</code>).</p>
+</li>
+<li>
+<p>In <code>crates/nova_scenario/src/events.rs</code> add the variant to <code>EventConfig</code>
+(grep for <code>enum EventConfig</code>) and the arm to
+<code>impl From&lt;EventConfig&gt; for EventHandler&lt;NovaEventWorld&gt;</code> (grep for
+<code>impl From&lt;EventConfig&gt;</code>):</p>
+<pre><code class="hljs language-rust"><span class="hljs-keyword">pub</span> <span class="hljs-keyword">enum</span> <span class="hljs-title class_">EventConfig</span> {
+    <span class="hljs-comment">// ...</span>
+    OnDocked,
+}
+
+<span class="hljs-comment">// in the From match:</span>
+EventConfig::OnDocked =&gt; EventHandler::new::&lt;OnDockedEvent&gt;(),
+</code></pre>
+</li>
+<li>
+<p>Fire it. Engine-driven events fire from <code>crates/nova_scenario/src/loader.rs</code>
+with <code>commands.fire::&lt;OnDockedEvent&gt;(OnDockedEventInfo { .. })</code> (see the
+<code>OnStart</code>/<code>OnUpdate</code>/<code>OnOrbit</code>/lock sites there); object-local events (an
+area entering/leaving) fire from the object's own observer, the way
+<code>objects/asteroid.rs</code> fires <code>OnDestroyedEvent</code> from <code>on_asteroid_node_destroyed</code>.</p>
+</li>
+</ol>
+<p><code>EventConfig</code> is <code>Copy</code> and derives serde, so the new variant is authorable from
+RON with no extra work.</p>
+<h2 id="recipe-2-add-an-event-filter" tabindex="-1">Recipe 2: add an event filter</h2>
+<p>A filter gates whether a handler's actions run; all filters on a handler must
+pass. Everything lives in <code>crates/nova_scenario/src/filters.rs</code>.</p>
+<ol>
+<li>
+<p>Define the config struct and its <code>EventFilter&lt;NovaEventWorld&gt;</code> impl. <code>filter</code>
+returns a bool and may read <code>world</code> (variables) and <code>info</code> (the fired event
+data); it must not mutate.</p>
+<pre><code class="hljs language-rust"><span class="hljs-meta">#[derive(Clone, Debug)]</span>
+<span class="hljs-meta">#[cfg_attr(feature = <span class="hljs-string">&quot;serde&quot;</span>, derive(serde::Serialize, serde::Deserialize))]</span>
+<span class="hljs-keyword">pub</span> <span class="hljs-keyword">struct</span> <span class="hljs-title class_">VariablePresentFilterConfig</span> {
+    <span class="hljs-keyword">pub</span> key: <span class="hljs-type">String</span>,
+}
+
+<span class="hljs-keyword">impl</span> <span class="hljs-title class_">EventFilter</span>&lt;NovaEventWorld&gt; <span class="hljs-keyword">for</span> <span class="hljs-title class_">VariablePresentFilterConfig</span> {
+    <span class="hljs-keyword">fn</span> <span class="hljs-title function_">filter</span>(&amp;<span class="hljs-keyword">self</span>, world: &amp;NovaEventWorld, _: &amp;GameEventInfo) <span class="hljs-punctuation">-&gt;</span> <span class="hljs-type">bool</span> {
+        world.<span class="hljs-title function_ invoke__">get_variable</span>(&amp;<span class="hljs-keyword">self</span>.key).<span class="hljs-title function_ invoke__">is_some</span>()
+    }
+}
+</code></pre>
+</li>
+<li>
+<p>Add the variant to <code>EventFilterConfig</code> (grep for <code>enum EventFilterConfig</code>)
+and the arm to <code>impl EventFilter&lt;NovaEventWorld&gt; for EventFilterConfig</code> (grep
+for <code>impl EventFilter&lt;NovaEventWorld&gt; for EventFilterConfig</code>):</p>
+<pre><code class="hljs language-rust"><span class="hljs-keyword">pub</span> <span class="hljs-keyword">enum</span> <span class="hljs-title class_">EventFilterConfig</span> {
+    <span class="hljs-title function_ invoke__">Entity</span>(EntityFilterConfig),
+    <span class="hljs-title function_ invoke__">Conditional</span>(ConditionalFilterConfig),
+    <span class="hljs-title function_ invoke__">Expression</span>(ExpressionFilterConfig),
+    <span class="hljs-title function_ invoke__">VariablePresent</span>(VariablePresentFilterConfig),
+}
+
+<span class="hljs-comment">// in the filter match:</span>
+EventFilterConfig::<span class="hljs-title function_ invoke__">VariablePresent</span>(config) =&gt; config.<span class="hljs-title function_ invoke__">filter</span>(world, info),
+</code></pre>
+</li>
+<li>
+<p>Export the config struct from the module <code>prelude</code> (the <code>pub use super::{...}</code>
+block at the top of <code>filters.rs</code>).</p>
+</li>
+</ol>
+<h2 id="recipe-3-add-an-event-action" tabindex="-1">Recipe 3: add an event action</h2>
+<p>An action runs when a handler passes, in order. Everything lives in
+<code>crates/nova_scenario/src/actions.rs</code>.</p>
+<ol>
+<li>
+<p>Define the config struct and its <code>EventAction&lt;NovaEventWorld&gt;</code> impl.
+<code>fn action(&amp;self, world: &amp;mut NovaEventWorld, info: &amp;GameEventInfo)</code> mutates
+the seam and nothing else - use <code>world.insert_variable</code>, <code>world.push_objective</code>,
+<code>world.next_scenario</code>, or <code>world.push_command(...)</code> for world access. Anything
+needing an id -&gt; Entity lookup queues a <code>commands.queue(move |world: &amp;mut World| ...)</code>
+inside the pushed command, scoped with <code>With&lt;ScenarioScopedMarker&gt;</code> (a raw id
+match would also hit ship sections that carry <code>EntityId</code>).</p>
+<pre><code class="hljs language-rust"><span class="hljs-meta">#[derive(Clone, Debug)]</span>
+<span class="hljs-meta">#[cfg_attr(feature = <span class="hljs-string">&quot;serde&quot;</span>, derive(serde::Serialize, serde::Deserialize))]</span>
+<span class="hljs-keyword">pub</span> <span class="hljs-keyword">struct</span> <span class="hljs-title class_">VariableClearActionConfig</span> {
+    <span class="hljs-keyword">pub</span> key: <span class="hljs-type">String</span>,
+}
+
+<span class="hljs-keyword">impl</span> <span class="hljs-title class_">EventAction</span>&lt;NovaEventWorld&gt; <span class="hljs-keyword">for</span> <span class="hljs-title class_">VariableClearActionConfig</span> {
+    <span class="hljs-keyword">fn</span> <span class="hljs-title function_">action</span>(&amp;<span class="hljs-keyword">self</span>, world: &amp;<span class="hljs-keyword">mut</span> NovaEventWorld, _: &amp;GameEventInfo) {
+        world.<span class="hljs-title function_ invoke__">insert_variable</span>(<span class="hljs-keyword">self</span>.key.<span class="hljs-title function_ invoke__">clone</span>(), VariableLiteral::<span class="hljs-title function_ invoke__">Boolean</span>(<span class="hljs-literal">false</span>));
+    }
+}
+</code></pre>
+</li>
+<li>
+<p>Add the variant to <code>EventActionConfig</code> (grep for <code>enum EventActionConfig</code>)
+and the arm to <code>impl EventAction&lt;NovaEventWorld&gt; for EventActionConfig</code> (grep
+for <code>impl EventAction&lt;NovaEventWorld&gt; for EventActionConfig</code>):</p>
+<pre><code class="hljs language-rust"><span class="hljs-keyword">pub</span> <span class="hljs-keyword">enum</span> <span class="hljs-title class_">EventActionConfig</span> {
+    <span class="hljs-comment">// ...</span>
+    <span class="hljs-title function_ invoke__">VariableClear</span>(VariableClearActionConfig),
+}
+
+<span class="hljs-comment">// in the action match:</span>
+EventActionConfig::<span class="hljs-title function_ invoke__">VariableClear</span>(config) =&gt; {
+    config.<span class="hljs-title function_ invoke__">action</span>(world, info);
+}
+</code></pre>
+</li>
+<li>
+<p>Export the config struct from the <code>actions.rs</code> <code>prelude</code> block.</p>
+</li>
+</ol>
+<p>Templates: the tests at the bottom of <code>actions.rs</code> are the pattern to copy -
+<code>despawn_action_removes_the_scoped_object_by_id</code> (queued world lookup, scoped),
+<code>hint_emphasis_actions_drive_the_resource</code> (resource mutation through the drain),
+<code>objective_marker_attach_and_detach_drive_the_component</code> (component insert/remove).
+Each fires the action into a <code>NovaEventWorld</code>, drains with
+<code>NovaEventWorld::state_to_world_system</code>, then asserts.</p>
+<h2 id="recipe-4-add-a-scenario-object-kind" tabindex="-1">Recipe 4: add a scenario object kind</h2>
+<p>A scenario object is a scoped, interpolated, dynamic body spawned by
+<code>SpawnScenarioObject</code>. Model it on <code>crates/nova_scenario/src/objects/asteroid.rs</code>.</p>
+<ol>
+<li>
+<p>Create <code>crates/nova_scenario/src/objects/&lt;kind&gt;.rs</code>. It holds a config struct,
+a type-name const, a marker component, a <code>&lt;kind&gt;_scenario_object(config) -&gt; impl Bundle</code>
+builder, and (optionally) a <code>Plugin</code> for any observers/systems the kind needs.
+The bundle carries the marker plus an <code>EntityTypeName</code>; the shared
+<code>base_scenario_object</code> (id, name, transform, <code>RigidBody::Dynamic</code>,
+<code>TransformInterpolation</code>, visibility, <code>ScenarioScopedMarker</code>) is added by the
+spawn path, not here.</p>
+<pre><code class="hljs language-rust"><span class="hljs-keyword">pub</span> <span class="hljs-keyword">const</span> MINE_TYPE_NAME: &amp;<span class="hljs-type">str</span> = <span class="hljs-string">&quot;mine&quot;</span>;
+
+<span class="hljs-meta">#[derive(Component, Clone, Debug, Reflect)]</span>
+<span class="hljs-keyword">pub</span> <span class="hljs-keyword">struct</span> <span class="hljs-title class_">MineMarker</span>;
+
+<span class="hljs-meta">#[derive(Clone, Debug)]</span>
+<span class="hljs-meta">#[cfg_attr(feature = <span class="hljs-string">&quot;serde&quot;</span>, derive(serde::Serialize, serde::Deserialize))]</span>
+<span class="hljs-keyword">pub</span> <span class="hljs-keyword">struct</span> <span class="hljs-title class_">MineConfig</span> {
+    <span class="hljs-keyword">pub</span> radius: <span class="hljs-type">f32</span>,
+    <span class="hljs-keyword">pub</span> damage: <span class="hljs-type">f32</span>,
+}
+
+<span class="hljs-keyword">pub</span> <span class="hljs-keyword">fn</span> <span class="hljs-title function_">mine_scenario_object</span>(config: MineConfig) <span class="hljs-punctuation">-&gt;</span> <span class="hljs-keyword">impl</span> <span class="hljs-title class_">Bundle</span> {
+    (
+        MineMarker,
+        EntityTypeName::<span class="hljs-title function_ invoke__">new</span>(MINE_TYPE_NAME),
+        <span class="hljs-comment">// ... the kind&#x27;s own components</span>
+    )
+}
+
+<span class="hljs-keyword">pub</span> <span class="hljs-keyword">mod</span> prelude {
+    <span class="hljs-keyword">pub</span> <span class="hljs-keyword">use</span> super::{mine_scenario_object, MineConfig, MineMarker, MINE_TYPE_NAME};
+}
+</code></pre>
+</li>
+<li>
+<p>Register the module in <code>crates/nova_scenario/src/objects/mod.rs</code>: add
+<code>pub mod &lt;kind&gt;;</code>, re-export <code>&lt;kind&gt;::prelude::*</code> from the <code>mod.rs</code> prelude,
+and if the kind has a plugin add it in <code>ScenarioObjectsPlugin::build</code> (like
+<code>AsteroidPlugin</code>, which takes <code>render</code>).</p>
+</li>
+<li>
+<p>In <code>crates/nova_scenario/src/actions.rs</code> add the variant to
+<code>ScenarioObjectKind</code> (grep for <code>enum ScenarioObjectKind</code>) and the spawn arm in
+<code>impl EventAction&lt;NovaEventWorld&gt; for ScenarioObjectConfig</code>:</p>
+<pre><code class="hljs language-rust"><span class="hljs-keyword">pub</span> <span class="hljs-keyword">enum</span> <span class="hljs-title class_">ScenarioObjectKind</span> {
+    <span class="hljs-title function_ invoke__">Asteroid</span>(AsteroidConfig),
+    <span class="hljs-title function_ invoke__">Spaceship</span>(SpaceshipConfig),
+    <span class="hljs-title function_ invoke__">Beacon</span>(BeaconConfig),
+    <span class="hljs-title function_ invoke__">SalvageCrate</span>(SalvageCrateConfig),
+    <span class="hljs-title function_ invoke__">Mine</span>(MineConfig),
+}
+
+<span class="hljs-comment">// in the spawn match:</span>
+ScenarioObjectKind::<span class="hljs-title function_ invoke__">Mine</span>(config) =&gt; {
+    entity_commands.<span class="hljs-title function_ invoke__">insert</span>(<span class="hljs-title function_ invoke__">mine_scenario_object</span>(config.<span class="hljs-title function_ invoke__">clone</span>()));
+}
+</code></pre>
+</li>
+</ol>
+<p>The new kind is now spawnable from any handler, in RON, as a
+<code>SpawnScenarioObject</code> action:</p>
+<pre><code class="hljs">SpawnScenarioObject(ScenarioObjectConfig(
+    base: BaseScenarioObjectConfig(
+        id: &quot;mine_1&quot;,
+        name: &quot;Proximity Mine&quot;,
+        position: (0.0, 0.0, -200.0),
+        rotation: (0.0, 0.0, 0.0, 1.0),
+    ),
+    kind: Mine(MineConfig(radius: 5.0, damage: 40.0)),
+))
+</code></pre>
+<h2 id="checklist" tabindex="-1">Checklist</h2>
+<p>Whichever recipe you follow, the change is done when: the config struct derives
+<code>Clone</code>, <code>Debug</code>, and the serde pair; the dispatch enum has the variant; the
+trait impl has the delegating arm; the type is exported from its module prelude;
+and (for an event) something fires it. Then it is reachable both from code-built
+scenarios and from a RON data file.</p>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

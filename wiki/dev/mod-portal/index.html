@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Mod portal - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / Mod portal
+                    </p>
+                    <h1>Mod portal</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <blockquote>
+<p>To make and publish your own mod, follow the guide
+<a href="../guide-make-a-mod/">Make and publish a mod</a>.</p>
+</blockquote>
+<p>How remote mods are published and served. The portal is STATIC files on the
+existing GitHub Pages site - no server, no database - generated on every
+deploy, never hand-maintained. The game consumes it through the portal client
+(<code>nova_assets::portal</code>): it fetches <code>catalog.json</code>, verifies and installs mods
+into the local cache, and the mods menu's &quot;Explore online&quot; tab is the UI on
+top - players browse the portal catalog in game and install, update or
+uninstall mods without leaving the menu, with the last fetched catalog cached
+for offline browsing.</p>
+<h2 id="layout" tabindex="-1">Layout</h2>
+<p>Published by the deploy workflow next to the game:</p>
+<pre><code class="hljs language-text">https://alexjercan.github.io/nova-protocol/
+  play/                     the WASM game
+  mods/
+    catalog.json            PortalCatalog (JSON, schema-versioned)
+    &lt;id&gt;/&lt;version&gt;/&lt;files&gt;  every file of each mod, verbatim
+</code></pre>
+<p>Sources live in the repo-root <code>webmods/</code> directory - OUTSIDE <code>assets/</code>, so
+portal mods never ship inside the game build. Each subdirectory is one mod;
+the directory name is its id (lowercase ascii, digits, <code>-</code>). A mod is the same
+folder-bundle shape as an installed mod: exactly one <code>&lt;name&gt;.bundle.ron</code> at the
+mod root (content paths relative to it, <code>meta</code> block required for publishing:
+non-empty <code>name</code> and <code>version</code>). Only that root-level manifest is the entry
+point; a <code>*.bundle.ron</code> nested in a subdirectory is published as a plain data
+file and validated by neither gate. Declared content paths must resolve to
+files INSIDE the mod directory (the generator checks membership in the set it
+serves, so escaping <code>../</code> paths are rejected).</p>
+<h2 id="the-generator" tabindex="-1">The generator</h2>
+<p><code>crates/nova_portal_gen</code> (engine-free: no bevy, builds in seconds) turns
+<code>webmods/</code> into the portal tree:</p>
+<pre><code class="hljs language-sh">cargo run --release -p nova_portal_gen -- \
+    --<span class="hljs-built_in">source</span> webmods --shipped assets/mods.catalog.ron --out site/mods
+</code></pre>
+<p>It validates what a manifest gate can - bundle parses, publishable meta, every
+listed content file exists, well-formed unique ids that do not collide with
+the SHIPPED catalog, dependencies resolve within the portal + shipped set -
+computes per-file size + sha256, copies files under <code>&lt;id&gt;/&lt;version&gt;/</code>, and
+writes a deterministic <code>catalog.json</code> (sorted entries and file lists; two runs
+over the same source are byte-identical, test-pinned). Any validation failure
+exits non-zero with a one-line reason, failing the deploy.</p>
+<p>Whether the content actually LOADS is deliberately not the generator's job:
+the <code>webmods_validation</code> integration test (crates/nova_assets/tests) drives
+every webmods bundle through the real bevy loaders to recursive <code>Loaded</code> on
+regular CI - the deep half of the publish gate, running where tests already
+run.</p>
+<h2 id="the-wire-schema-catalogjson" tabindex="-1">The wire schema (catalog.json)</h2>
+<p>The full publish-then-install flow ties these sections together:</p>
+<pre class="mermaid">sequenceDiagram
+    participant Pub as Author
+    participant Gen as nova_portal_gen
+    participant Portal as Static portal
+    participant Game as Game client
+    participant Cache as Local cache
+
+    Pub-&gt;&gt;Gen: run generator over webmods/
+    Gen-&gt;&gt;Gen: validate + hash (sha256, size)
+    Gen-&gt;&gt;Portal: write catalog.json + bundle files
+    Game-&gt;&gt;Portal: fetch catalog.json
+    Portal--&gt;&gt;Game: PortalCatalog (entries)
+    Game-&gt;&gt;Portal: download chosen bundle files
+    Portal--&gt;&gt;Game: files
+    Game-&gt;&gt;Game: verify size + sha256 per file
+    Game-&gt;&gt;Cache: commit files-first, index-last
+</pre>
+<p>Types in <code>crates/nova_mod_format</code> (shared verbatim with the game):
+<code>PortalCatalog { schema_version, entries }</code>; each <code>PortalEntry</code> carries <code>id</code>,
+<code>version</code>, <code>bundle</code> (the entry-point manifest within the mod dir), the full
+<code>ModMeta</code>, <code>files: [{path, size, sha256}]</code> and <code>total_size</code>. JSON, not RON, so
+the TypeScript site and a future server API can produce/consume the same
+shape.</p>
+<p><code>schema_version</code> (currently 1, <code>PORTAL_SCHEMA_VERSION</code>) bumps on any breaking
+wire change; the game rejects catalogs with an unknown version rather than
+misparse (<code>RemoteCatalog::Error</code>, test-pinned). The per-file size + sha256 is
+what the game verifies as each file downloads, before anything is committed
+to the cache.</p>
+<h2 id="publishing-a-mod-today" tabindex="-1">Publishing a mod (today)</h2>
+<ol>
+<li>Add <code>webmods/&lt;id&gt;/</code> with a <code>&lt;name&gt;.bundle.ron</code> (content list + full meta,
+version non-empty) and its content files.</li>
+<li><code>cargo test -p nova_portal_gen</code> and <code>cargo test -p nova_assets --test webmods_validation</code> locally (or let CI run them).</li>
+<li>Land on master; the next deploy publishes it.</li>
+</ol>
+<h2 id="local-development" tabindex="-1">Local development</h2>
+<p>The one rule that governs all of this: <strong>the web build fetches the portal
+SAME-ORIGIN.</strong> It derives its portal base from <code>window.location</code> by stepping out
+of <code>/play/</code> and appending <code>/mods</code> as a SIBLING - so the game at
+<code>&lt;origin&gt;/play/</code> always fetches <code>&lt;origin&gt;/mods</code>, exactly the production layout
+(<code>.../play/</code> for the game, <code>.../mods/</code> for the portal). The browser enforces
+CORS, so a cross-origin portal fails; serve the portal same-origin instead.
+(Native has no such rule - ureq ignores CORS.)</p>
+<h3 id="web-full-site-preview-recommended" tabindex="-1">Web: full site preview (recommended)</h3>
+<p><code>scripts/preview-web.sh</code> builds the game, assembles it under <code>/play/</code>, generates
+the portal as the <code>/mods</code> sibling, and serves the whole thing same-origin - the
+same layout the deploy publishes:</p>
+<pre><code class="hljs language-sh">nix develop -c scripts/preview-web.sh            <span class="hljs-comment"># or --release for an optimized game</span>
+<span class="hljs-comment"># open http://localhost:8090/play/  and click Play; Explore works with NO ?portal=</span>
+</code></pre>
+<p>Running it by hand instead (the script just automates this) - note the portal
+goes to <code>&lt;site&gt;/mods</code>, a SIBLING of <code>&lt;site&gt;/play</code>, NOT inside it:</p>
+<pre><code class="hljs language-sh">trunk build                                      <span class="hljs-comment"># -&gt; dist/ (the game)</span>
+<span class="hljs-built_in">mkdir</span> -p site/play &amp;&amp; <span class="hljs-built_in">cp</span> -r dist/. site/play/    <span class="hljs-comment"># game under /play/</span>
+cargo run -p nova_portal_gen -- --<span class="hljs-built_in">source</span> webmods \
+  --shipped assets/mods.catalog.ron --out site/mods   <span class="hljs-comment"># portal as the /mods sibling</span>
+python3 -m http.server -d site 8090
+<span class="hljs-comment"># open http://localhost:8090/play/  with NO ?portal=</span>
+</code></pre>
+<p>If you put the portal INSIDE the game dir (<code>site/play/mods</code>) the game still
+looks at the <code>/mods</code> sibling and 404s - this was the bug in task 20260715-214540.</p>
+<h3 id="web-lighter-loop-trunk-serve-game-at-root" tabindex="-1">Web: lighter loop (trunk serve, game at root)</h3>
+<p>For a quick iteration without assembling the full <code>/play/</code> site, run the portal
+on its own server and let <code>trunk serve</code> proxy to it same-origin:</p>
+<pre><code class="hljs language-sh">cargo run -p nova_portal_gen -- --<span class="hljs-built_in">source</span> webmods --shipped assets/mods.catalog.ron --out /tmp/portal/mods
+python3 -m http.server -d /tmp/portal 8000       <span class="hljs-comment"># portal at :8000/mods/</span>
+trunk serve                                       <span class="hljs-comment"># Trunk.toml proxies /mods -&gt; :8000/mods</span>
+<span class="hljs-comment"># open http://localhost:8080  (game at root) with NO ?portal=</span>
+</code></pre>
+<p>The dev-only <code>[[proxy]]</code> in <code>Trunk.toml</code> applies to <code>trunk serve</code> only (never
+<code>trunk build</code>), so it has no effect on the deploy.</p>
+<h3 id="native" tabindex="-1">Native</h3>
+<p>No origin rule applies; point at any local portal with <code>NOVA_PORTAL_URL</code>:</p>
+<pre><code class="hljs language-sh">cargo run -p nova_portal_gen -- --<span class="hljs-built_in">source</span> webmods --shipped assets/mods.catalog.ron --out /tmp/portal/mods
+python3 -m http.server -d /tmp/portal 8000
+NOVA_PORTAL_URL=http://localhost:8000/mods cargo run
+</code></pre>
+<h3 id="a-note-on-cross-origin-portal" tabindex="-1">A note on cross-origin <code>?portal=</code></h3>
+<p>A cross-origin override (page on one port, portal on another, e.g.
+<code>?portal=http://localhost:8000/mods</code>) is BLOCKED by the browser on the web
+build - an opaque <code>TypeError: Failed to fetch</code> plus a CORS error in the console -
+UNLESS the portal server itself sends an <code>Access-Control-Allow-Origin</code> header
+(<code>python3 -m http.server</code> does not). The game logs a cross-origin warning naming
+both origins when you do this, so prefer the same-origin options above.</p>
+<h2 id="how-installed-mods-are-stored-game-side" tabindex="-1">How installed mods are stored (game side)</h2>
+<p>A downloaded mod lands in the game's LOCAL MOD CACHE and is served back to the
+asset server through the <code>mods://</code> source - native under
+<code>dirs::data_dir()/nova-protocol</code> (files + a RON installed index), the web in
+IndexedDB + localStorage. From there it loads and merges exactly like a
+shipped mod. The full format and runtime flow live in the
+<a href="../modding-ron/">RON data format page</a>, sections &quot;Downloaded mods: the local
+cache + the <code>mods://</code> source&quot; and &quot;The portal client&quot; - the latter is the
+fetch/verify/install flow that fills the cache from this portal: staged,
+sequential downloads verified against the catalog's size + sha256 per file,
+committed files-first-index-last only after everything checks out.</p>
+<h2 id="the-real-server-later" tabindex="-1">The real server, later</h2>
+<p>The static portal IS the v1 API contract. A future service (the
+Wesnoth-add-ons-server analog, done over plain HTTPS) serves the SAME
+catalog.json shape - generated from a database instead of a folder scan - and
+adds what static hosting cannot: third-party upload/publish with auth,
+server-side validation (this generator's checks become the upload gate),
+download counts, and search/pagination past the one-file catalog. The client's
+base URL is already configurable, so switching is a config change, not a
+rework.</p>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

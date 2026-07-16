@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Ship sections (internals) - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / Ship sections (internals)
+                    </p>
+                    <h1>Ship sections (internals)</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <blockquote>
+<p>To add a new section kind, follow the guide
+<a href="../guide-add-section/">Add a ship section</a>.</p>
+</blockquote>
+<p>Ships are assembled from modular <strong>sections</strong>. Each section is a child entity of
+the ship root with its own collider, mass, and health, and contributes one
+behavior (structure, thrust, steering, guns). The <strong>integrity</strong> system tracks
+how sections connect and handles damage, disabling, and cascading destruction.</p>
+<h2 id="sections-nova_gameplaysections" tabindex="-1">Sections (<code>nova_gameplay::sections</code>)</h2>
+<p>A section is a <code>SectionConfig { base: BaseSectionConfig, kind: SectionKind }</code>.
+<code>BaseSectionConfig</code> is shared by all kinds: <code>id</code>, <code>name</code>, <code>description</code>, <code>mass</code>,
+<code>health</code>.</p>
+<p><code>SectionKind</code> variants (one module per kind under <code>crates/nova_gameplay/src/sections/</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Hull</code></td>
+<td>Passive structure/armor. Just a <code>render_mesh</code>.</td>
+</tr>
+<tr>
+<td><code>Thruster</code></td>
+<td>Forward thrust (<code>magnitude</code>); drives the exhaust visual.</td>
+</tr>
+<tr>
+<td><code>Controller</code></td>
+<td>PD attitude controller (<code>frequency</code>, <code>damping_ratio</code>, <code>max_torque</code>). Also grants flight <code>verbs</code> (STOP/GOTO/ORBIT autopilot capabilities). A ship needs one to be drivable.</td>
+</tr>
+<tr>
+<td><code>Turret</code></td>
+<td>Aims and fires bullets. Yaw/pitch speeds and limits, per-part meshes and offsets, <code>fire_rate</code>, <code>muzzle_speed</code>, authored <code>bullet_damage</code> + <code>bullet_kind</code>, optional <code>ammo_capacity</code>.</td>
+</tr>
+<tr>
+<td><code>Torpedo</code></td>
+<td>Torpedo bay. Fires guided torpedoes that detonate an Explosive area blast (<code>blast_radius</code>, <code>blast_damage</code>), optional <code>ammo_capacity</code>.</td>
+</tr>
+</tbody>
+</table>
+<p><code>GameSections(Vec&lt;SectionConfig&gt;)</code> is the resource of section blueprints,
+populated in <code>crates/nova_assets/src/sections.rs</code>. Look one up with
+<code>sections.get_section(&quot;basic_thruster_section&quot;)</code>.</p>
+<h2 id="building-a-ship" tabindex="-1">Building a ship</h2>
+<p>A <code>SpaceshipConfig</code> (<code>crates/nova_scenario/src/objects/spaceship.rs</code>) has a
+<code>controller</code> (<code>None</code>, <code>Player</code>, or <code>AI</code>) and a list of <code>SpaceshipSectionConfig</code>,
+each placing one section at a local grid <code>position</code> + <code>rotation</code>. The player
+config carries the input mapping (section id -&gt; key/gamepad bindings) plus
+<code>speed_cap</code> and <code>infinite_ammo</code>; the AI config carries <code>patrol</code>/<code>orbit</code>/<code>leash</code>.</p>
+<p>Spawning: the base scenario bundle gives the root <code>RigidBody::Dynamic</code>; the
+spaceship object adds <code>SpaceshipRootMarker</code>, and an observer
+(<code>insert_spaceship_sections</code>) spawns each section as a direct child. Every
+section gets <code>SectionMarker</code>, a unit cuboid <code>Collider</code>, and <code>Health</code>
+(<code>base_section</code> in <code>sections/base_section.rs</code>), so the ship is one rigid body
+whose child colliders each carry their own health.</p>
+<p>See the <code>asteroid_field</code> ship in <code>crates/nova_assets/src/scenario.rs</code> for a full
+example. The editor (<code>crates/nova_editor</code>) assembles ships interactively using
+<code>preview_section</code>, which has no health or rigid body and never enters the
+damage pipeline.</p>
+<h2 id="integrity-damage---disable---destroy" tabindex="-1">Integrity: damage -&gt; disable -&gt; destroy</h2>
+<p>The generic destruction core lives in the <code>bevy_common_systems</code> (bcs) crate
+(<code>IntegrityPlugin</code>). Nova wraps it in <code>NovaIntegrityPlugin</code>
+(<code>crates/nova_gameplay/src/integrity/</code>) and adds two nova-specific pieces:</p>
+<ul>
+<li><code>glue.rs</code> - builds the graph and rolls section health up to the ship root.</li>
+<li><code>explode.rs</code> - reacts to destruction: debris, mesh fragments, <code>OnDestroyedEvent</code>.</li>
+</ul>
+<p>Graph build: when avian links a collider to its body (<code>ColliderOf</code>),
+<code>build_integrity_relations</code> connects sections one grid unit apart via
+<code>ConnectedTo</code> neighbor lists and marks the body <code>IntegrityRoot</code>. A lone body
+(asteroid) gets an empty list, so it is a leaf.</p>
+<p>Damage flow:</p>
+<ol>
+<li>A hit triggers bcs <code>HealthApplyDamage</code>; bcs subtracts the amount and adds
+<code>HealthZeroMarker</code> at zero. The amount also bubbles up <code>ChildOf</code>, clamped to
+what the section actually had left - so overkill on one section cannot kill
+the ship (a 1000 hit on a 100 hp section costs the root 100).</li>
+<li>Zero health -&gt; <code>IntegrityDisabledMarker</code>. A disabled non-leaf section is only
+deactivated (<code>SectionInactiveMarker</code>); a disabled <strong>leaf</strong> is destroyed.</li>
+<li>Destruction prunes the node from its neighbors' lists, which can create new
+leaves and cascade: shooting off the structure collapses what hung from it.</li>
+<li><code>aggregate_ship_health</code> keeps the root's health equal to the sum of its
+living sections; when the last section dies, the root dies with it.</li>
+</ol>
+<p>The cascade a single section walks through:</p>
+<pre class="mermaid">flowchart TD
+    A[Section takes damage] --&gt; B[Integrity drops]
+    B --&gt; C{Zero health?}
+    C --&gt;|No| A
+    C --&gt;|Yes| D{Leaf?}
+    D --&gt;|No, non-leaf| E[Disabled: SectionInactiveMarker]
+    D --&gt;|Yes| F[Destroyed]
+    F --&gt; G[Pruned from neighbors]
+    G --&gt; H[New leaves may cascade]
+    F --&gt; I[Root health re-aggregated]
+    I --&gt; J{Last section dead?}
+    J --&gt;|Yes| K[Ship dead]
+</pre>
+<h2 id="typed-damage-cratesnova_gameplaysrcdamagers" tabindex="-1">Typed damage (<code>crates/nova_gameplay/src/damage.rs</code>)</h2>
+<p>Weapon damage is authored, not emergent from bullet physics. A projectile
+carries <code>ProjectileDamage { amount, kind }</code> with a <code>DamageType</code>: <code>Kinetic</code>,
+<code>ArmorPiercing</code>, <code>Emp</code>, or <code>Explosive</code>. On hit, the amount is scaled by a
+<code>resistance(section class, damage type)</code> table (for example EMP is 3.0 vs the
+Controller but 0.1 vs Hull; Kinetic is always 1.0) and only then applied via
+<code>HealthApplyDamage</code>. Targets without a <code>SectionDamageClass</code> (asteroids) take
+the raw amount. Turret bullets are given a near-zero physical mass so bcs's
+old mass-times-velocity damage is negligible; torpedoes detonate a typed
+<code>NovaBlast</code> (Explosive, linear falloff) instead of bcs's untyped blast.</p>
+<h2 id="ammo" tabindex="-1">Ammo</h2>
+<ul>
+<li><code>SectionAmmo</code> (<code>sections/ammo.rs</code>): optional magazine on a weapon section.
+Absent = unlimited fire; <code>ammo_capacity</code> in the turret/torpedo config opts in.
+The player <code>infinite_ammo</code> flag builds that ship's weapons without magazines.</li>
+<li><code>LoadedBullet</code> (<code>sections/turret_section.rs</code>): the turret's loaded-round slot
+(damage type + amount), seeded from the config. Fired bullets and the HUD ammo
+readout colors read this slot, so swapping ammo types is one component write.</li>
+</ul>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

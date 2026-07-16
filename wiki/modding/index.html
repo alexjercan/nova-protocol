@@ -4,14 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Modding - Nova Protocol Wiki</title>
-        <meta
-            name="description"
-            content="Modding in Nova Protocol: scenario authoring is code-based today; a data-driven format to write your own missions is planned, and will be documented here once it lands."
-        />
-        <link
-            rel="icon"
-            href="/nova-protocol/favicon.svg"
-        />
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
     <script defer src="/nova-protocol/wiki.js"></script></head>
     <body>
         <header class="site-header">
@@ -40,63 +33,34 @@
                 ></aside>
                 <article class="wiki__body prose">
                     <p class="wiki__crumb">
-                        <a href="/nova-protocol/wiki/"
-                            >Wiki</a
-                        >
+                        <a href="/nova-protocol/wiki/">Wiki</a>
                         / Modding
                     </p>
                     <h1>Modding</h1>
                     <div class="wiki__tags" id="wiki-tags"></div>
-
-                    <blockquote>
-                        Heads up: a data-driven modding format is
-                        <strong>planned, not shipped yet</strong>. This page
-                        will fill in once it lands. Here is where things
-                        actually stand today.
-                    </blockquote>
-
-                    <h2 id="today">Where authoring stands today</h2>
-                    <p>
-                        The
-                        <a
-                            href="/nova-protocol/wiki/scenarios/"
-                            >scenario</a
-                        >
-                        engine is already fully expressive - objects, the events
-                        / filters / actions vocabulary, and typed variables -
-                        but it is currently driven from
-                        <strong>code</strong>. Every shipped scenario is a small
-                        function that builds its configuration in Rust; there is
-                        no external scenario file format (no RON, YAML or JSON)
-                        to load a mission from disk yet.
-                    </p>
-                    <p>
-                        In other words, the vocabulary a mod would use exists
-                        and is stable; what is missing is the data layer that
-                        lets you write a mission <em>without</em> touching the
-                        codebase.
-                    </p>
-
-                    <h2 id="planned">What is planned</h2>
-                    <p>
-                        The intended next step is a
-                        <strong>data-driven scenario format</strong> (most
-                        likely RON asset files) that wraps the same event /
-                        filter / action / variable vocabulary, so a scenario
-                        becomes a file you can author and share rather than
-                        compiled code. Once that format is stable, this page
-                        will document its schema, the object and event
-                        reference, and how to load your own scenarios.
-                    </p>
-                    <p>
-                        Until then, the
-                        <a
-                            href="/nova-protocol/wiki/scenarios/"
-                            >Scenarios</a
-                        >
-                        page is the best map of what the engine can already
-                        express.
-                    </p>
+                    <p>Nova Protocol is data-driven: scenarios and mods are authored as <strong>RON data
+files</strong>, not code. Everything the game ships - the campaigns, the demo mod - is
+content loaded through the same pipeline your own content uses, so anything the
+base game does, a mod can do too. This page is the front door; the guides below
+have the detail.</p>
+<h2 id="author-a-scenario" tabindex="-1">Author a scenario</h2>
+<p>A scenario is a list of event handlers - each pairs an event (a ship destroyed,
+an area entered, an objective met) with filters that gate it and actions that
+mutate the world. You write it in RON with the existing vocabulary, no Rust. See
+<a href="../dev/guide-author-scenario/">Author a scenario (RON)</a> for the full grammar and
+a worked objective loop, and the <a href="../scenarios/">Scenarios</a> page for what a
+scenario places into the world.</p>
+<h2 id="package-and-share-a-mod" tabindex="-1">Package and share a mod</h2>
+<p>Content ships as a <strong>bundle</strong> - a folder with a manifest listing its scenarios
+(and any section prototypes). Add it to the game to test it, then publish it to
+the mod portal so other players can install it in-game. See
+<a href="../dev/guide-make-a-mod/">Make and publish a mod</a> for the end-to-end lifecycle,
+and <a href="../dev/modding-ron/">Modding data format (RON)</a> for the bundle / catalog /
+portal reference.</p>
+<h2 id="extend-the-engine" tabindex="-1">Extend the engine</h2>
+<p>New event kinds, filters, actions or scenario-object types need a small Rust
+change - that is a contributor task, covered in
+<a href="../dev/guide-extend-scenarios/">Extend the scenario engine</a>.</p>
 
                     <div id="wiki-seealso"></div>
                 </article>

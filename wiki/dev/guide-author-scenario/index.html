@@ -1,0 +1,827 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Author a scenario (RON) - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / Author a scenario (RON)
+                    </p>
+                    <h1>Author a scenario (RON)</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <p>A how-to for content authors. You will build a working scenario out of
+primitives that already ship - events, filters, actions, variables - writing
+only RON, no Rust. If you need a NEW event/filter/action/object kind that does
+not exist yet, that is a Rust change: see
+<a href="../guide-extend-scenarios/">Extend the scenario engine</a>. For the runtime this
+data feeds and the full type list, see the <a href="../scenario-system/">Scenario engine</a>
+reference.</p>
+<p>Every snippet below is copied from a shipped scenario
+(<code>assets/base/scenarios/*.content.ron</code>) or the code that parses it
+(<code>crates/nova_scenario/src/</code>). Field names are load-bearing - the loader uses
+strict RON, so a typo'd field is a load error, not a silent default.</p>
+<h2 id="1-the-file-shape" tabindex="-1">1. The file shape</h2>
+<p>A scenario lives in a <code>*.content.ron</code> file. The file is a LIST of content
+items; a scenario is one <code>Scenario((...))</code> item (a <code>Content</code> newtype):</p>
+<pre><code class="hljs">[
+    Scenario((
+        id: &quot;menu_ambience&quot;,
+        name: &quot;Menu Ambience&quot;,
+        description: &quot;The main menu's living backdrop.&quot;,
+        cubemap: &quot;textures/cubemap.png&quot;,
+        events: [
+            // one ScenarioEventConfig per handler ...
+        ],
+    )),
+]
+</code></pre>
+<p>The <code>ScenarioConfig</code> fields (<code>loader.rs</code>):</p>
+<ul>
+<li><code>id</code> - unique scenario id, the key other scenarios switch to (<code>NextScenario</code>).</li>
+<li><code>name</code>, <code>description</code> - display strings.</li>
+<li><code>cubemap</code> - skybox image, authored as a bare asset-path string (an
+<code>AssetRef</code>; resolved to a handle at load time).</li>
+<li><code>thumbnail</code> (optional) - an image path shown in the main-menu Scenarios
+picker's details pane. Authored exactly like <code>cubemap</code> but wrapped in the
+<code>Option</code> variant (strict RON, never bare): <code>thumbnail: Some(&quot;banner.png&quot;)</code>.
+Omit it for no thumbnail. It MUST be a plain 2D image - NOT a skybox cubemap
+(a cubemap is a Cube texture the UI cannot bind; the picker skips a non-2D
+thumbnail with a warning rather than crashing). Point it at a regular
+screenshot/art PNG, not the <code>cubemap</code> path.</li>
+<li><code>hidden</code> (optional, default <code>false</code>) - when <code>true</code>, the scenario is kept out
+of the Scenarios picker (the menu backdrop, mid-story continuations reached
+only via <code>NextScenario</code>). Author as <code>hidden: true</code>; omit it to be listed.</li>
+<li><code>events</code> - the list of handlers. May be empty (<code>events: []</code>), but then
+nothing happens.</li>
+</ul>
+<p>One file can hold several content items (sections, more scenarios). This guide
+covers the scenario item; a file that is just one scenario is fine.</p>
+<h2 id="2-event---filters---actions" tabindex="-1">2. Event -&gt; filters -&gt; actions</h2>
+<p>Each entry in <code>events</code> is a <code>ScenarioEventConfig</code>: an event <code>name</code>, an optional
+<code>filters</code> list, an optional <code>actions</code> list. When the event fires, EVERY filter
+must pass; then the actions run in order.</p>
+<pre><code class="hljs">(
+    name: OnDestroyed,
+    filters: [
+        Entity((
+            type_name: Some(&quot;asteroid&quot;),
+        )),
+    ],
+    actions: [
+        VariableSet((
+            key: &quot;asteroids_destroyed&quot;,
+            expression: Add(
+                Factor(Name(&quot;asteroids_destroyed&quot;)),
+                Term(Factor(Literal(Number(1.0)))),
+            ),
+        )),
+    ],
+)
+</code></pre>
+<p><code>filters</code> and <code>actions</code> both default to empty and can be omitted. An
+<code>OnStart</code> handler with no filters just runs its actions once on load.</p>
+<p>The event <code>name</code> is one of these kinds (<code>events.rs</code>):</p>
+<table>
+<thead>
+<tr>
+<th><code>name</code></th>
+<th>Fires when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>OnStart</code></td>
+<td>once, right after the scenario loads</td>
+</tr>
+<tr>
+<td><code>OnUpdate</code></td>
+<td>every frame while the scenario is live</td>
+</tr>
+<tr>
+<td><code>OnDestroyed</code></td>
+<td>an entity is destroyed</td>
+</tr>
+<tr>
+<td><code>OnEnter</code></td>
+<td>a body enters an area / zone / beacon / crate</td>
+</tr>
+<tr>
+<td><code>OnExit</code></td>
+<td>a body leaves an area</td>
+</tr>
+<tr>
+<td><code>OnOrbit</code></td>
+<td>a ship has held an autopilot ORBIT around a well for 5s (recurs every 5s)</td>
+</tr>
+<tr>
+<td><code>OnTravelLock</code></td>
+<td>the player's TRAVEL lock lands on a scenario object (recurs every 5s while held)</td>
+</tr>
+<tr>
+<td><code>OnCombatLock</code></td>
+<td>same, for the player's COMBAT lock</td>
+</tr>
+</tbody>
+</table>
+<p>The pair events (<code>OnEnter</code>/<code>OnExit</code>/<code>OnOrbit</code>/<code>OnTravelLock</code>/<code>OnCombatLock</code>)
+carry two entities - a subject (<code>id</code>) and an other party (<code>other_id</code>); which is
+which is per-event (see the table under <a href="#entity">Entity</a>). The 5s recurrence on
+the orbit/lock events is deliberate: gate those handlers on a variable so the
+repeats are harmless no-ops (see section 6).</p>
+<h2 id="3-filters" tabindex="-1">3. Filters</h2>
+<p>Three filter kinds (<code>filters.rs</code>).</p>
+<h3 id="entity" tabindex="-1">Entity</h3>
+<p>Match on the entities the event carries. An event has up to two participants: a
+PRIMARY entity - the event's subject, matched by <code>id</code> / <code>type_name</code> - and an
+OTHER party, matched by <code>other_id</code> / <code>other_type_name</code>. Which entity is the
+subject and which is the other party depends on the event kind:</p>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th><code>id</code> / <code>type_name</code> (subject)</th>
+<th><code>other_id</code> / <code>other_type_name</code> (other party)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>OnDestroyed</code></td>
+<td>the destroyed object</td>
+<td>(none)</td>
+</tr>
+<tr>
+<td><code>OnEnter</code> / <code>OnExit</code></td>
+<td>the area / zone / beacon / crate entered or left</td>
+<td>the body that entered or left it</td>
+</tr>
+<tr>
+<td><code>OnOrbit</code></td>
+<td>the well being orbited</td>
+<td>the orbiting ship</td>
+</tr>
+<tr>
+<td><code>OnTravelLock</code> / <code>OnCombatLock</code></td>
+<td>the locked target</td>
+<td>the locking ship (the player)</td>
+</tr>
+</tbody>
+</table>
+<p>(<code>OnStart</code> and <code>OnUpdate</code> carry no entity, so an <code>Entity</code> filter never matches
+them.) So for <code>OnEnter</code> the classic pairing is &quot;area entered by ship&quot;: <code>id</code> is
+the area, <code>other_id</code> is the ship. Not every event fills every field - <code>OnEnter</code> /
+<code>OnExit</code> carry the area's <code>id</code> but not its <code>type_name</code>, and <code>OnDestroyed</code> has no
+other party - and a filter on an unfilled field simply never matches, so only
+constrain the fields the event actually provides.</p>
+<p>Each of the four fields is optional; every SET field must match and omitted
+fields are unconstrained. <code>id: Some(&quot;beacon_1&quot;)</code> alone means &quot;the beacon_1
+area&quot;; adding <code>other_id</code> narrows it to a specific entrant:</p>
+<pre><code class="hljs">Entity((
+    id: Some(&quot;beacon_1&quot;),                // the area that was entered ...
+    other_id: Some(&quot;player_spaceship&quot;),  // ... entered by the player ship
+)),
+</code></pre>
+<p><code>type_name</code> / <code>other_type_name</code> match the object KIND instead of a specific id
+(<code>type_name: Some(&quot;asteroid&quot;)</code> is any asteroid). An <code>Entity(())</code> with no fields
+set matches any event that carries entity data.</p>
+<p>These fields only GATE the handler - they are read for filtering, never passed
+to actions. An action cannot say &quot;spawn at the entity that entered&quot;; it acts on
+its own configured target. Use <code>id</code> / <code>other_id</code> to decide WHETHER a handler
+runs, then have its actions address entities by their known scenario ids.</p>
+<h3 id="expression" tabindex="-1">Expression</h3>
+<p>Evaluate a variable condition; pass when it is true. The single tuple field is
+a <code>VariableConditionNode</code> (section 5):</p>
+<pre><code class="hljs">Expression((Equal(
+    Term(Factor(Name(&quot;objective_destroy_asteroids&quot;))),
+    Term(Factor(Literal(Boolean(true)))),
+))),
+</code></pre>
+<h3 id="conditional" tabindex="-1">Conditional</h3>
+<p>Combine other filters: <code>Not</code>, <code>And</code>, <code>Or</code>. Each holds boxed filter(s):</p>
+<pre><code class="hljs">Conditional(Not(Entity((
+    id: Some(&quot;player_spaceship&quot;),
+)))),
+</code></pre>
+<pre><code class="hljs">Conditional(And(
+    Entity((type_name: Some(&quot;asteroid&quot;))),
+    Expression((GreaterThan(
+        Term(Factor(Name(&quot;asteroids_destroyed&quot;))),
+        Term(Factor(Literal(Number(4.0)))),
+    ))),
+)),
+</code></pre>
+<p>Note: multiple entries in the <code>filters</code> list are already ANDed together (all
+must pass), so you only need <code>Conditional(And(...))</code> to nest inside another
+combinator or an <code>Or</code>.</p>
+<h2 id="4-actions" tabindex="-1">4. Actions</h2>
+<p>The common actions, with real RON. Every action is a newtype variant -
+<code>Name((field: value, ...))</code> - even single-field ones.</p>
+<h3 id="spawnscenarioobject" tabindex="-1">SpawnScenarioObject</h3>
+<p>Spawn an object. <code>base</code> is shared (<code>id</code>, <code>name</code>, <code>position</code> as an xyz tuple,
+<code>rotation</code> as an xyzw quaternion tuple); <code>kind</code> selects the object:</p>
+<pre><code class="hljs">SpawnScenarioObject((
+    base: (
+        id: &quot;asteroid_grav&quot;,
+        name: &quot;Gravity Rock&quot;,
+        position: (250.0, 0.0, 0.0),
+        rotation: (0.0, 0.0, 0.0, 1.0),
+    ),
+    kind: Asteroid((
+        radius: 20.0,
+        texture: &quot;textures/asteroid.png&quot;,
+        health: 2000.0,
+        surface_gravity: Some(6.0),
+        invulnerable: true,
+    )),
+)),
+</code></pre>
+<p>A beacon (its own <code>OnEnter</code> trigger when <code>area_radius</code> is set; <code>color</code> is a
+tagged <code>Srgba</code>):</p>
+<pre><code class="hljs">SpawnScenarioObject((
+    base: (
+        id: &quot;beacon_1&quot;,
+        name: &quot;BEACON 1&quot;,
+        position: (0.0, 0.0, -350.0),
+        rotation: (0.0, 0.0, 0.0, 1.0),
+    ),
+    kind: Beacon((
+        label: &quot;BEACON 1&quot;,
+        radius: 2.0,
+        color: Srgba((red: 0.3, green: 0.9, blue: 1.0, alpha: 1.0)),
+        area_radius: Some(70.0),
+    )),
+)),
+</code></pre>
+<p>Object kinds also include <code>Spaceship</code> and <code>SalvageCrate</code>; ships inline a whole
+section list and are verbose to hand-author (see the sharp edges in section 8,
+and <a href="../sections/">Ship sections (internals)</a>).</p>
+<h3 id="scatterobjects" tabindex="-1">ScatterObjects</h3>
+<p>Spawn <code>count</code> templated objects at deterministic random positions in a region
+(<code>Box { min, max }</code> or <code>Ring { inner, outer, y_min, y_max }</code>). <code>seed</code> fixes the
+layout so it is identical every load:</p>
+<pre><code class="hljs">ScatterObjects((
+    id_prefix: &quot;asteroid_&quot;,
+    count: 20,
+    seed: 433757350076153856,
+    region: Box(
+        min: (-100.0, -20.0, -100.0),
+        max: (100.0, 20.0, 100.0),
+    ),
+    template: (
+        base: (
+            id: &quot;asteroid_&quot;,
+            name: &quot;Asteroid&quot;,
+            position: (0.0, 0.0, 0.0),
+            rotation: (0.0, 0.0, 0.0, 1.0),
+        ),
+        kind: Asteroid((
+            radius: 1.0,
+            texture: &quot;textures/asteroid.png&quot;,
+            health: 100.0,
+            invulnerable: false,
+        )),
+    ),
+    asteroid_radius: Some((1.0, 3.0)),
+)),
+</code></pre>
+<p><code>asteroid_radius: Some((lo, hi))</code> randomizes each asteroid's radius in that
+range; use <code>None</code> (or omit) to keep the template radius.</p>
+<h3 id="variableset" tabindex="-1">VariableSet</h3>
+<p>Evaluate an expression and store it under <code>key</code> (section 5):</p>
+<pre><code class="hljs">VariableSet((
+    key: &quot;asteroids_destroyed&quot;,
+    expression: Term(Factor(Literal(Number(0.0)))),
+)),
+</code></pre>
+<h3 id="objective-objectivecomplete" tabindex="-1">Objective / ObjectiveComplete</h3>
+<p>Add or complete a HUD objective by id:</p>
+<pre><code class="hljs">Objective((
+    id: &quot;destroy_asteroids&quot;,
+    message: &quot;Objective: Destroy 5 asteroids!&quot;,
+)),
+</code></pre>
+<pre><code class="hljs">ObjectiveComplete((
+    id: &quot;destroy_asteroids&quot;,
+)),
+</code></pre>
+<p>Re-adding the same id with a new <code>message</code> updates the text in place (the
+shakedown uses this for its &quot;recovered N/3&quot; tally).</p>
+<h3 id="objectivemarkerattach-objectivemarkerdetach" tabindex="-1">ObjectiveMarkerAttach / ObjectiveMarkerDetach</h3>
+<p>Add or remove the gold marker chip (label + distance) on a scoped object by id.
+A despawned target detaches implicitly.</p>
+<pre><code class="hljs">ObjectiveMarkerAttach((
+    target_id: &quot;beacon_1&quot;,
+    label: &quot;BEACON 1&quot;,
+)),
+</code></pre>
+<pre><code class="hljs">ObjectiveMarkerDetach((
+    target_id: &quot;beacon_1&quot;,
+)),
+</code></pre>
+<h3 id="hintemphasisset-hintemphasisclear" tabindex="-1">HintEmphasisSet / HintEmphasisClear</h3>
+<p>Pulse one keybind-hint row gold. <code>verb</code> is a row name (the shakedown uses
+<code>&quot;RADAR&quot;</code>, <code>&quot;GOTO&quot;</code>); an unknown verb warns and does nothing.</p>
+<pre><code class="hljs">HintEmphasisSet((
+    verb: &quot;RADAR&quot;,
+)),
+</code></pre>
+<pre><code class="hljs">HintEmphasisClear((
+    verb: &quot;RADAR&quot;,
+)),
+</code></pre>
+<h3 id="setspeedcap" tabindex="-1">SetSpeedCap</h3>
+<p>Install (<code>Some(cap)</code>) or remove (omit / <code>None</code>) the manual speed cap on a
+scoped ship by id. The shakedown spawns the player with <code>speed_cap: Some(25.0)</code>
+and releases it at beacon 1:</p>
+<pre><code class="hljs">SetSpeedCap((
+    id: &quot;player_spaceship&quot;,
+)),
+</code></pre>
+<h3 id="setcontrollerverb" tabindex="-1">SetControllerVerb</h3>
+<p>Enable or disable one flight verb (<code>Goto</code> / <code>Lock</code> / <code>Orbit</code>; <code>Stop</code> also
+exists but is never withheld, so an engaged autopilot can always be stopped) on
+a scoped ship's controller by id. The shakedown withholds verbs on the ship's controller
+section (<code>DisableVerb(Goto)</code>) and re-grants them as the tutorial advances:</p>
+<pre><code class="hljs">SetControllerVerb((
+    id: &quot;player_spaceship&quot;,
+    verb: Goto,
+    enabled: true,
+)),
+</code></pre>
+<h3 id="createscenarioarea" tabindex="-1">CreateScenarioArea</h3>
+<p>Spawn a spherical sensor zone that drives <code>OnEnter</code>/<code>OnExit</code>:</p>
+<pre><code class="hljs">CreateScenarioArea((
+    id: &quot;asteroid_zone&quot;,
+    name: &quot;Asteroid Zone&quot;,
+    position: (0.0, 0.0, -100.0),
+    rotation: (0.0, 0.0, 0.0, 1.0),
+    radius: 10.0,
+)),
+</code></pre>
+<h3 id="despawnscenarioobject" tabindex="-1">DespawnScenarioObject</h3>
+<p>Despawn the scoped object whose id matches (e.g. a salvage crate on pickup):</p>
+<pre><code class="hljs">DespawnScenarioObject((
+    id: &quot;crate_1&quot;,
+)),
+</code></pre>
+<h3 id="nextscenario" tabindex="-1">NextScenario</h3>
+<p>Queue a switch to another scenario by id. <code>linger: true</code> holds on the current
+scene until the player presses Enter, then switches (used for the death /
+&quot;press to continue&quot; beat):</p>
+<pre><code class="hljs">NextScenario((
+    scenario_id: &quot;asteroid_next&quot;,
+    linger: true,
+)),
+</code></pre>
+<h3 id="debugmessage" tabindex="-1">DebugMessage</h3>
+<p>Log a message (debug builds). Useful while iterating:</p>
+<pre><code class="hljs">DebugMessage((
+    message: &quot;Objective Complete: Destroyed 5 asteroids!&quot;,
+)),
+</code></pre>
+<p>Other actions exist for photo mode and modding hooks (<code>SetCamera</code>,
+<code>Screenshot</code>, <code>SetSkybox</code>); see the reference. This guide sticks to the
+mission-scripting set.</p>
+<h2 id="5-variables-and-expressions" tabindex="-1">5. Variables and expressions</h2>
+<p>Variables are typed literals (<code>variables.rs</code>):</p>
+<ul>
+<li><code>Number(f64)</code> - <code>Literal(Number(5.0))</code></li>
+<li><code>String(String)</code> - <code>Literal(String(&quot;hello&quot;))</code></li>
+<li><code>Boolean(bool)</code> - <code>Literal(Boolean(true))</code></li>
+</ul>
+<p>They live in an expression tree. Reading from the leaf up:</p>
+<ul>
+<li><code>VariableFactorNode</code>: <code>Literal(&lt;literal&gt;)</code>, <code>Name(&quot;var&quot;)</code> (read a variable),
+or <code>Parens(&lt;expression&gt;)</code>.</li>
+<li><code>VariableTermNode</code>: <code>Factor(&lt;factor&gt;)</code>, <code>Multiply(&lt;factor&gt;, &lt;term&gt;)</code>,
+<code>Divide(&lt;factor&gt;, &lt;term&gt;)</code>.</li>
+<li><code>VariableExpressionNode</code>: <code>Term(&lt;term&gt;)</code>, <code>Add(&lt;term&gt;, &lt;expression&gt;)</code>,
+<code>Subtract(&lt;term&gt;, &lt;expression&gt;)</code>.</li>
+<li><code>VariableConditionNode</code> (for <code>Expression</code> filters, yields a bool):
+<code>LessThan(&lt;expr&gt;, &lt;expr&gt;)</code>, <code>GreaterThan(&lt;expr&gt;, &lt;expr&gt;)</code>,
+<code>Equal(&lt;expr&gt;, &lt;expr&gt;)</code>.</li>
+</ul>
+<p>So the simplest &quot;the number zero&quot; as an EXPRESSION is the full chain down to a
+literal:</p>
+<pre><code class="hljs">Term(Factor(Literal(Number(0.0))))
+</code></pre>
+<p>Read a variable:</p>
+<pre><code class="hljs">Term(Factor(Name(&quot;asteroids_destroyed&quot;)))
+</code></pre>
+<p>Increment (note <code>Add</code> takes a term on the left, an expression on the right):</p>
+<pre><code class="hljs">Add(
+    Factor(Name(&quot;asteroids_destroyed&quot;)),
+    Term(Factor(Literal(Number(1.0)))),
+)
+</code></pre>
+<p>A comparison, as used inside an <code>Expression</code> filter:</p>
+<pre><code class="hljs">GreaterThan(
+    Term(Factor(Name(&quot;asteroids_destroyed&quot;))),
+    Term(Factor(Literal(Number(4.0)))),
+)
+</code></pre>
+<p>Type rules from the evaluator: <code>Add</code>/<code>Multiply</code> also act on <code>Boolean</code>
+(logical OR / AND) and <code>Add</code> concatenates <code>String</code>; comparisons need matching
+types (<code>LessThan</code>/<code>GreaterThan</code> are numbers only). A <code>Name</code> that was never set,
+or a type mismatch, logs an error and the filter/action fails safe rather than
+crashing.</p>
+<h2 id="6-worked-example-an-objective-loop" tabindex="-1">6. Worked example: an objective loop</h2>
+<p>This mirrors <code>asteroid_field.content.ron</code>: seed a counter on start, count
+destroyed asteroids, complete an objective once the count crosses a threshold,
+then reach a zone to advance to the next scenario.</p>
+<pre class="mermaid">flowchart TD
+    Start[&quot;OnStart: seed counter = 0, flag = false; add objective&quot;] --&gt; Kill
+    Kill[&quot;OnDestroyed asteroid: counter += 1&quot;] --&gt; Gate
+    Gate{&quot;counter &gt; 4 and flag == false?&quot;} --&gt;|no| Kill
+    Gate --&gt;|yes| Done[&quot;set flag = true; complete objective; add reach-zone objective&quot;]
+    Done --&gt; Enter
+    Enter{&quot;OnEnter zone by player and flag == true?&quot;} --&gt;|yes| Next[&quot;complete objective; NextScenario&quot;]
+</pre>
+<p>Handler 1 - seed the state on load:</p>
+<pre><code class="hljs">(
+    name: OnStart,
+    actions: [
+        VariableSet((
+            key: &quot;asteroids_destroyed&quot;,
+            expression: Term(Factor(Literal(Number(0.0)))),
+        )),
+        VariableSet((
+            key: &quot;objective_destroy_asteroids&quot;,
+            expression: Term(Factor(Literal(Boolean(false)))),
+        )),
+        Objective((
+            id: &quot;destroy_asteroids&quot;,
+            message: &quot;Objective: Destroy 5 asteroids!&quot;,
+        )),
+    ],
+),
+</code></pre>
+<p>Handler 2 - every destroyed asteroid bumps the counter:</p>
+<pre><code class="hljs">(
+    name: OnDestroyed,
+    filters: [
+        Entity((
+            type_name: Some(&quot;asteroid&quot;),
+        )),
+    ],
+    actions: [
+        VariableSet((
+            key: &quot;asteroids_destroyed&quot;,
+            expression: Add(
+                Factor(Name(&quot;asteroids_destroyed&quot;)),
+                Term(Factor(Literal(Number(1.0)))),
+            ),
+        )),
+    ],
+),
+</code></pre>
+<p>Handler 3 - the gate. Two expression filters: the count is past 4 AND the
+objective is not yet done (so this runs exactly once):</p>
+<pre><code class="hljs">(
+    name: OnDestroyed,
+    filters: [
+        Entity((
+            type_name: Some(&quot;asteroid&quot;),
+        )),
+        Expression((GreaterThan(
+            Term(Factor(Name(&quot;asteroids_destroyed&quot;))),
+            Term(Factor(Literal(Number(4.0)))),
+        ))),
+        Expression((Equal(
+            Term(Factor(Name(&quot;objective_destroy_asteroids&quot;))),
+            Term(Factor(Literal(Boolean(false)))),
+        ))),
+    ],
+    actions: [
+        VariableSet((
+            key: &quot;objective_destroy_asteroids&quot;,
+            expression: Term(Factor(Literal(Boolean(true)))),
+        )),
+        ObjectiveComplete((
+            id: &quot;destroy_asteroids&quot;,
+        )),
+        Objective((
+            id: &quot;reach_zone&quot;,
+            message: &quot;Objective: Reach the safe zone!&quot;,
+        )),
+    ],
+),
+</code></pre>
+<p>The <code>flag == false</code> filter is what stops handler 3 from re-firing on the 6th,
+7th, ... kill: it sets the flag true on its one run, and every later kill fails
+the filter. This is the standard idiom for a one-shot gate on a recurring
+event.</p>
+<p>Handler 4 - reach the zone (spawn <code>asteroid_zone</code> with <code>CreateScenarioArea</code> on
+start too) and advance. The <code>flag == true</code> filter keeps the switch from firing
+before the objective is done:</p>
+<pre><code class="hljs">(
+    name: OnEnter,
+    filters: [
+        Entity((
+            id: Some(&quot;asteroid_zone&quot;),
+            other_id: Some(&quot;player_spaceship&quot;),
+        )),
+        Expression((Equal(
+            Term(Factor(Name(&quot;objective_destroy_asteroids&quot;))),
+            Term(Factor(Literal(Boolean(true)))),
+        ))),
+    ],
+    actions: [
+        ObjectiveComplete((
+            id: &quot;reach_zone&quot;,
+        )),
+        NextScenario((
+            scenario_id: &quot;asteroid_next&quot;,
+            linger: true,
+        )),
+    ],
+),
+</code></pre>
+<p>For a longer chain, the shakedown uses a single numeric <code>beat</code> counter instead
+of per-step booleans: every handler filters on <code>Equal(beat, N)</code> and bumps
+<code>beat</code> to <code>N+1</code>, so the script is one linear state machine. That pattern scales
+better than a flag per objective. Handler order within one event is not
+load-bearing - gate on the variable, not on position.</p>
+<h3 id="the-whole-file-assembled" tabindex="-1">The whole file, assembled</h3>
+<p>Here is the objective loop above as one runnable <code>*.content.ron</code> file. It is
+ship-free on purpose (see the ship-verbosity note in section 8), so you can read
+every line: it scatters asteroids, seeds the counter, gates the objective, and
+advances through a zone. Drop it at
+<code>assets/base/scenarios/my_scenario.content.ron</code>, list it in the base bundle, and
+load it per section 7.</p>
+<pre><code class="hljs">[
+    Scenario((
+        id: &quot;my_scenario&quot;,
+        name: &quot;My Scenario&quot;,
+        description: &quot;A starter objective loop: clear the field, reach the zone.&quot;,
+        cubemap: &quot;textures/cubemap.png&quot;,
+        events: [
+            // Seed the world and the objective state, once, on load.
+            (
+                name: OnStart,
+                actions: [
+                    ScatterObjects((
+                        id_prefix: &quot;asteroid_&quot;,
+                        count: 20,
+                        seed: 433757350076153856,
+                        region: Box(
+                            min: (-100.0, -20.0, -100.0),
+                            max: (100.0, 20.0, 100.0),
+                        ),
+                        template: (
+                            base: (
+                                id: &quot;asteroid_&quot;,
+                                name: &quot;Asteroid&quot;,
+                                position: (0.0, 0.0, 0.0),
+                                rotation: (0.0, 0.0, 0.0, 1.0),
+                            ),
+                            kind: Asteroid((
+                                radius: 1.0,
+                                texture: &quot;textures/asteroid.png&quot;,
+                                health: 100.0,
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((1.0, 3.0)),
+                    )),
+                    CreateScenarioArea((
+                        id: &quot;safe_zone&quot;,
+                        name: &quot;Safe Zone&quot;,
+                        position: (0.0, 0.0, -100.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        radius: 10.0,
+                    )),
+                    VariableSet((
+                        key: &quot;asteroids_destroyed&quot;,
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: &quot;objective_destroy_asteroids&quot;,
+                        expression: Term(Factor(Literal(Boolean(false)))),
+                    )),
+                    Objective((
+                        id: &quot;destroy_asteroids&quot;,
+                        message: &quot;Objective: Destroy 5 asteroids!&quot;,
+                    )),
+                ],
+            ),
+            // Every destroyed asteroid bumps the counter.
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        type_name: Some(&quot;asteroid&quot;),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: &quot;asteroids_destroyed&quot;,
+                        expression: Add(
+                            Factor(Name(&quot;asteroids_destroyed&quot;)),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            // The one-shot gate: past 4 kills AND not yet done.
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        type_name: Some(&quot;asteroid&quot;),
+                    )),
+                    Expression((GreaterThan(
+                        Term(Factor(Name(&quot;asteroids_destroyed&quot;))),
+                        Term(Factor(Literal(Number(4.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name(&quot;objective_destroy_asteroids&quot;))),
+                        Term(Factor(Literal(Boolean(false)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: &quot;objective_destroy_asteroids&quot;,
+                        expression: Term(Factor(Literal(Boolean(true)))),
+                    )),
+                    ObjectiveComplete((
+                        id: &quot;destroy_asteroids&quot;,
+                    )),
+                    Objective((
+                        id: &quot;reach_zone&quot;,
+                        message: &quot;Objective: Reach the safe zone!&quot;,
+                    )),
+                ],
+            ),
+            // Reach the zone once the field is cleared, then advance.
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some(&quot;safe_zone&quot;),
+                        other_id: Some(&quot;player_spaceship&quot;),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name(&quot;objective_destroy_asteroids&quot;))),
+                        Term(Factor(Literal(Boolean(true)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: &quot;reach_zone&quot;,
+                    )),
+                    NextScenario((
+                        scenario_id: &quot;asteroid_next&quot;,
+                        linger: true,
+                    )),
+                ],
+            ),
+        ],
+    )),
+]
+</code></pre>
+<p>This scenario spawns no ship of its own, so it relies on <code>player_spaceship</code>
+being the id the runtime spawns for the player. For a self-contained file that
+also spawns its own ships, clone the full shipped example -
+<code>assets/base/scenarios/asteroid_field.content.ron</code> - which is this same loop
+plus the <code>Spaceship</code> object blocks (verbose, so copy rather than type them; see
+section 8). Its <code>player_spaceship</code> block is the one to lift verbatim.</p>
+<h2 id="7-load-and-test-it" tabindex="-1">7. Load and test it</h2>
+<p>A scenario only reaches the game as MOD CONTENT - it has to be listed in a
+bundle and merged by the loader. There is no standalone &quot;run this file&quot; mode, so
+testing means getting it in front of the loader and playing it. Loading and
+shipping a scenario is the same job as any other mod content, so this section is
+the short version of <a href="../guide-make-a-mod/">Make &amp; publish a mod</a> - read that for
+the full bundle/catalog/portal detail.</p>
+<h3 id="iterate-locally" tabindex="-1">Iterate locally</h3>
+<p>The base game is itself a mod (<code>assets/base/base.bundle.ron</code>) and is always
+enabled, so the quickest loop is to add your file to it:</p>
+<ol>
+<li>Drop the file at <code>assets/base/scenarios/my_scenario.content.ron</code>.</li>
+<li>Add its path to the base bundle's <code>content</code> list:</li>
+</ol>
+<pre><code class="hljs">(
+    content: [
+        // ...the shipped scenarios...
+        &quot;scenarios/my_scenario.content.ron&quot;,
+    ],
+    meta: (name: &quot;Base Game&quot;, ...),
+)
+</code></pre>
+<ol start="3">
+<li><code>cargo run</code>. The loader merges every enabled bundle into <code>GameScenarios</code>,
+keyed by scenario <code>id</code>, so yours is now registered.</li>
+</ol>
+<h3 id="launch-it" tabindex="-1">Launch it</h3>
+<p>There are three ways to reach a scenario you authored. The first is pure RON and
+needs no Rust:</p>
+<ol>
+<li>THE SCENARIOS PICKER (no Rust, the primary route). Every <code>!hidden</code> scenario
+in <code>GameScenarios</code> - base plus every enabled mod - is listed in the main
+menu's Scenarios picker; its Play button launches the selected id. So the
+full no-Rust chain is: author your scenario as a <code>Scenario((...))</code> item in a
+mod's <code>*.content.ron</code> (or the base bundle while iterating), enable that mod
+from the Mods menu (its scenarios merge into <code>GameScenarios</code>), open Scenarios
+from the main menu, pick your row, and hit Play. Leave <code>hidden</code> off (it
+defaults to listed) so the picker shows it; set <code>hidden: true</code> only for
+mid-story continuations reached by <code>NextScenario</code>.</li>
+<li>CHAIN IN FROM ANOTHER SCENARIO. A running scenario hands off with a
+<code>NextScenario</code> action (section 4), the way <code>asteroid_field</code> chains to
+<code>asteroid_next</code>. Use this to string scenarios into a campaign, or to reach a
+<code>hidden</code> continuation the picker deliberately omits.</li>
+<li>MAKE IT THE DEFAULT NEW GAME. <code>NEW_GAME_SCENARIO_ID</code> in
+<code>crates/nova_menu/src/lib.rs</code> is the scenario the New Game button plays. Point
+it at your id (one line of Rust) if you want your scenario to BE the New Game
+start, rather than one pick among many in the picker.</li>
+</ol>
+<p>While iterating, sprinkle <code>DebugMessage</code> actions and run with <code>--features dev</code> to
+watch each event fire as you play, then edit, re-run, repeat.</p>
+<h3 id="ship-it-to-other-players" tabindex="-1">Ship it to other players</h3>
+<p>Once it works, do NOT leave it in the base bundle - package it as its OWN mod
+(its own folder, <code>*.bundle.ron</code>, and catalog entry), and optionally publish it to
+the portal so others can install it. The whole flow - bundle layout, local
+install, the <code>nova_portal_gen</code> publish step, and what a player sees - is
+<a href="../guide-make-a-mod/">Make &amp; publish a mod</a>. The two guides are two halves of
+one job: THIS page is the scenario grammar; that one is how the file becomes an
+installable mod.</p>
+<p>(The <code>examples/08_scenario.rs</code> smoke test builds its <code>ScenarioConfig</code> in Rust,
+not RON - it exercises the engine grammar for contributors, not an authored
+file, so it is not a way to test your own scenario.)</p>
+<h2 id="8-sharp-edges" tabindex="-1">8. Sharp edges</h2>
+<ul>
+<li>Asset paths (<code>cubemap</code>, <code>texture</code>) are hand-typed strings with no validation
+until load; a wrong path resolves to a broken handle. There is no visual
+editor yet.</li>
+<li>Reaching your scenario: the main-menu Scenarios picker lists every <code>!hidden</code>
+scenario and launches the one you pick, so a mod scenario is playable with no
+Rust once its mod is enabled. A <code>hidden</code> scenario stays off the picker and is
+reached only by a <code>NextScenario</code> chain; making yours the New Game default is
+the <code>NEW_GAME_SCENARIO_ID</code> one-liner (see section 7).</li>
+<li>The loader uses STRICT RON: an unknown or misspelled field is a hard parse
+error, and enum variants must use the newtype form -
+<code>Asteroid((...))</code>, <code>DebugMessage((...))</code>, <code>Objective((...))</code> - double parens
+even for one field. <code>Color</code> is tagged: <code>Srgba((red: .., ...))</code>. <code>Quat</code> is a
+bare 4-tuple; <code>Vec3</code> a bare 3-tuple. <code>Option</code> fields need <code>Some(x)</code>, never a
+bare value (<code>icon: Some(&quot;icon.png&quot;)</code>, not <code>icon: &quot;icon.png&quot;</code>).</li>
+<li>Ships inline their entire section catalog, so a scenario with a couple of
+ships runs to hundreds of lines. If you are hand-authoring, copy a ship block
+from a shipped scenario rather than typing it out, or generate the file by
+serializing a code-built config (<code>ron::ser::to_string_pretty</code>). See the
+authoring-verbosity note in <a href="../modding-ron/">RON scenario/mod format</a>.</li>
+<li>Pair events (<code>OnEnter</code>, <code>OnOrbit</code>, the locks) recur every 5s while the
+condition holds. Always gate their handlers on a variable so the repeat runs
+are no-ops, or you will re-fire actions.</li>
+<li>Referencing an entity id before it is spawned (an <code>ObjectiveMarkerAttach</code>
+ahead of its <code>SpawnScenarioObject</code> in a different handler) warns and does
+nothing. Spawn first.</li>
+</ul>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

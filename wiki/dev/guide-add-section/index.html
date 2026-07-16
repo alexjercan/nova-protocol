@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Add a ship section - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / Add a ship section
+                    </p>
+                    <h1>Add a ship section</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <p>Ship-section kinds are a CLOSED enum. There is no data-driven registry for
+them: <code>SectionKind</code> (<code>crates/nova_gameplay/src/sections/base_section.rs</code>) is a
+Rust enum, every match on it is exhaustive, and the compiler will not let you
+land a new variant until every site handles it. Adding a kind is a fixed
+sequence of ~10 edits across the gameplay, scenario, editor, and assets crates,
+ending at a runnable example.</p>
+<h2 id="why-it-is-closed" tabindex="-1">Why it is closed</h2>
+<p>Section kinds are first-class engine concepts, not content. Each kind carries
+its own typed config, its own spawn bundle, its own behavior systems, and its
+own row in the damage-resistance table -- none of which a RON author could
+supply. What IS data-extensible is the section CATALOG: a <code>SectionConfig</code>
+(base stats + one <code>SectionKind</code> instance) is authored in RON and loaded at
+runtime (see the <a href="../sections/">Ship sections</a> reference and
+<a href="../modding-ron/">modding</a>). New KINDS are code; new INSTANCES of an existing
+kind are data. This guide is about the former.</p>
+<p>The closed enum is a feature: it means &quot;did I wire the new kind into damage /
+the editor / spawning?&quot; is a compile error, not a silent gap.</p>
+<pre class="mermaid">flowchart LR
+    A[config module] --&gt; B[SectionKind enum]
+    B --&gt; C[damage table]
+    C --&gt; D[section plugin]
+    D --&gt; E[spawn arm]
+    E --&gt; F[editor place + card]
+    F --&gt; G[asset prototype]
+    G --&gt; H[example]
+</pre>
+<h2 id="checklist" tabindex="-1">Checklist</h2>
+<p>Do these in order. Steps 2-7 will not compile until the ones before them exist,
+and the exhaustive matches force you through 3-7 once the enum has the variant.</p>
+<p>Replace <code>&lt;kind&gt;</code> / <code>&lt;Kind&gt;</code> below with your section name (e.g. <code>shield</code> /
+<code>Shield</code>).</p>
+<ol>
+<li>
+<p><strong>New config module.</strong>
+Create <code>crates/nova_gameplay/src/sections/&lt;kind&gt;_section.rs</code>, modelled on
+<code>hull_section.rs</code> (simplest) or <code>turret_section.rs</code> (behavior + FixedUpdate
+systems). It defines: a <code>&lt;Kind&gt;SectionConfig</code> struct, a <code>&lt;kind&gt;_section</code>
+bundle fn, a <code>&lt;Kind&gt;SectionMarker</code> component, a <code>&lt;Kind&gt;SectionPlugin</code>, and a
+<code>prelude</code> re-exporting them. The bundle MUST insert the marker and the
+<code>SectionDamageClass</code> for the kind:</p>
+<pre><code class="hljs language-rust"><span class="hljs-keyword">pub</span> <span class="hljs-keyword">fn</span> <span class="hljs-title function_">shield_section</span>(config: ShieldSectionConfig) <span class="hljs-punctuation">-&gt;</span> <span class="hljs-keyword">impl</span> <span class="hljs-title class_">Bundle</span> {
+    (
+        ShieldSectionMarker,
+        SectionDamageClass::Shield,
+        <span class="hljs-comment">// ... kind-specific render/behavior components</span>
+    )
+}
+</code></pre>
+<p>Then register the module in <code>crates/nova_gameplay/src/sections/mod.rs</code>: add
+<code>pub mod &lt;kind&gt;_section;</code> and re-export <code>&lt;kind&gt;_section::prelude::*</code> in the
+module <code>prelude</code>.</p>
+</li>
+<li>
+<p><strong>Add the enum variant.</strong>
+In <code>crates/nova_gameplay/src/sections/base_section.rs</code>, add the variant to
+<code>SectionKind</code> (grep for <code>enum SectionKind</code>):</p>
+<pre><code class="hljs language-rust"><span class="hljs-keyword">pub</span> <span class="hljs-keyword">enum</span> <span class="hljs-title class_">SectionKind</span> {
+    <span class="hljs-title function_ invoke__">Hull</span>(HullSectionConfig),
+    <span class="hljs-title function_ invoke__">Thruster</span>(ThrusterSectionConfig),
+    <span class="hljs-title function_ invoke__">Controller</span>(ControllerSectionConfig),
+    <span class="hljs-title function_ invoke__">Turret</span>(TurretSectionConfig),
+    <span class="hljs-title function_ invoke__">Torpedo</span>(TorpedoSectionConfig),
+    <span class="hljs-title function_ invoke__">Shield</span>(ShieldSectionConfig),
+}
+</code></pre>
+</li>
+<li>
+<p><strong>Damage class + resistance rows.</strong>
+In <code>crates/nova_gameplay/src/damage.rs</code>:</p>
+<ul>
+<li>Add the variant to <code>SectionDamageClass</code> (grep for <code>enum SectionDamageClass</code>).</li>
+<li>Add one resistance row to EACH non-Kinetic group in <code>resistance()</code>
+(grep for <code>fn resistance</code>): the <code>ArmorPiercing</code>, <code>Emp</code>, and <code>Explosive</code>
+blocks. Kinetic
+needs nothing -- the <code>(_, Kinetic) =&gt; 1.0</code> wildcard already covers every
+class.</li>
+</ul>
+<pre><code class="hljs language-rust">(Shield, ArmorPiercing) =&gt; <span class="hljs-number">1.0</span>,
+<span class="hljs-comment">// ...</span>
+(Shield, Emp)           =&gt; <span class="hljs-number">2.0</span>,
+<span class="hljs-comment">// ...</span>
+(Shield, Explosive)     =&gt; <span class="hljs-number">0.75</span>,
+</code></pre>
+<p>Because <code>resistance()</code> matches on <code>(class, kind)</code> exhaustively, a missing
+cell is a compile error -- you cannot forget one. Also add the new class to
+the <code>SectionDamageClass</code> array in this file's tests
+(<code>kinetic_resistance_is_one_on_every_section</code> iterates it).</p>
+</li>
+<li>
+<p><strong>Wire the section plugin.</strong>
+In <code>crates/nova_gameplay/src/sections/mod.rs</code>, add your plugin to the
+<code>add_plugins((...))</code> tuple in <code>SpaceshipSectionPlugin::build</code> (grep for
+<code>impl Plugin for SpaceshipSectionPlugin</code>),
+passing the <code>render</code> flag like the others:</p>
+<pre><code class="hljs language-rust">&lt;kind&gt;_section::ShieldSectionPlugin {
+    render: <span class="hljs-keyword">self</span>.render,
+},
+</code></pre>
+</li>
+<li>
+<p><strong>Spawn arm.</strong>
+In <code>crates/nova_scenario/src/objects/spaceship.rs</code>, add a match arm to
+<code>insert_spaceship_sections</code> (grep for it, then its <code>match &amp;config.kind</code>). At
+minimum insert the kind bundle; add input-binding / infinite-ammo handling
+only if your kind needs it (see the <code>Turret</code> / <code>Thruster</code> arms for those
+patterns):</p>
+<pre><code class="hljs language-rust">SectionKind::<span class="hljs-title function_ invoke__">Shield</span>(shield_config) =&gt; {
+    section_entity.<span class="hljs-title function_ invoke__">insert</span>(<span class="hljs-title function_ invoke__">shield_section</span>(shield_config.<span class="hljs-title function_ invoke__">clone</span>()));
+}
+</code></pre>
+<p>This is the production spawn path; see the <a href="../scenario-system/">Scenario engine</a>
+for how the spaceship object and its section observer fit together.</p>
+</li>
+<li>
+<p><strong>Editor placement arm.</strong>
+In <code>crates/nova_editor/src/placement.rs</code>, add a <code>SectionKind::Shield(..)</code>
+arm to the <code>match &amp;section.kind</code> in the placement handler (grep for
+<code>match &amp;section.kind</code> in <code>placement.rs</code> - it is the one in the placement
+handler, not the hull/controller preview arms above it). Spawn
+a <code>preview_section(...) + &lt;kind&gt;_section(...)</code> child and record a
+<code>SpaceshipSectionConfig</code> in <code>player_config.sections</code>, modelling the <code>Hull</code>
+arm (no input binding) or the <code>Thruster</code> arm (rotation from surface normal +
+key/pad binding) as appropriate.</p>
+</li>
+<li>
+<p><strong>Editor card tint + glyph.</strong>
+In <code>crates/nova_editor/src/ui/card.rs</code>, add an arm to BOTH <code>kind_tint()</code>
+(grep for <code>fn kind_tint</code>) and <code>kind_glyph()</code> (grep for <code>fn kind_glyph</code>) --
+both match <code>SectionKind</code>
+exhaustively:</p>
+<pre><code class="hljs language-rust"><span class="hljs-comment">// kind_tint</span>
+SectionKind::<span class="hljs-title function_ invoke__">Shield</span>(_) =&gt; Color::<span class="hljs-title function_ invoke__">srgb_u8</span>(<span class="hljs-number">120</span>, <span class="hljs-number">200</span>, <span class="hljs-number">180</span>),
+<span class="hljs-comment">// kind_glyph  (pick an unused letter; H T C U B are taken)</span>
+SectionKind::<span class="hljs-title function_ invoke__">Shield</span>(_) =&gt; <span class="hljs-string">&quot;S&quot;</span>,
+</code></pre>
+</li>
+<li>
+<p><strong>Asset prototype.</strong>
+In <code>crates/nova_assets/src/sections.rs</code>, add a <code>SectionConfig</code> to the
+<code>build_sections()</code> vec (grep for <code>fn build_sections</code>) so the catalog ships a
+ready-to-place
+instance. Give it a stable snake_case <code>id</code> (this is what
+<code>sections.get_section(&quot;...&quot;)</code> and RON authors reference):</p>
+<pre><code class="hljs language-rust">SectionConfig {
+    base: BaseSectionConfig {
+        id: <span class="hljs-string">&quot;basic_shield_section&quot;</span>.<span class="hljs-title function_ invoke__">to_string</span>(),
+        name: <span class="hljs-string">&quot;Basic Shield Section&quot;</span>.<span class="hljs-title function_ invoke__">to_string</span>(),
+        description: <span class="hljs-string">&quot;A basic shield section for spaceships.&quot;</span>.<span class="hljs-title function_ invoke__">to_string</span>(),
+        mass: <span class="hljs-number">1.0</span>,
+        health: <span class="hljs-number">100.0</span>,
+    },
+    kind: SectionKind::<span class="hljs-title function_ invoke__">Shield</span>(ShieldSectionConfig { <span class="hljs-comment">/* ... */</span> }),
+},
+</code></pre>
+<p>If your config needs a render-mesh <code>AssetRef</code>, add a field to
+<code>SectionMeshRefs</code> and its <code>from_paths()</code> alongside the existing ones.</p>
+</li>
+<li>
+<p><strong>Example.</strong>
+Add <code>examples/NN_&lt;kind&gt;_section.rs</code>, modelled on the per-section examples
+(<code>01_controller_section.rs</code> ... <code>05_torpedo_section.rs</code>; <code>03_hull_section.rs</code>
+is the smallest). Note 01-05 are the section slots and are taken, as are
+06-18 -- use the next free number. The example builds a minimal
+<code>ScenarioConfig</code> (a controller + your section), triggers
+<code>LoadScenario(...)</code>, and under <code>--features debug</code> drives an autopilot probe
+that asserts the kind's behavior end to end. Run it:</p>
+<pre><code class="hljs language-text">BCS_AUTOPILOT=1 cargo run --example NN_&lt;kind&gt;_section --features debug
+</code></pre>
+</li>
+</ol>
+<h2 id="done" tabindex="-1">Done</h2>
+<p>The compiler is your checklist enforcer for 2-7: if it builds, every
+exhaustive match handles the new kind. Steps 1, 8, and 9 are the ones with no
+compile-time backstop -- the module wiring, the catalog instance, and the
+runnable proof -- so double-check those by hand.</p>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

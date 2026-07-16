@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Make and publish a mod - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / Make and publish a mod
+                    </p>
+                    <h1>Make and publish a mod</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <p>Task-oriented walkthrough: build a mod, test it locally, and publish it to the
+static mod portal. For the data-model reference behind these steps, see
+<a href="../modding-ron/">Modding data format (RON)</a> and <a href="../mod-portal/">Mod portal</a>.</p>
+<p>A mod is the same folder-bundle shape as the base game. The shipped demo mod
+(<code>assets/mods/demo/</code>) is the copy-me example; the first portal mod
+(<code>webmods/gauntlet/</code>) is the copy-me publish example.</p>
+<p>A mod's content is <code>Scenario</code> and <code>Section</code> items. If you have not authored those
+yet, write them first with the two authoring guides -
+<a href="../guide-author-scenario/">Author a scenario</a> for the <code>Scenario</code> grammar and
+<a href="../guide-author-section/">Author a section</a> for the <code>Section</code> (ship-part)
+grammar - then come back here to package and ship them. The demo mod below leads
+with a <code>Section</code> overlay, so the section guide is the one that explains its
+<code>base</code>/<code>kind</code> shape.</p>
+<h2 id="1-bundle-anatomy" tabindex="-1">1. Bundle anatomy</h2>
+<p>A mod is a DIRECTORY containing:</p>
+<ul>
+<li>one <code>&lt;id&gt;.bundle.ron</code> manifest (a <code>BundleManifest</code>: <code>content</code> list + <code>meta</code>),</li>
+<li>one or more <code>*.content.ron</code> files it lists (a <code>[Content]</code> list of
+<code>Section((..))</code> / <code>Scenario((..))</code> items).</li>
+</ul>
+<p>Start by copying <code>assets/mods/demo/</code>. Its manifest:</p>
+<pre><code class="hljs">(
+    content: [&quot;mod.content.ron&quot;],
+    meta: (
+        name: &quot;Demo Mod&quot;,
+        description: &quot;Example mod: up-armors a hull section and adds an arena scenario.&quot;,
+        author: &quot;Nova Protocol&quot;,
+        version: &quot;1.0.0&quot;,
+    ),
+)
+</code></pre>
+<p><code>content</code> paths are relative to the manifest's OWN directory, so the folder is
+self-contained and relocatable. Every <code>meta</code> field is optional and
+serde-defaulted, so a bare <code>(content: [...])</code> manifest still loads (the menu
+then falls back to the catalog id as the name) - but the portal will not
+publish a mod without a non-empty <code>name</code> and <code>version</code> (step 4). <code>dependencies</code>
+is a list of mod ids; <code>base</code> is an IMPLICIT dependency and is never declared.
+<code>icon</code> is an <code>Option</code>, so write <code>icon: Some(&quot;icon.png&quot;)</code>, not <code>icon: &quot;icon.png&quot;</code>.</p>
+<p>A content file is a <code>[Content]</code> list. Each item is externally tagged by kind:</p>
+<pre><code class="hljs">[
+    Section((
+        base: (
+            id: &quot;reinforced_hull_section&quot;,
+            name: &quot;Reinforced Hull Section (Demo Mod)&quot;,
+            description: &quot;Base hull, up-armored by the demo mod.&quot;,
+            mass: 1.0,
+            health: 400.0,
+        ),
+        kind: Hull((
+            render_mesh: Some(&quot;gltf/hull-01.glb#Scene0&quot;),
+        )),
+    )),
+    Scenario((
+        id: &quot;demo_mod_arena&quot;,
+        name: &quot;Demo Mod Arena&quot;,
+        description: &quot;A shooting gallery added by the demo mod: destroy the three derelict rocks.&quot;,
+        cubemap: &quot;textures/cubemap.png&quot;,
+        // OnStart spawns the player ship + three destructible asteroids and a
+        // `destroyed` counter; a per-target OnDestroyed increments it and a
+        // one-shot OnUpdate (destroyed &gt; 2) completes the objective. See
+        // &quot;Author a scenario&quot; for the full event/action grammar.
+        events: [ /* ... */ ],
+    )),
+]
+</code></pre>
+<p>One file may mix <code>Section</code> and <code>Scenario</code> items. For the <code>Section</code> <code>base</code>/<code>kind</code>
+fields, see <a href="../guide-author-section/">Author a section</a>; for the scenario
+event/action shapes, see <a href="../guide-author-scenario/">Author a scenario</a>.</p>
+<h3 id="the-stemmed-extension-rule-load-bearing" tabindex="-1">The stemmed-extension rule (load-bearing)</h3>
+<p>The manifest MUST be named <code>&lt;id&gt;.bundle.ron</code> (e.g. <code>demo.bundle.ron</code>), NEVER a
+bare <code>bundle.ron</code>. Bevy resolves an untyped load (how <code>bevy_asset_loader</code> kicks
+off collection fields) by the file's FULL extension - everything after the
+FIRST dot. <code>bundle.ron</code> yields the bare <code>ron</code> extension, which no loader is
+registered for, so the load fails in-game with &quot;Could not find an asset
+loader&quot;; <code>demo.bundle.ron</code> yields <code>bundle.ron</code>, which matches. The same rule
+applies to <code>&lt;name&gt;.content.ron</code> and <code>&lt;name&gt;.catalog.ron</code>.</p>
+<h2 id="2-overlay-semantics" tabindex="-1">2. Overlay semantics</h2>
+<p>Bundles merge in load order (base first, then mods in catalog order), by
+<code>merge_bundles</code>. Content overlays by id:</p>
+<ul>
+<li>SAME id as the base (or an earlier bundle) = REPLACE. A mod <code>Section</code> /
+<code>Scenario</code> with an existing id wins (last-wins across bundles). This is how a
+mod re-skins or rebalances base content.</li>
+<li>NEW id = ADD, alongside everything else.</li>
+<li>SAME id twice WITHIN one bundle = a conflict: the FIRST item is kept, the
+duplicate is skipped, and a message is recorded and logged (not a panic).</li>
+</ul>
+<p>The demo content does both: it reuses <code>reinforced_hull_section</code> (replace) and
+introduces <code>demo_mod_arena</code> (add) - a small but playable shooting gallery, so
+the example doubles as a worked scenario, not just an overlay demo.</p>
+<h2 id="3-test-it-locally" tabindex="-1">3. Test it locally</h2>
+<p>Register the mod in the installed catalog <code>assets/mods.catalog.ron</code>, a thin
+ordered pointer list (<code>base</code> first so mods overlay it):</p>
+<pre><code class="hljs">(mods: [
+    (
+        id: &quot;base&quot;,
+        bundle: &quot;base/base.bundle.ron&quot;,
+        base: true,
+    ),
+    (
+        id: &quot;demo&quot;,
+        bundle: &quot;mods/demo/demo.bundle.ron&quot;,
+    ),
+])
+</code></pre>
+<p>Each <code>ModEntry</code> is <code>id</code> (enable key + overlay namespace), <code>bundle</code> (the
+manifest path, ASSET-ROOT-relative), <code>base</code> (default false; the locked-on base
+game), <code>hidden</code> (default false; a dev/tooling mod kept out of the player-facing
+list but still installable by id). Run the game and enable the mod from the
+main-menu Mods section (or add its id to <code>EnabledMods</code>).</p>
+<p>For an automated rig, see the integration tests in
+<code>crates/nova_assets/tests/</code>: <code>mod_cache_install.rs</code> installs the real gauntlet
+mod into a temp cache and drives the production merge wiring; <code>portal_install.rs</code>
+does the full fetch-verify-install-enable-uninstall loop.</p>
+<h2 id="4-publish-to-the-portal" tabindex="-1">4. Publish to the portal</h2>
+<p>Portal mods live under the repo-root <code>webmods/&lt;id&gt;/</code>, OUTSIDE <code>assets/</code>, so they
+never ship inside the game build. The directory name IS the id. Copy the
+gauntlet mod as a template:</p>
+<pre><code class="hljs">(
+    content: [&quot;gauntlet.content.ron&quot;],
+    meta: (
+        name: &quot;Gauntlet Run&quot;,
+        description: &quot;A slalom race: fly your ship through the beacon gates in order, START to FINISH.&quot;,
+        author: &quot;Nova Protocol&quot;,
+        version: &quot;1.0.0&quot;,
+    ),
+)
+</code></pre>
+<p>Run the generator (engine-free, no bevy, builds in seconds):</p>
+<pre><code class="hljs language-sh">cargo run --release -p nova_portal_gen -- \
+    --<span class="hljs-built_in">source</span> webmods --shipped assets/mods.catalog.ron --out site/mods
+</code></pre>
+<p><code>--source</code> is the mod-sources directory, <code>--shipped</code> is the game's installed
+catalog (for the no-shadow check), <code>--out</code> is where the portal tree is written.</p>
+<p>The validation gates (any failure exits non-zero and fails the deploy):</p>
+<ul>
+<li><code>id</code> is lowercase ascii letters, digits and <code>-</code> only (it is a directory name
+and a URL segment).</li>
+<li>exactly one <code>*.bundle.ron</code> at the mod root is the entry point (a nested
+<code>*.bundle.ron</code> is treated as a plain data file).</li>
+<li><code>meta.name</code> and <code>meta.version</code> are non-empty (trimmed).</li>
+<li>every listed content file is a MEMBER of the mod directory's file set (a
+missing, escaping <code>../</code>, or non-slash-normalized path is rejected).</li>
+<li>no id shadows a SHIPPED catalog id (a portal mod must not shadow an installed
+one).</li>
+<li>every declared dependency resolves within the portal + shipped set (<code>base</code> is
+implicit and shipped, so declaring it resolves too).</li>
+<li>at least one mod is found (an empty portal is a broken invocation, not a
+publish).</li>
+</ul>
+<p>It emits a deterministic tree (entries sorted by id, files by path):</p>
+<pre><code class="hljs language-text">&lt;out&gt;/catalog.json                 # PortalCatalog (JSON, schema-versioned)
+&lt;out&gt;/&lt;id&gt;/&lt;version&gt;/&lt;files...&gt;    # every file of the mod, verbatim copy
+</code></pre>
+<p>Each <code>catalog.json</code> entry carries per-file <code>size</code> + <code>sha256</code> (the client
+verifies these on download). Whether the content actually LOADS is checked by
+the <code>webmods_validation</code> integration test
+(<code>crates/nova_assets/tests/webmods_validation.rs</code>), which drives every
+<code>webmods/</code> bundle through the real bevy loaders to a recursive <code>Loaded</code> on CI -
+the deep half of the publish gate. To publish: add <code>webmods/&lt;id&gt;/</code>, run
+<code>cargo test -p nova_portal_gen</code> and <code>cargo test -p nova_assets --test webmods_validation</code> (or let CI), and land on master; the next deploy publishes.</p>
+<h2 id="5-what-the-player-sees" tabindex="-1">5. What the player sees</h2>
+<p>Briefly (the flow lives in <a href="../mod-portal/">Mod portal</a>): the game fetches
+<code>catalog.json</code>, the player installs a mod (files downloaded sequentially, each
+verified against the catalog's <code>size</code> + <code>sha256</code>, committed files-first then
+index-last only after all verify), then enables it from the Mods menu and
+plays. A downloaded mod loads and merges exactly like a shipped one.</p>
+<h2 id="lifecycle" tabindex="-1">Lifecycle</h2>
+<pre class="mermaid">flowchart LR
+    Author[Author webmods/id/] --&gt; Gen[nova_portal_gen]
+    Gen --&gt; Validate{Gates pass?}
+    Validate -- no --&gt; Fail[Deploy fails]
+    Validate -- yes --&gt; Publish[catalog.json + hashed files]
+    Publish --&gt; Fetch[Game fetches catalog]
+    Fetch --&gt; Install[Staged install: verify size + sha256]
+    Install --&gt; Enable[Enable in Mods menu]
+    Enable --&gt; Play[Play]
+</pre>
+<h2 id="sharp-edges-today" tabindex="-1">Sharp edges (today)</h2>
+<ul>
+<li>Asset references (meshes, cubemaps, textures) are hand-typed path strings; a
+typo is not caught until spawn.</li>
+<li><code>version</code> is an opaque string - no semver comparison, no update detection.</li>
+<li>No scenario editor and no in-game schema reference: content is authored by
+hand against these examples.</li>
+<li>No install timeout or cancel yet: a stalled download blocks its install job.</li>
+</ul>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

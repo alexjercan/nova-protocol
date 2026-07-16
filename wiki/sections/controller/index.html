@@ -4,14 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Controller - Nova Protocol Wiki</title>
-        <meta
-            name="description"
-            content="The Nova Protocol controller section: the PD attitude controller that steers a ship; required to fly."
-        />
-        <link
-            rel="icon"
-            href="/nova-protocol/favicon.svg"
-        />
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
     <script defer src="/nova-protocol/wiki.js"></script></head>
     <body>
         <header class="site-header">
@@ -40,52 +33,29 @@
                 ></aside>
                 <article class="wiki__body prose">
                     <p class="wiki__crumb">
-                        <a href="/nova-protocol/wiki/"
-                            >Wiki</a
-                        >
-                        /
-                        <a
-                            href="/nova-protocol/wiki/sections/"
-                            >Ship sections</a
-                        >
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / <a href="/nova-protocol/wiki/sections/">Ship sections</a>
                         / Controller
                     </p>
                     <h1>Controller</h1>
                     <div class="wiki__tags" id="wiki-tags"></div>
-
                     <figure class="figure">
-                        <!-- Capture: assets/icon-controller.png (or a full shot) -->
-                        <div class="figure__placeholder">
-                            <span class="figure__placeholder-tag"
-                                >Screenshot needed</span
-                            >
-                            <span class="figure__placeholder-name"
-                                >assets/wiki-section-controller.png</span
-                            >
-                            <span class="figure__placeholder-note"
-                                >A ship turning under control, or the controller
-                                section highlighted on a build.</span
-                            >
-                        </div>
-                    </figure>
-
-                    <p>
-                        The controller is the ship's steering system: a
-                        <strong
-                            >proportional-derivative (PD) attitude
-                            controller</strong
-                        >
-                        that rotates the ship toward a target heading. It is
-                        <strong>required</strong> for any ship a player or AI
-                        can fly.
-                    </p>
-                    <p>
-                        With no live controller, the hull cannot steer itself -
-                        so destroying the controller <em>disables</em> a ship
-                        without destroying it outright, leaving a drifting,
-                        tumbling wreck. It is also what the autopilot verbs
-                        drive when they fly the ship for you.
-                    </p>
+    <!-- Capture: assets/icon-controller.png (or a full shot) -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-section-controller.png</span
+        >
+        <span class="figure__placeholder-note"
+            >A ship turning under control, or the controller
+            section highlighted on a build.</span
+        >
+    </div>
+</figure>
+<p>The controller is the ship's steering system: it rotates the ship toward a target heading, easing in and settling without overshoot rather than snapping. It is <strong>required</strong> for any ship a player or AI can fly.</p>
+<p>With no live controller, the hull cannot steer itself - so destroying the controller <em>disables</em> a ship without destroying it outright, leaving a drifting, tumbling wreck. It is also what the autopilot verbs drive when they fly the ship for you.</p>
 
                     <div id="wiki-seealso"></div>
                 </article>

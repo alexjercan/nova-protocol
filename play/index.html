@@ -61,8 +61,39 @@ body {
 #bevy {
     z-index: 2;
 }
+
+/* Shown by build/web/webgpu-check.js (in place of the canvas) when the browser
+   lacks WebGPU, which the game's render backend requires. */
+.webgpu-fallback {
+    max-width: 34rem;
+    margin: auto;
+    padding: 2rem;
+    text-align: center;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: #1a1a1a;
+    line-height: 1.55;
+}
+
+.webgpu-fallback h1 {
+    margin: 0 0 0.75rem;
+    font-size: 1.6rem;
+}
+
+.webgpu-fallback p {
+    margin: 0 0 0.75rem;
+}
+
+.webgpu-fallback__back a {
+    color: #0a7d5a;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.webgpu-fallback__back a:hover {
+    text-decoration: underline;
+}
 </style>
-    <link rel="modulepreload" href="./nova-protocol-a17e99c927734778.js" crossorigin="anonymous" integrity="sha384-N+d5bQ/8u7YyfQs72yFUrf5u/rI+50dPqYodSxWK5Ra//LEKtYuNBmIwfvuxdE3a"><link rel="preload" href="./nova-protocol-a17e99c927734778_bg.wasm" crossorigin="anonymous" integrity="sha384-HTcysR0URfIfE8/KSPrLGT4Rzw3rsvyyQ/8ByQCtAmFMjnyONQEgia5YGh8BDa22" as="fetch" type="application/wasm"></head>
+    <link rel="modulepreload" href="./nova-protocol-1e996166b53988fa.js" crossorigin="anonymous" integrity="sha384-+XQs3SPIS/o9m06zqnVgL4Tm9IcCgB2inThGccVJqbqBfbmS4fd6FWzVB2cGHI08"><link rel="preload" href="./nova-protocol-1e996166b53988fa_bg.wasm" crossorigin="anonymous" integrity="sha384-I0Pd8S9spjt99mJPuhuUnWC7lzeo1OuY43+ZYp/O3lIe9udQxfWwVJXqPYnq5DIr" as="fetch" type="application/wasm"></head>
     <body>
         <script>// Insert hack to make sound autoplay on Chrome as soon as the user interacts with the tab:
 // https://developers.google.com/web/updates/2018/11/web-audio-autoplay#moving-forward
@@ -133,10 +164,80 @@ body {
                 Javascript and support for canvas is required
             </canvas>
         </div>
+        <!-- Runs synchronously (after the container, before trunk's deferred
+             wasm module) to show a "WebGPU required" message instead of a dead
+             canvas on browsers without WebGPU. See build/web/webgpu-check.js. -->
+        <script>// WebGPU gate for the in-browser game build.
+//
+// The web build ships bevy's `webgpu` render backend (bevy_hanabi's
+// compute-shader particles require it - see task 20260714-233438). A `webgpu`
+// build cannot initialize its renderer on a browser without working WebGPU: it
+// panics at surface creation and leaves a dead black canvas. Roughly 15% of
+// browsers as of 2026 (Firefox on Linux/Android/Intel-Mac, older OS/browser)
+// are affected.
+//
+// This script is inlined into the game's index.html BEFORE trunk's wasm
+// bootstrap. Trunk emits its loader as a `<script type="module">`, which is
+// deferred (runs after the HTML is parsed), while this plain inline script runs
+// synchronously during parsing. Placed after `.game-container` in the body, it
+// runs while the container exists but before bevy ever boots.
+//
+// Two checks, because "has WebGPU" is not one boolean:
+//   1. Synchronous: `navigator.gpu` absent -> WebGPU is off entirely (default
+//      Firefox on Linux, older browsers). Show the message immediately, with no
+//      black flash, and bevy's init then finds no `#bevy` canvas (WindowPlugin
+//      binds `canvas: Some("#bevy")`) and fails quietly.
+//   2. Asynchronous: `navigator.gpu` present but `requestAdapter()` yields no
+//      adapter (flag half-enabled, unsupported GPU/driver, Firefox-on-Linux with
+//      the pref flipped but no backend). Presence alone would sail past this and
+//      let bevy panic. The probe races bevy's own init; whichever loses, the
+//      user still ends on the message instead of a crashed canvas. On a working
+//      WebGPU browser the adapter resolves and nothing is shown.
+(function () {
+    "use strict";
+
+    function showFallback() {
+        var container = document.querySelector(".game-container");
+        if (!container) {
+            return;
+        }
+        container.innerHTML =
+            '<div class="webgpu-fallback">' +
+            "<h1>WebGPU required</h1>" +
+            "<p>Nova Protocol runs in the browser on <strong>WebGPU</strong>, which " +
+            "this browser does not have working.</p>" +
+            "<p>Try a recent <strong>Chrome</strong> or <strong>Edge</strong>, " +
+            "<strong>Safari</strong> on macOS/iOS 26, or <strong>Firefox</strong> " +
+            "on Windows. (Firefox on Linux does not ship WebGPU yet.)</p>" +
+            '<p class="webgpu-fallback__back"><a href="../">&larr; Back to Nova Protocol</a></p>' +
+            "</div>";
+    }
+
+    if (!navigator.gpu) {
+        showFallback();
+        return;
+    }
+
+    try {
+        navigator.gpu.requestAdapter().then(
+            function (adapter) {
+                if (!adapter) {
+                    showFallback();
+                }
+            },
+            function () {
+                showFallback();
+            },
+        );
+    } catch (_e) {
+        showFallback();
+    }
+})();
+</script>
     
 <script type="module">
-import init, * as bindings from './nova-protocol-a17e99c927734778.js';
-const wasm = await init({ module_or_path: './nova-protocol-a17e99c927734778_bg.wasm' });
+import init, * as bindings from './nova-protocol-1e996166b53988fa.js';
+const wasm = await init({ module_or_path: './nova-protocol-1e996166b53988fa_bg.wasm' });
 
 
 window.wasmBindings = bindings;

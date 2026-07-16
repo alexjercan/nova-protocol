@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "id": "gauntlet",
+      "version": "1.0.0",
+      "bundle": "gauntlet.bundle.ron",
+      "meta": {
+        "name": "Gauntlet Run",
+        "description": "A slalom race: fly your ship through the beacon gates in order, START to FINISH.",
+        "author": "Nova Protocol",
+        "version": "1.0.0",
+        "dependencies": [
+          "base",
+          "demo"
+        ],
+        "icon": null,
+        "screenshots": []
+      },
+      "files": [
+        {
+          "path": "README.md",
+          "size": 1379,
+          "sha256": "d8b5fe0214eaedc974f8729b7fc3c4e66d045f22d3dc2b2484b34ff878ea78df"
+        },
+        {
+          "path": "gauntlet.bundle.ron",
+          "size": 663,
+          "sha256": "e0c82ee281fefec55caa63e925a01088e4a1eadc2dcd1e9e4e4945a4391a4b6e"
+        },
+        {
+          "path": "gauntlet.content.ron",
+          "size": 12293,
+          "sha256": "ddfe950ac0729aa5bd109d3a7cf3575becc9de81bc7578ba7ac04b7857ff5f5c"
+        }
+      ],
+      "total_size": 14335
+    }
+  ]
+}

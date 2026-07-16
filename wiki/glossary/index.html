@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Glossary - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / Glossary
+                    </p>
+                    <h1>Glossary</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <p>Short definitions for the terms and units that recur across the wiki.</p>
+<h2 id="units" tabindex="-1">Units</h2>
+<ul>
+<li><strong>u</strong> - the distance unit. All ranges and radii are in units, e.g. a standoff of about 50 u.</li>
+<li><strong>u/s</strong> - the speed unit, units per second. The speed chip beside the velocity sphere reads in <code>u/s</code>.</li>
+</ul>
+<h2 id="terms" tabindex="-1">Terms</h2>
+<ul>
+<li><strong>Prograde / retrograde</strong> - prograde is the direction you are moving; retrograde is the opposite. STOP flips you to retrograde and burns to kill your speed.</li>
+<li><strong>Standoff</strong> - the resting distance GOTO stops at, just off a target (about 50 u plus the target's radius, measured from the surface) rather than ramming it.</li>
+<li><strong>Sphere of influence</strong> - the reach of a <a href="../gravity-wells/">gravity well</a>, about eight times the body's radius. Outside it the well does not pull on you; only the dominant well inside it matters.</li>
+<li><strong>Hysteresis</strong> - a bit of stickiness that stops a state from flickering at its edge. A lock, a fine-lock section, and the dominant well all hold a little past their switch point so they do not chatter.</li>
+<li><strong>Fine-lock</strong> - drilling a combat lock into one specific <a href="../sections/">section</a> of an enemy hull, so turrets and the viewfinder focus that part.</li>
+<li><strong>&quot;Hot&quot; weapons</strong> - your weapons are hot while you hold a raised (red) combat stance or while a combat lock exists. Hot means turret lead pips and the viewfinder frame go red and you can fire.</li>
+<li><strong>Diegetic</strong> - part of the world rather than an overlay bolted on top. The HUD instruments read the ship's real state and the autopilot flies the same real thrusters you do, so what you see is what the ship is actually doing.</li>
+</ul>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

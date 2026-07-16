@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Building &amp; running - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / Building &amp; running
+                    </p>
+                    <h1>Building &amp; running</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <h2 id="toolchain" tabindex="-1">Toolchain</h2>
+<ul>
+<li><strong>Rust nightly</strong>, pinned by <code>rust-toolchain.toml</code> (with rustfmt + clippy).</li>
+<li><strong>NixOS</strong>: <code>nix develop</code> gives the toolchain, the <code>wasm32-unknown-unknown</code>
+target, all system libs Bevy needs (udev, alsa, vulkan, X11/wayland), and
+<code>trunk</code>. Without Nix, install those yourself.</li>
+</ul>
+<h2 id="everyday-commands" tabindex="-1">Everyday commands</h2>
+<pre><code class="hljs language-sh">cargo run                         <span class="hljs-comment"># the game (boots into the main menu)</span>
+cargo run --features dev          <span class="hljs-comment"># + debug tooling (inspector, wireframe)</span>
+cargo run --example 08_scenario   <span class="hljs-comment"># run an example</span>
+cargo build --release             <span class="hljs-comment"># release profile: opt=s, lto, stripped</span>
+cargo check &amp;&amp; cargo <span class="hljs-built_in">fmt</span>          <span class="hljs-comment"># before committing</span>
+cargo <span class="hljs-built_in">test</span> --workspace            <span class="hljs-comment"># full suite (CI runs this; skip locally unless asked)</span>
+</code></pre>
+<p>Notes that keep the suite honest and fast:</p>
+<ul>
+<li>Use <code>cargo test --workspace</code>, never bare <code>cargo test</code>: unit tests live in the
+member crates, so the bare form runs almost nothing and gives false comfort.</li>
+<li><code>cargo test</code> takes ONE filter and one <code>-p</code> per invocation; separate runs for
+separate filters or packages.</li>
+<li>For a timed headless example run, build first, then time only the run
+(<code>cargo build --example X --features debug</code>, then <code>BCS_AUTOPILOT=1 timeout N cargo run --example X ...</code>). A cold build inside the timeout burns the window.</li>
+<li>Struct-field changes: <code>cargo check --workspace --all-targets</code>, or examples and
+tests stay silently broken.</li>
+</ul>
+<p>The dev profile uses <code>opt-level = 1</code> for our code, <code>3</code> for dependencies: slow
+first build, fast iteration. <code>split-debuginfo = &quot;unpacked&quot;</code> +
+<code>debug = &quot;line-tables-only&quot;</code> keep link-time RAM around 20 GB instead of 40
+(one Bevy-sized binary per test/example target); set <code>debug = true</code> temporarily
+if you need a debugger.</p>
+<p><strong>Worktree builds</strong>: a fresh sprout worktree has an empty <code>target/</code>, so the
+first build is a cold Bevy compile. Do NOT point <code>CARGO_TARGET_DIR</code> at the main
+checkout's cache: both checkouts hold the same crates at the same versions, so
+their artifacts overwrite each other and a worktree binary can silently link
+the main checkout's code. Accept the cold build.</p>
+<h2 id="features" tabindex="-1">Features</h2>
+<ul>
+<li><code>debug</code> - the whole <code>nova_debug</code> plugin (inspector, wireframe, overlays) plus
+<code>bevy/track_location</code>.</li>
+<li><code>dev</code> - alias for <code>debug</code>.</li>
+</ul>
+<h3 id="debug-tooling" tabindex="-1">Debug tooling</h3>
+<p><code>cargo run --features dev</code> compiles in <code>nova_debug</code>'s <code>DebugPlugin</code>
+(<code>crates/nova_debug/src/lib.rs</code>), which adds the inspector, the wireframe
+toggle, and the section/gravity debug overlays. The overlays are gated on a
+<code>DebugEnabled</code> resource toggled at runtime with <strong>F11</strong>
+(<code>DEBUG_TOGGLE_KEYCODE</code>), so they can be flipped off without a rebuild. Note the
+feature is spelled <code>debug</code>, with <code>dev</code> as an alias for it (root <code>Cargo.toml</code>);
+<code>--features dev</code> and <code>--features debug</code> are interchangeable.</p>
+<p>Two debug-only CLI flags exist, both parsed in <code>src/main.rs</code> and both compiled
+in only under the <code>debug</code> feature:</p>
+<ul>
+<li><code>--norender</code> - build the app with rendering off (<code>editor_app(false)</code>), for
+headless runs.</li>
+<li><code>--debugdump</code> - print the system schedule graph (via <code>bevy_mod_debugdump</code>)
+and exit. It dumps the <code>Update</code> schedule (<code>debugdump</code> in
+<code>crates/nova_debug/src/lib.rs</code>).</li>
+</ul>
+<h2 id="examples" tabindex="-1">Examples</h2>
+<p><code>examples/</code> exercises one subsystem each, end to end; this repo prefers
+runnable examples over isolated unit tests. The set reads as a curriculum in
+four blocks:</p>
+<ul>
+<li>Sections: <code>01_controller_section</code> (PD attitude), <code>02_thruster_section</code>
+(burn -&gt; thrust + plume shader), <code>03_hull_section</code> (damage -&gt; destroy -&gt;
+ship survives), <code>04_turret_section</code> and <code>05_torpedo_section</code> (the weapon
+test ranges), <code>06_torpedo_guidance</code> (PN deep-dive), <code>07_com_range</code> (mass
+properties under section destruction).</li>
+<li>Scenario: <code>08_scenario</code> (the scenario language - variables, events,
+filters, actions - built in code and asserted live).</li>
+<li>Editor: <code>09_editor</code> (the shipped editor flow).</li>
+<li>Playable: <code>10_playable</code> (a scenario played through the real input
+pipeline: lock, kill, GOTO, arrive - watched by its own handlers),
+<code>11_hud_range</code> (screen-projected HUD indicators, velocity sphere
+included), <code>12_menu_newgame</code> (the shipped boot flow).</li>
+<li>Screenshots: <code>13_screenshot_reel</code>, <code>14_screenshot_ui</code>,
+<code>15_screenshot_combat</code>, <code>16_screenshot_sections</code>, <code>17_screenshot_juice</code>,
+<code>18_screenshot_orbit</code> (drive the shipped scenes headless to capture the
+wiki and marketing frames).</li>
+</ul>
+<p>When adding a substantial feature, add or extend the example that drives it.
+(Consolidated over time: 01_scene/03_scenario merged into 08_scenario;
+02_thruster_shader into 02_thruster_section; 05_directional into
+11_hud_range; 10_gameplay into 03_hull_section + 10_playable; 07b_slicer's
+subject lives in bevy-common-systems; 04_asteroids' slider tuning tool was
+dropped.)</p>
+<p>Every example is HARNESSED: it drives itself under <code>BCS_AUTOPILOT=1</code>, and
+<code>tests/examples_smoke.rs</code> (the <code>HARNESSED_EXAMPLES</code> list) runs all eighteen
+headless as a regression suite - each must reach <code>Playing</code> and exit without
+panic. The gameplay examples (01-12) additionally carry panic-on-failure
+behavior assertions with completion backstops (a stalled script fails instead
+of passing vacuously), except <code>06_torpedo_guidance</code> and <code>09_editor</code>, which
+assert at the scenario-load / reach-gameplay level; the screenshot examples
+(13-18) drive the shipped scenes to capture frames. Keep list and disk in
+sync: a new example joins the list with a harness, or it does not merge.</p>
+<h3 id="examples-as-bug-pins" tabindex="-1">Examples as bug pins</h3>
+<p>When a bug is fixed, prefer pinning it where it lives: a unit/App test for a
+system-level mechanism, an example assertion when the bug only manifests in a
+composed scene (for example, <code>12_menu_newgame</code> runs the shipped boot flow with
+the ECS fallback error handler swapped to panic, so unhandled command errors on
+those transitions fail CI). An example pin is an autopilot-script assertion
+(<code>.input(...)</code> closure, staged by elapsed time - see <code>07_com_range</code>/<code>11_hud_range</code>
+for the style); the smoke suite runs it on every push. Caveat: the handler swap
+does NOT catch <code>remove</code>/<code>despawn</code> command warns (they bake in the WARN handler
+at queue time).</p>
+<h2 id="web-build" tabindex="-1">Web build</h2>
+<p>WASM via <strong>Trunk</strong> (<code>Trunk.toml</code>, <code>index.html</code>):</p>
+<pre><code class="hljs language-sh">trunk serve            <span class="hljs-comment"># serve on http://localhost:8080</span>
+trunk build --release
+</code></pre>
+<p><code>.cargo/config.toml</code> sets <code>--cfg=web_sys_unstable_apis</code> for wasm; <code>bevy_rand</code>
+uses its <code>wasm_js</code> feature there. Trunk only supports the <code>release</code> profile.
+The GitHub Pages deploy (<code>.github/workflows/deploy-page.yaml</code>) builds the
+landing site (<code>web/</code>) at the root and the game under <code>/play/</code>.</p>
+<p>The same sources fan out into three build targets that combine into one
+published site:</p>
+<pre class="mermaid">flowchart LR
+  src[Sources]
+  src --&gt;|cargo| native[Native game]
+  src --&gt;|web build| landing[Landing + wiki]
+  src --&gt;|trunk| wasm[Bevy WASM game]
+  landing --&gt; pages[GitHub Pages]
+  wasm --&gt; pages
+  pages --&gt; root[&quot;/ (landing)&quot;]
+  pages --&gt; play[&quot;/play/ (game)&quot;]
+</pre>
+<h3 id="regenerating-the-web-screenshots" tabindex="-1">Regenerating the web screenshots</h3>
+<p>The site's <code>.figure</code> blocks ship as placeholders; the real screenshots are
+captured in-engine and packaged into <code>web/src/assets/</code> by
+<code>scripts/gen-web-screenshots.py</code>. Each figure auto-upgrades to its image at
+runtime once the asset exists (progressive enhancement in <code>web/src/site.ts</code>), so
+no HTML edit is needed - just drop the file in.</p>
+<p>Capture (needs a display + GPU; headless CI-style is Xvfb + lavapipe) into a
+staging dir, then package into <code>web/src/assets/</code>:</p>
+<pre><code class="hljs language-sh"><span class="hljs-built_in">export</span> NOVA_SHOT_DIR=target/reel
+BCS_REEL=1                cargo run --example 13_screenshot_reel   --features debug
+BCS_AUTOPILOT=1 BCS_REEL=1 cargo run --example 14_screenshot_ui     --features debug
+BCS_AUTOPILOT=1 BCS_REEL=1 cargo run --example 15_screenshot_combat --features debug
+python3 scripts/gen-web-screenshots.py   <span class="hljs-comment"># validate + copy; build composites; write the 44x44 icons</span>
+</code></pre>
+<p>The example examples run headless under <code>BCS_AUTOPILOT</code>; the reel poses a
+free-fly camera per beat and captures 1920x1080 PNGs. The Python step validates
+each shot is 16:9, copies it in, builds the composite shots a single capture
+cannot make (e.g. <code>devlog5-radar-stance-slots</code>, two lock stances side by side)
+with a stdlib PNG codec, generates the section icons, and reports which shots
+have no capture example yet. Commit the resulting PNGs (they are content, like
+<code>banner.png</code>). Run <code>python3 scripts/gen-web-screenshots.py --self-test</code> to check
+the PNG codec (decode/resize/compose) in isolation.</p>
+<h2 id="versioning-and-release" tabindex="-1">Versioning and release</h2>
+<ul>
+<li>Version: <code>workspace.package.version</code> in root <code>Cargo.toml</code>; crates inherit it.</li>
+<li><code>nova_info::APP_VERSION</code> comes from the <code>APP_VERSION</code> env var via <code>build.rs</code>.</li>
+<li>Packaging assets (icons, installer, .app) live under <code>build/</code>.</li>
+</ul>
+<h3 id="cutting-a-release" tabindex="-1">Cutting a release</h3>
+<p>Pushing a tag <code>v[0-9]+.[0-9]+.[0-9]+*</code> triggers <code>release-flow</code>
+(<code>.github/workflows/release.yaml</code>). Steps, on <code>master</code>:</p>
+<ol>
+<li>Bump <code>workspace.package.version</code> in root <code>Cargo.toml</code>.</li>
+<li>Refresh <code>Cargo.lock</code>: <code>cargo metadata --format-version 1 &gt;/dev/null</code>.</li>
+<li>Update <code>CHANGELOG.md</code> (Keep a Changelog, one concise line per entry):
+promote <code>[Unreleased]</code> to <code>[&lt;version&gt;] - &lt;YYYY-MM-DD&gt;</code>, leave a fresh empty
+<code>## [Unreleased]</code> on top, merge any duplicate section headings that grew
+during the cycle, and update the compare links at the bottom (repoint
+<code>[unreleased]</code>, add the new <code>[&lt;version&gt;]</code> line).</li>
+<li>Commit exactly those three files:
+<code>git add Cargo.toml Cargo.lock CHANGELOG.md &amp;&amp; git commit -m &quot;chore(release): vX.Y.Z&quot;</code>.</li>
+<li><code>git tag vX.Y.Z</code> (CI reads the tag for the release name).</li>
+<li><code>git push origin master &amp;&amp; git push origin vX.Y.Z</code>.</li>
+<li>Watch the run (<code>gh run watch</code>), then check the GitHub release page and
+consider adding summarized release notes (<code>gh release edit vX.Y.Z --notes-file ...</code>).</li>
+<li>Write a devblog for the release cycle (see below) and land it in <code>web/</code>.</li>
+</ol>
+<p>The workflow uploads four assets to a release named after the tag: macOS
+universal <code>.dmg</code>, Linux <code>.tar.gz</code>, Windows <code>.zip</code>, and a wasm-opt'd web zip.
+It can also be re-run via <code>workflow_dispatch</code> with a <code>version</code> input.</p>
+<h3 id="writing-the-release-devblog" tabindex="-1">Writing the release devblog</h3>
+<p>Every release cycle also gets a devblog on the site, in <code>web/</code>. The devlogs
+are numbered (<code>#1</code>..<code>#N</code>) and track the minor versions: one devlog per minor
+release (<code>v0.4.0</code> -&gt; Devlog #4, <code>v0.5.0</code> -&gt; Devlog #5), with the cycle's patch
+releases folded into that same post as a short closing note rather than getting
+their own devlog. Source the content straight from the <code>CHANGELOG.md</code> sections
+for the versions in the cycle.</p>
+<p>The devlogs follow the spirit of Factorio's Friday Facts: a running numbered
+series, each issue broken into a handful of distinct topic sections, written
+candidly in the first person (the reasoning, the dead-ends, the &quot;the piece I am
+proudest of&quot;), leaning on screenshots and diagrams, and closing with a prompt to
+discuss. Match that tone; do not write terse release notes (the <code>CHANGELOG.md</code>
+already is those).</p>
+<p>Adding a devblog touches four places (mirror an existing post such as
+<code>devlog-4-guided-torpedoes-targeting-and-enemy-ai</code>):</p>
+<ol>
+<li>Write the post at <code>web/src/posts/&lt;slug&gt;.html</code>. Copy an existing devlog for
+the structure:
+<ul>
+<li>the <code>prose__meta</code> line carries <code>&lt;date&gt; // v&lt;X.Y.0&gt;</code>, and the
+<code>&lt;title&gt;</code>/<code>&lt;meta name=&quot;description&quot;&gt;</code> summarize the release;</li>
+<li>a <code>&lt;!-- Devlog video ... --&gt;</code> placeholder for the recorded footage;</li>
+<li>one <code>&lt;h2&gt;</code> per topic, in the candid FFF voice described above;</li>
+<li><code>.figure</code> blocks for screenshots/diagrams (they ship a dashed placeholder
+naming the image to capture later - see the component in <code>web/src/style.css</code>);</li>
+<li>the standard <code>.post-footer</code> closer (the &quot;discuss on GitHub Discussions&quot;
+prompt plus the &quot;All devlogs&quot; link) before <code>&lt;/article&gt;</code>.</li>
+</ul>
+</li>
+<li>Register the page in <code>web/webpack.config.js</code>: add a <code>page(&quot;post&quot;, ...)</code>
+entry in <code>plugins</code> and a matching <code>historyApiFallback</code> rewrite (keep both
+lists newest-first, above the previous devlog).</li>
+<li>Add a <code>.post-card</code> to <code>web/src/blog.html</code> at the top of <code>.post-grid</code> (newest
+first): a media thumbnail plus the date/version, title, and one-line excerpt.
+For the thumbnail, use the YouTube thumbnail
+(<code>https://img.youtube.com/vi/&lt;id&gt;/hqdefault.jpg</code>) once the post has a video
+embed; otherwise use the <code>.post-card__ph</code> placeholder naming
+<code>assets/thumb-&lt;slug&gt;.png</code>.</li>
+<li>Rebuild and check it: <code>cd web &amp;&amp; npm run ci</code> (format check, lint, build).</li>
+</ol>
+<h2 id="contributing-a-change" tabindex="-1">Contributing a change</h2>
+<p>The everyday loop for landing a change:</p>
+<ol>
+<li><strong>Branch</strong> off <code>master</code>. Work items are tracked as <code>tasks/</code> markdown (see
+<a href="#task-tracking">Task tracking</a> below); check the backlog first.</li>
+<li><strong>Build and format</strong>: <code>cargo check &amp;&amp; cargo fmt</code> before you commit. Do NOT
+run <code>cargo test</code> or <code>cargo clippy</code> locally unless asked - they are slow and
+CI is the source of truth; when you skip them, say so.</li>
+<li><strong>Drive it with an example.</strong> For a substantial feature, add or extend the
+<code>examples/</code> example that exercises it, with a harnessed autopilot assertion
+(see <a href="#examples">Examples</a>) - this repo prefers a runnable example over an
+isolated unit test.</li>
+<li><strong>Open a PR.</strong> CI (<code>.github/workflows/ci.yaml</code>) runs on every PR and push to
+<code>master</code>: <code>cargo fmt --check</code>, <code>cargo clippy --workspace --all-targets --features debug</code>, <code>cargo test --workspace --features debug</code>, then the
+windowed <code>examples_smoke</code> suite under Xvfb/lavapipe, plus a dependency-license
+gate. All of it must be green to merge.</li>
+</ol>
+<p>Commit messages are plain and use ASCII punctuation only. Releases are a
+separate, tagged flow (see <a href="#cutting-a-release">Cutting a release</a>).</p>
+<h2 id="task-tracking" tabindex="-1">Task tracking</h2>
+<p>Work items live as markdown under <code>tasks/</code> (managed with the <code>tatr</code> CLI), so
+they are versioned alongside the code. Check the backlog before starting and
+close tasks when done. Each task has its own folder holding its <code>TASK.md</code> plus
+any task-scoped records (<code>SPIKE.md</code>, <code>REVIEW.md</code>, <code>RETRO.md</code>, <code>NOTES.md</code>).
+Multi-task plans (<code>docs/plans/</code>) and the lessons ledger (<code>docs/LESSONS.md</code>)
+live under <code>docs/</code>.</p>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

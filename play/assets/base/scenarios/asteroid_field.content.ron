@@ -1,0 +1,417 @@
+[
+    Scenario((
+        id: "asteroid_field",
+        name: "Asteroid Field",
+        description: "A dense asteroid field.",
+        cubemap: "textures/cubemap.png",
+        hidden: true,
+        events: [
+            (
+                name: OnStart,
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "asteroid_grav",
+                            name: "Gravity Rock",
+                            position: (
+                                250.0,
+                                0.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 20.0,
+                            texture: "textures/asteroid.png",
+                            health: 2000.0,
+                            surface_gravity: Some(6.0),
+                            invulnerable: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player_spaceship",
+                            name: "Player Spaceship",
+                            position: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            controller: Player((
+                                input_mapping: {
+                                    "turret": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                },
+                                infinite_ammo: false,
+                            )),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "hull_back",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                                (
+                                    id: "turret",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        -0.70710677,
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("better_turret_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "other_spaceship",
+                            name: "Other Spaceship",
+                            position: (
+                                10.0,
+                                0.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            controller: r#None,
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "hull_back",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                                (
+                                    id: "turret",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        -0.70710677,
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("better_turret_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "asteroid_",
+                        count: 20,
+                        seed: 433757350076153856,
+                        region: Box(
+                            min: (
+                                -100.0,
+                                -20.0,
+                                -100.0,
+                            ),
+                            max: (
+                                100.0,
+                                20.0,
+                                100.0,
+                            ),
+                        ),
+                        template: (
+                            base: (
+                                id: "asteroid_",
+                                name: "Asteroid",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 1.0,
+                                texture: "textures/asteroid.png",
+                                health: 100.0,
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            1.0,
+                            3.0,
+                        )),
+                    )),
+                ],
+            ),
+            (
+                name: OnStart,
+                actions: [
+                    CreateScenarioArea((
+                        id: "asteroid_zone",
+                        name: "Asteroid Zone",
+                        position: (
+                            0.0,
+                            0.0,
+                            -100.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        radius: 10.0,
+                    )),
+                ],
+            ),
+            (
+                name: OnStart,
+                actions: [
+                    Objective((
+                        id: "destroy_asteroids",
+                        message: "Objective: Destroy 5 asteroids!",
+                    )),
+                ],
+            ),
+            (
+                name: OnStart,
+                actions: [
+                    VariableSet((
+                        key: "asteroids_destroyed",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "objective_destroy_asteroids",
+                        expression: Term(Factor(Literal(Boolean(false)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    DebugMessage((
+                        message: "The player\'s spaceship was destroyed!",
+                    )),
+                    NextScenario((
+                        scenario_id: "asteroid_field",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        type_name: Some("asteroid"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "asteroids_destroyed",
+                        expression: Add(
+                            Factor(Name("asteroids_destroyed")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        type_name: Some("asteroid"),
+                    )),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("asteroids_destroyed"))),
+                        Term(Factor(Literal(Number(4.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("objective_destroy_asteroids"))),
+                        Term(Factor(Literal(Boolean(false)))),
+                    ))),
+                ],
+                actions: [
+                    DebugMessage((
+                        message: "Objective Complete: Destroyed 5 asteroids!",
+                    )),
+                    VariableSet((
+                        key: "objective_destroy_asteroids",
+                        expression: Term(Factor(Literal(Boolean(true)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "destroy_asteroids",
+                    )),
+                    Objective((
+                        id: "reach_zone",
+                        message: "Objective: Reach the safe zone!",
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("asteroid_zone"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("objective_destroy_asteroids"))),
+                        Term(Factor(Literal(Boolean(true)))),
+                    ))),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "reach_zone",
+                    )),
+                    NextScenario((
+                        scenario_id: "asteroid_next",
+                        linger: true,
+                    )),
+                ],
+            ),
+        ],
+    )),
+]

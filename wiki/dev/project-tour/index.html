@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Project tour - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / Project tour
+                    </p>
+                    <h1>Project tour</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <blockquote>
+<p><strong>Start here.</strong> New to the codebase? Read the dev wiki in this order:</p>
+<ol>
+<li><a href="../project-tour/">Project tour</a> -- this page: the crate map and where to
+change X.</li>
+<li><a href="../architecture/">Architecture</a> -- the full crate graph, app assembly,
+state machines and frame flow.</li>
+<li><a href="../development/">Building &amp; running</a> -- toolchain, cargo commands,
+examples, the web build, and how to contribute a change.</li>
+<li>Then pick the guide for your change:
+<a href="../guide-add-section/">Add a ship section</a> or
+<a href="../guide-extend-scenarios/">Extend the scenario engine</a>.</li>
+</ol>
+</blockquote>
+<p>The friendly 20-minute front door to the codebase. Read this first, then dive
+into <a href="../architecture/">Architecture</a> for the full crate graph, plugin order,
+state machines and frame flow -- this page only orients you.</p>
+<p>Nova Protocol is a 3D space game built on <strong>Bevy 0.19</strong> with <strong>avian3d</strong> physics.
+You build ships out of modular sections (hull, controller, thruster, turret,
+torpedo bay), fly them with real Newtonian thrust and a diegetic <code>GOTO</code>/<code>ORBIT</code>/
+<code>STOP</code> autopilot, work inverse-square gravity wells, and fight with deliberate
+angular radar lock-on. On top of the game sits an event-driven scenario/modding
+engine (RON data) and a web site + WASM build. It is a Cargo workspace: the root
+<code>nova-protocol</code> crate is a thin shell; all the real code lives under <code>crates/</code>.</p>
+<h2 id="crate-map-at-a-glance" tabindex="-1">Crate map at a glance</h2>
+<p>Slugs are the workspace members. One line each -- see <a href="../architecture/">Architecture</a>
+for responsibilities and the dependency graph.</p>
+<table>
+<thead>
+<tr>
+<th>Crate</th>
+<th>Owns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nova-protocol</code> (root)</td>
+<td><code>src/main.rs</code> clap CLI + entrypoint; <code>src/lib.rs</code> re-exports <code>nova_core</code>.</td>
+</tr>
+<tr>
+<td><code>nova_core</code></td>
+<td>Wiring only: <code>AppBuilder</code> assembles the whole plugin stack. No gameplay.</td>
+</tr>
+<tr>
+<td><code>nova_gameplay</code></td>
+<td>The game: sections, integrity, damage, flight, gravity, input (player/ai/radar), hud, camera, audio, juice. Owns <code>GameStates</code>/<code>PauseStates</code>/<code>GameMode</code>.</td>
+</tr>
+<tr>
+<td><code>nova_scenario</code></td>
+<td>Scenario engine: events, filters, actions, variables, world, loader, objects.</td>
+</tr>
+<tr>
+<td><code>nova_events</code></td>
+<td>Shared game-event kinds + entity identity components (gameplay &lt;-&gt; scenario).</td>
+</tr>
+<tr>
+<td><code>nova_assets</code></td>
+<td><code>bevy_asset_loader</code> setup; loads glb/textures/shaders/sounds; owns the mod merge + prefs.</td>
+</tr>
+<tr>
+<td><code>nova_modding</code></td>
+<td>Bundle/content/catalog asset loaders and the <code>Content</code> routing enum.</td>
+</tr>
+<tr>
+<td><code>nova_mod_format</code></td>
+<td>Pure serde types for the mod formats (engine-free); re-exported by <code>nova_modding</code>.</td>
+</tr>
+<tr>
+<td><code>nova_portal_gen</code></td>
+<td>Binary: generates the static mod portal from <code>webmods/</code> (engine-free).</td>
+</tr>
+<tr>
+<td><code>nova_editor</code></td>
+<td>The ship editor scene (<code>NovaEditorPlugin</code>), shown in <code>GameMode::Sandbox</code>.</td>
+</tr>
+<tr>
+<td><code>nova_menu</code></td>
+<td>Main menu + the ESC pause overlay; hands off to <code>Playing</code>.</td>
+</tr>
+<tr>
+<td><code>nova_ui</code></td>
+<td>Shared theme palette/metrics and themed widgets the menu and editor draw from.</td>
+</tr>
+<tr>
+<td><code>nova_debug</code></td>
+<td>Debug-only plugin (inspector, overlays); compiled under the <code>debug</code> feature.</td>
+</tr>
+<tr>
+<td><code>nova_info</code></td>
+<td>Exposes <code>APP_VERSION</code>, injected by <code>build.rs</code>.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="want-to-change-x-start-here" tabindex="-1">Want to change X? Start here</h2>
+<p>The highest-value table. Verified paths; follow the linked page for depth.</p>
+<table>
+<thead>
+<tr>
+<th>I want to change...</th>
+<th>Start in</th>
+<th>Read</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A ship section behavior</td>
+<td><code>crates/nova_gameplay/src/sections/</code></td>
+<td><a href="../sections/">Ship sections</a>, <a href="../guide-add-section/">Add a ship section</a></td>
+</tr>
+<tr>
+<td>Damage / resistances</td>
+<td><code>crates/nova_gameplay/src/damage.rs</code></td>
+<td><a href="../sections/">Ship sections</a></td>
+</tr>
+<tr>
+<td>Integrity (disable/destroy)</td>
+<td><code>crates/nova_gameplay/src/integrity/</code></td>
+<td><a href="../sections/">Ship sections</a></td>
+</tr>
+<tr>
+<td>Flight / autopilot verbs</td>
+<td><code>crates/nova_gameplay/src/flight.rs</code></td>
+<td>--</td>
+</tr>
+<tr>
+<td>Player input / AI</td>
+<td><code>crates/nova_gameplay/src/input/{player,ai}.rs</code></td>
+<td>--</td>
+</tr>
+<tr>
+<td>Radar targeting / lock-on</td>
+<td><code>crates/nova_gameplay/src/input/targeting.rs</code></td>
+<td>--</td>
+</tr>
+<tr>
+<td>Gravity wells</td>
+<td><code>crates/nova_gameplay/src/gravity.rs</code></td>
+<td>--</td>
+</tr>
+<tr>
+<td>The HUD (widgets)</td>
+<td><code>crates/nova_gameplay/src/hud/</code></td>
+<td>--</td>
+</tr>
+<tr>
+<td>A scenario event/filter/action</td>
+<td><code>crates/nova_scenario/src/{events,filters,actions}.rs</code></td>
+<td><a href="../scenario-system/">Scenario engine</a>, <a href="../guide-extend-scenarios/">Extend the scenario engine</a></td>
+</tr>
+<tr>
+<td>Scenario objects / loading</td>
+<td><code>crates/nova_scenario/src/{objects,loader}.rs</code></td>
+<td><a href="../scenario-system/">Scenario engine</a></td>
+</tr>
+<tr>
+<td>Mod loading / merge</td>
+<td><code>crates/nova_assets/</code> + <code>crates/nova_modding/</code></td>
+<td><a href="../modding-ron/">Modding data format (RON)</a>, <a href="../mod-portal/">Mod portal</a></td>
+</tr>
+<tr>
+<td>The ship editor</td>
+<td><code>crates/nova_editor/</code></td>
+<td>--</td>
+</tr>
+<tr>
+<td>Shared UI theme / widgets</td>
+<td><code>crates/nova_ui/</code></td>
+<td>--</td>
+</tr>
+<tr>
+<td>The web site / wiki</td>
+<td><code>web/</code></td>
+<td><a href="../development/">Building &amp; running</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-boot-path-in-one-glance" tabindex="-1">The boot path in one glance</h2>
+<p><code>AppBuilder</code> (in <code>crates/nova_core/src/lib.rs</code>) is the single place the app is
+wired -- <code>DefaultPlugins</code> + window/log/asset setup, then the plugin stack
+(assets, gameplay, scenario, editor, menu, debug). The state machines:</p>
+<ul>
+<li><code>GameStates { Loading, MainMenu, Playing }</code> -- top-level lifecycle.</li>
+<li><code>PauseStates { Unpaused, Paused }</code> -- the ESC overlay, nested in <code>Playing</code>.</li>
+<li><code>GameAssetsStates { Loading, Processing, Loaded }</code> -- the asset pipeline that
+gates entry; on <code>OnEnter(Loaded)</code> the app hands off to <code>MainMenu</code>/<code>Playing</code>.</li>
+</ul>
+<p>Gameplay systems run an explicit chain configured identically in <code>Update</code> and
+<code>FixedUpdate</code>; avian3d physics runs on a fixed timestep in <code>FixedPostUpdate</code>.
+The plugin order, exact sets and frame flow live in
+<a href="../architecture/">Architecture</a> -- start there once the shape clicks.</p>
+<pre class="mermaid">flowchart LR
+    player[&quot;Player / AI input&quot;] --&gt; game[&quot;Game crates&lt;br/&gt;(nova_gameplay + nova_core)&quot;]
+    game --&gt; scenario[&quot;nova_scenario&lt;br/&gt;(events / filters / actions)&quot;]
+    data[&quot;Data (RON)&lt;br/&gt;scenarios + mods&quot;] --&gt; assets[&quot;nova_assets + nova_modding&quot;]
+    assets --&gt; game
+    scenario --&gt; game
+    game --&gt; screen[&quot;Rendered frame + HUD&quot;]
+</pre>
+<h2 id="where-to-go-next" tabindex="-1">Where to go next</h2>
+<ul>
+<li><a href="../architecture/">Architecture</a> -- the full crate graph, app assembly, states, frame flow.</li>
+<li><a href="../development/">Building &amp; running</a> -- toolchain, cargo commands, examples, the web build.</li>
+<li><a href="../sections/">Ship sections (internals)</a> and <a href="../guide-add-section/">Add a ship section</a>.</li>
+<li><a href="../scenario-system/">Scenario engine</a> and <a href="../guide-extend-scenarios/">Extend the scenario engine</a>.</li>
+<li><a href="../modding-ron/">Modding data format (RON)</a> and <a href="../mod-portal/">Mod portal</a>.</li>
+</ul>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/blog/">Blog</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>
