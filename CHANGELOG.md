@@ -20,6 +20,10 @@ tagged **(breaking)**.
 - The Asteroid Field sandbox joined the outcome frame: reaching the zone declares Victory (Continue reruns the field) and dying declares Defeat + Retry, replacing its silent switches.
 - The base Demo Scenario (the ship-less RON authoring demo) was removed from the game and the Scenarios picker; the demo mod's arena is the worked hand-authored RON example now.
 
+### Fixes
+
+- A ship that loses its last section outside the damage path no longer lingers as a targetable 0-HP ghost hull: the health aggregate now carries a structural death backstop (no living sections = dead), closing a soft-lock where Broadside's act gates waited on a kill that never registered.
+
 ### Internals & Tooling
 
 - Debug builds (`--features debug`) bind F12 to a screenshot that saves the primary window to your Downloads directory as `<timestamp>.png`.

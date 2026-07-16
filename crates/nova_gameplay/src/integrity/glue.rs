@@ -116,7 +116,9 @@ fn build_integrity_relations(
 /// recomputes the root's health every frame as the sum of its living sections. When the sum
 /// hits zero, the fatal damage that removed the last section also bubbles up to the root
 /// (`HealthApplyDamage` auto-propagates through `ChildOf`), marking it with `HealthZeroMarker`
-/// which flows through disable -> destroy (`handle_parent_destroy`); the meshless root is then
+/// which flows through disable -> destroy (bcs `on_health_depleted_insert_disabled` ->
+/// `handle_parent_destroy`, the ROOT-specific hop: roots carry no `ConnectedTo`, are never
+/// leaves, so the leaf-gated `handle_destroy` cannot fire for them); the meshless root is then
 /// despawned and the ship dies (its `PlayerSpaceshipMarker` is removed, reverting the camera
 /// and clearing the HUDs).
 ///
@@ -128,12 +130,17 @@ fn build_integrity_relations(
 fn aggregate_ship_health(
     mut commands: Commands,
     q_root: Query<
-        (Entity, Option<&Health>, Option<&Children>),
+        (
+            Entity,
+            Option<&Health>,
+            Option<&Children>,
+            Has<HealthZeroMarker>,
+        ),
         (With<IntegrityRoot>, With<SpaceshipRootMarker>),
     >,
     q_section_health: Query<&Health, (With<SectionMarker>, Without<IntegrityRoot>)>,
 ) {
-    for (root, root_health, children) in &q_root {
+    for (root, root_health, children, already_zero) in &q_root {
         let mut current = 0.0;
         let mut max = 0.0;
         if let Some(children) = children {
@@ -143,6 +150,26 @@ fn aggregate_ship_health(
                     max += health.max;
                 }
             }
+        }
+
+        // Structural death backstop (task 20260716-162701, the 0-HP ghost):
+        // `HealthZeroMarker` only ever comes from the damage path (bcs
+        // `on_damage`), so a ship that loses its last section WITHOUT a
+        // final bubble reaching the root (a direct destroy, a detach, any
+        // future scripted removal) would sit here forever as an unmarked
+        // 0-HP hull. The recompute is the one place that always sees "no
+        // living sections", so it owns the backstop: mark the root and let
+        // the ordinary disable -> destroy chain take it. The previous-frame
+        // `max > 0` guard means "this root has HAD living sections" - a
+        // mid-spawn root whose sections have not landed yet is not executed
+        // at birth.
+        let had_sections = root_health.is_some_and(|health| health.max > 0.0);
+        if !already_zero && had_sections && current <= 0.0 {
+            debug!(
+                "aggregate_ship_health: root {root:?} has no living sections \
+                 and no zero marker; inserting the structural death backstop"
+            );
+            commands.entity(root).try_insert(HealthZeroMarker);
         }
 
         let changed = match root_health {
@@ -565,5 +592,243 @@ mod physics_tests {
 
         assert!(app.world().get::<IntegrityRoot>(body).is_some());
         assert_eq!(neighbors(&app, node), Vec::<Entity>::new());
+    }
+}
+
+/// The ghost-ship boundary rig (task 20260716-162701): a playtest saw an
+/// enemy "survive" its shootdown as an empty 0-HP hull. Root death depends
+/// on the fatal hit's bubble reaching the root with a nonzero amount
+/// (HealthZeroMarker comes ONLY from bcs on_damage), while the aggregate
+/// recompute writes marker-less zeros - these tests walk every path a ship
+/// can reach "all sections dead" and assert the root actually dies
+/// (despawns) within a frame budget. Cases that were never buggy stay as
+/// pins (null-result-becomes-a-pin).
+#[cfg(test)]
+mod ghost_ship_tests {
+    use bevy_rand::prelude::*;
+    use nova_events::prelude::{EntityId, EntityTypeName};
+
+    use super::*;
+    use crate::integrity::test_support::{settle, unfinished_integrity_physics_app};
+
+    /// Counts every fired [`GameEvent`]. `GameEvent.name` has no public
+    /// accessor, so this counts ALL of them - which in THIS rig means
+    /// exactly "the root's OnDestroyed": the root is the only entity
+    /// carrying the `EntityId` + `EntityTypeName` the explode observer needs
+    /// to fire (sections deliberately lack them, so their destroys stay
+    /// silent), and no scenario plugin is loaded to fire anything else.
+    #[derive(Resource, Default)]
+    struct FiredEvents(usize);
+
+    fn ghost_app() -> App {
+        let mut app = unfinished_integrity_physics_app();
+        // The destroy path's debris observers need material assets and the
+        // global rng even in a headless run.
+        app.init_asset::<StandardMaterial>();
+        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.init_resource::<FiredEvents>();
+        app.add_observer(|_: On<GameEvent>, mut fired: ResMut<FiredEvents>| {
+            fired.0 += 1;
+        });
+        app.finish();
+        app
+    }
+
+    fn destroy_events(app: &App) -> usize {
+        app.world().resource::<FiredEvents>().0
+    }
+
+    fn spawn_ship(app: &mut App, section_count: usize) -> (Entity, Vec<Entity>) {
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                SpaceshipRootMarker,
+                EntityId::new("rig_ship"),
+                EntityTypeName::new("spaceship"),
+            ))
+            .id();
+        let sections = (0..section_count)
+            .map(|i| {
+                app.world_mut()
+                    .spawn((
+                        ChildOf(root),
+                        SectionMarker,
+                        Transform::from_translation(Vec3::X * i as f32),
+                        Collider::cuboid(1.0, 1.0, 1.0),
+                        ColliderDensity(1.0),
+                        Health::new(100.0),
+                    ))
+                    .id()
+            })
+            .collect();
+        settle(app);
+        (root, sections)
+    }
+
+    fn hit(app: &mut App, target: Entity, amount: f32) {
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: target,
+            source: None,
+            amount,
+        });
+    }
+
+    /// True when the root died all the way: entity gone (the meshless
+    /// despawn leg of IntegrityDestroyMarker).
+    fn root_dead(app: &mut App, root: Entity, budget: usize) -> bool {
+        for _ in 0..budget {
+            if !app.world().entities().contains(root) {
+                return true;
+            }
+            app.update();
+        }
+        !app.world().entities().contains(root)
+    }
+
+    /// The canonical kill: sections die one at a time to exact hits; the
+    /// last bubble must take the root with it.
+    #[test]
+    fn killing_every_section_kills_the_ship() {
+        let mut app = ghost_app();
+        let (root, sections) = spawn_ship(&mut app, 2);
+
+        hit(&mut app, sections[0], 100.0);
+        for _ in 0..5 {
+            app.update();
+        }
+        hit(&mut app, sections[1], 100.0);
+
+        assert!(
+            root_dead(&mut app, root, 10),
+            "all sections dead by damage, ship root must die (no 0-HP ghost)"
+        );
+        assert_eq!(
+            destroy_events(&app),
+            1,
+            "the root's OnDestroyed fires exactly once (review R1.2)"
+        );
+    }
+
+    /// Both sections take fatal hits in the SAME frame (a blast co-hit):
+    /// the bubbles land back to back before any recompute.
+    #[test]
+    fn simultaneous_fatal_hits_kill_the_ship() {
+        let mut app = ghost_app();
+        let (root, sections) = spawn_ship(&mut app, 2);
+
+        hit(&mut app, sections[0], 100.0);
+        hit(&mut app, sections[1], 100.0);
+
+        assert!(
+            root_dead(&mut app, root, 10),
+            "same-frame fatal hits on every section must kill the ship"
+        );
+    }
+
+    /// The last living section takes TWO hits in one frame (per-collider
+    /// multi-hit): the second bubble is swallowed (amount = 0) by the
+    /// already-zero section; the first must still have done the job.
+    #[test]
+    fn double_hit_on_the_last_section_kills_the_ship() {
+        let mut app = ghost_app();
+        let (root, sections) = spawn_ship(&mut app, 2);
+
+        hit(&mut app, sections[0], 100.0);
+        for _ in 0..5 {
+            app.update();
+        }
+        hit(&mut app, sections[1], 100.0);
+        hit(&mut app, sections[1], 100.0);
+
+        assert!(
+            root_dead(&mut app, root, 10),
+            "a swallowed second bubble must not save the ship"
+        );
+    }
+
+    /// Sustained small-arms fire (the playtest's actual shape: turret rounds
+    /// with typed-resistance fractions): many sub-lethal hits alternating
+    /// across sections, one hit per frame, until everything is dead.
+    #[test]
+    fn many_small_hits_kill_the_ship() {
+        let mut app = ghost_app();
+        let (root, sections) = spawn_ship(&mut app, 2);
+
+        // 3.7 never divides 100 evenly, so every section death is a
+        // fractional-residue kill (float-accumulation shape).
+        for i in 0..60 {
+            hit(&mut app, sections[i % 2], 3.7);
+            app.update();
+        }
+
+        assert!(
+            root_dead(&mut app, root, 20),
+            "sustained fractional fire must kill the ship, not leave a ghost"
+        );
+    }
+
+    /// The structural hole: the last section is REMOVED without the damage
+    /// path (direct destroy - the shape of any future detach/scripted
+    /// removal). The aggregate recomputes to zero, but no bubble ever
+    /// reaches the root, so nothing marks it - the reported 0-HP ghost.
+    #[test]
+    fn last_section_destroyed_without_damage_still_kills_the_ship() {
+        let mut app = ghost_app();
+        let (root, sections) = spawn_ship(&mut app, 2);
+
+        hit(&mut app, sections[0], 100.0);
+        for _ in 0..5 {
+            app.update();
+        }
+        // Bypass health entirely: destroy the survivor the way a scripted
+        // removal / detach would.
+        app.world_mut()
+            .entity_mut(sections[1])
+            .insert(IntegrityDestroyMarker);
+
+        assert!(
+            root_dead(&mut app, root, 10),
+            "a ship with no living sections is dead, however the last one went"
+        );
+        assert_eq!(
+            destroy_events(&app),
+            1,
+            "the backstop kills the root exactly once, not zero, not twice \
+             (review R1.2)"
+        );
+    }
+
+    /// Damage landing on the ROOT body directly is overwritten by the next
+    /// recompute (the aggregate mirrors sections, nothing else); the ship
+    /// must still die exactly once when its sections then go - the
+    /// interleave the plan promised (review R1.2 restored it).
+    #[test]
+    fn direct_root_damage_interleaved_with_the_recompute_still_kills_cleanly() {
+        let mut app = ghost_app();
+        let (root, sections) = spawn_ship(&mut app, 2);
+
+        hit(&mut app, root, 50.0);
+        for _ in 0..3 {
+            app.update(); // recompute overwrites the direct dent
+        }
+        assert_eq!(
+            app.world().get::<Health>(root).unwrap().current,
+            200.0,
+            "delivery guard: the recompute owns the root's number again"
+        );
+
+        hit(&mut app, sections[0], 100.0);
+        for _ in 0..5 {
+            app.update();
+        }
+        hit(&mut app, sections[1], 100.0);
+
+        assert!(
+            root_dead(&mut app, root, 10),
+            "the interleaved direct dent must not confuse the kill"
+        );
+        assert_eq!(destroy_events(&app), 1, "exactly one OnDestroyed");
     }
 }
