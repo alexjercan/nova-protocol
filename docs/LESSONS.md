@@ -418,26 +418,32 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   mechanism deleted proves nothing; copied tests inherit vacuousness - and a
   sabotage that refuses to go red refutes the assumed mechanism itself.
   20260711-180426, 20260711-212521, 20260712-115902.
-- `out-of-context-review-pass` (positive, x24): a fresh-context review of a
+- `out-of-context-review-pass` (positive, x25): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
   load-bearing claims instead of trusting them - checking cited evidence IS
   the spawn site, re-running the sabotage or the whole smoke suite, reading
   the DEPENDENCY's source for composition hazards, mutation-analyzing new
   tests, empirically reproducing a suspected hole before claiming it, reading
-  a CI ACTION's source to settle a toolchain question, and re-deriving an
+  a CI ACTION's source to settle a toolchain question, re-deriving an
   algorithm (Kahn's topo sort direction) by hand to catch a doc/atomicity
-  overclaim. 20260712-133343, 20260711-183417, 20260712-115902,
-  20260715-142900, 20260715-142931, 20260716-125856, 20260708-203659,
-  20260716-162701.
+  overclaim, and re-deriving a course's geometric invariants from raw RON with
+  its own script to surface a load-bearing dependency override. 20260712-133343,
+  20260711-183417, 20260712-115902, 20260715-142900, 20260715-142931,
+  20260716-125856, 20260708-203659, 20260716-162701, 20260716-124722.
 - `required-component-in-shared-query` (x2): a required fetch added to an
   existing query narrows its membership and every gate computed from it; fetch
   `Option<&T>` or use a separate query. New `Res<T>` params also panic every
   `run_system_once` rig missing the resource. 20260712-143832, 20260712-164031.
 - `spike-open-question-pays-off` (positive, x1): a spike that names a risky
   unknown lets the implementer resolve it before wiring. 20260712-143832.
-- `authored-vs-derived-values` (x2): author content against measured runtime
-  values exported as consts, not nominal constants or folklore ranges.
-  20260711-180455, 20260711-180506.
+- `authored-vs-derived-values` (x3): author content against measured runtime
+  values exported as consts, not nominal constants or folklore ranges - and when
+  a layout invariant depends on such a const (asteroid bodies reach the
+  ASTEROID_GEOMETRIC_FACTOR_MAX=6.0x const past nominal), encode the invariant
+  as a COMPUTED rig assertion over the shipped positions, so the geometry is
+  proven not eyeballed and the fail-first A/B is one edit away (a gauntlet
+  course's flyable-line clearance). 20260711-180455, 20260711-180506,
+  20260716-124722.
 - `verify-engine-guarantees-in-source` (x4): read the engine/dependency source
   (or write a five-line probe) before designing around its behavior - observer
   order is arbitrary; observer-queued commands apply BEFORE the queue's remaining
@@ -686,6 +692,16 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   accepts lowercase ascii/digits/'-' ONLY for MOD ids (directory names), while
   scenario ids conventionally use underscores - name fixtures to the
   VALIDATING gate's rules, not neighboring conventions. 20260716-155839.
+
+- `mod-dependency-overrides-are-load-bearing` (domain, x1): a mod's declared
+  dependency does not just PROVIDE prototypes - via the last-wins id overlay it
+  can silently OVERRIDE a base section by id, so a dep can be load-bearing for
+  BALANCE, not just availability (the gauntlet's `demo` dep bumped
+  reinforced_hull_section 200->400, and its whole "reinforced hull buys crash
+  tolerance" premise rode on that). Before writing a dependency rationale, grep
+  the dep's content for the ids your content names; "base for the prototypes" is
+  wrong when a second dep is quietly doing the balance. Sibling of the overlay
+  lessons (`shared-id-space-shared-overlay`). 20260716-124722.
 
 ## Pending promotions (3+ occurrences, user decides)
 
