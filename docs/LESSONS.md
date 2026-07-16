@@ -33,6 +33,18 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   filesystem-walking tool trips on it - a leftover `variety/textures/` crashed
   content_lint's bundle walk ("no *.bundle.ron at its root"). `rm -rf` the old
   dir explicitly after a relocation. 20260716-215513.
+- `warnings-clean-before-land` (x1): run a warnings-SURFACED build (`cargo
+  build`/`clippy`, not `cargo test | grep 'test result'`) on new/changed modules
+  BEFORE the squash-land - a filtered test run is green while an unused import
+  rides into the landed commit. An unused `use HashSet` (only used via `.collect()`
+  type inference, never by name) landed and needed a follow-up sprout to remove.
+  20260716-215423.
+- `merge-red-check-preexisting` (x1): when merging the default branch surfaces a
+  red test, `git show <default>:<file>` the failing test FIRST to decide whether
+  your change caused it or you inherited it - turns "did I break this?" into a
+  definite answer. Here two shipped-id fixtures (`demo`) were already red on
+  master from a parallel task's rename; fixed as merge integration (naming the
+  source task) rather than mis-blamed on this branch. 20260716-215423.
 - `truncated-sweep-is-not-a-sweep` (x3, -> Pending promotions): a grep sweep
   that feeds a work checklist must never be head-truncated - one audit's
   `| head` sweeps hid a third assertion (one failed run), a whole extra file

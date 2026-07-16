@@ -1,6 +1,6 @@
 # Cross-mod resource refs: reference a declared dependency's shipped resources
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 46
 - TAGS: v0.7.0,modding,feature,assets,spike
 

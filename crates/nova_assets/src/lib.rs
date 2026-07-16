@@ -1511,8 +1511,6 @@ pub mod lint_walk {
 
     #[cfg(test)]
     mod tests {
-        use std::collections::HashSet;
-
         use nova_gameplay::prelude::AssetRef;
         use nova_mod_format::{BundleManifest, ModMeta};
         use nova_modding::prelude::Content;
