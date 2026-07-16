@@ -173,6 +173,11 @@ pub struct RadarState {
     /// steady under the ray. Reaches the per-target dwell
     /// ([`lock_dwell_secs`]) before the slot commits.
     pub dwell_secs: f32,
+    /// The dwell (seconds) the current [`dwell_target`](Self::dwell_target)
+    /// needs to commit - the live [`lock_dwell_secs`] for its distance, cached
+    /// each charging frame so the ring HUD (20260717-004302) renders the fill
+    /// without recomputing the distance curve. `0.0` when not dwelling.
+    pub dwell_needed: f32,
 }
 
 impl RadarState {
@@ -184,6 +189,20 @@ impl RadarState {
             return 1.0;
         }
         (self.dwell_secs / needed).clamp(0.0, 1.0)
+    }
+
+    /// The ring fill against the cached [`dwell_needed`](Self::dwell_needed).
+    pub fn dwell_fill(&self) -> f32 {
+        self.dwell_fraction(self.dwell_needed)
+    }
+
+    /// Whether an acquisition dwell is actively CHARGING (a pending candidate
+    /// whose dwell has not yet completed) - i.e. the ring should be shown.
+    /// False once the dwell completes (the commit) or when nothing is pending.
+    pub fn is_dwelling(&self) -> bool {
+        self.dwell_target.is_some()
+            && self.dwell_needed > 0.0
+            && self.dwell_secs < self.dwell_needed
     }
 }
 
@@ -773,6 +792,7 @@ fn update_radar_search(
             // dwell; the committed lock keeps-last (nothing new commits).
             radar.dwell_target = None;
             radar.dwell_secs = 0.0;
+            radar.dwell_needed = 0.0;
             continue;
         };
 
@@ -795,6 +815,8 @@ fn update_radar_search(
             .map_or(0.0, |(_, position, ..)| position.distance(origin));
         // 1.0 = the stealth/aspect extension seam (no such mechanic yet).
         let needed = lock_dwell_secs(distance, 1.0, &settings);
+        // Cache it for the ring HUD's fill (20260717-004302).
+        radar.dwell_needed = needed;
         if radar.dwell_secs < needed {
             // Still charging: the ring fills, but nothing commits and the
             // previous lock (if any) holds under the sweep.
@@ -2984,7 +3006,12 @@ mod tests {
             Some(ahead),
             "the dwell is charging on it"
         );
-        let fraction = radar.dwell_fraction(1.0);
+        assert!(
+            (radar.dwell_needed - 1.0).abs() < 1e-6,
+            "the needed dwell is cached for the ring HUD"
+        );
+        assert!(radar.is_dwelling(), "an active dwell reads as dwelling");
+        let fraction = radar.dwell_fill();
         assert!(
             fraction > 0.0 && fraction < 1.0,
             "the ring is partway (fraction {fraction})"
@@ -3013,6 +3040,10 @@ mod tests {
             app.world().resource::<AcquiredCueCount>().0,
             1,
             "the acquire cue fires at the snap, once"
+        );
+        assert!(
+            !radar_of(&app, ship).is_dwelling(),
+            "a completed dwell no longer reads as dwelling (the ring hides)"
         );
     }
 

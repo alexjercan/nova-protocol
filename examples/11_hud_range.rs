@@ -80,6 +80,18 @@ fn main() {
 fn custom_plugin(app: &mut App) {
     #[cfg(feature = "debug")]
     app.init_resource::<HudRangeScript>();
+    // Deterministic acquisition dwell for the scripted run (20260708-165703):
+    // a short, distance-flat 0.2 s so the live gesture commits the lock at a
+    // predictable time (~+1.0 s) that the downstream stages are timed against,
+    // rather than the distance-scaled default. The interactive run keeps the
+    // real feel.
+    #[cfg(feature = "debug")]
+    app.insert_resource(TargetingSettings {
+        lock_dwell_base: 0.2,
+        lock_dwell_range_factor: 0.0,
+        lock_dwell_min: 0.0,
+        ..default()
+    });
     app.add_systems(OnEnter(GameAssetsStates::Loaded), setup_range);
 }
 
@@ -92,6 +104,8 @@ struct HudRangeScript {
     radar_held: bool,
     committed_lock: bool,
     asserted_meter: bool,
+    injected_ring: bool,
+    asserted_ring: bool,
     asserted_lock: bool,
     engaged_goto: bool,
     pinned_component: bool,
@@ -304,8 +318,8 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
     if elapsed > 7.5 && !world.resource::<HudRangeScript>().done {
         let script = world.resource::<HudRangeScript>();
         panic!(
-            "hud range: the scripted run never finished (lock={} goto={} drop={})",
-            script.asserted_lock, script.asserted_goto, script.done
+            "hud range: the scripted run never finished (ring={} lock={} goto={} drop={})",
+            script.asserted_ring, script.asserted_lock, script.asserted_goto, script.done
         );
     }
     if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
@@ -480,7 +494,92 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
             markers, 0,
             "hud range: component markers appeared before the dwell completed"
         );
-        info!("hud range: focus meter OK (fill {fill_percent:.0}%)");
+        // The acquisition dwell ring (20260717-004302) only shows while a
+        // gesture is CHARGING a lock; the lock committed and the gesture
+        // released back at ~+1.1, so the ring must be hidden now, not lingering
+        // over the settled lock.
+        let ring_visibility = *world
+            .query_filtered::<&Visibility, With<LockDwellRingMarker>>()
+            .iter(world)
+            .next()
+            .expect("hud range: no lock-dwell ring node");
+        assert_eq!(
+            ring_visibility,
+            Visibility::Hidden,
+            "hud range: the dwell ring lingered after the lock settled"
+        );
+        info!("hud range: focus meter OK (fill {fill_percent:.0}%), dwell ring hidden");
+    }
+
+    // Acquisition ring, injected check (20260717-004302). The gesture released
+    // at ~+1.1, so there is no live RadarState to catch mid-charge; drive one
+    // directly - a dwell half-charged on the still-on-screen target. The hold
+    // is NOT fired, so update_radar_search leaves the injected dwell fields
+    // untouched, and the ring driver + screen-indicator widget project and
+    // fill the real UiMaterial ring.
+    if t > 2.0 && !world.resource::<HudRangeScript>().injected_ring {
+        world.resource_mut::<HudRangeScript>().injected_ring = true;
+        let player = player_root(world);
+        let target = target_root(world).expect("hud range: target gone before the ring check");
+        // Pre-condition: nothing charging, so the ring is hidden right now.
+        let ring_visibility = *world
+            .query_filtered::<&Visibility, With<LockDwellRingMarker>>()
+            .iter(world)
+            .next()
+            .expect("hud range: no lock-dwell ring node");
+        assert_eq!(
+            ring_visibility,
+            Visibility::Hidden,
+            "hud range: the ring is shown with no dwell charging"
+        );
+        world.entity_mut(player).insert(RadarState {
+            engaged: Some(RadarSlot::Combat),
+            candidate: Some(target),
+            dwell_target: Some(target),
+            dwell_secs: 0.5,
+            dwell_needed: 1.0,
+            ..default()
+        });
+        info!("hud range: injected a half-charged dwell for the ring check");
+    }
+
+    if t > 2.4 && !world.resource::<HudRangeScript>().asserted_ring {
+        use bevy::ui_render::prelude::MaterialNode;
+        world.resource_mut::<HudRangeScript>().asserted_ring = true;
+
+        // The driver + widget have run: the ring now rides the pending target,
+        // visible and half-filled.
+        let ring_visibility = *world
+            .query_filtered::<&Visibility, With<LockDwellRingMarker>>()
+            .iter(world)
+            .next()
+            .expect("hud range: no lock-dwell ring node");
+        assert_eq!(
+            ring_visibility,
+            Visibility::Visible,
+            "hud range: the dwell ring is not visible while a dwell charges"
+        );
+        let handle = world
+            .query_filtered::<&MaterialNode<LockDwellRingMaterial>, With<LockDwellRingMarker>>()
+            .iter(world)
+            .next()
+            .expect("hud range: the ring has no material node")
+            .0
+            .clone();
+        let progress = world
+            .resource::<Assets<LockDwellRingMaterial>>()
+            .get(&handle)
+            .expect("hud range: the ring material is missing")
+            .data
+            .progress;
+        assert!(
+            (progress - 0.5).abs() < 0.05,
+            "hud range: ring fill {progress:.2} is not the injected ~0.5 dwell fraction"
+        );
+        // Clean up so the downstream kill stage sees no stray RadarState.
+        let player = player_root(world);
+        world.entity_mut(player).remove::<RadarState>();
+        info!("hud range: dwell ring visible + filled OK (progress {progress:.2})");
     }
 
     if t > 2.9 && !asserted_lock {

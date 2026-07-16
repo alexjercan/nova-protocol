@@ -12,6 +12,7 @@ pub mod holo_instruments;
 pub mod item_highlights;
 pub mod keybind_hints;
 pub mod lock_crosshairs;
+pub mod lock_dwell_ring;
 pub mod maneuver_instruments;
 pub mod objective_feedback;
 pub mod objective_markers;
@@ -26,7 +27,7 @@ pub mod prelude {
         ammo_readout::prelude::*, beacon_chips::prelude::*, comms_panel::prelude::*,
         component_lock::prelude::*, edge_indicators::prelude::*, flight_status::prelude::*,
         holo_instruments::prelude::*, item_highlights::prelude::*, keybind_hints::prelude::*,
-        lock_crosshairs::prelude::*, maneuver_instruments::prelude::*,
+        lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*, maneuver_instruments::prelude::*,
         objective_feedback::prelude::*, objective_markers::prelude::*,
         screen_indicator::prelude::*, target_inset::prelude::*, torpedo_target::prelude::*,
         turret_lead::prelude::*, velocity::prelude::*, HudSelfDrivenVisibility, HudTier,
@@ -169,6 +170,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(turret_lead::TurretLeadPlugin);
         app.add_plugins(ammo_readout::AmmoReadoutPlugin);
         app.add_plugins(component_lock::ComponentLockHudPlugin);
+        app.add_plugins(lock_dwell_ring::LockDwellRingHudPlugin);
         app.add_plugins(lock_crosshairs::LockCrosshairsHudPlugin);
         app.add_plugins(target_inset::TargetInsetHudPlugin);
         app.add_plugins(edge_indicators::EdgeIndicatorsHudPlugin);
@@ -216,6 +218,8 @@ impl Plugin for NovaHudPlugin {
         app.add_observer(remove_hud_ammo_readout);
         app.add_observer(setup_hud_component_lock);
         app.add_observer(remove_hud_component_lock);
+        app.add_observer(setup_hud_lock_dwell_ring);
+        app.add_observer(remove_hud_lock_dwell_ring);
         app.add_observer(setup_hud_lock_crosshairs);
         app.add_observer(remove_hud_lock_crosshairs);
         app.add_observer(setup_hud_target_inset);
@@ -631,6 +635,40 @@ fn remove_hud_component_lock(
 ) {
     let entity = remove.entity;
     debug!("remove_hud_component_lock: entity {:?}", entity);
+
+    for hud_entity in &q_hud {
+        commands.entity(hud_entity).despawn();
+    }
+}
+
+fn setup_hud_lock_dwell_ring(
+    add: On<Add, PlayerSpaceshipMarker>,
+    mut commands: Commands,
+    q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    mut materials: ResMut<Assets<LockDwellRingMaterial>>,
+) {
+    let entity = add.entity;
+    debug!("setup_hud_lock_dwell_ring: entity {:?}", entity);
+
+    if q_spaceship.get(entity).is_err() {
+        error!(
+            "setup_hud_lock_dwell_ring: entity {:?} not found in q_spaceship",
+            entity
+        );
+        return;
+    }
+
+    let material = materials.add(LockDwellRingMaterial::default());
+    commands.spawn((HudTier::Chrome, lock_dwell_ring_hud(material)));
+}
+
+fn remove_hud_lock_dwell_ring(
+    remove: On<Remove, PlayerSpaceshipMarker>,
+    mut commands: Commands,
+    q_hud: Query<Entity, With<LockDwellRingHudMarker>>,
+) {
+    let entity = remove.entity;
+    debug!("remove_hud_lock_dwell_ring: entity {:?}", entity);
 
     for hud_entity in &q_hud {
         commands.entity(hud_entity).despawn();
