@@ -9,6 +9,8 @@
         "scenarios/broadside.content.ron",
         "scenarios/asteroid_next.content.ron",
         "scenarios/menu_ambience.content.ron",
+        "scenarios/menu_waystation.content.ron",
+        "scenarios/menu_scrapyard.content.ron",
         "scenarios/shakedown_run.content.ron",
     ],
     meta: (

@@ -161,6 +161,321 @@ pub(crate) fn menu_ambience(
     }
 }
 
+/// The shared backdrop stage: the camera-framing planetoid every menu
+/// backdrop must carry (id `menu_planetoid` - the contract
+/// `stage_menu_camera` frames by; see the scenario authoring guide). Same
+/// physique as menu_ambience's: nominal 20u, authored 6 u/s^2 surface
+/// gravity, invulnerable (the runtime well derives mu/SOI from the
+/// GEOMETRIC collider radius, observed ~80-91u across seeds).
+fn backdrop_planetoid(asteroid_texture: AssetRef<Image>) -> ScenarioObjectConfig {
+    ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: "menu_planetoid".to_string(),
+            name: "Menu Planetoid".to_string(),
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+            radius: 20.0,
+            texture: asteroid_texture,
+            health: 2000.0,
+            surface_gravity: Some(6.0),
+            invulnerable: true,
+            lock_signature: None,
+        }),
+    }
+}
+
+/// A small AI ship on the orbit directive around the backdrop planetoid -
+/// the proven menu actor (the ORBIT autopilot plans its ring from the
+/// well's runtime geometry). `extra_hull` adds a mid hull segment for a
+/// longer, hauler-ish silhouette. Never `SpaceshipController::Player`: the
+/// spaceship input sets are LIVE in MainMenu (see menu_ambience's warning).
+fn backdrop_orbiter(
+    id: &str,
+    name: &str,
+    position: Vec3,
+    extra_hull: bool,
+) -> ScenarioObjectConfig {
+    let mut sections = vec![SpaceshipSectionConfig {
+        id: "controller".to_string(),
+        position: Vec3::ZERO,
+        rotation: Quat::IDENTITY,
+        source: SectionSource::Prototype("basic_controller_section".to_string()),
+        modifications: vec![],
+    }];
+    let mut z = 1.0;
+    sections.push(SpaceshipSectionConfig {
+        id: "hull_front".to_string(),
+        position: Vec3::new(0.0, 0.0, z),
+        rotation: Quat::IDENTITY,
+        source: SectionSource::Prototype("reinforced_hull_section".to_string()),
+        modifications: vec![],
+    });
+    if extra_hull {
+        z += 1.0;
+        sections.push(SpaceshipSectionConfig {
+            id: "hull_mid".to_string(),
+            position: Vec3::new(0.0, 0.0, z),
+            rotation: Quat::IDENTITY,
+            source: SectionSource::Prototype("reinforced_hull_section".to_string()),
+            modifications: vec![],
+        });
+    }
+    z += 1.0;
+    sections.push(SpaceshipSectionConfig {
+        id: "thruster".to_string(),
+        position: Vec3::new(0.0, 0.0, z),
+        rotation: Quat::IDENTITY,
+        source: SectionSource::Prototype("basic_thruster_section".to_string()),
+        modifications: vec![],
+    });
+    ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: id.to_string(),
+            name: name.to_string(),
+            position,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            allegiance: None,
+            controller: SpaceshipController::AI(AIControllerConfig {
+                orbit: Some("menu_planetoid".to_string()),
+                ..Default::default()
+            }),
+            sections,
+        }),
+    }
+}
+
+/// A static dressing beacon (label + warm little light). Below the orbit
+/// plane and outside the planetoid's geometric radius, like everything
+/// else in a backdrop.
+fn backdrop_beacon(id: &str, label: &str, position: Vec3, color: Color) -> ScenarioObjectConfig {
+    ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: id.to_string(),
+            name: label.to_string(),
+            position,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Beacon(BeaconConfig {
+            label: label.to_string(),
+            radius: 2.0,
+            color,
+            area_radius: None,
+            lock_signature: None,
+        }),
+    }
+}
+
+/// Menu backdrop two (task 20260716-180352): a freight waystation going
+/// about its day. Two named haulers circle the planetoid in convoy
+/// (opposite phases on the same autopilot ring, so they chase and never
+/// meet), dock beacons glow below the lane, and a flat band of cargo rocks
+/// reads as the shipping lane. Same safety envelope as menu_ambience:
+/// everything static sits past the geometric radius and below the orbit
+/// plane.
+pub(crate) fn menu_waystation(
+    cubemap: AssetRef<Image>,
+    asteroid_texture: AssetRef<Image>,
+) -> ScenarioConfig {
+    let objects = vec![
+        backdrop_planetoid(asteroid_texture.clone()),
+        backdrop_orbiter(
+            "waystation_hauler_a",
+            "Hauler Biscuit",
+            Vec3::new(140.0, 0.0, 0.0),
+            true,
+        ),
+        backdrop_orbiter(
+            "waystation_hauler_b",
+            "Hauler Kettle",
+            Vec3::new(-140.0, 0.0, 0.0),
+            true,
+        ),
+        backdrop_beacon(
+            "waystation_dock_a",
+            "DOCK-A",
+            Vec3::new(170.0, -25.0, 60.0),
+            Color::srgb(1.0, 0.7, 0.2),
+        ),
+        backdrop_beacon(
+            "waystation_dock_b",
+            "DOCK-B",
+            Vec3::new(150.0, -30.0, -90.0),
+            Color::srgb(1.0, 0.7, 0.2),
+        ),
+        backdrop_beacon(
+            "waystation_traffic",
+            "TRAFFIC",
+            Vec3::new(-180.0, -20.0, 40.0),
+            Color::srgb(0.3, 0.9, 1.0),
+        ),
+    ];
+
+    // The shipping lane: a flatter, slightly denser band than menu_ambience's
+    // ring, same safety floor (inner past any plausible geometric radius,
+    // whole band below the orbit plane).
+    let lane_scatter = EventActionConfig::ScatterObjects(ScatterObjectsConfig {
+        id_prefix: "waystation_cargo_".to_string(),
+        count: 18,
+        seed: SCATTER_SEED ^ 0x1,
+        region: ScatterRegion::Ring {
+            inner: 180.0,
+            outer: 230.0,
+            y_min: -60.0,
+            y_max: -25.0,
+        },
+        template: ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: "waystation_cargo_".to_string(),
+                name: "Cargo Rock".to_string(),
+                position: Vec3::ZERO,
+                rotation: Quat::IDENTITY,
+            },
+            kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                radius: 1.0,
+                texture: asteroid_texture,
+                health: 100.0,
+                surface_gravity: None,
+                invulnerable: false,
+                lock_signature: None,
+            }),
+        },
+        asteroid_radius: Some((1.0, 2.5)),
+    });
+
+    let events = vec![ScenarioEventConfig {
+        name: EventConfig::OnStart,
+        filters: vec![],
+        actions: objects
+            .into_iter()
+            .map(EventActionConfig::SpawnScenarioObject)
+            .chain([lane_scatter])
+            .collect::<_>(),
+    }];
+
+    ScenarioConfig {
+        id: "menu_waystation".to_string(),
+        name: "Waystation Traffic".to_string(),
+        description: "A freight waystation going about its day.".to_string(),
+        cubemap,
+        hidden: true,
+        menu_backdrop: true,
+        events,
+        ..Default::default()
+    }
+}
+
+/// Menu backdrop three (task 20260716-180352): a quiet salvage yard. One
+/// lazy tug circles the planetoid, salvage crates tumble in a drifting band
+/// (crates are on-rails statics with a render-child tumble - zero physics
+/// risk), two big wreck rocks anchor the yard, and a single warm beacon
+/// marks it. Cozy, not busy.
+pub(crate) fn menu_scrapyard(
+    cubemap: AssetRef<Image>,
+    asteroid_texture: AssetRef<Image>,
+) -> ScenarioConfig {
+    let objects = vec![
+        backdrop_planetoid(asteroid_texture.clone()),
+        backdrop_orbiter(
+            "scrapyard_tug",
+            "Tug Pebble",
+            Vec3::new(0.0, 0.0, 140.0),
+            false,
+        ),
+        // Two derelict hulks: plain big rocks at fixed spots, breakable (they
+        // are dressing; nothing in the backdrop shoots).
+        ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: "scrapyard_wreck_a".to_string(),
+                name: "Wreck".to_string(),
+                position: Vec3::new(200.0, -18.0, 80.0),
+                rotation: Quat::IDENTITY,
+            },
+            kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                radius: 6.0,
+                texture: asteroid_texture.clone(),
+                health: 400.0,
+                surface_gravity: None,
+                invulnerable: false,
+                lock_signature: None,
+            }),
+        },
+        ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: "scrapyard_wreck_b".to_string(),
+                name: "Wreck".to_string(),
+                position: Vec3::new(-180.0, -30.0, -120.0),
+                rotation: Quat::IDENTITY,
+            },
+            kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                radius: 8.0,
+                texture: asteroid_texture.clone(),
+                health: 400.0,
+                surface_gravity: None,
+                invulnerable: false,
+                lock_signature: None,
+            }),
+        },
+        backdrop_beacon(
+            "scrapyard_marker",
+            "YARD",
+            Vec3::new(165.0, -12.0, -55.0),
+            Color::srgb(1.0, 0.55, 0.15),
+        ),
+    ];
+
+    // The drifting cargo: on-rails salvage crates (visual tumble, no
+    // physics), scattered in the same safe band as the rocks would be.
+    let crate_scatter = EventActionConfig::ScatterObjects(ScatterObjectsConfig {
+        id_prefix: "scrapyard_crate_".to_string(),
+        count: 10,
+        seed: SCATTER_SEED ^ 0x2,
+        region: ScatterRegion::Ring {
+            inner: 150.0,
+            outer: 210.0,
+            y_min: -50.0,
+            y_max: -10.0,
+        },
+        template: ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: "scrapyard_crate_".to_string(),
+                name: "Drifting Crate".to_string(),
+                position: Vec3::ZERO,
+                rotation: Quat::IDENTITY,
+            },
+            kind: ScenarioObjectKind::SalvageCrate(SalvageCrateConfig {
+                size: 2.0,
+                area_radius: 3.0,
+            }),
+        },
+        asteroid_radius: None,
+    });
+
+    let events = vec![ScenarioEventConfig {
+        name: EventConfig::OnStart,
+        filters: vec![],
+        actions: objects
+            .into_iter()
+            .map(EventActionConfig::SpawnScenarioObject)
+            .chain([crate_scatter])
+            .collect::<_>(),
+    }];
+
+    ScenarioConfig {
+        id: "menu_scrapyard".to_string(),
+        name: "Scrapyard Drift".to_string(),
+        description: "A quiet salvage yard tumbling in orbit.".to_string(),
+        cubemap,
+        hidden: true,
+        menu_backdrop: true,
+        events,
+        ..Default::default()
+    }
+}
+
 pub(crate) fn asteroid_field(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,

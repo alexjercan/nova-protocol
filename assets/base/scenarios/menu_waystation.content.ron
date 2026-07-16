@@ -1,0 +1,328 @@
+[
+    Scenario((
+        id: "menu_waystation",
+        name: "Waystation Traffic",
+        description: "A freight waystation going about its day.",
+        cubemap: "textures/cubemap.png",
+        hidden: true,
+        menu_backdrop: true,
+        events: [
+            (
+                name: OnStart,
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "menu_planetoid",
+                            name: "Menu Planetoid",
+                            position: (
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Asteroid((
+                            radius: 20.0,
+                            texture: "textures/asteroid.png",
+                            health: 2000.0,
+                            surface_gravity: Some(6.0),
+                            invulnerable: true,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_hauler_a",
+                            name: "Hauler Biscuit",
+                            position: (
+                                140.0,
+                                0.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            controller: AI((
+                                orbit: Some("menu_planetoid"),
+                            )),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "hull_mid",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        3.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_hauler_b",
+                            name: "Hauler Kettle",
+                            position: (
+                                -140.0,
+                                0.0,
+                                0.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Spaceship((
+                            controller: AI((
+                                orbit: Some("menu_planetoid"),
+                            )),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "hull_mid",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        3.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_dock_a",
+                            name: "DOCK-A",
+                            position: (
+                                170.0,
+                                -25.0,
+                                60.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Beacon((
+                            label: "DOCK-A",
+                            radius: 2.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.7,
+                                blue: 0.2,
+                                alpha: 1.0,
+                            )),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_dock_b",
+                            name: "DOCK-B",
+                            position: (
+                                150.0,
+                                -30.0,
+                                -90.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Beacon((
+                            label: "DOCK-B",
+                            radius: 2.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.7,
+                                blue: 0.2,
+                                alpha: 1.0,
+                            )),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "waystation_traffic",
+                            name: "TRAFFIC",
+                            position: (
+                                -180.0,
+                                -20.0,
+                                40.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Beacon((
+                            label: "TRAFFIC",
+                            radius: 2.0,
+                            color: Srgba((
+                                red: 0.3,
+                                green: 0.9,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                        )),
+                    )),
+                    ScatterObjects((
+                        id_prefix: "waystation_cargo_",
+                        count: 18,
+                        seed: 433757350076153857,
+                        region: Ring(
+                            inner: 180.0,
+                            outer: 230.0,
+                            y_min: -60.0,
+                            y_max: -25.0,
+                        ),
+                        template: (
+                            base: (
+                                id: "waystation_cargo_",
+                                name: "Cargo Rock",
+                                position: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                ),
+                                rotation: (
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    1.0,
+                                ),
+                            ),
+                            kind: Asteroid((
+                                radius: 1.0,
+                                texture: "textures/asteroid.png",
+                                health: 100.0,
+                                invulnerable: false,
+                            )),
+                        ),
+                        asteroid_radius: Some((
+                            1.0,
+                            2.5,
+                        )),
+                    )),
+                ],
+            ),
+        ],
+    )),
+]

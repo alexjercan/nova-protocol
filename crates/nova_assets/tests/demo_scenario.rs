@@ -365,6 +365,8 @@ fn catalog_loads_and_base_only_merges_by_default() {
         "asteroid_next",
         "broadside",
         "menu_ambience",
+        "menu_waystation",
+        "menu_scrapyard",
         "shakedown_run",
     ] {
         assert!(

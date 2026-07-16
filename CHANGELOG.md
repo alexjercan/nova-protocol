@@ -27,6 +27,7 @@ tagged **(breaking)**.
 ### Modding & Mod Portal
 
 - Scenarios gained a `menu_backdrop` flag: on every menu entry the game picks one flagged scenario at random, so mods can ship their own menu ambience scenes (the base backdrop is just the first of them). The New Game start moved from code into the base bundle's `new_game_scenario` declaration - honored only from the base game, so mods cannot redirect it.
+- Two new menu backdrops join the rotation: Waystation Traffic (a hauler convoy circling a freight stop under amber dock lights) and Scrapyard Drift (a quiet salvage yard - drifting crates, two wrecks and a lone tug).
 
 ### Internals & Tooling
 
