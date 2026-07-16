@@ -305,7 +305,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   `git status` for related generated files before committing. 20260714-113408.
   (In an isolated sprout worktree, `git add -A` is the safe fix - it caught
   everything in 20260714-113411, no recurrence.)
-- `pin-the-fix-at-its-boundary` (x3, -> Pending promotions): guard a bug fix with a
+- `pin-the-fix-at-its-boundary` (x4, -> Pending promotions): guard a bug fix with a
   test that fails under the bug at the fix's OWN boundary (a unit test), not only a
   downstream e2e - especially when the existing unit test passes under the bug (the
   DisableVerb multi-verb accumulation was only e2e-guarded). Refactor variant: when a
@@ -313,7 +313,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   mechanism - don't massage the old assertion until it passes. Overlay variant: the
   section-overlay-by-id bug was invisible with one bundle (no id collision); extract
   the overlay into a pure helper and unit-pin last-wins so the divergence can't hide
-  until a second bundle exists. 20260714-113411, 20260714-135642, 20260714-134119.
+  until a second bundle exists. Decision-function variant: when you change a pure
+  decision/predicate's contract, grep its table-test callers FIRST and re-pin
+  the table on the new contract in the same edit, so the fail-first is planned
+  not discovered (advance_decision_table asserted decide_advance's old
+  paused=Ignore rule). 20260714-113411, 20260714-135642, 20260714-134119,
+  20260716-214919.
 - `shared-id-space-shared-overlay` (x1): when one router dispatches into multiple
   containers that share an id space (a Vec of sections + a map of scenarios), route
   through ONE overlay helper so the kinds can't silently diverge (Vec push/first-wins
@@ -408,9 +413,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   gate (see tasks/20260709-193338/NOTES.md).
 - `quat-angle-noise-floor` (x1): f32 quat angle_between floors around 1e-3 rad;
   assert an order above it or compare components. 20260711-140241.
-- `audit-state-gates-on-new-entry-path` (x2): a new route into a state needs a
-  workspace grep of run_if/in_state and a written what-newly-runs list per
-  context. 20260711-180426, 20260711-212519.
+- `audit-state-gates-on-new-entry-path` (x3, -> Pending promotions): a new route
+  into a state needs a workspace grep of run_if/in_state (and OnEnter/OnExit)
+  and a written what-newly-runs list per context - a new entry into
+  `PauseStates::Paused` (the outcome frame) had to enumerate setup_pause_ui,
+  the ESC toggle, decide_advance, the clocks and the cursor guards.
+  20260711-180426, 20260711-212519, 20260716-214919.
 - `bound-scheduling-both-sides` (x1): a system inserted between a producer and
   a same-schedule reader needs both .after(producer) and .before(downstream).
   20260711-180501.
@@ -421,7 +429,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   mechanism deleted proves nothing; copied tests inherit vacuousness - and a
   sabotage that refuses to go red refutes the assumed mechanism itself.
   20260711-180426, 20260711-212521, 20260712-115902.
-- `out-of-context-review-pass` (positive, x25): a fresh-context review of a
+- `out-of-context-review-pass` (positive, x26): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
   load-bearing claims instead of trusting them - checking cited evidence IS
   the spawn site, re-running the sabotage or the whole smoke suite, reading
@@ -432,7 +440,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   overclaim, and re-deriving a course's geometric invariants from raw RON with
   its own script to surface a load-bearing dependency override. 20260712-133343,
   20260711-183417, 20260712-115902, 20260715-142900, 20260715-142931,
-  20260716-125856, 20260708-203659, 20260716-162701, 20260716-124722.
+  20260716-125856, 20260708-203659, 20260716-162701, 20260716-124722, 20260716-214919.
 - `required-component-in-shared-query` (x2): a required fetch added to an
   existing query narrows its membership and every gate computed from it; fetch
   `Option<&T>` or use a separate query. New `Res<T>` params also panic every
@@ -750,11 +758,19 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   `tatr new` calls in the same second or one bash line - they share a
   second-resolution ID and the later silently overwrites the earlier. One `tatr
   new` per tool invocation.
-- `pin-the-fix-at-its-boundary` (x3) -> review/work skill: guard a bug fix with a
+- `pin-the-fix-at-its-boundary` (x4) -> review/work skill: guard a bug fix with a
   test that fails under the bug at the fix's OWN boundary (unit test), not only a
   downstream e2e; when a refactor changes how an invariant is enforced, re-pin the
-  invariant on the new mechanism rather than massaging the old assertion. See the
-  main-list entry for the three variants. 20260714-113411, -135642, -134119.
+  invariant on the new mechanism rather than massaging the old assertion (grep a
+  changed decision-function's table-test callers first). See the main-list entry
+  for the variants. 20260714-113411, -135642, -134119, 20260716-214919.
+- `audit-state-gates-on-new-entry-path` (x3) -> review/plan skill: a new route
+  into a state (a new setter of a `States`) needs a workspace grep of
+  run_if/in_state + OnEnter/OnExit and a written what-newly-runs list per
+  context; the outcome frame's new entry into `PauseStates::Paused` had to
+  account for setup_pause_ui, the ESC toggle, decide_advance, the clocks and
+  the cursor guards. See the main-list entry. 20260711-180426, 20260711-212519,
+  20260716-214919.
 - `verify-engine-guarantees-in-source` (x3) -> work/plan skill: read the
   engine/dependency source (or write a tiny probe) before designing around its
   behavior - ordering guarantees, observer semantics, and panic-on-precondition
