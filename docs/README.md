@@ -34,12 +34,6 @@ the code they describe changes:
   starting work; /compound appends to it.
 - [plans/](plans/README.md) - long-form plans spanning multiple tasks (release
   scopes, roadmaps, process proposals).
-- [modding-perf-report.md](modding-perf-report.md) - a task-scoped performance
-  writeup (the modding scenario-dispatch measure-before-optimizing gate).
-- [bevy-0.19-migration.md](bevy-0.19-migration.md) - historical: the API changes
-  and runtime regressions worked through moving from Bevy 0.17 to 0.19; kept here
-  as a one-off record rather than a living reference page. Useful for the next
-  engine upgrade.
 
 ## Where records go
 

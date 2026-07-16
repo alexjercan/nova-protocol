@@ -22,7 +22,7 @@ Framed as insurance for large community mods, not for today's built-ins.
 ## Verdict after the benchmark (20260715, branch `modding-perf`): DEFER, measured
 
 The benchmark ran; neither half is justified at realistic event rates. See
-`docs/modding-perf-report.md` (Decisions #3) for the numbers. Summary:
+`tasks/20260714-083331/modding-perf-report.md` (Decisions #3) for the numbers. Summary:
 
 - Condition eval measures **26 ns** for a trivial `var > literal`. In today's
   content expression filters live on `OnUpdate` (once per frame), so cost is

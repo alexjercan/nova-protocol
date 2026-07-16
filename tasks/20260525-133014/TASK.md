@@ -23,7 +23,7 @@ The benchmark answered the open question: the win is upstream, in
 `bevy-common-systems`' dispatch loop, not on nova's side. Implemented there and
 pushed to bcs `master` (`4c81117`): `EventHandlerIndex<W>` of contiguous handler
 snapshots + `maintain_handler_index` + snapshot-driven `queue_system`. See
-`docs/modding-perf-report.md`.
+`tasks/20260714-083331/modding-perf-report.md`.
 
 Measured -17-24% on burst dispatch (many events in one frame) at 500-5000
 handlers, neutral at 1 event/frame. Two dispatch correctness tests upstream; all

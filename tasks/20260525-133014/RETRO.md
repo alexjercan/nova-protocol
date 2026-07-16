@@ -5,7 +5,7 @@
 - REVIEW ROUNDS: 1 (APPROVE)
 
 Process notes only; the what/why/numbers live in TASK.md and
-`docs/modding-perf-report.md`.
+`tasks/20260714-083331/modding-perf-report.md`.
 
 ## What went well
 

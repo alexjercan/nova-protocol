@@ -36,7 +36,7 @@ No BLOCKER or MAJOR findings. The MINORs below are about benchmark rigor and the
 honesty of the deferral rationale, not correctness; they are left to the
 implementer's discretion and do not block.
 
-- [x] R1.1 (MINOR) docs/modding-perf-report.md:89-94 - the headline snapshot-vs-
+- [x] R1.1 (MINOR) tasks/20260714-083331/modding-perf-report.md:89-94 - the headline snapshot-vs-
   baseline batch deltas (-17-24%) compare a baseline measured with criterion's
   default window (3s/5s) against a snapshot run measured with `--measurement-time
   2.5 --warm-up-time 1`. Means are window-independent in expectation and the
@@ -51,7 +51,7 @@ implementer's discretion and do not block.
     an order of magnitude above the window noise - not worth the churn. Left as
     a documented caveat, not re-run.
 
-- [x] R1.2 (MINOR) docs/modding-perf-report.md:135-140 and
+- [x] R1.2 (MINOR) tasks/20260714-083331/modding-perf-report.md:135-140 and
   tasks/20260714-083339/TASK.md - "expression filters live on OnUpdate, which
   fires once per frame and cannot burst" overstates. `EventFilterConfig::Expression`
   can be attached to *any* event's handler, including bursty discrete events

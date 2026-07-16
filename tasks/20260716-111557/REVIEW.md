@@ -33,6 +33,6 @@ Nits (one applied, one intentionally left):
   read anachronistically post-merge (devlogs are retired into News). Reworded to
   "This news feed and the game's new web home start here...".
 - [ ] R1.2 (NIT) web/src/news/0.6.0.md - drops the bevy-common-systems rev hash,
-  the `cargo bench` invocation, and docs/modding-perf-report.md that CHANGELOG
+  the `cargo bench` invocation, and tasks/20260714-083331/modding-perf-report.md that CHANGELOG
   carries. Intentional narrative-vs-reference trimming; the footer points to
   CHANGELOG.md for exhaustive detail. Left as-is by design.

@@ -14,7 +14,7 @@ expanded posts against CHANGELOG.md and the pre-merge devlog/release pages (git
 Confirmed clean:
 - FABRICATION: no BLOCKER/MAJOR. Every named number, file path, API/event/action
   name, crate rev, and mechanism traces to a source. 0.6.0's added specifics
-  (rev 4c81117, the cargo bench command, docs/modding-perf-report.md, the two
+  (rev 4c81117, the cargo bench command, tasks/20260714-083331/modding-perf-report.md, the two
   deferred optimizations, 17-24% / 500-5000) all exact. 0.4.0's (550m, 2km->20km,
   max_torque 100->40, the five AI states, the example ranges) all supported. The
   heavily-expanded 0.1.0-0.3.0 (tiny CHANGELOG stubs) trace to the devlogs; the

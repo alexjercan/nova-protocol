@@ -1,8 +1,8 @@
 # Optional: news-fragment changelog authoring pipeline (changelog_entries/ + release compile + CI nag)
 
 - STATUS: OPEN
-- PRIORITY: 30
-- TAGS: spike,docs,tooling
+- PRIORITY: 0
+- TAGS: backlog,spike,docs,tooling
 
 ## Goal
 
