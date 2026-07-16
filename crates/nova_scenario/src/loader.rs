@@ -538,8 +538,23 @@ fn teardown_scenario_entities(
     world: &mut NovaEventWorld,
     emphasis: Option<&mut HintEmphasis>,
     outcome: Option<&mut CurrentOutcome>,
+    objectives: Option<&mut GameObjectives>,
 ) {
     world.clear();
+    // The objectives HUD mirror dies with the scenario too (same reset class as
+    // the event world / emphasis / outcome above). The panel rides the player
+    // ship, so it is despawned and rebuilt EMPTY on every (re)load, and bcs only
+    // repaints it when `GameObjectives` is `resource_changed`. Without this reset,
+    // restarting the SAME scenario re-posts identical objectives, the write-on-diff
+    // sync (`state_to_world_system`) sees no change, the resource never re-flags,
+    // and the fresh panel stays blank - the objective still works but its text is
+    // gone (task 20260716-214338). Guarded so an already-empty mirror is not
+    // spuriously re-flagged (mirrors the sync's write-on-diff discipline).
+    if let Some(objectives) = objectives {
+        if !objectives.objectives.is_empty() {
+            objectives.objectives.clear();
+        }
+    }
     // Scenario-driven HUD emphasis dies with the scenario: a leaked
     // emphasis would pulse a verb row into the next scenario (or the
     // menu's death gap) with nothing left to clear it - the same reset
@@ -567,6 +582,7 @@ fn unload_scenario(
     mut world: ResMut<NovaEventWorld>,
     mut emphasis: Option<ResMut<HintEmphasis>>,
     mut outcome: Option<ResMut<CurrentOutcome>>,
+    mut objectives: Option<ResMut<GameObjectives>>,
 ) {
     teardown_scenario_entities(
         &mut commands,
@@ -574,6 +590,7 @@ fn unload_scenario(
         &mut world,
         emphasis.as_deref_mut(),
         outcome.as_deref_mut(),
+        objectives.as_deref_mut(),
     );
     **current_scenario = None;
 }
@@ -586,6 +603,7 @@ fn on_load_scenario(
     mut world: ResMut<NovaEventWorld>,
     mut emphasis: Option<ResMut<HintEmphasis>>,
     mut outcome: Option<ResMut<CurrentOutcome>>,
+    mut objectives: Option<ResMut<GameObjectives>>,
     asset_server: Res<AssetServer>,
     issues: Option<Res<ContentIssues>>,
     mut failure: Option<ResMut<ScenarioStartFailure>>,
@@ -627,6 +645,7 @@ fn on_load_scenario(
         &mut world,
         emphasis.as_deref_mut(),
         outcome.as_deref_mut(),
+        objectives.as_deref_mut(),
     );
 
     let scenario = (**load).clone();
@@ -1201,6 +1220,86 @@ mod tests {
         assert!(
             app.world().resource::<HintEmphasis>().is_empty(),
             "unloading the scenario drops every emphasis"
+        );
+    }
+
+    /// Restarting the SAME scenario must re-show its objective text. The
+    /// objectives panel is despawned+respawned on every (re)load (it rides the
+    /// player ship), and bevy_common_systems repaints its lines only when
+    /// `GameObjectives` is `resource_changed` (see
+    /// `world::tests::unchanged_objectives_do_not_flag_the_resource`). A restart
+    /// re-posts IDENTICAL objectives, so unless teardown resets `GameObjectives`
+    /// the write-on-diff sync sees no change, never re-flags the resource, and
+    /// the freshly-spawned panel stays blank - the objective still works, but
+    /// its text is gone (the reported UI bug). Teardown must reset the objectives
+    /// mirror, the same reset class as the event world / emphasis / outcome.
+    ///
+    /// Driven through the real load path (on_load_scenario fires OnStart, whose
+    /// Objective action posts through the event pipeline into `GameObjectives`);
+    /// the repaint proxy counts `resource_changed::<GameObjectives>` the way the
+    /// bcs panel does.
+    #[test]
+    fn objective_text_repaints_after_restarting_the_same_scenario() {
+        use bevy_common_systems::prelude::{GameEventsPlugin, GameObjectives};
+
+        #[derive(Resource, Default)]
+        struct ObjectiveRepaints(usize);
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+        app.init_asset::<Image>();
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<CurrentScenario>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<ObjectiveRepaints>();
+        app.add_observer(on_load_scenario);
+        app.add_systems(
+            Update,
+            (|mut n: ResMut<ObjectiveRepaints>| n.0 += 1)
+                .run_if(resource_changed::<GameObjectives>),
+        );
+
+        let scenario = scenario_with(
+            "arena",
+            vec![event_with(vec![EventActionConfig::Objective(
+                ObjectiveActionConfig::new("clear_arena", "Destroy the three derelict rocks."),
+            )])],
+        );
+
+        // Fresh load: the OnStart objective syncs into GameObjectives and paints.
+        app.world_mut().trigger(LoadScenario(scenario.clone()));
+        for _ in 0..8 {
+            app.update();
+        }
+        assert_eq!(
+            app.world().resource::<GameObjectives>().objectives.len(),
+            1,
+            "delivery guard: a fresh load posts the objective"
+        );
+        let painted_on_fresh = app.world().resource::<ObjectiveRepaints>().0;
+        assert!(
+            painted_on_fresh >= 1,
+            "delivery guard: the fresh load repainted the objectives panel"
+        );
+
+        // Restart the same scenario: the panel is rebuilt, so it must repaint
+        // from the (identical) objective - or it stays blank.
+        app.world_mut().trigger(LoadScenario(scenario));
+        for _ in 0..8 {
+            app.update();
+        }
+        assert_eq!(
+            app.world().resource::<GameObjectives>().objectives.len(),
+            1,
+            "the objective is active again after the restart"
+        );
+        let painted_on_restart = app.world().resource::<ObjectiveRepaints>().0;
+        assert!(
+            painted_on_restart > painted_on_fresh,
+            "restarting the same scenario must repaint the objective panel; a \
+             teardown that leaves GameObjectives stale makes the identical re-post \
+             a no-op and the panel stays blank ({painted_on_fresh} -> {painted_on_restart})"
         );
     }
 

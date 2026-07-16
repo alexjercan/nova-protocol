@@ -1,9 +1,8 @@
 # Bug: objective text missing after restarting a level (UI-only; objective still achievable)
 
-- STATUS: OPEN
+- STATUS: IN_PROGRESS
 - PRIORITY: 52
-- TAGS: v0.7.0,bug,hud,ui,objective
-
+- TAGS: v0.7.0, bug, hud, ui, objective
 
 ## Symptom
 
@@ -42,3 +41,21 @@ Reported by user 2026-07-16 during playtest.
 
 - Related surfaces: pause-menu Retry and the scenario outcome frame
   (20260716-125856), the objective HUD/markers (objective_markers).
+
+## FIXED (fix/objective-text-restart)
+
+Root cause CONFIRMED by a fail-first repro (loader.rs
+`objective_text_repaints_after_restarting_the_same_scenario`, was 2->2 repaints):
+the objectives panel rides the player ship, so it is despawned + rebuilt EMPTY on
+every (re)load, and bevy_common_systems repaints it only on
+`resource_changed::<GameObjectives>`. `teardown_scenario_entities` reset the event
+world / emphasis / outcome but NOT `GameObjectives`, so restarting the SAME
+scenario re-posted identical objectives, the write-on-diff sync saw no change, the
+resource never re-flagged, and the fresh panel stayed blank (objective still
+worked - UI only, exactly as reported).
+
+Fix: `teardown_scenario_entities` now resets `GameObjectives` too (guarded against
+a spurious re-flag when already empty), the same reset class as the event world /
+emphasis / outcome. Covers both restart paths (pause Retry and outcome Retry -
+both funnel through `LoadScenario` -> `on_load_scenario` -> teardown). Regression
+pinned by the repro test; full nova_scenario lib suite green.
