@@ -253,12 +253,12 @@ mod tests {
         let catalog = PortalCatalog {
             schema_version: PORTAL_SCHEMA_VERSION,
             entries: vec![PortalEntry {
-                id: "gauntlet".to_string(),
+                id: "fixture_pack".to_string(),
                 version: "1.0.0".to_string(),
-                bundle: "gauntlet.bundle.ron".to_string(),
+                bundle: "fixture_pack.bundle.ron".to_string(),
                 meta: ModMeta {
-                    name: "Gauntlet".to_string(),
-                    description: "a combat gauntlet".to_string(),
+                    name: "Fixture Pack".to_string(),
+                    description: "a synthetic fixture pack".to_string(),
                     author: "someone".to_string(),
                     version: "1.0.0".to_string(),
                     dependencies: vec![],
@@ -266,7 +266,7 @@ mod tests {
                     screenshots: vec![],
                 },
                 files: vec![PortalFile {
-                    path: "gauntlet.bundle.ron".to_string(),
+                    path: "fixture_pack.bundle.ron".to_string(),
                     size: 123,
                     sha256: "ab".repeat(32),
                 }],
@@ -278,10 +278,10 @@ mod tests {
         assert_eq!(back.schema_version, PORTAL_SCHEMA_VERSION);
         assert_eq!(back.entries.len(), 1);
         let entry = &back.entries[0];
-        assert_eq!(entry.id, "gauntlet");
+        assert_eq!(entry.id, "fixture_pack");
         assert_eq!(entry.version, "1.0.0");
-        assert_eq!(entry.bundle, "gauntlet.bundle.ron");
-        assert_eq!(entry.meta.name, "Gauntlet");
+        assert_eq!(entry.bundle, "fixture_pack.bundle.ron");
+        assert_eq!(entry.meta.name, "Fixture Pack");
         assert_eq!(entry.files, catalog.entries[0].files);
         assert_eq!(entry.total_size, 123);
     }

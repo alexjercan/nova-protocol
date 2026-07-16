@@ -7,11 +7,12 @@
 //! observers, channel and poll system; `register_mods_source`; the real merge
 //! condition):
 //!
-//! - THE REAL WIRE: `nova_portal_gen::generate` builds a portal tree from the
-//!   REAL `webmods/` sources, `tiny_http` serves it on localhost, and the
-//!   REAL `EhttpTransport` fetches it - catalog to `RemoteCatalog::Ready`,
-//!   install to cached files + a `DownloadedMods` record, enable to
-//!   `gauntlet_run` in `GameScenarios`, uninstall all the way back out
+//! - THE REAL WIRE: `nova_portal_gen::generate` builds a portal tree from a
+//!   synthetic fixture source (no real mod named - task 20260716-155839),
+//!   `tiny_http` serves it on localhost, and the REAL `EhttpTransport`
+//!   fetches it - catalog to `RemoteCatalog::Ready`, install to cached files
+//!   + a `DownloadedMods` record, enable to the fixture's scenario in
+//!   `GameScenarios`, uninstall all the way back out
 //!   (including the `EnabledMods` strip that resolves 142906's R1.7).
 //! - FAILURE INJECTION: a mock `PortalTransport` serves corrupted/truncated
 //!   bodies, unknown schema versions and mid-install transport errors; every
@@ -237,18 +238,51 @@ fn assert_nothing_committed(app: &App, guard: &CacheRootGuard, id: &str, paths: 
 // EhttpTransport.
 // ---------------------------------------------------------------------------
 
-/// The real gauntlet mod's files, read from the repo `webmods/` source - the
-/// same bytes the portal serves, for byte-identity assertions after install.
-fn gauntlet_files() -> Vec<(String, Vec<u8>)> {
-    let dir = Path::new("../../webmods/gauntlet");
-    let mut files = Vec::new();
-    for entry in std::fs::read_dir(dir).expect("webmods/gauntlet exists at the repo root") {
-        let path = entry.expect("readable entry").path();
-        assert!(path.is_file(), "the gauntlet bundle dir is flat");
-        files.push((
-            path.file_name().unwrap().to_string_lossy().to_string(),
-            std::fs::read(&path).expect("readable mod file"),
-        ));
+/// The synthetic portal mod the wire test installs (task 20260716-155839:
+/// core tests must not depend on any REAL mod, so mods can be renamed or
+/// removed without touching CI). Same shape as a webmods/ source: one dir
+/// per mod, flat files, and a real Scenario so the enable step can assert
+/// registration through the actual merge machinery.
+const FIXTURE_ID: &str = "fixture-slalom";
+const FIXTURE_SCENARIO_ID: &str = "fixture_slalom_run";
+
+/// Write the fixture mod's source tree under `root/<FIXTURE_ID>/` and return
+/// its files - the same bytes the portal serves, for byte-identity
+/// assertions after install.
+fn write_fixture_mod(root: &Path) -> Vec<(String, Vec<u8>)> {
+    let bundle = r#"(
+    content: ["fixture-slalom.content.ron"],
+    meta: (
+        name: "Fixture Slalom",
+        description: "Synthetic install fixture.",
+        author: "tests",
+        version: "1.0.0",
+    ),
+)
+"#;
+    let content = r#"[
+    Scenario((
+        id: "fixture_slalom_run",
+        name: "Fixture Slalom Run",
+        description: "A minimal scenario for install-pipeline assertions.",
+        cubemap: "textures/cubemap.png",
+    )),
+]
+"#;
+    let files = vec![
+        (
+            "fixture-slalom.bundle.ron".to_string(),
+            bundle.as_bytes().to_vec(),
+        ),
+        (
+            "fixture-slalom.content.ron".to_string(),
+            content.as_bytes().to_vec(),
+        ),
+    ];
+    let dir = root.join(FIXTURE_ID);
+    std::fs::create_dir_all(&dir).expect("create the fixture mod dir");
+    for (name, bytes) in &files {
+        std::fs::write(dir.join(name), bytes).expect("write a fixture mod file");
     }
     files
 }
@@ -279,30 +313,35 @@ fn serve_portal_tree(root: std::path::PathBuf) -> String {
 }
 
 /// The whole arc over a REAL socket with the REAL transport: generate the
-/// portal from the REAL webmods sources, serve it, fetch the catalog
-/// (`Ready` lists gauntlet), install (verified files land in the cache, the
-/// record joins `DownloadedMods`, the job entry clears, and the mod is
-/// DISABLED), enable (the existing merge machinery registers `gauntlet_run`),
-/// then uninstall (files + index + record + the `EnabledMods` entry all gone,
-/// the scenario unregisters). Deleting any stage of the portal client fails
-/// this test: no fetch -> no Ready; no commit -> no cached files; no
-/// DownloadedMods push -> no merge; no EnabledMods strip -> the last assert.
+/// portal from a synthetic source tree (the production generator, the same
+/// invocation shape the deploy job makes), serve it, fetch the catalog
+/// (`Ready` lists the fixture), install (verified files land in the cache,
+/// the record joins `DownloadedMods`, the job entry clears, and the mod is
+/// DISABLED), enable (the existing merge machinery registers the fixture's
+/// scenario), then uninstall (files + index + record + the `EnabledMods`
+/// entry all gone, the scenario unregisters). Deleting any stage of the
+/// portal client fails this test: no fetch -> no Ready; no commit -> no
+/// cached files; no DownloadedMods push -> no merge; no EnabledMods strip ->
+/// the last assert. (Whether the real webmods/ tree publishes is
+/// nova_portal_gen's generic every-dir-publishes test, not this one.)
 #[test]
 fn portal_fetch_install_enable_uninstall_over_the_wire() {
     let guard = cache_root_guard();
 
-    // The production generator over the REAL webmods, against the REAL
-    // shipped catalog (the same invocation the deploy job makes).
+    // The production generator over the fixture source, against the REAL
+    // shipped catalog (so the shipped-id collision gate stays exercised).
+    let source_dir = tempfile::tempdir().expect("temp mod source tree");
+    let source_files = write_fixture_mod(source_dir.path());
     let portal_dir = tempfile::tempdir().expect("temp portal tree");
     let generated = nova_portal_gen::generate(
-        Path::new("../../webmods"),
+        source_dir.path(),
         Some(Path::new("../../assets/mods.catalog.ron")),
         portal_dir.path(),
     )
-    .expect("generate the portal tree from webmods/");
+    .expect("generate the portal tree from the fixture source");
     assert!(
-        generated.entries.iter().any(|e| e.id == "gauntlet"),
-        "the real webmods set publishes gauntlet"
+        generated.entries.iter().any(|e| e.id == FIXTURE_ID),
+        "the fixture mod publishes"
     );
 
     let base_url = serve_portal_tree(portal_dir.path().to_path_buf());
@@ -317,7 +356,7 @@ fn portal_fetch_install_enable_uninstall_over_the_wire() {
     );
     ready_shipped_catalog(&mut app);
 
-    // FETCH: Idle -> (Fetching ->) Ready listing the real gauntlet meta.
+    // FETCH: Idle -> (Fetching ->) Ready listing the fixture's meta.
     app.world_mut().trigger(FetchPortalCatalog);
     let entry = pump_until(&mut app, "the portal catalog", |app| {
         match &app.world().resource::<RemoteCatalog>().state {
@@ -325,8 +364,8 @@ fn portal_fetch_install_enable_uninstall_over_the_wire() {
                 catalog
                     .entries
                     .iter()
-                    .find(|e| e.id == "gauntlet")
-                    .expect("the fetched catalog lists gauntlet")
+                    .find(|e| e.id == FIXTURE_ID)
+                    .expect("the fetched catalog lists the fixture mod")
                     .clone(),
             ),
             RemoteCatalogState::Error(error) => panic!("catalog fetch failed: {error}"),
@@ -341,7 +380,7 @@ fn portal_fetch_install_enable_uninstall_over_the_wire() {
             .resource::<RemoteCatalog>()
             .last_good
             .as_ref()
-            .is_some_and(|c| c.entries.iter().any(|e| e.id == "gauntlet")),
+            .is_some_and(|c| c.entries.iter().any(|e| e.id == FIXTURE_ID)),
         "a Ready fetch must stamp last_good"
     );
     let store = guard.root.path().join("portal_catalog.json");
@@ -351,15 +390,15 @@ fn portal_fetch_install_enable_uninstall_over_the_wire() {
         serde_json::from_slice::<PortalCatalog>(&stored).is_ok(),
         "the store holds the raw catalog JSON"
     );
-    assert_eq!(entry.meta.name, "Gauntlet Run");
+    assert_eq!(entry.meta.name, "Fixture Slalom");
     assert_eq!(entry.version, "1.0.0");
-    assert_eq!(entry.bundle, "gauntlet.bundle.ron");
+    assert_eq!(entry.bundle, "fixture-slalom.bundle.ron");
 
     // INSTALL: files fetched + verified + committed, record registered live.
     app.world_mut().trigger(InstallPortalMod {
-        id: "gauntlet".to_string(),
+        id: FIXTURE_ID.to_string(),
     });
-    pump_install_success(&mut app, "gauntlet");
+    pump_install_success(&mut app, FIXTURE_ID);
     assert!(
         app.world().resource::<InstallJobs>().0.is_empty(),
         "a successful install clears its job entry"
@@ -367,18 +406,17 @@ fn portal_fetch_install_enable_uninstall_over_the_wire() {
     assert_eq!(
         mod_cache::read_index(),
         Some(vec![mod_cache::InstalledModRecord {
-            id: "gauntlet".to_string(),
+            id: FIXTURE_ID.to_string(),
             version: "1.0.0".to_string(),
-            bundle: "gauntlet.bundle.ron".to_string(),
+            bundle: "fixture-slalom.bundle.ron".to_string(),
         }]),
         "the committed index carries the installed record"
     );
-    let source_files = gauntlet_files();
     for (path, bytes) in &source_files {
         assert_eq!(
-            mod_cache::read_mod_file("gauntlet", path).as_ref(),
+            mod_cache::read_mod_file(FIXTURE_ID, path).as_ref(),
             Some(bytes),
-            "the cached '{path}' is byte-identical to the webmods source"
+            "the cached '{path}' is byte-identical to the fixture source"
         );
     }
 
@@ -393,13 +431,13 @@ fn portal_fetch_install_enable_uninstall_over_the_wire() {
         &mut app,
         &asset_server,
         bundle_id,
-        "the installed gauntlet bundle (via mods://)",
+        "the installed fixture bundle (via mods://)",
     );
     app.update();
     assert!(
         !app.world()
             .resource::<GameScenarios>()
-            .contains_key("gauntlet_run"),
+            .contains_key(FIXTURE_SCENARIO_ID),
         "a fresh install stays disabled - no merge until the player enables it"
     );
 
@@ -407,18 +445,18 @@ fn portal_fetch_install_enable_uninstall_over_the_wire() {
     app.world_mut()
         .resource_mut::<EnabledMods>()
         .0
-        .insert("gauntlet".to_string());
+        .insert(FIXTURE_ID.to_string());
     app.update();
     assert!(
         app.world()
             .resource::<GameScenarios>()
-            .contains_key("gauntlet_run"),
+            .contains_key(FIXTURE_SCENARIO_ID),
         "enabling the installed mod must register its scenario"
     );
 
     // UNINSTALL: everything reverses, INCLUDING the enablement (R1.7).
     app.world_mut().trigger(UninstallPortalMod {
-        id: "gauntlet".to_string(),
+        id: FIXTURE_ID.to_string(),
     });
     app.update();
     assert!(
@@ -431,17 +469,17 @@ fn portal_fetch_install_enable_uninstall_over_the_wire() {
         "uninstall removes the index record"
     );
     assert!(
-        !guard.root.path().join("mods").join("gauntlet").exists(),
+        !guard.root.path().join("mods").join(FIXTURE_ID).exists(),
         "uninstall removes the cached files"
     );
     assert!(
         !app.world()
             .resource::<GameScenarios>()
-            .contains_key("gauntlet_run"),
+            .contains_key(FIXTURE_SCENARIO_ID),
         "uninstall re-merges the scenario away"
     );
     assert!(
-        !app.world().resource::<EnabledMods>().0.contains("gauntlet"),
+        !app.world().resource::<EnabledMods>().0.contains(FIXTURE_ID),
         "uninstall strips the id from EnabledMods, so a reinstall starts disabled"
     );
     assert!(

@@ -1,21 +1,21 @@
 //! End-to-end proof of the LOCAL mod cache + `mods://` source (task
-//! 20260715-142906): the REAL gauntlet mod (webmods/) is installed into a temp
-//! cache root with `install_local`, the `mods://` source is registered through
-//! the PRODUCTION registration (`mod_cache::register_mods_source` - the same
-//! call `AppBuilder::new` makes, pointed at the temp root via the
+//! 20260715-142906): a synthetic fixture mod (in-memory bytes, task
+//! 20260716-155839 - core tests depend on no real mod) is installed into a
+//! temp cache root with `install_local`, the `mods://` source is registered
+//! through the PRODUCTION registration (`mod_cache::register_mods_source` -
+//! the same call `AppBuilder::new` makes, pointed at the temp root via the
 //! `NOVA_MOD_CACHE_ROOT` override both it and the cache helpers read), the
 //! production startup system reads the index and kicks the bundle load, and
 //! the production merge wiring (register_bundles gated on
 //! EnabledMods-or-DownloadedMods changes, plus `mark_downloaded_bundles_loaded`)
-//! puts `gauntlet_run` into `GameScenarios` when the mod is enabled - and takes
-//! it back out on uninstall.
+//! puts the fixture's scenario into `GameScenarios` when the mod is enabled -
+//! and takes it back out on uninstall.
 //!
 //! The env override is PROCESS-GLOBAL, so every test here serializes on one
 //! lock and owns a fresh temp root while it holds it (separate test binaries
 //! are separate processes and cannot interfere).
 
 use std::{
-    path::Path,
     sync::{Mutex, MutexGuard},
     time::{Duration, Instant},
 };
@@ -51,24 +51,40 @@ fn cache_root_guard() -> CacheRootGuard {
     CacheRootGuard { _lock: lock, root }
 }
 
-/// The real gauntlet mod's files, read from the repo `webmods/` source - the
-/// same bytes the portal would serve (tests run with the crate root as cwd).
-fn gauntlet_files() -> Vec<(String, Vec<u8>)> {
-    let dir = Path::new("../../webmods/gauntlet");
-    let mut files = Vec::new();
-    for entry in std::fs::read_dir(dir).expect("webmods/gauntlet exists at the repo root") {
-        let path = entry.expect("readable entry").path();
-        assert!(path.is_file(), "the gauntlet bundle dir is flat");
-        files.push((
-            path.file_name().unwrap().to_string_lossy().to_string(),
-            std::fs::read(&path).expect("readable mod file"),
-        ));
-    }
-    assert!(
-        files.iter().any(|(name, _)| name == "gauntlet.bundle.ron"),
-        "the gauntlet entry-point manifest is among the files"
-    );
-    files
+/// The synthetic fixture mod's files, generated in-memory - the same shape a
+/// portal download delivers: a bundle manifest plus one content file carrying
+/// a real Scenario, so enabling can assert registration through the actual
+/// merge machinery.
+fn fixture_files() -> Vec<(String, Vec<u8>)> {
+    let bundle = r#"(
+    content: ["fixture-slalom.content.ron"],
+    meta: (
+        name: "Fixture Slalom",
+        description: "Synthetic install fixture.",
+        author: "tests",
+        version: "1.0.0",
+    ),
+)
+"#;
+    let content = r#"[
+    Scenario((
+        id: "fixture_slalom_run",
+        name: "Fixture Slalom Run",
+        description: "A minimal scenario for install-pipeline assertions.",
+        cubemap: "textures/cubemap.png",
+    )),
+]
+"#;
+    vec![
+        (
+            "fixture-slalom.bundle.ron".to_string(),
+            bundle.as_bytes().to_vec(),
+        ),
+        (
+            "fixture-slalom.content.ron".to_string(),
+            content.as_bytes().to_vec(),
+        ),
+    ]
 }
 
 /// A headless app carrying the PRODUCTION `mods://` registration (registered
@@ -139,23 +155,28 @@ fn game_assets_with_catalog(catalog: Handle<InstalledCatalog>) -> GameAssets {
 /// The full install -> enable -> uninstall arc through the production pieces:
 /// `install_local` seeds the cache, `load_downloaded_mods` (the native startup
 /// system) reads the index and loads the bundle THROUGH the `mods://` source,
-/// and the production re-merge wiring registers `gauntlet_run` only while the
+/// and the production re-merge wiring registers the fixture scenario only while the
 /// mod is both installed and enabled. Every step degrades this test: delete the
 /// source registration and the bundle load fails; delete the downloaded-merge
 /// arm of `register_bundles` and the enable step never registers the scenario;
 /// delete the DownloadedMods change re-run and the uninstall step stays merged.
 #[test]
-fn installed_gauntlet_merges_when_enabled_and_unmerges_on_uninstall() {
+fn installed_fixture_merges_when_enabled_and_unmerges_on_uninstall() {
     let guard = cache_root_guard();
-    let files = gauntlet_files();
-    mod_cache::install_local("gauntlet", "1.0.0", "gauntlet.bundle.ron", &files)
-        .expect("install into the temp cache root");
+    let files = fixture_files();
+    mod_cache::install_local(
+        "fixture-slalom",
+        "1.0.0",
+        "fixture-slalom.bundle.ron",
+        &files,
+    )
+    .expect("install into the temp cache root");
     assert_eq!(
         mod_cache::read_index(),
         Some(vec![InstalledModRecord {
-            id: "gauntlet".to_string(),
+            id: "fixture-slalom".to_string(),
             version: "1.0.0".to_string(),
-            bundle: "gauntlet.bundle.ron".to_string(),
+            bundle: "fixture-slalom.bundle.ron".to_string(),
         }]),
         "the public (env-rooted) index round-trips the installed record"
     );
@@ -181,7 +202,7 @@ fn installed_gauntlet_merges_when_enabled_and_unmerges_on_uninstall() {
     let bundle_id = {
         let downloaded = app.world().resource::<DownloadedMods>();
         assert_eq!(downloaded.0.len(), 1, "one installed record, one entry");
-        assert_eq!(downloaded.0[0].record.id, "gauntlet");
+        assert_eq!(downloaded.0[0].record.id, "fixture-slalom");
         downloaded.0[0].bundle.id().untyped()
     };
 
@@ -197,7 +218,7 @@ fn installed_gauntlet_merges_when_enabled_and_unmerges_on_uninstall() {
         &mut app,
         &asset_server,
         bundle_id,
-        "the downloaded gauntlet bundle (via mods://)",
+        "the downloaded fixture bundle (via mods://)",
     );
 
     app.world_mut()
@@ -206,16 +227,16 @@ fn installed_gauntlet_merges_when_enabled_and_unmerges_on_uninstall() {
         .insert_resource(EnabledMods(["base".to_string()].into_iter().collect()));
 
     // Installed but DISABLED (the install default): the bundle is loaded, the
-    // merge ran (base content present), and the gauntlet scenario stays out.
+    // merge ran (base content present), and the fixture scenario stays out.
     app.update();
     {
         let scenarios = app.world().resource::<GameScenarios>();
         assert!(
-            scenarios.contains_key("demo"),
+            scenarios.contains_key("shakedown_run"),
             "the base merge ran (its scenario registered)"
         );
         assert!(
-            !scenarios.contains_key("gauntlet_run"),
+            !scenarios.contains_key("fixture_slalom_run"),
             "a downloaded mod installs DISABLED - loaded, never merged"
         );
     }
@@ -225,12 +246,12 @@ fn installed_gauntlet_merges_when_enabled_and_unmerges_on_uninstall() {
     app.world_mut()
         .resource_mut::<EnabledMods>()
         .0
-        .insert("gauntlet".to_string());
+        .insert("fixture-slalom".to_string());
     app.update();
     assert!(
         app.world()
             .resource::<GameScenarios>()
-            .contains_key("gauntlet_run"),
+            .contains_key("fixture_slalom_run"),
         "enabling the downloaded mod must merge its scenario in"
     );
 
@@ -238,10 +259,15 @@ fn installed_gauntlet_merges_when_enabled_and_unmerges_on_uninstall() {
     // the runtime set - the DownloadedMods change alone (EnabledMods untouched)
     // must re-merge it away.
     let paths: Vec<String> = files.iter().map(|(name, _)| name.clone()).collect();
-    mod_cache::remove_mod_files("gauntlet", &paths).expect("remove cached files");
+    mod_cache::remove_mod_files("fixture-slalom", &paths).expect("remove cached files");
     mod_cache::write_index(&[]);
     assert!(
-        !guard.root.path().join("mods").join("gauntlet").exists(),
+        !guard
+            .root
+            .path()
+            .join("mods")
+            .join("fixture-slalom")
+            .exists(),
         "the cache dir is gone after uninstall"
     );
     assert_eq!(
@@ -253,11 +279,11 @@ fn installed_gauntlet_merges_when_enabled_and_unmerges_on_uninstall() {
     app.update();
     let scenarios = app.world().resource::<GameScenarios>();
     assert!(
-        !scenarios.contains_key("gauntlet_run"),
+        !scenarios.contains_key("fixture_slalom_run"),
         "uninstalling must re-merge the downloaded scenario away"
     );
     assert!(
-        scenarios.contains_key("demo"),
+        scenarios.contains_key("shakedown_run"),
         "shipped content is untouched by the uninstall"
     );
 }
@@ -270,10 +296,10 @@ fn installed_gauntlet_merges_when_enabled_and_unmerges_on_uninstall() {
 fn mod_catalog_lists_the_downloaded_mod_with_its_bundle_meta() {
     let _guard = cache_root_guard();
     mod_cache::install_local(
-        "gauntlet",
+        "fixture-slalom",
         "1.0.0",
-        "gauntlet.bundle.ron",
-        &gauntlet_files(),
+        "fixture-slalom.bundle.ron",
+        &fixture_files(),
     )
     .expect("install into the temp cache root");
 
@@ -303,15 +329,15 @@ fn mod_catalog_lists_the_downloaded_mod_with_its_bundle_meta() {
         assert_eq!(
             mods.len(),
             3,
-            "base + demo (shipped) + gauntlet (downloaded)"
+            "base + demo (shipped) + fixture (downloaded)"
         );
         assert_eq!(
-            mods[2].id, "gauntlet",
+            mods[2].id, "fixture-slalom",
             "downloaded rows append after shipped"
         );
         assert!(!mods[2].base, "a downloaded mod is never the base entry");
         assert_eq!(
-            mods[2].meta.name, "gauntlet",
+            mods[2].meta.name, "fixture-slalom",
             "an in-flight bundle degrades to the decl-only row (name = id)"
         );
     }
@@ -326,23 +352,22 @@ fn mod_catalog_lists_the_downloaded_mod_with_its_bundle_meta() {
         &mut app,
         &asset_server,
         bundle_id,
-        "the downloaded gauntlet bundle (via mods://)",
+        "the downloaded fixture bundle (via mods://)",
     );
     app.world_mut()
         .run_system_once(nova_assets::build_mod_catalog)
         .expect("rebuild mod catalog");
     let mods = &app.world().resource::<ModCatalog>().0;
     assert_eq!(mods.len(), 3);
-    assert_eq!(mods[2].id, "gauntlet");
+    assert_eq!(mods[2].id, "fixture-slalom");
     assert_eq!(
-        mods[2].meta.name, "Gauntlet Run",
+        mods[2].meta.name, "Fixture Slalom",
         "the display name comes from the cached bundle's meta"
     );
     assert_eq!(mods[2].meta.version, "1.0.0");
-    assert_eq!(mods[2].meta.author, "Nova Protocol");
+    assert_eq!(mods[2].meta.author, "tests");
     assert_eq!(
-        mods[2].meta.description,
-        "A slalom race: fly your ship through the beacon gates in order, START to FINISH.",
+        mods[2].meta.description, "Synthetic install fixture.",
         "the description comes from the cached bundle's meta"
     );
 }
@@ -362,10 +387,10 @@ fn mod_catalog_lists_the_downloaded_mod_with_its_bundle_meta() {
 fn enabled_mod_merges_when_its_bundle_load_lands() {
     let _guard = cache_root_guard();
     mod_cache::install_local(
-        "gauntlet",
+        "fixture-slalom",
         "1.0.0",
-        "gauntlet.bundle.ron",
-        &gauntlet_files(),
+        "fixture-slalom.bundle.ron",
+        &fixture_files(),
     )
     .expect("install into the temp cache root");
 
@@ -380,7 +405,7 @@ fn enabled_mod_merges_when_its_bundle_load_lands() {
     );
 
     // The shipped catalog must be loaded before GameAssets points at it; the
-    // gauntlet bundle is deliberately NOT waited for.
+    // fixture bundle is deliberately NOT waited for.
     let asset_server = app.world().resource::<AssetServer>().clone();
     let catalog: Handle<InstalledCatalog> = asset_server.load("mods.catalog.ron");
     wait_recursive_loaded(
@@ -392,7 +417,7 @@ fn enabled_mod_merges_when_its_bundle_load_lands() {
     app.world_mut()
         .insert_resource(game_assets_with_catalog(catalog));
     app.world_mut().insert_resource(EnabledMods(
-        ["base".to_string(), "gauntlet".to_string()]
+        ["base".to_string(), "fixture-slalom".to_string()]
             .into_iter()
             .collect(),
     ));
@@ -414,7 +439,7 @@ fn enabled_mod_merges_when_its_bundle_load_lands() {
     assert!(
         !app.world()
             .resource::<GameScenarios>()
-            .contains_key("gauntlet_run"),
+            .contains_key("fixture_slalom_run"),
         "the merge ran before the bundle loaded - the scenario cannot be in yet"
     );
 
@@ -425,14 +450,14 @@ fn enabled_mod_merges_when_its_bundle_load_lands() {
         &mut app,
         &asset_server,
         bundle_id,
-        "the downloaded gauntlet bundle (via mods://)",
+        "the downloaded fixture bundle (via mods://)",
     );
     app.update();
     app.update();
     assert!(
         app.world()
             .resource::<GameScenarios>()
-            .contains_key("gauntlet_run"),
+            .contains_key("fixture_slalom_run"),
         "the finished load must merge the enabled mod in with no manual re-trigger"
     );
 }
@@ -476,9 +501,9 @@ fn loaded_event_flags_downloaded_mods_changed() {
         .0
         .push(DownloadedMod {
             record: InstalledModRecord {
-                id: "gauntlet".to_string(),
+                id: "fixture-slalom".to_string(),
                 version: "1.0.0".to_string(),
-                bundle: "gauntlet.bundle.ron".to_string(),
+                bundle: "fixture-slalom.bundle.ron".to_string(),
             },
             bundle: bundle.clone(),
         });
@@ -639,13 +664,18 @@ fn escaping_bundle_manifest_cannot_read_outside_the_mods_root() {
 /// entry is skipped with a warning (the portal generator's no-shadowing rule,
 /// re-enforced at the consumers because the index is downloaded input) - one
 /// toggle must never drive two bundles or two rows. The downloaded copy here
-/// is the REAL gauntlet content installed under the shipped id "demo", so the
+/// is the fixture content installed under the shipped id "demo", so the
 /// assertions can tell the two bundles apart by their scenarios and meta.
 #[test]
 fn downloaded_id_shadowing_a_shipped_mod_is_skipped() {
     let _guard = cache_root_guard();
-    mod_cache::install_local("demo", "9.9.9", "gauntlet.bundle.ron", &gauntlet_files())
-        .expect("install a downloaded mod under the shipped 'demo' id");
+    mod_cache::install_local(
+        "demo",
+        "9.9.9",
+        "fixture-slalom.bundle.ron",
+        &fixture_files(),
+    )
+    .expect("install a downloaded mod under the shipped 'demo' id");
 
     let mut app = app_with_mods_source();
     app.world_mut()
@@ -687,7 +717,7 @@ fn downloaded_id_shadowing_a_shipped_mod_is_skipped() {
     assert_eq!(mods[1].id, "demo");
     assert_eq!(
         mods[1].meta.name, "Demo Mod",
-        "the shipped meta wins - the downloaded copy's 'Gauntlet Run' meta must not surface"
+        "the shipped meta wins - the downloaded copy's 'Fixture Slalom' meta must not surface"
     );
 
     // The merge: the shipped demo's content registers, the downloaded copy's
@@ -701,7 +731,7 @@ fn downloaded_id_shadowing_a_shipped_mod_is_skipped() {
         "the SHIPPED demo bundle merges as usual"
     );
     assert!(
-        !scenarios.contains_key("gauntlet_run"),
+        !scenarios.contains_key("fixture_slalom_run"),
         "the shadowing DOWNLOADED bundle must be skipped by the merge"
     );
 }

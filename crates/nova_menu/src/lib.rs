@@ -5177,7 +5177,7 @@ mod tests {
     fn picker_scenarios() -> GameScenarios {
         GameScenarios(bevy::platform::collections::HashMap::from([
             picker_scenario(NEW_GAME_SCENARIO_ID, "Shakedown Run", false),
-            picker_scenario("gauntlet_run", "Gauntlet Run", false),
+            picker_scenario("practice_run", "Practice Run", false),
             picker_scenario(MENU_AMBIENCE_SCENARIO_ID, "Menu Ambience", true),
         ]))
     }
@@ -5232,7 +5232,7 @@ mod tests {
             "the story entry is listed: {ids:?}"
         );
         assert!(
-            ids.contains(&"gauntlet_run".to_string()),
+            ids.contains(&"practice_run".to_string()),
             "the mod scenario is listed: {ids:?}"
         );
         assert!(
@@ -5246,11 +5246,11 @@ mod tests {
     #[test]
     fn scenarios_panel_default_selects_first_and_renders_details() {
         let mut app = scenarios_app();
-        // Sorted by name: "Gauntlet Run" < "Shakedown Run".
-        assert_eq!(selected_scenario(&app).as_deref(), Some("gauntlet_run"));
+        // Sorted by name: "Practice Run" < "Shakedown Run".
+        assert_eq!(selected_scenario(&app).as_deref(), Some("practice_run"));
         assert_eq!(
             scenario_details_name(&mut app).as_deref(),
-            Some("Gauntlet Run"),
+            Some("Practice Run"),
             "the details pane renders the default selection"
         );
     }
@@ -5270,13 +5270,13 @@ mod tests {
             Some(NEW_GAME_SCENARIO_ID)
         );
         let story_row = scenario_row(&mut app, NEW_GAME_SCENARIO_ID).unwrap();
-        let gauntlet_row = scenario_row(&mut app, "gauntlet_run").unwrap();
+        let practice_row = scenario_row(&mut app, "practice_run").unwrap();
         assert!(
             app.world().entity(story_row).contains::<Selected>(),
             "the clicked row is highlighted"
         );
         assert!(
-            !app.world().entity(gauntlet_row).contains::<Selected>(),
+            !app.world().entity(practice_row).contains::<Selected>(),
             "the previous selection is cleared"
         );
         assert_eq!(
@@ -5288,20 +5288,20 @@ mod tests {
 
     /// The details pane's Play button hands off exactly like New Game AND
     /// (delivery guard) loads the CHOSEN scenario, not the canned start: playing
-    /// gauntlet_run must fire `LoadScenario` for gauntlet_run, not shakedown_run.
+    /// practice_run must fire `LoadScenario` for practice_run, not shakedown_run.
     #[test]
     fn play_button_hands_off_and_loads_the_chosen_scenario() {
         let mut app = scenarios_app();
         observe_load_scenario(&mut app);
 
-        // gauntlet_run is the default selection; its Play button carries its id.
+        // practice_run is the default selection; its Play button carries its id.
         let play = entity_by_name(&mut app, "Scenario Play Button").expect("play button");
         app.world_mut().trigger(Activate { entity: play });
         app.update();
 
         assert_eq!(
             app.world().resource::<NewGameScenario>().0.as_deref(),
-            Some("gauntlet_run"),
+            Some("practice_run"),
             "Play records the scenario override"
         );
         assert_eq!(*app.world().resource::<GameMode>(), GameMode::NewGame);
@@ -5311,7 +5311,7 @@ mod tests {
         );
         assert_eq!(
             app.world().resource::<LoadedScenario>().0.as_deref(),
-            Some("gauntlet_run"),
+            Some("practice_run"),
             "the chosen scenario is loaded, not the canned New Game start"
         );
     }
@@ -5354,7 +5354,7 @@ mod tests {
     fn new_game_button_clears_the_scenario_override() {
         let mut app = app();
         app.insert_resource(dummy_scenarios());
-        app.insert_resource(NewGameScenario(Some("gauntlet_run".to_string())));
+        app.insert_resource(NewGameScenario(Some("practice_run".to_string())));
         let button = app.world_mut().spawn(observe(on_new_game)).id();
         app.update();
 

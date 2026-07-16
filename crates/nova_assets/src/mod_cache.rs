@@ -67,7 +67,7 @@ pub struct InstalledModRecord {
     /// updater can compare against the portal catalog.
     pub version: String,
     /// The bundle manifest path relative to the mod's cache directory
-    /// (e.g. `gauntlet.bundle.ron`).
+    /// (e.g. `my_mod.bundle.ron`).
     pub bundle: String,
 }
 
@@ -971,7 +971,7 @@ mod tests {
     #[test]
     fn index_round_trips_under_a_temp_root() {
         let root = tempfile::tempdir().unwrap();
-        let records = vec![record("gauntlet", "1.0.0"), record("other", "0.2.0")];
+        let records = vec![record("pack_a", "1.0.0"), record("other", "0.2.0")];
         write_index_at(root.path(), &records).unwrap();
         assert_eq!(
             read_index_at(root.path()),

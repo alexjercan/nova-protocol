@@ -28,9 +28,27 @@ fn real_webmods_publish_and_hashes_verify() {
         parsed.schema_version,
         nova_mod_format::PORTAL_SCHEMA_VERSION
     );
+    // Every mod directory publishes - by DIRECTORY LISTING, not by name, so
+    // mods can be added/renamed/removed without touching this test (task
+    // 20260716-155839).
+    let source_ids: std::collections::BTreeSet<String> = fs::read_dir(WEBMODS)
+        .expect("webmods/ exists at the repo root")
+        .filter_map(|e| {
+            let e = e.expect("readable entry");
+            e.path()
+                .is_dir()
+                .then(|| e.file_name().to_string_lossy().into_owned())
+        })
+        .collect();
+    let published_ids: std::collections::BTreeSet<String> =
+        parsed.entries.iter().map(|e| e.id.clone()).collect();
     assert!(
-        parsed.entries.iter().any(|e| e.id == "gauntlet"),
-        "the first portal mod is published"
+        !source_ids.is_empty(),
+        "delivery guard: the webmods tree has at least one mod to publish"
+    );
+    assert_eq!(
+        published_ids, source_ids,
+        "every webmods/ directory publishes, and nothing else does"
     );
     // Deterministic ORDER is asserted directly (the byte-identity test alone
     // would only catch map-ordered serialization probabilistically at today's
