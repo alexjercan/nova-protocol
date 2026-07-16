@@ -10,6 +10,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 
 ## Process lessons
 
+- `verbosity-invites-fabrication` (x1): telling a drafter (esp. a subagent) to
+  be MORE verbose / "cover everything" pushes it to fill gaps with plausible
+  invention - a 0.5.0 news post given the four damage-type names invented each
+  type's behavior no source stated. Pair every completeness push with an
+  explicit "verbosity comes from the sources, not invention; if a source names a
+  thing without describing it, name it without describing it", and have the
+  fact-check reviewer see the exact sources. 20260716-114245.
 - `check-adjacent-sections-for-overlap` (x1): when a spike proposes a new
   user-facing section (a web section, a docs area, a menu), enumerate the
   existing adjacent sections FIRST and ask "does this duplicate or belong
