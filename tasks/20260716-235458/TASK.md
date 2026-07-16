@@ -1,8 +1,16 @@
 # Spike: make base a normal mod (art under assets/base/, self:// + dep://base)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.7.0,modding,spike,base,refactor
+
+## Resolution
+
+Spiked - see tasks/20260716-235458/SPIKE.md (STATUS: RECOMMENDED). Recommendation:
+do Option B (make base a first-class `dep://base` target via a root-relative base
+bundle - no file move, non-breaking), defer the physical relocation of base art
+into `assets/base/` (Options A/C) as a mostly-cosmetic, breaking follow-up.
+Seeded task 20260717-000416.
 
 ## Idea (from the user, 2026-07-16)
 
