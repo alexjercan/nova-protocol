@@ -10,6 +10,17 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 
 ## Process lessons
 
+- `exemplar-first-fanout` (x1): to produce many similar artifacts (per-release
+  changelog pages, per-module docs), hand-write ONE gold-standard exemplar
+  first, then fan out parallel drafters against it plus a strict per-item spec -
+  shape/voice stay consistent in one review round. Pair with an out-of-context
+  reviewer that sees all parts at once. 20260716-102954.
+- `cross-boundary-attribution` (x1): a per-part drafter (per-release,
+  per-module) cannot see the boundary, so it will attribute a neighbor's feature
+  to its own part if the shared source mentions it (a 0.5.0 page claimed the
+  wiki/tutorial that shipped in 0.5.2, inherited from the devlog's wording).
+  Add "does vN claim anything belonging to vN+1?" to the review pass explicitly.
+  20260716-102954.
 - `conserve-on-regroup` (x1): when mechanically rewriting or regrouping a
   list-shaped doc (changelog, index, manifest), silent drops are the main
   risk - regrouping N bullets into M sections by hand has no conservation
