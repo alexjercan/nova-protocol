@@ -24,6 +24,19 @@ multi-file bundles - end to end with a real release artifact.
 
 Direction-level; /plan breaks it into steps when picked up.
 
+## Direction (spike 20260716-183104, 2026-07-16)
+
+The story is chosen: "The Ledger" - a salvage crew in over its head,
+four chapters (Dead Weight / Claim Jumpers / The Quiet Channel / The
+Buyer), shipped as webmods/the-ledger (four content files, ch1 listed,
+ch2-4 hidden, linear NextScenario chain, branching two-ending finale
+INSIDE ch4 - no cross-chapter state needed, which the spike verified
+has no carrier today anyway: world.clear() on every scenario change).
+Every beat maps to a proven primitive; the one engine prerequisite is
+the comms/story-beat panel (20260716-183220, degradable). Full premise,
+cast, per-chapter mechanics and the rejected options live in
+tasks/20260716-183104/SPIKE.md - /plan starts there.
+
 ## Notes
 
 - Spike: tasks/20260716-122954/SPIKE.md (v0.7.0 release scope)
