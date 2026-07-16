@@ -56,6 +56,11 @@ fn race_app(start_gate: f64) -> App {
         bevy::mesh::MeshPlugin,
         PhysicsPlugins::default(),
     ));
+    // GATE 1's real OnEnter runs a `SetSkybox` action, which calls
+    // `asset_server.load::<Image>` before it looks for a scenario camera. Without
+    // the `Image` asset registered (ImagePlugin does this in the full app) that
+    // load panics inside `state_to_world_system`, so seed the asset type here.
+    app.init_asset::<Image>();
     app.insert_resource(Gravity(Vec3::ZERO));
     app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
         0.02,
