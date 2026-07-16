@@ -1,6 +1,6 @@
 # Docs + CHANGELOG for base-as-normal-mod / canonical scheme model (Option A)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 47
 - TAGS: v0.7.0,modding,docs
 
