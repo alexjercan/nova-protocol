@@ -349,10 +349,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `pair-matrix-on-collider-class-change` (x1): changing a collider's class
   (sensor?, events?) must be checked against every collider category in the
   game, not just the pair being fixed. 20260712-121101.
-- `verify-scripted-edits-applied` (x2): a sed/python replace that matches
-  nothing looks like success, and one that matches can still emit malformed
-  text (a doubled "Response: Response:" prefix); assert the replace count AND
-  read/grep the produced text. 20260712-110730, 20260716-125856.
+- `verify-scripted-edits-applied` (x3, -> Pending promotions): an edit you
+  believe you made is a hypothesis until the artifact shows it - a no-match
+  replace looks like success, a matching one can emit malformed text, and a
+  RETRIED batch of failed edits can silently drop a member (2 of 3 re-applied;
+  docs kept claiming all 3 and the review caught it). Assert replace counts,
+  grep the produced text, and after a failed batch re-verify EVERY member.
+  20260712-110730, 20260716-125856, 20260708-203659.
 - `reuse-production-helpers-in-tests` (x2): tests compose expected values and
   spawn rigs via the production helpers, not inline re-derivations.
   20260711-121839, 20260712-110730.
@@ -397,7 +400,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   a CI ACTION's source to settle a toolchain question, and re-deriving an
   algorithm (Kahn's topo sort direction) by hand to catch a doc/atomicity
   overclaim. 20260712-133343, 20260711-183417, 20260712-115902,
-  20260715-142900, 20260715-142931, 20260716-125856.
+  20260715-142900, 20260715-142931, 20260716-125856, 20260708-203659.
 - `required-component-in-shared-query` (x2): a required fetch added to an
   existing query narrows its membership and every gate computed from it; fetch
   `Option<&T>` or use a separate query. New `Res<T>` params also panic every
@@ -551,6 +554,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   a double OnDestroyed can't soft-lock the clear). Counting sibling of
   `collisionstart-is-per-collider-pair`. 20260715-224812.
 
+- `gate-on-what-you-assert` (x1): in a staged harness, every condition an
+  assert relies on joins the stage GATE when it can lag the gating state by
+  frames (an overlay entity spawns one frame after its resource; asserting it
+  on the resource's first frame is a masked race). 20260708-203659.
+
 - `probe-the-adversarial-variant` (x1): pick evidence/eyeball variants by what
   they can HIDE, not by staging convenience - a Defeat-only overlay probe
   masked a Victory-only cursor bug because the dead ship emptied the exact
@@ -565,6 +573,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 
 ## Domain lessons (nova-protocol specific)
 
+- `gate-scenario-handlers-to-their-acts` (x1): in an act/phase-structured
+  scenario, every handler fires in EVERY act unless filtered - walk each one
+  asking "which acts may this fire in?", terminal states especially (an
+  act-ungated death handler flipped an earned VICTORY to DEFEAT); gate by
+  default, globality is the deliberate exception. 20260708-203659.
 - `crate-solo-tests-miss-unified-features` (x1): `cargo test -p nova_scenario`
   alone fails to compile - its serde round-trip tests lean on workspace
   feature unification (nova_assets -> nova_modding -> nova_scenario/serde);
@@ -624,6 +637,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 
 ## Pending promotions (3+ occurrences, user decides)
 
+- `verify-scripted-edits-applied` (x3) -> work skill: an edit you believe you
+  made is a hypothesis until the artifact shows it - assert replace counts,
+  grep the produced text, and after a FAILED batch of edits re-verify every
+  member of the batch (a retry re-applied 2 of 3 and the docs kept claiming
+  all 3). See the main-list entry. 20260712-110730, 20260716-125856,
+  20260708-203659.
 - `validate-in-every-domain` (x3) -> work/review skill: a validation gate must
   check the meaning a value has in EACH domain it crosses into (fs path, URL
   segment, storage key, served set), not the domain it was written in; three
