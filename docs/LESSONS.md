@@ -230,8 +230,9 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   formula bug shared by encode and decode cancels. Re-derive the reverse against
   the spec independently (PNG Paeth/Average filters re-derived vs spec 9.2).
   20260715-004216.
-- `one-cargo-test-filter` (x4): `cargo test` takes one filter and one `-p` per
-  invocation; separate runs otherwise. 20260713-082324.
+- `one-cargo-test-filter` (x5): `cargo test` takes one filter and one `-p` per
+  invocation; separate runs otherwise (recurred under flow momentum: a chained
+  two-filter run silently tested nothing). 20260713-082324, 20260716-162701.
 - `check-all-targets-for-struct-field` (x1): a new non-Default field breaks
   every initializer, but plain `cargo check --workspace` skips examples/tests;
   use `--all-targets`. 20260712-140250.
@@ -403,7 +404,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   mechanism deleted proves nothing; copied tests inherit vacuousness - and a
   sabotage that refuses to go red refutes the assumed mechanism itself.
   20260711-180426, 20260711-212521, 20260712-115902.
-- `out-of-context-review-pass` (positive, x23): a fresh-context review of a
+- `out-of-context-review-pass` (positive, x24): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
   load-bearing claims instead of trusting them - checking cited evidence IS
   the spawn site, re-running the sabotage or the whole smoke suite, reading
@@ -412,7 +413,8 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   a CI ACTION's source to settle a toolchain question, and re-deriving an
   algorithm (Kahn's topo sort direction) by hand to catch a doc/atomicity
   overclaim. 20260712-133343, 20260711-183417, 20260712-115902,
-  20260715-142900, 20260715-142931, 20260716-125856, 20260708-203659.
+  20260715-142900, 20260715-142931, 20260716-125856, 20260708-203659,
+  20260716-162701.
 - `required-component-in-shared-query` (x2): a required fetch added to an
   existing query narrows its membership and every gate computed from it; fetch
   `Option<&T>` or use a separate query. New `Res<T>` params also panic every
@@ -422,13 +424,16 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `authored-vs-derived-values` (x2): author content against measured runtime
   values exported as consts, not nominal constants or folklore ranges.
   20260711-180455, 20260711-180506.
-- `verify-engine-guarantees-in-source` (x3): read the engine/dependency source
+- `verify-engine-guarantees-in-source` (x4): read the engine/dependency source
   (or write a five-line probe) before designing around its behavior - observer
   order is arbitrary; observer-queued commands apply BEFORE the queue's remaining
   pending commands; a bcs `On<Insert>` observer `.unwrap()`s the asset, so
   inserting a config with an unloaded handle panics (design a deferred insert).
-  A reasoned verdict about engine semantics is a hypothesis, not evidence.
-  20260525-133004, 20260712-115902, 20260525-133017.
+  A reasoned verdict about engine semantics is a hypothesis, not evidence - and
+  a NONEXISTENCE claim from a workspace-only grep is worse: existence greps must
+  include the dependency checkouts (a "stale" comment named a bcs observer that
+  exists and is load-bearing). 20260525-133004, 20260712-115902, 20260525-133017,
+  20260716-162701.
 - `advertised-but-unwired` (x3): a config surface is not a capability until its
   producer/consumer wiring, data source, and runtime preconditions are
   verified in the new context. 20260712-093044, 20260712-093831.
@@ -572,6 +577,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   frames (an overlay entity spawns one frame after its resource; asserting it
   on the resource's first frame is a masked race). 20260708-203659.
 
+- `rig-before-fix-on-unreproducible` (positive, x1): for a happened-once
+  report, enumerate the candidate mechanisms as a boundary rig BEFORE any
+  fix - the red subset IS the diagnosis, fail-first comes free, the green
+  subset becomes pins, and the fix can then land at the seam that closes
+  the class. 20260716-162701.
+
 - `probe-the-adversarial-variant` (x1): pick evidence/eyeball variants by what
   they can HIDE, not by staging convenience - a Defeat-only overlay probe
   masked a Victory-only cursor bug because the dead ship emptied the exact
@@ -619,8 +630,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `modal-input-observer-dispatch` (x1): when bevy_enhanced_input's condition
   DSL fights a modal gesture, dispatch in an observer reading the modifier's
   TriggerState. 20260711-173237.
-- `half-ticked-compound-steps` (x1): tick a plan step only when every clause is
-  done, or split it. 20260708-165704.
+- `half-ticked-compound-steps` (x2): tick a plan step only when every clause is
+  done, or split it - and when the implementation legitimately adapts (a rig
+  cannot deliver a clause), amend the step text in the same edit instead of
+  silently narrowing. 20260708-165704, 20260716-162701.
 - `bei-app-finish-in-tests` (x1): bevy_enhanced_input needs `app.finish()` +
   `app.cleanup()` before spawning an action rig in tests. 20260708-165705.
 - `verify-ci-triggers-before-claiming-coverage` (x2): before writing "CI builds
