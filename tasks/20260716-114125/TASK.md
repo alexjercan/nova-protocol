@@ -1,8 +1,8 @@
 # Debug F12 screenshot to Downloads
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 90
-- TAGS: debug,feature,screenshot
+- TAGS: debug, feature, screenshot
 
 ## Goal
 
