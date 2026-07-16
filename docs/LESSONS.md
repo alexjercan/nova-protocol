@@ -675,6 +675,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   Positive application: un-gating hanabi on wasm, CI builds native only + deploy is
   workflow_dispatch, so ran the real `trunk build` (the sole wasm compile gate)
   instead of trusting green native CI. 20260714-174131, 20260714-233438.
+- `content-identifiers-sweep-by-script` (x1, domain): scenario RON's
+  cross-file identifiers (section prototype ids, NextScenario targets, filter
+  ids) resolve at SPAWN, so every load/publish gate passes them green; sweep
+  them by script against the catalogs before review (a from-memory
+  "basic_hull_section" passed all gates; a 20-line cross-check caught it and
+  two more classes). Lint task seeded: 20260716-191543. 20260716-123535.
 - `spike-list-needs-code-check` (x1): a spike's enumerated list of
   mechanisms/effects is unverified prose until the implementing cycle greps each
   item against the code - a spike listed the thruster "plume" as a gated hanabi
