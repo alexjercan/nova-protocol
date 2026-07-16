@@ -99,7 +99,7 @@ pub mod scenario_generation {
             .collect()
     }
 
-    /// The four built-in scenarios, each wrapped as its own single-item
+    /// The built-in scenarios, each wrapped as its own single-item
     /// `Vec<Content>` (`[Content::Scenario(..)]`) keyed by scenario id - the
     /// shape each committed `assets/scenarios/<id>.content.ron` file carries. The
     /// parity test serializes each.
@@ -111,8 +111,9 @@ pub mod scenario_generation {
     }
 
     /// The deterministic pretty-printer for the built-in content RON. Matches
-    /// the hand-committed `demo.content.ron` style: struct names omitted,
-    /// indented, so the data files stay diff-friendly and reviewable.
+    /// the hand-authored mod content style (e.g. `assets/mods/demo/mod.content.ron`):
+    /// struct names omitted, indented, so the data files stay diff-friendly and
+    /// reviewable.
     pub fn pretty_config() -> ron::ser::PrettyConfig {
         ron::ser::PrettyConfig::default()
             .struct_names(false)

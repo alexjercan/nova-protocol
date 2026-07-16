@@ -48,3 +48,7 @@ writes the files; the parity test only asserts. Decision from audit task
   proof, do not skip it.
 - generate-data-from-code corollary applies from here on: any builder
   change regenerates the RON in the SAME commit via the bin.
+- Review finding R1.2 from 20260716-155816: also assert that
+  base.bundle.ron's content list equals the generated file map exactly,
+  so "every base content file is builder-backed" is enforced, not just
+  currently true.

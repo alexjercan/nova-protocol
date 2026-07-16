@@ -5,7 +5,6 @@
 (
     content: [
         "sections/base.content.ron",
-        "scenarios/demo.content.ron",
         "scenarios/asteroid_field.content.ron",
         "scenarios/broadside.content.ron",
         "scenarios/asteroid_next.content.ron",

@@ -76,7 +76,7 @@ pub struct ModMeta {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BundleManifest {
     /// Content-file paths, relative to the `bundle.ron` file's directory (e.g.
-    /// `"sections/base.content.ron"`, `"scenarios/demo.content.ron"`).
+    /// `"sections/base.content.ron"`, `"scenarios/shakedown_run.content.ron"`).
     pub content: Vec<String>,
     /// The mod's self-description; defaulted so meta-less manifests stay valid.
     #[serde(default)]

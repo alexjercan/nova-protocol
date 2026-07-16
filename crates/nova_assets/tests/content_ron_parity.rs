@@ -1,5 +1,5 @@
 //! Generator + parity guard for the built-in content files (task 20260714-150508:
-//! the section catalog and the four built-in scenarios are now UNIFORM
+//! the section catalog and the built-in scenarios are UNIFORM
 //! `*.content.ron` files - a RON `Vec<Content>` where each item carries its kind).
 //!
 //! The config builders (`build_section_catalog` / `build_scenarios`) are the
@@ -16,9 +16,9 @@
 //!
 //! The first run (before a file exists) WRITES it, so `cargo test` is the tool
 //! that produces the data files; every run after that asserts the file on disk
-//! still matches the builder, catching drift in either direction. (The
-//! hand-migrated `demo.content.ron` has no builder and is not guarded here - the
-//! `demo_scenario` integration test exercises it instead.)
+//! still matches the builder, catching drift in either direction. Every base
+//! content file is builder-backed and guarded here (task 20260716-155816
+//! removed the one hand-migrated exception).
 
 use std::path::PathBuf;
 

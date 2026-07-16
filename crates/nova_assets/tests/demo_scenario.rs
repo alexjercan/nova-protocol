@@ -360,13 +360,10 @@ fn catalog_loads_and_base_only_merges_by_default() {
         "with demo disabled, the base section is un-overridden"
     );
 
-    assert!(
-        scenarios.contains_key("demo"),
-        "base 'demo' scenario present"
-    );
     for built_in in [
         "asteroid_field",
         "asteroid_next",
+        "broadside",
         "menu_ambience",
         "shakedown_run",
     ] {
@@ -404,7 +401,7 @@ fn enabling_demo_overrides_a_section_and_adds_a_scenario() {
         "the enabled demo mod's scenario must be registered"
     );
     assert!(
-        scenarios.contains_key("demo"),
+        scenarios.contains_key("shakedown_run"),
         "base scenarios remain after the overlay"
     );
 }
@@ -544,7 +541,7 @@ fn merge_bundles_overlays_demo_over_base() {
         "the mod's new scenario is added"
     );
     assert!(
-        outcome.scenarios.contains_key("demo"),
+        outcome.scenarios.contains_key("shakedown_run"),
         "a base scenario remains after overlay"
     );
 }

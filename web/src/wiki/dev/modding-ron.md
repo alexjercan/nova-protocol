@@ -40,7 +40,7 @@ resource.
 - `nova_assets` registers the plugin, loads the enabled bundles' `*.content.ron`
   files (the base game's live under `assets/base/scenarios/`) as part of the
   `GameAssets` collection, and merges their scenarios into `GameScenarios`. See
-  `assets/base/scenarios/demo.content.ron` for a worked, ship-less example.
+  `assets/mods/demo/mod.content.ron` for a worked example authored by hand.
 
 ## Architecture decisions
 

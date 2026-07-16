@@ -18,6 +18,7 @@ tagged **(breaking)**.
 - Broadside, chapter two of the base storyline: answer a neutral hauler's distress call, break a two-corvette ambush, then screen the gang gunship's torpedoes with your PDC and break it apart - the capital-combat slice, in the Scenarios picker and chained from Shakedown Run's victory screen.
 - Ships in scenario RON can author their side: an optional `allegiance` field (`Some(Neutral)` for bystanders like Broadside's hauler) overrides the controller default.
 - The Asteroid Field sandbox joined the outcome frame: reaching the zone declares Victory (Continue reruns the field) and dying declares Defeat + Retry, replacing its silent switches.
+- The base Demo Scenario (the ship-less RON authoring demo) was removed from the game and the Scenarios picker; the demo mod's arena is the worked hand-authored RON example now.
 
 ### Internals & Tooling
 
