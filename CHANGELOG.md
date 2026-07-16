@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-16
+
 ### Added
 
 - Mod dependencies now resolve end to end: installs auto-pull missing deps, enabling a mod auto-enables its transitive deps, disabling a still-depended-on mod is refused, and merge order is dependency-respecting topological order (ids only, no version constraints yet)
@@ -191,7 +193,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic spaceship sections
 - Editor and simulation scenes
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.5.2...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/alexjercan/nova-protocol/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/alexjercan/nova-protocol/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/alexjercan/nova-protocol/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/alexjercan/nova-protocol/compare/v0.4.1...v0.5.0
