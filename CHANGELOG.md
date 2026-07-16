@@ -12,6 +12,10 @@ tagged **(breaking)**.
 
 ## [Unreleased]
 
+### Added
+
+- Debug builds (`--features debug`) bind F12 to a screenshot that saves the primary window to your Downloads directory as `<timestamp>.png`
+
 ## [0.6.0] - 2026-07-16
 
 ### Scenarios & Objectives

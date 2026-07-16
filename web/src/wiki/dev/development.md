@@ -58,6 +58,12 @@ toggle, and the section/gravity debug overlays. The overlays are gated on a
 feature is spelled `debug`, with `dev` as an alias for it (root `Cargo.toml`);
 `--features dev` and `--features debug` are interchangeable.
 
+`DebugPlugin` also binds **F12** (`SCREENSHOT_KEYCODE`,
+`crates/nova_debug/src/screenshot.rs`) to a screenshot: it captures the primary
+window and saves it to your Downloads directory as `<unix-millis>.png`. The
+capture is intentionally not gated on `DebugEnabled`, so it works whether or not
+the overlays are shown.
+
 Two debug-only CLI flags exist, both parsed in `src/main.rs` and both compiled
 in only under the `debug` feature:
 

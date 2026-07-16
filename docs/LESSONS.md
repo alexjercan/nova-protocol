@@ -550,6 +550,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   a double OnDestroyed can't soft-lock the clear). Counting sibling of
   `collisionstart-is-per-collider-pair`. 20260715-224812.
 
+- `pick-the-system-set-seam` (x1): when a plugin partitions its systems into
+  `run_if` gated SystemSets, choose the target set for a new system explicitly -
+  a debug convenience is not automatically a `DebugSystems`/`DebugEnabled`-gated
+  system (F12 screenshot must fire with overlays toggled OFF, so it lives in
+  plain `Update`, not the debug-gated set). 20260716-114125.
+
 ## Domain lessons (nova-protocol specific)
 
 - `two-clocks` (family): FixedUpdate consumers read raw Position/Rotation;
