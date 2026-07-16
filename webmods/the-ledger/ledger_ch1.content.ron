@@ -88,6 +88,14 @@
                     )),
                     // The wreck: two dead hull masses, invulnerable set
                     // dressing (nothing in this chapter should pop the stage).
+                    // Nominal radius is NOT the visible size: the asteroid
+                    // noise mesh reaches ASTEROID_GEOMETRIC_FACTOR_MIN..MAX
+                    // (3.5..6.0) past the nominal sphere, so the real hull is
+                    // radius * ~6 at worst. These stay small (real ~7..12u) so
+                    // the quota crates 15..16u out never end up buried inside
+                    // the rock, AND so they stay under min_well_radius (5.0) -
+                    // a bigger nominal would silently make each wreck a gravity
+                    // well that tugs the tug across the whole work site.
                     SpawnScenarioObject((
                         base: (
                             id: "matron_bow",
@@ -96,7 +104,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                            radius: 8.0,
+                            radius: 2.0,
                             texture: "textures/asteroid.png",
                             health: 1000.0,
                             surface_gravity: None,
@@ -112,7 +120,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                            radius: 6.0,
+                            radius: 1.7,
                             texture: "textures/asteroid.png",
                             health: 1000.0,
                             surface_gravity: None,
