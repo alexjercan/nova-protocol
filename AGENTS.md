@@ -101,10 +101,11 @@ instead; the ledger is `docs/LESSONS.md`, never `docs/retros/LESSONS.md`.
 - The durable reference docs live in the wiki source under `web/src/wiki/dev/`
   (rendered as public pages at `/wiki/dev/`): `architecture.md`,
   `scenario-system.md`, `sections.md`, `development.md` (build/web/release),
-  `modding-ron.md`, `mod-portal.md`. Edit them there and keep them accurate when
-  the code they describe changes. `docs/` now holds only transient records - the
-  `LESSONS.md` ledger, `plans/`, per-task folders, and one-off writeups like the
-  Bevy migration notes; `docs/README.md` indexes it.
+  `modding-ron.md`, `mod-portal.md`, and `keeping-docs-in-sync.md` (the map of
+  which docs to update when you change code or cut a release). Edit them there
+  and keep them accurate when the code they describe changes. `docs/` now holds
+  only transient records - the `LESSONS.md` ledger, `plans/`, per-task folders,
+  and one-off writeups like the Bevy migration notes; `docs/README.md` indexes it.
 - Tasks: `tatr` CLI, markdown files under `tasks/`. Check the backlog before
   starting, close tasks when done. Skills: /plan, /work, /review, /compound, /flow.
 - Version lives in root `Cargo.toml` (`workspace.package.version`). Notable
@@ -113,26 +114,33 @@ instead; the ledger is `docs/LESSONS.md`, never `docs/retros/LESSONS.md`.
 
 ## The website (`web/`)
 
-`web/` is the public site (landing, blog/devlog, tutorial, wiki): TypeScript +
-Webpack + Tailwind, deployed to GitHub Pages with the game served under
-`/play/`. It is content, not generated - it does not update itself, so keep it
-in sync by hand whenever a change makes something on it wrong or missing:
+`web/` is the public site (landing, news, tutorial, wiki): TypeScript + Webpack
++ Tailwind, deployed to GitHub Pages with the game served under `/play/`. It is
+content, not generated - it does not update itself, so keep it in sync by hand
+whenever a code change makes something on it wrong or missing. The full map of
+what to touch when is a dev wiki page, **Keeping docs in sync**
+(`web/src/wiki/dev/keeping-docs-in-sync.md`, published at
+`/wiki/dev/keeping-docs-in-sync/`). The short version:
 
-- **Player-facing behavior changed** (controls, verbs, HUD, menu flow, the
-  tutorial/Shakedown Run): update `web/src/tutorial.html`. The old page drifting
-  behind the game is exactly the failure to avoid - if you change a keybind or a
-  targeting rule, fix the tutorial in the same task.
-- **A release went out**: write a devblog for the cycle. One devlog per minor
-  version, patch releases folded into it as a closing note. The devlogs follow
-  the Factorio Friday Facts spirit - a numbered series, multi-topic, candid and
-  first-person, image-heavy, each closing with a GitHub Discussions prompt. Full
-  steps (the four files a devblog touches) are in
-  `web/src/wiki/dev/development.md` under "Writing the release devblog".
-- **New feature or mechanic worth showing**: it can also earn a screenshot or
-  diagram on the site. Use the `.figure` component (see `web/src/style.css`); it
-  ships a dashed placeholder frame naming the image file to capture, so you can
-  land the slot and caption now and drop the real capture in later.
+- **Player-facing behavior changed** (controls, verbs, HUD, menu flow, a
+  section, a weapon, a scenario primitive): fix the affected player wiki pages
+  under `web/src/wiki/*.md`, plus `web/src/tutorial.html` if the first-flight
+  flow moved. A page drifting behind the game is exactly the failure to avoid -
+  change a keybind or a targeting rule, fix its doc in the same task.
+- **Internals or a data format changed**: fix the dev wiki pages under
+  `web/src/wiki/dev/*.md` (a RON / bundle / catalog break must land in
+  `dev/modding-ron.md` / `dev/mod-portal.md` the same task).
+- **A release went out**: update `CHANGELOG.md` (terse, grouped by subsystem)
+  and the site's **News** (`/news/`, `web/src/news/`). One post per FEATURE
+  release; patch releases fold into their parent post's `## Point releases`
+  section, never a post of their own. Full steps are in
+  `web/src/wiki/dev/development.md` under "Writing the release news post".
+- **New feature or mechanic worth showing**: earn it a screenshot or diagram.
+  Use the `.figure` component (see `web/src/style.css`); it ships a dashed
+  placeholder naming the image file to capture, so land the slot and caption now
+  and drop the real capture in later.
 
-Adding or renaming a page/post means editing `web/webpack.config.js` in two
-places (the `page(...)` plugin list and the `historyApiFallback` rewrites).
-Verify with `cd web && npm run ci` (format check, lint, build).
+Adding or renaming a page/post edits `web/webpack.config.js` (the page list and
+`historyApiFallback` rewrites), plus the wiki manifest `web/src/wiki-pages.ts`
+for a wiki page, or `NEWS_POSTS` + a card in `web/src/news.html` for a news
+post. Verify with `cd web && npm run ci` (format check, lint, build).

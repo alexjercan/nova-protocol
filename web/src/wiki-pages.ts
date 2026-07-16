@@ -408,7 +408,7 @@ export const WIKI_PAGES: WikiPage[] = [
         tags: ["dev", "build"],
         summary:
             "The developer's getting-started: toolchain, everyday cargo commands, features, examples, the web build, and the versioning/release checklist.",
-        related: ["dev/architecture", "dev/mod-portal"],
+        related: ["dev/architecture", "dev/mod-portal", "dev/keeping-docs-in-sync"],
         headings: [
             "Toolchain",
             "Everyday commands",
@@ -416,6 +416,22 @@ export const WIKI_PAGES: WikiPage[] = [
             "Examples",
             "Web build",
             "Versioning and release",
+        ],
+    },
+    {
+        slug: "dev/keeping-docs-in-sync",
+        title: "Keeping docs in sync",
+        category: "Get started",
+        tags: ["dev", "docs"],
+        summary:
+            "The map of documentation surfaces (CHANGELOG, News, wiki, tutorial) and what to update when you change code or cut a release - so nothing drifts.",
+        related: ["dev/development", "dev/architecture", "dev/mod-portal"],
+        headings: [
+            "The documentation surfaces",
+            "When you change code",
+            "The dependency map",
+            "When you cut a release",
+            "Adding or renaming a page",
         ],
     },
     {

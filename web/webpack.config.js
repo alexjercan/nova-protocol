@@ -97,6 +97,11 @@ const WIKI_DOC_PAGES = [
         title: "Building & running",
     },
     {
+        slug: "dev/keeping-docs-in-sync",
+        md: "dev/keeping-docs-in-sync.md",
+        title: "Keeping docs in sync",
+    },
+    {
         slug: "dev/architecture",
         md: "dev/architecture.md",
         title: "Architecture",

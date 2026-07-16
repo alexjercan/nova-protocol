@@ -200,7 +200,9 @@ Pushing a tag `v[0-9]+.[0-9]+.[0-9]+*` triggers `release-flow`
 6. `git push origin master && git push origin vX.Y.Z`.
 7. Watch the run (`gh run watch`), then check the GitHub release page and
    consider adding summarized release notes (`gh release edit vX.Y.Z --notes-file ...`).
-8. Write a devblog for the release cycle (see below) and land it in `web/`.
+8. Write or expand the release News post (see "Writing the release news post"
+   below) and land it in `web/`; sync any wiki pages the cycle changed (see
+   [Keeping docs in sync](../keeping-docs-in-sync/)).
 
 The workflow uploads four assets to a release named after the tag: macOS
 universal `.dmg`, Linux `.tar.gz`, Windows `.zip`, and a wasm-opt'd web zip.

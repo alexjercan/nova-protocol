@@ -10,6 +10,14 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 
 ## Process lessons
 
+- `keep-docs-in-sync-with-code` (x1): a code change is not done until the docs
+  it invalidates are fixed in the SAME task - Nova documents itself across
+  several surfaces (terse `CHANGELOG.md`, the `/news/` posts, the player wiki,
+  the dev wiki, the tutorial) and none updates itself. The map of what to touch
+  when (per code area, and on release) is the dev wiki page
+  `web/src/wiki/dev/keeping-docs-in-sync.md`; the enforcement rule is in
+  AGENTS.md ("The website"). Stale docs found while writing this: AGENTS.md and
+  development.md still said "devblog" after the /news/ merge. 20260716-115938.
 - `verbosity-invites-fabrication` (x1): telling a drafter (esp. a subagent) to
   be MORE verbose / "cover everything" pushes it to fill gaps with plausible
   invention - a 0.5.0 news post given the four damage-type names invented each

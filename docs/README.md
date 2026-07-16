@@ -24,6 +24,9 @@ the code they describe changes:
   enabled set, the local cache and the `mods://` source, and file naming.
 - `web/src/wiki/dev/mod-portal.md` - the static mod portal: layout, generator,
   the `catalog.json` wire schema, publishing, and game-side storage.
+- `web/src/wiki/dev/keeping-docs-in-sync.md` - the map of which docs
+  (CHANGELOG, News, wiki, tutorial) to update when you change code or cut a
+  release, so nothing drifts.
 
 ## What lives here (transient)
 
