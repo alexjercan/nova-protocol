@@ -164,7 +164,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   `run_if(resource_exists::<Messages<T>>)`, or add `add_message::<T>()` /
   `init_resource::<Messages<T>>()` to every such rig - grep the manual
   `add_message` sites before running. A scroll reader broke 4 menu tests; a new
-  `RadarRetargeted` writer needed the resource in 2 targeting rigs.
+  `RadarRetargeted` writer needed the resource in 2 targeting rigs. Recipe for
+  cross-plugin resources: init in BOTH the writing and consuming plugin
+  (idempotent) - a menu OnEnter clear panicked every menu-only rig until the
+  consumer plugin inited too (20260716-193949).
   20260714-174126, 20260714-090006.
 - `worktree-shares-main-target` (x1, CORRECTED): a fresh sprout worktree has an
   empty `target/` - accept the cold build; do NOT share `CARGO_TARGET_DIR` with
@@ -520,10 +523,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `verify-bevy-api-at-callsite` (x1): before writing an unfamiliar Bevy
   bundle/field, copy an existing in-repo callsite; the 0.x API churns.
   20260712-131348.
-- `anchor-edits-in-the-right-scope` (x1): inserting into a large file by unique
+- `anchor-edits-in-the-right-scope` (x2): inserting into a large file by unique
   text can land in the wrong enclosing scope (a `#[test]` compiled inside a
-  production impl because the anchor string also appeared there); anchor on an
-  in-module landmark or confirm the module boundary first. 20260525-133017.
+  production impl because the anchor string also appeared there), and anchoring
+  on a `fn` line STEALS the attribute/doc block above it (a neighboring test was
+  silently deregistered; the filtered run listing the new test twice was the
+  tell). Anchor on the attribute/doc block start or after a closing brace, and
+  confirm the module boundary. 20260525-133017, 20260716-193949.
 - `spike-reuse-over-new-infra` (x1, positive): when a request implies new
   infrastructure, first check whether an existing substrate covers the real
   need. 20260712-131348.

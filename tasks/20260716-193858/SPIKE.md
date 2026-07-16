@@ -131,3 +131,8 @@ Ship 1 first (the core defines LintIssue; 2 consumes it).
   accurate warning (the Ledger ch4 choice fork). One design change vs
   the spec: duplicate ids split into same-handler Error /
   cross-handler Warn (the choice-fork pattern is legitimate).
+- 20260716-193949 (runtime half): SHIPPED, landed 6a4ff060 - merge
+  sweep into ContentIssues, refusal before teardown, FAILED TO START
+  modal, backdrop-draw filtering (the menu-camera hazard the spike's
+  reporting option missed - a refused MENU load has no camera to show
+  a modal on; filtering at the draw was the fix). Both tiers live.
