@@ -4,6 +4,11 @@ Audit date: 2026-07-16. Method: grep sweeps over `src/`, `crates/`,
 `examples/`, `tests/`, `webmods/`, `assets/`, plus reading the relevant
 modules. Line numbers are as of commit a8dad52e.
 
+Correction (2026-07-16, task 155816): the audit read a stale working
+file in the shared checkout and missed the Broadside scenario
+(`crates/nova_assets/src/scenario/broadside.rs`, landed f53fa5e8) -
+base has five builder-backed scenarios, not four. No conclusions change.
+
 ## 1. The .rs -> .ron pipeline for base content (confirmed)
 
 The suspicion is correct, with one twist: the converter is a test.
