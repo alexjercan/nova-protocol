@@ -3,7 +3,7 @@
         id: "menu_ambience",
         name: "Menu Ambience",
         description: "The main menu\'s living backdrop.",
-        cubemap: "textures/cubemap.png",
+        cubemap: "self://textures/cubemap.png",
         hidden: true,
         menu_backdrop: true,
         events: [
@@ -28,7 +28,7 @@
                         ),
                         kind: Asteroid((
                             radius: 20.0,
-                            texture: "textures/asteroid.png",
+                            texture: "self://textures/asteroid.png",
                             health: 2000.0,
                             surface_gravity: Some(6.0),
                             invulnerable: true,
@@ -131,7 +131,7 @@
                             ),
                             kind: Asteroid((
                                 radius: 1.0,
-                                texture: "textures/asteroid.png",
+                                texture: "self://textures/asteroid.png",
                                 health: 100.0,
                                 invulnerable: false,
                             )),

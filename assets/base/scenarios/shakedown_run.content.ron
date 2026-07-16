@@ -3,8 +3,8 @@
         id: "shakedown_run",
         name: "Shakedown Run",
         description: "First flight: beacons, salvage, orbit - and one scavenger.",
-        cubemap: "textures/cubemap.png",
-        thumbnail: Some("banner.png"),
+        cubemap: "self://textures/cubemap.png",
+        thumbnail: Some("self://banner.png"),
         events: [
             (
                 name: OnStart,
@@ -151,7 +151,7 @@
                         ),
                         kind: Asteroid((
                             radius: 20.0,
-                            texture: "textures/asteroid.png",
+                            texture: "self://textures/asteroid.png",
                             health: 2000.0,
                             surface_gravity: Some(6.0),
                             invulnerable: true,
@@ -175,7 +175,7 @@
                         ),
                         kind: Asteroid((
                             radius: 2.5,
-                            texture: "textures/asteroid.png",
+                            texture: "self://textures/asteroid.png",
                             health: 100.0,
                             invulnerable: false,
                         )),
@@ -198,7 +198,7 @@
                         ),
                         kind: Asteroid((
                             radius: 1.5,
-                            texture: "textures/asteroid.png",
+                            texture: "self://textures/asteroid.png",
                             health: 100.0,
                             invulnerable: false,
                         )),
@@ -221,7 +221,7 @@
                         ),
                         kind: Asteroid((
                             radius: 3.0,
-                            texture: "textures/asteroid.png",
+                            texture: "self://textures/asteroid.png",
                             health: 100.0,
                             invulnerable: false,
                         )),
@@ -244,7 +244,7 @@
                         ),
                         kind: Asteroid((
                             radius: 2.0,
-                            texture: "textures/asteroid.png",
+                            texture: "self://textures/asteroid.png",
                             health: 100.0,
                             invulnerable: false,
                         )),
@@ -267,7 +267,7 @@
                         ),
                         kind: Asteroid((
                             radius: 1.0,
-                            texture: "textures/asteroid.png",
+                            texture: "self://textures/asteroid.png",
                             health: 100.0,
                             invulnerable: false,
                         )),
@@ -290,7 +290,7 @@
                         ),
                         kind: Asteroid((
                             radius: 2.5,
-                            texture: "textures/asteroid.png",
+                            texture: "self://textures/asteroid.png",
                             health: 100.0,
                             invulnerable: false,
                         )),
@@ -313,7 +313,7 @@
                         ),
                         kind: Asteroid((
                             radius: 1.5,
-                            texture: "textures/asteroid.png",
+                            texture: "self://textures/asteroid.png",
                             health: 100.0,
                             invulnerable: false,
                         )),
@@ -336,7 +336,7 @@
                         ),
                         kind: Asteroid((
                             radius: 2.0,
-                            texture: "textures/asteroid.png",
+                            texture: "self://textures/asteroid.png",
                             health: 100.0,
                             invulnerable: false,
                         )),
@@ -359,7 +359,7 @@
                         ),
                         kind: Asteroid((
                             radius: 3.0,
-                            texture: "textures/asteroid.png",
+                            texture: "self://textures/asteroid.png",
                             health: 100.0,
                             invulnerable: false,
                         )),
@@ -975,7 +975,7 @@
                         ),
                         kind: Asteroid((
                             radius: 2.5,
-                            texture: "textures/asteroid.png",
+                            texture: "self://textures/asteroid.png",
                             health: 150.0,
                             invulnerable: false,
                             lock_signature: Some(15.0),

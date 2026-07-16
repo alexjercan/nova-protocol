@@ -38,7 +38,7 @@ fn cubemap_meta_loads_six_layer_array() {
     app.register_asset_loader(ImageLoader::new(CompressedImageFormats::NONE));
 
     let asset_server = app.world().resource::<AssetServer>().clone();
-    let handle: Handle<Image> = asset_server.load("textures/cubemap.png");
+    let handle: Handle<Image> = asset_server.load("base/textures/cubemap.png");
 
     // The PNG decode of a 4096x24576 image takes a few seconds in dev builds;
     // the deadline only bounds a hang.

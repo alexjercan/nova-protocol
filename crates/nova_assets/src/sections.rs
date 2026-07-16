@@ -52,11 +52,11 @@ impl SectionMeshRefs {
     /// the serialized section configs carry authorable paths.
     pub fn from_paths() -> Self {
         Self {
-            hull: AssetRef::from("gltf/hull-01.glb#Scene0".to_string()),
-            turret_yaw: AssetRef::from("gltf/turret-yaw-01.glb#Scene0".to_string()),
-            turret_pitch: AssetRef::from("gltf/turret-pitch-01.glb#Scene0".to_string()),
-            turret_barrel: AssetRef::from("gltf/turret-barrel-01.glb#Scene0".to_string()),
-            torpedo_bay: AssetRef::from("gltf/torpedo-bay-01.glb#Scene0".to_string()),
+            hull: AssetRef::from("self://gltf/hull-01.glb#Scene0".to_string()),
+            turret_yaw: AssetRef::from("self://gltf/turret-yaw-01.glb#Scene0".to_string()),
+            turret_pitch: AssetRef::from("self://gltf/turret-pitch-01.glb#Scene0".to_string()),
+            turret_barrel: AssetRef::from("self://gltf/turret-barrel-01.glb#Scene0".to_string()),
+            torpedo_bay: AssetRef::from("self://gltf/torpedo-bay-01.glb#Scene0".to_string()),
         }
     }
 }

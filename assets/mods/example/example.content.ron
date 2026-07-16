@@ -33,14 +33,15 @@
             health: 400.0,
         ),
         kind: Hull((
-            render_mesh: Some("gltf/hull-01.glb#Scene0"),
+            render_mesh: Some("dep://base/gltf/hull-01.glb#Scene0"),
         )),
     )),
     // -- 2. NEW SECTION -----------------------------------------------------
     // A fresh id, so this is ADDED alongside the base sections - it shows up in
     // the editor palette and can be bolted onto any ship. The arena ship below
-    // uses it, so you can see it in play. `kind: Hull` reuses the base hull
-    // mesh; a real mod could point `render_mesh` at its own `self://` model.
+    // uses it, so you can see it in play. `kind: Hull` reuses the base hull mesh
+    // via `dep://base/...`; a real mod could point `render_mesh` at its own
+    // `self://` model instead.
     Section((
         base: (
             id: "example_plated_hull_section",
@@ -50,7 +51,7 @@
             health: 500.0,
         ),
         kind: Hull((
-            render_mesh: Some("gltf/hull-01.glb#Scene0"),
+            render_mesh: Some("dep://base/gltf/hull-01.glb#Scene0"),
         )),
     )),
     // -- 3. PLAYABLE SCENARIO ----------------------------------------------
@@ -58,8 +59,9 @@
     // the skybox is `self://textures/nebula.png`, shipped in this folder and
     // declared in `resources`. `self://` resolves to this mod's own folder
     // whether shipped (`mods/example/...`) or downloaded (`mods://example/...`),
-    // so you never hard-code your id. (A non-`self://` path like
-    // "textures/cubemap.png" would resolve against the BASE game instead.)
+    // so you never hard-code your id. To reuse a BASE-game asset instead, use
+    // `dep://base/<path>` (e.g. `dep://base/textures/cubemap.png`); a bare,
+    // scheme-less asset path is no longer valid in content.
     Scenario((
         id: "example_arena",
         name: "Example Arena",

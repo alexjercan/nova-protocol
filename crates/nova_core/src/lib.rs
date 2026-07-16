@@ -244,7 +244,7 @@ pub fn assets_plugin() -> AssetPlugin {
     AssetPlugin {
         meta_check: bevy::asset::AssetMetaCheck::Paths(
             bevy::platform::collections::HashSet::from_iter([bevy::asset::AssetPath::from(
-                "textures/cubemap.png",
+                "base/textures/cubemap.png",
             )]),
         ),
         ..default()

@@ -36,10 +36,10 @@
         id: "gauntlet_run",
         name: "Gauntlet Run",
         description: "A parkour course: thread six gates through asteroid slaloms and a gravity well, START to FINISH. Fly clean or wreck.",
-        cubemap: "textures/cubemap.png",
+        cubemap: "dep://base/textures/cubemap.png",
         // A 2D image: a UI thumbnail must NOT be the skybox cubemap (that Image
         // is reinterpreted to a Cube texture, which the UI pipeline cannot bind).
-        thumbnail: Some("textures/asteroid.png"),
+        thumbnail: Some("dep://base/textures/asteroid.png"),
         events: [
             (
                 name: OnStart,
@@ -230,7 +230,7 @@
                         ),
                         kind: Asteroid((
                             radius: 1.5,
-                            texture: "textures/asteroid.png",
+                            texture: "dep://base/textures/asteroid.png",
                             health: 500.0,
                             invulnerable: true,
                         )),
@@ -245,7 +245,7 @@
                         ),
                         kind: Asteroid((
                             radius: 2.0,
-                            texture: "textures/asteroid.png",
+                            texture: "dep://base/textures/asteroid.png",
                             health: 500.0,
                             invulnerable: true,
                         )),
@@ -259,7 +259,7 @@
                         ),
                         kind: Asteroid((
                             radius: 2.0,
-                            texture: "textures/asteroid.png",
+                            texture: "dep://base/textures/asteroid.png",
                             health: 500.0,
                             invulnerable: true,
                         )),
@@ -273,7 +273,7 @@
                         ),
                         kind: Asteroid((
                             radius: 2.0,
-                            texture: "textures/asteroid.png",
+                            texture: "dep://base/textures/asteroid.png",
                             health: 500.0,
                             invulnerable: true,
                         )),
@@ -287,7 +287,7 @@
                         ),
                         kind: Asteroid((
                             radius: 2.0,
-                            texture: "textures/asteroid.png",
+                            texture: "dep://base/textures/asteroid.png",
                             health: 500.0,
                             invulnerable: true,
                         )),
@@ -312,7 +312,7 @@
                             ),
                             kind: Asteroid((
                                 radius: 1.5,
-                                texture: "textures/asteroid.png",
+                                texture: "dep://base/textures/asteroid.png",
                                 health: 500.0,
                                 invulnerable: true,
                             )),
@@ -329,7 +329,7 @@
                         ),
                         kind: Asteroid((
                             radius: 2.5,
-                            texture: "textures/asteroid.png",
+                            texture: "dep://base/textures/asteroid.png",
                             health: 500.0,
                             invulnerable: true,
                         )),
@@ -343,7 +343,7 @@
                         ),
                         kind: Asteroid((
                             radius: 2.0,
-                            texture: "textures/asteroid.png",
+                            texture: "dep://base/textures/asteroid.png",
                             health: 500.0,
                             invulnerable: true,
                         )),
@@ -357,7 +357,7 @@
                         ),
                         kind: Asteroid((
                             radius: 2.0,
-                            texture: "textures/asteroid.png",
+                            texture: "dep://base/textures/asteroid.png",
                             health: 500.0,
                             invulnerable: true,
                         )),
@@ -375,7 +375,7 @@
                         ),
                         kind: Asteroid((
                             radius: 4.0,
-                            texture: "textures/asteroid.png",
+                            texture: "dep://base/textures/asteroid.png",
                             health: 2000.0,
                             surface_gravity: Some(8.0),
                             invulnerable: true,
@@ -452,7 +452,7 @@
                         message: "Into the belt - GATE 3. Thread the rocks, do not kiss them.",
                     )),
                     // Act 2 begins: the belt closes in.
-                    SetSkybox((cubemap: "textures/cubemap_alt.png")),
+                    SetSkybox((cubemap: "dep://base/textures/cubemap_alt.png")),
                 ],
             ),
             (
@@ -506,7 +506,7 @@
                         message: "GATE 5 ahead - and a planetoid's pull off to port. Sling or avoid.",
                     )),
                     // Act 3 begins: the hazard field.
-                    SetSkybox((cubemap: "textures/cubemap_alt.png")),
+                    SetSkybox((cubemap: "dep://base/textures/cubemap_alt.png")),
                 ],
             ),
             (

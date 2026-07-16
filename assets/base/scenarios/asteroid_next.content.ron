@@ -3,7 +3,7 @@
         id: "asteroid_next",
         name: "Asteroid Field - Next",
         description: "The next scenario after the asteroid field.",
-        cubemap: "textures/cubemap.png",
+        cubemap: "self://textures/cubemap.png",
         hidden: true,
         events: [
             (

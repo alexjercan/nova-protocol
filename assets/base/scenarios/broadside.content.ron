@@ -3,8 +3,8 @@
         id: "broadside",
         name: "Broadside",
         description: "The scavengers come back in force: answer a hauler\'s distress call, break an ambush, and screen the gang gunship\'s torpedoes with your PDC. Chapter two of the base storyline.",
-        cubemap: "textures/cubemap_alt.png",
-        thumbnail: Some("banner.png"),
+        cubemap: "self://textures/cubemap_alt.png",
+        thumbnail: Some("self://banner.png"),
         events: [
             (
                 name: OnStart,
@@ -228,7 +228,7 @@
                             ),
                             kind: Asteroid((
                                 radius: 1.0,
-                                texture: "textures/asteroid.png",
+                                texture: "self://textures/asteroid.png",
                                 health: 100.0,
                                 invulnerable: false,
                             )),

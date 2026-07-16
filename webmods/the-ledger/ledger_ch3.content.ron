@@ -11,8 +11,8 @@
         id: "ledger_ch3_quiet_channel",
         name: "The Ledger 3: The Quiet Channel",
         description: "Go dark and thread the debris channel to Vesh's yard. Chapter three of The Ledger.",
-        cubemap: "textures/cubemap_alt.png",
-        thumbnail: Some("textures/asteroid.png"),
+        cubemap: "dep://base/textures/cubemap_alt.png",
+        thumbnail: Some("dep://base/textures/asteroid.png"),
         hidden: true,
         events: [
             (
@@ -167,7 +167,7 @@
                             ),
                             kind: Asteroid((
                                 radius: 1.0,
-                                texture: "textures/asteroid.png",
+                                texture: "dep://base/textures/asteroid.png",
                                 health: 100.0,
                                 surface_gravity: None,
                                 invulnerable: false,

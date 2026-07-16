@@ -413,7 +413,7 @@ pub(crate) fn broadside(
             .to_string(),
         cubemap,
         // Placeholder thumbnail (real per-scenario art: task 20260715-220011).
-        thumbnail: Some(AssetRef::from("banner.png")),
+        thumbnail: Some(AssetRef::from("self://banner.png")),
         hidden: false,
         menu_backdrop: false,
         events,

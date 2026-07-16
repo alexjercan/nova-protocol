@@ -14,7 +14,7 @@
         id: "screenshot_reel",
         name: "Screenshot Reel",
         description: "A static showcase set filmed by the screenshot-reel example.",
-        cubemap: "textures/cubemap.png",
+        cubemap: "base/textures/cubemap.png",
         events: [
             (
                 name: OnStart,
@@ -36,7 +36,7 @@
                         ),
                         kind: Asteroid((
                             radius: 4.0,
-                            texture: "textures/asteroid.png",
+                            texture: "base/textures/asteroid.png",
                             health: 5000.0,
                             surface_gravity: None,
                             invulnerable: true,
@@ -63,7 +63,7 @@
                             ),
                             kind: Asteroid((
                                 radius: 3.0,
-                                texture: "textures/asteroid.png",
+                                texture: "base/textures/asteroid.png",
                                 health: 100.0,
                                 surface_gravity: None,
                                 invulnerable: false,

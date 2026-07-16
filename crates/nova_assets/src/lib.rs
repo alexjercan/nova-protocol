@@ -56,12 +56,12 @@ pub mod scenario_generation {
     use crate::sections::{build_sections, SectionMeshRefs};
 
     /// The skybox cubemap asset path (matches `GameAssets::cubemap`).
-    const CUBEMAP_PATH: &str = "textures/cubemap.png";
+    const CUBEMAP_PATH: &str = "self://textures/cubemap.png";
     /// Broadside's deep-field sky: the alt cubemap, so chapter two reads as
     /// a different place than the trainer belt.
-    const CUBEMAP_ALT_PATH: &str = "textures/cubemap_alt.png";
+    const CUBEMAP_ALT_PATH: &str = "self://textures/cubemap_alt.png";
     /// The asteroid texture asset path (matches `GameAssets::asteroid_texture`).
-    const ASTEROID_TEXTURE_PATH: &str = "textures/asteroid.png";
+    const ASTEROID_TEXTURE_PATH: &str = "self://textures/asteroid.png";
 
     /// The section-prototype catalog built from PATH-based mesh refs - the source
     /// the content parity test wraps as `Content::Section` items and serializes
@@ -1000,19 +1000,19 @@ impl Plugin for GameAssetsPlugin {
 
 #[derive(AssetCollection, Resource, Clone)]
 pub struct GameAssets {
-    #[asset(path = "textures/cubemap.png")]
+    #[asset(path = "base/textures/cubemap.png")]
     pub cubemap: Handle<Image>,
-    #[asset(path = "textures/asteroid.png")]
+    #[asset(path = "base/textures/asteroid.png")]
     pub asteroid_texture: Handle<Image>,
-    #[asset(path = "gltf/hull-01.glb#Scene0")]
+    #[asset(path = "base/gltf/hull-01.glb#Scene0")]
     pub hull_01: Handle<WorldAsset>,
-    #[asset(path = "gltf/turret-yaw-01.glb#Scene0")]
+    #[asset(path = "base/gltf/turret-yaw-01.glb#Scene0")]
     pub turret_yaw_01: Handle<WorldAsset>,
-    #[asset(path = "gltf/turret-pitch-01.glb#Scene0")]
+    #[asset(path = "base/gltf/turret-pitch-01.glb#Scene0")]
     pub turret_pitch_01: Handle<WorldAsset>,
-    #[asset(path = "gltf/turret-barrel-01.glb#Scene0")]
+    #[asset(path = "base/gltf/turret-barrel-01.glb#Scene0")]
     pub turret_barrel_01: Handle<WorldAsset>,
-    #[asset(path = "gltf/torpedo-bay-01.glb#Scene0")]
+    #[asset(path = "base/gltf/torpedo-bay-01.glb#Scene0")]
     pub torpedo_bay_01: Handle<WorldAsset>,
     #[asset(path = "icons/fps.png")]
     pub fps_icon: Handle<Image>,

@@ -15,8 +15,8 @@
         id: "ledger_ch1_dead_weight",
         name: "The Ledger 1: Dead Weight",
         description: "Mesa Verde Reclamation contract 4471: strip the freighter Ceres Matron for a three-crate quota. Chapter one of The Ledger.",
-        cubemap: "textures/cubemap.png",
-        thumbnail: Some("textures/asteroid.png"),
+        cubemap: "dep://base/textures/cubemap.png",
+        thumbnail: Some("dep://base/textures/asteroid.png"),
         events: [
             (
                 name: OnStart,
@@ -105,7 +105,7 @@
                         ),
                         kind: Asteroid((
                             radius: 2.0,
-                            texture: "textures/asteroid.png",
+                            texture: "dep://base/textures/asteroid.png",
                             health: 1000.0,
                             surface_gravity: None,
                             invulnerable: true,
@@ -121,7 +121,7 @@
                         ),
                         kind: Asteroid((
                             radius: 1.7,
-                            texture: "textures/asteroid.png",
+                            texture: "dep://base/textures/asteroid.png",
                             health: 1000.0,
                             surface_gravity: None,
                             invulnerable: true,
@@ -264,7 +264,7 @@
                             ),
                             kind: Asteroid((
                                 radius: 1.0,
-                                texture: "textures/asteroid.png",
+                                texture: "dep://base/textures/asteroid.png",
                                 health: 100.0,
                                 surface_gravity: None,
                                 invulnerable: false,

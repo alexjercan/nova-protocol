@@ -3,7 +3,7 @@
         id: "asteroid_field",
         name: "Asteroid Field",
         description: "A dense asteroid field.",
-        cubemap: "textures/cubemap.png",
+        cubemap: "self://textures/cubemap.png",
         hidden: true,
         events: [
             (
@@ -27,7 +27,7 @@
                         ),
                         kind: Asteroid((
                             radius: 20.0,
-                            texture: "textures/asteroid.png",
+                            texture: "self://textures/asteroid.png",
                             health: 2000.0,
                             surface_gravity: Some(6.0),
                             invulnerable: true,
@@ -269,7 +269,7 @@
                             ),
                             kind: Asteroid((
                                 radius: 1.0,
-                                texture: "textures/asteroid.png",
+                                texture: "self://textures/asteroid.png",
                                 health: 100.0,
                                 invulnerable: false,
                             )),

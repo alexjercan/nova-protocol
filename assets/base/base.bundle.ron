@@ -13,6 +13,21 @@
         "scenarios/menu_scrapyard.content.ron",
         "scenarios/shakedown_run.content.ron",
     ],
+    // The base game's own art, now shipped UNDER assets/base/ and referenced from
+    // base content with `self://` (and by mods with `dep://base/<path>`). Every
+    // `self://` ref in base content must name one of these (the content gate
+    // enforces completeness; sidecar `.meta` files ride along and are not listed).
+    resources: [
+        "textures/cubemap.png",
+        "textures/cubemap_alt.png",
+        "textures/asteroid.png",
+        "gltf/hull-01.glb",
+        "gltf/turret-yaw-01.glb",
+        "gltf/turret-pitch-01.glb",
+        "gltf/turret-barrel-01.glb",
+        "gltf/torpedo-bay-01.glb",
+        "banner.png",
+    ],
     meta: (
         name: "Base Game",
         description: "Nova Protocol - the core sections, ships and scenarios.",

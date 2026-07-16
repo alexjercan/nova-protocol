@@ -82,7 +82,7 @@ fn set_skybox_swaps_a_real_cubemap_on_the_scenario_camera() {
     let asset_server = app.world().resource::<AssetServer>().clone();
 
     // A scenario camera already showing the shipped cubemap at brightness 700.
-    let initial: Handle<Image> = asset_server.load("textures/cubemap.png");
+    let initial: Handle<Image> = asset_server.load("base/textures/cubemap.png");
     wait_loaded(&mut app, &asset_server, &initial, "the initial cubemap");
 
     let camera = app
@@ -110,7 +110,7 @@ fn set_skybox_swaps_a_real_cubemap_on_the_scenario_camera() {
     );
 
     // The swap target is a DIFFERENT real asset (distinct path -> distinct id).
-    let swapped: Handle<Image> = asset_server.load("textures/cubemap_alt.png");
+    let swapped: Handle<Image> = asset_server.load("base/textures/cubemap_alt.png");
     assert_ne!(
         swapped, initial,
         "the swap must target a different cubemap than the initial one"
@@ -121,7 +121,7 @@ fn set_skybox_swaps_a_real_cubemap_on_the_scenario_camera() {
     // queued command (-> PendingSkyboxSwap) exactly as it does in game.
     {
         let mut event_world = app.world_mut().resource_mut::<NovaEventWorld>();
-        SetSkyboxActionConfig::new("textures/cubemap_alt.png")
+        SetSkyboxActionConfig::new("base/textures/cubemap_alt.png")
             .action(&mut event_world, &GameEventInfo::default());
     }
 

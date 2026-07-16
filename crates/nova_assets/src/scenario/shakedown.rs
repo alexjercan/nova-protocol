@@ -878,7 +878,7 @@ pub(crate) fn shakedown_run(
         cubemap,
         // The main-story entry point: listed in the Scenarios picker with a
         // placeholder thumbnail (real per-scenario art is task 20260715-220011).
-        thumbnail: Some(AssetRef::from("banner.png")),
+        thumbnail: Some(AssetRef::from("self://banner.png")),
         events,
         ..Default::default()
     }

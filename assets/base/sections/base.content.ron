@@ -8,7 +8,7 @@
             health: 200.0,
         ),
         kind: Hull((
-            render_mesh: Some("gltf/hull-01.glb#Scene0"),
+            render_mesh: Some("self://gltf/hull-01.glb#Scene0"),
         )),
     )),
     Section((
@@ -55,19 +55,19 @@
                 -0.5,
                 0.0,
             ),
-            render_mesh_yaw: Some("gltf/turret-yaw-01.glb#Scene0"),
+            render_mesh_yaw: Some("self://gltf/turret-yaw-01.glb#Scene0"),
             yaw_offset: (
                 0.0,
                 0.1,
                 0.0,
             ),
-            render_mesh_pitch: Some("gltf/turret-pitch-01.glb#Scene0"),
+            render_mesh_pitch: Some("self://gltf/turret-pitch-01.glb#Scene0"),
             pitch_offset: (
                 0.0,
                 0.332706,
                 0.303954,
             ),
-            render_mesh_barrel: Some("gltf/turret-barrel-01.glb#Scene0"),
+            render_mesh_barrel: Some("self://gltf/turret-barrel-01.glb#Scene0"),
             barrel_offset: (
                 0.0,
                 0.128437,
@@ -95,7 +95,7 @@
             health: 60.0,
         ),
         kind: Hull((
-            render_mesh: Some("gltf/hull-01.glb#Scene0"),
+            render_mesh: Some("self://gltf/hull-01.glb#Scene0"),
         )),
     )),
     Section((
@@ -116,19 +116,19 @@
                 -0.5,
                 0.0,
             ),
-            render_mesh_yaw: Some("gltf/turret-yaw-01.glb#Scene0"),
+            render_mesh_yaw: Some("self://gltf/turret-yaw-01.glb#Scene0"),
             yaw_offset: (
                 0.0,
                 0.1,
                 0.0,
             ),
-            render_mesh_pitch: Some("gltf/turret-pitch-01.glb#Scene0"),
+            render_mesh_pitch: Some("self://gltf/turret-pitch-01.glb#Scene0"),
             pitch_offset: (
                 0.0,
                 0.332706,
                 0.303954,
             ),
-            render_mesh_barrel: Some("gltf/turret-barrel-01.glb#Scene0"),
+            render_mesh_barrel: Some("self://gltf/turret-barrel-01.glb#Scene0"),
             barrel_offset: (
                 0.0,
                 0.128437,
@@ -156,7 +156,7 @@
             health: 100.0,
         ),
         kind: Torpedo((
-            render_mesh: Some("gltf/torpedo-bay-01.glb#Scene0"),
+            render_mesh: Some("self://gltf/torpedo-bay-01.glb#Scene0"),
             spawn_offset: (
                 0.0,
                 0.0,

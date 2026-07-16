@@ -13,8 +13,8 @@
         id: "ledger_ch4_the_buyer",
         name: "The Ledger 4: The Buyer",
         description: "Everyone wants the box. Decide who gets it - then survive the decision. Chapter four of The Ledger.",
-        cubemap: "textures/cubemap.png",
-        thumbnail: Some("textures/asteroid.png"),
+        cubemap: "dep://base/textures/cubemap.png",
+        thumbnail: Some("dep://base/textures/asteroid.png"),
         hidden: true,
         events: [
             (
@@ -94,7 +94,7 @@
                         ),
                         kind: Asteroid((
                             radius: 7.0,
-                            texture: "textures/asteroid.png",
+                            texture: "dep://base/textures/asteroid.png",
                             health: 1000.0,
                             surface_gravity: None,
                             invulnerable: true,

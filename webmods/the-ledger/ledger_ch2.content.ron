@@ -12,8 +12,8 @@
         id: "ledger_ch2_claim_jumpers",
         name: "The Ledger 2: Claim Jumpers",
         description: "The Magpies want the box. Keep them off the Dray Mule until the lane clears. Chapter two of The Ledger.",
-        cubemap: "textures/cubemap_alt.png",
-        thumbnail: Some("textures/asteroid.png"),
+        cubemap: "dep://base/textures/cubemap_alt.png",
+        thumbnail: Some("dep://base/textures/asteroid.png"),
         hidden: true,
         events: [
             (
