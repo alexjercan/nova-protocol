@@ -1,6 +1,6 @@
 # Settings menu content: graphics quality, keybinds, audio
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.7.0, ui, menu, spike
 
