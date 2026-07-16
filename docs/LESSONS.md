@@ -675,6 +675,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   Positive application: un-gating hanabi on wasm, CI builds native only + deploy is
   workflow_dispatch, so ran the real `trunk build` (the sole wasm compile gate)
   instead of trusting green native CI. 20260714-174131, 20260714-233438.
+- `lint-covers-types-not-variants` (x1): when writing checks over a config
+  tree, enumerate every PATH to the checked type (grep the type name across
+  the config structs), not the enum variants you remember - the prototype
+  check missed ScatterObjects templates because ScenarioObjectConfig embeds
+  in two actions. 20260716-191543.
 - `content-identifiers-sweep-by-script` (x1, domain): scenario RON's
   cross-file identifiers (section prototype ids, NextScenario targets, filter
   ids) resolve at SPAWN, so every load/publish gate passes them green; sweep

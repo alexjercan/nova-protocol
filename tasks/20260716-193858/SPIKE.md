@@ -125,3 +125,9 @@ Ship 1 first (the core defines LintIssue; 2 consumes it).
 ## Fix record
 
 (Implementing tasks append here as they land.)
+
+- 20260716-191543 (static half): SHIPPED, landed 00698783 - lint core
+  (8 checks), content_lint bin, CI gate; real tree lints clean with one
+  accurate warning (the Ledger ch4 choice fork). One design change vs
+  the spec: duplicate ids split into same-handler Error /
+  cross-handler Warn (the choice-fork pattern is legitimate).
