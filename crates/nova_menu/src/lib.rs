@@ -203,6 +203,20 @@ impl Plugin for NovaMenuPlugin {
                 .run_if(in_state(GameStates::Playing))
                 .run_if(resource_exists::<CurrentOutcome>),
         );
+        // The runtime content gate's player-facing half (task
+        // 20260716-193949): a refused scenario start shows FAILED TO START.
+        // Playing-only (the menu's backdrop draw filters broken scenarios
+        // instead); stale reports clear on menu entry.
+        app.add_systems(
+            Update,
+            sync_start_failure_overlay
+                .run_if(in_state(GameStates::Playing))
+                .run_if(resource_exists::<ScenarioStartFailure>),
+        );
+        // Init here too (the loader plugin also inits it): menu-only rigs
+        // must not panic on the OnEnter clear.
+        app.init_resource::<ScenarioStartFailure>();
+        app.add_systems(OnEnter(GameStates::MainMenu), clear_start_failure);
         app.add_observer(regrab_cursor_on_player_spawn);
     }
 }
@@ -570,6 +584,120 @@ fn on_outcome_advance(_activate: On<Activate>, mut world: Option<ResMut<NovaEven
     if let Some(world) = world.as_deref_mut() {
         world.release_lingering_next();
     }
+}
+
+/// Marker for the FAILED TO START overlay root (runtime content gate, task
+/// 20260716-193949).
+#[derive(Component)]
+struct StartFailureOverlay;
+
+/// Show the Wesnoth-style refusal report: banner, the scenario's name, one
+/// line per content error, and the only road out - Main Menu. Mirrors the
+/// outcome overlay's modal shell.
+fn sync_start_failure_overlay(
+    mut commands: Commands,
+    failure: Res<ScenarioStartFailure>,
+    q_existing: Query<Entity, With<StartFailureOverlay>>,
+) {
+    if !failure.is_changed() {
+        return;
+    }
+    for entity in q_existing.iter() {
+        commands.entity(entity).despawn();
+    }
+    let Some(report) = failure.0.as_ref() else {
+        return;
+    };
+
+    commands
+        .spawn((
+            StartFailureOverlay,
+            DespawnOnExit(GameStates::Playing),
+            Name::new("Start Failure Overlay"),
+            Pickable {
+                should_block_lower: true,
+                is_hoverable: false,
+            },
+            Node {
+                width: percent(100),
+                height: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
+            // Same layer as the outcome overlay (which a refusal clears).
+            GlobalZIndex(9),
+        ))
+        .with_children(|parent| {
+            parent
+                .spawn((
+                    Name::new("Start Failure Panel"),
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::Center,
+                        width: px(380),
+                        padding: UiRect::all(px(20)),
+                        border: UiRect::all(px(theme::BORDER_W)),
+                        border_radius: BorderRadius::all(px(theme::RADIUS)),
+                        ..default()
+                    },
+                    BorderColor::all(theme::BORDER),
+                    BackgroundColor(theme::PANEL),
+                ))
+                .with_children(|parent| {
+                    parent.spawn((
+                        Name::new("Start Failure Banner"),
+                        Text::new("FAILED TO START"),
+                        TextFont {
+                            font_size: FontSize::Px(28.0),
+                            ..default()
+                        },
+                        TextColor(theme::semantic::THREAT),
+                    ));
+                    parent.spawn((
+                        Name::new("Start Failure Scenario"),
+                        Text::new(format!("Failed to start '{}':", report.scenario_name)),
+                        TextFont {
+                            font_size: FontSize::Px(16.0),
+                            ..default()
+                        },
+                        TextColor(theme::TEXT),
+                        Node {
+                            margin: UiRect::top(px(8)),
+                            max_width: px(340),
+                            ..default()
+                        },
+                    ));
+                    for message in &report.messages {
+                        parent.spawn((
+                            Name::new("Start Failure Issue"),
+                            Text::new(message.clone()),
+                            TextFont {
+                                font_size: FontSize::Px(13.0),
+                                ..default()
+                            },
+                            TextColor(theme::TEXT_MUTED),
+                            Node {
+                                margin: UiRect::top(px(4)),
+                                max_width: px(340),
+                                ..default()
+                            },
+                        ));
+                    }
+                    parent.spawn((
+                        Name::new("Start Failure Menu Button"),
+                        button("Main Menu"),
+                        observe(on_back_to_menu),
+                    ));
+                });
+        });
+}
+
+/// Menu entry clears any stale refusal report (its overlay died with the
+/// Playing state; the resource must not re-show it next run).
+fn clear_start_failure(mut failure: ResMut<ScenarioStartFailure>) {
+    failure.0 = None;
 }
 
 /// Free the cursor while the outcome overlay is up (its buttons need a
@@ -977,12 +1105,31 @@ fn on_catalog_retry(
 fn load_menu_ambience(
     mut commands: Commands,
     scenarios: Res<GameScenarios>,
+    issues: Option<Res<ContentIssues>>,
     mut rng: Single<&mut WyRand, With<GlobalRng>>,
 ) {
     // Deterministic candidate order before the draw (the registry is
-    // HashMap-backed; iteration order must not leak into the pick).
-    let mut backdrops: Vec<&ScenarioConfig> =
-        scenarios.values().filter(|s| s.menu_backdrop).collect();
+    // HashMap-backed; iteration order must not leak into the pick). A
+    // backdrop with Error-level content issues is filtered OUT of the draw:
+    // the loader would refuse it (runtime content gate) and a refused menu
+    // load means no camera at all - degrade to the other backdrops or the
+    // bare-camera path instead.
+    let mut backdrops: Vec<&ScenarioConfig> = scenarios
+        .values()
+        .filter(|s| s.menu_backdrop)
+        .filter(|s| {
+            let broken = issues
+                .as_ref()
+                .is_some_and(|issues| !issues.errors(&s.id).is_empty());
+            if broken {
+                warn!(
+                    "load_menu_ambience: backdrop '{}' has content errors;                      skipping it in the draw",
+                    s.id
+                );
+            }
+            !broken
+        })
+        .collect();
     backdrops.sort_by(|a, b| a.id.cmp(&b.id));
 
     if backdrops.is_empty() {
@@ -5533,6 +5680,104 @@ mod tests {
             2,
             "a seeded 8-draw rotation reaches both backdrops"
         );
+    }
+
+    /// The runtime content gate on the menu side (task 20260716-193949): a
+    /// backdrop with Error-level issues is filtered OUT of the draw (a
+    /// refused menu load would leave no camera at all) - the clean one is
+    /// always picked; ALL broken degrades to the bare-camera path.
+    #[test]
+    fn broken_backdrops_are_skipped_in_the_draw() {
+        let mut app = app();
+        app.insert_resource(GameScenarios(bevy::platform::collections::HashMap::from([
+            dummy_backdrop("backdrop_clean"),
+            dummy_backdrop("backdrop_broken"),
+        ])));
+        let mut issues = ContentIssues::default();
+        issues.0.insert(
+            "backdrop_broken".to_string(),
+            vec![LintIssue {
+                severity: LintSeverity::Error,
+                scenario: "backdrop_broken".to_string(),
+                message: "unknown section prototype 'ghost'".to_string(),
+            }],
+        );
+        app.insert_resource(issues);
+        observe_load_scenario(&mut app);
+        app.update();
+
+        for _ in 0..6 {
+            app.world_mut()
+                .resource_mut::<NextState<GameStates>>()
+                .set(GameStates::MainMenu);
+            app.update();
+            let picked = app
+                .world_mut()
+                .resource_mut::<LoadedScenario>()
+                .0
+                .take()
+                .expect("a clean backdrop still loads");
+            assert_eq!(picked, "backdrop_clean", "the broken backdrop never draws");
+            app.world_mut()
+                .resource_mut::<NextState<GameStates>>()
+                .set(GameStates::Playing);
+            app.update();
+        }
+    }
+
+    /// A refusal report shows the FAILED TO START overlay in Playing, and
+    /// menu entry clears the stale report.
+    #[test]
+    fn start_failure_shows_the_overlay_and_menu_entry_clears_it() {
+        let mut app = app();
+        app.insert_resource(dummy_scenarios());
+        app.update();
+        enter_playing(&mut app);
+
+        app.world_mut().resource_mut::<ScenarioStartFailure>().0 =
+            Some(ScenarioStartFailureReport {
+                scenario_name: "Broken Chapter".to_string(),
+                messages: vec!["unknown section prototype 'ghost_hull'".to_string()],
+            });
+        app.update();
+
+        let overlays = app
+            .world_mut()
+            .query_filtered::<(), With<StartFailureOverlay>>()
+            .iter(app.world())
+            .count();
+        assert_eq!(overlays, 1, "the refusal modal spawns");
+        let texts: Vec<String> = app
+            .world_mut()
+            .query::<&Text>()
+            .iter(app.world())
+            .map(|t| t.0.clone())
+            .collect();
+        assert!(
+            texts.iter().any(|t| t.contains("Broken Chapter")),
+            "the report names the scenario: {texts:?}"
+        );
+        assert!(
+            texts.iter().any(|t| t.contains("ghost_hull")),
+            "the report carries the issue: {texts:?}"
+        );
+
+        // Menu entry despawns the overlay (state scoping) and clears the
+        // resource so it cannot re-show next run.
+        app.world_mut()
+            .resource_mut::<NextState<GameStates>>()
+            .set(GameStates::MainMenu);
+        app.update();
+        assert!(
+            app.world().resource::<ScenarioStartFailure>().0.is_none(),
+            "menu entry clears the stale report"
+        );
+        let overlays = app
+            .world_mut()
+            .query_filtered::<(), With<StartFailureOverlay>>()
+            .iter(app.world())
+            .count();
+        assert_eq!(overlays, 0, "the modal died with the Playing state");
     }
 
     /// NOTHING flagged degrades to a bare camera (the UI must keep

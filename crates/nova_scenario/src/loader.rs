@@ -9,9 +9,10 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        scenario_is_live, CurrentScenario, GameScenarios, LoadScenario, NewGameStart,
-        ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig, ScenarioId, ScenarioLoaded,
-        ScenarioLoaderPlugin, ScenarioScopedMarker, ScriptedCameraPose, UnloadScenario,
+        scenario_is_live, ContentIssues, CurrentScenario, GameScenarios, LoadScenario,
+        NewGameStart, ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig, ScenarioId,
+        ScenarioLoaded, ScenarioLoaderPlugin, ScenarioScopedMarker, ScenarioStartFailure,
+        ScenarioStartFailureReport, ScriptedCameraPose, UnloadScenario,
     };
 }
 
@@ -31,6 +32,43 @@ pub struct GameScenarios(pub HashMap<ScenarioId, ScenarioConfig>);
 /// nothing; the menu then falls back to the first listed scenario.
 #[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
 pub struct NewGameStart(pub Option<ScenarioId>);
+
+/// Lint findings per registered scenario, written by the bundle merge
+/// against the MERGED registries (task 20260716-193949) - the runtime half
+/// of the content gate (`nova_scenario::lint` is the shared core). Keyed by
+/// scenario id; scenarios without findings have no entry. Error-level
+/// findings make [`on_load_scenario`] REFUSE the load.
+#[derive(Resource, Clone, Debug, Default)]
+pub struct ContentIssues(pub HashMap<ScenarioId, Vec<LintIssue>>);
+
+impl ContentIssues {
+    /// The Error-level findings for `id` (empty = startable).
+    pub fn errors(&self, id: &str) -> Vec<&LintIssue> {
+        self.0
+            .get(id)
+            .map(|issues| {
+                issues
+                    .iter()
+                    .filter(|i| i.severity == LintSeverity::Error)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+}
+
+/// Set when a scenario REFUSED to start (Error-level content issues): the
+/// Wesnoth-style player-facing report ("Failed to start 'X': ..."), rendered
+/// by the menu's FAILED TO START overlay. Cleared on menu entry.
+#[derive(Resource, Clone, Debug, Default)]
+pub struct ScenarioStartFailure(pub Option<ScenarioStartFailureReport>);
+
+/// What the failure overlay shows: the scenario's display name and one line
+/// per Error-level finding.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ScenarioStartFailureReport {
+    pub scenario_name: String,
+    pub messages: Vec<String>,
+}
 
 /// Configuration for a game scenario.
 ///
@@ -193,6 +231,10 @@ impl Plugin for ScenarioLoaderPlugin {
         // Default None until the bundle merge writes the base declaration, so
         // a `Res<NewGameStart>` never panics on ordering.
         app.init_resource::<NewGameStart>();
+        // The runtime content gate's two channels (empty until the merge
+        // writes findings / a load refuses).
+        app.init_resource::<ContentIssues>();
+        app.init_resource::<ScenarioStartFailure>();
         app.add_observer(on_load_scenario);
 
         app.add_observer(on_add_entity_with::<MeshFragmentMarker>);
@@ -545,7 +587,40 @@ fn on_load_scenario(
     mut emphasis: Option<ResMut<HintEmphasis>>,
     mut outcome: Option<ResMut<CurrentOutcome>>,
     asset_server: Res<AssetServer>,
+    issues: Option<Res<ContentIssues>>,
+    mut failure: Option<ResMut<ScenarioStartFailure>>,
 ) {
+    // The runtime content gate (task 20260716-193949): a scenario with
+    // Error-level findings REFUSES to start - better a clear failure than a
+    // silently half-spawned scene. Checked BEFORE teardown so whatever was
+    // on screen stays; the stale outcome overlay is cleared so the FAILED
+    // TO START modal does not stack under it.
+    if let Some(issues) = issues.as_ref() {
+        let errors = issues.errors(&load.0.id);
+        if !errors.is_empty() {
+            error!(
+                "on_load_scenario: refusing to start '{}' ({} content error(s)):",
+                load.0.id,
+                errors.len()
+            );
+            let mut messages = Vec::new();
+            for issue in errors {
+                error!("  {}", issue.message);
+                messages.push(issue.message.clone());
+            }
+            if let Some(outcome) = outcome.as_deref_mut() {
+                outcome.0 = None;
+            }
+            if let Some(failure) = failure.as_deref_mut() {
+                failure.0 = Some(ScenarioStartFailureReport {
+                    scenario_name: load.0.name.clone(),
+                    messages,
+                });
+            }
+            return;
+        }
+    }
+
     teardown_scenario_entities(
         &mut commands,
         &q_scoped,
@@ -772,6 +847,88 @@ fn on_player_spaceship_destroyed(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The runtime content gate (task 20260716-193949): an Error-flagged
+    /// scenario REFUSES to start - nothing scenario-scoped spawns, the
+    /// failure report is set for the overlay, and a stale outcome is
+    /// cleared so its overlay cannot stack under the modal. The clean
+    /// control proves the same rig DOES load without the flag
+    /// (delivery guard).
+    #[test]
+    fn error_flagged_scenario_refuses_to_start() {
+        let build_app = |issues: ContentIssues| {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+            app.init_asset::<Image>();
+            app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+            app.init_resource::<NovaEventWorld>();
+            app.init_resource::<CurrentScenario>();
+            app.init_resource::<GameObjectives>();
+            app.insert_resource(issues);
+            app.init_resource::<ScenarioStartFailure>();
+            app.insert_resource(CurrentOutcome(Some(OutcomeActionConfig {
+                outcome: ScenarioOutcomeKind::Victory,
+                message: None,
+            })));
+            app.add_observer(on_load_scenario);
+            app
+        };
+        let scenario = ScenarioConfig {
+            id: "broken".to_string(),
+            name: "Broken Chapter".to_string(),
+            description: "gate pin".to_string(),
+            cubemap: AssetRef::from("textures/x.png".to_string()),
+            events: vec![],
+            ..Default::default()
+        };
+
+        // Control: no issues -> the scenario loads (scoped entities exist).
+        let mut clean = build_app(ContentIssues::default());
+        clean.world_mut().trigger(LoadScenario(scenario.clone()));
+        clean.update();
+        let loaded = clean
+            .world_mut()
+            .query_filtered::<(), With<ScenarioScopedMarker>>()
+            .iter(clean.world())
+            .count();
+        assert!(
+            loaded > 0,
+            "delivery guard: the clean load spawns the scene"
+        );
+
+        // Gate: an Error finding refuses the load.
+        let mut issues = ContentIssues::default();
+        issues.0.insert(
+            "broken".to_string(),
+            vec![LintIssue {
+                severity: LintSeverity::Error,
+                scenario: "broken".to_string(),
+                message: "unknown section prototype 'ghost_hull'".to_string(),
+            }],
+        );
+        let mut app = build_app(issues);
+        app.world_mut().trigger(LoadScenario(scenario));
+        app.update();
+
+        let spawned = app
+            .world_mut()
+            .query_filtered::<(), With<ScenarioScopedMarker>>()
+            .iter(app.world())
+            .count();
+        assert_eq!(spawned, 0, "a refused start must spawn nothing");
+        let failure = app.world().resource::<ScenarioStartFailure>();
+        let report = failure.0.as_ref().expect("the refusal sets the report");
+        assert_eq!(report.scenario_name, "Broken Chapter");
+        assert!(report.messages[0].contains("ghost_hull"));
+        assert!(
+            app.world().resource::<CurrentOutcome>().0.is_none(),
+            "a stale outcome is cleared so its overlay cannot stack"
+        );
+        assert!(
+            app.world().resource::<CurrentScenario>().is_none(),
+            "the refused scenario never becomes current"
+        );
+    }
 
     /// The loader's skybox install is DEFERRED (task 20260708-203659, found
     /// by example 19): an eager `SkyboxConfig` insert panics inside the bcs

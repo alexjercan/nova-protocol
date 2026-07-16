@@ -681,6 +681,30 @@ pub fn register_bundles(
     }
     commands.insert_resource(NewGameStart(new_game));
 
+    // The runtime content gate (task 20260716-193949): lint every registered
+    // scenario against the MERGED registries - the only place cross-mod
+    // references are decidable. `on_load_scenario` refuses Error-flagged
+    // scenarios; the menu filters them out of the backdrop draw.
+    let merged_sections: std::collections::HashSet<String> =
+        outcome.sections.iter().map(|s| s.base.id.clone()).collect();
+    let merged_scenarios: std::collections::HashSet<String> =
+        outcome.scenarios.keys().cloned().collect();
+    let mut content_issues = nova_scenario::prelude::ContentIssues::default();
+    for scenario in outcome.scenarios.values() {
+        let found =
+            nova_scenario::prelude::lint_scenario(scenario, &merged_sections, &merged_scenarios);
+        for issue in &found {
+            warn!(
+                "register_bundles: content lint [{:?}] scenario '{}': {}",
+                issue.severity, issue.scenario, issue.message
+            );
+        }
+        if !found.is_empty() {
+            content_issues.0.insert(scenario.id.clone(), found);
+        }
+    }
+    commands.insert_resource(content_issues);
+
     commands.insert_resource(GameSections(outcome.sections));
     commands.insert_resource(outcome.scenarios);
 }

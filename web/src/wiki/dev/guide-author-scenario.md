@@ -66,6 +66,12 @@ content_lint` checks what the loaders cannot - section prototype ids,
 (these all resolve at SPAWN time, so a typo loads green and misbehaves
 in-game). CI runs the same checks; an Error fails the build.
 
+The same checks run in-game when mods merge: a scenario with Error-level
+findings REFUSES to start - the player sees a FAILED TO START report
+naming each problem (instead of a silently half-spawned scene), and a
+broken menu backdrop is skipped by the backdrop rotation. Fix the
+findings and re-enable the mod.
+
 One file can hold several content items (sections, more scenarios). This guide
 covers the scenario item; a file that is just one scenario is fine.
 

@@ -22,7 +22,7 @@ use nova_gameplay::prelude::GameSections;
 use nova_modding::prelude::{
     BundleAsset, CatalogEntry, Content, ContentAsset, InstalledCatalog, ModEntry, NovaModdingPlugin,
 };
-use nova_scenario::prelude::{GameScenarios, NewGameStart};
+use nova_scenario::prelude::{ContentIssues, GameScenarios, NewGameStart, ScenarioConfig};
 
 /// A headless app with the asset server pointed at the workspace `assets/` and the
 /// modding plugin (which registers the content/bundle/catalog loaders).
@@ -641,4 +641,93 @@ fn new_game_declaration_is_honored_only_from_base() {
         &NewGameStart(Some("base_start".to_string())),
         "the enabled non-base declaration must not override the base one"
     );
+}
+
+/// The runtime content gate's merge sweep (task 20260716-193949): the real
+/// shipped catalog merges with ZERO content issues (the clean-tree pin the
+/// static gate also enforces), and a synthetic bundle whose scenario names a
+/// missing prototype lands in `ContentIssues` keyed by scenario id.
+#[test]
+fn merge_sweep_flags_bad_content_and_passes_the_shipped_tree() {
+    // Clean pin: the real catalog.
+    let mut app = headless_app();
+    let asset_server = app.world().resource::<AssetServer>().clone();
+    let catalog: Handle<InstalledCatalog> = asset_server.load("mods.catalog.ron");
+    wait_recursive_loaded(
+        &mut app,
+        &asset_server,
+        catalog.id().untyped(),
+        "the mods catalog",
+    );
+    app.world_mut()
+        .insert_resource(game_assets_with_catalog(catalog));
+    app.world_mut()
+        .insert_resource(EnabledMods(["base".to_string()].into_iter().collect()));
+    app.world_mut()
+        .run_system_once(nova_assets::register_bundles_for_test)
+        .expect("register bundles");
+    assert!(
+        app.world().resource::<ContentIssues>().0.is_empty(),
+        "the shipped tree must merge issue-free: {:?}",
+        app.world().resource::<ContentIssues>().0
+    );
+
+    // Sweep pin: a synthetic bundle with a broken scenario.
+    let mut app = headless_app();
+    let broken = ScenarioConfig {
+        id: "broken_scenario".to_string(),
+        name: "Broken".to_string(),
+        description: "merge sweep pin".to_string(),
+        cubemap: nova_gameplay::prelude::AssetRef::from("textures/x.png".to_string()),
+        events: vec![nova_scenario::prelude::ScenarioEventConfig {
+            name: nova_scenario::prelude::EventConfig::OnStart,
+            filters: vec![],
+            actions: vec![nova_scenario::prelude::EventActionConfig::NextScenario(
+                nova_scenario::prelude::NextScenarioActionConfig {
+                    scenario_id: "no_such_chapter".to_string(),
+                    linger: true,
+                },
+            )],
+        }],
+        ..Default::default()
+    };
+    let content = app
+        .world_mut()
+        .resource_mut::<Assets<ContentAsset>>()
+        .add(ContentAsset(vec![Content::Scenario(broken)]));
+    let bundle = app
+        .world_mut()
+        .resource_mut::<Assets<BundleAsset>>()
+        .add(BundleAsset {
+            content: vec![content],
+            meta: ModMeta::default(),
+            new_game_scenario: None,
+        });
+    let synthetic = InstalledCatalog {
+        entries: vec![CatalogEntry {
+            decl: ModEntry {
+                id: "base".to_string(),
+                bundle: "base/base.bundle.ron".to_string(),
+                base: true,
+                hidden: false,
+            },
+            bundle,
+        }],
+    };
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<InstalledCatalog>>()
+        .add(synthetic);
+    app.world_mut()
+        .insert_resource(game_assets_with_catalog(handle));
+    app.world_mut()
+        .insert_resource(EnabledMods(["base".to_string()].into_iter().collect()));
+    app.world_mut()
+        .run_system_once(nova_assets::register_bundles_for_test)
+        .expect("register bundles");
+
+    let issues = app.world().resource::<ContentIssues>();
+    let errors = issues.errors("broken_scenario");
+    assert_eq!(errors.len(), 1, "{:?}", issues.0);
+    assert!(errors[0].message.contains("no_such_chapter"));
 }
