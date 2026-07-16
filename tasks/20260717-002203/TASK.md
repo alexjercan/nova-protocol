@@ -13,19 +13,19 @@ scheme-less asset ref is no longer valid in content.
 
 ## Steps
 
-- [ ] web/src/wiki/dev/guide-make-a-mod.md: replace the "bare = base game"
+- [x] web/src/wiki/dev/guide-make-a-mod.md: replace the "bare = base game"
       guidance with the canonical model - every asset ref carries a scheme;
       `dep://base/<path>` reaches base art; `self://` is own folder;
       `dep://<id>/` is a declared dependency. Update the worked example.
-- [ ] web/src/wiki/dev/modding-ron.md: same, in the data-model reference.
-- [ ] docs/design/mod-binary-resources.md: add the Option A section - base as a
+- [x] web/src/wiki/dev/modding-ron.md: same, in the data-model reference.
+- [x] docs/design/mod-binary-resources.md: add the Option A section - base as a
       normal bundle (art under assets/base/), `dep://base` as the implicit
       universal dep, the canonical bare-ref ban and where it is enforced
       (static: content_lint + portal), and WHY A was chosen over B (link the
       spike).
-- [ ] CHANGELOG.md: a player/author-facing line (mod authors: reference base art
+- [x] CHANGELOG.md: a player/author-facing line (mod authors: reference base art
       with `dep://base/...`, not bare paths).
-- [ ] Grep the wiki/docs for stale "bare path == base" statements and fix them
+- [x] Grep the wiki/docs for stale "bare path == base" statements and fix them
       (keeping-docs-in-sync).
 
 ## Notes

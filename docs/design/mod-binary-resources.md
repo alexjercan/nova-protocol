@@ -22,8 +22,10 @@ manifest listed only `content` RON files.
 - Content references a shipped resource with the reserved `self://` scheme in
   any `AssetRef` string: `cubemap: "self://textures/nebula.png"`,
   `texture: "self://textures/rock.png"`, `render_mesh: Some("self://models/hull.glb#Scene0")`.
-  `self://` means "this mod's own folder". A bare path (no scheme) still
-  resolves against the base game, so existing base-relative refs are unchanged.
+  `self://` means "this mod's own folder". (At the time, a bare path with no
+  scheme still resolved against the base game. **SUPERSEDED by Option A**: bare
+  asset refs are retired - every ref is now namespaced, and a base asset is
+  `dep://base/<path>`. See the Option A section below.)
 - Sidecar `.meta` files (e.g. a skybox's `<name>.png.meta` with
   `array_layout: RowCount`) are shipped as ordinary files in the bundle folder;
   they ride along automatically and do not need a `self://` ref or a `resources`
@@ -128,10 +130,13 @@ bytes. `dep://` is unambiguous and states the gate (the target must be a declare
 DEPendency). It pairs with `self://`: `self://X` = my own folder, `dep://<id>/X`
 = dependency `<id>`'s folder.
 
-`dep://base/...` is REJECTED. `base` is an implicit dependency whose files are
-referenced with a bare (root-relative) path already; base's `resource_base` is
-its own folder (`base`), so rewriting `dep://base/textures/x` would wrongly point
-at `assets/base/textures/x` instead of the root `assets/textures/x`.
+`dep://base/...` was REJECTED at first (in this task): `base` was an implicit
+dependency whose files were at the asset ROOT (referenced with a bare path),
+while base's `resource_base` was its own folder (`base`), so
+`dep://base/textures/x` would have wrongly pointed at `assets/base/textures/x`
+instead of the root `assets/textures/x`. **SUPERSEDED by Option A** (see below):
+base art was MOVED under `assets/base/`, which makes `resource_base = "base"`
+correct, and `dep://base/...` is now the canonical way to reference base art.
 
 ### Resolution (same rewrite-at-flatten)
 
@@ -183,6 +188,44 @@ Shipping an actual art-pack + consumer pair ripples through installed-count
 assertions and wants real art, so it is a separate CONTENT task. This task
 proves the pipeline end-to-end with SYNTHETIC bundles (the cross-mod cases in
 `mod_binary_resources.rs`) plus unit tests, mirroring the `self://` gate test.
+
+## Option A: base as a normal mod / canonical scheme model (tasks 20260717-000416, -002105, -002133)
+
+The user chose to take the "base is just a mod" principle all the way, Factorio
+style, retiring the special "bare path == base game" convention. Spike:
+`tasks/20260716-235458/SPIKE.md` (Option A chosen over the spike's Option B
+recommendation, for canonical one-way-to-reference uniformity while the mod
+ecosystem is small). Three landed tasks:
+
+- **`dep://base` mechanism (20260717-000416).** `base` is the IMPLICIT UNIVERSAL
+  dependency: `dep://base/<path>` is allowed without base appearing in a mod's
+  `meta.dependencies`. `register_bundles` and the static lint inject `base` into
+  every owning bundle's dep scope (its `resource_base` + `resources`); the portal
+  exempts `base` from the declared-dep check (membership skipped for base as a
+  shipped dep, backstopped by the repo lint + runtime). The earlier `dep://base`
+  REJECTION is gone.
+- **The migration (20260717-002105).** Base art (`gltf`, `textures` + `.meta`,
+  `banner.png`) MOVED from the asset root to `assets/base/`, so base is a
+  self-contained bundle. `GameAssets` `#[asset(path)]` + `meta_check` repointed to
+  `base/...`; `gen_content` builders emit `self://` and base declares a
+  `resources` list; every shipped/web mod's bare base ref became `dep://base/...`.
+  `icons/`, `sounds/`, `shaders/` stay at root (UI/engine; a `sounds/` follow-up
+  is task 20260717-002228). Now `resource_base = "base"` is correct: base's
+  `self://X` and any `dep://base/X` both resolve to `assets/base/X`.
+- **Canonical enforcement (20260717-002133).** An asset ref in content MUST carry
+  a scheme (`self://` / `dep://`). A bare, scheme-less asset-path ref is an Error
+  at author/publish time (static `content_lint` + portal). The hard no-bare
+  guarantee is STRUCTURAL - a bare ref resolves against the default source and
+  404s at load (base art is no longer at the root). The lint uses an
+  asset-EXTENSION heuristic (a scheme-less `.png`/`.glb`/... string is a forgotten
+  scheme): the generic content walk cannot type-distinguish an `AssetRef` from any
+  other string, and `AssetRef`'s dual authoring/resolved role rules out a
+  deserialize-level ban (the merge rewrite round-trips bare RESOLVED paths through
+  it). No runtime gate (user decision).
+
+Net author-facing model: three schemes, one canonical way, no bare paths -
+`self://` (own folder), `dep://<id>/` (a declared dependency), `dep://base/` (the
+base game, implicit).
 
 ## Dogfood
 

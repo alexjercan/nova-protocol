@@ -45,7 +45,9 @@ Section((
 
 The render meshes and effect fields are all `Option`s that default to `None`
 (the built-in prototype mesh), so omit them for the default look or write
-`Some("path")` for a custom asset (an asset ref is a bare path string).
+`Some("<scheme>://path")` for a custom asset. An asset ref is a SCHEMED path
+string - `self://models/my.glb#Scene0` for your own model, or
+`dep://base/gltf/hull-01.glb#Scene0` to reuse a base-game mesh; never bare.
 
 ## Hull
 
@@ -61,7 +63,7 @@ Section((
         health: 200.0,
     ),
     kind: Hull((
-        render_mesh: Some("gltf/hull-01.glb#Scene0"),
+        render_mesh: Some("dep://base/gltf/hull-01.glb#Scene0"),
     )),
 )),
 ```
@@ -113,11 +115,11 @@ kind: Turret((
     min_pitch: Some(-0.5235988),
     max_pitch: Some(1.5707964),
     base_offset: (0.0, -0.5, 0.0),
-    render_mesh_yaw: Some("gltf/turret-yaw-01.glb#Scene0"),
+    render_mesh_yaw: Some("dep://base/gltf/turret-yaw-01.glb#Scene0"),
     yaw_offset: (0.0, 0.1, 0.0),
-    render_mesh_pitch: Some("gltf/turret-pitch-01.glb#Scene0"),
+    render_mesh_pitch: Some("dep://base/gltf/turret-pitch-01.glb#Scene0"),
     pitch_offset: (0.0, 0.332706, 0.303954),
-    render_mesh_barrel: Some("gltf/turret-barrel-01.glb#Scene0"),
+    render_mesh_barrel: Some("dep://base/gltf/turret-barrel-01.glb#Scene0"),
     barrel_offset: (0.0, 0.128437, -0.110729),
     muzzle_offset: (0.0, 0.0, -1.2),
     fire_rate: 100.0,
@@ -153,7 +155,7 @@ torpedoes dealing blast damage. The shipped `torpedo_section`:
 
 ```ron
 kind: Torpedo((
-    render_mesh: Some("gltf/torpedo-bay-01.glb#Scene0"),
+    render_mesh: Some("dep://base/gltf/torpedo-bay-01.glb#Scene0"),
     spawn_offset: (0.0, 0.0, -2.0),
     spawn_rotation: (0.0, 0.0, 0.0, 1.0),
     fire_rate: 1.0,
@@ -207,7 +209,7 @@ Section((
         health: 400.0,
     ),
     kind: Hull((
-        render_mesh: Some("gltf/hull-01.glb#Scene0"),
+        render_mesh: Some("dep://base/gltf/hull-01.glb#Scene0"),
     )),
 )),
 ```

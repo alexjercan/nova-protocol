@@ -24,7 +24,7 @@ items; a scenario is one `Scenario((...))` item (a `Content` newtype):
         id: "menu_ambience",
         name: "Menu Ambience",
         description: "The main menu's living backdrop.",
-        cubemap: "textures/cubemap.png",
+        cubemap: "dep://base/textures/cubemap.png",
         events: [
             // one ScenarioEventConfig per handler ...
         ],
@@ -36,11 +36,13 @@ The `ScenarioConfig` fields (`loader.rs`):
 
 - `id` - unique scenario id, the key other scenarios switch to (`NextScenario`).
 - `name`, `description` - display strings.
-- `cubemap` - skybox image, authored as a bare asset-path string (an
-  `AssetRef`; resolved to a handle at load time).
+- `cubemap` - skybox image, authored as a SCHEMED asset-path string (an
+  `AssetRef` - `dep://base/textures/cubemap.png` for a stock skybox, or
+  `self://textures/my.png` for your own; never bare/scheme-less; resolved to a
+  handle at load time).
 - `thumbnail` (optional) - an image path shown in the main-menu Scenarios
   picker's details pane. Authored exactly like `cubemap` but wrapped in the
-  `Option` variant (strict RON, never bare): `thumbnail: Some("banner.png")`.
+  `Option` variant (strict RON, never bare): `thumbnail: Some("dep://base/banner.png")`.
   Omit it for no thumbnail. It MUST be a plain 2D image - NOT a skybox cubemap
   (a cubemap is a Cube texture the UI cannot bind; the picker skips a non-2D
   thumbnail with a warning rather than crashing). Point it at a regular
@@ -224,7 +226,7 @@ SpawnScenarioObject((
     ),
     kind: Asteroid((
         radius: 20.0,
-        texture: "textures/asteroid.png",
+        texture: "dep://base/textures/asteroid.png",
         health: 2000.0,
         surface_gravity: Some(6.0),
         invulnerable: true,
@@ -284,7 +286,7 @@ ScatterObjects((
         ),
         kind: Asteroid((
             radius: 1.0,
-            texture: "textures/asteroid.png",
+            texture: "dep://base/textures/asteroid.png",
             health: 100.0,
             invulnerable: false,
         )),
@@ -689,7 +691,7 @@ load it per section 7.
         id: "my_scenario",
         name: "My Scenario",
         description: "A starter objective loop: clear the field, reach the zone.",
-        cubemap: "textures/cubemap.png",
+        cubemap: "dep://base/textures/cubemap.png",
         events: [
             // Seed the world and the objective state, once, on load.
             (
@@ -712,7 +714,7 @@ load it per section 7.
                             ),
                             kind: Asteroid((
                                 radius: 1.0,
-                                texture: "textures/asteroid.png",
+                                texture: "dep://base/textures/asteroid.png",
                                 health: 100.0,
                                 invulnerable: false,
                             )),

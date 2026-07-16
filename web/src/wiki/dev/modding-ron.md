@@ -27,7 +27,8 @@ resource.
   present and genuinely needs it. The cost (extra serialize/`Reflect` registrations)
   is small, but it is paid at runtime, not only in tests.
 - `nova_gameplay::asset_ref::AssetRef<A>` is the authorable asset reference. In a
-  data file an asset is a path string (`"textures/asteroid.png"`); `AssetRef`
+  data file an asset is a SCHEMED path string (`"dep://base/textures/asteroid.png"`,
+  `"self://textures/my.png"`); `AssetRef`
   deserializes that as `Path`, and `resolve(&AssetServer)` turns it into a
   `Handle<A>` lazily at spawn. Resolution is non-mutating and idempotent, so a ref
   keeps its path and re-serializes (for editor save). Code-built configs use
@@ -87,7 +88,7 @@ resource.
 Authored shapes that are easy to get wrong by hand (generate them with
 `ron::ser::to_string_pretty` on a code-built config if unsure):
 
-- Asset ref: a bare string - `texture: "textures/asteroid.png"`.
+- Asset ref: a SCHEMED string (never bare) - `texture: "dep://base/textures/asteroid.png"` (a base asset) or `"self://textures/my.png"` (own art).
 - `Color`: externally-tagged - `color: Srgba((red: .., green: .., blue: .., alpha: ..))`.
 - `Quat`: a bare 4-tuple - `rotation: (0.0, 0.0, 0.0, 1.0)`.
 - Enum action/kind variants use RON newtype form - `DebugMessage((message: ..))`,
@@ -147,8 +148,12 @@ flowchart TD
   resource (a shared "art pack" reused without copying bytes): `<id>` must be in
   this bundle's `meta.dependencies` and `<path>` a declared resource of THAT mod,
   and it resolves against `<id>`'s own folder with the same shipped/downloaded
-  transparency. `dep://base/` is rejected - base files use a bare path. The same
-  three gates enforce both halves. `self://` remains own-folder only.
+  transparency. `dep://base/<path>` is the special case for a BASE-game asset -
+  the base game ships its art under `assets/base/` and is referenced like any
+  dependency; `base` is the IMPLICIT universal dependency, so it is never
+  declared. There is NO bare/scheme-less asset ref - every ref is namespaced
+  (`self://` own folder, `dep://<id>/` a dependency, `dep://base/` the base game);
+  the same three gates enforce it.
 - The `meta` block (all fields optional, `ModMeta` in `nova_mod_format`,
   re-exported by nova_modding - the pure format types live in that engine-free
   crate so the portal generator shares them without bevy):

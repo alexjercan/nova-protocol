@@ -71,12 +71,20 @@ redirect the New Game start. Mods influence the menu through the Scenarios
 picker and the `menu_backdrop` scenario flag instead (see the scenario
 authoring guide).
 
-### Shipping your own art (mod-relative resources)
+### Referencing art (the scheme model)
 
-By default an asset path in your content resolves against the BASE game
-(`cubemap: "textures/cubemap.png"` is a base file). To ship and use your OWN
-textures, skyboxes, models or audio, put the files in the mod folder, list them
-in `resources`, and reference them with the reserved `self://` scheme:
+Every asset path in your content carries a SCHEME - there is no bare,
+scheme-less path (a bare asset ref is rejected by the gates). Three schemes
+cover every case:
+
+- `self://<path>` - a file THIS mod ships, from its own folder.
+- `dep://base/<path>` - a BASE-game asset (a stock skybox, hull mesh, ...).
+  `base` is the implicit universal dependency, so you never declare it.
+- `dep://<id>/<path>` - a file a DECLARED dependency `<id>` ships (e.g. a shared
+  art pack several mods depend on).
+
+To ship and use your OWN textures, skyboxes, models or audio, put the files in
+the mod folder, list them in `resources`, and reference them with `self://`:
 
 ```ron
 (
@@ -105,7 +113,7 @@ texture: "self://textures/rock.png",
   (`assets/mods/<id>/`) or downloaded from the portal (`mods://<id>/`), on native
   and web alike - you never hard-code your own id.
 - A skybox needs its `<name>.png.meta` sidecar (the `RowCount` cube reinterpret,
-  copy `assets/textures/cubemap.png.meta`); sidecar `.meta` files ship
+  copy `assets/base/textures/cubemap.png.meta`); sidecar `.meta` files ship
   automatically and are NOT listed in `resources`.
 - `assets/mods/example/` is the copy-me example (it ships this skybox and rock
   texture and renders its arena and menu backdrop from them); a `self://` ref
@@ -139,9 +147,12 @@ cubemap: "dep://art_pack/textures/nebula.png",
 - Resolution is transparent across shipped vs downloaded, exactly like `self://`:
   `dep://art_pack/x` resolves to `mods/art_pack/x` (shipped) or `mods://art_pack/x`
   (downloaded), native and web.
-- `dep://base/...` is NOT allowed. `base` is an implicit dependency whose files
-  are the default: reference a base-game file with a BARE path (`textures/x.png`),
-  no scheme.
+- `dep://base/<path>` is the special case for the BASE game's own art (the base
+  game ships its art under `assets/base/` and is referenced like any dependency -
+  `dep://base/textures/cubemap.png` for the stock skybox,
+  `dep://base/gltf/hull-01.glb#Scene0` for the stock hull mesh). `base` is the
+  IMPLICIT universal dependency, so you do NOT list it in `meta.dependencies`.
+  There is no bare/scheme-less shorthand - every asset ref is namespaced.
 
 A content file is a `[Content]` list. Each item is externally tagged by kind:
 
@@ -156,7 +167,8 @@ A content file is a `[Content]` list. Each item is externally tagged by kind:
             health: 400.0,
         ),
         kind: Hull((
-            render_mesh: Some("gltf/hull-01.glb#Scene0"),
+            // reuse the BASE game's hull mesh via dep://base
+            render_mesh: Some("dep://base/gltf/hull-01.glb#Scene0"),
         )),
     )),
     Scenario((
