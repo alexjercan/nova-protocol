@@ -40,7 +40,11 @@ tagged **(breaking)**.
 ### Interface & HUD
 
 - The pause menu (Esc) gained a Retry button: restart the current scenario from scratch without going back through the main menu. Offered only while a scenario is live, so the editor's build mode does not show it.
-- The Settings menu is real content instead of a placeholder: a draggable master audio volume slider, a Low/Medium/High graphics-quality preset, and a read-only reference of the current keyboard and gamepad bindings (flight, targeting, camera, pause). Reachable from BOTH the main menu and the pause menu (the same modal, both entry points), and remembered across restarts - a config file on native, browser storage on the web. The graphics preset currently tunes the combat juice (High keeps camera shake and hit flashes, Medium drops the shake, Low turns the juice off); the low-end spawn-less mode will extend the Low/Medium tiers to also skip particles once the performance baseline lands.
+- The Settings menu is real content instead of a placeholder: a draggable master audio volume slider, a Low/Medium/High graphics-quality preset, and a read-only reference of the current keyboard and gamepad bindings (flight, targeting, camera, pause). Reachable from BOTH the main menu and the pause menu (the same modal, both entry points), and remembered across restarts - a config file on native, browser storage on the web. The graphics preset tunes the combat juice (High keeps camera shake and hit flashes, Medium drops the shake, Low turns the juice off) and now also gates the heavier visuals for low-end machines (see Performance): Low is spawn-less (no particle bursts) and thins dense asteroid/debris fields, Medium thins the fields a little while keeping particles.
+
+### Performance
+
+- The Low/Medium graphics-quality presets now skip expensive visuals for low-end machines, not just the combat juice: Low is spawn-less (torpedo blast/launch and turret muzzle particle bursts are not spawned at all) and thins dense scatter fields to half, and Medium keeps particles but still thins the fields a quarter. High is unchanged. The exact thinning fractions are provisional pending the gameplay frame-time baseline; the tiers stay observably distinct today.
 
 ### Internals & Tooling
 

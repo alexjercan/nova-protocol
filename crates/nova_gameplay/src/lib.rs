@@ -78,7 +78,7 @@ pub mod prelude {
         plugin::{NovaGameplayPlugin, SpaceshipSystems},
         relations::prelude::*,
         sections::prelude::*,
-        settings::{GraphicsQuality, MasterVolume, NovaSettingsPlugin},
+        settings::{GraphicsBudget, GraphicsQuality, MasterVolume, NovaSettingsPlugin},
         GameMode, GameStates, PauseStates,
     };
 }

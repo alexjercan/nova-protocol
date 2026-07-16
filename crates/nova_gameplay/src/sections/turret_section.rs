@@ -1179,6 +1179,7 @@ fn shoot_spawn_projectile(
 
 fn on_projectile_marker_effect(
     add: On<Add, TurretBulletProjectileMarker>,
+    budget: Option<Res<GraphicsBudget>>,
     q_projectile: Query<&TurretSectionMuzzleEntity, With<TurretBulletProjectileMarker>>,
     mut q_effect: Query<
         (&mut EffectProperties, &mut EffectSpawner, &ChildOf),
@@ -1193,6 +1194,13 @@ fn on_projectile_marker_effect(
 ) {
     let projectile = add.entity;
     trace!("on_projectile_marker: entity {:?}", projectile);
+
+    // On the Low tier `insert_turret_barrel_muzzle_effect` never spawned the muzzle
+    // effect, so there is nothing to reset - skip before the lookup, otherwise the
+    // missing-effect branch below would `error!` on every shot (task 20260525-133013).
+    if !budget.as_deref().map_or(true, |b| b.particles) {
+        return;
+    }
 
     let Ok(muzzle) = q_projectile.get(projectile) else {
         error!(
@@ -1590,10 +1598,17 @@ fn insert_turret_barrel_muzzle_effect(
     mut commands: Commands,
     mut effects: ResMut<Assets<EffectAsset>>,
     asset_server: Res<AssetServer>,
+    budget: Option<Res<GraphicsBudget>>,
     q_effect: Query<&TurretSectionBarrelMuzzleEffect, With<TurretSectionBarrelMuzzleMarker>>,
 ) {
     let entity = add.entity;
     trace!("insert_turret_barrel_muzzle_effect: entity {:?}", entity);
+
+    // Low graphics tier is spawn-less: skip the muzzle-flash hanabi (task
+    // 20260525-133013). Absent budget (settings-less app) means full quality.
+    if !budget.as_deref().map_or(true, |b| b.particles) {
+        return;
+    }
 
     let Ok(effect_handle) = q_effect.get(entity) else {
         error!(

@@ -234,11 +234,18 @@ pub(super) fn insert_particle_effect(
     mut commands: Commands,
     mut effects: ResMut<Assets<EffectAsset>>,
     asset_server: Res<AssetServer>,
+    budget: Option<Res<GraphicsBudget>>,
     q_blast: Query<(&Transform, &TorpedoSectionPartOf), With<NovaBlast>>,
     q_config: Query<&TorpedoSectionConfigHelper, With<TorpedoSectionMarker>>,
 ) {
     let entity = add.entity;
     trace!("insert_particle_effect: entity {:?}", entity);
+
+    // Low graphics tier is spawn-less: skip the hanabi blast entirely (task
+    // 20260525-133013). Absent budget (settings-less app) means full quality.
+    if !budget.as_deref().map_or(true, |b| b.particles) {
+        return;
+    }
 
     let Ok((blast_transform, TorpedoSectionPartOf(torpedo_section))) = q_blast.get(entity) else {
         error!(
@@ -354,10 +361,17 @@ pub(super) fn insert_torpedo_spawner_effect(
     mut commands: Commands,
     mut effects: ResMut<Assets<EffectAsset>>,
     asset_server: Res<AssetServer>,
+    budget: Option<Res<GraphicsBudget>>,
     q_effect: Query<&TorpedoSectionSpawnerEffect, With<TorpedoSectionSpawnerMarker>>,
 ) {
     let entity = add.entity;
     trace!("insert_torpedo_spawner_effect: entity {:?}", entity);
+
+    // Low graphics tier is spawn-less: skip the launch-burst hanabi (task
+    // 20260525-133013). Absent budget (settings-less app) means full quality.
+    if !budget.as_deref().map_or(true, |b| b.particles) {
+        return;
+    }
 
     let Ok(effect_handle) = q_effect.get(entity) else {
         error!(
@@ -458,6 +472,7 @@ pub(super) fn insert_torpedo_spawner_effect(
 /// spawner's launch axis, and `reset()` the spawner to emit one puff.
 pub(super) fn on_torpedo_launch_effect(
     add: On<Add, TorpedoProjectileMarker>,
+    budget: Option<Res<GraphicsBudget>>,
     q_projectile: Query<&TorpedoSectionSpawnerEntity, With<TorpedoProjectileMarker>>,
     mut q_effect: Query<
         (&mut EffectProperties, &mut EffectSpawner, &ChildOf),
@@ -472,6 +487,13 @@ pub(super) fn on_torpedo_launch_effect(
 ) {
     let projectile = add.entity;
     trace!("on_torpedo_launch_effect: entity {:?}", projectile);
+
+    // On the Low tier `insert_torpedo_spawner_effect` never spawned the launch
+    // effect, so there is nothing to reset - skip before the lookup, otherwise the
+    // missing-effect branch below would `error!` on every launch (task 20260525-133013).
+    if !budget.as_deref().map_or(true, |b| b.particles) {
+        return;
+    }
 
     let Ok(spawner) = q_projectile.get(projectile) else {
         error!(

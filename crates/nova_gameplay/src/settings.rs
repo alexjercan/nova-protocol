@@ -8,13 +8,18 @@
 //!   `settings.volume * global_volume.volume`); the persistent thruster loop
 //!   sets its own sink volume every frame, so [`crate::audio`] scales that by
 //!   [`MasterVolume`] directly.
-//! - [`GraphicsQuality`] is a three-tier preset. Today it maps onto the combat
-//!   juice ([`crate::juice::JuiceSettings`]) - the one visual-cost knob that
-//!   exists - so each tier is genuinely distinct and observable. The low-end
-//!   spawn-less mode (task 20260525-133013), tuned against the frame-time
-//!   baseline (20260716-123551), EXTENDS this mapping with particle (hanabi)
-//!   and asteroid-scatter gating once the numbers say what is expensive; the
-//!   `apply_graphics_quality` system is the seam it hooks.
+//! - [`GraphicsQuality`] is a three-tier preset. It maps onto two things through
+//!   the single [`apply_graphics_quality`] seam: the combat juice
+//!   ([`crate::juice::JuiceSettings`]) and the derived [`GraphicsBudget`] gate
+//!   (task 20260525-133013, the low-end spawn-less mode). `GraphicsBudget` is
+//!   what the expensive effect systems actually read - whether hanabi particles
+//!   spawn (torpedo blast/launch, turret muzzle) and a density multiplier the
+//!   scenario scatter thins dense asteroid/debris fields by - so the tier->cost
+//!   policy lives in one place instead of being re-derived at every spawn site.
+//!   Each tier stays genuinely distinct and observable across juice, particles
+//!   and scatter. The particle/scatter cut points are the ones the frame-time
+//!   baseline (20260716-123551) flags; the exact multipliers here are provisional
+//!   until that baseline publishes numbers to tune against.
 //!
 //! Persistence (native RON + web localStorage) lives in `nova_menu`, which owns
 //! the load-at-startup and save-on-change wiring; this module only defines the
@@ -86,6 +91,73 @@ impl GraphicsQuality {
     ];
 }
 
+/// The applied per-frame visual-cost gates a [`GraphicsQuality`] preset produces
+/// (task 20260525-133013, the low-end spawn-less mode). `GraphicsQuality` is the
+/// player's *choice*; this is the *derived budget* the expensive effect systems
+/// read, so the tier->cost policy lives only in [`GraphicsBudget::for_quality`]
+/// (driven by [`apply_graphics_quality`]) instead of being re-derived at every
+/// spawn site. Mirrors how [`crate::juice::JuiceSettings`] is the resource the
+/// juice systems read while the preset just flips its toggles.
+///
+/// A settings-less app (examples, headless tools) never inserts this; those
+/// systems read it through `Option`/`get_resource` and fall back to
+/// [`GraphicsBudget::default`] (full quality), so nothing is silently thinned
+/// when the preset is absent.
+#[derive(Resource, Clone, Copy, PartialEq, Debug, Reflect)]
+#[reflect(Resource)]
+pub struct GraphicsBudget {
+    /// Whether hanabi particle effects spawn at all. Off on `Low` - the "spawn-less"
+    /// in the task name; particle spawns are the biggest per-event cost the
+    /// baseline flags.
+    pub particles: bool,
+    /// Multiplier (`0.0..=1.0`) applied to scenario scatter counts, thinning the
+    /// densest static cost (asteroid/debris fields) on the lower tiers.
+    pub scatter_density: f32,
+}
+
+impl GraphicsBudget {
+    /// The one place the tier->cost policy lives. High keeps everything; Medium
+    /// keeps particles but thins scatter; Low drops particles entirely and thins
+    /// scatter hardest. The multipliers are provisional until the frame-time
+    /// baseline (20260716-123551) publishes numbers to tune against - the *shape*
+    /// (what each tier skips) is fixed, only the exact fractions await the data.
+    pub fn for_quality(quality: GraphicsQuality) -> Self {
+        match quality {
+            GraphicsQuality::High => Self {
+                particles: true,
+                scatter_density: 1.0,
+            },
+            GraphicsQuality::Medium => Self {
+                particles: true,
+                scatter_density: 0.75,
+            },
+            GraphicsQuality::Low => Self {
+                particles: false,
+                scatter_density: 0.5,
+            },
+        }
+    }
+
+    /// Apply the scatter-density multiplier to an authored count. Rounds to the
+    /// nearest whole object and keeps at least one when the field is non-empty, so
+    /// a thinned scatter reads as "fewer rocks", never as an empty region that
+    /// looks like a broken scene.
+    pub fn scaled_count(self, count: u32) -> u32 {
+        if count == 0 {
+            return 0;
+        }
+        ((count as f32 * self.scatter_density).round() as u32).max(1)
+    }
+}
+
+impl Default for GraphicsBudget {
+    /// Full quality, matching [`GraphicsQuality::default`], so an app without the
+    /// settings plugin renders everything.
+    fn default() -> Self {
+        Self::for_quality(GraphicsQuality::default())
+    }
+}
+
 /// Registers the settings resources and the systems that apply them live.
 /// Added by [`crate::plugin::NovaGameplayPlugin`] so every app (menu or not)
 /// has the resources and the apply wiring; the menu adds persistence on top.
@@ -95,8 +167,10 @@ impl Plugin for NovaSettingsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MasterVolume>();
         app.init_resource::<GraphicsQuality>();
+        app.init_resource::<GraphicsBudget>();
         app.register_type::<MasterVolume>();
         app.register_type::<GraphicsQuality>();
+        app.register_type::<GraphicsBudget>();
 
         // Apply on change only. `resource_changed` is true on the first frame
         // too (a freshly-inserted resource counts as changed), so the defaults
@@ -122,12 +196,21 @@ fn apply_master_volume(volume: Res<MasterVolume>, global: Option<ResMut<GlobalVo
     }
 }
 
-/// Map the [`GraphicsQuality`] preset onto the combat-juice toggles. This is
-/// the seam the low-end spawn-less mode (20260525-133013) extends with particle
-/// and scatter gating; it only touches the fields it owns (the master switch
-/// and the two per-effect enables), leaving juice tunables like the distance
-/// falloff alone. `Option` guards headless juice-less rigs.
-fn apply_graphics_quality(quality: Res<GraphicsQuality>, juice: Option<ResMut<JuiceSettings>>) {
+/// Map the [`GraphicsQuality`] preset onto the two things it drives: the derived
+/// [`GraphicsBudget`] gate (particle + scatter cost, read by the effect systems)
+/// and the combat-juice toggles. This is the single seam - the low-end spawn-less
+/// mode (20260525-133013) hooks the budget half here rather than re-deriving the
+/// tier at every spawn site. The budget is written unconditionally (this plugin
+/// owns it); the juice half is `Option`-guarded for headless juice-less rigs and
+/// only touches the fields it owns (the master switch and the two per-effect
+/// enables), leaving juice tunables like the distance falloff alone.
+fn apply_graphics_quality(
+    quality: Res<GraphicsQuality>,
+    mut budget: ResMut<GraphicsBudget>,
+    juice: Option<ResMut<JuiceSettings>>,
+) {
+    *budget = GraphicsBudget::for_quality(*quality);
+
     let Some(mut juice) = juice else {
         return;
     };
@@ -219,5 +302,72 @@ mod tests {
         app.update();
         let j = app.world().resource::<JuiceSettings>();
         assert!(!j.master_enabled, "Low: juice master switch off");
+    }
+
+    #[test]
+    fn each_quality_tier_maps_to_a_distinct_graphics_budget() {
+        // The tier->cost policy is a pure function, so assert it directly rather
+        // than only through the app: High keeps everything, Medium thins scatter
+        // but keeps particles, Low is spawn-less and thins hardest.
+        let high = GraphicsBudget::for_quality(GraphicsQuality::High);
+        let medium = GraphicsBudget::for_quality(GraphicsQuality::Medium);
+        let low = GraphicsBudget::for_quality(GraphicsQuality::Low);
+
+        assert!(high.particles && high.scatter_density == 1.0, "High: full");
+        assert!(
+            medium.particles && medium.scatter_density < high.scatter_density,
+            "Medium: particles on, scatter thinner than High"
+        );
+        assert!(
+            !low.particles && low.scatter_density < medium.scatter_density,
+            "Low: spawn-less (no particles) and scatter thinner than Medium"
+        );
+
+        // The default matches the default preset (full quality), so a
+        // settings-less app renders everything.
+        assert_eq!(
+            GraphicsBudget::default(),
+            GraphicsBudget::for_quality(GraphicsQuality::default())
+        );
+    }
+
+    #[test]
+    fn scaled_count_thins_but_never_empties_a_field() {
+        // A non-empty field always keeps at least one object, so thinning reads as
+        // "fewer rocks" and never as a broken empty scene.
+        let low = GraphicsBudget::for_quality(GraphicsQuality::Low);
+        let high = GraphicsBudget::for_quality(GraphicsQuality::High);
+
+        assert_eq!(high.scaled_count(20), 20, "High keeps the authored count");
+        assert!(
+            low.scaled_count(20) < 20 && low.scaled_count(20) > 0,
+            "Low thins the field but leaves rocks (got {})",
+            low.scaled_count(20)
+        );
+        assert_eq!(low.scaled_count(1), 1, "a single-object field survives Low");
+        assert_eq!(low.scaled_count(0), 0, "an empty field stays empty");
+    }
+
+    #[test]
+    fn changing_quality_pushes_onto_the_graphics_budget() {
+        // The apply seam writes the budget even on a juice-less rig (the `app()`
+        // here has JuiceSettings, but the write happens before that Option guard).
+        let mut app = app();
+
+        app.insert_resource(GraphicsQuality::Low);
+        app.update();
+        assert_eq!(
+            *app.world().resource::<GraphicsBudget>(),
+            GraphicsBudget::for_quality(GraphicsQuality::Low),
+            "selecting Low pushes the Low budget onto the resource"
+        );
+
+        app.insert_resource(GraphicsQuality::High);
+        app.update();
+        assert_eq!(
+            *app.world().resource::<GraphicsBudget>(),
+            GraphicsBudget::for_quality(GraphicsQuality::High),
+            "selecting High pushes the High budget back on"
+        );
     }
 }
