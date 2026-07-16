@@ -19,11 +19,18 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   AGENTS.md ("The website"). Ask what a PLAYER loses or gains before filing a
   change as pure refactor (a deleted picker row needed a CHANGELOG line, caught
   only in review). 20260716-115938, 20260716-155816.
-- `truncated-sweep-is-not-a-sweep` (x1): a grep sweep that feeds a work
-  checklist must never be head-truncated - a `| head` sweep during planning
-  listed two of three assertions and the third surfaced as a failed test run;
-  dump sweeps in full (or to a file) and count matches into the plan. Sibling
-  of `sweep-then-delete`. 20260716-155816.
+- `truncated-sweep-is-not-a-sweep` (x3, -> Pending promotions): a grep sweep
+  that feeds a work checklist must never be head-truncated - one audit's
+  `| head` sweeps hid a third assertion (one failed run), a whole extra file
+  from a downstream plan, AND two stale guards whose survival put a red test
+  on master for hours; dump sweeps in full (or to a file) and count matches
+  into the plan. Sibling of `sweep-then-delete`. 20260716-155816,
+  20260716-155839 (x2).
+- `mid-flow-lesson-reaudits-the-queue` (x1): a lesson written mid-flow applies
+  BACKWARD too - re-audit the remaining queued tasks/plans against it (re-run
+  the sweeps it invalidates) instead of only applying it forward; the
+  truncated-sweep lesson was on the ledger while two plans it had already
+  poisoned sat unexamined in the queue. 20260716-155839.
 - `shared-checkout-reads-race` (x1): parallel sessions own the shared main
   checkout's WORKING TREE, so audits reading working files race them (a stale
   base.bundle.ron undercounted the scenarios); read repo facts via
@@ -481,12 +488,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   dependency-SET install atomicity when it is only per-mod (deps download in
   parallel with no join). The behavior was fine and surfaced; the words
   overclaimed. 20260715-142931.
-- `sibling-change-leaves-stale-fixture` (x1): a parallel session's change (a mod
-  bundle's description) landed on master without updating the fixture test that
-  asserts it, leaving the branch base RED; the next branch inherits the red and
-  must realign it. Sweep test fixtures that assert on data you change
-  (`sweep-then-delete` for assertions), and expect to fix an inherited stale
-  fixture when a sibling change under-swept. 20260715-142931.
+- `sibling-change-leaves-stale-fixture` (x2): a change that lands on master
+  without updating a fixture test that asserts on its data leaves master RED for
+  the next branch to inherit and realign (a mod-bundle description once; the
+  demo-scenario removal's under-swept `contains_key("demo")` guards next). Sweep
+  test fixtures that assert on data you change, and expect to repair inherited
+  reds when a sibling under-swept. 20260715-142931, 20260716-155839.
 - `benchmark-gates-both-ways` (x1, positive): a measure-first gate justifies
   DEFERRING optimization work as legitimately as doing it; 083339's filter/
   condition micro-opts were declined on data (noise at realistic rates), a valid
@@ -667,6 +674,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   bevy's `webgpu` overrides the default `webgl2`, so no trunk `--features` and no
   disabling defaults; confirm per-target with `cargo tree --target wasm32...`
   (webgpu present on wasm, absent on native). 20260714-233438.
+
+- `portal-mod-ids-dash-only` (domain, x1): the portal generator's id gate
+  accepts lowercase ascii/digits/'-' ONLY for MOD ids (directory names), while
+  scenario ids conventionally use underscores - name fixtures to the
+  VALIDATING gate's rules, not neighboring conventions. 20260716-155839.
 
 ## Pending promotions (3+ occurrences, user decides)
 
