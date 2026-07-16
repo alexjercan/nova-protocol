@@ -183,6 +183,16 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `observer-over-spawn-site` (x1): attach a derived component to every entity
   of a kind with an `On<Add, Marker>` observer, not by hunting spawn sites.
   20260712-203345.
+- `gate-producer-and-its-consumers` (x1): when a flag skips PRODUCING an
+  entity/asset, sweep for its CONSUMERS too - every system that later looks up
+  that marker/component and drives it - and make each tolerate the producer
+  having been skipped (early return, not an `error!` path). Gating 3 particle
+  SPAWN observers on Low left 2 paired per-shot reset observers error-spamming
+  every shot, because the spawned effect they `reset()` no longer existed. A
+  code-mapping sub-agent's sweep scoped to spawn sites reported "all gated"
+  truthfully but never saw the consumer side; a follow-up grep for the consumer
+  call (`effect_spawner.reset()`) caught it. Sibling of `verify-first-plan-steps`
+  ("enumerate consumers of shared state"). 20260525-133013.
 - `messagereader-needs-resource-guard-in-tests` (x2): a system with a
   `MessageReader<T>`/`MessageWriter<T>`/event param panics in MINIMAL-app tests
   that omit `Messages<T>` (no `InputPlugin`, or a rig that runs the system
