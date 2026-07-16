@@ -252,7 +252,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `ci-skips-client-render` (x1): a build-only CI proves the bundle compiles, not
   that client-rendered UI works; DOM logic needs a runtime check (headless DOM
   or an eyeball), which a green build does not give. 20260713-225324.
-- `render-output-eyeball` (x2): a generated image/visual asset that validates at
+- `render-output-eyeball` (x3): a generated image/visual asset that validates at
   the right dimensions/format can still look wrong - open it. A composite that
   passed 1920x1080 was 2:1 distorted; eyeballing it drove the switch to
   aspect-preserving contain-fit. UI variant: a layout task is not verified
@@ -260,7 +260,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   cannot see z-order/overlap (a menu card painted over the new mods panel,
   ordered by recycled entity ids). Corollary: a scope change touching a past
   deferral's premise (the panel grew 460px -> 85%) re-opens the deferral.
-  20260715-004216, 20260715-142911.
+  20260715-004216, 20260715-142911, 20260711-180511.
 - `roundtrip-hides-shared-bug` (x1): a codec/serializer round-trip test built on
   a self-authored forward pass proves symmetry, not correctness - a predictor/
   formula bug shared by encode and decode cancels. Re-derive the reverse against
@@ -455,7 +455,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   mechanism deleted proves nothing; copied tests inherit vacuousness - and a
   sabotage that refuses to go red refutes the assumed mechanism itself.
   20260711-180426, 20260711-212521, 20260712-115902.
-- `out-of-context-review-pass` (positive, x26): a fresh-context review of a
+- `out-of-context-review-pass` (positive, x27): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
   load-bearing claims instead of trusting them - checking cited evidence IS
   the spawn site, re-running the sabotage or the whole smoke suite, reading
@@ -514,8 +514,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   toolchain is present - the devshell also sets `LD_LIBRARY_PATH` for the bevy
   link; a `cargo: command not found` (or empty output) is the tell.
   20260715-214540, 20260715-140049.
-- `reuse-known-good-stack` (x1, positive): scaffold new sub-projects by copying
-  a working reference toolchain verbatim. 20260712-093048.
+- `reuse-known-good-stack` (x2, positive): scaffold new work by copying a
+  working reference verbatim - a toolchain, or in-repo the mod_prefs persistence
+  stack, bevy's headless Slider, and example 14's screenshot harness for a whole
+  UI feature. 20260712-093048, 20260711-180511.
 - `measure-before-writing-the-number` (x1): never write a specific quantity
   into a doc from a mental model; backfill from an actual run. 20260712-105505.
 - `manual-time-rig-measures-its-clock` (x1): TimeUpdateStrategy::ManualDuration
@@ -666,6 +668,30 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   a debug convenience is not automatically a `DebugSystems`/`DebugEnabled`-gated
   system (F12 screenshot must fire with overlays toggled OFF, so it lives in
   plain `Update`, not the debug-gated set). 20260716-114125.
+
+- `re-audit-consumers-on-input-model-change` (x1): changing a control from
+  DISCRETE to CONTINUOUS (segmented buttons -> a drag slider) invalidates every
+  policy written for the discrete model - re-audit the downstream consumers, not
+  just the widget. A persist-on-change save that was one-write-per-press under
+  segmented buttons became a full config write PER DRAG FRAME under a slider
+  (ValueChange fires per pointer-move); fixed by debouncing. Sibling of
+  `count-gate-use-gt-not-eq` (both are "an event that can fire N times").
+  20260711-180511.
+- `parity-test-must-cross-link` (x1): a "keep X in sync with Y" test must derive
+  the expected value from ONE side and assert it against the OTHER, never assert
+  each side against a hardcoded literal - that only pins each to the test, not to
+  each other. A keybind parity test asserted "rig binds KeyW" AND "reference has
+  a Main Drive row" separately, so a remap that updated the rig + the literal
+  left the on-screen string stale and green; fixed by deriving the label from
+  the live rig key and asserting the reference row contains it. Kin of
+  `would-it-fail-without-it`. 20260711-180511.
+- `ask-user-facing-control-style` (x1): the interaction STYLE of a user-facing
+  control (slider vs stepper vs segmented) is a genuine preference fork - when
+  you catch yourself deliberating it at length, ask (AskUserQuestion) rather
+  than decide. A segmented volume control was built, reasoned over vs a slider,
+  chosen unilaterally, and immediately swapped to a slider on user feedback; the
+  persistence-scope fork WAS surfaced, the control-style fork was not.
+  20260711-180511.
 
 ## Domain lessons (nova-protocol specific)
 
