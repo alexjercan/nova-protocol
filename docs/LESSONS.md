@@ -591,11 +591,18 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   asking "which acts may this fire in?", terminal states especially (an
   act-ungated death handler flipped an earned VICTORY to DEFEAT); gate by
   default, globality is the deliberate exception. 20260708-203659.
-- `crate-solo-tests-miss-unified-features` (x1): `cargo test -p nova_scenario`
+- `crate-solo-tests-miss-unified-features` (x2): `cargo test -p nova_scenario`
   alone fails to compile - its serde round-trip tests lean on workspace
   feature unification (nova_assets -> nova_modding -> nova_scenario/serde);
   run crate tests with a unifying sibling (`-p nova_scenario -p nova_menu`)
-  or workspace-wide as CI does. 20260716-125856.
+  or workspace-wide as CI does. Reconfirmed the hard way; grep this ledger
+  for the crate name before crate-scoped runs. 20260716-125856,
+  20260716-155830.
+- `deleted-content-tests-carry-engine-coverage` (x1): tests over shipped
+  DATA can be the only exercise of an engine mechanism (filters.rs owned
+  filter/action semantics with zero tests of its own); before deleting such
+  tests, audit which mechanism assertions they uniquely carry and re-pin
+  those at the owning crate's boundary FIRST. 20260716-155830.
 - `two-clocks` (family): FixedUpdate consumers read raw Position/Rotation;
   render-rate consumers read eased Transform/GlobalTransform; one computation
   uses one clock from one frame, and consumers of PostUpdate-written state
