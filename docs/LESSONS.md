@@ -240,9 +240,16 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `one-cargo-test-filter` (x5): `cargo test` takes one filter and one `-p` per
   invocation; separate runs otherwise (recurred under flow momentum: a chained
   two-filter run silently tested nothing). 20260713-082324, 20260716-162701.
-- `check-all-targets-for-struct-field` (x1): a new non-Default field breaks
-  every initializer, but plain `cargo check --workspace` skips examples/tests;
-  use `--all-targets`. 20260712-140250.
+- `check-all-targets-for-struct-field` (x2): a new non-Default field breaks
+  every initializer (exhaustive literals in builders AND tests), but plain
+  `cargo check --workspace` skips examples/tests; use `--all-targets`.
+  20260712-140250, 20260716-155849.
+- `mod-facing-surface-plans-failure-paths` (x1): a task exposing a surface to
+  MOD DATA must plan its failure paths up front - enumerate "what breaks when a
+  mod does this badly" (missing entity contracts, empty sets, unregistered ids)
+  as plan steps; all three hazards of the menu_backdrop feature (well-less
+  backdrop bricking the camera, zero backdrops, dangling declarations) were
+  work-phase discoveries the plan never named. 20260716-155849.
 - `endpoint-only-color-reasoning` (x1): evaluate the intermediate frames of a
   color or wave transition, not just its endpoints. 20260712-152340.
 - `data-source-over-schedule-fight` (x2): when a fix needs impossible ordering,
