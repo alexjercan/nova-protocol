@@ -609,12 +609,14 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   script TIMELINE (when does the stimulus fire, inside the window?), not by
   scene content; for idle-scene targets the plain app beats any harnessed
   example. 20260711-183417.
-- `pkill-pattern-matches-own-shell` (x1): `pkill -f <pattern>` matches the
+- `pkill-pattern-matches-own-shell` (x2): `pkill -f <pattern>` matches the
   invoking shell's OWN command line when the pattern appears in it (a cleanup
-  `pkill -f 'Xvfb :99'` killed its whole command chain, exit 144), and blind
-  pattern-kills can hit look-alike user processes (a second Xvfb was plausibly
-  the user's real display); record the helper's PID at spawn and kill THAT, or
-  let session-scoped helpers die with the session. 20260716-180352.
+  `pkill -f 'Xvfb :99'` killed its whole command chain, exit 144; recurred when
+  a `pkill -f 'Xvfb :7'` prepended to a fmt+test command killed the chain, same
+  exit 144 - the tests were fine), and blind pattern-kills can hit look-alike
+  user processes (a second Xvfb was plausibly the user's real display); record
+  the helper's PID at spawn and kill THAT, or let session-scoped helpers die
+  with the session. 20260716-180352, 20260717-004302.
 - `silent-tool-missing-in-pipeline` (x1): a missing launcher (xvfb-run) dies
   with 127 that a trailing pipeline swallows, reading as a clean empty run;
   `which` host tools before the first long run and keep launcher exit codes
@@ -623,6 +625,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   when it COMPILES it, minutes into a cold build - a tree edited mid-build
   yields an indeterminate evidence binary; quiesce the tree (or file-copy)
   for A/B runs. 20260711-183417.
+- `gpu-example-local-skip` (x1): a heavy `DefaultPlugins` render example (RTT
+  camera + full scene) is ~100x too slow under local lavapipe software rendering
+  to run its scripted timeline to the assertion stages - budget ONE short smoke
+  attempt to confirm the render path inits and the shader loads without error,
+  then stop and rely on headless unit tests (driver + asset, no render app) plus
+  CI's `examples_smoke`. Do not burn multiple build+run cycles chasing a local
+  completion. 20260717-004302.
 - `borrowed-rig-coverage-check` (x1): a rig/pattern borrowed from another
   task's record inherits that record's overclaims; verify its coverage
   against the NEW failure mode before prescribing it (the handler-swap pin
