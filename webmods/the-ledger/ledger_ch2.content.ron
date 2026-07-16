@@ -1,0 +1,476 @@
+// The Ledger, chapter 2 of 4: CLAIM JUMPERS. The Magpies come to take the
+// box: two corvette waves against the Kestrel while the Dray Mule - the
+// company hauler carrying the find - must survive. Patterns: per-id
+// OnDestroyed kill counting (demo arena), Neutral escort whose death is the
+// loss condition (broadside), act-gated waves.
+//
+// Acts: 1 = first pair, 2 = second pair, 3 = won. Kill gates use `> N-1`,
+// never `== N` (count-gate lesson); the Defeat handlers gate act < 3 so a
+// post-victory loss cannot overwrite the win.
+[
+    Scenario((
+        id: "ledger_ch2_claim_jumpers",
+        name: "The Ledger 2: Claim Jumpers",
+        description: "The Magpies want the box. Keep them off the Dray Mule until the lane clears. Chapter two of The Ledger.",
+        cubemap: "textures/cubemap_alt.png",
+        thumbnail: Some("textures/asteroid.png"),
+        hidden: true,
+        events: [
+            (
+                name: OnStart,
+                filters: [],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    VariableSet((
+                        key: "kills",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Foreman Okono",
+                        text: "Kestrel, the Mule's inbound for the pickup - and so are the Magpies. Two contacts, hot. Keep them off her.",
+                    )),
+                    Objective((
+                        id: "obj_ch2_recap",
+                        message: "Ch.2 - Claim Jumpers: the Magpies want what you found.",
+                    )),
+                    Objective((
+                        id: "obj_escort",
+                        message: "The Dray Mule must survive.",
+                    )),
+                    Objective((
+                        id: "obj_wave",
+                        message: "Drive off the Magpie corvettes.",
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player_spaceship",
+                            name: "Salvage Tug Kestrel",
+                            position: (0.0, 0.0, 40.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: Player((
+                                input_mapping: {
+                                    "turret": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                },
+                                speed_cap: Some(25.0),
+                                infinite_ammo: true,
+                            )),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (0.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (0.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (0.0, 0.0, 2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                                (
+                                    id: "turret",
+                                    position: (0.0, 0.0, -1.0),
+                                    rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+                                    source: Prototype("better_turret_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    // The escort: Mesa Verde's hauler, Neutral (a bystander
+                    // with your future in its hold). Station-keeps at the
+                    // pickup point; its death is the chapter's loss.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "dray_mule",
+                            name: "Hauler Dray Mule",
+                            position: (0.0, -5.0, -60.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            allegiance: Some(Neutral),
+                            controller: AI(()),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (0.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (0.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "hull_mid",
+                                    position: (0.0, 0.0, 2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (0.0, 0.0, 3.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    // Wave one: the claim jumpers.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "magpie_1",
+                            name: "Magpie 'Sixpence'",
+                            position: (150.0, 10.0, -150.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: AI(()),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (0.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (0.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("light_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (0.0, 0.0, 2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                                (
+                                    id: "turret",
+                                    position: (0.0, 0.0, -1.0),
+                                    rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+                                    source: Prototype("better_turret_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "magpie_2",
+                            name: "Magpie 'Tinfoil King'",
+                            position: (-140.0, -10.0, -160.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: AI(()),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (0.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (0.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("light_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (0.0, 0.0, 2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                                (
+                                    id: "turret",
+                                    position: (0.0, 0.0, -1.0),
+                                    rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+                                    source: Prototype("better_turret_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                ],
+            ),
+            // --- Act 1 kills. ---
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("magpie_1"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "kills",
+                        expression: Add(Factor(Name("kills")), Term(Factor(Literal(Number(1.0))))),
+                    )),
+                    StoryMessage((
+                        speaker: "Foreman Okono",
+                        text: "Sixpence is scrap. Don't cheer yet.",
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("magpie_2"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "kills",
+                        expression: Add(Factor(Name("kills")), Term(Factor(Literal(Number(1.0))))),
+                    )),
+                    StoryMessage((
+                        speaker: "Foreman Okono",
+                        text: "Tinfoil King's down. The Mule's still breathing.",
+                    )),
+                ],
+            ),
+            // Wave one broken -> act 2: the Magpies send their heavies.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("kills"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Foreman Okono",
+                        text: "Two more burns on the scope - reinforced hulls. They really want that box, Kestrel.",
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "magpie_3",
+                            name: "Magpie 'Crowbar'",
+                            position: (110.0, 30.0, -90.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: AI(()),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (0.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (0.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (0.0, 0.0, 2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                                (
+                                    id: "turret",
+                                    position: (0.0, 0.0, -1.0),
+                                    rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+                                    source: Prototype("better_turret_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "magpie_4",
+                            name: "Magpie 'Kettle Black'",
+                            position: (-100.0, -25.0, -100.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: AI(()),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (0.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (0.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (0.0, 0.0, 2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                                (
+                                    id: "turret",
+                                    position: (0.0, 0.0, -1.0),
+                                    rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+                                    source: Prototype("better_turret_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                ],
+            ),
+            // --- Act 2 kills. ---
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("magpie_3"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "kills",
+                        expression: Add(Factor(Name("kills")), Term(Factor(Literal(Number(1.0))))),
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("magpie_4"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "kills",
+                        expression: Add(Factor(Name("kills")), Term(Factor(Literal(Number(1.0))))),
+                    )),
+                ],
+            ),
+            // Lane clear -> chapter 3.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("kills"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "obj_wave",
+                    )),
+                    ObjectiveComplete((
+                        id: "obj_escort",
+                    )),
+                    StoryMessage((
+                        speaker: "Foreman Okono",
+                        text: "Lane's clear. Vesh says she can move the box quiet - IF you can reach her yard. Go dark, Kestrel.",
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("The Mule is safe, the Magpies are scrap, and the box is officially trouble."),
+                    )),
+                    NextScenario((
+                        scenario_id: "ledger_ch3_quiet_channel",
+                        linger: true,
+                    )),
+                ],
+            ),
+            // Losing the Mule loses the chapter, any act before the win.
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("dray_mule"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("The Dray Mule breaks apart - the box, the quota, the job, all of it gone."),
+                    )),
+                    NextScenario((
+                        scenario_id: "ledger_ch2_claim_jumpers",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("The Magpies pick the Kestrel clean and tow the box away whistling."),
+                    )),
+                    NextScenario((
+                        scenario_id: "ledger_ch2_claim_jumpers",
+                        linger: true,
+                    )),
+                ],
+            ),
+        ],
+    )),
+]

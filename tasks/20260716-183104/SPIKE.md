@@ -158,3 +158,12 @@ portal surface the umbrella task wanted stressed.
 ## Fix record
 
 (Implementing tasks append here as they land.)
+
+- 20260716-183220 (comms panel): SHIPPED - StoryMessage action + HUD
+  comms panel, teardown-safe, landed 9911382f. The campaign authors
+  against it.
+- 20260716-123535 (the campaign): SHIPPED - webmods/the-ledger, four
+  chapters exactly as specced (one structural addition: the load gate
+  cannot see BAD SECTION PROTOTYPE ids - resolution is at spawn - so the
+  authoring pass cross-checks Prototype refs, chain targets and filter
+  ids by script; see the task close notes).
