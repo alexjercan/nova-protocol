@@ -756,14 +756,21 @@ fn compute_thruster_hum_volume(
 /// sink is absent, so a scene that loads with hot engines starts the loop at
 /// the caught-up volume instead of fading up from silence - those first
 /// frames have nothing to fade from, and a correct level beats a late ramp.
+/// `master` is `Option` so audio-only test rigs that never add the settings
+/// plugin keep full volume instead of panicking on a missing resource; the
+/// loop is scaled by [`MasterVolume`] here because it sets its own sink volume
+/// every frame and so bypasses the `GlobalVolume` path bevy applies to
+/// freshly-spawned one-shot sinks.
 fn apply_thruster_loop_volume(
     hum: Res<ThrusterHumVolume>,
+    master: Option<Res<crate::settings::MasterVolume>>,
     mut q_sink: Query<&mut AudioSink, With<ThrusterLoopSfx>>,
 ) {
     let Ok(mut sink) = q_sink.single_mut() else {
         return;
     };
-    sink.set_volume(Volume::Linear(hum.smoothed));
+    let master = master.map(|m| m.factor()).unwrap_or(1.0);
+    sink.set_volume(Volume::Linear(hum.smoothed * master));
 }
 
 #[cfg(test)]

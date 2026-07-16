@@ -16,12 +16,27 @@ rand = { version = "0.10.2" }
 nova_assets = { path = "../nova_assets" }
 nova_events = { path = "../nova_events" }
 nova_mod_format = { path = "../nova_mod_format" }
-nova_gameplay = { path = "../nova_gameplay" }
+# `serde` enables the Serialize/Deserialize derives on the settings resources
+# (GraphicsQuality/MasterVolume) so the settings store can persist them.
+nova_gameplay = { path = "../nova_gameplay", features = ["serde"] }
 nova_scenario = { path = "../nova_scenario" }
 nova_ui = { path = "../nova_ui" }
+# Cross-platform settings persistence (task 20260711-180511), mirroring the
+# mod-prefs store in nova_assets: RON serialization, native config-dir file /
+# web localStorage. serde derives the persisted struct.
+serde = { version = "1", features = ["derive"] }
+ron = { version = "0.12" }
 
 [target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]
 bevy_rand = { version = "0.15.0", features = ["wasm_js"] }
+
+# The settings store's web backend: localStorage under a namespaced key, the
+# same cfg-guarded pattern as nova_assets' mod_prefs.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "0.3", features = ["Window", "Storage"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+dirs = "6"
 
 [lints]
 workspace = true

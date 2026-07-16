@@ -2,12 +2,16 @@ use bevy::prelude::*;
 
 pub mod ai;
 pub mod player;
+pub mod reference;
 pub mod targeting;
 
 pub mod prelude {
     pub use super::{
-        ai::prelude::*, player::prelude::*, targeting::prelude::*, SpaceshipInputPlugin,
-        SpaceshipInputSystems,
+        ai::prelude::*,
+        player::prelude::*,
+        reference::{keybind_reference, KeybindEntry},
+        targeting::prelude::*,
+        SpaceshipInputPlugin, SpaceshipInputSystems,
     };
 }
 

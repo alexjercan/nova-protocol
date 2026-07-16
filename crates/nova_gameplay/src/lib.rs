@@ -19,6 +19,7 @@ pub mod objective_marker;
 pub mod plugin;
 pub mod relations;
 pub mod sections;
+pub mod settings;
 
 pub use bevy_common_systems;
 
@@ -77,6 +78,7 @@ pub mod prelude {
         plugin::{NovaGameplayPlugin, SpaceshipSystems},
         relations::prelude::*,
         sections::prelude::*,
+        settings::{GraphicsQuality, MasterVolume, NovaSettingsPlugin},
         GameMode, GameStates, PauseStates,
     };
 }

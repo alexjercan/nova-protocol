@@ -26,7 +26,10 @@ use bevy::{
     platform::time::Instant,
     prelude::*,
     ui::Pressed,
-    ui_widgets::{observe, Activate, Button},
+    ui_widgets::{
+        observe, slider_self_update, Activate, Button, Slider, SliderRange, SliderStep,
+        SliderThumb, SliderValue, TrackClick, ValueChange,
+    },
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 use bevy_rand::prelude::*;
@@ -71,8 +74,14 @@ const ORBIT_CLEARANCE: f32 = 40.0;
 // (`widget::register`, guarded against the editor registering them too).
 use nova_ui::{
     theme,
-    widget::{separator, themed_button, Selected, ThemedButton},
+    widget::{
+        button_on_setting, panel_header, separator, themed_button, ButtonValue, Selected,
+        ThemedButton,
+    },
 };
+
+mod settings_store;
+use settings_store::{load_settings, save_settings, PersistedSettings};
 
 pub struct NovaMenuPlugin;
 
@@ -101,6 +110,27 @@ impl Plugin for NovaMenuPlugin {
         // their hover/press/Selected colours come from these observers
         // (register is guarded, so the editor registering them too is fine).
         nova_ui::widget::register(app);
+
+        // Settings (task 20260711-180511). The resources live in nova_gameplay
+        // (its audio/juice systems read them); inited here too so the menu
+        // plugin stands alone in slim/test apps (init_resource is idempotent).
+        // Audio volume is bevy's headless `Slider`: `slider_self_update` commits
+        // the dragged value onto the slider, `on_volume_slider_change` mirrors it
+        // to `MasterVolume`, and `sync_volume_slider` moves the thumb + label.
+        // The graphics preset is a segmented control: each button carries a
+        // `ButtonValue<GraphicsQuality>` that `button_on_setting` copies into the
+        // resource, moving the `Selected` highlight.
+        app.init_resource::<MasterVolume>();
+        app.init_resource::<GraphicsQuality>();
+        app.add_observer(slider_self_update);
+        app.add_observer(on_volume_slider_change);
+        app.add_observer(button_on_setting::<GraphicsQuality>);
+        app.add_systems(Update, sync_volume_slider);
+        // Persistence: load the saved settings once at startup, and write them
+        // back whenever the player edits one (native RON file / web localStorage).
+        app.add_systems(Startup, load_persisted_settings);
+        app.add_systems(Update, persist_settings_on_change);
+
         app.add_systems(
             OnEnter(GameStates::MainMenu),
             (load_menu_ambience, setup_menu_ui, hide_hud_chrome),
@@ -361,12 +391,15 @@ fn force_unpause(
 fn setup_pause_ui(
     mut commands: Commands,
     current: Option<Res<CurrentScenario>>,
+    volume: Res<MasterVolume>,
+    quality: Res<GraphicsQuality>,
     outcome: Option<Res<CurrentOutcome>>,
 ) {
     // The outcome frame also enters `Paused` (`sync_outcome_pause`) to freeze
     // the sim, but it is its own modal with its own buttons: do not stack the
-    // pause panel underneath it (task 20260716-214919). The ESC toggle is
-    // already inert here, so this only fires on the outcome-driven pause.
+    // pause panel (or its Settings modal) underneath it (task 20260716-214919).
+    // The ESC toggle is already inert here, so this only fires on the
+    // outcome-driven pause.
     if outcome.is_some_and(|outcome| outcome.0.is_some()) {
         return;
     }
@@ -435,6 +468,11 @@ fn setup_pause_ui(
                         ));
                     }
                     parent.spawn((
+                        Name::new("Pause Settings Button"),
+                        button("Settings"),
+                        observe(on_pause_settings),
+                    ));
+                    parent.spawn((
                         Name::new("Back To Menu Button"),
                         button("Back to Main Menu"),
                         observe(on_back_to_menu),
@@ -449,6 +487,89 @@ fn setup_pause_ui(
                     ));
                 });
         });
+
+    // The pause Settings modal: the SAME shared body as the main menu, hidden
+    // until the pause Settings button toggles it, and despawned with the pause
+    // overlay. Above the pause overlay (GlobalZIndex(10)) and a modal blocker so
+    // the pause buttons underneath cannot receive clicks through it.
+    commands
+        .spawn((
+            DespawnOnExit(PauseStates::Paused),
+            Name::new("Pause Settings Panel Root"),
+            PauseSettingsPanel,
+            Visibility::Hidden,
+            Pickable {
+                should_block_lower: true,
+                is_hoverable: false,
+            },
+            Node {
+                width: percent(100),
+                height: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
+            GlobalZIndex(11),
+        ))
+        .with_children(|parent| {
+            parent
+                .spawn((
+                    Name::new("Pause Settings Panel"),
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::Stretch,
+                        width: px(460),
+                        max_height: percent(92),
+                        padding: UiRect::all(px(20)),
+                        border: UiRect::all(px(theme::BORDER_W)),
+                        border_radius: BorderRadius::all(px(theme::RADIUS)),
+                        ..default()
+                    },
+                    BorderColor::all(theme::BORDER),
+                    BackgroundColor(theme::PANEL),
+                ))
+                .with_children(|parent| {
+                    parent.spawn((
+                        Name::new("Pause Settings Title"),
+                        Text::new("Settings"),
+                        TextFont {
+                            font_size: FontSize::Px(24.0),
+                            ..default()
+                        },
+                        TextColor(theme::TEXT),
+                        Node {
+                            margin: UiRect::bottom(px(12)),
+                            ..default()
+                        },
+                    ));
+                    build_settings_body(parent, *volume, *quality);
+                    parent.spawn((
+                        Name::new("Pause Settings Back Button"),
+                        button("Back"),
+                        observe(on_pause_settings_back),
+                    ));
+                });
+        });
+}
+
+/// Toggle the pause Settings modal open/closed.
+fn on_pause_settings(
+    _activate: On<Activate>,
+    mut panel: Single<&mut Visibility, With<PauseSettingsPanel>>,
+) {
+    **panel = match **panel {
+        Visibility::Hidden => Visibility::Visible,
+        _ => Visibility::Hidden,
+    };
+}
+
+/// Close the pause Settings modal, back to the pause overlay.
+fn on_pause_settings_back(
+    _activate: On<Activate>,
+    mut panel: Single<&mut Visibility, With<PauseSettingsPanel>>,
+) {
+    **panel = Visibility::Hidden;
 }
 
 fn on_resume(_activate: On<Activate>, mut next: ResMut<NextState<PauseStates>>) {
@@ -854,9 +975,14 @@ fn regrab_cursor_on_player_spawn(
 #[derive(Component)]
 struct MenuButton;
 
-/// Marker for the Settings placeholder panel, toggled by the Settings button.
+/// Marker for the main-menu Settings panel, toggled by the Settings button.
 #[derive(Component)]
 struct SettingsPanel;
+
+/// Marker for the pause-menu Settings panel (the same modal reached from the
+/// pause overlay, user note 2026-07-16), toggled by the pause Settings button.
+#[derive(Component)]
+struct PauseSettingsPanel;
 
 /// Marker for the Mods panel root, toggled by the Mods button.
 #[derive(Component)]
@@ -1339,6 +1465,8 @@ fn setup_menu_ui(
     mut active_tab: ResMut<ModsActiveTab>,
     mut selected: ResMut<SelectedModId>,
     mut selected_scenario: ResMut<SelectedScenarioId>,
+    volume: Res<MasterVolume>,
+    quality: Res<GraphicsQuality>,
 ) {
     commands
         .spawn((
@@ -1436,8 +1564,9 @@ fn setup_menu_ui(
                     Name::new("Settings Panel"),
                     Node {
                         flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::Center,
-                        width: px(360),
+                        align_items: AlignItems::Stretch,
+                        width: px(460),
+                        max_height: percent(92),
                         padding: UiRect::all(px(20)),
                         border: UiRect::all(px(theme::BORDER_W)),
                         border_radius: BorderRadius::all(px(theme::RADIUS)),
@@ -1455,16 +1584,12 @@ fn setup_menu_ui(
                             ..default()
                         },
                         TextColor(theme::TEXT),
-                    ));
-                    parent.spawn((
-                        Name::new("Settings Placeholder"),
-                        Text::new("Nothing to configure yet."),
-                        TextFont {
-                            font_size: FontSize::Px(16.0),
+                        Node {
+                            margin: UiRect::bottom(px(12)),
                             ..default()
                         },
-                        TextColor(theme::TEXT),
                     ));
+                    build_settings_body(parent, *volume, *quality);
                     parent.spawn((
                         Name::new("Settings Back Button"),
                         button("Back"),
@@ -2259,6 +2384,339 @@ fn on_settings_back(
     mut panel: Single<&mut Visibility, With<SettingsPanel>>,
 ) {
     **panel = Visibility::Hidden;
+}
+
+/// The master-volume [`Slider`] entity (bevy's headless slider widget), so the
+/// change observer and the thumb/label sync system can find it.
+#[derive(Component)]
+struct VolumeSlider;
+
+/// The draggable handle inside the volume slider (also carries bevy's
+/// [`SliderThumb`]); its horizontal position is driven from the `SliderValue`.
+#[derive(Component)]
+struct VolumeThumb;
+
+/// The "72%" readout beside the volume slider.
+#[derive(Component)]
+struct VolumeLabel;
+
+/// Format a linear volume factor as a whole-percent label.
+fn volume_label(value: f32) -> String {
+    format!("{}%", (value.clamp(0.0, 1.0) * 100.0).round() as i32)
+}
+
+/// A compact segmented-control button: a themed button that flexes to share a
+/// row instead of the full-width [`themed_button`]. Coloured by the same
+/// `nova_ui::widget` observers (it carries `ThemedButton`); the caller adds the
+/// `ButtonValue<T>` and optional `Selected` that `button_on_setting` drives.
+fn segmented_button(text: &str) -> impl Bundle {
+    (
+        Node {
+            flex_grow: 1.0,
+            flex_basis: px(0),
+            min_height: px(30),
+            margin: UiRect::horizontal(px(3)),
+            padding: UiRect::axes(px(6), px(5)),
+            border: UiRect::all(px(theme::BORDER_W)),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            ..default()
+        },
+        ThemedButton,
+        Button,
+        Hovered::default(),
+        BorderColor::all(theme::BORDER),
+        BackgroundColor(theme::PANEL),
+        children![(
+            Text::new(text),
+            TextFont {
+                font_size: FontSize::Px(13.0),
+                ..default()
+            },
+            TextColor(theme::TEXT),
+            TextShadow::default(),
+        )],
+    )
+}
+
+/// A full-width row Node that lays segmented buttons out horizontally.
+fn segmented_row() -> Node {
+    Node {
+        width: percent(100),
+        flex_direction: FlexDirection::Row,
+        justify_content: JustifyContent::Center,
+        margin: UiRect::vertical(px(4)),
+        ..default()
+    }
+}
+
+/// Build the shared settings body (audio volume, graphics preset, read-only
+/// keybind reference) under `list`. Used by BOTH the main-menu Settings overlay
+/// and the pause-menu Settings overlay so the two entry points stay one modal
+/// (user note 2026-07-16). Selection highlights are seeded from the current
+/// resource values; presses are handled by the app-global
+/// `button_on_setting::<T>` observers, so this builder spawns no observers.
+fn build_settings_body(
+    list: &mut ChildSpawnerCommands,
+    volume: MasterVolume,
+    quality: GraphicsQuality,
+) {
+    // AUDIO - master volume as a draggable slider (bevy's headless `Slider`;
+    // drag handling comes from `UiWidgetsPlugins` in DefaultPlugins, the value
+    // is committed by `slider_self_update` and mirrored to `MasterVolume` by
+    // `on_volume_slider_change`, both registered in the plugin).
+    list.spawn(panel_header("Audio"));
+    list.spawn((
+        Name::new("Volume Row"),
+        Node {
+            width: percent(100),
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            column_gap: px(12),
+            margin: UiRect::vertical(px(4)),
+            ..default()
+        },
+    ))
+    .with_children(|row| {
+        row.spawn((
+            Name::new("Volume Slider"),
+            Text::new("Volume"),
+            TextFont {
+                font_size: FontSize::Px(13.0),
+                ..default()
+            },
+            TextColor(theme::TEXT),
+            Node {
+                min_width: px(70),
+                ..default()
+            },
+        ));
+        // The slider track: the `Slider` widget with its value/range/step, laid
+        // out as a thin bar. `Snap` so a click on the track jumps to that spot.
+        row.spawn((
+            Name::new("Volume Slider Track"),
+            VolumeSlider,
+            Slider {
+                track_click: TrackClick::Snap,
+                ..default()
+            },
+            SliderValue(volume.factor()),
+            SliderRange::new(0.0, 1.0),
+            SliderStep(0.05),
+            Node {
+                flex_grow: 1.0,
+                height: px(14),
+                position_type: PositionType::Relative,
+                border: UiRect::all(px(theme::BORDER_W)),
+                border_radius: BorderRadius::all(px(7)),
+                ..default()
+            },
+            BorderColor::all(theme::BORDER),
+            BackgroundColor(theme::PANEL_RAISED),
+        ))
+        .with_children(|track| {
+            // The thumb: absolutely positioned, its `left` driven from the
+            // value by `sync_volume_slider`. A half-width negative margin keeps
+            // it centred over the value point.
+            track.spawn((
+                Name::new("Volume Thumb"),
+                VolumeThumb,
+                SliderThumb,
+                Node {
+                    position_type: PositionType::Absolute,
+                    width: px(14),
+                    height: px(14),
+                    top: px(-1),
+                    left: percent(volume.factor() * 100.0),
+                    margin: UiRect::left(px(-7)),
+                    border_radius: BorderRadius::all(px(7)),
+                    ..default()
+                },
+                BackgroundColor(theme::CYAN),
+            ));
+        });
+        row.spawn((
+            Name::new("Volume Label"),
+            VolumeLabel,
+            Text::new(volume_label(volume.factor())),
+            TextFont {
+                font_size: FontSize::Px(13.0),
+                ..default()
+            },
+            TextColor(theme::CYAN),
+            Node {
+                min_width: px(44),
+                ..default()
+            },
+        ));
+    });
+
+    list.spawn(separator());
+
+    // GRAPHICS - the quality preset. Each tier drives the combat juice today;
+    // the low-end mode (20260525-133013) extends what Low/Medium skip.
+    list.spawn(panel_header("Graphics"));
+    list.spawn((Name::new("Graphics Row"), segmented_row()))
+        .with_children(|row| {
+            for tier in GraphicsQuality::ALL {
+                let mut button = row.spawn((
+                    Name::new(format!("Graphics {}", tier.label())),
+                    segmented_button(tier.label()),
+                    ButtonValue(tier),
+                ));
+                if tier == quality {
+                    button.insert(Selected);
+                }
+            }
+        });
+
+    list.spawn(separator());
+
+    // CONTROLS - a read-only reference of the current bindings.
+    list.spawn(panel_header("Controls"));
+    let mut current_section = "";
+    for entry in keybind_reference() {
+        if entry.section != current_section {
+            current_section = entry.section;
+            list.spawn((
+                Name::new(format!("Controls Section: {}", entry.section)),
+                Text::new(entry.section),
+                TextFont {
+                    font_size: FontSize::Px(11.0),
+                    ..default()
+                },
+                TextColor(theme::TEXT_MUTED),
+                Node {
+                    margin: UiRect::top(px(6)),
+                    ..default()
+                },
+            ));
+        }
+        spawn_keybind_row(list, entry);
+    }
+}
+
+/// Load the persisted settings once at startup and write them into the live
+/// resources. A missing/corrupt store is a no-op (the resources keep their
+/// defaults). Runs before the first `Update`, so nova_gameplay's apply systems
+/// (gated on `resource_changed`) push the loaded values onto the engine on the
+/// first frame.
+fn load_persisted_settings(mut volume: ResMut<MasterVolume>, mut quality: ResMut<GraphicsQuality>) {
+    let Some(saved) = load_settings() else {
+        return;
+    };
+    *volume = MasterVolume(saved.master_volume.clamp(0.0, 1.0));
+    *quality = saved.graphics_quality;
+}
+
+/// Idle frames a settings value must hold steady before it is written to disk.
+/// Debounces the volume slider, whose drag mutates `MasterVolume` every frame:
+/// without this, one drag would trigger a full config write per frame. ~0.25s at
+/// 60fps - imperceptible for a settings save, and it collapses a whole drag (or
+/// a track-click, which emits no final `ValueChange`) into a single write.
+const SETTINGS_SAVE_DEBOUNCE_FRAMES: u32 = 15;
+
+/// Persist the settings a short beat after the player stops editing. Any change
+/// (re)arms the debounce; the save fires once the value has held steady for
+/// [`SETTINGS_SAVE_DEBOUNCE_FRAMES`]. The initial add (startup load /
+/// `init_resource`) is skipped via `is_added`, so a launch that changes nothing
+/// never arms the debounce and never rewrites the store. `Local` holds the idle
+/// countdown: `None` = nothing pending, `Some(n)` = `n` idle frames so far.
+fn persist_settings_on_change(
+    volume: Res<MasterVolume>,
+    quality: Res<GraphicsQuality>,
+    mut idle_frames: Local<Option<u32>>,
+) {
+    let edited = (volume.is_changed() && !volume.is_added())
+        || (quality.is_changed() && !quality.is_added());
+    if edited {
+        // A fresh edit: (re)start the debounce, coalescing a drag's per-frame
+        // changes into one pending save.
+        *idle_frames = Some(0);
+        return;
+    }
+    if let Some(frames) = *idle_frames {
+        if frames + 1 >= SETTINGS_SAVE_DEBOUNCE_FRAMES {
+            save_settings(&PersistedSettings::from_resources(*volume, *quality));
+            *idle_frames = None;
+        } else {
+            *idle_frames = Some(frames + 1);
+        }
+    }
+}
+
+/// Mirror the volume slider's value onto [`MasterVolume`] as it is dragged.
+/// bevy's `slider_self_update` (registered alongside this) commits the value
+/// onto the slider's own `SliderValue`; this copies it to the resource, whose
+/// change then drives the audio (`GlobalVolume` + the thruster loop) and the
+/// save-on-change persistence. Guarded on [`VolumeSlider`] so it ignores any
+/// other slider.
+fn on_volume_slider_change(
+    change: On<ValueChange<f32>>,
+    is_volume: Query<(), With<VolumeSlider>>,
+    mut volume: ResMut<MasterVolume>,
+) {
+    if is_volume.contains(change.source) {
+        *volume = MasterVolume(change.value.clamp(0.0, 1.0));
+    }
+}
+
+/// Keep the volume slider's thumb position and percent label in sync with its
+/// value (the headless slider does not move the thumb itself - that is the
+/// app's job). Runs every frame; there is at most one slider (main-menu or
+/// pause), and none while no settings panel is open.
+fn sync_volume_slider(
+    sliders: Query<(&SliderValue, &SliderRange), With<VolumeSlider>>,
+    mut thumbs: Query<(&ChildOf, &mut Node), With<VolumeThumb>>,
+    mut labels: Query<&mut Text, With<VolumeLabel>>,
+) {
+    for (&ChildOf(slider), mut node) in &mut thumbs {
+        if let Ok((value, range)) = sliders.get(slider) {
+            let pos = range.thumb_position(value.0).clamp(0.0, 1.0);
+            node.left = percent(pos * 100.0);
+        }
+    }
+    if let Ok((value, _)) = sliders.single() {
+        for mut text in &mut labels {
+            text.0 = volume_label(value.0);
+        }
+    }
+}
+
+/// One read-only keybind row: the action on the left, the keyboard and gamepad
+/// bindings on the right.
+fn spawn_keybind_row(list: &mut ChildSpawnerCommands, entry: &KeybindEntry) {
+    list.spawn((
+        Name::new(format!("Keybind: {}", entry.action)),
+        Node {
+            width: percent(100),
+            flex_direction: FlexDirection::Row,
+            justify_content: JustifyContent::SpaceBetween,
+            align_items: AlignItems::Center,
+            column_gap: px(12),
+            padding: UiRect::axes(px(2), px(3)),
+            ..default()
+        },
+    ))
+    .with_children(|row| {
+        row.spawn((
+            Text::new(entry.action),
+            TextFont {
+                font_size: FontSize::Px(13.0),
+                ..default()
+            },
+            TextColor(theme::TEXT),
+        ));
+        row.spawn((
+            Text::new(format!("{}   ·   {}", entry.keyboard, entry.gamepad)),
+            TextFont {
+                font_size: FontSize::Px(13.0),
+                ..default()
+            },
+            TextColor(theme::CYAN),
+        ));
+    });
 }
 
 fn on_mods(_activate: On<Activate>, mut panel: Single<&mut Visibility, With<ModsPanel>>) {
@@ -4754,6 +5212,93 @@ mod tests {
                 z.0
             );
         }
+    }
+
+    /// The Settings panel is no longer a stub: the shared body builds the audio
+    /// volume control, the graphics preset, and the read-only keybind reference.
+    /// Structural (the panel is hidden until toggled, but its entities exist), so
+    /// it pins that the controls are actually wired - not an empty placeholder.
+    /// Assertions are disk-independent: the loaded preset can be any saved value,
+    /// but exactly one button per group is always highlighted.
+    #[test]
+    fn settings_panel_builds_its_controls() {
+        let mut app = mods_app();
+
+        // The section headers and at least one keybind reference row render
+        // (panel_header uppercases). "AUDIO"/"GRAPHICS"/"CONTROLS" + a control.
+        let texts = all_texts(&mut app);
+        for header in ["AUDIO", "GRAPHICS", "CONTROLS"] {
+            assert!(
+                texts.iter().any(|t| t == header),
+                "the settings body is missing the {header} section"
+            );
+        }
+        assert!(
+            texts.iter().any(|t| t == "Main Drive"),
+            "the keybind reference rows are missing (no Main Drive row)"
+        );
+
+        // Exactly one volume slider, seeded to the current level, with a thumb
+        // and a percent label.
+        let slider_value = {
+            let mut q = app
+                .world_mut()
+                .query_filtered::<&SliderValue, With<VolumeSlider>>();
+            let values: Vec<f32> = q.iter(app.world()).map(|v| v.0).collect();
+            assert_eq!(values.len(), 1, "exactly one volume slider");
+            values[0]
+        };
+        assert!(
+            (0.0..=1.0).contains(&slider_value),
+            "the volume slider is seeded in range (got {slider_value})"
+        );
+        assert!(
+            entity_by_name(&mut app, "Volume Thumb").is_some(),
+            "the volume slider has a draggable thumb"
+        );
+        {
+            let mut q = app.world_mut().query_filtered::<(), With<VolumeLabel>>();
+            assert_eq!(q.iter(app.world()).count(), 1, "one volume percent label");
+        }
+
+        // One button per graphics tier, exactly one highlighted.
+        let quality: Vec<bool> = {
+            let mut q = app
+                .world_mut()
+                .query::<(&ButtonValue<GraphicsQuality>, Has<Selected>)>();
+            q.iter(app.world()).map(|(_, sel)| sel).collect()
+        };
+        assert_eq!(
+            quality.len(),
+            GraphicsQuality::ALL.len(),
+            "one button per graphics tier"
+        );
+        assert_eq!(
+            quality.iter().filter(|&&s| s).count(),
+            1,
+            "exactly one graphics tier is highlighted as current"
+        );
+    }
+
+    /// Dragging the volume slider drives `MasterVolume` (which in turn drives
+    /// GlobalVolume + the thruster loop + persistence). The drag emits a
+    /// `ValueChange<f32>`; `on_volume_slider_change` must mirror it to the
+    /// resource. Delete that observer and this goes red.
+    #[test]
+    fn dragging_the_volume_slider_sets_master_volume() {
+        let mut app = mods_app();
+        let slider = entity_by_name(&mut app, "Volume Slider Track").expect("volume slider exists");
+        app.world_mut().trigger(ValueChange::<f32> {
+            source: slider,
+            value: 0.3,
+            is_final: true,
+        });
+        app.update();
+        assert!(
+            (app.world().resource::<MasterVolume>().0 - 0.3).abs() < 1e-6,
+            "the slider value is mirrored onto MasterVolume (got {})",
+            app.world().resource::<MasterVolume>().0
+        );
     }
 
     /// The old standalone "Explore online (coming soon)" button was replaced by

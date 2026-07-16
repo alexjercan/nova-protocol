@@ -1,6 +1,6 @@
 # Keybinds
 
-The full control reference. Thrust is analog on the gamepad and on/off on the keyboard. The autopilot verbs each fly a whole maneuver and hand control back; any manual input disengages them immediately. New players should start with the [tutorial](../../tutorial/), which teaches these one at a time.
+The full control reference. Thrust is analog on the gamepad and on/off on the keyboard. The autopilot verbs each fly a whole maneuver and hand control back; any manual input disengages them immediately. New players should start with the [tutorial](../../tutorial/), which teaches these one at a time. The same bindings are viewable in-game under **Settings > Controls**, reachable from both the main menu and the pause menu.
 
 ## Flight
 

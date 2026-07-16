@@ -1301,6 +1301,115 @@ mod tests {
 
     use super::*;
 
+    /// The settings-menu keybind reference ([`crate::input::reference`]) is
+    /// authored static data because it renders in the main menu where no rig is
+    /// spawned. This pins each reference row's DISPLAYED keyboard string to the
+    /// key the live `flight_input_rig` actually binds: the expected label is
+    /// derived from the rig's current key (not a hardcoded constant), so a remap
+    /// of the rig either flips the derived label (and the row no longer contains
+    /// it - assert fails) or hits an unmapped key (`display_label` panics). Both
+    /// force the reference in `reference.rs` to be revisited in the same change;
+    /// the readout cannot silently drift from the rig (would-it-fail-without-it).
+    #[test]
+    fn reference_rows_track_the_flight_rig() {
+        use bevy::input::InputPlugin;
+
+        use crate::input::reference::KEYBINDS;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_input_context::<FlightInputMarker>();
+        app.finish();
+        app.cleanup();
+        app.update();
+        app.world_mut().spawn(flight_input_rig());
+        app.update();
+
+        // The first keyboard key the rig binds to an action (its primary key,
+        // the one the reference row leads with).
+        fn primary_key<A: bevy_enhanced_input::prelude::InputAction>(app: &mut App) -> KeyCode {
+            let mut q = app
+                .world_mut()
+                .query_filtered::<&Bindings, With<Action<A>>>();
+            let world = app.world();
+            for bindings in q.iter(world) {
+                for binding_entity in bindings.iter() {
+                    if let Some(Binding::Keyboard { key, .. }) =
+                        world.get::<Binding>(binding_entity)
+                    {
+                        return *key;
+                    }
+                }
+            }
+            panic!("the flight rig binds no keyboard key to this action");
+        }
+
+        // The friendly label the reference uses for a rig key. An unmapped key
+        // panics on purpose: a remap to a new key must add its label here AND in
+        // the reference, so neither can drift silently.
+        fn display_label(key: KeyCode) -> &'static str {
+            match key {
+                KeyCode::KeyW => "W",
+                KeyCode::KeyX => "X",
+                KeyCode::KeyG => "G",
+                KeyCode::KeyO => "O",
+                KeyCode::KeyZ => "Z",
+                KeyCode::ControlLeft | KeyCode::ControlRight => "Ctrl",
+                KeyCode::BracketRight => "]",
+                KeyCode::BracketLeft => "[",
+                other => panic!(
+                    "flight rig binds {other:?}, which has no reference display \
+                     mapping - update reference.rs KEYBINDS and this test"
+                ),
+            }
+        }
+
+        // (reference action name, the rig key that row must display). The key is
+        // read LIVE from the rig, so it tracks a remap.
+        let rows: [(&str, KeyCode); 8] = [
+            ("Main Drive", primary_key::<FlightBurnInput>(&mut app)),
+            (
+                "Autopilot: Stop",
+                primary_key::<AutopilotStopInput>(&mut app),
+            ),
+            (
+                "Autopilot: Go To",
+                primary_key::<AutopilotGotoInput>(&mut app),
+            ),
+            (
+                "Autopilot: Orbit",
+                primary_key::<AutopilotOrbitInput>(&mut app),
+            ),
+            ("Autopilot: Off", primary_key::<AutopilotOffInput>(&mut app)),
+            (
+                "Radar (hold search / tap clear)",
+                primary_key::<crate::input::targeting::RadarHoldInput>(&mut app),
+            ),
+            (
+                "Lock / Component Next",
+                primary_key::<crate::input::targeting::ComponentCycleNextInput>(&mut app),
+            ),
+            (
+                "Lock / Component Prev",
+                primary_key::<crate::input::targeting::ComponentCyclePrevInput>(&mut app),
+            ),
+        ];
+
+        for (action, key) in rows {
+            let row = KEYBINDS
+                .iter()
+                .find(|e| e.action == action)
+                .unwrap_or_else(|| panic!("missing keybind reference row for {action}"));
+            let label = display_label(key);
+            assert!(
+                row.keyboard.contains(label),
+                "reference row {action:?} shows keyboard {:?}, but the rig binds \
+                 {key:?} (displayed as {label:?}) - the readout has drifted",
+                row.keyboard
+            );
+        }
+    }
+
     #[test]
     fn binding_label_shows_the_first_keyboard_or_mouse_input() {
         assert_eq!(

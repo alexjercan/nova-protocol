@@ -4653,6 +4653,7 @@ dependencies = [
  "avian3d",
  "bevy",
  "bevy_rand",
+ "dirs",
  "nova_assets",
  "nova_events",
  "nova_gameplay",
@@ -4660,6 +4661,9 @@ dependencies = [
  "nova_scenario",
  "nova_ui",
  "rand 0.10.2",
+ "ron",
+ "serde",
+ "web-sys",
 ]
 
 [[package]]
