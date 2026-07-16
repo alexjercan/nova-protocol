@@ -72,6 +72,14 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   base.bundle.ron undercounted the scenarios); read repo facts via
   `git show HEAD:<path>` when outside a worktree. Read-side sibling of
   `landing-checkout-not-yours`. 20260716-155816.
+- `shared-checkout-write-leak` (x1): never leave the index staged-but-uncommitted
+  in the shared main checkout across tool calls - a parallel job's `git commit -a`/
+  `git add -A` sweeps YOUR staged changes into ITS commit. A squash-land split into
+  `merge --squash`, then an inspect call, then commit let a parallel `/compound`
+  swallow the whole feature into an unrelated commit (work landed, but tangled).
+  Land atomically: `git merge --squash <b> && git commit` in ONE command, inspect
+  the diff on the BRANCH beforehand. Write-side sibling of
+  `shared-checkout-reads-race`. 20260708-165703.
 - `verbosity-invites-fabrication` (x1): telling a drafter (esp. a subagent) to
   be MORE verbose / "cover everything" pushes it to fill gaps with plausible
   invention - a 0.5.0 news post given the four damage-type names invented each
