@@ -256,4 +256,93 @@ function blogPostPage({
     });
 }
 
-module.exports = { renderMarkdownFile, wikiDocPage, blogPostPage };
+// The page shell for a markdown CHANGELOG / release-notes page: like the blog
+// shell (standalone `.prose` article, no wiki sidebar) but crumbed to the
+// changelog index instead of the devlog, and footed with a back-to-changelog
+// link plus a pointer to the terse CHANGELOG.md on GitHub. This is the richer,
+// image-capable, theme-grouped companion to the terse CHANGELOG.md - the devlog
+// stays the narrative; each release page cross-links to its devlog in-body.
+function changelogNoteShell(title, basePath, opts = {}) {
+    const t = escapeAttr(title);
+    const b = escapeAttr(basePath);
+    const desc = opts.description
+        ? `\n        <meta name="description" content="${escapeAttr(
+              opts.description
+          )}" />`
+        : "";
+    const date = escapeAttr(opts.date || "");
+    const version = escapeAttr(opts.version || "");
+    return `<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>${t} - Nova Protocol</title>${desc}
+        <link rel="icon" href="${b}favicon.svg" />
+    </head>
+    <body>
+        <div id="header"></div>
+        <main>
+            <article class="prose">
+                <p class="prose__meta">
+                    <a href="${b}changelog/">&larr; Changelog</a>
+                    &nbsp;//&nbsp; ${date} &nbsp;//&nbsp; ${version}
+                </p>
+                <h1>${t}</h1>
+                <div id="doc-body"></div>
+                <footer class="post-footer">
+                    <p class="post-footer__discuss">
+                        Want the terse, complete list for every release?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
+                            target="_blank"
+                            rel="noopener"
+                            >Read CHANGELOG.md on GitHub</a
+                        >.
+                    </p>
+                    <p class="post-footer__nav">
+                        <a href="${b}changelog/">&larr; All releases</a>
+                    </p>
+                </footer>
+            </article>
+        </main>
+        <div id="footer"></div>
+    </body>
+</html>`;
+}
+
+// Build one HtmlWebpackPlugin for a markdown changelog page. Like blogPostPage
+// but with the changelog shell and the `changelog` chunk, served at
+// `/changelog/<slug>/`. `date`/`version` fill the meta line; `description` the
+// head meta.
+function changelogNotePage({
+    slug,
+    mdPath,
+    title,
+    date,
+    version,
+    description,
+    publicPath,
+}) {
+    const abs = path.resolve(__dirname, mdPath);
+    const { html, title: h1 } = renderMarkdownFile(abs);
+    const pageTitle = title || h1;
+    return new HtmlWebpackPlugin({
+        filename: `changelog/${slug}/index.html`,
+        chunks: ["changelog"],
+        basePath: publicPath,
+        docBody: html,
+        templateContent: changelogNoteShell(pageTitle, publicPath, {
+            date,
+            version,
+            description,
+        }),
+    });
+}
+
+module.exports = {
+    renderMarkdownFile,
+    wikiDocPage,
+    blogPostPage,
+    changelogNotePage,
+};

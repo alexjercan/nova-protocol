@@ -1477,3 +1477,34 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
         width: 45%;
     }
 }
+
+/* ---- changelog callout --------------------------------------------------- */
+/* An admonition block for release pages, chiefly the "Breaking changes /
+   migrating your mods" note. Authored in a release .md as raw HTML (markdown-it
+   runs with html:true), so it needs no JS. The breaking variant wears the amber
+   accent; the plain variant the cyan one. */
+.callout {
+    margin: 1.6rem 0;
+    padding: 1rem 1.2rem;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--cyan);
+    border-radius: var(--radius);
+    box-shadow: var(--bevel);
+}
+.callout__title {
+    margin: 0 0 0.4rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--cyan-bright);
+}
+.callout > :last-child {
+    margin-bottom: 0;
+}
+.callout--breaking {
+    border-left-color: var(--amber-horizon);
+}
+.callout--breaking .callout__title {
+    color: var(--amber);
+}

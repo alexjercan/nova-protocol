@@ -2,7 +2,7 @@ const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const HtmlPartialsPlugin = require("./webpack-partials");
 const CopyPlugin = require("copy-webpack-plugin");
-const { wikiDocPage, blogPostPage } = require("./markdown");
+const { wikiDocPage, blogPostPage, changelogNotePage } = require("./markdown");
 
 // PUBLIC_PATH should be "/" for local dev (default) or "/nova-protocol/" for the
 // GitHub project-pages deploy, so asset URLs and inter-page links resolve under
@@ -208,6 +208,98 @@ const BLOG_POSTS = [
 const postPage = (p) =>
     blogPostPage({ ...p, mdPath: `src/posts/${p.slug}.md`, publicPath });
 
+// Changelog / release-notes pages: markdown under `src/releases/<version>.md`,
+// rendered at build time (see markdown.js changelogNotePage/changelogNoteShell)
+// into the standalone changelog article shell and served at
+// `/changelog/<version>/`. They share the `changelog` chunk. The changelog INDEX
+// (changelog.html) stays hand-authored HTML (like the blog index). These are the
+// richer, image-capable, theme-grouped companion to the terse root CHANGELOG.md;
+// each page cross-links to its devlog. To add a release: drop
+// `src/releases/<version>.md` and add an entry here (newest first). `slug` is the
+// version and doubles as the URL segment; date/version fill the meta line;
+// description is the head meta. The page title comes from the markdown H1.
+const RELEASE_PAGES = [
+    {
+        slug: "0.6.0",
+        version: "v0.6.0",
+        date: "2026-07-16",
+        description:
+            "Nova Protocol v0.6.0: a static mod portal and an in-game Explore online tab install, update and uninstall mods over the wire on native and web, mod dependencies resolve end to end, a main-menu Scenarios picker, and particles return to the web build on WebGPU.",
+    },
+    {
+        slug: "0.5.2",
+        version: "v0.5.2",
+        date: "2026-07-14",
+        description:
+            "Nova Protocol v0.5.2: a full web wiki and a trimmed first-scenario tutorial, rounded-out gamepad bindings, a testable numbered-example curriculum with a blocking CI smoke suite, and audio and teardown fixes.",
+    },
+    {
+        slug: "0.5.1",
+        version: "v0.5.1",
+        date: "2026-07-13",
+        description:
+            "Nova Protocol v0.5.1: a web-build shakeout patch fixing two crashes that only bit the shipped WASM app on New Game and editor Play - a WebGL2-incompatible render-target view-format override and silently ignored skybox meta settings.",
+    },
+    {
+        slug: "0.5.0",
+        version: "v0.5.0",
+        date: "2026-07-13",
+        description:
+            "Nova Protocol v0.5.0: deliberate CTRL-to-sweep radar locking with a live target viewfinder and kill cam, the Shakedown Run tutorial, typed damage against per-section resistances, a main menu and pause screen, and a landing site on the web.",
+    },
+    {
+        slug: "0.4.1",
+        version: "v0.4.1",
+        date: "2026-07-10",
+        description:
+            "Nova Protocol v0.4.1: a build and CI plumbing patch fixing the macOS universal build and consolidating clippy, tests and examples onto one Bevy feature set.",
+    },
+    {
+        slug: "0.4.0",
+        version: "v0.4.0",
+        date: "2026-07-10",
+        description:
+            "Nova Protocol v0.4.0: proportionally-navigated guided torpedoes, a full targeting arc with per-section fine-lock, turret auto-aim with true intercept lead, a faction model, an AI combat wave with a behavior state machine, a center-of-mass flight-assist overhaul, and the first audio and combat juice.",
+    },
+    {
+        slug: "0.3.1",
+        version: "v0.3.1",
+        date: "2026-07-07",
+        description:
+            "Nova Protocol v0.3.1: the upgrade to Bevy 0.19 and its ecosystem, bevy_common_systems externalized as a git dependency, a new docs folder, and a post-processing camera component.",
+    },
+    {
+        slug: "0.3.0",
+        version: "v0.3.0",
+        date: "2025-11-29",
+        description:
+            "Nova Protocol v0.3.0: OnEnter/OnExit zone events for richer scenarios, the torpedo bay section with area-of-effect blast damage, a per-section health system, and sharper directional and thruster shaders.",
+    },
+    {
+        slug: "0.2.1",
+        version: "v0.2.1",
+        date: "2025-11-15",
+        description:
+            "Nova Protocol v0.2.1: modding documentation and examples, plus an event-system refactor.",
+    },
+    {
+        slug: "0.2.0",
+        version: "v0.2.0",
+        date: "2025-11-08",
+        description:
+            "Nova Protocol v0.2.0: a data-driven game-events and queue system, the first scenario and modding capabilities, and procedurally generated asteroids with dynamic destruction.",
+    },
+    {
+        slug: "0.1.0",
+        version: "v0.1.0",
+        date: "2025-10-21",
+        description:
+            "Nova Protocol v0.1.0, the first release: thruster-driven modular ships, PD-controlled mouse steering, turrets that shoot, and a health system that shatters sections into chunks.",
+    },
+];
+const releasePage = (p) =>
+    changelogNotePage({ ...p, mdPath: `src/releases/${p.slug}.md`, publicPath });
+
 const config = {
     entry: {
         index: "./src/index.ts",
@@ -215,6 +307,7 @@ const config = {
         post: "./src/post.ts",
         tutorial: "./src/tutorial.ts",
         wiki: "./src/wiki.ts",
+        changelog: "./src/changelog.ts",
     },
     output: {
         path: path.resolve(__dirname, "dist"),
@@ -230,6 +323,8 @@ const config = {
         page("tutorial", "src/tutorial.html", "tutorial/index.html"),
         page("wiki", "src/wiki.html", "wiki/index.html"),
         ...WIKI_DOC_PAGES.map(docPage),
+        page("changelog", "src/changelog.html", "changelog/index.html"),
+        ...RELEASE_PAGES.map(releasePage),
         new CopyPlugin({
             patterns: [
                 { from: "src/assets", to: "assets" },
@@ -288,6 +383,11 @@ const config = {
                     to: "/wiki/" + slug + "/index.html",
                 })),
                 { from: /^\/wiki/, to: "/wiki/index.html" },
+                ...RELEASE_PAGES.map(({ slug }) => ({
+                    from: new RegExp("^/changelog/" + slug),
+                    to: "/changelog/" + slug + "/index.html",
+                })),
+                { from: /^\/changelog/, to: "/changelog/index.html" },
             ],
         },
     },

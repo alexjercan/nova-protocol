@@ -187,7 +187,7 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
-- Upgrade to Bevy 0.19 (avian3d 0.7, bevy_rand 0.15, bevy_enhanced_input 0.26, rand 0.10).
+- **(breaking)** Upgrade to Bevy 0.19 (avian3d 0.7, bevy_rand 0.15, bevy_enhanced_input 0.26, rand 0.10); anything built against nova, including from-source mods, must move to the matching versions.
 - `bevy_common_systems` externalized as a git dependency; vendored copy removed.
 - Added `AGENTS.md` and a `docs/` folder (architecture, scenario system, sections, development, migration notes).
 
