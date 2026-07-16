@@ -1294,9 +1294,8 @@ pub mod lint_walk {
         dirs
     }
 
-    /// Walk the whole repo content tree and lint every scenario. Returns
-    /// `(bundle id, issue)` pairs in a stable order.
-    pub fn lint_content_tree() -> Vec<(String, LintIssue)> {
+    /// Every bundle in the repo tree, base first.
+    fn walk_repo_bundles() -> Vec<WalkedBundle> {
         let root = workspace_root();
         let mut bundles = vec![read_bundle("base", &root.join("assets/base"))];
         for (id, dir) in bundle_dirs(&root.join("assets/mods")) {
@@ -1305,33 +1304,92 @@ pub mod lint_walk {
         for (id, dir) in bundle_dirs(&root.join("webmods")) {
             bundles.push(read_bundle(&id, &dir));
         }
+        bundles
+    }
 
-        let sections_by_id: HashMap<&str, &HashSet<String>> = bundles
-            .iter()
-            .map(|b| (b.id.as_str(), &b.sections))
-            .collect();
-        let known_scenarios: HashSet<String> = bundles
+    /// Lint `bundle`'s scenarios given the whole walked set (known sections
+    /// = base + the bundle's own + its declared dependencies'; known
+    /// scenarios = every id across `all` plus the bundle's own).
+    fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, LintIssue)> {
+        let sections_by_id: HashMap<&str, &HashSet<String>> =
+            all.iter().map(|b| (b.id.as_str(), &b.sections)).collect();
+        let mut known_scenarios: HashSet<String> = all
             .iter()
             .flat_map(|b| b.scenarios.iter().map(|s| s.id.clone()))
             .collect();
+        known_scenarios.extend(bundle.scenarios.iter().map(|s| s.id.clone()));
+
+        // Visible prototypes: base + this bundle's own + its declared
+        // dependencies' ('base' is implicit and never declared).
+        let mut known_sections: HashSet<String> = sections_by_id
+            .get("base")
+            .map(|s| (*s).clone())
+            .unwrap_or_default();
+        known_sections.extend(bundle.sections.iter().cloned());
+        for dep in &bundle.manifest.meta.dependencies {
+            if let Some(dep_sections) = sections_by_id.get(dep.as_str()) {
+                known_sections.extend(dep_sections.iter().cloned());
+            }
+        }
 
         let mut issues = Vec::new();
-        for bundle in &bundles {
-            // Visible prototypes: base + this bundle's own + its declared
-            // dependencies' ('base' is implicit and never declared).
-            let mut known_sections: HashSet<String> = sections_by_id["base"].clone();
-            known_sections.extend(bundle.sections.iter().cloned());
-            for dep in &bundle.manifest.meta.dependencies {
-                if let Some(dep_sections) = sections_by_id.get(dep.as_str()) {
-                    known_sections.extend(dep_sections.iter().cloned());
-                }
-            }
-            for scenario in &bundle.scenarios {
-                for issue in lint_scenario(scenario, &known_sections, &known_scenarios) {
-                    issues.push((bundle.id.clone(), issue));
-                }
+        for scenario in &bundle.scenarios {
+            for issue in lint_scenario(scenario, &known_sections, &known_scenarios) {
+                issues.push((bundle.id.clone(), issue));
             }
         }
         issues
+    }
+
+    /// Walk the whole repo content tree and lint every scenario. Returns
+    /// `(bundle id, issue)` pairs in a stable order.
+    pub fn lint_content_tree() -> Vec<(String, LintIssue)> {
+        let bundles = walk_repo_bundles();
+        let mut issues = Vec::new();
+        for bundle in &bundles {
+            issues.extend(lint_bundle(bundle, &bundles));
+        }
+        issues
+    }
+
+    /// Resolve a `--target` argument to a mod directory: an existing
+    /// directory path wins (an external modder's work-in-progress lives
+    /// anywhere); otherwise an in-repo id under `webmods/<id>` or
+    /// `assets/mods/<id>`, with `base` -> `assets/base`.
+    pub fn resolve_target(arg: &str) -> Option<PathBuf> {
+        let direct = PathBuf::from(arg);
+        if direct.is_dir() {
+            return Some(direct);
+        }
+        let root = workspace_root();
+        if arg == "base" {
+            return Some(root.join("assets/base"));
+        }
+        for parent in ["webmods", "assets/mods"] {
+            let candidate = root.join(parent).join(arg);
+            if candidate.is_dir() {
+                return Some(candidate);
+            }
+        }
+        None
+    }
+
+    /// Lint ONE mod (the `--target` mode, task 20260716-204618): the
+    /// target's scenarios only, but with the FULL repo walk as the known
+    /// set - chains into base or dependency scenarios resolve, and an
+    /// external mod (a path outside the repo) still sees the base catalog.
+    /// The target's dir name is its id (the portal rule); an in-repo target
+    /// is deduped from the walked set by that id.
+    pub fn lint_target(dir: &Path) -> Vec<(String, LintIssue)> {
+        let id = dir
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "target".to_string());
+        let target = read_bundle(&id, dir);
+        let repo: Vec<WalkedBundle> = walk_repo_bundles()
+            .into_iter()
+            .filter(|b| b.id != target.id)
+            .collect();
+        lint_bundle(&target, &repo)
     }
 }

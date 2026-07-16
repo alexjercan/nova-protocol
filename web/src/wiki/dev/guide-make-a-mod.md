@@ -47,6 +47,13 @@ is a list of mod ids; `base` is an IMPLICIT dependency and is never declared.
 `icon` is an `Option`, so write `icon: Some("icon.png")`, not `icon:
 "icon.png"`.
 
+Lint your mod while you work: `cargo run -p nova_assets --bin
+content_lint -- --target path/to/your-mod` (or an in-repo id like
+`--target the-ledger`) checks just your bundle - section prototype ids
+against the base catalog and your declared dependencies, scenario chain
+targets, filter/action target ids, duplicate object ids. An Error means
+the game would refuse the scenario at runtime; fix it before publishing.
+
 A manifest may also declare `new_game_scenario: Some("<scenario id>")` - the
 scenario New Game launches - but it is HONORED ONLY from the base game's own
 bundle: the merge warns and ignores it on any other bundle, so a mod cannot

@@ -30,7 +30,7 @@ tagged **(breaking)**.
 - Two new menu backdrops join the rotation: Waystation Traffic (a hauler convoy circling a freight stop under amber dock lights) and Scrapyard Drift (a quiet salvage yard - drifting crates, two wrecks and a lone tug).
 - Scenarios can speak: the new `StoryMessage` action shows speaker-attributed dialog in a HUD comms panel (`OKONO > Strip it clean.`) - the story-text surface campaign mods build on.
 - Broken mod content fails loud, not weird: scenarios with reference errors (unknown prototypes, dangling chapter chains) refuse to start with a FAILED TO START report naming each problem, and the menu backdrop rotation skips them.
-- `cargo run -p nova_assets --bin content_lint` lints every scenario in the repo (base, shipped mods, portal mods) for the reference bugs the loaders cannot see - unknown section prototypes, dangling chapter chains, filter targets nothing spawns; CI enforces it.
+- `cargo run -p nova_assets --bin content_lint` lints every scenario in the repo (base, shipped mods, portal mods) for the reference bugs the loaders cannot see - unknown section prototypes, dangling chapter chains, filter targets nothing spawns; CI enforces it. Mod developers can check just their own mod with `-- --target <mod dir or id>`.
 - The Ledger, the first campaign mod on the portal: a four-chapter salvage arc (strip the wreck, break the claim jumpers, run the quiet channel, pick the buyer - or the buoy) with comms-driven story beats and a two-ending finale. Install from Mods > Explore.
 
 ### Internals & Tooling
