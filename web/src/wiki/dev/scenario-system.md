@@ -44,7 +44,7 @@ a scoped entity, (4) be a self-expiring `TempEntity`, or (5) be torn down by a
 | `EventConfig`  | Fires when |
 |----------------|------------|
 | `OnStart`      | once, right after a scenario loads |
-| `OnUpdate`     | every frame while a scenario is live |
+| `OnUpdate`     | every frame while a scenario is live and unpaused (frozen behind the pause menu / outcome frame) |
 | `OnDestroyed`  | an entity is destroyed |
 | `OnEnter`      | a body enters an area/zone |
 | `OnExit`       | a body leaves an area/zone |

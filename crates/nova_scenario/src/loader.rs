@@ -248,8 +248,23 @@ impl Plugin for ScenarioLoaderPlugin {
         // OnUpdate handlers were dead config until task 20260711-180506:
         // EventConfig::OnUpdate existed (and the docs advertised it) but
         // nothing ever fired the event. The pulse runs only while a
-        // scenario is live - same liveness rule as the ship systems.
-        app.add_systems(Update, fire_on_update.run_if(scenario_is_live));
+        // scenario is live - same liveness rule as the ship systems - AND
+        // only while Unpaused (task 20260716-231855): unlike the trackers
+        // below, this pulse fires UNCONDITIONALLY every frame, so under a
+        // pause (the ESC menu OR the outcome frame, both PauseStates::Paused)
+        // an OnUpdate handler whose predicate is already true would re-run
+        // its action every frame via the pause-independent PostUpdate
+        // state_to_world sync. The sibling trackers below stay ungated: they
+        // fire only when a Time<Virtual> delta threshold is crossed, and that
+        // clock is frozen under pause (delta ~= 0), and their source state
+        // (autopilot, player locks) is itself Unpaused-gated - so nothing
+        // NEWLY fires. apply_pending_skybox_swaps stays ungated too: it is
+        // cosmetic and asset-load driven (not clock driven), and letting a
+        // queued swap finish under pause is harmless. Do not blanket-gate.
+        app.add_systems(
+            Update,
+            fire_on_update.run_if(scenario_is_live.and_then(in_state(PauseStates::Unpaused))),
+        );
 
         // The orbit-hold tracker behind `EventConfig::OnOrbit` (task
         // 20260712-110730 finding 5): "in orbit" is autopilot state, not
@@ -1362,6 +1377,103 @@ mod tests {
                 .get_variable("pulsed"),
             Some(&VariableLiteral::Boolean(true)),
             "a live scenario pulses OnUpdate handlers"
+        );
+    }
+
+    /// The OnUpdate pulse is Unpaused-gated (task 20260716-231855): a
+    /// handler whose predicate is already true must NOT re-run its action
+    /// every frame while the game is Paused (the ESC menu / outcome frame),
+    /// and must resume firing on unpause. Proven with a filterless OnUpdate
+    /// handler that INCREMENTS a counter - a value that would keep climbing
+    /// under pause if the pulse leaked through. Uses the exact production
+    /// run condition (`scenario_is_live.and_then(in_state(Unpaused))`).
+    #[test]
+    fn on_update_pulse_freezes_while_paused_and_resumes_on_unpause() {
+        use bevy::state::app::StatesPlugin;
+        use bevy_common_systems::prelude::{EventHandler, GameEventsPlugin, GameObjectives};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(StatesPlugin);
+        app.init_state::<PauseStates>();
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<CurrentScenario>();
+        app.add_systems(
+            Update,
+            fire_on_update.run_if(scenario_is_live.and_then(in_state(PauseStates::Unpaused))),
+        );
+
+        // Seed the counter so the increment expression has a number to read
+        // (an undefined variable would error the action out).
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .insert_variable("count".to_string(), VariableLiteral::Number(0.0));
+
+        // A filterless OnUpdate handler that does `count = count + 1` - its
+        // predicate is trivially always true, so every pulse re-runs it.
+        let mut handler = EventHandler::<NovaEventWorld>::from(EventConfig::OnUpdate);
+        handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: "count".to_string(),
+            expression: VariableExpressionNode::new_add(
+                VariableTermNode::new_factor(VariableFactorNode::new_name("count")),
+                VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                    VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
+                )),
+            ),
+        }));
+        app.world_mut().spawn(handler);
+
+        let count = |app: &App| match app
+            .world()
+            .resource::<NovaEventWorld>()
+            .get_variable("count")
+        {
+            Some(VariableLiteral::Number(n)) => *n,
+            other => panic!("count must be a number, got {other:?}"),
+        };
+
+        // Live scenario, Unpaused (default): the counter climbs each frame.
+        app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
+        app.update();
+        app.update();
+        let while_unpaused = count(&app);
+        assert!(
+            while_unpaused > 0.0,
+            "an Unpaused live scenario must pulse OnUpdate handlers ({while_unpaused})"
+        );
+
+        // Pause: the pulse stops, so the already-true handler stops re-firing
+        // and the counter is frozen no matter how many frames pass.
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Paused);
+        app.update(); // applies the transition
+        let at_pause = count(&app);
+        app.update();
+        app.update();
+        app.update();
+        assert_eq!(
+            count(&app),
+            at_pause,
+            "a Paused game must freeze the OnUpdate pulse: an already-true \
+             handler must not re-run its action while paused"
+        );
+
+        // Unpause: delivery-guarded, not dropped - the pulse resumes and the
+        // counter climbs again.
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Unpaused);
+        app.update(); // applies the transition
+        app.update();
+        app.update();
+        assert!(
+            count(&app) > at_pause,
+            "unpausing must resume the OnUpdate pulse ({} -> {})",
+            at_pause,
+            count(&app)
         );
     }
 

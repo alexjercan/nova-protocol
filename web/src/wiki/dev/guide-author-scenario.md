@@ -109,7 +109,7 @@ The event `name` is one of these kinds (`events.rs`):
 | `name`         | Fires when |
 |----------------|------------|
 | `OnStart`      | once, right after the scenario loads |
-| `OnUpdate`     | every frame while the scenario is live |
+| `OnUpdate`     | every frame while the scenario is live and unpaused (frozen while paused) |
 | `OnDestroyed`  | an entity is destroyed |
 | `OnEnter`      | a body enters an area / zone / beacon / crate |
 | `OnExit`       | a body leaves an area |

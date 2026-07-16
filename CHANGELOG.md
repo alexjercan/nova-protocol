@@ -24,6 +24,7 @@ tagged **(breaking)**.
 
 - Restarting a scenario (Retry, from the pause menu or the Victory/Defeat frame) no longer loses the objective text: the objectives HUD is now reset on scenario teardown, so a restart that re-posts the same objectives repaints the panel instead of leaving it blank.
 - A ship that loses its last section outside the damage path no longer lingers as a targetable 0-HP ghost hull: the health aggregate now carries a structural death backstop (no living sections = dead), closing a soft-lock where Broadside's act gates waited on a kill that never registered.
+- Scenario `OnUpdate` handlers now freeze while the game is paused (the pause menu or the Victory/Defeat frame): the per-frame pulse is gated on the unpaused state, so an already-satisfied handler no longer keeps re-applying its action every frame behind the pause.
 
 ### Modding & Mod Portal
 
