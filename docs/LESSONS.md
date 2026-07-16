@@ -349,9 +349,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `pair-matrix-on-collider-class-change` (x1): changing a collider's class
   (sensor?, events?) must be checked against every collider category in the
   game, not just the pair being fixed. 20260712-121101.
-- `verify-scripted-edits-applied` (x1): a sed/python replace that matches
-  nothing looks like success; assert the replace count or grep the new text.
-  20260712-110730.
+- `verify-scripted-edits-applied` (x2): a sed/python replace that matches
+  nothing looks like success, and one that matches can still emit malformed
+  text (a doubled "Response: Response:" prefix); assert the replace count AND
+  read/grep the produced text. 20260712-110730, 20260716-125856.
 - `reuse-production-helpers-in-tests` (x2): tests compose expected values and
   spawn rigs via the production helpers, not inline re-derivations.
   20260711-121839, 20260712-110730.
@@ -387,7 +388,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   mechanism deleted proves nothing; copied tests inherit vacuousness - and a
   sabotage that refuses to go red refutes the assumed mechanism itself.
   20260711-180426, 20260711-212521, 20260712-115902.
-- `out-of-context-review-pass` (positive, x22): a fresh-context review of a
+- `out-of-context-review-pass` (positive, x23): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
   load-bearing claims instead of trusting them - checking cited evidence IS
   the spawn site, re-running the sabotage or the whole smoke suite, reading
@@ -396,7 +397,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   a CI ACTION's source to settle a toolchain question, and re-deriving an
   algorithm (Kahn's topo sort direction) by hand to catch a doc/atomicity
   overclaim. 20260712-133343, 20260711-183417, 20260712-115902,
-  20260715-142900, 20260715-142931.
+  20260715-142900, 20260715-142931, 20260716-125856.
 - `required-component-in-shared-query` (x2): a required fetch added to an
   existing query narrows its membership and every gate computed from it; fetch
   `Option<&T>` or use a separate query. New `Res<T>` params also panic every
@@ -550,6 +551,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   a double OnDestroyed can't soft-lock the clear). Counting sibling of
   `collisionstart-is-per-collider-pair`. 20260715-224812.
 
+- `probe-the-adversarial-variant` (x1): pick evidence/eyeball variants by what
+  they can HIDE, not by staging convenience - a Defeat-only overlay probe
+  masked a Victory-only cursor bug because the dead ship emptied the exact
+  query that armed it; enumerate the variants and probe the one with the most
+  live actors (or both when cheap). 20260716-125856.
+
 - `pick-the-system-set-seam` (x1): when a plugin partitions its systems into
   `run_if` gated SystemSets, choose the target set for a new system explicitly -
   a debug convenience is not automatically a `DebugSystems`/`DebugEnabled`-gated
@@ -558,6 +565,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 
 ## Domain lessons (nova-protocol specific)
 
+- `crate-solo-tests-miss-unified-features` (x1): `cargo test -p nova_scenario`
+  alone fails to compile - its serde round-trip tests lean on workspace
+  feature unification (nova_assets -> nova_modding -> nova_scenario/serde);
+  run crate tests with a unifying sibling (`-p nova_scenario -p nova_menu`)
+  or workspace-wide as CI does. 20260716-125856.
 - `two-clocks` (family): FixedUpdate consumers read raw Position/Rotation;
   render-rate consumers read eased Transform/GlobalTransform; one computation
   uses one clock from one frame, and consumers of PostUpdate-written state
