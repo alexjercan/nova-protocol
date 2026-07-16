@@ -1,63 +1,51 @@
-# Make base a first-class dep://base target (root-relative base bundle, Option B)
+# Base as a first-class implicit dep://base target (Option A, mechanism)
 
 - STATUS: OPEN
-- PRIORITY: 44
-- TAGS: v0.7.0,modding,base,feature,spike
+- PRIORITY: 50
+- TAGS: v0.7.0,modding,base,feature
 
 ## Goal
 
-Make the base game a first-class `dep://base` target - so a mod can reference
-base's shipped art with `dep://base/<path>` and base content can use `self://` -
-WITHOUT moving any files and WITHOUT breaking the existing bare-path convention.
-This is Option B from the spike (tasks/20260716-235458/SPIKE.md): base becomes a
-normal scheme-referenceable bundle at low, non-breaking cost.
+Make `base` an ALWAYS-available implicit `dep://base` target so a mod can write
+`dep://base/<path>` (and base content can use `self://`) - the mechanism half of
+Option A (tasks/20260716-235458/SPIKE.md), before any files move. base is NOT
+listed in a mod's `meta.dependencies` (it is the implicit universal dependency);
+`dep://base` must be allowed anyway.
 
-## Why (from the spike)
+## Context
 
-`dep://base` is currently rejected because base's `resource_base` is its folder
-(`"base"`) while base art lives at the asset ROOT, so it would mis-resolve. base
-is also an implicit dependency, never in a mod's `meta.dependencies`. Fixing both
-makes base referenceable like any mod. This also fixes a latent bug: base's
-current `resource_base="base"` would mis-rewrite any base `self://` ref today.
-Bare paths keep working (they coexist with `dep://base`, both resolve to root).
+Task 20260716-215423 REJECTS `dep://base` (the `id == "base"` arms in
+crates/nova_assets/src/mod_refs.rs) because base art is at the asset root while
+base's `resource_base` is its folder (`"base"`). Option A moves base art UNDER
+`assets/base/` (task 2), which makes `resource_base = "base"` correct - so
+`dep://base/textures/x` -> `base/textures/x` -> `assets/base/textures/x`. This
+task lands the gate/rewrite mechanism (proven with SYNTHETIC bundles, like the
+existing dep:// gate tests); task 2 makes it resolve against real moved files.
 
-## Direction (for /plan to break into steps)
+## Steps
 
-- Give the base bundle ROOT-relative resolution: its `resource_base` is `""`
-  (the asset root), not `"base"`. Decide where - a special-case in
-  `BundleAssetLoader`/`register_bundles` keyed on the `base: true` catalog entry
-  (or id `"base"`), NOT string-matching everywhere.
-- Treat `base` as an ALWAYS-available implicit `dep://` target: allow
-  `dep://base/<path>` even though `base` is never in `meta.dependencies`. Remove
-  the `id == "base"` REJECTION in `crates/nova_assets/src/mod_refs.rs` and instead
-  resolve it against base's root `resource_base` + base's `resources`.
-- Add a `resources` list to `assets/base/base.bundle.ron` enumerating base's
-  shipped art (the files reachable via `self://`/`dep://base`), emitted by
-  `gen_content` so it cannot drift from the builders.
-- Mirror across ALL THREE domains, as `self://`/`dep://` already are: runtime
-  merge (`register_bundles`), static `lint_walk`, and the engine-free portal
-  generator (`nova_portal_gen`). `dep://base` membership is checked against base's
-  declared resources; base is SHIPPED so the portal knows its ids but not its
-  resources unless the shipped catalog is consulted - resolve how the portal
-  validates `dep://base` (or documents the gap, as it does for shipped deps).
-- Optionally convert base's OWN content refs to `self://` for provenance (the
-  bug fix makes this correct); keep it OPTIONAL - bare still works.
-- Docs: guide-make-a-mod, modding-ron, mod-binary-resources design doc - document
-  that base is referenceable via `dep://base/<path>` (and bare remains the
-  shorthand).
-- Tests: `dep://base/X` resolves to root; a declared base resource validates; an
-  undeclared one is a gate error in all three domains; bare base refs still work
-  unchanged; base `self://` resolves to root (the latent-bug regression).
-
-## Non-goals
-
-- Moving base art into `assets/base/` and dropping the bare convention (Option
-  A/C) - deferred per the spike; reconsider after this lands.
+- [ ] Remove the `id == "base"` REJECTION in `mod_refs.rs` (`rewrite_leaf` and
+      `violation`); treat `base` as declared+available when it is present in the
+      scope's deps map.
+- [ ] Gate logic: `dep://base/X` is allowed even though `base` is never in
+      `declared_deps` - base is the implicit universal dep. Other ids still
+      require a `meta.dependencies` entry.
+- [ ] `register_bundles`: add `base` (the `base: true` catalog entry / id
+      "base") to EVERY owning bundle's deps map (its `resource_base` +
+      `resources`), so `dep://base` resolves and is membership-checked.
+- [ ] Mirror in the static `lint_walk` and the engine-free `nova_portal_gen`
+      (base implicit-allowed; membership against base's declared resources; the
+      portal knows base only from the shipped catalog - resolve how it validates
+      `dep://base`, or document the gap as it does for shipped deps).
+- [ ] Unit + synthetic-bundle tests: `dep://base/X` resolves against base's
+      folder; a declared base resource validates; an undeclared one is a gate
+      error in all three domains; `dep://base` needs no `meta.dependencies` entry.
+- [ ] Decision record: update SPIKE.md (mark Option A chosen over B; FIX the
+      "declare base as a dependency" error - base stays implicit).
 
 ## Notes
 
-- Spike: tasks/20260716-235458/SPIKE.md.
-- Builds on `self://` (20260716-123544) and `dep://` (20260716-215423).
-- Stepless direction-level task: run `/plan` before `/work` to break it into
-  ordered steps.
-
+- Spike: tasks/20260716-235458/SPIKE.md (Option A).
+- Base's `resource_base` stays `"base"`; it becomes correct once task 2 moves the
+  art under `assets/base/`. Do NOT make it root-relative (that was Option B).
+- Builds on self:// (20260716-123544) and dep:// (20260716-215423).
