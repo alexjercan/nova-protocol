@@ -181,7 +181,6 @@ mod tests {
     };
 
     use super::*;
-    use crate::prelude::*;
 
     // These pin the filter/action semantics every data-driven scenario leans
     // on - the exact patterns shipped content composes (gate guards, kill
