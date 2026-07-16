@@ -44,12 +44,8 @@
                                         Mouse(Left),
                                         Gamepad(RightTrigger2),
                                     ],
-                                    "torpedo": [
-                                        Mouse(Left),
-                                        Gamepad(RightTrigger),
-                                    ],
                                 },
-                                infinite_ammo: false,
+                                infinite_ammo: true,
                             )),
                             sections: [
                                 (
@@ -126,21 +122,6 @@
                                         0.70710677,
                                     ),
                                     source: Prototype("better_turret_section"),
-                                ),
-                                (
-                                    id: "torpedo",
-                                    position: (
-                                        0.0,
-                                        0.0,
-                                        2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("torpedo_section"),
                                 ),
                             ],
                         )),

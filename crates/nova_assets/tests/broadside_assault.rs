@@ -269,16 +269,28 @@ fn on_start_stages_the_slice() {
     let ScenarioObjectKind::Spaceship(player_ship) = &player.kind else {
         panic!("player is a spaceship");
     };
+    let SpaceshipController::Player(player_controller) = &player_ship.controller else {
+        panic!("player-controlled");
+    };
+    // Playtest tuning (task 20260716-160159): torpedoes are the ENEMY's
+    // weapon this chapter - the player screens them, not trades them - and
+    // the turret never runs dry (no resupply mechanic exists yet).
     assert!(
-        matches!(player_ship.controller, SpaceshipController::Player(_)),
-        "player-controlled"
-    );
-    assert!(
-        player_ship
+        !player_ship
             .sections
             .iter()
             .any(|s| matches!(&s.source, SectionSource::Prototype(p) if p == "torpedo_section")),
-        "the full loadout includes a torpedo bay"
+        "the player carries NO torpedo bay in chapter two"
+    );
+    assert!(
+        player_ship.sections.iter().any(
+            |s| matches!(&s.source, SectionSource::Prototype(p) if p == "better_turret_section")
+        ),
+        "the PDC turret is the player's weapon"
+    );
+    assert!(
+        player_controller.infinite_ammo,
+        "infinite turret ammo (chapter-one precedent)"
     );
 
     let hauler = ships
@@ -303,6 +315,36 @@ fn on_start_stages_the_slice() {
             |a| matches!(a, EventActionConfig::CreateScenarioArea(area) if area.id == "hauler_area")
         ),
         "OnStart creates the ambush trigger area"
+    );
+}
+
+/// The other half of the playtest tuning (task 20260716-160159): torpedoes
+/// stay the GUNSHIP's weapon - the screening beat needs tubes on the enemy.
+#[test]
+fn the_gunship_keeps_its_torpedo_tubes() {
+    let scenario = scenario_from(BROADSIDE_RON);
+    let gunship = scenario
+        .events
+        .iter()
+        .flat_map(|e| e.actions.iter())
+        .find_map(|a| match a {
+            EventActionConfig::SpawnScenarioObject(config) if config.base.id == "gunship" => {
+                Some(config)
+            }
+            _ => None,
+        })
+        .expect("the escalation spawns the gunship");
+    let ScenarioObjectKind::Spaceship(ship) = &gunship.kind else {
+        panic!("gunship is a spaceship");
+    };
+    let tubes = ship
+        .sections
+        .iter()
+        .filter(|s| matches!(&s.source, SectionSource::Prototype(p) if p == "torpedo_section"))
+        .count();
+    assert!(
+        tubes >= 2,
+        "the gunship fields its torpedo tubes (got {tubes})"
     );
 }
 

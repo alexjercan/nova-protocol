@@ -83,23 +83,19 @@ const CORVETTE_B_SPAWN: Vec3 = Vec3::new(-150.0, -20.0, -540.0);
 /// envelope (<= 1000u) open through the whole approach.
 const GUNSHIP_SPAWN: Vec3 = Vec3::new(80.0, 60.0, -1170.0);
 
-/// The player's first full loadout: shakedown's trainer plus a second hull
-/// and a torpedo bay. Convention (player wiki, keybinds): turret AND torpedo
-/// ride the left mouse button - the torpedo gates itself on a raised combat
-/// lock - with separate pad triggers.
+/// The player's chapter-two ship: shakedown's trainer plus a second hull
+/// and the better turret. NO torpedo bay - torpedoes are the ENEMY's
+/// weapon this chapter (story: not unlocked yet), which keeps the
+/// PDC-screening fantasy pure: you shoot torpedoes down, you don't trade
+/// them. Infinite turret ammo like chapter one - there is no resupply
+/// mechanic yet, so a dry magazine mid-gunship-fight is frustration, not
+/// pressure (playtest verdict, task 20260716-160159).
 fn player_ship() -> ScenarioObjectConfig {
     let turret = SpaceshipSectionConfig {
         id: "turret".to_string(),
         position: Vec3::new(0.0, 0.0, -2.0),
         rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
         source: SectionSource::Prototype("better_turret_section".to_string()),
-        modifications: vec![],
-    };
-    let torpedo = SpaceshipSectionConfig {
-        id: "torpedo".to_string(),
-        position: Vec3::new(0.0, 0.0, 2.0),
-        rotation: Quat::IDENTITY,
-        source: SectionSource::Prototype("torpedo_section".to_string()),
         modifications: vec![],
     };
     ScenarioObjectConfig {
@@ -111,22 +107,16 @@ fn player_ship() -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::Player(PlayerControllerConfig {
-                input_mapping: HashMap::from([
-                    (
-                        "turret".to_string(),
-                        vec![
-                            MouseButton::Left.into(),
-                            GamepadButton::RightTrigger2.into(),
-                        ],
-                    ),
-                    (
-                        "torpedo".to_string(),
-                        vec![MouseButton::Left.into(), GamepadButton::RightTrigger.into()],
-                    ),
-                ]),
-                // Post-tutorial: unbounded burn, authored magazines.
+                input_mapping: HashMap::from([(
+                    "turret".to_string(),
+                    vec![
+                        MouseButton::Left.into(),
+                        GamepadButton::RightTrigger2.into(),
+                    ],
+                )]),
+                // Post-tutorial: unbounded burn.
                 speed_cap: None,
-                infinite_ammo: false,
+                infinite_ammo: true,
             }),
             allegiance: None,
             sections: vec![
@@ -135,7 +125,6 @@ fn player_ship() -> ScenarioObjectConfig {
                 section("hull_back", "reinforced_hull_section", Vec3::NEG_Z),
                 section("thruster", "basic_thruster_section", Vec3::Z * 2.0),
                 turret,
-                torpedo,
             ],
         }),
     }
