@@ -258,9 +258,15 @@ scoped, interpolated, dynamic bodies via `base_scenario_object`.
   `lock_signature` override.
 - `Spaceship(SpaceshipConfig)` - sections plus a `SpaceshipController`:
   `None`, `Player` (input mapping, optional `speed_cap`, `infinite_ammo`,
-  optional `lock_refire_secs`), or `AI` (patrol route, orbit directive, optional
-  `leash` break-off radius, optional `orbit_hold_secs`). See
-  [Ship sections (internals)](../sections/).
+  optional `lock_refire_secs`), or `AI` (patrol route, orbit directive,
+  optional `leash` break-off radius, optional `orbit_hold_secs`, optional
+  `engage_delay: Some(secs)` arrival grace - the ship flies its passive
+  routine and refuses to engage until the delay elapses, going hot
+  immediately and permanently if shot; pair it with a clock-spaced
+  warning story beat so enemies ARRIVE instead of appearing: `elapsed >
+  T` announce line -> spawn far with `engage_delay` covering the
+  approach -> the fight starts when the player has read the warning).
+  See [Ship sections (internals)](../sections/).
 - `Beacon(BeaconConfig)` - nav waypoint with an automatic HUD chip: label,
   radius, color, optional `lock_signature`, optional `area_radius` (the
   beacon doubles as its own `OnEnter`/`OnExit` trigger).

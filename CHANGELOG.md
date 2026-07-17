@@ -116,6 +116,7 @@ tagged **(breaking)**.
 
 ### Gameplay & Flight
 
+- Enemies can be authored to ARRIVE instead of appearing: a scenario ship with an `engage_delay` grace flies its patrol and holds its fire for those seconds before going hot - shoot it and the courtesy ends instantly and permanently, and its point-defense never stops watching for torpedoes. Paired with a warning comms beat, a spawn now reads as an approach you were told about, not an ambush from nowhere.
 - Gamepad bindings rounded out: ORBIT -> South, scenario-advance confirm -> DPadDown, and HUD cycle / pause / back-to-editor gained buttons.
 
 ### Web & Platform

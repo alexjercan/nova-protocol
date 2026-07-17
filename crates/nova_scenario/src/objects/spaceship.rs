@@ -94,6 +94,17 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub leash: Option<f32>,
+    /// Arrival grace (seconds, task 20260717-163042): the ship spawns on
+    /// its passive routine and refuses to engage until this elapses -
+    /// pair with a warning story beat so enemies ARRIVE instead of
+    /// appearing hot. Being shot ends the grace immediately and
+    /// permanently. Strict RON: `engage_delay: Some(8.0)`; omitted or
+    /// non-positive values mean no grace.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub engage_delay: Option<f32>,
     /// Seconds this ship must HOLD an engaged orbit before the `OnOrbit`
     /// event fires (and the re-fire period while the hold continues). Only
     /// meaningful together with `orbit`. None = the engine default
@@ -382,6 +393,14 @@ fn insert_spaceship_sections(
                 };
                 commands.entity(entity).insert(AILeash { center, radius });
             }
+            // Non-positive delays are "no grace" (documented on the field):
+            // a zero timer would be born finished anyway, so the guard just
+            // keeps the component off ships that never asked for one.
+            if let Some(delay) = config.engage_delay {
+                if delay > 0.0 {
+                    commands.entity(entity).insert(AIEngageGrace::new(delay));
+                }
+            }
         }
     }
 }
@@ -450,6 +469,7 @@ mod tests {
                 patrol: vec![Vec3::ZERO, Vec3::X],
                 orbit: Some("planetoid".to_string()),
                 leash: None,
+                engage_delay: None,
                 orbit_hold_secs: None,
             },
         );
@@ -512,5 +532,73 @@ mod tests {
             Some(10),
             "without the flag the authored magazine is kept"
         );
+    }
+
+    /// The arrival grace wires from config to component only for positive
+    /// delays (task 20260717-163042): Some(5) inserts, Some(0)/None do not.
+    #[test]
+    fn engage_delay_inserts_the_grace_only_when_positive() {
+        let mut world = World::new();
+        world.init_resource::<GameSections>();
+        world.add_observer(insert_spaceship_sections);
+        let spawn = |world: &mut World, config: AIControllerConfig| {
+            let entity = world
+                .spawn((
+                    Transform::default(),
+                    spaceship_scenario_object(SpaceshipConfig {
+                        controller: SpaceshipController::AI(config),
+                        allegiance: None,
+                        sections: vec![],
+                    }),
+                ))
+                .id();
+            world.flush();
+            entity
+        };
+
+        let graced = spawn(
+            &mut world,
+            AIControllerConfig {
+                engage_delay: Some(5.0),
+                ..default()
+            },
+        );
+        let grace = world.entity(graced).get::<AIEngageGrace>().unwrap();
+        assert!((grace.timer.duration().as_secs_f32() - 5.0).abs() < f32::EPSILON);
+
+        let zero = spawn(
+            &mut world,
+            AIControllerConfig {
+                engage_delay: Some(0.0),
+                ..default()
+            },
+        );
+        assert!(
+            world.entity(zero).get::<AIEngageGrace>().is_none(),
+            "non-positive delays mean no grace"
+        );
+
+        let none = spawn(&mut world, AIControllerConfig::default());
+        assert!(world.entity(none).get::<AIEngageGrace>().is_none());
+    }
+
+    /// The documented strict-RON syntax parses, omitted defaults to None.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn engage_delay_ron_parses_and_defaults() {
+        let authored: SpaceshipController =
+            ron::from_str(r#"AI((patrol: [(0.0, 0.0, 0.0)], engage_delay: Some(6.0)))"#)
+                .expect("the documented syntax parses");
+        let SpaceshipController::AI(config) = authored else {
+            panic!("AI variant");
+        };
+        assert_eq!(config.engage_delay, Some(6.0));
+
+        let omitted: SpaceshipController =
+            ron::from_str(r#"AI((leash: Some(400.0)))"#).expect("omitted field parses");
+        let SpaceshipController::AI(config) = omitted else {
+            panic!("AI variant");
+        };
+        assert_eq!(config.engage_delay, None);
     }
 }

@@ -349,6 +349,24 @@ ObjectiveComplete((
 Re-adding the same id with a new `message` updates the text in place (the
 shakedown uses this for its "recovered N/3" tally).
 
+### Telegraphed arrivals
+
+Enemies read better when they ARRIVE. The pattern: announce with a
+clock-gated comms line, spawn far, and give the ship an arrival grace so
+its approach is visible but not yet lethal:
+
+```ron
+controller: AI((
+    patrol: [(340.0, 30.0, -480.0), (60.0, 10.0, -100.0)],
+    engage_delay: Some(8.0),
+)),
+```
+
+A graced ship flies its passive routine and refuses to engage until the
+delay elapses; shooting it ends the grace instantly and permanently, and
+its point-defense still swats torpedoes throughout. Omitted or
+non-positive delays mean no grace.
+
 ### StoryMessage
 
 Speaker-attributed story text, rendered by the HUD comms panel

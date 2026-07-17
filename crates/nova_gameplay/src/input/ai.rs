@@ -6,10 +6,33 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        AIBehaviorState, AIEvade, AIFireCadence, AILeash, AIOrbitDirective, AIPatrolRoute,
-        AIPointDefenseTarget, AISpaceshipMarker, AITarget, AIThreat, AITorpedoBay,
+        AIBehaviorState, AIEngageGrace, AIEvade, AIFireCadence, AILeash, AIOrbitDirective,
+        AIPatrolRoute, AIPointDefenseTarget, AISpaceshipMarker, AITarget, AIThreat, AITorpedoBay,
         SpaceshipAIInputPlugin,
     };
+}
+
+/// Arrival grace (task 20260717-163042): a telegraphed ship holds its
+/// PASSIVE routine (patrol/orbit/idle) and refuses the engage pull until
+/// this timer runs out - enemies ARRIVE instead of appearing hot. Being
+/// shot ends the grace immediately and PERMANENTLY (the ticking system
+/// pins the timer to finished), mirroring the leash's damage override.
+/// Point defense is untouched: a graced ship still swats inbound
+/// ordnance (the PD path deliberately bypasses behavior states).
+/// Authored via `AIControllerConfig::engage_delay`.
+#[derive(Component, Debug, Clone, Reflect)]
+#[reflect(Component)]
+pub struct AIEngageGrace {
+    /// Time left before the ship may engage.
+    pub timer: Timer,
+}
+
+impl AIEngageGrace {
+    pub fn new(seconds: f32) -> Self {
+        Self {
+            timer: Timer::from_seconds(seconds, TimerMode::Once),
+        }
+    }
 }
 
 pub struct SpaceshipAIInputPlugin;
@@ -31,6 +54,7 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.register_type::<AIThreat>();
         app.register_type::<AIEvade>();
         app.register_type::<AITorpedoBay>();
+        app.register_type::<AIEngageGrace>();
 
         // Threat sensing is an observer, not a system: HealthApplyDamage is
         // an entity event that propagates to the ship root, and reacting at
@@ -707,6 +731,7 @@ fn next_behavior_state(
     has_orbit: bool,
     has_route: bool,
     beyond_leash: bool,
+    grace_held: bool,
     threat: ThreatSignals,
 ) -> AIBehaviorState {
     let passive = if has_orbit {
@@ -721,6 +746,18 @@ fn next_behavior_state(
     // the ship back inside. Recent damage overrides it: a ship dragged
     // out and shot defends itself until the memory fades.
     if beyond_leash && !threat.recently_damaged {
+        return passive;
+    }
+    // The arrival grace: a telegraphed ship holds its routine until the
+    // timer runs out. Damage overrides here too - and the ticking system
+    // makes that override permanent by pinning the timer (a shot ship
+    // never calms back into its entrance). UNCONDITIONAL on the current
+    // state on purpose: `AIBehaviorState`'s default is Engage, so every
+    // graced scenario spawn takes THIS return on its first behavior tick
+    // to land on its routine - restricting it to passive states would
+    // silently break every real telegraphed arrival (review R1.1's
+    // mutation probe).
+    if grace_held && !threat.recently_damaged {
         return passive;
     }
     let Some(distance) = hostile_distance else {
@@ -784,15 +821,41 @@ fn update_behavior_state(
             Has<AIOrbitDirective>,
             Has<AIPatrolRoute>,
             Option<&AILeash>,
+            Option<&mut AIEngageGrace>,
         ),
         With<AISpaceshipMarker>,
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {
-    for (transform, com, mut state, target, mut threat, mut evade, has_orbit, has_route, leash) in
-        &mut q_spaceship
+    for (
+        transform,
+        com,
+        mut state,
+        target,
+        mut threat,
+        mut evade,
+        has_orbit,
+        has_route,
+        leash,
+        mut grace,
+    ) in &mut q_spaceship
     {
         threat.damage_memory.tick(time.delta());
+        let grace_held = match grace.as_deref_mut() {
+            Some(grace) => {
+                grace.timer.tick(time.delta());
+                if threat.recently_damaged() && !grace.timer.is_finished() {
+                    // Shot during the entrance: the courtesy is over for
+                    // good (a finished timer never holds again). Tick to
+                    // the end rather than set_elapsed - only tick()
+                    // updates the finished flag (Bevy Timer semantics).
+                    let remaining = grace.timer.remaining();
+                    grace.timer.tick(remaining);
+                }
+                !grace.timer.is_finished()
+            }
+            None => false,
+        };
         evade.cooldown.tick(time.delta());
         if *state == AIBehaviorState::Evade {
             evade.duration.tick(time.delta());
@@ -837,6 +900,7 @@ fn update_behavior_state(
             has_orbit,
             has_route,
             beyond_leash,
+            grace_held,
             signals,
         );
         // Change-detection hygiene: only write on a real transition.
@@ -1776,6 +1840,52 @@ mod behavior_state_tests {
         }
     }
 
+    /// The arrival grace (task 20260717-163042): a graced passive ship
+    /// refuses the engage pull with a hostile in range; damage overrides
+    /// the grace; grace composes with the leash (passive either way).
+    #[test]
+    fn the_grace_holds_passive_and_damage_overrides_it() {
+        use AIBehaviorState::*;
+        let near = Some(100.0);
+
+        // Graced, hostile in range: the routine holds.
+        assert_eq!(
+            next_behavior_state(Patrol, near, false, true, false, true, calm()),
+            Patrol
+        );
+        assert_eq!(
+            next_behavior_state(Idle, near, false, false, false, true, calm()),
+            Idle
+        );
+        // Shot during the entrance: the grace yields NOW.
+        let shot = ThreatSignals {
+            recently_damaged: true,
+            evade_ready: false,
+            ..default()
+        };
+        assert_eq!(
+            next_behavior_state(Patrol, near, false, true, false, true, shot),
+            Engage
+        );
+        // Grace + beyond-leash compose: passive, no double-engage path.
+        assert_eq!(
+            next_behavior_state(Patrol, near, false, true, true, true, calm()),
+            Patrol
+        );
+        // The LOAD-BEARING row (review R1.1): a graced ship in Engage
+        // demotes to its routine - AIBehaviorState defaults to Engage, so
+        // every graced scenario spawn's first tick IS this transition.
+        assert_eq!(
+            next_behavior_state(Engage, near, false, true, false, true, calm()),
+            Patrol
+        );
+        // Delivery guard: the same ungraced shape engages immediately.
+        assert_eq!(
+            next_behavior_state(Patrol, near, false, true, false, false, calm()),
+            Engage
+        );
+    }
+
     /// Leash hysteresis: combat breaks off strictly beyond the radius,
     /// but a passive ship only re-engages once well back inside the
     /// re-engage band - between the two thresholds an engaged ship keeps
@@ -1816,12 +1926,12 @@ mod behavior_state_tests {
 
         // Engaged beyond the leash: back to the routine.
         assert_eq!(
-            next_behavior_state(Engage, near, false, true, true, calm()),
+            next_behavior_state(Engage, near, false, true, true, false, calm()),
             Patrol
         );
         // Passive beyond the leash: refuses to engage a hostile in range.
         assert_eq!(
-            next_behavior_state(Patrol, near, false, true, true, calm()),
+            next_behavior_state(Patrol, near, false, true, true, false, calm()),
             Patrol
         );
         // Under fire the tether yields: the ship fights back.
@@ -1832,6 +1942,7 @@ mod behavior_state_tests {
                 false,
                 true,
                 true,
+                false,
                 ThreatSignals {
                     recently_damaged: true,
                     evade_ready: false,
@@ -1843,7 +1954,7 @@ mod behavior_state_tests {
         // Delivery guard: INSIDE the leash the same engaged ship keeps
         // engaging - the tether only acts beyond the radius.
         assert_eq!(
-            next_behavior_state(Engage, near, false, true, false, calm()),
+            next_behavior_state(Engage, near, false, true, false, false, calm()),
             Engage
         );
     }
@@ -1856,12 +1967,12 @@ mod behavior_state_tests {
         // without a patrol assignment, Patrol with one.
         for state in [Idle, Patrol, Engage, Evade, Retreat] {
             assert_eq!(
-                next_behavior_state(state, None, false, false, false, calm()),
+                next_behavior_state(state, None, false, false, false, false, calm()),
                 Idle,
                 "from {state:?}"
             );
             assert_eq!(
-                next_behavior_state(state, None, false, true, false, calm()),
+                next_behavior_state(state, None, false, true, false, false, calm()),
                 Patrol,
                 "from {state:?}"
             );
@@ -1870,23 +1981,23 @@ mod behavior_state_tests {
         // states hold (their exit triggers belong to their own tasks).
         let near = Some(AI_ENGAGE_RANGE * 0.5);
         assert_eq!(
-            next_behavior_state(Idle, near, false, false, false, calm()),
+            next_behavior_state(Idle, near, false, false, false, false, calm()),
             Engage
         );
         assert_eq!(
-            next_behavior_state(Patrol, near, false, true, false, calm()),
+            next_behavior_state(Patrol, near, false, true, false, false, calm()),
             Engage
         );
         assert_eq!(
-            next_behavior_state(Engage, near, false, false, false, calm()),
+            next_behavior_state(Engage, near, false, false, false, false, calm()),
             Engage
         );
         assert_eq!(
-            next_behavior_state(Evade, near, false, false, false, calm()),
+            next_behavior_state(Evade, near, false, false, false, false, calm()),
             Evade
         );
         assert_eq!(
-            next_behavior_state(Retreat, near, false, false, false, calm()),
+            next_behavior_state(Retreat, near, false, false, false, false, calm()),
             Retreat
         );
     }
@@ -1899,17 +2010,17 @@ mod behavior_state_tests {
         // range: the passive states keep their routine...
         let far = Some(AI_ENGAGE_RANGE * 1.5);
         assert_eq!(
-            next_behavior_state(Patrol, far, false, true, false, calm()),
+            next_behavior_state(Patrol, far, false, true, false, false, calm()),
             Patrol
         );
         assert_eq!(
-            next_behavior_state(Idle, far, false, false, false, calm()),
+            next_behavior_state(Idle, far, false, false, false, false, calm()),
             Idle
         );
         // ...while a combat state already on that target keeps fighting -
         // the detection range gates entry, not pursuit.
         assert_eq!(
-            next_behavior_state(Engage, far, false, false, false, calm()),
+            next_behavior_state(Engage, far, false, false, false, false, calm()),
             Engage
         );
     }
@@ -1925,7 +2036,7 @@ mod behavior_state_tests {
             ..calm()
         };
         assert_eq!(
-            next_behavior_state(Engage, near, false, false, false, shot),
+            next_behavior_state(Engage, near, false, false, false, false, shot),
             Evade
         );
         let aimed = ThreatSignals {
@@ -1933,7 +2044,7 @@ mod behavior_state_tests {
             ..calm()
         };
         assert_eq!(
-            next_behavior_state(Engage, near, false, false, false, aimed),
+            next_behavior_state(Engage, near, false, false, false, false, aimed),
             Evade
         );
         // ...but not during the refractory cooldown: threats between evade
@@ -1945,7 +2056,7 @@ mod behavior_state_tests {
             ..default()
         };
         assert_eq!(
-            next_behavior_state(Engage, near, false, false, false, refractory),
+            next_behavior_state(Engage, near, false, false, false, false, refractory),
             Engage
         );
     }
@@ -1958,7 +2069,7 @@ mod behavior_state_tests {
         // Mid-cycle, even with the threat gone: the jink is timed, not
         // signal-chasing.
         assert_eq!(
-            next_behavior_state(Evade, near, false, false, false, calm()),
+            next_behavior_state(Evade, near, false, false, false, false, calm()),
             Evade
         );
         // Expiry decays back to Engage even under an ongoing threat - the
@@ -1969,7 +2080,7 @@ mod behavior_state_tests {
             ..calm()
         };
         assert_eq!(
-            next_behavior_state(Evade, near, false, false, false, expired_under_fire),
+            next_behavior_state(Evade, near, false, false, false, false, expired_under_fire),
             Engage
         );
     }
@@ -1986,11 +2097,11 @@ mod behavior_state_tests {
             ..calm()
         };
         assert_eq!(
-            next_behavior_state(Patrol, far, false, true, false, shot),
+            next_behavior_state(Patrol, far, false, true, false, false, shot),
             Engage
         );
         assert_eq!(
-            next_behavior_state(Idle, far, false, false, false, shot),
+            next_behavior_state(Idle, far, false, false, false, false, shot),
             Engage
         );
         // Merely being aimed at from out there does not: the aim signal is
@@ -2000,7 +2111,7 @@ mod behavior_state_tests {
             ..calm()
         };
         assert_eq!(
-            next_behavior_state(Patrol, far, false, true, false, aimed),
+            next_behavior_state(Patrol, far, false, true, false, false, aimed),
             Patrol
         );
     }
@@ -2013,12 +2124,12 @@ mod behavior_state_tests {
         // hostile acquired.
         for state in [Idle, Patrol, Orbit, Engage, Evade, Retreat] {
             assert_eq!(
-                next_behavior_state(state, None, true, true, false, calm()),
+                next_behavior_state(state, None, true, true, false, false, calm()),
                 Orbit,
                 "orbit beats patrol from {state:?}"
             );
             assert_eq!(
-                next_behavior_state(state, None, true, false, false, calm()),
+                next_behavior_state(state, None, true, false, false, false, calm()),
                 Orbit,
                 "orbit without a route from {state:?}"
             );
@@ -2026,14 +2137,14 @@ mod behavior_state_tests {
         // A far-off acquired hostile does not abort the orbit...
         let far = Some(AI_ENGAGE_RANGE * 1.5);
         assert_eq!(
-            next_behavior_state(Orbit, far, true, false, false, calm()),
+            next_behavior_state(Orbit, far, true, false, false, false, calm()),
             Orbit
         );
         // ...one in detection range pulls it into combat, as does taking a
         // hit from further out.
         let near = Some(AI_ENGAGE_RANGE * 0.5);
         assert_eq!(
-            next_behavior_state(Orbit, near, true, false, false, calm()),
+            next_behavior_state(Orbit, near, true, false, false, false, calm()),
             Engage
         );
         let shot = ThreatSignals {
@@ -2041,12 +2152,12 @@ mod behavior_state_tests {
             ..calm()
         };
         assert_eq!(
-            next_behavior_state(Orbit, far, true, false, false, shot),
+            next_behavior_state(Orbit, far, true, false, false, false, shot),
             Engage
         );
         // And calm returns the fight to the ring.
         assert_eq!(
-            next_behavior_state(Engage, None, true, false, false, calm()),
+            next_behavior_state(Engage, None, true, false, false, false, calm()),
             Orbit
         );
     }
@@ -4911,6 +5022,165 @@ mod line_of_fire_tests {
                 .get::<TorpedoSectionInput>()
                 .unwrap(),
             "same envelope without the rock: launch"
+        );
+    }
+}
+
+#[cfg(test)]
+mod engage_grace_tests {
+    use core::time::Duration;
+
+    use bevy::time::TimeUpdateStrategy;
+
+    use super::*;
+
+    /// An app ticking the real behavior-state system on a manual clock
+    /// (0.25s/update measured - the virtual-time clamp), with a hostile
+    /// player well inside engage range.
+    fn grace_app(grace: Option<f32>) -> (App, Entity) {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            0.5,
+        )));
+        app.add_systems(Update, update_behavior_state);
+        let player = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::from_translation(Vec3::new(0.0, 0.0, -300.0)),
+                LinearVelocity(Vec3::ZERO),
+            ))
+            .id();
+        let mut ship = app.world_mut().spawn((
+            AISpaceshipMarker,
+            // The DEFAULT state (Engage) - the production spawn shape: the
+            // grace's first job is demoting it onto the routine (R1.1).
+            AIBehaviorState::default(),
+            AIPatrolRoute::new(vec![Vec3::ZERO, Vec3::X * 100.0]),
+            AITarget(Some(player)),
+            Transform::default(),
+            LinearVelocity(Vec3::ZERO),
+        ));
+        if let Some(seconds) = grace {
+            ship.insert(AIEngageGrace::new(seconds));
+        }
+        let ship = ship.id();
+        (app, ship)
+    }
+
+    fn state(app: &mut App, ship: Entity) -> AIBehaviorState {
+        *app.world().entity(ship).get::<AIBehaviorState>().unwrap()
+    }
+
+    /// A graced arrival holds its patrol with the player in plain range,
+    /// then engages when the timer runs out. Delivery guard in the same
+    /// test family: the ungraced twin engages on the first tick.
+    #[test]
+    fn a_graced_arrival_holds_its_routine_then_engages() {
+        let (mut app, ship) = grace_app(Some(2.0));
+        for _ in 0..4 {
+            app.update();
+        }
+        assert_eq!(
+            state(&mut app, ship),
+            AIBehaviorState::Patrol,
+            "inside the grace the entrance holds (player at 300u, engage \
+             range 800u - only the grace explains the restraint)"
+        );
+        for _ in 0..12 {
+            app.update();
+        }
+        assert_eq!(
+            state(&mut app, ship),
+            AIBehaviorState::Engage,
+            "the grace ran out: the arrival goes hot"
+        );
+
+        let (mut app, ship) = grace_app(None);
+        app.update();
+        app.update();
+        assert_eq!(
+            state(&mut app, ship),
+            AIBehaviorState::Engage,
+            "delivery guard: without a grace the same shape engages at once"
+        );
+    }
+
+    /// Shot during the entrance: the ship engages NOW and the grace never
+    /// holds again (the timer is pinned to finished).
+    #[test]
+    fn damage_ends_the_grace_immediately_and_permanently() {
+        let (mut app, ship) = grace_app(Some(30.0));
+        app.update();
+        assert_eq!(state(&mut app, ship), AIBehaviorState::Patrol);
+
+        app.world_mut()
+            .entity_mut(ship)
+            .get_mut::<AIThreat>()
+            .unwrap()
+            .record(None);
+        app.update();
+        assert_eq!(
+            state(&mut app, ship),
+            AIBehaviorState::Engage,
+            "a shot telegraphed ship goes hot immediately"
+        );
+        assert!(
+            app.world()
+                .entity(ship)
+                .get::<AIEngageGrace>()
+                .unwrap()
+                .timer
+                .is_finished(),
+            "the grace is pinned finished - it can never re-hold"
+        );
+    }
+
+    /// Point defense ignores the grace: a graced ship still swats inbound
+    /// ordnance (the PD path bypasses behavior states by design).
+    #[test]
+    fn point_defense_fires_through_the_grace() {
+        use avian3d::collider_tree::ColliderTrees;
+        use bevy::ecs::system::RunSystemOnce;
+
+        let mut world = World::new();
+        world.init_resource::<ColliderTrees>();
+        let torpedo = world
+            .spawn((Transform::from_translation(Vec3::new(0.0, 0.0, -100.0)),))
+            .id();
+        let ship = world
+            .spawn((
+                AISpaceshipMarker,
+                AIBehaviorState::Patrol,
+                AIEngageGrace::new(30.0),
+                AITarget(None),
+                AIPointDefenseTarget(Some(torpedo)),
+                Transform::default(),
+                LinearVelocity(Vec3::ZERO),
+            ))
+            .id();
+        let muzzle = world
+            .spawn((TurretSectionBarrelMuzzleMarker, GlobalTransform::IDENTITY))
+            .id();
+        let turret = world
+            .spawn((
+                TurretSectionMarker,
+                TurretSectionTargetInput(None),
+                TurretSectionTargetVelocity(Vec3::ZERO),
+                TurretSectionAimPoint(None),
+                TurretSectionConfigHelper(TurretSectionConfig::default()),
+                TurretSectionInput(false),
+                TurretSectionMuzzleEntity(muzzle),
+                ChildOf(ship),
+            ))
+            .id();
+
+        world.run_system_once(on_projectile_input).unwrap();
+        assert!(
+            **world.entity(turret).get::<TurretSectionInput>().unwrap(),
+            "a graced ship still point-defends (defending bypasses state)"
         );
     }
 }

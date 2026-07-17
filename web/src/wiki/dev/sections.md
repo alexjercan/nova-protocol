@@ -34,7 +34,7 @@ A `SpaceshipConfig` (`crates/nova_scenario/src/objects/spaceship.rs`) has a
 `controller` (`None`, `Player`, or `AI`) and a list of `SpaceshipSectionConfig`,
 each placing one section at a local grid `position` + `rotation`. The player
 config carries the input mapping (section id -> key/gamepad bindings) plus
-`speed_cap` and `infinite_ammo`; the AI config carries `patrol`/`orbit`/`leash`.
+`speed_cap` and `infinite_ammo`; the AI config carries `patrol`/`orbit`/`leash`/`engage_delay`.
 
 Spawning: the base scenario bundle gives the root `RigidBody::Dynamic`; the
 spaceship object adds `SpaceshipRootMarker`, and an observer
