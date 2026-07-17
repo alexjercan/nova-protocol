@@ -204,17 +204,28 @@ fn corvette(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
 /// two torpedo tubes, an armored spine of reinforced hulls. No leash - it
 /// came here to end the fight, and it chases.
 fn gunship() -> ScenarioObjectConfig {
-    let turret = |id: &str, offset: Vec3| SpaceshipSectionConfig {
+    // Side-mount rolls (task 20260717-151214): a section's mount base is
+    // its local -Y (verified against the GLBs in 20260717-151208's
+    // review), so a mount hanging off the spine's +X flank rolls Rz(-90)
+    // to seat base-to-hull (-Y -> -X) and a -X mount rolls the mirror
+    // Rz(+90). Rz leaves local -Z untouched, so a bay's launch/spawn axis
+    // still points ship-forward, and its +Y hatch turns outboard. The
+    // bow-mount roll (the player ships' Rx(-90)) stays correct only for
+    // spine-end mounts. Ship-local forward is -Z with up +Y, so
+    // STARBOARD is +X and PORT is -X - the tube ids used to be swapped.
+    let starboard_roll = Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2);
+    let port_roll = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2);
+    let turret = |id: &str, offset: Vec3, roll: Quat| SpaceshipSectionConfig {
         id: id.to_string(),
         position: offset,
-        rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
+        rotation: roll,
         source: SectionSource::Prototype("better_turret_section".to_string()),
         modifications: vec![],
     };
-    let tube = |id: &str, offset: Vec3| SpaceshipSectionConfig {
+    let tube = |id: &str, offset: Vec3, roll: Quat| SpaceshipSectionConfig {
         id: id.to_string(),
         position: offset,
-        rotation: Quat::IDENTITY,
+        rotation: roll,
         source: SectionSource::Prototype("torpedo_section".to_string()),
         modifications: vec![],
     };
@@ -234,10 +245,10 @@ fn gunship() -> ScenarioObjectConfig {
                 section("hull_mid", "reinforced_hull_section", Vec3::NEG_Z),
                 section("hull_aft", "reinforced_hull_section", Vec3::NEG_Z * 2.0),
                 section("thruster", "basic_thruster_section", Vec3::Z * 2.0),
-                turret("turret_dorsal", Vec3::new(1.0, 0.0, 0.0)),
-                turret("turret_ventral", Vec3::new(-1.0, 0.0, -1.0)),
-                tube("tube_port", Vec3::new(1.0, 0.0, -2.0)),
-                tube("tube_starboard", Vec3::new(-1.0, 0.0, -2.0)),
+                turret("turret_starboard", Vec3::new(1.0, 0.0, 0.0), starboard_roll),
+                turret("turret_port", Vec3::new(-1.0, 0.0, -1.0), port_roll),
+                tube("tube_starboard", Vec3::new(1.0, 0.0, -2.0), starboard_roll),
+                tube("tube_port", Vec3::new(-1.0, 0.0, -2.0), port_roll),
             ],
         }),
     }

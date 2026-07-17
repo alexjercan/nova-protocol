@@ -448,53 +448,53 @@
                                     source: Prototype("basic_thruster_section"),
                                 ),
                                 (
-                                    id: "turret_dorsal",
+                                    id: "turret_starboard",
                                     position: (
                                         1.0,
                                         0.0,
                                         0.0,
                                     ),
                                     rotation: (
+                                        0.0,
+                                        0.0,
                                         -0.70710677,
-                                        0.0,
-                                        0.0,
                                         0.70710677,
                                     ),
                                     source: Prototype("better_turret_section"),
                                 ),
                                 (
-                                    id: "turret_ventral",
+                                    id: "turret_port",
                                     position: (
                                         -1.0,
                                         0.0,
                                         -1.0,
                                     ),
                                     rotation: (
-                                        -0.70710677,
                                         0.0,
                                         0.0,
                                         0.70710677,
+                                        0.70710677,
                                     ),
                                     source: Prototype("better_turret_section"),
-                                ),
-                                (
-                                    id: "tube_port",
-                                    position: (
-                                        1.0,
-                                        0.0,
-                                        -2.0,
-                                    ),
-                                    rotation: (
-                                        0.0,
-                                        0.0,
-                                        0.0,
-                                        1.0,
-                                    ),
-                                    source: Prototype("torpedo_section"),
                                 ),
                                 (
                                     id: "tube_starboard",
                                     position: (
+                                        1.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        -0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("torpedo_section"),
+                                ),
+                                (
+                                    id: "tube_port",
+                                    position: (
                                         -1.0,
                                         0.0,
                                         -2.0,
@@ -502,8 +502,8 @@
                                     rotation: (
                                         0.0,
                                         0.0,
-                                        0.0,
-                                        1.0,
+                                        0.70710677,
+                                        0.70710677,
                                     ),
                                     source: Prototype("torpedo_section"),
                                 ),
