@@ -1,0 +1,24 @@
+// Acknowledged balance-audit findings (task 20260717-143806): WARN-grade
+// findings a human decided are INTENDED, kept here so the audit stays
+// honest (the finding still prints, tagged ACK with its reason) without
+// counting as an open warning. ERRORs are never ackable, and an ack that
+// stops matching a live finding surfaces as stale - rebalance the content,
+// then prune the ack.
+[
+    (
+        bundle: "the-ledger",
+        scenario: "ledger_ch4_the_buyer",
+        hostile: "auditor",
+        kind: "close-spawn",
+        reason: "The finale's drama entrance: the Auditor drops in at 301u by design. Its gun is the light mook turret (downgraded for exactly this spawn); the WARN is its torpedo tube's 1000u launch envelope, and shooting the incoming torpedo down IS the fight. Playtest verdict 2026-07-17.",
+        task: "20260717-143806",
+    ),
+    (
+        bundle: "the-ledger",
+        scenario: "ledger_ch4_the_buyer",
+        hostile: "auditor",
+        kind: "close-spawn",
+        reason: "Same acknowledgment for the second ending branch (the two handoff/burn handlers are mutually exclusive spawn sites of the same boss).",
+        task: "20260717-143806",
+    ),
+]

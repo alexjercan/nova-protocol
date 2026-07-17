@@ -84,8 +84,12 @@ inside its own effective range of the player spawn is an ERROR (the
 player is under accurate fire before their first input; CI fails the
 build), and a TRIGGERED hostile spawning inside its own envelope of the
 player spawn is a WARN (a reinforcement arriving on top of the fight -
-sometimes intended drama, always worth knowing). Numbers beat feel: the
-audit is how encounter design stays honest without a playtest per commit.
+sometimes intended drama, always worth knowing). When a WARN IS intended
+drama, acknowledge it in `crates/nova_assets/balance_acks.ron` with the
+reason and the deciding task: the finding still prints (tagged ACK) but
+stops counting as open, ERRORs can never be acked, and an ack whose
+finding disappears fails CI until pruned. Numbers beat feel: the audit is
+how encounter design stays honest without a playtest per commit.
 
 One file can hold several content items (sections, more scenarios). This guide
 covers the scenario item; a file that is just one scenario is fine.

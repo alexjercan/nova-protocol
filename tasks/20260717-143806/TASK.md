@@ -1,6 +1,6 @@
 # Ledger ch4: the Auditor spawns hot (301u inside its 450u envelope, torpedo tube) - decide drama vs fairness
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 44
 - TAGS: v0.7.0, scenario, content, balance
 
@@ -36,3 +36,40 @@ read the ch4 fight first and pick the honest combination (worse gun +
 tube question decided against the fight's actual script; the user gave
 latitude with "for example"). Sibling task 20260717-151208 fixes the same
 ship's clipping torpedo bay - coordinate but do not merge scopes.
+
+## Steps
+
+- [x] webmods/the-ledger/ledger_ch4.content.ron: both Auditor spawn sites
+  (the two mutually exclusive ending handlers) swap turret_dorsal from
+  better_turret_section to light_turret_section; tube and positions stay
+  (the entrance IS the drama; the sibling 20260717-151208 fixes the bay
+  placement). Bundle version 1.1.0 -> 1.2.0.
+- [x] balance_audit acknowledgments: an in-repo
+  crates/nova_assets/balance_acks.ron (bundle, scenario, hostile, kind,
+  reason, task) applied at the REPORT/gate layer - findings() stays pure;
+  WARN-grade findings matching an ack print as ACK with the reason and do
+  not count as warnings; ERROR findings are NEVER ackable; an ack
+  matching nothing surfaces as its own WARN so stale acks rot loudly.
+- [x] Ack the Auditor's two tube-envelope WARNs (one per ending branch)
+  citing this task and the user's drama verdict.
+- [x] Tests: ack suppresses a matching WARN; an ack cannot suppress an
+  ERROR (fail-first: a synthetic acked ERROR still fails); a stale ack
+  produces its own WARN; the shipped acks file round-trips and the real
+  tree now reports zero active warnings.
+- [x] Docs: guide-author-scenario.md audit paragraph gains the ack
+  mechanism; CHANGELOG (Scenarios: finale gun downgrade; Internals &
+  Tooling: acks); NOTES.md with the envelope math (light turret 270u <
+  301.5u spawn distance; the tube alone keeps 1000u, hence the ack).
+- [x] Verify: cargo test -p nova_assets balance:: + --test
+  balance_audit_gate; cargo run --bin balance_audit (expect 0 errors, 0
+  active warnings, 2 ACK lines); content_lint; fmt last. Full suite on CI.
+
+## Close-out record
+
+All six steps landed; the envelope math, the ack mechanism's rules and
+the numbers are in NOTES.md. Verification: balance unit tests 11/11
+(including the never-ack-an-error fail-first and the one-ack-per-finding
+rule the first run genuinely failed), balance_audit_gate green over the
+real tree, balance_audit prints 0 errors / 0 warnings / 2 acked,
+content_lint clean, workspace --all-targets green, fmt last. Full suite
+on CI per standing instruction.

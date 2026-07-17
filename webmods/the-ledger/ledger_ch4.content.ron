@@ -201,10 +201,15 @@
                                     source: Prototype("basic_thruster_section"),
                                 ),
                                 (
+                                    // The mook gun, not the top tier: the
+                                    // Auditor's drama is the 301u entrance
+                                    // and the torpedo, not an instant
+                                    // 400dps shred (playtest verdict on
+                                    // task 20260717-143806).
                                     id: "turret_dorsal",
                                     position: (0.0, 0.0, -1.0),
                                     rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
-                                    source: Prototype("better_turret_section"),
+                                    source: Prototype("light_turret_section"),
                                 ),
                                 (
                                     id: "tube",
@@ -281,10 +286,15 @@
                                     source: Prototype("basic_thruster_section"),
                                 ),
                                 (
+                                    // The mook gun, not the top tier: the
+                                    // Auditor's drama is the 301u entrance
+                                    // and the torpedo, not an instant
+                                    // 400dps shred (playtest verdict on
+                                    // task 20260717-143806).
                                     id: "turret_dorsal",
                                     position: (0.0, 0.0, -1.0),
                                     rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
-                                    source: Prototype("better_turret_section"),
+                                    source: Prototype("light_turret_section"),
                                 ),
                                 (
                                     id: "tube",

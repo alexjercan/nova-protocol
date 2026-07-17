@@ -195,11 +195,93 @@ pub enum BalanceSeverity {
     Warn,
 }
 
+/// The graded rules, as stable identifiers the ack file names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FindingKind {
+    SpawnedDead,
+    CloseSpawn,
+}
+
+impl FindingKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            FindingKind::SpawnedDead => "spawned-dead",
+            FindingKind::CloseSpawn => "close-spawn",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct BalanceFinding {
     pub severity: BalanceSeverity,
+    pub kind: FindingKind,
     pub scenario: String,
+    /// The offending hostile's scenario object id (what an ack names).
+    pub hostile: String,
     pub message: String,
+}
+
+/// One ACKNOWLEDGED finding (crates/nova_assets/balance_acks.ron): a
+/// WARN-grade finding a human decided is intended, with the reason and the
+/// deciding task on record. ERRORs are never ackable - an ack pointing at
+/// an error-grade finding simply does not match and surfaces as stale.
+/// Stale acks (matching no live finding) surface as findings themselves,
+/// so a rebalanced scenario cannot leave a dead exception rotting quietly.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct BalanceAck {
+    pub bundle: String,
+    pub scenario: String,
+    pub hostile: String,
+    /// A [`FindingKind::as_str`] value ("spawned-dead" / "close-spawn").
+    pub kind: String,
+    pub reason: String,
+    pub task: String,
+}
+
+/// The repo's shipped acknowledgment list.
+pub fn shipped_acks() -> Vec<BalanceAck> {
+    ron::de::from_str(include_str!("../balance_acks.ron")).expect("balance_acks.ron parses")
+}
+
+/// Split `(bundle, finding)` pairs into (active, acked) under `acks`, and
+/// return the stale acks (matched nothing). Only WARN-grade findings can
+/// match an ack; every stale ack must be surfaced by the caller.
+#[allow(clippy::type_complexity)]
+pub fn partition_findings<'a>(
+    findings: Vec<(String, BalanceFinding)>,
+    acks: &'a [BalanceAck],
+) -> (
+    Vec<(String, BalanceFinding)>,
+    Vec<(String, BalanceFinding, &'a BalanceAck)>,
+    Vec<&'a BalanceAck>,
+) {
+    let matches = |ack: &BalanceAck, bundle: &str, finding: &BalanceFinding| {
+        finding.severity == BalanceSeverity::Warn
+            && ack.bundle == bundle
+            && ack.scenario == finding.scenario
+            && ack.hostile == finding.hostile
+            && ack.kind == finding.kind.as_str()
+    };
+    let mut active = Vec::new();
+    let mut acked = Vec::new();
+    let mut used = vec![false; acks.len()];
+    for (bundle, finding) in findings {
+        // Each ack spends on ONE finding: duplicate findings (the same boss
+        // spawned by two mutually exclusive branches) need one ack each.
+        match (0..acks.len()).find(|&i| !used[i] && matches(&acks[i], &bundle, &finding)) {
+            Some(i) => {
+                used[i] = true;
+                acked.push((bundle, finding, &acks[i]));
+            }
+            None => active.push((bundle, finding)),
+        }
+    }
+    let stale = acks
+        .iter()
+        .zip(&used)
+        .filter_map(|(ack, used)| (!used).then_some(ack))
+        .collect();
+    (active, acked, stale)
 }
 
 /// One combat scenario's derived balance sheet.
@@ -234,7 +316,9 @@ impl ScenarioAudit {
                 if group.on_start {
                     findings.push(BalanceFinding {
                         severity: BalanceSeverity::Error,
+                        kind: FindingKind::SpawnedDead,
                         scenario: self.scenario.clone(),
+                        hostile: hostile.id.clone(),
                         message: format!(
                             "spawned-dead: '{}' opens the scenario {:.0}u from the player \
                              spawn, inside its own {:.0}u threat envelope - the player is \
@@ -245,7 +329,9 @@ impl ScenarioAudit {
                 } else {
                     findings.push(BalanceFinding {
                         severity: BalanceSeverity::Warn,
+                        kind: FindingKind::CloseSpawn,
                         scenario: self.scenario.clone(),
+                        hostile: hostile.id.clone(),
                         message: format!(
                             "close-spawn: '{}' ({}) spawns {:.0}u from the player spawn, \
                              inside its own {:.0}u threat envelope - a mid-fight \
@@ -675,6 +761,81 @@ mod tests {
             "395u vs a 270u reach must grade clean: {:?}",
             audit.findings()
         );
+    }
+
+    fn warn_finding(hostile: &str) -> BalanceFinding {
+        BalanceFinding {
+            severity: BalanceSeverity::Warn,
+            kind: FindingKind::CloseSpawn,
+            scenario: "s".to_string(),
+            hostile: hostile.to_string(),
+            message: "close-spawn: test".to_string(),
+        }
+    }
+
+    fn ack_for(hostile: &str, kind: &str) -> BalanceAck {
+        BalanceAck {
+            bundle: "b".to_string(),
+            scenario: "s".to_string(),
+            hostile: hostile.to_string(),
+            kind: kind.to_string(),
+            reason: "test".to_string(),
+            task: "t".to_string(),
+        }
+    }
+
+    /// An ack silences exactly its matching WARN; duplicate findings need
+    /// duplicate acks (one ack, two identical findings: one stays active).
+    #[test]
+    fn acks_match_one_warn_each() {
+        let findings = vec![
+            ("b".to_string(), warn_finding("x")),
+            ("b".to_string(), warn_finding("x")),
+        ];
+        let acks = vec![ack_for("x", "close-spawn")];
+        let (active, acked, stale) = partition_findings(findings, &acks);
+        assert_eq!(acked.len(), 1);
+        assert_eq!(active.len(), 1, "the second identical finding stays active");
+        assert!(stale.is_empty());
+    }
+
+    /// The hard rule, fail-first: an ack can NEVER suppress an ERROR - the
+    /// error stays active and the ack surfaces as stale.
+    #[test]
+    fn an_ack_never_suppresses_an_error() {
+        let error = BalanceFinding {
+            severity: BalanceSeverity::Error,
+            kind: FindingKind::SpawnedDead,
+            scenario: "s".to_string(),
+            hostile: "x".to_string(),
+            message: "spawned-dead: test".to_string(),
+        };
+        let acks = vec![ack_for("x", "spawned-dead")];
+        let (active, acked, stale) = partition_findings(vec![("b".to_string(), error)], &acks);
+        assert_eq!(active.len(), 1, "the error stays active");
+        assert!(acked.is_empty());
+        assert_eq!(stale.len(), 1, "the error-targeting ack is dead weight");
+    }
+
+    /// An ack matching nothing surfaces as stale.
+    #[test]
+    fn unmatched_acks_are_stale() {
+        let acks = vec![ack_for("ghost", "close-spawn")];
+        let (active, acked, stale) = partition_findings(vec![], &acks);
+        assert!(active.is_empty() && acked.is_empty());
+        assert_eq!(stale.len(), 1);
+    }
+
+    /// The shipped ack file parses and every entry names a valid kind.
+    #[test]
+    fn shipped_acks_parse_with_valid_kinds() {
+        for ack in shipped_acks() {
+            assert!(
+                ["spawned-dead", "close-spawn"].contains(&ack.kind.as_str()),
+                "unknown finding kind '{}' in balance_acks.ron",
+                ack.kind
+            );
+        }
     }
 
     /// No player spawn = no audit (menu scenes are nobody's fight).
