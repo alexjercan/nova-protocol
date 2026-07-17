@@ -9,7 +9,7 @@ description = "Events for the Nova Protocol game"
 [dependencies]
 bevy = { version = "0.19.0" }
 serde = { version = "1.0.228" }
-bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", tag = "v0.19.0" }
+bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", tag = "v0.19.1" }
 
 [lints]
 workspace = true
