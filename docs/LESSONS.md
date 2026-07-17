@@ -37,6 +37,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   filesystem-walking tool trips on it - a leftover `variety/textures/` crashed
   content_lint's bundle walk ("no *.bundle.ron at its root"). `rm -rf` the old
   dir explicitly after a relocation. 20260716-215513.
+- `tatr-new-then-sprout-strands-the-task-file` (x1): running `tatr new` in the
+  shared main checkout and THEN sprouting a fresh worktree leaves the new
+  TASK.md uncommitted in the main checkout - the worktree (cut from a commit)
+  never sees it, and the dirty file risks a parallel job's `git add -A` sweeping
+  it into their commit. Sprout FIRST, run `tatr new` inside the worktree so the
+  task is born on the branch. 20260717-101414.
 - `warnings-clean-before-land` (x2): run a warnings-SURFACED build and READ the
   warnings (`cargo build`/`clippy`; never `cargo ... | grep -E 'error|test
   result'`, which discards them) on new/changed modules BEFORE the squash-land -
