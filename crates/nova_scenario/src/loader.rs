@@ -254,11 +254,13 @@ impl Plugin for ScenarioLoaderPlugin {
         // pause (the ESC menu OR the outcome frame, both PauseStates::Paused)
         // an OnUpdate handler whose predicate is already true would re-run
         // its action every frame via the pause-independent PostUpdate
-        // state_to_world sync. The sibling trackers below stay ungated: they
-        // fire only when a Time<Virtual> delta threshold is crossed, and that
-        // clock is frozen under pause (delta ~= 0), and their source state
-        // (autopilot, player locks) is itself Unpaused-gated - so nothing
-        // NEWLY fires. apply_pending_skybox_swaps stays ungated too: it is
+        // state_to_world sync. The sibling trackers below stay ungated on
+        // pause, but they no longer need to be: they DERIVE their 5s windows
+        // from `scenario_elapsed` (task 20260717-151537), the same clock the
+        // pulse rides, so a paused frame reads a frozen clock and no window
+        // can advance - nothing NEWLY fires under pause by construction, not
+        // by the old "Time<Virtual> delta ~= 0" assumption this comment used
+        // to lean on. apply_pending_skybox_swaps stays ungated too: it is
         // cosmetic and asset-load driven (not clock driven), and letting a
         // queued swap finish under pause is harmless. Do not blanket-gate.
         //
@@ -270,15 +272,30 @@ impl Plugin for ScenarioLoaderPlugin {
         // The orbit-hold tracker behind `EventConfig::OnOrbit` (task
         // 20260712-110730 finding 5): "in orbit" is autopilot state, not
         // a position - a gate area is unwinnable because the ORBIT verb
-        // rings at max(clearance band, engage radius).
+        // rings at max(clearance band, engage radius). Ordered `.after` the
+        // clock tick so it reads THIS frame's `scenario_elapsed`; the tick is
+        // Unpaused-gated while the tracker is not, so `.after` is a pure
+        // ordering constraint - when the tick is skipped under pause the
+        // tracker still runs and reads the last (frozen) clock value.
         app.register_type::<OrbitHold>();
-        app.add_systems(Update, track_orbit_holds.run_if(scenario_is_live));
+        app.add_systems(
+            Update,
+            track_orbit_holds
+                .after(tick_scenario_clock)
+                .run_if(scenario_is_live),
+        );
 
         // The player-lock bridge behind `EventConfig::OnTravelLock` /
         // `OnCombatLock` (beat-sheet-v2 spike 20260713-140742): lock
-        // lessons tick the instant the lock lands.
+        // lessons tick the instant the lock lands. Same clock derivation and
+        // `.after(tick_scenario_clock)` ordering as the orbit tracker.
         app.register_type::<LockEcho>();
-        app.add_systems(Update, track_player_locks.run_if(scenario_is_live));
+        app.add_systems(
+            Update,
+            track_player_locks
+                .after(tick_scenario_clock)
+                .run_if(scenario_is_live),
+        );
 
         // Deferred skybox swap behind `EventActionConfig::SetSkybox` (task
         // 20260525-133017): the action tags the scenario camera with a
@@ -345,14 +362,25 @@ pub const SCENARIO_ELAPSED_VAR: &str = "scenario_elapsed";
 /// evaluates time-gated handlers always sees this frame's clock; pausing
 /// (ESC menu or the outcome frame) freezes the clock by construction.
 fn tick_scenario_clock(time: Res<Time>, mut world: ResMut<NovaEventWorld>) {
-    let elapsed = match world.get_variable(SCENARIO_ELAPSED_VAR) {
-        Some(VariableLiteral::Number(n)) => *n,
-        _ => 0.0,
-    };
+    let elapsed = scenario_elapsed(&world);
     world.insert_variable(
         SCENARIO_ELAPSED_VAR.to_string(),
         VariableLiteral::Number(elapsed + time.delta_secs_f64()),
     );
+}
+
+/// Read the current scenario clock (seconds of live-unpaused time) off the
+/// event world, with the same `None -> 0.0` fallback as [`tick_scenario_clock`]
+/// so a read before the first tick (or after teardown's `world.clear()`) sees a
+/// fresh clock. The clock-derived trackers below ([`track_orbit_holds`],
+/// [`track_player_locks`]) measure their 5s windows against this instead of
+/// accumulating their own `Time` delta, so pausing and teardown/retry freeze
+/// and reset every window in one place (task 20260717-151537).
+fn scenario_elapsed(world: &NovaEventWorld) -> f64 {
+    match world.get_variable(SCENARIO_ELAPSED_VAR) {
+        Some(VariableLiteral::Number(n)) => *n,
+        _ => 0.0,
+    }
 }
 
 /// The ONE registration of the clock + pulse pair, shared by the plugin
@@ -382,16 +410,19 @@ fn fire_on_update(mut commands: Commands) {
 /// guard rejects it would be gone for good, soft-locking any scenario
 /// whose beat can advance during a held orbit. Beat-gated handlers make
 /// the repeats no-ops.
-const ORBIT_HOLD_SECS: f32 = 5.0;
+const ORBIT_HOLD_SECS: f64 = 5.0;
 
-/// Bookkeeping for the orbit-hold tracker, on the orbiting ship: which
-/// well and how long the current window has been held. Disengaging (or
-/// switching wells) removes it, restarting the clock.
+/// Bookkeeping for the orbit-hold tracker, on the orbiting ship: which well
+/// and the scenario-clock reading ([`scenario_elapsed`]) when the current
+/// window opened - engagement, well switch, or the last fire. The window has
+/// elapsed once `now - started_at >= ORBIT_HOLD_SECS`. Disengaging (or
+/// switching wells) removes it, restarting the window; the component also dies
+/// with its entity on teardown, so a retry re-arms against a fresh clock.
 #[derive(Component, Clone, Debug, Reflect)]
 #[reflect(Component)]
 pub struct OrbitHold {
     pub well: Entity,
-    pub held_secs: f32,
+    pub started_at: f64,
 }
 
 /// Fire [`OnOrbitEvent`] once a ship has HELD an engaged
@@ -399,9 +430,12 @@ pub struct OrbitHold {
 /// continuously. Ships are identified by their scenario `EntityId` (ships
 /// without one - editor previews - are invisible to the tracker); the
 /// event's `id` is the WELL's scenario id, mirroring OnEnter's
-/// (area, other) shape so filters compose identically.
+/// (area, other) shape so filters compose identically. The hold window is
+/// measured against the engine scenario clock ([`scenario_elapsed`]) rather
+/// than an accumulated `Time` delta, so it freezes under pause and resets on
+/// teardown/retry with the clock itself (task 20260717-151537).
 fn track_orbit_holds(
-    time: Res<Time>,
+    world: Res<NovaEventWorld>,
     mut commands: Commands,
     mut q_ships: Query<
         (
@@ -421,6 +455,8 @@ fn track_orbit_holds(
         commands.entity(ship).remove::<OrbitHold>();
     }
 
+    let now = scenario_elapsed(&world);
+
     for (ship, autopilot, hold, ship_id, ship_type_name) in &mut q_ships {
         let AutopilotAction::Orbit { well, .. } = autopilot.action else {
             // Engaged, but not an orbit (GOTO/STOP): no hold.
@@ -432,12 +468,11 @@ fn track_orbit_holds(
 
         match hold {
             Some(mut hold) if hold.well == well => {
-                hold.held_secs += time.delta_secs();
-                if hold.held_secs >= ORBIT_HOLD_SECS {
+                if now - hold.started_at >= ORBIT_HOLD_SECS {
                     // Restart the window whether or not the event can be
                     // addressed (review R1.2: a well without a scenario id
                     // must not consume the hold - the next window retries).
-                    hold.held_secs = 0.0;
+                    hold.started_at = now;
                     let Ok(well_id) = q_ids.get(well) else {
                         // A well without a scenario id (despawned or
                         // non-scenario body) has no address to fire under.
@@ -454,12 +489,12 @@ fn track_orbit_holds(
                     });
                 }
             }
-            // New engagement, or the directive switched wells: restart the
-            // clock on the current well.
+            // New engagement, or the directive switched wells: open a fresh
+            // window on the current well, anchored at the current clock.
             _ => {
                 commands.entity(ship).insert(OrbitHold {
                     well,
-                    held_secs: 0.0,
+                    started_at: now,
                 });
             }
         }
@@ -472,43 +507,46 @@ fn track_orbit_holds(
 /// event consumed under a rejecting beat guard is gone for good, and a
 /// scenario whose beat advances while the lock is already held would
 /// soft-lock. Beat-gated handlers make the repeats no-ops.
-const LOCK_REFIRE_SECS: f32 = 5.0;
+const LOCK_REFIRE_SECS: f64 = 5.0;
 
 /// Bookkeeping for the player-lock bridge: per slot, the last target the
-/// bridge saw and the seconds since it last fired for it.
+/// bridge saw and the scenario-clock reading ([`scenario_elapsed`]) when it
+/// last fired for that target. The re-fire window has elapsed once
+/// `now - last_fired_at >= LOCK_REFIRE_SECS`.
 #[derive(Component, Clone, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct LockEcho {
-    travel: Option<(Entity, f32)>,
-    combat: Option<(Entity, f32)>,
+    travel: Option<(Entity, f64)>,
+    combat: Option<(Entity, f64)>,
 }
 
 /// One lock slot's tick: returns `Some(target)` when the bridge should
 /// fire this frame - on ACQUISITION (the slot's value changed onto a
 /// target; the slot writers are equality-skipped, so a held live-radar
 /// lock does not churn this) and again every [`LOCK_REFIRE_SECS`] while
-/// the same target stays held. Pure for the unit tests.
+/// the same target stays held. `now` is the engine scenario clock
+/// ([`scenario_elapsed`]); the window is `now - last_fired_at`, so it freezes
+/// under pause and resets on teardown with the clock. Pure for the unit tests.
 fn tick_lock_slot(
-    state: &mut Option<(Entity, f32)>,
+    state: &mut Option<(Entity, f64)>,
     current: Option<Entity>,
-    delta_secs: f32,
+    now: f64,
 ) -> Option<Entity> {
     match (current, state.as_mut()) {
         (None, _) => {
             *state = None;
             None
         }
-        (Some(target), Some((held, secs))) if *held == target => {
-            *secs += delta_secs;
-            if *secs >= LOCK_REFIRE_SECS {
-                *secs = 0.0;
+        (Some(target), Some((held, last_fired_at))) if *held == target => {
+            if now - *last_fired_at >= LOCK_REFIRE_SECS {
+                *last_fired_at = now;
                 Some(target)
             } else {
                 None
             }
         }
         (Some(target), _) => {
-            *state = Some((target, 0.0));
+            *state = Some((target, now));
             Some(target)
         }
     }
@@ -523,7 +561,7 @@ fn tick_lock_slot(
 /// the orbit tracker's R1.2), `other` is the player ship - OnEnter's
 /// (area, other) shape, so filters compose identically.
 fn track_player_locks(
-    time: Res<Time>,
+    world: Res<NovaEventWorld>,
     mut commands: Commands,
     mut q_ships: Query<
         (
@@ -538,6 +576,7 @@ fn track_player_locks(
     >,
     q_ids: Query<&EntityId>,
 ) {
+    let now = scenario_elapsed(&world);
     for (ship, travel, combat, echo, ship_id, ship_type_name) in &mut q_ships {
         let Some(mut echo) = echo else {
             // First sight of this player ship: arm the bookkeeping; the
@@ -546,8 +585,8 @@ fn track_player_locks(
             commands.entity(ship).insert(LockEcho::default());
             continue;
         };
-        let fired_travel = tick_lock_slot(&mut echo.travel, travel.0, time.delta_secs());
-        let fired_combat = tick_lock_slot(&mut echo.combat, combat.0, time.delta_secs());
+        let fired_travel = tick_lock_slot(&mut echo.travel, travel.0, now);
+        let fired_combat = tick_lock_slot(&mut echo.combat, combat.0, now);
         if let Some(target_id) = fired_travel.and_then(|target| q_ids.get(target).ok()) {
             commands.fire::<OnTravelLockEvent>(OnTravelLockEventInfo {
                 id: target_id.0.clone(),
@@ -1710,7 +1749,16 @@ mod tests {
         app.init_resource::<NovaEventWorld>();
         app.init_resource::<GameObjectives>();
         app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
-        app.add_systems(Update, track_orbit_holds.run_if(scenario_is_live));
+        // The tracker now measures its window against `scenario_elapsed`, so
+        // the clock has to advance under the same gate production uses. Chain
+        // the tick ahead of the tracker so it reads THIS frame's clock, exactly
+        // like the plugin's `.after(tick_scenario_clock)` ordering.
+        app.add_systems(
+            Update,
+            (tick_scenario_clock, track_orbit_holds)
+                .chain()
+                .run_if(scenario_is_live),
+        );
 
         // The counting handler: orbits = orbits + 1 on every OnOrbit
         // under the well's id.
@@ -1814,23 +1862,31 @@ mod tests {
         let b = Entity::from_raw_u32(2).unwrap();
         let mut state = None;
 
+        // `now` is the absolute scenario clock; advance it before each tick
+        // exactly as the clock does per frame. The window is `now - last_fire`.
+        let mut now = 0.0_f64;
+        let mut at = |dt: f64| {
+            now += dt;
+            now
+        };
+
         // Acquisition fires immediately.
-        assert_eq!(tick_lock_slot(&mut state, Some(a), 0.1), Some(a));
+        assert_eq!(tick_lock_slot(&mut state, Some(a), at(0.1)), Some(a));
         // Held: quiet until the echo window elapses, then one re-fire.
-        assert_eq!(tick_lock_slot(&mut state, Some(a), 2.0), None);
-        assert_eq!(tick_lock_slot(&mut state, Some(a), 2.0), None);
+        assert_eq!(tick_lock_slot(&mut state, Some(a), at(2.0)), None);
+        assert_eq!(tick_lock_slot(&mut state, Some(a), at(2.0)), None);
         assert_eq!(
-            tick_lock_slot(&mut state, Some(a), 2.0),
+            tick_lock_slot(&mut state, Some(a), at(2.0)),
             Some(a),
             "a held lock echoes once per window (the anti-soft-lock recurrence)"
         );
-        assert_eq!(tick_lock_slot(&mut state, Some(a), 2.0), None);
+        assert_eq!(tick_lock_slot(&mut state, Some(a), at(2.0)), None);
         // A live-radar retarget is a fresh acquisition on a fresh clock.
-        assert_eq!(tick_lock_slot(&mut state, Some(b), 0.1), Some(b));
-        assert_eq!(tick_lock_slot(&mut state, Some(b), 2.0), None);
+        assert_eq!(tick_lock_slot(&mut state, Some(b), at(0.1)), Some(b));
+        assert_eq!(tick_lock_slot(&mut state, Some(b), at(2.0)), None);
         // Clearing re-arms: the next lock is an acquisition again.
-        assert_eq!(tick_lock_slot(&mut state, None, 0.1), None);
-        assert_eq!(tick_lock_slot(&mut state, Some(b), 0.1), Some(b));
+        assert_eq!(tick_lock_slot(&mut state, None, at(0.1)), None);
+        assert_eq!(tick_lock_slot(&mut state, Some(b), at(0.1)), Some(b));
     }
 
     /// The bridge end to end through the real event pipeline: a travel
@@ -1856,7 +1912,16 @@ mod tests {
         app.init_resource::<NovaEventWorld>();
         app.init_resource::<GameObjectives>();
         app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
-        app.add_systems(Update, track_player_locks.run_if(scenario_is_live));
+        // The bridge measures its echo window against `scenario_elapsed`, so
+        // tick the clock ahead of the tracker (mirrors the plugin's
+        // `.after(tick_scenario_clock)` ordering) - otherwise `now` never moves
+        // and "held is quiet" would pass for the wrong reason.
+        app.add_systems(
+            Update,
+            (tick_scenario_clock, track_player_locks)
+                .chain()
+                .run_if(scenario_is_live),
+        );
 
         // Counting handlers: one per slot, filtered on the beacon's id.
         let count_into = |key: &str| -> EventActionConfig {
