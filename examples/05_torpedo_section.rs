@@ -193,8 +193,8 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                impact_sound: Some("base/sounds/impact.wav".into()),
-                destroy_sound: Some("base/sounds/explosion.wav".into()),
+            impact_sound: Some("base/sounds/impact.wav".into()),
+            destroy_sound: Some("base/sounds/explosion.wav".into()),
             radius,
             texture: game_assets.asteroid_texture.clone().into(),
             health: 60.0,

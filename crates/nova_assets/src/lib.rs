@@ -91,6 +91,10 @@ pub mod scenario_generation {
                 AssetRef::from(CUBEMAP_ALT_PATH.to_string()),
                 texture(),
             ),
+            crate::scenario::broadside::broadside_gunship(
+                AssetRef::from(CUBEMAP_ALT_PATH.to_string()),
+                texture(),
+            ),
         ]
     }
 

@@ -152,8 +152,8 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                         rotation: Quat::IDENTITY,
                     },
                     kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                impact_sound: Some("base/sounds/impact.wav".into()),
-                destroy_sound: Some("base/sounds/explosion.wav".into()),
+                        impact_sound: Some("base/sounds/impact.wav".into()),
+                        destroy_sound: Some("base/sounds/explosion.wav".into()),
                         radius: 2.0,
                         texture: game_assets.asteroid_texture.clone().into(),
                         health: 60.0,

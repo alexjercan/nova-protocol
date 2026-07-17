@@ -4,8 +4,10 @@
 //! Broadside, and plays the whole win/lose frame in ONE run: dies to prove
 //! the Defeat overlay + Retry (the scenario reloads clean), then wins the
 //! reloaded instance - teleports to the hauler to spring the ambush, kills
-//! the corvettes to force the gunship twist, breaks the gunship - and
-//! asserts the Victory overlay with nothing queued. Every act transition is
+//! the corvettes to earn the chapter CHECKPOINT (a Victory beat chaining
+//! into the hidden `broadside_gunship` part, task 20260717-112639), rides
+//! Continue into part two, breaks the gunship - and asserts the final
+//! Victory overlay with nothing queued. Every act transition is
 //! staged on scenario STATE (act/outcome/entities), never wall-clock
 //! (event-driven-autopilot-beats); wall-clock lives only in the per-stage
 //! stall deadline and the autopilot's overall lifetime.
@@ -56,11 +58,12 @@ fn main() {
             app.add_systems(Last, guard_script_completion);
         }
         app.init_resource::<SliceAutopilot>();
-        // The full walk needs two scenario loads plus three staged fights;
-        // 40s of runway (the script exits itself in ~10s when healthy).
+        // The full walk needs THREE scenario loads (launch, retry, the
+        // gunship part behind the checkpoint) plus three staged fights;
+        // 50s of runway (the script exits itself in ~12s when healthy).
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-                .hold(GameStates::Loading, 40.0)
+                .hold(GameStates::Loading, 50.0)
                 .input(slice_autopilot),
         );
         app.add_plugins(nova_screenshot());
@@ -247,12 +250,39 @@ fn slice_autopilot(world: &mut World, elapsed: f32) {
                 }
             }
         }
+        // The chapter CHECKPOINT: breaking the pair declares a Victory
+        // beat whose lingering chain holds the hidden gunship part. Ride
+        // Continue through it - the act-split's whole point is that part
+        // two loads fresh here (and retries itself on death).
         8 => {
-            if act(world) == Some(2.0) && kill(world, "gunship") {
-                advance(&mut state, 9, "gunship broken");
+            if act(world) == Some(2.0)
+                && outcome(world) == Some(ScenarioOutcomeKind::Victory)
+                && entity_by_name(world, "Outcome Overlay").is_some()
+            {
+                let queued = world
+                    .resource::<NovaEventWorld>()
+                    .next_scenario
+                    .as_ref()
+                    .map(|next| next.scenario_id.clone());
+                assert_eq!(
+                    queued.as_deref(),
+                    Some("broadside_gunship"),
+                    "the checkpoint chains into the gunship part"
+                );
+                let cont = entity_by_name(world, "Outcome Primary Button").expect("Continue");
+                info!("probe: checkpoint overlay up, continuing into part two");
+                world.trigger(Activate { entity: cont });
+                advance(&mut state, 9, "clicked Continue into broadside_gunship");
             }
         }
         9 => {
+            // Part two loaded fresh: outcome cleared, its act machine at 1,
+            // the gunship staged by OnStart - break it.
+            if outcome(world).is_none() && act(world) == Some(1.0) && kill(world, "gunship") {
+                advance(&mut state, 10, "gunship broken");
+            }
+        }
+        10 => {
             // Same gate shape as stage 4 (review R1.2): wait for outcome
             // AND overlay together.
             if outcome(world) == Some(ScenarioOutcomeKind::Victory)
@@ -275,11 +305,11 @@ fn slice_autopilot(world: &mut World, elapsed: f32) {
                             .join("broadside_victory.png"),
                         ));
                 }
-                advance(&mut state, 10, "victory capture settling");
+                advance(&mut state, 11, "victory capture settling");
                 state.wait = 45;
             }
         }
-        10 => {
+        11 => {
             // The suite's completion sentinel for SELF-ENDING examples: the
             // autopilot's own "cycle complete" only prints when its lifetime
             // expires, and idling out the remaining ~30s per CI run buys
