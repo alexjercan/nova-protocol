@@ -493,13 +493,15 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `pair-matrix-on-collider-class-change` (x1): changing a collider's class
   (sensor?, events?) must be checked against every collider category in the
   game, not just the pair being fixed. 20260712-121101.
-- `verify-scripted-edits-applied` (x3, -> Pending promotions): an edit you
+- `verify-scripted-edits-applied` (x4, -> Pending promotions): an edit you
   believe you made is a hypothesis until the artifact shows it - a no-match
   replace looks like success, a matching one can emit malformed text, and a
   RETRIED batch of failed edits can silently drop a member (2 of 3 re-applied;
-  docs kept claiming all 3 and the review caught it). Assert replace counts,
-  grep the produced text, and after a failed batch re-verify EVERY member.
-  20260712-110730, 20260716-125856, 20260708-203659.
+  docs kept claiming all 3 and the review caught it). STRING LITERALS built by
+  a script inherit the script's own formatting: a heredoc continuation baked
+  26 spaces into a shipped lint message - read the produced TEXT, not just the
+  replace count. 20260712-110730, 20260716-125856, 20260708-203659,
+  20260717-151208.
 - `reuse-production-helpers-in-tests` (x3, -> Pending promotions): tests
   compose expected values and spawn rigs via the production helpers, not
   inline re-derivations - a hand-written bay rig hit a private-field wall
