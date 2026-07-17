@@ -1,6 +1,10 @@
 // Hand-authored example mod: the Kenney craft_cargoB reassembled from its cut
-// hull cubes (cut-obj-into-hulls.py --yaw 180 --center 0,-0.3,0 --walls). Hull
-// cubes except: 2 rear engines (1,1,2)/(-1,1,2) are Thrusters (with exhaust
+// hull cubes. Regenerate the gltf/*.glb meshes (from the repo root) with:
+//
+//   python3 scripts/cut-obj-into-hulls.py art/kenney/craft_cargoB.obj \
+//       --out assets/mods/craft_cargob/gltf --yaw 180 --center 0,-0.3,0 --no-walls
+//
+// Hull cubes except: 2 rear engines (1,1,2)/(-1,1,2) are Thrusters (with exhaust
 // cones), 2 front bays (1,1,-2)/(-1,1,-2) are Torpedo bays, and a Controller
 // sits in the empty core (0,1,0). Player-controlled: W = thrust, Mouse Left =
 // fire torpedoes. Nose faces the game forward (-Z), spawn rotation identity.
