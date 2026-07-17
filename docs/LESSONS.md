@@ -548,7 +548,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   need the same derivation as new ones - an inherited escort station sat 52u
   off a new fire lane and only the computed pin caught it. 20260711-180455,
   20260711-180506, 20260716-124722, 20260717-112630.
-- `verify-engine-guarantees-in-source` (x6): read the engine/dependency source
+- `verify-engine-guarantees-in-source` (x7): read the engine/dependency source
   (or write a five-line probe) before designing around its behavior - observer
   order is arbitrary; observer-queued commands apply BEFORE the queue's remaining
   pending commands; a bcs `On<Insert>` observer `.unwrap()`s the asset, so
@@ -563,8 +563,14 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   failure and cite its file:line. Upstream DOC COMMENTS are folklore too:
   avian's cast_ray_predicate doc says the ray stops on predicate-false, the
   implementation SKIPS and continues (caught at plan time, 20260717-112622).
-  20260525-133004, 20260712-115902,
-  20260525-133017, 20260716-162701, 20260717-013440, 20260717-112622.
+  So are OUR OWN doc comments when they assert a COST to justify a rejected
+  design: `assets_plugin`'s comment said `AssetMetaCheck::Always` "would 404 per
+  asset on wasm" as the reason for the per-path set; source showed the 404 is
+  real but NON-FATAL (bevy falls back to default_meta), which flipped the choice
+  to global Always. A runtime claim needs a source read or a runtime probe - a
+  BUILD cannot see a runtime 404. 20260525-133004, 20260712-115902,
+  20260525-133017, 20260716-162701, 20260717-013440, 20260717-112622,
+  20260717-111558.
 - `advertised-but-unwired` (x3): a config surface is not a capability until its
   producer/consumer wiring, data source, and runtime preconditions are
   verified in the new context. 20260712-093044, 20260712-093831.
