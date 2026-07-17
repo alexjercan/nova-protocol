@@ -419,6 +419,7 @@ fn player_ship() -> ScenarioObjectConfig {
                 // first scenario (task 20260712-140250 flipped this off once a
                 // reload mechanic existed).
                 infinite_ammo: false,
+                lock_refire_secs: None,
             }),
             sections: vec![
                 controller,

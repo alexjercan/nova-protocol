@@ -572,6 +572,7 @@ pub(crate) fn asteroid_field(
             speed_cap: None,
             // The sandbox scenario keeps the authored finite magazines.
             infinite_ammo: false,
+            lock_refire_secs: None,
         }),
         sections: vec![
             SpaceshipSectionConfig {

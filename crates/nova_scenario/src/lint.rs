@@ -344,6 +344,56 @@ fn check_object_prototypes(
             }
         }
         check_section_overlaps(config.base.id.as_str(), ship, scenario, issues);
+        check_controller_durations(config.base.id.as_str(), ship, scenario, issues);
+    }
+}
+
+/// Author-supplied event-window overrides must be a positive, finite number of
+/// seconds - a zero/negative/NaN window would fire the event every frame, so it
+/// fails closed (the runtime ignores such a value and uses the engine default,
+/// but the content is still wrong). Also warns when an orbit-hold override is
+/// set on a ship with no `orbit` directive, where it can never take effect.
+/// Task 20260717-165031.
+fn check_controller_durations(
+    ship_id: &str,
+    ship: &SpaceshipConfig,
+    scenario: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    let bad = |secs: f64| !secs.is_finite() || secs <= 0.0;
+    match &ship.controller {
+        SpaceshipController::AI(ai) => {
+            if let Some(secs) = ai.orbit_hold_secs {
+                if bad(secs) {
+                    issues.push(LintIssue::error(
+                        scenario,
+                        format!(
+                            "ship '{ship_id}': orbit_hold_secs must be a positive number of seconds, got {secs}"
+                        ),
+                    ));
+                } else if ai.orbit.is_none() {
+                    issues.push(LintIssue::warn(
+                        scenario,
+                        format!(
+                            "ship '{ship_id}': orbit_hold_secs is set but the ship has no `orbit` directive, so it never takes effect"
+                        ),
+                    ));
+                }
+            }
+        }
+        SpaceshipController::Player(player) => {
+            if let Some(secs) = player.lock_refire_secs {
+                if bad(secs) {
+                    issues.push(LintIssue::error(
+                        scenario,
+                        format!(
+                            "ship '{ship_id}': lock_refire_secs must be a positive number of seconds, got {secs}"
+                        ),
+                    ));
+                }
+            }
+        }
+        SpaceshipController::None => {}
     }
 }
 
@@ -601,6 +651,113 @@ mod tests {
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("no_such_proto"));
+    }
+
+    /// Spawn a ship with an explicit controller and a known section prototype
+    /// (so only the controller-duration check can flag it). Task 20260717-165031.
+    fn spawn_ship_with_controller(id: &str, controller: SpaceshipController) -> EventActionConfig {
+        EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: id.to_string(),
+                name: id.to_string(),
+                position: Vec3::ZERO,
+                rotation: Quat::IDENTITY,
+            },
+            kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                allegiance: None,
+                controller,
+                sections: vec![SpaceshipSectionConfig {
+                    id: "hull".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::Prototype("known_proto".to_string()),
+                    modifications: vec![],
+                }],
+            }),
+        })
+    }
+
+    /// Task 20260717-165031: a non-positive orbit_hold_secs / lock_refire_secs
+    /// would fire the event every frame, so it is a fail-closed error; a valid
+    /// positive override lints clean.
+    #[test]
+    fn non_positive_event_window_overrides_are_errors() {
+        let bad_orbit = spawn_ship_with_controller(
+            "orbiter",
+            SpaceshipController::AI(AIControllerConfig {
+                orbit: Some("well".to_string()),
+                orbit_hold_secs: Some(0.0),
+                ..Default::default()
+            }),
+        );
+        let issues = lint_scenario(
+            &scenario(vec![bad_orbit], vec![]),
+            &known(&["known_proto"]),
+            &known(&["test_scenario"]),
+        );
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 1, "{issues:?}");
+        assert!(errs[0].message.contains("orbit_hold_secs"));
+
+        let bad_lock = spawn_ship_with_controller(
+            "player",
+            SpaceshipController::Player(PlayerControllerConfig {
+                lock_refire_secs: Some(-1.0),
+                ..Default::default()
+            }),
+        );
+        let issues = lint_scenario(
+            &scenario(vec![bad_lock], vec![]),
+            &known(&["known_proto"]),
+            &known(&["test_scenario"]),
+        );
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 1, "{issues:?}");
+        assert!(errs[0].message.contains("lock_refire_secs"));
+
+        // A valid positive override lints clean.
+        let ok = spawn_ship_with_controller(
+            "orbiter2",
+            SpaceshipController::AI(AIControllerConfig {
+                orbit: Some("well".to_string()),
+                orbit_hold_secs: Some(8.0),
+                ..Default::default()
+            }),
+        );
+        let issues = lint_scenario(
+            &scenario(vec![ok], vec![]),
+            &known(&["known_proto"]),
+            &known(&["test_scenario"]),
+        );
+        assert!(
+            errors(&issues).is_empty(),
+            "a positive override should lint clean: {issues:?}"
+        );
+    }
+
+    /// orbit_hold_secs with no `orbit` directive can never take effect: a warn,
+    /// not an error (the scenario still runs). Task 20260717-165031.
+    #[test]
+    fn orbit_hold_without_orbit_directive_warns() {
+        let s = scenario(
+            vec![spawn_ship_with_controller(
+                "drifter",
+                SpaceshipController::AI(AIControllerConfig {
+                    orbit: None,
+                    orbit_hold_secs: Some(3.0),
+                    ..Default::default()
+                }),
+            )],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &known(&["known_proto"]), &known(&["test_scenario"]));
+        assert!(errors(&issues).is_empty(), "should not error: {issues:?}");
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.severity == LintSeverity::Warn && i.message.contains("orbit_hold_secs")),
+            "expected a warn about orbit_hold_secs without orbit: {issues:?}"
+        );
     }
 
     /// R1.1: a scatter TEMPLATE ship with a bad prototype must flag like a

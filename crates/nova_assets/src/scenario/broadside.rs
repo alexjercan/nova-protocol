@@ -129,6 +129,7 @@ fn player_ship() -> ScenarioObjectConfig {
                 // so the PDC screen-and-brawl plays with real magazines and the
                 // diegetic ammo gauge instead of unlimited fire.
                 infinite_ammo: false,
+                lock_refire_secs: None,
             }),
             allegiance: None,
             sections: vec![

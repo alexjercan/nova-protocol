@@ -278,6 +278,7 @@ impl Plugin for ScenarioLoaderPlugin {
         // ordering constraint - when the tick is skipped under pause the
         // tracker still runs and reads the last (frozen) clock value.
         app.register_type::<OrbitHold>();
+        app.register_type::<OrbitHoldSecs>();
         app.add_systems(
             Update,
             track_orbit_holds
@@ -290,6 +291,7 @@ impl Plugin for ScenarioLoaderPlugin {
         // lessons tick the instant the lock lands. Same clock derivation and
         // `.after(tick_scenario_clock)` ordering as the orbit tracker.
         app.register_type::<LockEcho>();
+        app.register_type::<LockRefireSecs>();
         app.add_systems(
             Update,
             track_player_locks
@@ -412,10 +414,22 @@ fn fire_on_update(mut commands: Commands) {
 /// the repeats no-ops.
 const ORBIT_HOLD_SECS: f64 = 5.0;
 
+/// Resolve an author-supplied event-window override against the engine default.
+/// A non-finite or non-positive override is rejected (content_lint errors on
+/// it), so at runtime we fail closed to `default` rather than ever produce a
+/// zero/negative window that would fire every frame. Task 20260717-165031.
+fn resolve_window_secs(override_secs: Option<f64>, default: f64) -> f64 {
+    match override_secs {
+        Some(secs) if secs.is_finite() && secs > 0.0 => secs,
+        _ => default,
+    }
+}
+
 /// Bookkeeping for the orbit-hold tracker, on the orbiting ship: which well
 /// and the scenario-clock reading ([`scenario_elapsed`]) when the current
 /// window opened - engagement, well switch, or the last fire. The window has
-/// elapsed once `now - started_at >= ORBIT_HOLD_SECS`. Disengaging (or
+/// elapsed once `now - started_at >= window`, where `window` is the ship's
+/// [`OrbitHoldSecs`] override or the [`ORBIT_HOLD_SECS`] default. Disengaging (or
 /// switching wells) removes it, restarting the window; the component also dies
 /// with its entity on teardown, so a retry re-arms against a fresh clock.
 #[derive(Component, Clone, Debug, Reflect)]
@@ -442,6 +456,7 @@ fn track_orbit_holds(
             Entity,
             &Autopilot,
             Option<&mut OrbitHold>,
+            Option<&OrbitHoldSecs>,
             &EntityId,
             &EntityTypeName,
         ),
@@ -457,7 +472,7 @@ fn track_orbit_holds(
 
     let now = scenario_elapsed(&world);
 
-    for (ship, autopilot, hold, ship_id, ship_type_name) in &mut q_ships {
+    for (ship, autopilot, hold, hold_override, ship_id, ship_type_name) in &mut q_ships {
         let AutopilotAction::Orbit { well, .. } = autopilot.action else {
             // Engaged, but not an orbit (GOTO/STOP): no hold.
             if hold.is_some() {
@@ -466,9 +481,13 @@ fn track_orbit_holds(
             continue;
         };
 
+        // Per-ship override (AIControllerConfig::orbit_hold_secs), else the
+        // engine default. Task 20260717-165031.
+        let window = resolve_window_secs(hold_override.map(|o| o.0), ORBIT_HOLD_SECS);
+
         match hold {
             Some(mut hold) if hold.well == well => {
-                if now - hold.started_at >= ORBIT_HOLD_SECS {
+                if now - hold.started_at >= window {
                     // Restart the window whether or not the event can be
                     // addressed (review R1.2: a well without a scenario id
                     // must not consume the hold - the next window retries).
@@ -480,7 +499,7 @@ fn track_orbit_holds(
                     };
                     debug!(
                         "track_orbit_holds: ship '{}' held orbit around '{}' for {}s",
-                        ship_id.0, well_id.0, ORBIT_HOLD_SECS
+                        ship_id.0, well_id.0, window
                     );
                     commands.fire::<OnOrbitEvent>(OnOrbitEventInfo {
                         id: well_id.0.clone(),
@@ -512,7 +531,8 @@ const LOCK_REFIRE_SECS: f64 = 5.0;
 /// Bookkeeping for the player-lock bridge: per slot, the last target the
 /// bridge saw and the scenario-clock reading ([`scenario_elapsed`]) when it
 /// last fired for that target. The re-fire window has elapsed once
-/// `now - last_fired_at >= LOCK_REFIRE_SECS`.
+/// `now - last_fired_at >= refire`, where `refire` is the player's
+/// [`LockRefireSecs`] override or the [`LOCK_REFIRE_SECS`] default.
 #[derive(Component, Clone, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct LockEcho {
@@ -523,14 +543,17 @@ pub struct LockEcho {
 /// One lock slot's tick: returns `Some(target)` when the bridge should
 /// fire this frame - on ACQUISITION (the slot's value changed onto a
 /// target; the slot writers are equality-skipped, so a held live-radar
-/// lock does not churn this) and again every [`LOCK_REFIRE_SECS`] while
+/// lock does not churn this) and again every `refire_secs` seconds while
 /// the same target stays held. `now` is the engine scenario clock
 /// ([`scenario_elapsed`]); the window is `now - last_fired_at`, so it freezes
-/// under pause and resets on teardown with the clock. Pure for the unit tests.
+/// under pause and resets on teardown with the clock. `refire_secs` is the
+/// per-player override ([`LockRefireSecs`]) or the [`LOCK_REFIRE_SECS`] default,
+/// resolved by the caller. Pure for the unit tests.
 fn tick_lock_slot(
     state: &mut Option<(Entity, f64)>,
     current: Option<Entity>,
     now: f64,
+    refire_secs: f64,
 ) -> Option<Entity> {
     match (current, state.as_mut()) {
         (None, _) => {
@@ -538,7 +561,7 @@ fn tick_lock_slot(
             None
         }
         (Some(target), Some((held, last_fired_at))) if *held == target => {
-            if now - *last_fired_at >= LOCK_REFIRE_SECS {
+            if now - *last_fired_at >= refire_secs {
                 *last_fired_at = now;
                 Some(target)
             } else {
@@ -569,6 +592,7 @@ fn track_player_locks(
             &TravelLock,
             &CombatLock,
             Option<&mut LockEcho>,
+            Option<&LockRefireSecs>,
             &EntityId,
             &EntityTypeName,
         ),
@@ -577,7 +601,7 @@ fn track_player_locks(
     q_ids: Query<&EntityId>,
 ) {
     let now = scenario_elapsed(&world);
-    for (ship, travel, combat, echo, ship_id, ship_type_name) in &mut q_ships {
+    for (ship, travel, combat, echo, refire_override, ship_id, ship_type_name) in &mut q_ships {
         let Some(mut echo) = echo else {
             // First sight of this player ship: arm the bookkeeping; the
             // next frame ticks it (an already-held lock then reads as an
@@ -585,8 +609,11 @@ fn track_player_locks(
             commands.entity(ship).insert(LockEcho::default());
             continue;
         };
-        let fired_travel = tick_lock_slot(&mut echo.travel, travel.0, now);
-        let fired_combat = tick_lock_slot(&mut echo.combat, combat.0, now);
+        // Per-player override (PlayerControllerConfig::lock_refire_secs), else
+        // the engine default. Task 20260717-165031.
+        let refire = resolve_window_secs(refire_override.map(|o| o.0), LOCK_REFIRE_SECS);
+        let fired_travel = tick_lock_slot(&mut echo.travel, travel.0, now, refire);
+        let fired_combat = tick_lock_slot(&mut echo.combat, combat.0, now, refire);
         if let Some(target_id) = fired_travel.and_then(|target| q_ids.get(target).ok()) {
             commands.fire::<OnTravelLockEvent>(OnTravelLockEventInfo {
                 id: target_id.0.clone(),
@@ -1939,6 +1966,95 @@ mod tests {
         );
     }
 
+    /// A per-ship `OrbitHoldSecs` override (task 20260717-165031) shortens the
+    /// hold window: a 1s override fires within ~1.2s of hold, long before the
+    /// 5s default would.
+    #[test]
+    fn orbit_hold_honors_a_per_ship_override() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+        use bevy_common_systems::prelude::{EventHandler, GameEventsPlugin, GameObjectives};
+        use nova_gameplay::prelude::{Autopilot, AutopilotAction, SpaceshipRootMarker};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            0.2,
+        )));
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
+        app.add_systems(
+            Update,
+            (tick_scenario_clock, track_orbit_holds)
+                .chain()
+                .run_if(scenario_is_live),
+        );
+
+        let mut handler = EventHandler::<NovaEventWorld>::from(EventConfig::OnOrbit);
+        handler.add_filter(EventFilterConfig::Entity(EntityFilterConfig {
+            id: Some("planetoid".to_string()),
+            other_id: Some("player_spaceship".to_string()),
+            ..default()
+        }));
+        handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: "orbits".to_string(),
+            expression: VariableExpressionNode::new_add(
+                VariableTermNode::new_factor(VariableFactorNode::new_name("orbits".to_string())),
+                VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                    VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
+                )),
+            ),
+        }));
+        app.world_mut().spawn(handler);
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .insert_variable("orbits".to_string(), VariableLiteral::Number(0.0));
+
+        let orbits = |app: &App| -> f64 {
+            match app
+                .world()
+                .resource::<NovaEventWorld>()
+                .get_variable("orbits")
+            {
+                Some(VariableLiteral::Number(n)) => *n,
+                other => panic!("orbits variable missing: {:?}", other),
+            }
+        };
+
+        let well = app
+            .world_mut()
+            .spawn(EntityId::new("planetoid".to_string()))
+            .id();
+        // Override: a 1s hold window on this ship.
+        app.world_mut().spawn((
+            SpaceshipRootMarker,
+            EntityId::new("player_spaceship".to_string()),
+            EntityTypeName::new("spaceship".to_string()),
+            Autopilot::engage(AutopilotAction::Orbit { well, plan: None }),
+            OrbitHoldSecs(1.0),
+        ));
+
+        // 3 frames (~0.6s): under the 1s window - no fire yet.
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(orbits(&app), 0.0, "no fire before the 1s override window");
+
+        // 5 more frames (total ~1.6s): past the 1s window - exactly one fire,
+        // where the 5s default would still be silent.
+        for _ in 0..5 {
+            app.update();
+        }
+        assert_eq!(
+            orbits(&app),
+            1.0,
+            "the 1s override fires well before the 5s default"
+        );
+    }
+
     // -- the player-lock bridge (beat-sheet-v2 spike 20260713-140742) --
 
     #[test]
@@ -1955,23 +2071,52 @@ mod tests {
             now
         };
 
+        // The default engine window; the slot takes it per call.
+        let w = LOCK_REFIRE_SECS;
+
         // Acquisition fires immediately.
-        assert_eq!(tick_lock_slot(&mut state, Some(a), at(0.1)), Some(a));
+        assert_eq!(tick_lock_slot(&mut state, Some(a), at(0.1), w), Some(a));
         // Held: quiet until the echo window elapses, then one re-fire.
-        assert_eq!(tick_lock_slot(&mut state, Some(a), at(2.0)), None);
-        assert_eq!(tick_lock_slot(&mut state, Some(a), at(2.0)), None);
+        assert_eq!(tick_lock_slot(&mut state, Some(a), at(2.0), w), None);
+        assert_eq!(tick_lock_slot(&mut state, Some(a), at(2.0), w), None);
         assert_eq!(
-            tick_lock_slot(&mut state, Some(a), at(2.0)),
+            tick_lock_slot(&mut state, Some(a), at(2.0), w),
             Some(a),
             "a held lock echoes once per window (the anti-soft-lock recurrence)"
         );
-        assert_eq!(tick_lock_slot(&mut state, Some(a), at(2.0)), None);
+        assert_eq!(tick_lock_slot(&mut state, Some(a), at(2.0), w), None);
         // A live-radar retarget is a fresh acquisition on a fresh clock.
-        assert_eq!(tick_lock_slot(&mut state, Some(b), at(0.1)), Some(b));
-        assert_eq!(tick_lock_slot(&mut state, Some(b), at(2.0)), None);
+        assert_eq!(tick_lock_slot(&mut state, Some(b), at(0.1), w), Some(b));
+        assert_eq!(tick_lock_slot(&mut state, Some(b), at(2.0), w), None);
         // Clearing re-arms: the next lock is an acquisition again.
-        assert_eq!(tick_lock_slot(&mut state, None, at(0.1)), None);
-        assert_eq!(tick_lock_slot(&mut state, Some(b), at(0.1)), Some(b));
+        assert_eq!(tick_lock_slot(&mut state, None, at(0.1), w), None);
+        assert_eq!(tick_lock_slot(&mut state, Some(b), at(0.1), w), Some(b));
+    }
+
+    /// A per-player `refire_secs` override (task 20260717-165031) changes the
+    /// echo cadence: a 2s window re-fires after 2s of hold, where the 5s
+    /// default would still be quiet.
+    #[test]
+    fn a_lock_slot_honors_a_custom_refire_window() {
+        let a = Entity::from_raw_u32(1).unwrap();
+        let mut state = None;
+        let mut now = 0.0_f64;
+        let mut at = |dt: f64| {
+            now += dt;
+            now
+        };
+
+        // Acquisition fires immediately regardless of window.
+        assert_eq!(tick_lock_slot(&mut state, Some(a), at(0.1), 2.0), Some(a));
+        // 1.5s held under the 2s window: quiet (and would be quiet at 5s too).
+        assert_eq!(tick_lock_slot(&mut state, Some(a), at(1.5), 2.0), None);
+        // Crossing 2s of hold: re-fires on the SHORT window, where the 5s
+        // default would not have yet.
+        assert_eq!(
+            tick_lock_slot(&mut state, Some(a), at(1.0), 2.0),
+            Some(a),
+            "a 2s override echoes at 2s of hold"
+        );
     }
 
     /// The bridge end to end through the real event pipeline: a travel
@@ -2284,6 +2429,7 @@ mod tests {
                 input_mapping,
                 speed_cap: Some(100.0),
                 infinite_ammo: true,
+                lock_refire_secs: None,
             }),
             sections: vec![SpaceshipSectionConfig {
                 id: "thruster".to_string(),
