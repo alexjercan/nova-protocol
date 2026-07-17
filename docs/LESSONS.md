@@ -667,12 +667,15 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   dependency-SET install atomicity when it is only per-mod (deps download in
   parallel with no join). The behavior was fine and surfaced; the words
   overclaimed. 20260715-142931.
-- `sibling-change-leaves-stale-fixture` (x2): a change that lands on master
-  without updating a fixture test that asserts on its data leaves master RED for
-  the next branch to inherit and realign (a mod-bundle description once; the
-  demo-scenario removal's under-swept `contains_key("demo")` guards next). Sweep
-  test fixtures that assert on data you change, and expect to repair inherited
-  reds when a sibling under-swept. 20260715-142931, 20260716-155839.
+- `sibling-change-leaves-stale-fixture` (x3, -> Pending promotions): a change
+  that lands on master without updating a fixture test that asserts on its data
+  leaves master RED for the next branch to inherit and realign (a mod-bundle
+  description; the demo-scenario removal's `contains_key("demo")` guards; an
+  EXACT bundle-version pin two sibling bumps later - pin the durable intent,
+  "past 1.0.0", never a frozen literal that siblings legitimately move). Sweep
+  test fixtures that assert on data you change, and grep for tests that
+  include_str the files you touch. 20260715-142931, 20260716-155839,
+  20260717-151214.
 - `benchmark-gates-both-ways` (x1, positive): a measure-first gate justifies
   DEFERRING optimization work as legitimately as doing it; 083339's filter/
   condition micro-opts were declined on data (noise at realistic rates), a valid
@@ -969,6 +972,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   cargo bare (backgrounded) and read the output text, or `set -o pipefail`.
   See the main-list entry. 20260717-002228 (x2 in one task), 20260717-013440.
 
+- `sibling-change-leaves-stale-fixture` (x3) -> work skill: before landing a
+  content/data change, grep for tests that include_str or assert on the exact
+  files touched (fixture pins live far from the diff); pin durable intents,
+  not frozen literals. See the main-list entry. 20260715-142931,
+  20260716-155839, 20260717-151214.
 - `reuse-production-helpers-in-tests` (x3) -> work skill: compose test rigs
   and expected values via the production helpers/bundles, not hand-written
   component lists; grep the same file for an existing rig of the same entity
