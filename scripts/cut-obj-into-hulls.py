@@ -484,9 +484,20 @@ def build_materials(colours):
                 "roughnessFactor": 0.8,
             },
             "doubleSided": True,
-        }
+        },
+        {
+            # Interior wall caps added by --walls, so a destroyed neighbour
+            # reveals a solid white face instead of a see-through hole.
+            "name": "_wall",
+            "pbrMetallicRoughness": {
+                "baseColorFactor": [1.0, 1.0, 1.0, 1.0],
+                "metallicFactor": 0.0,
+                "roughnessFactor": 1.0,
+            },
+            "doubleSided": True,
+        },
     ]
-    index = {None: 0}
+    index = {None: 0, "_wall": 1}
     for name in sorted(colours):
         r, g, b = colours[name]
         index[name] = len(materials)
@@ -565,6 +576,41 @@ def dominant_material(triangles):
     return max(area, key=lambda m: area[m]) if area else None
 
 
+def _wall_quad(axis, sign, half):
+    """Two triangles capping the cube face at coord[axis] == sign*half."""
+    others = [a for a in range(3) if a != axis]
+
+    def pt(u, v):
+        pnt = [0.0, 0.0, 0.0]
+        pnt[axis] = sign * half
+        pnt[others[0]] = u
+        pnt[others[1]] = v
+        return tuple(pnt)
+
+    a, b, c, d = pt(-half, -half), pt(half, -half), pt(half, half), pt(-half, half)
+    return [Triangle(a, b, c, "_wall"), Triangle(a, c, d, "_wall")]
+
+
+def add_walls(cells, cell):
+    """Cap each cube face SHARED with an occupied neighbour with white walls, so
+    a destroyed section reveals a solid wall instead of a see-through hole. The
+    exterior look is untouched (only faces between two occupied cells get a
+    wall). Cells are already recentred, so a cube spans [-cell/2, cell/2]^3.
+    Returns the number of wall triangles added."""
+    half = cell / 2.0
+    occupied = set(cells)
+    added = 0
+    for (i, j, k), tris in cells.items():
+        for axis, sign in ((0, 1), (0, -1), (1, 1), (1, -1), (2, 1), (2, -1)):
+            nb = [i, j, k]
+            nb[axis] += sign
+            if tuple(nb) in occupied:
+                quad = _wall_quad(axis, sign, half)
+                tris.extend(quad)
+                added += len(quad)
+    return added
+
+
 def run(args):
     triangles, _ = parse_obj(args.obj)
     scaled = scale_triangles(triangles, args.scale)
@@ -575,12 +621,15 @@ def run(args):
     cells, materials, material_index, _ = cut(
         args.obj, args.scale, args.cell, args.center
     )
-    written = write_cells(cells, materials, material_index, args.out)
 
-    # Loss-free invariant: clipping partitions the surface, so total area of the
-    # fragments equals the original (within float tolerance).
+    # Loss-free invariant: clipping partitions the surface, so total fragment
+    # area equals the original (within float tolerance). Measured on the raw
+    # surface, BEFORE any wall caps are added.
     cut_area = sum(triangle_area(t) for tris in cells.values() for t in tris)
     cut_frags = sum(len(tris) for tris in cells.values())
+
+    walls = add_walls(cells, args.cell) if args.walls else 0
+    written = write_cells(cells, materials, material_index, args.out)
 
     lo, hi = bounds(scaled)
     print("input:            %s (%d triangles)" % (args.obj, len(triangles)))
@@ -589,13 +638,8 @@ def run(args):
         "grid bounds:      x[%.2f,%.2f] y[%.2f,%.2f] z[%.2f,%.2f]"
         % (lo[0], hi[0], lo[1], hi[1], lo[2], hi[2])
     )
-    print("cubes written:    %d (%d fragments) -> %s/" % (len(written), cut_frags, args.out))
-    for cell, filename in written:
-        tris = cells[cell]
-        print(
-            "  %-18s %3d frags  dominant=%s"
-            % (filename, len(tris), dominant_material(tris))
-        )
+    print("cubes written:    %d (%d surface fragments, %d wall tris) -> %s/" % (
+        len(written), cut_frags, walls, args.out))
     ok = abs(cut_area - original_area) <= 1e-6 * max(1.0, original_area)
     print("area-conserved:   %.6f cut vs %.6f original -> %s" % (
         cut_area, original_area, "OK" if ok else "MISMATCH"))
@@ -634,6 +678,13 @@ def self_test():
         "<I", blob[20 + json_len : 24 + json_len]
     )[0]  # byteLength matches the (padded) BIN chunk length
     assert piece_name((1, -1, 0)) == "cube_i1_jm1_k0"
+
+    # add_walls caps only faces shared with an occupied neighbour.
+    two = {(0, 0, 0): [], (1, 0, 0): []}
+    n = add_walls(two, 1.0)
+    assert n == 4, n  # one shared face each side -> 2 tris x 2 cells
+    assert all(t.material == "_wall" for t in two[(0, 0, 0)])
+
     print("self-test OK")
     return 0
 
@@ -658,6 +709,12 @@ def main(argv=None):
         type=_parse_center,
         default=(0.0, 0.0, 0.0),
         help="re-anchor the grid: 'x,y,z' (post-scale) that becomes a cell centre (default 0,0,0)",
+    )
+    parser.add_argument(
+        "--walls",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="cap cube faces shared with an occupied neighbour with white walls (default on)",
     )
     parser.add_argument("--self-test", action="store_true", help="run internal checks and exit")
     args = parser.parse_args(argv)
