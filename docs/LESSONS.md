@@ -626,8 +626,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   working reference verbatim - a toolchain, or in-repo the mod_prefs persistence
   stack, bevy's headless Slider, and example 14's screenshot harness for a whole
   UI feature. 20260712-093048, 20260711-180511.
-- `measure-before-writing-the-number` (x1): never write a specific quantity
-  into a doc from a mental model; backfill from an actual run. 20260712-105505.
+- `measure-before-writing-the-number` (x2): never write a specific quantity
+  into a doc from a mental model; backfill from an actual run - a NOTES hp
+  sum hand-added next to the tool that prints the correct number dropped a
+  section (660 vs 730). 20260712-105505, 20260717-143806.
 - `manual-time-rig-measures-its-clock` (x2): TimeUpdateStrategy::ManualDuration
   is NOT the delta your Update systems see - `Time<Virtual>` clamps each update
   to `max_delta` (0.25s default), so a 1s manual step advances only 0.25s and a
