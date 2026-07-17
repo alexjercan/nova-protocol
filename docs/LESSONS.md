@@ -852,7 +852,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   asking "which acts may this fire in?", terminal states especially (an
   act-ungated death handler flipped an earned VICTORY to DEFEAT); gate by
   default, globality is the deliberate exception. 20260708-203659.
-- `crate-solo-tests-miss-unified-features` (x4 -> Pending promotions): `cargo
+- `crate-solo-tests-miss-unified-features` (x5 -> Pending promotions): `cargo
   test -p nova_scenario` alone fails to compile - its serde round-trip tests
   lean on workspace feature unification (nova_assets -> nova_modding ->
   nova_scenario/serde); run crate tests with a unifying sibling (`-p
@@ -861,7 +861,9 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   THIRD time (paid one ~8min cold compile before adding `--features serde`);
   grep this ledger for the crate name before crate-scoped runs. 20260716-125856,
   20260716-155830, 20260716-231855, 20260717-002228 (hit a FOURTH
-  time - did not grep the ledger for the crate name first, as the lesson says).
+  time - did not grep the ledger for the crate name first, as the lesson says),
+  20260717-151537 (FIFTH - same crate, same miss: ran `-p nova_scenario`
+  before grepping the ledger, paid a ~4min cold compile).
 - `deleted-content-tests-carry-engine-coverage` (x1): tests over shipped
   DATA can be the only exercise of an engine mechanism (filters.rs owned
   filter/action semantics with zero tests of its own); before deleting such
