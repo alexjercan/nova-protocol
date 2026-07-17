@@ -386,7 +386,9 @@
                                                 offset: (0.0, 0.0, 0.5),
                                                 rotation: (0.70710677, 0.0, 0.0, 0.70710677),
                                                 shape: (
-                                                    geometry: Square,
+                                                    geometry: Rect,
+                                                    width: 0.4,
+                                                    height: 0.6,
                                                 ),
                                             )),
                                         )),
@@ -669,7 +671,9 @@
                                                 offset: (0.0, 0.0, 0.5),
                                                 rotation: (0.70710677, 0.0, 0.0, 0.70710677),
                                                 shape: (
-                                                    geometry: Square,
+                                                    geometry: Rect,
+                                                    width: 0.4,
+                                                    height: 0.6,
                                                 ),
                                             )),
                                         )),

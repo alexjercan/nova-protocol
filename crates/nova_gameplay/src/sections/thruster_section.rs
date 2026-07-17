@@ -103,9 +103,14 @@ pub fn thruster_section(config: ThrusterSectionConfig) -> impl Bundle {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(default))]
 pub struct ThrusterExhaustConfig {
-    /// Cross-section of the exhaust flame: round `Cone` or axis-aligned `Square`
-    /// nozzle (square reuses the radius fields as the half-side).
+    /// Cross-section of the exhaust flame: round `Cone` (sized by the radius
+    /// fields) or axis-aligned `Rect` (sized by `width`/`height`).
     pub geometry: ThrusterExhaustShape,
+    /// Rect cross-section FULL width (local X) and height (local Z), used when
+    /// `geometry` is `Rect`. Set these to the nozzle hole size; the inner core
+    /// scales down by `exhaust_inner_radius / exhaust_radius`. Ignored for `Cone`.
+    pub width: f32,
+    pub height: f32,
     pub exhaust_height: f32,
     pub exhaust_radius: f32,
     pub exhaust_max: f32,
@@ -116,22 +121,24 @@ pub struct ThrusterExhaustConfig {
     pub emissive_inner_color: LinearRgba,
 }
 
-/// The exhaust flame's cross-section. `Square` builds an axis-aligned square
-/// pyramid instead of a round cone, reusing `exhaust_radius` /
-/// `exhaust_inner_radius` as the half-side (the glow shader is shape-agnostic:
-/// it elongates along +Y using the xz radius, which still fades a square).
+/// The exhaust flame's cross-section. `Rect` builds an axis-aligned rectangular
+/// pyramid (sized by `width`/`height`) instead of a round cone; the glow shader
+/// is shape-agnostic (it elongates along +Y using the xz radius, which still
+/// fades a rectangle).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ThrusterExhaustShape {
     #[default]
     Cone,
-    Square,
+    Rect,
 }
 
 impl Default for ThrusterExhaustConfig {
     fn default() -> Self {
         Self {
             geometry: ThrusterExhaustShape::Cone,
+            width: 0.8,
+            height: 0.8,
             exhaust_height: 0.1,
             exhaust_radius: 0.4,
             exhaust_max: 1.0,
@@ -147,8 +154,9 @@ impl Default for ThrusterExhaustConfig {
 /// A unit square pyramid (base square [-1,1]^2 at y=0, tip at y=1), sides
 /// subdivided by height, mirroring `TriangleMeshBuilder::new_cone` so the glow
 /// shader (which reads position.y / xz) treats it exactly like a cone. Scaled by
-/// `(radius, height, radius)` at the call site, so the half-side becomes radius.
-fn square_exhaust_builder(height_subdivisions: u32) -> TriangleMeshBuilder {
+/// `(hx, height, hz)` at the call site, so the half-extents become hx/hz - a
+/// non-uniform scale turns the unit square into the authored rectangle.
+fn rect_exhaust_builder(height_subdivisions: u32) -> TriangleMeshBuilder {
     let vertical = height_subdivisions.max(1);
     let mut builder = TriangleMeshBuilder::new_empty();
     let tip = Vec3::new(0.0, 1.0, 0.0);
@@ -181,15 +189,30 @@ fn square_exhaust_builder(height_subdivisions: u32) -> TriangleMeshBuilder {
     builder
 }
 
-/// Build the exhaust flame mesh for the given shape, scaled to `radius`/`height`.
-fn exhaust_mesh(shape: ThrusterExhaustShape, radius: f32, height: f32) -> Mesh {
+/// Build the exhaust flame mesh for `shape`, with base half-extents `hx`/`hz`
+/// (equal for a cone -> circular) and `height` along +Y.
+fn exhaust_mesh(shape: ThrusterExhaustShape, hx: f32, hz: f32, height: f32) -> Mesh {
     let builder = match shape {
         ThrusterExhaustShape::Cone => TriangleMeshBuilder::new_cone(32, 4),
-        ThrusterExhaustShape::Square => square_exhaust_builder(4),
+        ThrusterExhaustShape::Rect => rect_exhaust_builder(4),
     };
-    builder
-        .with_scale(Vec3::new(radius, height, radius))
-        .build()
+    builder.with_scale(Vec3::new(hx, height, hz)).build()
+}
+
+/// Base half-extents `(hx, hz)` and the shader falloff radius for the OUTER
+/// flame of a given exhaust config.
+fn outer_extents(config: &ThrusterExhaustConfig) -> (f32, f32, f32) {
+    match config.geometry {
+        ThrusterExhaustShape::Cone => (
+            config.exhaust_radius,
+            config.exhaust_radius,
+            config.exhaust_radius,
+        ),
+        ThrusterExhaustShape::Rect => {
+            let (hx, hz) = (config.width * 0.5, config.height * 0.5);
+            (hx, hz, hx.max(hz))
+        }
+    }
 }
 
 /// Authorable placement + shape of a thruster's exhaust cone. `offset`/`rotation`
@@ -472,11 +495,9 @@ fn insert_thruster_shader(
         return;
     };
 
-    let mesh = exhaust_mesh(
-        config.geometry,
-        config.exhaust_radius,
-        config.exhaust_height,
-    );
+    // Outer flame: extents from the shape (radius for cone, width/height for rect).
+    let (ohx, ohz, omax_r) = outer_extents(config);
+    let mesh = exhaust_mesh(config.geometry, ohx, ohz, config.exhaust_height);
     let material = ExtendedMaterial {
         base: StandardMaterial {
             base_color: Color::srgba(1.0, 1.0, 1.0, 1.0),
@@ -487,14 +508,27 @@ fn insert_thruster_shader(
         },
         extension: ThrusterExhaustMaterial::default()
             .with_exhaust_height(config.exhaust_max)
-            .with_exhaust_radius(config.exhaust_radius),
+            .with_exhaust_radius(omax_r),
     };
 
-    let inner_mesh = exhaust_mesh(
-        config.geometry,
-        config.exhaust_inner_radius,
-        config.exhaust_inner_height,
-    );
+    // Inner core: a cone keeps its own inner radius; a rect scales the outer
+    // extents by the inner/outer radius ratio so it stays proportional.
+    let (ihx, ihz, imax_r) = match config.geometry {
+        ThrusterExhaustShape::Cone => (
+            config.exhaust_inner_radius,
+            config.exhaust_inner_radius,
+            config.exhaust_inner_radius,
+        ),
+        ThrusterExhaustShape::Rect => {
+            let ratio = if config.exhaust_radius > 1e-6 {
+                config.exhaust_inner_radius / config.exhaust_radius
+            } else {
+                0.25
+            };
+            (ohx * ratio, ohz * ratio, omax_r * ratio)
+        }
+    };
+    let inner_mesh = exhaust_mesh(config.geometry, ihx, ihz, config.exhaust_inner_height);
     let inner_material = ExtendedMaterial {
         base: StandardMaterial {
             base_color: Color::srgba(1.0, 1.0, 1.0, 1.0),
@@ -505,7 +539,7 @@ fn insert_thruster_shader(
         },
         extension: ThrusterExhaustMaterial::default()
             .with_exhaust_height(config.exhaust_inner_max)
-            .with_exhaust_radius(config.exhaust_inner_radius),
+            .with_exhaust_radius(imax_r),
     };
 
     commands.entity(entity).insert((
@@ -561,12 +595,12 @@ mod test {
     use super::*;
 
     #[test]
-    fn square_exhaust_builder_is_a_unit_square_pyramid() {
-        let mesh = square_exhaust_builder(4).build();
+    fn rect_exhaust_builder_is_a_unit_square_pyramid() {
+        let mesh = rect_exhaust_builder(4).build();
         let Some(bevy::render::mesh::VertexAttributeValues::Float32x3(positions)) =
             mesh.attribute(Mesh::ATTRIBUTE_POSITION)
         else {
-            panic!("square exhaust mesh has no Float32x3 positions");
+            panic!("rect exhaust mesh has no Float32x3 positions");
         };
         assert!(!positions.is_empty());
         for &[x, y, z] in positions {
