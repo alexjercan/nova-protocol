@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
-"""Cut a monolithic Kenney .obj spaceship into grid-aligned modular hull cubes.
+"""Cut a monolithic Kenney .obj spaceship into grid-aligned cube pieces (.glb).
 
-The game builds ships from 1x1x1 grid *sections* that snap together on a unit
-grid (two sections glue when their centres are exactly 1.0 apart). A Kenney
-ship model such as `art/kenney/craft_cargoB.obj` is instead one solid mesh. This
-script scales that mesh so its natural half-unit grid lands on the game's 1.0
-grid, buckets every triangle into the grid cell that contains its centroid, and
-writes one glTF-binary (`.glb`) mesh per non-empty cell.
+A Kenney ship model such as `art/kenney/craft_cargoB.obj` is one solid mesh.
+This script scales that mesh so its natural half-unit grid lands on a 1.0 unit
+grid, CLIPS every triangle at the cube-boundary planes so each fragment is
+strictly inside one cube ("cut the floor tile to fit"), then writes one
+glTF-binary (`.glb`) mesh per non-empty cube into the output folder.
 
-Design (see tasks/20260717-220919/SPIKE.md, option A1 + B1):
+Scope: this script only cuts. It parses the obj, slices it on the grid, and
+emits the cube meshes - nothing else (no section classification, no mod
+scaffold). Turning the cubes into game sections is done elsewhere.
 
-- Face-centroid bucketing, no clipping: no triangle is ever split or dropped, so
-  placing every cell back at its grid position reproduces the original ship
-  exactly (loss-free reconstruction). A triangle straddling a cell boundary just
-  sticks slightly past its nominal cube, which is invisible once neighbours are
-  in place.
+Design (see tasks/20260717-220919/SPIKE.md, option A2 + B1):
+
+- Grid clipping is a true partition: total fragment area equals the original,
+  so placing every cube back at its grid position reproduces the ship exactly.
+  The split mirrors bevy-common-systems `src/mesh/builder.rs` `triangle_slice`.
 - A hand-rolled glTF 2.0 binary writer, standard library only (no trimesh, no
   Blender), matching the repo's stdlib-only asset-script convention.
-
-This module is import-friendly: the mod-scaffold emitter (task 20260717-221106)
-builds on `parse_obj`, `parse_mtl`, `bucket_cells` and `write_glb`.
 """
 
 from __future__ import annotations
@@ -537,23 +535,22 @@ def cut(obj_path, scale, cell, center=(0.0, 0.0, 0.0)):
 
 
 def piece_name(cell):
-    """Deterministic per-cell mesh id, e.g. 'hull_i1_jm1_k0' (m = minus)."""
+    """Deterministic per-cell mesh id, e.g. 'cube_i1_jm1_k0' (m = minus)."""
     def tag(value):
         return ("m%d" % -value) if value < 0 else str(value)
 
     i, j, k = cell
-    return "hull_i%s_j%s_k%s" % (tag(i), tag(j), tag(k))
+    return "cube_i%s_j%s_k%s" % (tag(i), tag(j), tag(k))
 
 
 def write_cells(cells, materials, material_index, out_dir):
-    """Write one .glb per cell into `out_dir`/gltf/. Returns [(cell, filename)]."""
-    gltf_dir = os.path.join(out_dir, "gltf")
-    os.makedirs(gltf_dir, exist_ok=True)
+    """Write one .glb per cell directly into `out_dir`. Returns [(cell, filename)]."""
+    os.makedirs(out_dir, exist_ok=True)
     written = []
     for cell in sorted(cells):
         name = piece_name(cell)
         blob = write_glb(cells[cell], materials, material_index)
-        path = os.path.join(gltf_dir, name + ".glb")
+        path = os.path.join(out_dir, name + ".glb")
         with open(path, "wb") as handle:
             handle.write(blob)
         written.append((cell, name + ".glb"))
@@ -592,7 +589,7 @@ def run(args):
         "grid bounds:      x[%.2f,%.2f] y[%.2f,%.2f] z[%.2f,%.2f]"
         % (lo[0], hi[0], lo[1], hi[1], lo[2], hi[2])
     )
-    print("cells written:    %d (%d fragments) -> %s/gltf/" % (len(written), cut_frags, args.out))
+    print("cubes written:    %d (%d fragments) -> %s/" % (len(written), cut_frags, args.out))
     for cell, filename in written:
         tris = cells[cell]
         print(
@@ -636,7 +633,7 @@ def self_test():
     assert doc["buffers"][0]["byteLength"] == struct.unpack(
         "<I", blob[20 + json_len : 24 + json_len]
     )[0]  # byteLength matches the (padded) BIN chunk length
-    assert piece_name((1, -1, 0)) == "hull_i1_jm1_k0"
+    assert piece_name((1, -1, 0)) == "cube_i1_jm1_k0"
     print("self-test OK")
     return 0
 
@@ -653,7 +650,7 @@ def main(argv=None):
         description="Cut a Kenney .obj spaceship into grid-aligned modular hull cubes (.glb)."
     )
     parser.add_argument("obj", nargs="?", help="input .obj path")
-    parser.add_argument("--out", default="build/kenney-cut", help="output dir (glb go in <out>/gltf/)")
+    parser.add_argument("--out", required=False, help="output folder for the .glb cube meshes (required unless --self-test)")
     parser.add_argument("--scale", type=float, default=2.0, help="uniform scale about origin (default 2.0)")
     parser.add_argument("--cell", type=float, default=1.0, help="cube size in world units (default 1.0)")
     parser.add_argument(
@@ -669,6 +666,8 @@ def main(argv=None):
         return self_test()
     if not args.obj:
         parser.error("the obj argument is required (or pass --self-test)")
+    if not args.out:
+        parser.error("--out is required (the output folder for the .glb cubes)")
     return run(args)
 
 
