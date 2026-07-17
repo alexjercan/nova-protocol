@@ -66,6 +66,11 @@ fn sandbox_objects(
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                // DIRECT paths, not dep://: the editor sandbox is built at
+                // runtime outside the mod merge (its texture is a raw
+                // GameAssets handle), so scheme refs would never rewrite.
+                impact_sound: Some(AssetRef::from("base/sounds/impact.wav")),
+                destroy_sound: Some(AssetRef::from("base/sounds/explosion.wav")),
                 radius,
                 texture: AssetRef::from(asteroid_texture.clone()),
                 health: 100.0,
@@ -87,6 +92,11 @@ fn sandbox_objects(
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+            // DIRECT paths, not dep://: the editor sandbox is built at
+            // runtime outside the mod merge (its texture is a raw
+            // GameAssets handle), so scheme refs would never rewrite.
+            impact_sound: Some(AssetRef::from("base/sounds/impact.wav")),
+            destroy_sound: Some(AssetRef::from("base/sounds/explosion.wav")),
             radius: 55.0,
             texture: AssetRef::from(asteroid_texture),
             health: 100.0,

@@ -26,6 +26,21 @@ pub struct AsteroidConfig {
     /// at spawn time (see `insert_asteroid_render`).
     pub texture: AssetRef<Image>,
     pub health: f32,
+    /// The sound a hit on this rock plays (per-target = per-material; task
+    /// 20260717-101641). Authorable asset ref; AUTHORED-OR-SILENT. Snapshotted
+    /// into [`ImpactDestroySounds`] on the asteroid parent (the audio
+    /// observers walk up from the Health node).
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub impact_sound: Option<AssetRef<AudioSource>>,
+    /// The sound this rock's destruction plays; same rules.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub destroy_sound: Option<AssetRef<AudioSource>>,
     /// Per-body gravity override, u/s^2 at the surface. `Some` always makes
     /// this asteroid a gravity well at that strength (subject to the
     /// [`GravitySettings::max_surface_gravity`] cap), even below the radius
@@ -63,6 +78,10 @@ pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
         AsteroidTexture(config.texture),
         AsteroidRadius(config.radius),
         AsteroidHealth(config.health),
+        ImpactDestroySounds {
+            impact: config.impact_sound.clone(),
+            destroy: config.destroy_sound.clone(),
+        },
         AsteroidInvulnerable(config.invulnerable),
         AsteroidSurfaceGravity(config.surface_gravity),
         // The lock scanner sees a rock in proportion to its size: field
@@ -824,6 +843,8 @@ mod tests {
                 .spawn((
                     RigidBody::Dynamic,
                     asteroid_scenario_object(AsteroidConfig {
+                        impact_sound: None,
+                        destroy_sound: None,
                         radius: 20.0,
                         texture: AssetRef::default(),
                         health: 2000.0,
@@ -872,6 +893,8 @@ mod tests {
             .spawn((
                 RigidBody::Dynamic,
                 asteroid_scenario_object(AsteroidConfig {
+                    impact_sound: None,
+                    destroy_sound: None,
                     radius,
                     texture: AssetRef::default(),
                     health: 100.0,
@@ -900,6 +923,8 @@ mod tests {
             .spawn((
                 RigidBody::Dynamic,
                 asteroid_scenario_object(AsteroidConfig {
+                    impact_sound: None,
+                    destroy_sound: None,
                     radius,
                     texture: AssetRef::default(),
                     health: 100.0,

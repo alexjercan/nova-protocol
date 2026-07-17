@@ -302,6 +302,8 @@ fn derelict(asteroid_texture: AssetRef<Image>) -> ScenarioObjectConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+            impact_sound: Some(AssetRef::from("self://sounds/impact.wav")),
+            destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
             radius: DERELICT_RADIUS,
             texture: asteroid_texture,
             health: DERELICT_HEALTH,
@@ -499,6 +501,8 @@ pub(crate) fn shakedown_run(
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+            impact_sound: Some(AssetRef::from("self://sounds/impact.wav")),
+            destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
             radius: PLANETOID_NOMINAL_RADIUS,
             texture: asteroid_texture.clone(),
             health: 2000.0,
@@ -516,6 +520,8 @@ pub(crate) fn shakedown_run(
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                impact_sound: Some(AssetRef::from("self://sounds/impact.wav")),
+                destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
                 radius,
                 texture: asteroid_texture.clone(),
                 health: 100.0,

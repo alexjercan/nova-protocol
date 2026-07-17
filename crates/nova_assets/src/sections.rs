@@ -62,6 +62,11 @@ pub struct SectionMeshRefs {
     pub controller_radar_deny_sound: AssetRef<AudioSource>,
     pub controller_radar_retarget_sound: AssetRef<AudioSource>,
     pub controller_safety_on_sound: AssetRef<AudioSource>,
+    /// Per-target hit/destruction voices, shared by every catalog section
+    /// (task 20260717-101641); asteroids author the same two in scenario
+    /// content.
+    pub section_impact_sound: AssetRef<AudioSource>,
+    pub section_destroy_sound: AssetRef<AudioSource>,
 }
 
 impl SectionMeshRefs {
@@ -84,6 +89,8 @@ impl SectionMeshRefs {
                 "self://sounds/radar_retarget.wav".to_string(),
             ),
             controller_safety_on_sound: AssetRef::from("self://sounds/safety_on.wav".to_string()),
+            section_impact_sound: AssetRef::from("self://sounds/impact.wav".to_string()),
+            section_destroy_sound: AssetRef::from("self://sounds/explosion.wav".to_string()),
         }
     }
 }
@@ -100,6 +107,8 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 description: "A reinforced hull section for spaceships.".to_string(),
                 mass: 1.0,
                 health: 200.0,
+                impact_sound: Some(meshes.section_impact_sound.clone()),
+                destroy_sound: Some(meshes.section_destroy_sound.clone()),
             },
             kind: SectionKind::Hull(HullSectionConfig {
                 render_mesh: Some(meshes.hull.clone()),
@@ -114,6 +123,8 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 // Exposed propulsion: fragile, takes more damage per hit than an
                 // armored mount (task 20260525-133004).
                 health: THRUSTER_BASE_HEALTH,
+                impact_sound: Some(meshes.section_impact_sound.clone()),
+                destroy_sound: Some(meshes.section_destroy_sound.clone()),
             },
             kind: SectionKind::Thruster(ThrusterSectionConfig {
                 magnitude: 1.0,
@@ -128,6 +139,8 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 mass: 1.0,
                 // Command core: mid durability baseline (task 20260525-133004).
                 health: CONTROLLER_BASE_HEALTH,
+                impact_sound: Some(meshes.section_impact_sound.clone()),
+                destroy_sound: Some(meshes.section_destroy_sound.clone()),
             },
             kind: SectionKind::Controller(ControllerSectionConfig {
                 frequency: 4.0,
@@ -164,6 +177,8 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 // Armored weapon mount: tough, takes less damage per hit than an
                 // exposed section (task 20260525-133004).
                 health: TURRET_BASE_HEALTH,
+                impact_sound: Some(meshes.section_impact_sound.clone()),
+                destroy_sound: Some(meshes.section_destroy_sound.clone()),
             },
             kind: SectionKind::Turret(TurretSectionConfig {
                 yaw_speed: std::f32::consts::PI,   // 180 degrees per second
@@ -218,6 +233,8 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 // a short burst, not a slugging match (task 20260711-180506,
                 // "gentle" is data).
                 health: 60.0,
+                impact_sound: Some(meshes.section_impact_sound.clone()),
+                destroy_sound: Some(meshes.section_destroy_sound.clone()),
             },
             kind: SectionKind::Hull(HullSectionConfig {
                 render_mesh: Some(meshes.hull.clone()),
@@ -234,6 +251,8 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 // 20260711-180506). A per-section variant departing from its
                 // type baseline on purpose - not the armored better_turret.
                 health: 60.0,
+                impact_sound: Some(meshes.section_impact_sound.clone()),
+                destroy_sound: Some(meshes.section_destroy_sound.clone()),
             },
             kind: SectionKind::Turret(TurretSectionConfig {
                 yaw_speed: std::f32::consts::PI,
@@ -285,6 +304,8 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 mass: 1.0,
                 // Torpedo bay: mid durability baseline (task 20260525-133004).
                 health: TORPEDO_BASE_HEALTH,
+                impact_sound: Some(meshes.section_impact_sound.clone()),
+                destroy_sound: Some(meshes.section_destroy_sound.clone()),
             },
             kind: SectionKind::Torpedo(TorpedoSectionConfig {
                 render_mesh: Some(meshes.torpedo_bay.clone()),
@@ -304,6 +325,9 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 blast_effect: None,
                 launch_effect: None,
                 launch_sound: Some(meshes.torpedo_launch_sound.clone()),
+                // The blast IS the destruction voice: same wav as section
+                // destruction (per-target authoring; playtest can diverge it).
+                detonation_sound: Some(meshes.section_destroy_sound.clone()),
                 // A small salvo of torpedoes before the bay is spent. Playtest
                 // knob.
                 ammo_capacity: Some(6),

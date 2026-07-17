@@ -112,6 +112,8 @@ fn orbit_scene(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
                         rotation: Quat::IDENTITY,
                     },
                     kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                impact_sound: Some("base/sounds/impact.wav".into()),
+                destroy_sound: Some("base/sounds/explosion.wav".into()),
                         radius: 12.0,
                         texture: game_assets.asteroid_texture.clone().into(),
                         health: 5000.0,

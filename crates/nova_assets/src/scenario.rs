@@ -35,6 +35,8 @@ pub(crate) fn menu_ambience(
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+            impact_sound: Some(AssetRef::from("self://sounds/impact.wav")),
+            destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
             radius: 20.0,
             texture: asteroid_texture.clone(),
             health: 2000.0,
@@ -76,6 +78,8 @@ pub(crate) fn menu_ambience(
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                impact_sound: Some(AssetRef::from("self://sounds/impact.wav")),
+                destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
                 radius: 1.0,
                 texture: asteroid_texture.clone(),
                 health: 100.0,
@@ -176,6 +180,8 @@ fn backdrop_planetoid(asteroid_texture: AssetRef<Image>) -> ScenarioObjectConfig
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+            impact_sound: Some(AssetRef::from("self://sounds/impact.wav")),
+            destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
             radius: 20.0,
             texture: asteroid_texture,
             health: 2000.0,
@@ -335,6 +341,8 @@ pub(crate) fn menu_waystation(
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                impact_sound: Some(AssetRef::from("self://sounds/impact.wav")),
+                destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
                 radius: 1.0,
                 texture: asteroid_texture,
                 health: 100.0,
@@ -395,6 +403,8 @@ pub(crate) fn menu_scrapyard(
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                impact_sound: Some(AssetRef::from("self://sounds/impact.wav")),
+                destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
                 radius: 6.0,
                 texture: asteroid_texture.clone(),
                 health: 400.0,
@@ -411,6 +421,8 @@ pub(crate) fn menu_scrapyard(
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                impact_sound: Some(AssetRef::from("self://sounds/impact.wav")),
+                destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
                 radius: 8.0,
                 texture: asteroid_texture.clone(),
                 health: 400.0,
@@ -499,6 +511,8 @@ pub(crate) fn asteroid_field(
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                impact_sound: Some(AssetRef::from("self://sounds/impact.wav")),
+                destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
                 radius: 1.0,
                 texture: asteroid_texture.clone(),
                 health: 100.0,
@@ -527,6 +541,8 @@ pub(crate) fn asteroid_field(
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+            impact_sound: Some(AssetRef::from("self://sounds/impact.wav")),
+            destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
             radius: 20.0,
             texture: asteroid_texture.clone(),
             health: 2000.0,

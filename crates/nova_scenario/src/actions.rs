@@ -1550,6 +1550,8 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                    impact_sound: None,
+                    destroy_sound: None,
                     radius: 2.0,
                     texture: nova_gameplay::prelude::AssetRef::from("textures/asteroid.png"),
                     health: 100.0,
@@ -1610,6 +1612,8 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                    impact_sound: None,
+                    destroy_sound: None,
                     radius: 2.0,
                     texture: nova_gameplay::prelude::AssetRef::default(),
                     health: 100.0,
@@ -1689,6 +1693,8 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                    impact_sound: None,
+                    destroy_sound: None,
                     radius: 2.0,
                     texture: nova_gameplay::prelude::AssetRef::default(),
                     health: 100.0,

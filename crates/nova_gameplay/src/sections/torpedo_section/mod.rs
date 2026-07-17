@@ -116,6 +116,16 @@ pub struct TorpedoSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub launch_sound: Option<AssetRef<AudioSource>>,
+    /// The sound this torpedo's DETONATION plays (the blast destroying the
+    /// projectile fires the destroy observer; task 20260717-101641).
+    /// Snapshotted onto the projectile as [`ImpactDestroySounds`] (destroy
+    /// slot). AUTHORED-OR-SILENT.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub detonation_sound: Option<AssetRef<AudioSource>>,
     /// Magazine size in torpedoes. `None` launches without limit (the pre-ammo
     /// behavior); `Some(n)` gives the bay a [`SectionAmmo`] of `n` torpedoes
     /// that depletes one per launch and blocks firing once empty. Reloading it
@@ -156,6 +166,7 @@ impl Default for TorpedoSectionConfig {
             blast_effect: None,
             launch_effect: None,
             launch_sound: None,
+            detonation_sound: None,
             ammo_capacity: None,
             reload: None,
         }
@@ -663,7 +674,17 @@ fn shoot_spawn_projectile(
             ),
             LinearVelocity(linear_velocity),
             TorpedoSectionPartOf(section),
-            TorpedoSectionSpawnerEntity(**spawner),
+            // Nested tuple: keeps the outer bundle under bevy's tuple size
+            // limit. The detonation voice rides the projectile: its
+            // destruction (the blast) fires the destroy observer, which reads
+            // this snapshot.
+            (
+                TorpedoSectionSpawnerEntity(**spawner),
+                ImpactDestroySounds {
+                    impact: None,
+                    destroy: config.detonation_sound.clone(),
+                },
+            ),
             TorpedoProjectileRenderMesh(config.projectile_render_mesh.clone()),
             // No `TorpedoTargetPosition` yet: it is inserted only once a target is
             // locked (see `update_target_position`). Until then the torpedo has no
@@ -700,6 +721,7 @@ fn shoot_spawn_projectile(
                         description: "The controller for the torpedo warhead".to_string(),
                         mass: 1.0,
                         health: 1.0,
+                        ..default()
                     }),
                     Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)).with_rotation(
                         Quat::from_euler(EulerRot::XYZ, std::f32::consts::FRAC_PI_2, 0.0, 0.0)
@@ -725,6 +747,7 @@ fn shoot_spawn_projectile(
                         description: "The thruster for the torpedo".to_string(),
                         mass: 1.0,
                         health: 1.0,
+                        ..default()
                     }),
                     Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
                     ThrusterSectionRenderMarker,

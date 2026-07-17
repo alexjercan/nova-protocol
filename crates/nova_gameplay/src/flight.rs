@@ -4102,6 +4102,7 @@ mod tests {
             description: String::new(),
             mass: 1.0,
             health: 100.0,
+            ..default()
         };
         let controller = app
             .world_mut()

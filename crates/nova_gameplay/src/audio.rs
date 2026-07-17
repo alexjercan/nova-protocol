@@ -81,10 +81,6 @@ pub enum UiSfx {
 pub enum WorldSfx {
     /// Continuous engine hum, looped; volume tracks thruster input.
     ThrusterLoop,
-    /// A section/asteroid is destroyed or a torpedo detonates.
-    Explosion,
-    /// Damage is applied to a target.
-    Impact,
     /// A salvage crate was picked up - a light per-crate "ding", quieter than
     /// and separate from the objective chime (task 20260714-090002). Fired
     /// from `nova_scenario`'s salvage plugin, which owns the crate marker.
@@ -107,10 +103,8 @@ pub const UI_SFX_FILES: [(UiSfx, &str); 4] = [
 /// `base/sounds/<name>.wav` - the base mod's own bundled cues (mods reference
 /// them via `dep://base/sounds/<name>.wav`). Shrinks as cue families migrate
 /// onto content (see [`WorldSfx`]).
-pub const WORLD_SFX_FILES: [(WorldSfx, &str); 4] = [
+pub const WORLD_SFX_FILES: [(WorldSfx, &str); 2] = [
     (WorldSfx::ThrusterLoop, "thruster_loop"),
-    (WorldSfx::Explosion, "explosion"),
-    (WorldSfx::Impact, "impact"),
     (WorldSfx::SalvagePickup, "salvage_pickup"),
 ];
 
@@ -288,21 +282,6 @@ fn distance_attenuation(distance: f32) -> f32 {
     }
 }
 
-/// Play a positional one-shot: scale `base_volume` by the distance attenuation
-/// from `listener` to `source`, and skip entirely when the result is inaudible.
-/// A missing listener (no camera yet) falls back to full base volume rather than
-/// silence.
-fn play_positional(
-    commands: &mut Commands,
-    bank: &SoundBank<WorldSfx>,
-    key: WorldSfx,
-    base_volume: f32,
-    source: Vec3,
-    listener: Option<Vec3>,
-) {
-    play_positional_handle(commands, bank.get(key), base_volume, source, listener);
-}
-
 /// The handle-taking core of [`play_positional`]: same distance attenuation and
 /// audible-threshold gate, but for an already-resolved [`Handle<AudioSource>`]
 /// rather than a bank key. Lets a caller play a section's own authored sound
@@ -416,21 +395,53 @@ fn prune_sfx_throttle(time: Res<Time>, mut throttle_state: ResMut<SfxThrottle>) 
     throttle_state.prune(time.elapsed_secs(), SFX_THROTTLE_PRUNE_WINDOW);
 }
 
+/// Find the nearest [`ImpactDestroySounds`] on `entity` or an ancestor. The
+/// damage/destroy observers' target is the entity carrying Health - for
+/// sections that IS the section entity, but an asteroid keeps its Health on a
+/// child node while the sounds snapshot sits on the rock's parent bundle, so
+/// the lookup walks up (bounded by the hierarchy, like `hum_source_root`).
+fn impact_destroy_sounds<'a>(
+    entity: Entity,
+    q_sounds: &'a Query<&ImpactDestroySounds>,
+    q_child_of: &Query<&ChildOf>,
+) -> Option<&'a ImpactDestroySounds> {
+    let mut current = entity;
+    loop {
+        if let Ok(sounds) = q_sounds.get(current) {
+            return Some(sounds);
+        }
+        match q_child_of.get(current) {
+            Ok(&ChildOf(parent)) => current = parent,
+            Err(_) => return None,
+        }
+    }
+}
+
 /// Explosion cue on any destruction (section, asteroid, or torpedo detonation,
 /// which all funnel through `IntegrityDestroyMarker`).
 fn on_destroyed_play_explosion(
     add: On<Add, IntegrityDestroyMarker>,
-    bank: Option<Res<SoundBank<WorldSfx>>>,
+    asset_server: Res<AssetServer>,
     time: Res<Time>,
     q_transform: Query<&GlobalTransform>,
+    q_sounds: Query<&ImpactDestroySounds>,
+    q_child_of: Query<&ChildOf>,
     q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
-    let Some(bank) = bank else { return };
     // The destroyed entity has existed for frames, so its GlobalTransform is
     // valid world-space.
     let Ok(source) = q_transform.get(add.entity) else {
+        return;
+    };
+    // AUTHORED-OR-SILENT (spike 20260717-101524): the destruction voice is the
+    // TARGET's authored destroy_sound (per-target = per-material), found on the
+    // entity or an ancestor (asteroid node shape) and resolved here.
+    let Some(handle) = impact_destroy_sounds(add.entity, &q_sounds, &q_child_of)
+        .and_then(|s| s.destroy.as_ref())
+        .map(|r| r.resolve(&asset_server))
+    else {
         return;
     };
     let pos = source.translation();
@@ -439,10 +450,9 @@ fn on_destroyed_play_explosion(
         time.elapsed_secs(),
         EXPLOSION_MIN_INTERVAL,
     ) {
-        play_positional(
+        play_positional_handle(
             &mut commands,
-            &bank,
-            WorldSfx::Explosion,
+            handle,
             EXPLOSION_VOLUME,
             pos,
             listener_position(&q_camera),
@@ -463,9 +473,11 @@ fn on_destroyed_play_explosion(
 /// guard.
 fn on_damage_play_impact(
     damage: On<HealthApplyDamage>,
-    bank: Option<Res<SoundBank<WorldSfx>>>,
+    asset_server: Res<AssetServer>,
     time: Res<Time>,
     q_transform: Query<&GlobalTransform>,
+    q_sounds: Query<&ImpactDestroySounds>,
+    q_child_of: Query<&ChildOf>,
     q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
@@ -473,8 +485,15 @@ fn on_damage_play_impact(
     if damage.entity != damage.original_event_target() {
         return;
     }
-    let Some(bank) = bank else { return };
     let Ok(source) = q_transform.get(damage.entity) else {
+        return;
+    };
+    // AUTHORED-OR-SILENT: the hit voice is the TARGET's authored impact_sound
+    // (per-target = per-material), found on the entity or an ancestor.
+    let Some(handle) = impact_destroy_sounds(damage.entity, &q_sounds, &q_child_of)
+        .and_then(|s| s.impact.as_ref())
+        .map(|r| r.resolve(&asset_server))
+    else {
         return;
     };
     let pos = source.translation();
@@ -483,10 +502,9 @@ fn on_damage_play_impact(
         time.elapsed_secs(),
         IMPACT_MIN_INTERVAL,
     ) {
-        play_positional(
+        play_positional_handle(
             &mut commands,
-            &bank,
-            WorldSfx::Impact,
+            handle,
             IMPACT_VOLUME,
             pos,
             listener_position(&q_camera),
@@ -1048,7 +1066,16 @@ mod tests {
             .id();
         let child = app
             .world_mut()
-            .spawn((GlobalTransform::default(), ChildOf(parent)))
+            .spawn((
+                GlobalTransform::default(),
+                ChildOf(parent),
+                // Authored-or-silent: the rig's target must author its impact
+                // voice for the cue to fire at all (task 20260717-101641).
+                ImpactDestroySounds {
+                    impact: Some(AssetRef::from("base/sounds/impact.wav")),
+                    destroy: None,
+                },
+            ))
             .id();
 
         app.world_mut().trigger(HealthApplyDamage {
@@ -1211,6 +1238,126 @@ mod tests {
             app.world().resource::<LastPlayed>().0,
             None,
             "an unauthored bay launches silently"
+        );
+    }
+
+    #[test]
+    fn impact_and_destroy_play_the_targets_authored_sounds_or_stay_silent() {
+        // Per-target voices (task 20260717-101641): the hit/destroyed entity's
+        // own authored refs play; an unauthored target is silent. The authored
+        // half is the delivery guard for the silent half.
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.init_resource::<SfxThrottle>();
+        app.init_resource::<LastPlayed>();
+        app.add_observer(on_damage_play_impact);
+        app.add_observer(on_destroyed_play_explosion);
+        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.handle.clone());
+        });
+        let thud: Handle<AudioSource> = app
+            .world()
+            .resource::<AssetServer>()
+            .load("mods/x/thud.wav");
+        let boom: Handle<AudioSource> = app
+            .world()
+            .resource::<AssetServer>()
+            .load("mods/x/boom.wav");
+
+        // Authored target: impact plays ITS thud.
+        let target = app
+            .world_mut()
+            .spawn((
+                GlobalTransform::default(),
+                ImpactDestroySounds {
+                    impact: Some(AssetRef::from("mods/x/thud.wav")),
+                    destroy: Some(AssetRef::from("mods/x/boom.wav")),
+                },
+            ))
+            .id();
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: target,
+            source: None,
+            amount: 1.0,
+        });
+        app.world_mut().flush();
+        assert_eq!(app.world().resource::<LastPlayed>().0, Some(thud));
+
+        // Destruction plays ITS boom (different cell so the throttle is clean).
+        app.world_mut()
+            .entity_mut(target)
+            .insert(GlobalTransform::from(Transform::from_translation(
+                Vec3::splat(SFX_AREA_CELL * 10.0),
+            )));
+        app.world_mut()
+            .entity_mut(target)
+            .insert(IntegrityDestroyMarker);
+        app.world_mut().flush();
+        assert_eq!(app.world().resource::<LastPlayed>().0, Some(boom));
+
+        // Unauthored target: both cues silent.
+        app.world_mut().resource_mut::<LastPlayed>().0 = None;
+        let silent = app
+            .world_mut()
+            .spawn(GlobalTransform::from(Transform::from_translation(
+                Vec3::splat(SFX_AREA_CELL * 20.0),
+            )))
+            .id();
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: silent,
+            source: None,
+            amount: 1.0,
+        });
+        app.world_mut()
+            .entity_mut(silent)
+            .insert(IntegrityDestroyMarker);
+        app.world_mut().flush();
+        assert_eq!(
+            app.world().resource::<LastPlayed>().0,
+            None,
+            "an unauthored target is silent for both cues"
+        );
+    }
+
+    #[test]
+    fn the_sound_lookup_walks_up_to_the_asteroid_parent() {
+        // The asteroid shape: Health (and the destroy marker) live on a CHILD
+        // node while ImpactDestroySounds sits on the rock's parent bundle - the
+        // observers must find it by walking up (task 20260717-101641).
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.init_resource::<SfxThrottle>();
+        app.init_resource::<LastPlayed>();
+        app.add_observer(on_destroyed_play_explosion);
+        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.handle.clone());
+        });
+        let crack: Handle<AudioSource> = app
+            .world()
+            .resource::<AssetServer>()
+            .load("base/sounds/explosion.wav");
+
+        let rock = app
+            .world_mut()
+            .spawn(ImpactDestroySounds {
+                impact: None,
+                destroy: Some(AssetRef::from("base/sounds/explosion.wav")),
+            })
+            .id();
+        let node = app
+            .world_mut()
+            .spawn((GlobalTransform::default(), ChildOf(rock)))
+            .id();
+        app.world_mut()
+            .entity_mut(node)
+            .insert(IntegrityDestroyMarker);
+        app.world_mut().flush();
+        assert_eq!(
+            app.world().resource::<LastPlayed>().0,
+            Some(crack),
+            "the destroy cue must find the parent's authored sound via the walk"
         );
     }
 
@@ -1554,7 +1701,7 @@ mod tests {
         // (New world sounds should be authored on content, not added here - see
         // the WorldSfx doc - but a key that DOES exist must have a file.)
         use WorldSfx::*;
-        for key in [ThrusterLoop, Explosion, Impact, SalvagePickup] {
+        for key in [ThrusterLoop, SalvagePickup] {
             assert!(
                 WORLD_SFX_FILES.iter().any(|(k, _)| *k == key),
                 "WorldSfx::{key:?} is missing from WORLD_SFX_FILES"

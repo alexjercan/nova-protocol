@@ -6,6 +6,8 @@
             description: "A reinforced hull section for spaceships.",
             mass: 1.0,
             health: 200.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
         ),
         kind: Hull((
             render_mesh: Some("self://gltf/hull-01.glb#Scene0"),
@@ -18,6 +20,8 @@
             description: "A basic thruster section for spaceships.",
             mass: 1.0,
             health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
         ),
         kind: Thruster((
             magnitude: 1.0,
@@ -30,6 +34,8 @@
             description: "A basic controller section for spaceships.",
             mass: 1.0,
             health: 100.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
         ),
         kind: Controller((
             frequency: 4.0,
@@ -49,6 +55,8 @@
             description: "A better turret section for spaceships.",
             mass: 1.0,
             health: 130.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
         ),
         kind: Turret((
             yaw_speed: 3.1415927,
@@ -105,6 +113,8 @@
             description: "A thin-walled hull section; scavenger grade.",
             mass: 1.0,
             health: 60.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
         ),
         kind: Hull((
             render_mesh: Some("self://gltf/hull-01.glb#Scene0"),
@@ -117,6 +127,8 @@
             description: "A low-caliber turret; scavenger grade.",
             mass: 1.0,
             health: 60.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
         ),
         kind: Turret((
             yaw_speed: 3.1415927,
@@ -173,6 +185,8 @@
             description: "A torpedo bay section for spaceships.",
             mass: 1.0,
             health: 100.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
         ),
         kind: Torpedo((
             render_mesh: Some("self://gltf/torpedo-bay-01.glb#Scene0"),
@@ -198,6 +212,7 @@
             blast_radius: 30.0,
             blast_damage: 100.0,
             launch_sound: Some("self://sounds/torpedo_launch.wav"),
+            detonation_sound: Some("self://sounds/explosion.wav"),
             ammo_capacity: Some(6),
             reload: Some((
                 reload_time: 4.0,

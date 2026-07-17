@@ -69,6 +69,11 @@ Section((
 ```
 
 - `render_mesh` (optional) - the hull mesh; omit for a default 1x1x1 cuboid.
+- every section's `base` block also takes `impact_sound` + `destroy_sound`
+  (optional) - the sounds a hit on / the destruction of THIS section plays,
+  asset refs like the meshes (`dep://base/sounds/impact.wav` /
+  `dep://base/sounds/explosion.wav` are the base voices); an omitted sound is
+  silent. Per-target = per-material: your reinforced hull can clang.
 
 ## Thruster
 

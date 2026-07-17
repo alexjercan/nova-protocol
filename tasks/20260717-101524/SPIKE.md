@@ -212,3 +212,9 @@ one is 5 (behavioral refactor of a continuous cue) and the fiddly one is 4
   controller (messages carry no entity) and drain unconditionally. WorldSfx
   9 -> 4 (ThrusterLoop, Explosion, Impact, SalvagePickup remain). safety_on
   placed on the controller per the spike recommendation.
+- 20260717-101641 (per-target impact/destroy): `impact_sound`/`destroy_sound`
+  on BaseSectionConfig + AsteroidConfig, `detonation_sound` on the torpedo bay
+  (snapshotted onto the projectile); observers resolve via a bounded ancestor
+  walk (asteroids keep Health on a child node). Editor-sandbox asteroids use
+  DIRECT base/ paths (runtime-built outside the merge - the reel precedent).
+  WorldSfx 4 -> 2 (ThrusterLoop, SalvagePickup).

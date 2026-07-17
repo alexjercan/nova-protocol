@@ -1190,6 +1190,8 @@ mod tests {
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                impact_sound: None,
+                destroy_sound: None,
                 radius: 1.0,
                 texture: AssetRef::default(),
                 health: 1.0,
@@ -1961,6 +1963,8 @@ mod tests {
                             rotation: Quat::IDENTITY,
                         },
                         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                            impact_sound: None,
+                            destroy_sound: None,
                             radius: 5.0,
                             texture: AssetRef::from("textures/rock.png"),
                             health: 100.0,

@@ -259,6 +259,8 @@ pub(crate) fn broadside(
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                impact_sound: Some(AssetRef::from("self://sounds/impact.wav")),
+                destroy_sound: Some(AssetRef::from("self://sounds/explosion.wav")),
                 radius: 1.0,
                 texture: asteroid_texture.clone(),
                 health: 100.0,

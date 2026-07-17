@@ -26,7 +26,9 @@ A section can declare a sound as an authorable `AssetRef<AudioSource>` content
 field, exactly like it declares a render mesh, and ship + reference it through
 the `self://` / `dep://base` / `dep://<id>` pipeline. The weapon and controller
 families own their sounds this way: the turret's `fire_sound` +
-`dry_fire_sound`, the torpedo bay's `launch_sound`, and the controller's
+`dry_fire_sound`, the torpedo bay's `launch_sound` + `detonation_sound`,
+every section's / asteroid's `impact_sound` + `destroy_sound`, and the
+controller's
 `lock_on_sound`/`lock_off_sound`/`radar_deny_sound`/`radar_retarget_sound`/
 `safety_on_sound` (base sections author `self://sounds/...` for each, so the
 shipped game sounds unchanged - but a mod section can ship and name its own).
@@ -80,13 +82,13 @@ listener camera); the feedback ticks are **non-positional**.
 | `radar_deny.wav` | controller `radar_deny_sound` | low flat buzz, ~0.16 s |
 | `radar_retarget.wav` | controller `radar_retarget_sound` | very short quiet tick (subtler than `lock_on`), ~0.045 s |
 | `safety_on.wav` | controller `safety_on_sound` | dull low click, ~0.06 s |
+| `impact.wav` | every section's / asteroid's `impact_sound` (positional) | short low thud, ~0.1 s, played quietly (fires per hit) |
+| `explosion.wav` | every section's / asteroid's `destroy_sound` + the torpedo's `detonation_sound` (positional) | noisy burst, fast decay, ~0.45 s |
 
-### WorldSfx bank (transitional, 4 keys)
+### WorldSfx bank (transitional, 2 keys)
 
 | File | Event | Character / length |
 | --- | --- | --- |
-| `explosion.wav` | A section/asteroid is destroyed or a torpedo detonates (`IntegrityDestroyMarker`) | noisy burst, fast decay, ~0.45 s |
-| `impact.wav` | Damage is applied to a target (`HealthApplyDamage`) | short low thud, ~0.1 s, played quietly (fires per hit) |
 | `thruster_loop.wav` | The engine hum, played continuously; volume tracks throttle | steady low drone, loops seamlessly, ~1 s |
 | `salvage_pickup.wav` | A salvage crate is picked up | light rising "ding", quieter than the objective chime, ~0.10 s |
 

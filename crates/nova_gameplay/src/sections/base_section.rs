@@ -4,12 +4,15 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use super::prelude::*;
-use crate::prelude::{destructible_body, ExplodableEntity};
+use crate::{
+    asset_ref::AssetRef,
+    prelude::{destructible_body, ExplodableEntity},
+};
 
 pub mod prelude {
     pub use super::{
-        base_section, preview_section, BaseSectionConfig, GameSections, SectionConfig,
-        SectionInactiveMarker, SectionKind, SectionMarker, SectionRenderOf,
+        base_section, preview_section, BaseSectionConfig, GameSections, ImpactDestroySounds,
+        SectionConfig, SectionInactiveMarker, SectionKind, SectionMarker, SectionRenderOf,
     };
 }
 
@@ -30,6 +33,39 @@ pub struct BaseSectionConfig {
     pub description: String,
     pub mass: f32,
     pub health: f32,
+    /// The sound a hit on THIS section plays - per-target, so the target IS
+    /// the material (a rock, a light hull and a reinforced hull can each sound
+    /// different; spike 20260717-101524, task 20260717-101641). Authorable
+    /// asset ref like the meshes; AUTHORED-OR-SILENT. Snapshotted into
+    /// [`ImpactDestroySounds`] by [`base_section`].
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub impact_sound: Option<AssetRef<AudioSource>>,
+    /// The sound this section's destruction plays; same rules as
+    /// [`Self::impact_sound`].
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub destroy_sound: Option<AssetRef<AudioSource>>,
+}
+
+/// A damage target's authored impact/destroy sounds, snapshotted UNRESOLVED
+/// from its config ([`BaseSectionConfig`] via [`base_section`]; the asteroid
+/// bundle and the torpedo projectile snapshot their own). The audio observers
+/// find it by walking up from the hit/destroyed entity (asteroids keep their
+/// Health on a child node), resolve, and play - authored-or-silent. `pub`
+/// because nova_scenario's asteroid bundle constructs it.
+#[derive(Component, Clone, Debug, Default, Reflect)]
+pub struct ImpactDestroySounds {
+    #[reflect(ignore)]
+    pub impact: Option<AssetRef<AudioSource>>,
+    #[reflect(ignore)]
+    pub destroy: Option<AssetRef<AudioSource>>,
 }
 
 #[derive(Clone, Debug, Reflect)]
@@ -70,6 +106,10 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
         // bevy_common_systems' destructible_body is the generic Health + density + visibility
         // bundle; nova adds ExplodableEntity so the section enters the explode pipeline.
         ExplodableEntity,
+        ImpactDestroySounds {
+            impact: config.impact_sound.clone(),
+            destroy: config.destroy_sound.clone(),
+        },
     )
 }
 
