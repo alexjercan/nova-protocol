@@ -1,9 +1,8 @@
 # Authorable thruster exhaust cone: offset/rotation/shape config + attach to custom-mesh thrusters
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
-- TAGS: v0.7.0,gameplay,thruster,shader
-
+- TAGS: v0.7.0, gameplay, thruster, shader
 
 ## Goal
 
