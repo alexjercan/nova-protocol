@@ -129,6 +129,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   against the new file AND reconciling counts, before review, not by
   eyeballing the diff (a CHANGELOG regroup dropped the "Screenshot Reel"
   entry; a token cross-check + 93=94-1 count caught it). 20260716-102950.
+- `pin-the-window-not-the-ingredients` (x1): a regression pin for a
+  race/aliasing bug must reproduce the failure WINDOW (clear + repush before
+  any sync frame), not just its ingredients - a pin with an intermediate
+  update between them stayed green under sabotage because the sync masked
+  the bug; write the pin against the broken code first when the bug is
+  timing-shaped. 20260717-163033.
 - `cited-finding-reread-not-recalled` (x1): citing a sibling task's technical
   finding from memory inverted it one task later (the torpedo bay's +Y launch
   kick became "launch axis -Z" in the next cycle's notes, caught by review);
@@ -543,10 +549,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `set-gates-miss-observers` (x1): gating a SystemSet does not touch observers;
   enumerate systems + observers + hooks before claiming a gate covers "input".
   20260711-185156.
-- `would-it-fail-without-it` (x5): a verification that cannot fail with the
+- `would-it-fail-without-it` (x6): a verification that cannot fail with the
   mechanism deleted proves nothing; copied tests inherit vacuousness - and a
-  sabotage that refuses to go red refutes the assumed mechanism itself.
-  20260711-180426, 20260711-212521, 20260712-115902.
+  sabotage that refuses to go red refutes the assumed mechanism itself, OR
+  the test's own shape (a race pin with an update inside the race window
+  stayed green under sabotage and had to be tightened to the true window).
+  20260711-180426, 20260711-212521, 20260712-115902, 20260717-163033.
 - `out-of-context-review-pass` (positive, x28): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
   load-bearing claims instead of trusting them - checking cited evidence IS
