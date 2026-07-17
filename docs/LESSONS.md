@@ -504,7 +504,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   mechanism deleted proves nothing; copied tests inherit vacuousness - and a
   sabotage that refuses to go red refutes the assumed mechanism itself.
   20260711-180426, 20260711-212521, 20260712-115902.
-- `out-of-context-review-pass` (positive, x27): a fresh-context review of a
+- `out-of-context-review-pass` (positive, x28): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
   load-bearing claims instead of trusting them - checking cited evidence IS
   the spawn site, re-running the sabotage or the whole smoke suite, reading
@@ -513,9 +513,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   a CI ACTION's source to settle a toolchain question, re-deriving an
   algorithm (Kahn's topo sort direction) by hand to catch a doc/atomicity
   overclaim, and re-deriving a course's geometric invariants from raw RON with
-  its own script to surface a load-bearing dependency override. 20260712-133343,
+  its own script to surface a load-bearing dependency override, and re-deriving
+  two engine-semantics claims from bevy source (skybox sanity check, AssetMut
+  write-tracking) - killing a bogus follow-up work item. 20260712-133343,
   20260711-183417, 20260712-115902, 20260715-142900, 20260715-142931,
-  20260716-125856, 20260708-203659, 20260716-162701, 20260716-124722, 20260716-214919.
+  20260716-125856, 20260708-203659, 20260716-162701, 20260716-124722,
+  20260716-214919, 20260717-013440.
 - `required-component-in-shared-query` (x2): a required fetch added to an
   existing query narrows its membership and every gate computed from it; fetch
   `Option<&T>` or use a separate query. New `Res<T>` params also panic every
@@ -530,7 +533,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   proven not eyeballed and the fail-first A/B is one edit away (a gauntlet
   course's flyable-line clearance). 20260711-180455, 20260711-180506,
   20260716-124722.
-- `verify-engine-guarantees-in-source` (x4): read the engine/dependency source
+- `verify-engine-guarantees-in-source` (x5): read the engine/dependency source
   (or write a five-line probe) before designing around its behavior - observer
   order is arbitrary; observer-queued commands apply BEFORE the queue's remaining
   pending commands; a bcs `On<Insert>` observer `.unwrap()`s the asset, so
@@ -538,8 +541,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   A reasoned verdict about engine semantics is a hypothesis, not evidence - and
   a NONEXISTENCE claim from a workspace-only grep is worse: existence greps must
   include the dependency checkouts (a "stale" comment named a bcs observer that
-  exists and is load-bearing). 20260525-133004, 20260712-115902, 20260525-133017,
-  20260716-162701.
+  exists and is load-bearing). FAILURE-MODE claims are the same class: "X would
+  crash" written from wgpu folklore was wrong twice in one task (bevy's skybox
+  sanity check warn_once's and SKIPS a non-Cube view; AssetMut queues Modified
+  only on an actual write) - read the consumer that produces the claimed
+  failure and cite its file:line. 20260525-133004, 20260712-115902,
+  20260525-133017, 20260716-162701, 20260717-013440.
 - `advertised-but-unwired` (x3): a config surface is not a capability until its
   producer/consumer wiring, data source, and runtime preconditions are
   verified in the new context. 20260712-093044, 20260712-093831.
@@ -763,14 +770,16 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   to an observer many headless section rigs run); the sibling `muzzle_effect`
   snapshots the ref UNRESOLVED at build and resolves in a render-time observer.
   Caught in self-review by comparing to the sibling, not by a test. 20260717-002228.
-- `piped-cargo-masks-exit-code` (x2): `cargo ... | tail`/`| grep` reports the
+- `piped-cargo-masks-exit-code` (x3, -> Pending promotions): `cargo ... | tail`/`| grep` reports the
   PIPELINE's exit (tail/grep = 0), so a compile FAILURE reads as "exit 0" in the
   harness notification; read the OUTPUT text for `error[`/`could not compile` vs
   `Finished`, or `set -o pipefail`. Bit twice in one task - a masked E0593 in a
   `| tail` build (surfaced only on the next `cargo run`) and a feature-gated
-  Serialize error under `cargo test -p nova_scenario | tail`. Sibling of
-  `warnings-clean-before-land` (error-only greps hide warnings; pipes hide the
-  exit code too). 20260717-002228.
+  Serialize error under `cargo test -p nova_scenario | tail`. A trailing
+  `echo EXIT: ${PIPESTATUS[0]}` masks the same way - the harness reads the
+  LAST command's exit, so print nothing after cargo (or `set -o pipefail`).
+  Sibling of `warnings-clean-before-land` (error-only greps hide warnings;
+  pipes hide the exit code too). 20260717-002228, 20260717-013440.
 
 ## Domain lessons (nova-protocol specific)
 
@@ -892,6 +901,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   need workspace feature unification); run with `--features serde`, a unifying
   sibling, or workspace-wide. Grep this ledger for the crate before crate-scoped
   runs. See the main-list entry. 20260716-125856, 20260716-155830, 20260716-231855.
+
+- `piped-cargo-masks-exit-code` (x3) -> work skill / AGENTS.md: never end a
+  cargo command with tail/grep/echo that eats its exit code - the harness
+  reads the LAST command's exit, so a compile failure reports as success; run
+  cargo bare (backgrounded) and read the output text, or `set -o pipefail`.
+  See the main-list entry. 20260717-002228 (x2 in one task), 20260717-013440.
 
 - `tatr-same-second-collision` (x7) -> tatr skill / AGENTS.md: never issue two
   `tatr new` calls in the same second or one bash line - they share a
