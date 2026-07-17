@@ -1,7 +1,8 @@
 // Hand-authored example mod: the Kenney craft_cargoB reassembled from its
-// cut hull cubes (scripts/cut-obj-into-hulls.py), every piece an inline Hull
-// section. The cube meshes are shipped by this mod under gltf/ (self://).
-// The ship is yawed 180 (rotation (0,1,0,0)) so it faces +Z (forward).
+// cut hull cubes (scripts/cut-obj-into-hulls.py, grid Y lowered 0.3 via
+// --center 0,-0.3,0), every piece an inline Hull section. The cube meshes are
+// shipped by this mod under gltf/ (self://). The ship is yawed 180
+// (rotation (0,1,0,0)) so it faces +Z (forward).
 [
     Scenario((
         id: "craft_cargob_reconstruct",
@@ -57,23 +58,6 @@
                                     )),
                                 ),
                                 (
-                                    id: "cube_i0_j0_k2",
-                                    position: (0.0, 0.0, 2.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j0_k2",
-                                            name: "Cargo Cube (0,0,2)",
-                                            description: "A cut hull cube of the Kenney craft_cargoB.",
-                                            mass: 1.0,
-                                            health: 100.0,
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/cube_i0_j0_k2.glb#Scene0"),
-                                        )),
-                                    )),
-                                ),
-                                (
                                     id: "cube_i0_j0_km1",
                                     position: (0.0, 0.0, -1.0),
                                     rotation: (0.0, 0.0, 0.0, 1.0),
@@ -108,19 +92,19 @@
                                     )),
                                 ),
                                 (
-                                    id: "cube_i0_j1_k0",
-                                    position: (0.0, 1.0, 0.0),
+                                    id: "cube_i0_j1_k1",
+                                    position: (0.0, 1.0, 1.0),
                                     rotation: (0.0, 0.0, 0.0, 1.0),
                                     source: Inline((
                                         base: (
-                                            id: "cube_i0_j1_k0",
-                                            name: "Cargo Cube (0,1,0)",
+                                            id: "cube_i0_j1_k1",
+                                            name: "Cargo Cube (0,1,1)",
                                             description: "A cut hull cube of the Kenney craft_cargoB.",
                                             mass: 1.0,
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("self://gltf/cube_i0_j1_k0.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i0_j1_k1.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -138,23 +122,6 @@
                                         ),
                                         kind: Hull((
                                             render_mesh: Some("self://gltf/cube_i0_j1_k2.glb#Scene0"),
-                                        )),
-                                    )),
-                                ),
-                                (
-                                    id: "cube_i0_j1_km1",
-                                    position: (0.0, 1.0, -1.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j1_km1",
-                                            name: "Cargo Cube (0,1,-1)",
-                                            description: "A cut hull cube of the Kenney craft_cargoB.",
-                                            mass: 1.0,
-                                            health: 100.0,
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/cube_i0_j1_km1.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -223,6 +190,40 @@
                                         ),
                                         kind: Hull((
                                             render_mesh: Some("self://gltf/cube_i0_j2_k2.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_i0_j2_km1",
+                                    position: (0.0, 2.0, -1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_i0_j2_km1",
+                                            name: "Cargo Cube (0,2,-1)",
+                                            description: "A cut hull cube of the Kenney craft_cargoB.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_i0_j2_km1.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_i0_j2_km2",
+                                    position: (0.0, 2.0, -2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_i0_j2_km2",
+                                            name: "Cargo Cube (0,2,-2)",
+                                            description: "A cut hull cube of the Kenney craft_cargoB.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_i0_j2_km2.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -448,6 +449,40 @@
                                     )),
                                 ),
                                 (
+                                    id: "cube_i1_j2_km1",
+                                    position: (1.0, 2.0, -1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_i1_j2_km1",
+                                            name: "Cargo Cube (1,2,-1)",
+                                            description: "A cut hull cube of the Kenney craft_cargoB.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_i1_j2_km1.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_i1_j2_km2",
+                                    position: (1.0, 2.0, -2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_i1_j2_km2",
+                                            name: "Cargo Cube (1,2,-2)",
+                                            description: "A cut hull cube of the Kenney craft_cargoB.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_i1_j2_km2.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
                                     id: "cube_im1_j0_k0",
                                     position: (-1.0, 0.0, 0.0),
                                     rotation: (0.0, 0.0, 0.0, 1.0),
@@ -665,6 +700,40 @@
                                         ),
                                         kind: Hull((
                                             render_mesh: Some("self://gltf/cube_im1_j2_k2.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_im1_j2_km1",
+                                    position: (-1.0, 2.0, -1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_im1_j2_km1",
+                                            name: "Cargo Cube (-1,2,-1)",
+                                            description: "A cut hull cube of the Kenney craft_cargoB.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_im1_j2_km1.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_im1_j2_km2",
+                                    position: (-1.0, 2.0, -2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_im1_j2_km2",
+                                            name: "Cargo Cube (-1,2,-2)",
+                                            description: "A cut hull cube of the Kenney craft_cargoB.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_im1_j2_km2.glb#Scene0"),
                                         )),
                                     )),
                                 ),
