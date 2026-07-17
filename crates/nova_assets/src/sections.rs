@@ -161,10 +161,17 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 projectile_render_mesh: None,
                 muzzle_effect: None,
                 // ~5s of sustained fire at 100 rounds/s. Generous on purpose:
-                // finite ammo lands before its reload (task 20260708-162005),
-                // so the player should feel the limit without running dry in a
+                // the player should feel the limit without running dry in a
                 // normal engagement. Playtest knob.
                 ammo_capacity: Some(500),
+                // Discrete auto-reload: dump the magazine, then a ~3s cycle
+                // refills it to full. Running dry is a brief cadence beat, never
+                // a death, so finite ammo is safe to turn on (task 20260717-085640).
+                reload: Some(SectionReloadConfig {
+                    reload_time: 3.0,
+                    rounds_per_cycle: 500,
+                    only_when_empty: true,
+                }),
             }),
         },
         SectionConfig {
@@ -226,6 +233,12 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 // ~6s of fire at 25 rounds/s. Scavenger grade: a shorter fight
                 // before the pirate's guns run dry. Playtest knob.
                 ammo_capacity: Some(150),
+                // Discrete auto-reload, ~2.5s to refill after running dry.
+                reload: Some(SectionReloadConfig {
+                    reload_time: 2.5,
+                    rounds_per_cycle: 150,
+                    only_when_empty: true,
+                }),
             }),
         },
         SectionConfig {
@@ -255,8 +268,16 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 blast_effect: None,
                 launch_effect: None,
                 // A small salvo of torpedoes before the bay is spent. Playtest
-                // knob; reloading is task 20260708-162005.
+                // knob.
                 ammo_capacity: Some(6),
+                // Continuous rearm: the bay regrows one torpedo every ~4s up to
+                // capacity, so a spent bay slowly comes back rather than
+                // dumping-and-refilling all at once (task 20260717-085640).
+                reload: Some(SectionReloadConfig {
+                    reload_time: 4.0,
+                    rounds_per_cycle: 1,
+                    only_when_empty: false,
+                }),
             }),
         },
     ]

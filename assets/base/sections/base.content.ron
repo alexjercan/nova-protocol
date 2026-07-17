@@ -84,6 +84,11 @@
             bullet_damage: 4.0,
             bullet_kind: Kinetic,
             ammo_capacity: Some(500),
+            reload: Some((
+                reload_time: 3.0,
+                rounds_per_cycle: 500,
+                only_when_empty: true,
+            )),
         )),
     )),
     Section((
@@ -145,6 +150,11 @@
             bullet_damage: 3.825,
             bullet_kind: Kinetic,
             ammo_capacity: Some(150),
+            reload: Some((
+                reload_time: 2.5,
+                rounds_per_cycle: 150,
+                only_when_empty: true,
+            )),
         )),
     )),
     Section((
@@ -179,6 +189,11 @@
             blast_radius: 30.0,
             blast_damage: 100.0,
             ammo_capacity: Some(6),
+            reload: Some((
+                reload_time: 4.0,
+                rounds_per_cycle: 1,
+                only_when_empty: false,
+            )),
         )),
     )),
 ]

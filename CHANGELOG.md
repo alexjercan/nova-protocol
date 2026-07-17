@@ -14,6 +14,7 @@ tagged **(breaking)**.
 
 ### Combat & Weapons
 
+- Weapons auto-reload: a magazine that runs dry now refills on its own instead of leaving the weapon dead for the rest of the scenario. The PDC turrets dump their magazine then reload to full after a few seconds; the torpedo bay slowly rearms one torpedo at a time. Because a spent weapon always comes back, magazine size is now a fire-pacing beat rather than a hard fail, so finite ammo is on by default - the New Game (Shakedown Run) player flies with real ammo and the diegetic ammo readout instead of the old unlimited-ammo intro.
 - Locking is no longer instant: once the radar settles on a target you now hold steady through a short lock-on dwell before it commits, and the dwell is longer the farther away the target is. Sweeping off the target before it fills cancels the acquisition, and re-designating to a new target earns a fresh dwell while the old lock holds - so a lock is something you earn by keeping the target under your aim, not granted the moment you point at it.
 
 ### Scenarios & Objectives

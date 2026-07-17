@@ -113,6 +113,15 @@ pub struct TorpedoSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub ammo_capacity: Option<u32>,
+    /// Auto-reload for the bay. `None` = no reload (a spent bay stays empty).
+    /// `Some` attaches a [`SectionReload`] alongside the `SectionAmmo`, so it
+    /// only applies when `ammo_capacity` is also `Some`; an unlimited bay never
+    /// reloads. Task 20260717-085640.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub reload: Option<SectionReloadConfig>,
 }
 
 impl Default for TorpedoSectionConfig {
@@ -135,6 +144,7 @@ impl Default for TorpedoSectionConfig {
             blast_effect: None,
             launch_effect: None,
             ammo_capacity: None,
+            reload: None,
         }
     }
 }
@@ -470,6 +480,12 @@ fn insert_torpedo_section(
     // the bay unlimited, matching the pre-ammo behavior.
     if let Some(capacity) = config.ammo_capacity {
         commands.entity(entity).insert(SectionAmmo::new(capacity));
+        // Auto-reload rides on the magazine: only a finite bay can rearm.
+        if let Some(reload) = config.reload {
+            commands
+                .entity(entity)
+                .insert(SectionReload::from_config(reload));
+        }
     }
 }
 
@@ -856,6 +872,35 @@ mod tests {
         assert!(
             torpedo_count(&mut app) > 2,
             "an unlimited bay must not be capped at a magazine size, got {}",
+            torpedo_count(&mut app)
+        );
+    }
+
+    #[test]
+    fn a_regenerating_bay_rearms_and_launches_past_its_magazine() {
+        // End-to-end recovery for continuous regen (the torpedo tuning): a spent
+        // 2-torpedo bay regrows rounds over time and launches MORE than its
+        // magazine, versus the no-reload rig above which caps at 2 forever
+        // (task 20260717-085640).
+        let mut app = firing_app(2.0);
+        app.add_systems(Update, crate::sections::ammo::tick_section_reload);
+        let section = spawn_firing_bay(&mut app, Some(2));
+        // Regen one round per ~0.2s cycle (under the 0.25s per-tick clamp).
+        app.world_mut()
+            .entity_mut(section)
+            .insert(SectionReload::from_config(SectionReloadConfig {
+                reload_time: 0.2,
+                rounds_per_cycle: 1,
+                only_when_empty: false,
+            }));
+
+        for _ in 0..12 {
+            app.update();
+        }
+
+        assert!(
+            torpedo_count(&mut app) > 2,
+            "a regenerating bay must rearm and launch past its magazine, got {}",
             torpedo_count(&mut app)
         );
     }

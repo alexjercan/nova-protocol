@@ -121,6 +121,12 @@ pub struct SpaceshipSectionPlugin {
 impl Plugin for SpaceshipSectionPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<ammo::SectionAmmo>();
+        app.register_type::<ammo::SectionReload>();
+        // Auto-reload/regen: advance every weapon section's reload cycle and
+        // refill its magazine on the fixed clock the fire systems consume on.
+        // Add-only vs the consume in `shoot_spawn_projectile`, so no ordering is
+        // needed against them (task 20260717-085640).
+        app.add_systems(FixedUpdate, ammo::tick_section_reload);
         app.add_plugins((
             hull_section::HullSectionPlugin {
                 render: self.render,

@@ -1,6 +1,6 @@
 # Weapon reload/regen mechanic so finite ammo is non-terminal
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 34
 - TAGS: v0.7.0,weapons,spike
 
@@ -29,7 +29,7 @@ that is the sibling task (20260716-123556) that surfaces it on the ring/bar.
 
 ## Steps
 
-- [ ] Add a `SectionReload` component in
+- [x] Add a `SectionReload` component in
   `crates/nova_gameplay/src/sections/ammo.rs` (prelude-exported alongside
   `SectionAmmo`), holding the reload descriptor + runtime progress:
   `reload_time: f32` (seconds per cycle), `rounds_per_cycle: u32` (rounds a
@@ -38,14 +38,14 @@ that is the sibling task (20260716-123556) that surfaces it on the ring/bar.
   continuous regen whenever below capacity = A1), and runtime `elapsed: f32`.
   Add a ctor and a `progress(&self) -> f32` = `(elapsed / reload_time).clamp(0,1)`
   for the HUD. Derive `Component, Clone, Copy, Debug, Reflect`.
-- [ ] Add a `tick_section_reload` system in `ammo.rs` over
+- [x] Add a `tick_section_reload` system in `ammo.rs` over
   `Query<(&mut SectionAmmo, &mut SectionReload)>` + `Res<Time>`: if
   `rounds >= capacity` reset `elapsed = 0`; else if `only_when_empty && rounds > 0`
   reset `elapsed = 0` (waiting to run dry); else advance `elapsed += dt` and on
   `elapsed >= reload_time` do `rounds = (rounds + rounds_per_cycle).min(capacity)`
   and `elapsed -= reload_time`. Pure timer + refill on the documented
   `rounds = capacity` seam; adds rounds only, never removes.
-- [ ] Register the type and schedule the system in
+- [x] Register the type and schedule the system in
   `SpaceshipSectionPlugin::build` (`sections/mod.rs:121`, next to the existing
   `register_type::<ammo::SectionAmmo>()`): `register_type::<ammo::SectionReload>()`
   and `add_systems(FixedUpdate, tick_section_reload)`. FixedUpdate so refill
@@ -53,7 +53,7 @@ that is the sibling task (20260716-123556) that surfaces it on the ring/bar.
   `Res<Time>` there is the fixed clock. Ordering vs the shoot systems is not
   required (add-only vs consume-only on the same component in the same schedule);
   note this in a comment.
-- [ ] Add reload config to `TurretSectionConfig`
+- [x] Add reload config to `TurretSectionConfig`
   (`turret_section.rs:33`/Default `:160`): a single optional
   `reload: Option<SectionReloadConfig>` (or flat `reload_time`/`rounds_per_cycle`/
   `only_when_empty` fields), `serde(default, skip_serializing_if=...)`, Default
@@ -62,10 +62,10 @@ that is the sibling task (20260716-123556) that surfaces it on the ring/bar.
   `if let Some(capacity) = config.ammo_capacity` block) so a weapon with no
   magazine (unlimited / `infinite_ammo`) never gets a reload either - the
   "no `SectionAmmo` = unlimited" invariant is preserved untouched.
-- [ ] Mirror the same config field + attach in `TorpedoSectionConfig`
+- [x] Mirror the same config field + attach in `TorpedoSectionConfig`
   (`torpedo_section/mod.rs:115`/Default `:137`) and its build site
   (`torpedo_section/mod.rs:471`, inside the `ammo_capacity` block).
-- [ ] Set forgiving catalog defaults in `crates/nova_assets/src/sections.rs`:
+- [x] Set forgiving catalog defaults in `crates/nova_assets/src/sections.rs`:
   `better_turret_section` (500 rounds, `:167`) and `light_turret_section`
   (150 rounds, `:228`) get a discrete on-empty full reload
   (`only_when_empty: true`, `rounds_per_cycle: capacity`, `reload_time` ~2.5-3s -
@@ -73,13 +73,13 @@ that is the sibling task (20260716-123556) that surfaces it on the ring/bar.
   rearm (`only_when_empty: false`, `rounds_per_cycle: 1`, `reload_time` ~4s) so a
   spent bay steadily rearms. Mirror in the RON catalog
   `assets/base/sections/base.content.ron` (turret `:86`/`:147`, torpedo `:181`).
-- [ ] Flip the proof scenario off infinite ammo: set `infinite_ammo: false` in
+- [x] Flip the proof scenario off infinite ammo: set `infinite_ammo: false` in
   both `assets/base/scenarios/shakedown_run.content.ron:37` and the Rust builder
   `crates/nova_assets/src/scenario/shakedown.rs:415`. Invert the guarding test
   `the_new_game_player_has_infinite_ammo` (`shakedown.rs:2066`) to assert finite
   ammo (rename accordingly); it exists precisely so the flag cannot flip
   silently, so it must move with the decision.
-- [ ] Tests (headless, in `ammo.rs`): (1) a discrete on-empty `SectionReload`
+- [x] Tests (headless, in `ammo.rs`): (1) a discrete on-empty `SectionReload`
   does NOT tick while `rounds > 0`, then after the magazine empties, `reload_time`
   of ticks refills `rounds` to `capacity`. (2) a continuous regen
   (`only_when_empty: false, rounds_per_cycle: 1`) adds exactly one round per
@@ -90,7 +90,7 @@ that is the sibling task (20260716-123556) that surfaces it on the ring/bar.
   `turret_section.rs:1724`). Also add/adjust a turret + torpedo build test
   asserting `SectionReload` is attached iff `ammo_capacity` is `Some` and reload
   is configured.
-- [ ] Docs: `tasks/20260717-085640/NOTES.md` - the mechanism (one timer, two
+- [x] Docs: `tasks/20260717-085640/NOTES.md` - the mechanism (one timer, two
   behaviors via `only_when_empty`/`rounds_per_cycle`), why FixedUpdate + add-only
   avoids a schedule conflict with consume, the catalog tuning chosen and why,
   and the shakedown flip. Append a Fix record line to
@@ -116,3 +116,26 @@ that is the sibling task (20260716-123556) that surfaces it on the ring/bar.
 - Open question for playtest: trigger reload strictly on-empty vs on idle-since-
   last-shot (avoids mid-burst stutter with small mags). One-line difference.
 - Stepless: run /plan before /work (tatr convention).
+
+## Implementation record
+
+Landed on branch `feature/ammo-reload`. `SectionReload`/`SectionReloadConfig`
++ `tick_section_reload` (FixedUpdate, add-only) in `sections/ammo.rs`; `reload`
+config on turret/torpedo attached alongside `SectionAmmo`; forgiving catalog
+defaults (turrets discrete reload-to-full ~3s/~2.5s, torpedo bay continuous
+1/4s regen) in `nova_assets/sections.rs` + the RON mirror; Shakedown Run flipped
+to finite ammo (RON + Rust builder + inverted guard test). Design, the
+FixedUpdate/add-only reasoning, the `Time<Virtual>` `max_delta` test-clock
+gotcha, and self-reflection are in `tasks/20260717-085640/NOTES.md`.
+
+Chose the on-empty vs idle-timeout open question in favor of a plain
+`only_when_empty` flag (on-empty for turrets, continuous regen for the bay)
+rather than an idle timer - simpler, and mid-burst stutter is avoided by
+generous magazines rather than a delay. Docs updated: CHANGELOG, dev wiki
+`sections.md` + `guide-author-section.md`, spike Fix record.
+
+Verification (per the standing skip-local-full-suite instruction): `cargo check
+--workspace --all-targets` clean (no warnings in touched crates); `cargo fmt`
+clean; new + affected tests green - `sections::ammo` 9/9, the two fire->reload
+integration tests, `content_ron_parity` 2/2, `content_lint_gate` 2/2, the
+inverted shakedown guard. Full suite runs in CI.

@@ -147,6 +147,12 @@ kind: Turret((
   `DamageType` variants).
 - `ammo_capacity` (optional) - magazine size; `None` fires without a limit,
   `Some(n)` gives an ammo slot of `n` rounds.
+- `reload` (optional) - auto-reload for the magazine (needs `ammo_capacity`).
+  `Some((reload_time, rounds_per_cycle, only_when_empty))`: a completed
+  `reload_time` cycle restores `rounds_per_cycle` rounds (clamped to capacity).
+  `only_when_empty: true` with `rounds_per_cycle` = capacity is discrete
+  reload-on-empty; `only_when_empty: false` with `rounds_per_cycle: 1` is
+  continuous per-round regen. `None` = a spent magazine stays empty.
 
 ## Torpedo
 
@@ -192,6 +198,9 @@ kind: Torpedo((
 - `blast_effect`, `launch_effect` (both optional) - custom particle effects;
   omit for the built-in bursts.
 - `ammo_capacity` (optional) - magazine size in torpedoes; `None` for unlimited.
+- `reload` (optional) - auto-reload for the bay (needs `ammo_capacity`); same
+  `Some((reload_time, rounds_per_cycle, only_when_empty))` shape as the turret.
+  The shipped bay uses continuous regen (one torpedo every few seconds).
 
 ## A section in a mod
 

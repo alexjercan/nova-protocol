@@ -131,6 +131,15 @@ pub struct TurretSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub ammo_capacity: Option<u32>,
+    /// Auto-reload for the magazine. `None` = no reload (a spent magazine stays
+    /// empty - the pre-reload behavior). `Some` attaches a [`SectionReload`]
+    /// alongside the `SectionAmmo`, so it only applies when `ammo_capacity` is
+    /// also `Some`; an unlimited turret never reloads. Task 20260717-085640.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub reload: Option<SectionReloadConfig>,
 }
 
 impl Default for TurretSectionConfig {
@@ -158,6 +167,7 @@ impl Default for TurretSectionConfig {
             projectile_render_mesh: None,
             muzzle_effect: None,
             ammo_capacity: None,
+            reload: None,
         }
     }
 }
@@ -552,6 +562,13 @@ fn insert_turret_section(
     // with the query it already runs. `None` leaves the turret unlimited.
     if let Some(capacity) = config.ammo_capacity {
         commands.entity(turret).insert(SectionAmmo::new(capacity));
+        // Auto-reload rides on the magazine: only a finite turret can reload, so
+        // an unlimited one (config.reload set but ammo_capacity None) gets none.
+        if let Some(reload) = config.reload {
+            commands
+                .entity(turret)
+                .insert(SectionReload::from_config(reload));
+        }
     }
 }
 
@@ -1867,6 +1884,37 @@ mod tests {
         assert!(
             bullet_count(&mut app) > 3,
             "an unlimited turret must not be capped at a magazine size, got {}",
+            bullet_count(&mut app)
+        );
+    }
+
+    #[test]
+    fn an_auto_reloading_turret_fires_again_after_running_dry() {
+        // End-to-end recovery: a finite turret fires out its 3-round magazine,
+        // then the reload cycle refills it and it fires MORE than one magazine
+        // over time - the whole point of auto-reload (task 20260717-085640).
+        // Contrast with `a_turret_with_ammo_fires_exactly_its_magazine_then_stops`,
+        // the same rig with no reload, which caps at 3 forever.
+        let mut app = firing_app(1.0);
+        app.add_systems(Update, crate::sections::ammo::tick_section_reload);
+        let turret = spawn_firing_turret(&mut app, Some(3));
+        // Discrete reload; ~0.2s is under the clock's 0.25s per-tick clamp so a
+        // spent magazine refills within a couple of updates.
+        app.world_mut()
+            .entity_mut(turret)
+            .insert(SectionReload::from_config(SectionReloadConfig {
+                reload_time: 0.2,
+                rounds_per_cycle: 3,
+                only_when_empty: true,
+            }));
+
+        for _ in 0..20 {
+            app.update();
+        }
+
+        assert!(
+            bullet_count(&mut app) > 3,
+            "an auto-reloading turret must fire past a single magazine, got {}",
             bullet_count(&mut app)
         );
     }

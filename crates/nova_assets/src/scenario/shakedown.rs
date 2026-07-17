@@ -409,10 +409,13 @@ fn player_ship() -> ScenarioObjectConfig {
                 )]),
 
                 speed_cap: Some(PLAYER_SPEED_CAP),
-                // The first/New Game scenario: unlimited ammo so the intro is
-                // not gated on running dry before a reload mechanic exists
-                // (task 20260712-140250).
-                infinite_ammo: true,
+                // Finite ammo: the catalog weapons now auto-reload (task
+                // 20260717-085640), so a spent magazine recovers on its own and
+                // the intro is no longer gated on running dry. The player sees
+                // the diegetic ammo readout and the reload cadence from the very
+                // first scenario (task 20260712-140250 flipped this off once a
+                // reload mechanic existed).
+                infinite_ammo: false,
             }),
             sections: vec![
                 controller,
@@ -2057,13 +2060,15 @@ mod tests {
         }
     }
 
-    /// The first/New Game scenario must not gate the player on ammo
-    /// (task 20260712-140250): guard that the player ship is actually built
-    /// with `infinite_ammo` ON, so it cannot be silently turned off. Fails if
-    /// the flag is dropped or flipped - the mechanism test in nova_scenario
-    /// would still pass, so this is the one that pins the user-facing behavior.
+    /// The first/New Game scenario runs FINITE ammo now that catalog weapons
+    /// auto-reload (task 20260717-085640): guard that the player ship is built
+    /// with `infinite_ammo` OFF, so the flag cannot be silently turned back on
+    /// and hide the ammo readout / reload cadence. Fails if the flag is flipped -
+    /// the mechanism test in nova_scenario would still pass, so this is the one
+    /// that pins the user-facing behavior (was ON before the reload mechanic,
+    /// task 20260712-140250).
     #[test]
-    fn the_new_game_player_has_infinite_ammo() {
+    fn the_new_game_player_has_finite_reloading_ammo() {
         let player = player_ship();
         let ScenarioObjectKind::Spaceship(config) = player.kind else {
             panic!("the player object must be a spaceship");
@@ -2072,8 +2077,8 @@ mod tests {
             panic!("the player ship must be player-controlled");
         };
         assert!(
-            controller.infinite_ammo,
-            "the New Game player must have infinite ammo"
+            !controller.infinite_ammo,
+            "the New Game player must have finite (auto-reloading) ammo"
         );
     }
 

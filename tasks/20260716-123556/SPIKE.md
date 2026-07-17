@@ -238,4 +238,10 @@ switching input (the `LoadedBullet` swap seam, already architected).
 
 ## Fix record
 
-(Appended by each implementing task as it lands.)
+- 20260717-085640 (reload mechanic): shipped `SectionReload` + `tick_section_reload`
+  (FixedUpdate, add-only), a `reload` config on turret/torpedo built alongside
+  `SectionAmmo`, forgiving catalog defaults (turrets discrete reload-to-full ~3s;
+  torpedo bay continuous 1/4s regen), and flipped Shakedown Run to finite ammo.
+  One timer yields both A3 (discrete on-empty) and A1 (regen) via
+  `only_when_empty`/`rounds_per_cycle`. `progress()` exposes the reload state for
+  the readout task. Details: tasks/20260717-085640/NOTES.md.

@@ -34,7 +34,7 @@
                                     ],
                                 },
                                 speed_cap: Some(25.0),
-                                infinite_ammo: true,
+                                infinite_ammo: false,
                             )),
                             sections: [
                                 (
