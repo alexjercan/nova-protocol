@@ -1388,6 +1388,53 @@ fn update_fire_cadence(
     }
 }
 
+/// Whether the straight line from `origin` to `aim` is blocked by a tangible
+/// collider belonging to neither the shooter nor the target.
+///
+/// The ray IS the bullet's path: turrets steer to the LEADED aim point, so
+/// occlusion is judged against that line, not the target's current position.
+/// A hit that resolves to the TARGET's own body (a slow or near target whose
+/// collider straddles the line before the lead point) is not occlusion.
+/// Sensor colliders are transparent to the ray for the same reason they are
+/// transparent to rounds (`despawn_bullet_on_hit` skips sensors): a beacon's
+/// trigger sphere or a blast shell must not read as cover. The shooter's own
+/// colliders are transparent too - the muzzle sits on its hull.
+///
+/// An unattributable tangible hit (no [`ColliderOf`]) counts as blocked:
+/// failing closed holds one burst, failing open shoots through a wall.
+///
+/// The collider trees are maintained by the physics schedule, so this
+/// Update-schedule reader sees poses at most one physics tick stale; for a
+/// fire gate the cost is a one-frame-late hold or release at a cover edge,
+/// never a wrong sustained decision.
+fn ai_line_of_fire_blocked(
+    spatial: &SpatialQuery,
+    q_sensor: &Query<(), With<Sensor>>,
+    q_collider_of: &Query<&ColliderOf>,
+    shooter: Entity,
+    target: Entity,
+    origin: Vec3,
+    aim: Vec3,
+) -> bool {
+    let to_aim = aim - origin;
+    let Ok(direction) = Dir3::new(to_aim) else {
+        // Degenerate line (aim on the muzzle): nothing to occlude.
+        return false;
+    };
+    let body_of = |collider: Entity| q_collider_of.get(collider).map(|of| of.body);
+    spatial
+        .cast_ray_predicate(
+            origin,
+            direction,
+            to_aim.length(),
+            true,
+            &SpatialQueryFilter::default(),
+            // Predicate false = the collider is transparent to the ray.
+            &|collider| !q_sensor.contains(collider) && body_of(collider) != Ok(shooter),
+        )
+        .is_some_and(|hit| body_of(hit.entity) != Ok(target))
+}
+
 fn on_projectile_input(
     mut q_turret: Query<
         (
@@ -1411,6 +1458,9 @@ fn on_projectile_input(
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
+    spatial: SpatialQuery,
+    q_sensor: Query<(), With<Sensor>>,
+    q_collider_of: Query<&ColliderOf>,
 ) {
     for (entity, state, target, pd_target, cadence) in &q_spaceship {
         // Same gun-target resolution as the aim system: PDC override first,
@@ -1460,7 +1510,31 @@ fn on_projectile_input(
             let forward = muzzle_transform.forward();
 
             let alignment = forward.dot(direction_to_aim);
-            **input = alignment > AI_FIRE_ALIGNMENT;
+            if alignment <= AI_FIRE_ALIGNMENT {
+                **input = false;
+                continue;
+            }
+
+            // Line-of-fire gate, last so only a shot that would otherwise
+            // fire pays for the ray. Point defense is exempt: inbound
+            // ordnance is hunting THIS ship, so its line is short, closing,
+            // and the one case where a wasted round beats a held trigger.
+            // target_anchor came through ai_target_anchor, so gun_target is
+            // Some here; the else arm is unreachable belt-and-braces.
+            let Some(gun_target) = gun_target else {
+                **input = false;
+                continue;
+            };
+            **input = defending
+                || !ai_line_of_fire_blocked(
+                    &spatial,
+                    &q_sensor,
+                    &q_collider_of,
+                    entity,
+                    gun_target,
+                    muzzle_position,
+                    aim,
+                );
         }
     }
 }
@@ -1535,8 +1609,10 @@ fn ai_torpedo_envelope(to_target: Vec3, forward: Vec3, blast_radius: f32) -> boo
 /// Engage-like state - Evade excluded, a jinking hull is no launch
 /// platform (Retreat inherits, per its stub) - and a SHIP target: hostile
 /// torpedoes are the guns' job (point defense), not worth a bay's ordnance.
-/// Per bay: the launch cadence elapsed and the envelope
-/// ([`ai_torpedo_envelope`]) open from the ship's anchor.
+/// Per ship: the line of fire clear ([`ai_line_of_fire_blocked`]) - no
+/// torpedo spent on the cover between the bay and the target. Per bay: the
+/// launch cadence elapsed and the envelope ([`ai_torpedo_envelope`]) open
+/// from the ship's anchor.
 #[allow(clippy::type_complexity)]
 fn update_torpedo_section_input(
     time: Res<Time>,
@@ -1563,6 +1639,9 @@ fn update_torpedo_section_input(
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
     q_ship_root: Query<(), With<SpaceshipRootMarker>>,
+    spatial: SpatialQuery,
+    q_sensor: Query<(), With<Sensor>>,
+    q_collider_of: Query<&ColliderOf>,
 ) {
     // Arm AI bays with their launch state, lazily: at section-spawn time
     // "is this an AI ship" is not answerable yet (see [`AITorpedoBay`]),
@@ -1577,9 +1656,31 @@ fn update_torpedo_section_input(
         let engaged = state.engages() && *state != AIBehaviorState::Evade;
         // The launch bearing runs anchor to anchor, like every AI vector.
         let own_anchor = live_structure_anchor(transform, com);
-        let target_anchor = (**target)
-            .filter(|&target| q_ship_root.contains(target))
-            .and_then(|target| ai_target_anchor(Some(target), &q_target));
+        let target_ship = (**target).filter(|&target| q_ship_root.contains(target));
+        let target_anchor =
+            target_ship.and_then(|target| ai_target_anchor(Some(target), &q_target));
+        // Line-of-fire gate, memoized so the ship casts AT MOST one ray per
+        // frame (every bay launches down the same anchor-to-anchor bearing)
+        // and none at all while the cheap per-bay gates hold the trigger
+        // anyway (R1.1). A torpedo PN-navigates, so the straight ray is
+        // conservative - it can hold a launch that would have curved around
+        // a rock's edge; the cost is a delayed launch, never a torpedo
+        // spent on cover.
+        let mut line_clear: Option<bool> = None;
+        let mut line_clear = |own_anchor: Vec3| {
+            *line_clear.get_or_insert_with(|| match (target_ship, target_anchor) {
+                (Some(target_ship), Some(anchor)) => !ai_line_of_fire_blocked(
+                    &spatial,
+                    &q_sensor,
+                    &q_collider_of,
+                    entity,
+                    target_ship,
+                    own_anchor,
+                    anchor,
+                ),
+                _ => false,
+            })
+        };
 
         for (mut input, mut bay, config, _) in q_section
             .iter_mut()
@@ -1597,7 +1698,8 @@ fn update_torpedo_section_input(
                         *transform.forward(),
                         config.blast_radius,
                     )
-                });
+                })
+                && line_clear(own_anchor);
             // Change-detection hygiene, and an explicit release (not a
             // skip) so a bay holding the trigger drops it the moment any
             // gate closes.
@@ -1660,6 +1762,7 @@ fn update_torpedo_target_input(
 
 #[cfg(test)]
 mod behavior_state_tests {
+    use avian3d::collider_tree::ColliderTrees;
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
@@ -1995,6 +2098,9 @@ mod behavior_state_tests {
         // Flip a fully lit ship to Idle with its target still present: every
         // actuator must be explicitly zeroed, not left at its last value.
         let mut world = World::new();
+        // Empty collider trees for the fire gate's SpatialQuery: no
+        // colliders means no occluders, which is this rig's intent.
+        world.init_resource::<ColliderTrees>();
         let player = world
             .spawn((
                 SpaceshipRootMarker,
@@ -3201,6 +3307,7 @@ mod target_selection_tests {
 
 #[cfg(test)]
 mod fire_discipline_tests {
+    use avian3d::collider_tree::ColliderTrees;
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
@@ -3209,6 +3316,10 @@ mod fire_discipline_tests {
     /// muzzle sits at the origin facing -Z. Returns (world, turret, muzzle).
     fn firing_world(target_position: Vec3, target_velocity: Vec3) -> (World, Entity, Entity) {
         let mut world = World::new();
+        // Empty collider trees for the fire gate's SpatialQuery: no
+        // colliders means no occluders. Occlusion itself is covered by the
+        // physics-app tests in `line_of_fire_tests`.
+        world.init_resource::<ColliderTrees>();
         let target = world
             .spawn((
                 SpaceshipRootMarker,
@@ -3352,6 +3463,7 @@ mod fire_discipline_tests {
 
 #[cfg(test)]
 mod point_defense_tests {
+    use avian3d::collider_tree::ColliderTrees;
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
@@ -3409,6 +3521,9 @@ mod point_defense_tests {
     /// (world, ai_ship, player, torpedo, turret).
     fn defended_world() -> (World, Entity, Entity, Entity, Entity) {
         let mut world = World::new();
+        // Empty collider trees for the fire gate's SpatialQuery (no
+        // occluders in this rig; PD bypasses the gate anyway).
+        world.init_resource::<ColliderTrees>();
         let player = world
             .spawn((
                 SpaceshipRootMarker,
@@ -4260,6 +4375,7 @@ mod patrol_physics_tests {
 
 #[cfg(test)]
 mod torpedo_tests {
+    use avian3d::collider_tree::ColliderTrees;
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
@@ -4307,6 +4423,9 @@ mod torpedo_tests {
     fn torpedo_world(target_position: Vec3) -> (World, Entity, Entity, Entity) {
         let mut world = World::new();
         world.init_resource::<Time>();
+        // Empty collider trees for the launch gate's SpatialQuery: no
+        // colliders means a clear line of fire, which is this rig's intent.
+        world.init_resource::<ColliderTrees>();
         let target = world
             .spawn((
                 SpaceshipRootMarker,
@@ -4588,6 +4707,210 @@ mod torpedo_tests {
         assert!(
             !**world.entity(bay_b).get::<TorpedoSectionInput>().unwrap(),
             "ship B has no target: its bay stays released"
+        );
+    }
+}
+
+#[cfg(test)]
+mod line_of_fire_tests {
+    use bevy::ecs::system::RunSystemOnce;
+
+    use super::*;
+    use crate::integrity::test_support::{integrity_physics_app, settle};
+
+    /// A physics app (real avian collider trees, zero gravity, manual
+    /// clock) with an engaged AI ship at the origin whose muzzle faces -Z,
+    /// and a hostile target body dead ahead. The gate reads the SAME
+    /// spatial state production reads; the bare-World rigs in
+    /// `fire_discipline_tests` cover the other gates with empty trees.
+    fn los_app(target_position: Vec3, target_radius: f32) -> (App, Entity, Entity, Entity) {
+        let mut app = integrity_physics_app();
+        let target = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                RigidBody::Dynamic,
+                Collider::sphere(target_radius),
+                Transform::from_translation(target_position),
+                LinearVelocity(Vec3::ZERO),
+            ))
+            .id();
+        let ship = app
+            .world_mut()
+            .spawn((
+                AISpaceshipMarker,
+                AITarget(Some(target)),
+                RigidBody::Dynamic,
+                Collider::sphere(1.0),
+                Transform::default(),
+                LinearVelocity(Vec3::ZERO),
+            ))
+            .id();
+        let muzzle = app
+            .world_mut()
+            .spawn((TurretSectionBarrelMuzzleMarker, GlobalTransform::IDENTITY))
+            .id();
+        let turret = app
+            .world_mut()
+            .spawn((
+                TurretSectionMarker,
+                TurretSectionTargetInput(None),
+                TurretSectionTargetVelocity(Vec3::ZERO),
+                TurretSectionAimPoint(None),
+                TurretSectionConfigHelper(TurretSectionConfig::default()),
+                TurretSectionInput(false),
+                TurretSectionMuzzleEntity(muzzle),
+                ChildOf(ship),
+            ))
+            .id();
+        settle(&mut app);
+        (app, ship, turret, target)
+    }
+
+    /// A tangible static rock: the production shape of authored cover
+    /// (an invulnerable asteroid is a Static body with a plain collider).
+    fn spawn_rock(app: &mut App, position: Vec3, radius: f32) -> Entity {
+        app.world_mut()
+            .spawn((
+                RigidBody::Static,
+                Collider::sphere(radius),
+                Transform::from_translation(position),
+            ))
+            .id()
+    }
+
+    fn fire_decision(app: &mut App, turret: Entity) -> bool {
+        app.world_mut()
+            .run_system_once(on_projectile_input)
+            .unwrap();
+        **app
+            .world()
+            .entity(turret)
+            .get::<TurretSectionInput>()
+            .unwrap()
+    }
+
+    #[test]
+    fn cover_between_muzzle_and_target_holds_fire() {
+        let (mut app, _, turret, _) = los_app(Vec3::new(0.0, 0.0, -100.0), 1.0);
+        let rock = spawn_rock(&mut app, Vec3::new(0.0, 0.0, -50.0), 5.0);
+        settle(&mut app);
+
+        assert!(
+            !fire_decision(&mut app, turret),
+            "a tangible rock on the line of fire must hold the trigger"
+        );
+
+        // Delivery guard, same test: with the rock gone the identical shot
+        // fires - so the hold above was the rock, not a broken rig.
+        app.world_mut().despawn(rock);
+        settle(&mut app);
+        assert!(
+            fire_decision(&mut app, turret),
+            "same geometry without the rock must fire"
+        );
+    }
+
+    #[test]
+    fn sensor_volumes_are_not_cover() {
+        // A scenario trigger area / blast shell: rounds fly through
+        // sensors (despawn_bullet_on_hit skips them), so the gate must
+        // not read one as cover - the R1.1 beacon lesson, ray edition.
+        let (mut app, _, turret, _) = los_app(Vec3::new(0.0, 0.0, -100.0), 1.0);
+        app.world_mut().spawn((
+            RigidBody::Static,
+            Collider::sphere(20.0),
+            Sensor,
+            Transform::from_translation(Vec3::new(0.0, 0.0, -50.0)),
+        ));
+        settle(&mut app);
+
+        assert!(
+            fire_decision(&mut app, turret),
+            "a sensor volume on the line is transparent: fire"
+        );
+    }
+
+    #[test]
+    fn the_targets_own_hull_is_not_cover() {
+        // A big, close target: the ray meets the target's own collider
+        // well before the aim anchor. That is the shot LANDING, not
+        // occlusion.
+        let (mut app, _, turret, _) = los_app(Vec3::new(0.0, 0.0, -100.0), 30.0);
+
+        assert!(
+            fire_decision(&mut app, turret),
+            "hitting the target's own collider first is a hit, not cover"
+        );
+    }
+
+    #[test]
+    fn point_defense_fires_through_cover() {
+        // Inbound ordnance behind a rock: PD is exempt from the gate -
+        // ordnance hunting THIS ship closes the line itself, and a held
+        // trigger is worse than a wasted round.
+        let (mut app, ship, turret, _) = los_app(Vec3::new(0.0, 0.0, -100.0), 1.0);
+        let torpedo = app
+            .world_mut()
+            .spawn((Transform::from_translation(Vec3::new(0.0, 0.0, -100.0)),))
+            .id();
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(AIPointDefenseTarget(Some(torpedo)));
+        spawn_rock(&mut app, Vec3::new(0.0, 0.0, -50.0), 5.0);
+        settle(&mut app);
+
+        assert!(
+            fire_decision(&mut app, turret),
+            "point defense bypasses the line-of-fire gate"
+        );
+    }
+
+    #[test]
+    fn cover_holds_the_torpedo_launch() {
+        // Same geometry as the trigger tests, torpedo side: in-envelope
+        // target (default blast 30 -> min range 90; 300 m dead ahead),
+        // rock on the bearing - the bay must not spend ordnance on cover.
+        let (mut app, ship, _, _) = los_app(Vec3::new(0.0, 0.0, -300.0), 1.0);
+        let bay = app
+            .world_mut()
+            .spawn((
+                torpedo_section(TorpedoSectionConfig::default()),
+                AITorpedoBay::default(),
+                ChildOf(ship),
+            ))
+            .id();
+        let rock = spawn_rock(&mut app, Vec3::new(0.0, 0.0, -150.0), 10.0);
+        settle(&mut app);
+
+        app.world_mut()
+            .run_system_once(update_torpedo_section_input)
+            .unwrap();
+        assert!(
+            !**app
+                .world()
+                .entity(bay)
+                .get::<TorpedoSectionInput>()
+                .unwrap(),
+            "rock on the launch bearing: hold the torpedo"
+        );
+
+        // Delivery guard, same test: the identical launch with the rock
+        // gone goes out (the cadence only resets on an actual launch, so
+        // it is still elapsed here).
+        app.world_mut().despawn(rock);
+        settle(&mut app);
+        app.world_mut()
+            .run_system_once(update_torpedo_section_input)
+            .unwrap();
+        assert!(
+            **app
+                .world()
+                .entity(bay)
+                .get::<TorpedoSectionInput>()
+                .unwrap(),
+            "same envelope without the rock: launch"
         );
     }
 }
