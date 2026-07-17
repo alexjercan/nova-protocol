@@ -24,12 +24,12 @@ the ownership split in spike `tasks/20260717-101524/SPIKE.md`.
 
 A section can declare a sound as an authorable `AssetRef<AudioSource>` content
 field, exactly like it declares a render mesh, and ship + reference it through
-the `self://` / `dep://base` / `dep://<id>` pipeline. The first such field is the
-turret section's `fire_sound` (`TurretSectionConfig::fire_sound`): base turrets
-set it to `self://sounds/turret_fire.wav`, which resolves to the same handle the
-global bank loads, so the base sound is unchanged - but a mod turret can ship and
-name its own weapon sound. When a turret leaves `fire_sound` unset the audio
-observer falls back to the global `WorldSfx::TurretFire` cue. The remaining
+the `self://` / `dep://base` / `dep://<id>` pipeline. The weapon-section family owns
+its sounds this way: the turret's `fire_sound` + `dry_fire_sound` and the
+torpedo bay's `launch_sound` (base sections author `self://sounds/...` for
+each, so the shipped game sounds unchanged - but a mod section can ship and
+name its own). These cues are AUTHORED-OR-SILENT: a section that declares no
+sound plays none (their old `WorldSfx` bank keys are deleted). The remaining
 world cues are migrating onto their owning configs family by family (spike
 20260717-101524); until then they play from the transitional `WorldSfx` bank.
 

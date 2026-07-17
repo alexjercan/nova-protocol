@@ -104,6 +104,18 @@ pub struct TorpedoSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub launch_effect: Option<AssetRef<EffectAsset>>,
+    /// The sound played when a torpedo leaves the bay. An authorable
+    /// [`AssetRef<AudioSource>`] like the meshes/effects (task 20260717-101624,
+    /// spike 20260717-101524): base bays author `self://sounds/torpedo_launch.wav`,
+    /// a mod bay can ship its own. Snapshotted (unresolved) onto the spawner as
+    /// [`TorpedoSectionLaunchSound`]; the audio observer resolves and plays it.
+    /// `None` means no launch sound (authored-or-silent).
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub launch_sound: Option<AssetRef<AudioSource>>,
     /// Magazine size in torpedoes. `None` launches without limit (the pre-ammo
     /// behavior); `Some(n)` gives the bay a [`SectionAmmo`] of `n` torpedoes
     /// that depletes one per launch and blocks firing once empty. Reloading it
@@ -143,6 +155,7 @@ impl Default for TorpedoSectionConfig {
             blast_damage: 100.0,
             blast_effect: None,
             launch_effect: None,
+            launch_sound: None,
             ammo_capacity: None,
             reload: None,
         }
@@ -203,13 +216,21 @@ pub struct TorpedoSectionSpawnerFireState(pub Timer);
 pub struct TorpedoSectionPartOf(pub Entity);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TorpedoSectionSpawnerEntity(Entity);
+pub(crate) struct TorpedoSectionSpawnerEntity(pub(crate) Entity);
 
 /// Holds the configured launch-effect handle on the spawner entity so
 /// `insert_torpedo_spawner_effect` can read it when the spawner is added. `None`
 /// means "build the default burst".
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct TorpedoSectionSpawnerEffect(#[reflect(ignore)] Option<AssetRef<EffectAsset>>);
+
+/// The bay's authored launch sound, snapshotted UNRESOLVED from
+/// [`TorpedoSectionConfig::launch_sound`] onto the spawner entity (exactly like
+/// [`TorpedoSectionSpawnerEffect`] carries the launch effect). The audio module
+/// reaches it from a fired projectile via [`TorpedoSectionSpawnerEntity`] and
+/// resolves it there. `pub(crate)` for the audio module.
+#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
+pub(crate) struct TorpedoSectionLaunchSound(#[reflect(ignore)] pub Option<AssetRef<AudioSource>>);
 
 /// Marks the child `ParticleEffect` entity of the spawner, so the launch trigger
 /// (`on_torpedo_launch_effect`) can find its `EffectSpawner` and `reset()` it.
@@ -455,6 +476,7 @@ fn insert_torpedo_section(
             TorpedoSectionPartOf(entity),
             TorpedoSectionSpawnerFireState(timer),
             TorpedoSectionSpawnerEffect(config.launch_effect.clone()),
+            TorpedoSectionLaunchSound(config.launch_sound.clone()),
             Transform::from_translation(config.spawn_offset).with_rotation(config.spawn_rotation),
             Visibility::Inherited,
         ))

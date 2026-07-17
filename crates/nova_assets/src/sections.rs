@@ -51,6 +51,11 @@ pub struct SectionMeshRefs {
     /// scheme pipeline; `base/sounds/turret_fire.wav` resolves to the same handle
     /// the global bank loads, so the audible result is unchanged.
     pub turret_fire_sound: AssetRef<AudioSource>,
+    /// The turret dry-fire click, authored like the fire sound (task
+    /// 20260717-101624).
+    pub turret_dry_fire_sound: AssetRef<AudioSource>,
+    /// The torpedo bay launch sound (task 20260717-101624).
+    pub torpedo_launch_sound: AssetRef<AudioSource>,
 }
 
 impl SectionMeshRefs {
@@ -64,6 +69,8 @@ impl SectionMeshRefs {
             turret_barrel: AssetRef::from("self://gltf/turret-barrel-01.glb#Scene0".to_string()),
             torpedo_bay: AssetRef::from("self://gltf/torpedo-bay-01.glb#Scene0".to_string()),
             turret_fire_sound: AssetRef::from("self://sounds/turret_fire.wav".to_string()),
+            turret_dry_fire_sound: AssetRef::from("self://sounds/dry_fire.wav".to_string()),
+            torpedo_launch_sound: AssetRef::from("self://sounds/torpedo_launch.wav".to_string()),
         }
     }
 }
@@ -168,6 +175,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 projectile_render_mesh: None,
                 muzzle_effect: None,
                 fire_sound: Some(meshes.turret_fire_sound.clone()),
+                dry_fire_sound: Some(meshes.turret_dry_fire_sound.clone()),
                 // ~5s of sustained fire at 100 rounds/s. Generous on purpose:
                 // the player should feel the limit without running dry in a
                 // normal engagement. Playtest knob.
@@ -239,6 +247,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 projectile_render_mesh: None,
                 muzzle_effect: None,
                 fire_sound: Some(meshes.turret_fire_sound.clone()),
+                dry_fire_sound: Some(meshes.turret_dry_fire_sound.clone()),
                 // ~6s of fire at 25 rounds/s. Scavenger grade: a shorter fight
                 // before the pirate's guns run dry. Playtest knob.
                 ammo_capacity: Some(150),
@@ -276,6 +285,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 blast_damage: 100.0,
                 blast_effect: None,
                 launch_effect: None,
+                launch_sound: Some(meshes.torpedo_launch_sound.clone()),
                 // A small salvo of torpedoes before the bay is spent. Playtest
                 // knob.
                 ammo_capacity: Some(6),

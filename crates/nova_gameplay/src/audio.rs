@@ -11,8 +11,10 @@
 //! - a section/asteroid destroyed or a torpedo detonating -> `Explosion`
 //!   (`On<Add, IntegrityDestroyMarker>`);
 //! - damage applied to a target -> `Impact` (`On<HealthApplyDamage>`);
-//! - a turret round spawned -> `TurretFire` (`On<Add, TurretBulletProjectileMarker>`);
-//! - a torpedo spawned -> `TorpedoLaunch` (`On<Add, TorpedoProjectileMarker>`).
+//! - a turret round spawned -> the firing turret's authored `fire_sound`
+//!   (`On<Add, TurretBulletProjectileMarker>`, authored-or-silent);
+//! - a torpedo spawned -> the bay's authored `launch_sound`
+//!   (`On<Add, TorpedoProjectileMarker>`, authored-or-silent).
 //!
 //! The fifth cue, the thruster engine hum, is continuous: one looping audio
 //! entity whose volume tracks how hard the ship is thrusting.
@@ -38,7 +40,10 @@ use bevy::{audio::Volume, prelude::*};
 
 use crate::{
     prelude::*,
-    sections::turret_section::{TurretSectionFireSound, TurretSectionPartOf},
+    sections::{
+        torpedo_section::{TorpedoSectionLaunchSound, TorpedoSectionSpawnerEntity},
+        turret_section::{TurretSectionDryFireSound, TurretSectionFireSound, TurretSectionPartOf},
+    },
 };
 
 /// Keys for the game's UI/interface sound effects - engine chrome, like
@@ -75,11 +80,6 @@ pub enum UiSfx {
 pub enum WorldSfx {
     /// Continuous engine hum, looped; volume tracks thruster input.
     ThrusterLoop,
-    /// A PDC/turret round is fired (the bank default a turret's authored
-    /// `fire_sound` overrides).
-    TurretFire,
-    /// A torpedo leaves its bay.
-    TorpedoLaunch,
     /// A section/asteroid is destroyed or a torpedo detonates.
     Explosion,
     /// Damage is applied to a target.
@@ -99,10 +99,6 @@ pub enum WorldSfx {
     /// and separate from the objective chime (task 20260714-090002). Fired
     /// from `nova_scenario`'s salvage plugin, which owns the crate marker.
     SalvagePickup,
-    /// A turret pulled its trigger on an empty magazine - a dull dry-fire click,
-    /// so a held burst that runs dry is not silently blocked (task
-    /// 20260714-090006).
-    DryFire,
     /// A held radar gesture re-designated to a new target - a subtle, lower
     /// tick, distinct from the once-per-gesture [`LockOn`] acquire cue (task
     /// 20260714-090006).
@@ -125,10 +121,8 @@ pub const UI_SFX_FILES: [(UiSfx, &str); 4] = [
 /// `base/sounds/<name>.wav` - the base mod's own bundled cues (mods reference
 /// them via `dep://base/sounds/<name>.wav`). Shrinks as cue families migrate
 /// onto content (see [`WorldSfx`]).
-pub const WORLD_SFX_FILES: [(WorldSfx, &str); 12] = [
+pub const WORLD_SFX_FILES: [(WorldSfx, &str); 9] = [
     (WorldSfx::ThrusterLoop, "thruster_loop"),
-    (WorldSfx::TurretFire, "turret_fire"),
-    (WorldSfx::TorpedoLaunch, "torpedo_launch"),
     (WorldSfx::Explosion, "explosion"),
     (WorldSfx::Impact, "impact"),
     (WorldSfx::LockOn, "lock_on"),
@@ -136,7 +130,6 @@ pub const WORLD_SFX_FILES: [(WorldSfx, &str); 12] = [
     (WorldSfx::SafetyOn, "safety_on"),
     (WorldSfx::RadarDeny, "radar_deny"),
     (WorldSfx::SalvagePickup, "salvage_pickup"),
-    (WorldSfx::DryFire, "dry_fire"),
     (WorldSfx::RadarRetarget, "radar_retarget"),
 ];
 
@@ -523,15 +516,15 @@ fn on_damage_play_impact(
 /// Turret-fire cue when a round spawns. Throttled hard because the PDC fires at
 /// a high rate.
 ///
-/// The firing turret (named by `TurretSectionPartOf`) may declare its own
-/// authored fire sound via [`TurretSectionConfig::fire_sound`], resolved at
-/// spawn into a [`TurretSectionFireSound`] handle: when present that handle
-/// plays instead of the global [`WorldSfx::TurretFire`] cue, so a modded turret
-/// can ship its own weapon sound. Everything else (per-turret throttle key,
-/// distance attenuation, positioning) is unchanged.
+/// AUTHORED-OR-SILENT (spike 20260717-101524): the sound is the firing turret's
+/// [`TurretSectionConfig::fire_sound`], snapshotted at spawn as
+/// [`TurretSectionFireSound`] and resolved here - content owns the sound, and a
+/// turret that authors none fires silently (every base turret authors it via
+/// gen_content, so the shipped game is unchanged; the old global bank fallback
+/// is gone with its `WorldSfx::TurretFire` key). Everything else (per-turret
+/// throttle key, distance attenuation, positioning) is unchanged.
 fn on_turret_fire_play_sfx(
     add: On<Add, TurretBulletProjectileMarker>,
-    bank: Option<Res<SoundBank<WorldSfx>>>,
     asset_server: Res<AssetServer>,
     time: Res<Time>,
     q_projectile: Query<(&Transform, &TurretSectionPartOf)>,
@@ -540,7 +533,6 @@ fn on_turret_fire_play_sfx(
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
-    let Some(bank) = bank else { return };
     // The projectile is a freshly-spawned ROOT entity, so its GlobalTransform is
     // still identity this frame; its local Transform is already world-space.
     // `TurretSectionPartOf` names the firing turret, so each gun throttles on its
@@ -548,22 +540,21 @@ fn on_turret_fire_play_sfx(
     let Ok((transform, part_of)) = q_projectile.get(add.entity) else {
         return;
     };
+    // No authored sound -> silent (still stamp the throttle key? No: an
+    // unauthored turret plays nothing, so there is nothing to rate-limit).
+    let Some(handle) = q_fire_sound
+        .get(part_of.0)
+        .ok()
+        .and_then(|s| s.0.as_ref())
+        .map(|r| r.resolve(&asset_server))
+    else {
+        return;
+    };
     if throttle_state.allow(
         ThrottleKey::TurretFire(part_of.0),
         time.elapsed_secs(),
         TURRET_FIRE_MIN_INTERVAL,
     ) {
-        // Prefer the firing turret's own authored sound, resolving its AssetRef
-        // here (idempotent - the asset server dedups by path, so a base turret's
-        // `base/sounds/turret_fire.wav` yields the SAME handle the bank loaded;
-        // only a mod's own sound diverges). Fall back to the bank cue when the
-        // turret declared none.
-        let handle = q_fire_sound
-            .get(part_of.0)
-            .ok()
-            .and_then(|s| s.0.as_ref())
-            .map(|r| r.resolve(&asset_server))
-            .unwrap_or_else(|| bank.get(WorldSfx::TurretFire));
         play_positional_handle(
             &mut commands,
             handle,
@@ -575,22 +566,36 @@ fn on_turret_fire_play_sfx(
 }
 
 /// Launch cue when a torpedo projectile spawns.
+///
+/// AUTHORED-OR-SILENT (spike 20260717-101524): the sound is the firing bay's
+/// [`TorpedoSectionConfig::launch_sound`], snapshotted onto the bay's spawner
+/// as [`TorpedoSectionLaunchSound`] and reached from the projectile via its
+/// [`TorpedoSectionSpawnerEntity`] back-ref (the same path the launch flash
+/// effect takes). A bay that authors none launches silently; base bays author
+/// it via gen_content, so the shipped game is unchanged.
 fn on_torpedo_launch_play_sfx(
     add: On<Add, TorpedoProjectileMarker>,
-    bank: Option<Res<SoundBank<WorldSfx>>>,
-    q_transform: Query<&Transform>,
+    asset_server: Res<AssetServer>,
+    q_projectile: Query<(&Transform, &TorpedoSectionSpawnerEntity)>,
+    q_launch_sound: Query<&TorpedoSectionLaunchSound>,
     q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
     mut commands: Commands,
 ) {
-    let Some(bank) = bank else { return };
     // Freshly-spawned root entity: use local Transform (== world) this frame.
-    let Ok(source) = q_transform.get(add.entity) else {
+    let Ok((source, spawner)) = q_projectile.get(add.entity) else {
         return;
     };
-    play_positional(
+    let Some(handle) = q_launch_sound
+        .get(spawner.0)
+        .ok()
+        .and_then(|s| s.0.as_ref())
+        .map(|r| r.resolve(&asset_server))
+    else {
+        return;
+    };
+    play_positional_handle(
         &mut commands,
-        &bank,
-        WorldSfx::TorpedoLaunch,
+        handle,
         TORPEDO_LAUNCH_VOLUME,
         source.translation,
         listener_position(&q_camera),
@@ -676,17 +681,28 @@ fn play_safety_engaged_cue(
 /// to `PlayerSpaceshipMarker`, so an AI turret running dry never reaches the cue
 /// (it would otherwise click in the player's ear). A turret with no `SectionAmmo`
 /// (unlimited ammo, e.g. the shakedown player) never dry-fires.
+/// AUTHORED-OR-SILENT (spike 20260717-101524): the click is the turret's own
+/// [`TurretSectionConfig::dry_fire_sound`] (snapshotted as
+/// [`TurretSectionDryFireSound`], resolved here); a turret that authors none
+/// runs dry silently. The edge latch still advances for every turret so an
+/// authored sound added later (live edit) does not replay a stale edge.
 fn play_dry_fire_cue(
     mut commands: Commands,
-    bank: Option<Res<SoundBank<WorldSfx>>>,
+    asset_server: Res<AssetServer>,
     q_turret: Query<
-        (Entity, &TurretSectionInput, Option<&SectionAmmo>, &ChildOf),
+        (
+            Entity,
+            &TurretSectionInput,
+            Option<&SectionAmmo>,
+            Option<&TurretSectionDryFireSound>,
+            &ChildOf,
+        ),
         (With<TurretSectionMarker>, Without<SectionInactiveMarker>),
     >,
     q_ship: Query<&WeaponsHot, With<PlayerSpaceshipMarker>>,
     mut latched: Local<HashMap<Entity, bool>>,
 ) {
-    for (turret, input, ammo, ChildOf(ship)) in &q_turret {
+    for (turret, input, ammo, dry_sound, ChildOf(ship)) in &q_turret {
         // Dry-firing = trigger held, weapons hot, magazine present and empty, on
         // the player's ship. `q_ship` matches only the player, so a non-player
         // parent reads `hot == false` and never dry-fires.
@@ -695,8 +711,11 @@ fn play_dry_fire_cue(
         let dry = **input && hot && empty;
         let was = latched.entry(turret).or_insert(false);
         if dry && !*was {
-            if let Some(bank) = &bank {
-                commands.play_sfx_volume(bank.get(WorldSfx::DryFire), DRY_FIRE_VOLUME);
+            if let Some(handle) = dry_sound
+                .and_then(|s| s.0.as_ref())
+                .map(|r| r.resolve(&asset_server))
+            {
+                commands.play_sfx_volume(handle, DRY_FIRE_VOLUME);
             }
         }
         *was = dry;
@@ -1050,18 +1069,15 @@ mod tests {
     struct LastPlayed(Option<Handle<AudioSource>>);
 
     /// App rig for the turret-fire cue: the real `on_turret_fire_play_sfx`
-    /// observer with a loaded bank, capturing the played handle. No audio device
-    /// needed (nothing constructs an `AudioSink`). The bank is built with
-    /// `load_paths` + `base/sounds/` to mirror production `register_sounds`
-    /// (nova_assets), so the bank's `TurretFire` handle is keyed by the exact
-    /// path a base turret's ref resolves to.
+    /// observer, capturing the played handle. No audio device needed (nothing
+    /// constructs an `AudioSink`), and no bank: the cue is authored-or-silent,
+    /// resolving the turret's own snapshot against the `AssetServer`.
     fn turret_fire_app() -> App {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
         app.init_resource::<SfxThrottle>();
         app.init_resource::<LastPlayed>();
-        app.insert_resource(load_world_sfx_bank(app.world().resource::<AssetServer>()));
         app.add_observer(on_turret_fire_play_sfx);
         app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
             last.0 = Some(ev.handle.clone());
@@ -1081,24 +1097,16 @@ mod tests {
     }
 
     #[test]
-    fn a_turret_with_a_declared_fire_sound_plays_that_handle_not_the_bank() {
-        // The section-authored audio path (task 20260717-002228): a turret
-        // carrying a `TurretSectionFireSound(Some(AssetRef))` must have the cue
-        // RESOLVE that ref and play its handle, not the global `WorldSfx::TurretFire`
-        // bank cue - so a mod turret sounds like its own gun.
+    fn a_turret_with_a_declared_fire_sound_plays_that_handle() {
+        // The section-authored audio path (tasks 20260717-002228/-101624): a
+        // turret carrying a `TurretSectionFireSound(Some(AssetRef))` must have
+        // the cue RESOLVE that ref and play its handle - a mod turret sounds
+        // like its own gun. Delivery guard for the silent test below.
         let mut app = turret_fire_app();
-        let bank_fire = app
-            .world()
-            .resource::<SoundBank<WorldSfx>>()
-            .get(WorldSfx::TurretFire);
-        // A distinct path standing in for a mod's own shipped sound; resolving it
-        // (asset_server.load, same as the observer) yields a different handle than
-        // the bank's, so the assertion is a real substitution.
         let mod_sound: Handle<AudioSource> = app
             .world()
             .resource::<AssetServer>()
             .load("mods/x/sounds/railgun.wav");
-        assert_ne!(mod_sound, bank_fire, "the rig's two handles must differ");
 
         let turret = app
             .world_mut()
@@ -1116,25 +1124,81 @@ mod tests {
     }
 
     #[test]
-    fn a_turret_without_a_declared_fire_sound_falls_back_to_the_bank_cue() {
-        // The unchanged-default guard: a turret that left `fire_sound` unset (no
-        // `TurretSectionFireSound` component) must still fire the global bank cue,
-        // so existing turrets are audibly identical. Also the delivery guard for
-        // the test above - it proves the cue fires at all, so the override
-        // assertion is a real substitution, not a silent no-op.
+    fn a_turret_without_a_declared_fire_sound_fires_silently() {
+        // Authored-or-silent (spike 20260717-101524): no snapshot (or a `None`
+        // one) means NO sound - the old global bank fallback is gone with the
+        // `WorldSfx::TurretFire` key. The authored test above is the delivery
+        // guard proving this rig's cue path plays when a sound exists, so this
+        // silence is the gate at work, not a dead rig.
         let mut app = turret_fire_app();
-        let bank_fire = app
-            .world()
-            .resource::<SoundBank<WorldSfx>>()
-            .get(WorldSfx::TurretFire);
 
-        let turret = app.world_mut().spawn_empty().id();
-        fire_round(&mut app, turret);
-
+        let bare = app.world_mut().spawn_empty().id();
+        fire_round(&mut app, bare);
         assert_eq!(
             app.world().resource::<LastPlayed>().0,
-            Some(bank_fire),
-            "a turret without a fire_sound must fall back to WorldSfx::TurretFire"
+            None,
+            "no snapshot -> silent"
+        );
+
+        let unauthored = app.world_mut().spawn(TurretSectionFireSound(None)).id();
+        fire_round(&mut app, unauthored);
+        assert_eq!(
+            app.world().resource::<LastPlayed>().0,
+            None,
+            "a None snapshot (config left fire_sound unset) -> silent"
+        );
+    }
+
+    #[test]
+    fn a_torpedo_bay_with_a_declared_launch_sound_plays_it_and_silent_without() {
+        // Same authored-or-silent seam for the torpedo bay (task
+        // 20260717-101624): the projectile reaches the bay's spawner via its
+        // `TorpedoSectionSpawnerEntity` back-ref; an authored
+        // `TorpedoSectionLaunchSound` plays, an unauthored bay is silent. The
+        // authored half doubles as the delivery guard.
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.init_resource::<LastPlayed>();
+        app.add_observer(on_torpedo_launch_play_sfx);
+        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.handle.clone());
+        });
+        let expected: Handle<AudioSource> = app
+            .world()
+            .resource::<AssetServer>()
+            .load("base/sounds/torpedo_launch.wav");
+
+        let authored = app
+            .world_mut()
+            .spawn(TorpedoSectionLaunchSound(Some(AssetRef::from(
+                "base/sounds/torpedo_launch.wav",
+            ))))
+            .id();
+        app.world_mut().spawn((
+            TorpedoProjectileMarker,
+            Transform::default(),
+            TorpedoSectionSpawnerEntity(authored),
+        ));
+        app.world_mut().flush();
+        assert_eq!(
+            app.world().resource::<LastPlayed>().0,
+            Some(expected),
+            "an authored launch_sound must resolve + play"
+        );
+
+        app.world_mut().resource_mut::<LastPlayed>().0 = None;
+        let silent = app.world_mut().spawn(TorpedoSectionLaunchSound(None)).id();
+        app.world_mut().spawn((
+            TorpedoProjectileMarker,
+            Transform::default(),
+            TorpedoSectionSpawnerEntity(silent),
+        ));
+        app.world_mut().flush();
+        assert_eq!(
+            app.world().resource::<LastPlayed>().0,
+            None,
+            "an unauthored bay launches silently"
         );
     }
 
@@ -1348,8 +1412,6 @@ mod tests {
         use WorldSfx::*;
         for key in [
             ThrusterLoop,
-            TurretFire,
-            TorpedoLaunch,
             Explosion,
             Impact,
             LockOn,
@@ -1357,7 +1419,6 @@ mod tests {
             SafetyOn,
             RadarDeny,
             SalvagePickup,
-            DryFire,
             RadarRetarget,
         ] {
             assert!(
@@ -1368,16 +1429,22 @@ mod tests {
     }
 
     /// An App rig for the dry-fire cue: the real `play_dry_fire_cue` system with
-    /// a loaded bank and a `PlaySfx` counter, no audio device needed.
+    /// a `PlaySfx` counter, no audio device needed. No bank: the cue is
+    /// authored-or-silent, so each test turret authors its own click via
+    /// [`dry_click`].
     fn dry_fire_app() -> App {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
-        app.insert_resource(load_world_sfx_bank(app.world().resource::<AssetServer>()));
         app.init_resource::<PlayedSfx>();
         app.add_systems(Update, play_dry_fire_cue);
         app.add_observer(|_: On<PlaySfx>, mut played: ResMut<PlayedSfx>| played.0 += 1);
         app
+    }
+
+    /// An authored dry-fire click for test turrets (the base default's path).
+    fn dry_click() -> TurretSectionDryFireSound {
+        TurretSectionDryFireSound(Some(AssetRef::from("base/sounds/dry_fire.wav")))
     }
 
     fn dings(app: &App) -> usize {
@@ -1397,6 +1464,7 @@ mod tests {
                 TurretSectionMarker,
                 TurretSectionInput(true),
                 SectionAmmo::new(0),
+                dry_click(),
                 ChildOf(player),
             ))
             .id();
@@ -1452,6 +1520,7 @@ mod tests {
                 TurretSectionMarker,
                 TurretSectionInput(true),
                 SectionAmmo::new(0),
+                dry_click(),
                 ChildOf(ship),
             ));
         };
@@ -1463,6 +1532,16 @@ mod tests {
             TurretSectionMarker,
             TurretSectionInput(true),
             SectionAmmo::new(3),
+            dry_click(),
+            ChildOf(player_hot),
+        ));
+        // Player + hot + empty + held, but NO authored dry_fire_sound: gated on
+        // authorship (authored-or-silent, spike 20260717-101524).
+        app.world_mut().spawn((
+            TurretSectionMarker,
+            TurretSectionInput(true),
+            SectionAmmo::new(0),
+            TurretSectionDryFireSound(None),
             ChildOf(player_hot),
         ));
 
@@ -1470,7 +1549,7 @@ mod tests {
         assert_eq!(
             dings(&app),
             1,
-            "only the player's hot, empty, held turret dry-fires"
+            "only the player's hot, empty, held, AUTHORED turret dry-fires"
         );
     }
 }

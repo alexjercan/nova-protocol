@@ -84,6 +84,7 @@
             bullet_damage: 4.0,
             bullet_kind: Kinetic,
             fire_sound: Some("self://sounds/turret_fire.wav"),
+            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
             ammo_capacity: Some(500),
             reload: Some((
                 reload_time: 3.0,
@@ -151,6 +152,7 @@
             bullet_damage: 3.825,
             bullet_kind: Kinetic,
             fire_sound: Some("self://sounds/turret_fire.wav"),
+            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
             ammo_capacity: Some(150),
             reload: Some((
                 reload_time: 2.5,
@@ -190,6 +192,7 @@
             linear_damping: 0.8,
             blast_radius: 30.0,
             blast_damage: 100.0,
+            launch_sound: Some("self://sounds/torpedo_launch.wav"),
             ammo_capacity: Some(6),
             reload: Some((
                 reload_time: 4.0,

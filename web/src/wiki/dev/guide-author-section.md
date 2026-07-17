@@ -142,8 +142,12 @@ kind: Turret((
   `render_mesh_barrel` (all optional) - the per-part meshes; omit for defaults.
 - `fire_sound` (optional) - the sound each fired round plays, an asset ref like
   the meshes (`self://` a wav your mod ships, or `dep://base/sounds/
-  turret_fire.wav` for the base cue); omit for the base fire sound. Your turret
-  can sound like its own gun.
+  turret_fire.wav` for the base cue); omit and the turret fires SILENTLY (the
+  base turrets author it, so copy their line if you want the stock sound). Your
+  turret can sound like its own gun.
+- `dry_fire_sound` (optional) - the click when the trigger is pulled on an
+  empty magazine; same asset-ref rules (`dep://base/sounds/dry_fire.wav` is the
+  base click), omit for a silent dry pull.
 - `fire_rate` - rounds per second.
 - `muzzle_speed` - projectile launch speed in units per second.
 - `projectile_lifetime` - projectile lifetime in seconds.
@@ -183,6 +187,9 @@ kind: Torpedo((
 )),
 ```
 
+- `launch_sound` (optional) - the sound a departing torpedo plays
+  (`dep://base/sounds/torpedo_launch.wav` is the base whoosh); omit for a
+  silent launch.
 - `render_mesh`, `projectile_render_mesh` (both optional) - the bay mesh and the
   torpedo mesh; omit for defaults.
 - `spawn_offset` (`Vec3`), `spawn_rotation` (`Quat`, a bare 4-tuple) - where the

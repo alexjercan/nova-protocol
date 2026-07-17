@@ -201,3 +201,8 @@ one is 5 (behavioral refactor of a continuous cue) and the fiddly one is 4
   wavs moved back to the root and out of base `resources`;
   `load_world_sfx_bank` is the one place the world path convention lives. The
   five family tasks now shrink WorldSfx to deletion.
+- 20260717-101624 (weapon one-shots): turret `dry_fire_sound` + torpedo bay
+  `launch_sound` landed as authored AssetRefs (snapshotted unresolved,
+  resolved by the cue observers), and `fire_sound` flipped to
+  authored-or-silent; WorldSfx dropped TurretFire/TorpedoLaunch/DryFire
+  (12 -> 9 keys). Base content authors all three, so shipped audio unchanged.
