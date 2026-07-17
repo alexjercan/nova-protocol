@@ -1,8 +1,8 @@
 # Ship real web fonts in-game (Rajdhani/Inter/JetBrains Mono) + wasm-safe load path
 
 - STATUS: OPEN
-- PRIORITY: 35
-- TAGS: v0.7.0,ui
+- PRIORITY: 0
+- TAGS: backlog,ui
 
 Umbrella: task 20260714-212139. Depends on: 20260714-214111 (nova_ui).
 
