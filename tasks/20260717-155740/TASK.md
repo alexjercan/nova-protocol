@@ -1,6 +1,6 @@
 # Spike: storytelling and pacing - breathers, spawn telegraphs, readable comms/objectives
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 41
 - TAGS: spike,v0.7.0,scenario,gameplay,hud
 
@@ -25,3 +25,12 @@ engine, see the difficulty-rework family tasks/20260717-111808/SPIKE.md):
   (audio infra just landed), shorter authored lines.
 - Objective legibility (HUD): a new-objective toast/chime moment instead
   of only the side-panel update mid-dogfight.
+
+Spike complete: SPIKE.md in this folder holds the research (four
+compounding causes: zero-delay chains, the comms panel's latest-wins
+single line, instant hostile spawns, binary transitions) and the layered
+recommendation. Seeded: 20260717-163033 (comms queue), 20260717-163042
+(arrival telegraphs), 20260717-163050 (transition pacing incl. the
+user's delayed linger:false directive), 20260717-163058 (beat-sheet
+pass). The user's mid-spike directive on delayed non-lingering switches
+is folded into the doc and task 163050.
