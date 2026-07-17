@@ -4667,6 +4667,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "nova_meta_gen"
+version = "0.6.0"
+dependencies = [
+ "bevy",
+ "clap",
+ "nova_modding",
+ "tempfile",
+]
+
+[[package]]
 name = "nova_mod_format"
 version = "0.6.0"
 dependencies = [
