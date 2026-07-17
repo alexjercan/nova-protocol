@@ -556,12 +556,16 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   UI feature. 20260712-093048, 20260711-180511.
 - `measure-before-writing-the-number` (x1): never write a specific quantity
   into a doc from a mental model; backfill from an actual run. 20260712-105505.
-- `manual-time-rig-measures-its-clock` (x1): TimeUpdateStrategy::ManualDuration
-  is not the delta your Update systems see (a MinimalPlugins rig advanced
-  Time by 0.25s per update against a 0.5s setting); before asserting on
-  elapsed virtual time, probe the rig's actual per-update advance and write
-  the measured rate next to the assertion. Clock sibling of
-  `measure-before-writing-the-number`. 20260716-183220.
+- `manual-time-rig-measures-its-clock` (x2): TimeUpdateStrategy::ManualDuration
+  is NOT the delta your Update systems see - `Time<Virtual>` clamps each update
+  to `max_delta` (0.25s default), so a 1s manual step advances only 0.25s and a
+  timer-driven assertion silently under-advances (a MinimalPlugins rig gave
+  0.25s/update against both a 0.5s and a 1.0s setting). Fix: either raise
+  `max_delta` on the inserted `Time<Virtual>` so the manual step passes through,
+  or count effective ticks - and make it the FIRST hypothesis when a
+  ManualDuration rig under-advances (the fire-rate rigs already carry a comment
+  about it). Clock sibling of `measure-before-writing-the-number`.
+  20260716-183220, 20260717-085640.
 - `ab-isolation-bench` (x1, positive): attribute one system's cost with two
   worlds identical except for that system. 20260712-105505.
 - `sweep-full-scale-before-believing-a-win` (x1): an O(N)->O(matching)
