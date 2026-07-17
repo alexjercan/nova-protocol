@@ -129,6 +129,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   against the new file AND reconciling counts, before review, not by
   eyeballing the diff (a CHANGELOG regroup dropped the "Screenshot Reel"
   entry; a token cross-check + 93=94-1 count caught it). 20260716-102950.
+- `prose-invariant-becomes-pin` (x1): a design invariant stated in prose
+  ("full aggression in the arena", "the line stays flyable") is where review
+  finds the hole - turn the sentence into a computed assertion in the same
+  sitting (the ONE un-computed layout quantity, a leash radius chosen by
+  feel, was the one finding; leash-covers-spawn is now a pin).
+  20260717-112630.
 - `prose-from-diff-not-intent` (x1): player-facing text (CHANGELOG, wiki)
   written from the task title's ASPIRATION claimed a reposition feature the
   implementation deliberately scoped out; write release prose from the final
@@ -532,14 +538,16 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   `run_system_once` rig missing the resource. 20260712-143832, 20260712-164031.
 - `spike-open-question-pays-off` (positive, x1): a spike that names a risky
   unknown lets the implementer resolve it before wiring. 20260712-143832.
-- `authored-vs-derived-values` (x3): author content against measured runtime
+- `authored-vs-derived-values` (x4): author content against measured runtime
   values exported as consts, not nominal constants or folklore ranges - and when
   a layout invariant depends on such a const (asteroid bodies reach the
   ASTEROID_GEOMETRIC_FACTOR_MAX=6.0x const past nominal), encode the invariant
   as a COMPUTED rig assertion over the shipped positions, so the geometry is
   proven not eyeballed and the fail-first A/B is one edit away (a gauntlet
-  course's flyable-line clearance). 20260711-180455, 20260711-180506,
-  20260716-124722.
+  course's flyable-line clearance). Positions CARRIED OVER from an old layout
+  need the same derivation as new ones - an inherited escort station sat 52u
+  off a new fire lane and only the computed pin caught it. 20260711-180455,
+  20260711-180506, 20260716-124722, 20260717-112630.
 - `verify-engine-guarantees-in-source` (x6): read the engine/dependency source
   (or write a five-line probe) before designing around its behavior - observer
   order is arbitrary; observer-queued commands apply BEFORE the queue's remaining
