@@ -4,8 +4,9 @@
 //! that does not exist loads green and ships a half-spawning ship).
 //!
 //! Pure functions over parsed config - no assets, no ECS - so one core
-//! serves every consumer: the `content_lint` author CLI (nova_assets bin),
-//! the CI gate test, and the runtime merge sweep (task 20260716-193949).
+//! serves every consumer: the `content` author CLI's `lint` subcommand
+//! (nova_assets bin), the CI gate test, and the runtime merge sweep (task
+//! 20260716-193949).
 //!
 //! Static approximations, documented: a reference matching a
 //! `ScatterObjects` id prefix counts as satisfiable (the actual `<prefix><n>`

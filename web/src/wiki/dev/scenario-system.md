@@ -60,7 +60,7 @@ one-shot event consumed while a beat guard rejects it would soft-lock the
 script; gated handlers make repeats no-ops.
 
 Both 5s windows are the default and can be overridden per ship in RON (the
-value is seconds; a non-positive/non-finite value is a `content_lint` error and
+value is seconds; a non-positive/non-finite value is a `content lint` error and
 is ignored at runtime):
 
 - `OnOrbit` hold: `orbit_hold_secs: Some(8.0)` on an AI controller (only
@@ -178,7 +178,7 @@ A scenario switch has three speeds (task 20260717-163050):
 
 - **Hard cut** - `NextScenario((scenario_id: "x", linger: false))`:
   instant. Never pair it with an `Outcome` in the same handler (the
-  teardown swallows the overlay; content_lint warns).
+  teardown swallows the overlay; content lint warns).
 - **Delayed cut** - `NextScenario((scenario_id: "x", linger: false,
   delay: Some(4.0)))`: the world keeps playing for the delay (a story
   line can land and be read), then cuts. Ticks on virtual
@@ -203,7 +203,7 @@ optional per-line hold with strict-RON `Some`:
 StoryMessage((speaker: "Foreman Okono", text: "Read this slowly.", dwell: Some(15.0))),
 ```
 
-`dwell` clamps to [3, 30] seconds (content_lint warns outside it). The
+`dwell` clamps to [3, 30] seconds (content lint warns outside it). The
 queue means a two-line beat is READ as two beats - but prefer one line
 per beat anyway (the beat-sheet convention); the queue is the safety
 net, not the style.
@@ -216,7 +216,7 @@ chained ahead of the `OnUpdate` pulse under the same live+unpaused gate, so
 pausing freezes both together). It clears at teardown with the rest of the
 event world - it is the current scenario's clock, and a retry restarts it.
 Gate on it from any expression filter; never write it (the engine rewrites
-it every tick, and `content_lint` errors on an authored `VariableSet` to
+it every tick, and `content lint` errors on an authored `VariableSet` to
 it). A read before the first tick fails closed like any undefined variable.
 
 A one-shot timed beat is the clock threshold plus your own fired-flag:
@@ -287,7 +287,7 @@ scoped, interpolated, dynamic bodies via `base_scenario_object`.
   approach -> the fight starts when the player has read the warning).
   Section geometry is linted: overlapping unit-cube cells and a
   turret/torpedo mount whose base (local -Y under its rotation) points at
-  an empty neighbor cell are `content_lint` errors (see the authoring
+  an empty neighbor cell are `content lint` errors (see the authoring
   guide's sharp edges). See [Ship sections (internals)](../sections/).
 - `Beacon(BeaconConfig)` - nav waypoint with an automatic HUD chip: label,
   radius, color, optional `lock_signature`, optional `area_radius` (the

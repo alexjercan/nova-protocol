@@ -39,10 +39,10 @@ pub mod prelude {
 /// follow-up). The scenario builders are the single definition of each
 /// built-in; production loads their serialized RON. This module rebuilds them
 /// with PATH-based asset refs and serializes them deterministically for two
-/// consumers that must agree byte for byte: the `gen_content` bin WRITES the
-/// committed files (`cargo run -p nova_assets --bin gen_content`, task
-/// 20260716-155823) and the `content_ron_parity` integration test ASSERTS
-/// them. Not part of the game's public API.
+/// consumers that must agree byte for byte: the `content` CLI's `gen`
+/// subcommand WRITES the committed files (`cargo run -p nova_assets --bin
+/// content -- gen`, task 20260716-155823) and the `content_ron_parity`
+/// integration test ASSERTS them. Not part of the game's public API.
 ///
 /// The `ScenarioConfig` serde derives are already present in this crate's
 /// build: `nova_modding` (a dependency) turns on `nova_scenario/serde`, and
@@ -140,8 +140,9 @@ pub mod scenario_generation {
 
     /// Every builder-backed content file as (assets-root-relative path,
     /// serialized body), in a stable order. The single file map both the
-    /// `gen_content` bin (writes) and the parity test (asserts) walk, so the
-    /// two can never disagree about what exists or what it contains.
+    /// `content` CLI's `gen` subcommand (writes) and the parity test
+    /// (asserts) walk, so the two can never disagree about what exists or
+    /// what it contains.
     pub fn content_files() -> Vec<(String, String)> {
         let mut files = vec![(
             "base/sections/base.content.ron".to_string(),
@@ -1372,8 +1373,8 @@ mod tests {
 /// `Content::Section` items + its declared dependencies' (resolved by id);
 /// the known-scenario set is every scenario id across all walked bundles
 /// (cross-mod `NextScenario` chains within the repo are visible). Shared by
-/// the `content_lint` bin (author CLI) and the CI gate test; not part of the
-/// game's public API.
+/// the `content` CLI's `lint` subcommand (author CLI) and the CI gate test;
+/// not part of the game's public API.
 #[doc(hidden)]
 pub mod balance;
 

@@ -21,6 +21,9 @@ serde = { version = "1", features = ["derive"] }
 ehttp = { version = "0.7" }
 serde_json = { version = "1" }
 sha2 = { version = "0.10" }
+# The `content` authoring CLI (task 20260717-212219) parses its gen/lint/audit
+# subcommands with clap derive, like nova_meta_gen's generator CLI.
+clap = { version = "4.5.48", features = ["derive"] }
 nova_gameplay = { path = "../nova_gameplay" }
 nova_scenario = { path = "../nova_scenario" }
 nova_modding = { path = "../nova_modding" }

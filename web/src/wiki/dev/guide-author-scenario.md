@@ -63,7 +63,7 @@ The `ScenarioConfig` fields (`loader.rs`):
   nothing happens.
 
 Lint your content before shipping it: `cargo run -p nova_assets --bin
-content_lint` (add `-- --target <mod dir or id>` to check just one mod) checks what the loaders cannot - section prototype ids,
+content -- lint` (add `--target <mod dir or id>` to check just one mod) checks what the loaders cannot - section prototype ids,
 `NextScenario` targets, filter/action target ids, duplicate object ids
 (these all resolve at SPAWN time, so a typo loads green and misbehaves
 in-game) - plus ship-section geometry: sections that overlap on the
@@ -77,7 +77,7 @@ naming each problem (instead of a silently half-spawned scene), and a
 broken menu backdrop is skipped by the backdrop rotation. Fix the
 findings and re-enable the mod.
 
-Audit your BALANCE too: `cargo run -p nova_assets --bin balance_audit`
+Audit your BALANCE too: `cargo run -p nova_assets --bin content -- audit`
 derives every combat scenario's fairness sheet from the shipped data -
 per spawn group, the hostile count, combined burst dps, weapon
 envelopes, distance from the player spawn and time-to-kill against the
@@ -364,7 +364,7 @@ fight -> confirm -> breathe -> next.**
 - Every fight gets a lead-in: a warning line, a far spawn, and an
   `engage_delay` grace so the arrival is readable before it is lethal.
 - Never put a StoryMessage beside an `Outcome` - it is frozen behind the
-  overlay and dropped by the chained teardown (content_lint warns). The
+  overlay and dropped by the chained teardown (`content lint` warns). The
   overlay's own `message` carries the closing line.
 - Pick the transition gear deliberately: hard cut for menu scenes,
   `delay: Some(secs)` for an unceremonial beat, the modal overlay (plus
@@ -400,7 +400,7 @@ Speaker-attributed story text, rendered by the HUD comms panel
 order with a fade and a soft blip (task 20260717-163033): each holds
 about eight seconds alone, yields to a waiting line after four, and an
 optional per-line hold is authored as strict-RON
-`dwell: Some(12.0)` (clamped to 3-30s; content_lint warns outside it).
+`dwell: Some(12.0)` (clamped to 3-30s; `content lint` warns outside it).
 At most four lines wait - older ones drop (the full log persists
 engine-side). Prefer one line per beat regardless; the queue is the
 safety net, not the style. This is the dialog surface for story

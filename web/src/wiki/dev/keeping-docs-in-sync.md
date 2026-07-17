@@ -59,6 +59,7 @@ it if the change made it wrong - not every change touches every listed page.
 | Mod portal + generator (`nova_portal_gen`, `nova_modding`) | `modding.md` | `dev/mod-portal.md`, `dev/modding-ron.md` | CHANGELOG |
 | Menus, editor, UI (`nova_menu`, `nova_editor`, `nova_ui`) | `hud.md`, `sections.md` | `dev/guide-add-section.md` | tutorial, CHANGELOG |
 | App assembly, plugin order, states (`nova_core`, `nova_assets`) | | `dev/architecture.md`, `dev/project-tour.md` | CHANGELOG |
+| Content CLI: gen/lint/audit subcommands (`nova_assets` bin `content`) | | `dev/guide-author-scenario.md`, `dev/guide-make-a-mod.md`, `dev/modding-ron.md` | CHANGELOG |
 | The website itself (`web/`) | | `dev/development.md`, [this page](../keeping-docs-in-sync/) | |
 
 When a change lives in `bevy-common-systems` (the pinned git dependency), fix it

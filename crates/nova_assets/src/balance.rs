@@ -33,8 +33,8 @@
 //! their own tests (ledger_ch2_encounter.rs, broadside_assault.rs); this
 //! module is the repo-wide generalization that also covers content nobody
 //! hand-pinned (asteroid_field, the ledger's later chapters, future mods).
-//! `balance_audit_gate` runs it in CI; the `balance_audit` bin prints the
-//! full table.
+//! `balance_audit_gate` runs it in CI; the `content` CLI's `audit`
+//! subcommand prints the full table.
 
 use std::collections::HashMap;
 

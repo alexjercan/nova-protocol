@@ -49,8 +49,8 @@ these fixed paths and the audio module plays whatever handle it is given.
   bank: each file is the base mod's authored default, referenced from base
   content (`self://sounds/...`) and resolved by its cue at play time. OGG
   Vorbis also decodes (vorbis is on by default); to use `.ogg`, change the
-  extension in the base content refs (regenerate via gen_content; and in base
-  content refs).
+  extension in the base content refs (regenerate via `cargo run -p nova_assets
+  --bin content -- gen`; and in base content refs).
 - Suggested: 44.1 kHz, normalized but not clipping. Keep the one-shots short;
   `thruster_loop.wav` is the only looping asset and should be seamless (its
   start and end must meet without a click).

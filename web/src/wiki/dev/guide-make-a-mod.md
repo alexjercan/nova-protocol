@@ -58,7 +58,7 @@ is a list of mod ids; `base` is an IMPLICIT dependency and is never declared.
 "icon.png"`.
 
 Lint your mod while you work: `cargo run -p nova_assets --bin
-content_lint -- --target path/to/your-mod` (or an in-repo id like
+content -- lint --target path/to/your-mod` (or an in-repo id like
 `--target the-ledger`) checks just your bundle - section prototype ids
 against the base catalog and your declared dependencies, scenario chain
 targets, filter/action target ids, duplicate object ids. An Error means
@@ -107,7 +107,7 @@ texture: "self://textures/rock.png",
 
 - `resources` paths are relative to the manifest's directory (the same base as
   `content` and `meta.icon`). A `self://` ref may only name a listed resource -
-  the portal generator, the static `content_lint`, and the in-game content gate
+  the portal generator, the static `content lint`, and the in-game content gate
   all reject a `self://` ref that is not in `resources`.
 - `self://` resolves against the mod's own folder whether the mod is shipped
   (`assets/mods/<id>/`) or downloaded from the portal (`mods://<id>/`), on native

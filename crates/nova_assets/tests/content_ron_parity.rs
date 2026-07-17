@@ -5,8 +5,8 @@
 //! The config builders (`build_section_catalog` / `build_scenarios`) are the
 //! SINGLE definition of each built-in; at runtime `register_bundles` loads the
 //! committed RON (via the base bundle) and routes each item into
-//! `GameSections` / `GameScenarios`. The `gen_content` bin is the one writer
-//! of those files; this test is assert-only - a MISSING file fails like a
+//! `GameSections` / `GameScenarios`. The `content` CLI's `gen` subcommand is
+//! the one writer of those files; this test is assert-only - a MISSING file fails like a
 //! drifted one, so `cargo test` never mutates the assets tree.
 //!
 //! - `assets/base/sections/base.content.ron` = one `Vec<Content>` of `Section((..))`.
@@ -22,7 +22,7 @@ use nova_assets::scenario_generation::content_files;
 use nova_mod_format::BundleManifest;
 
 /// The one regeneration path, named by every failure in this file.
-const REGEN: &str = "run `cargo run -p nova_assets --bin gen_content` and commit the result";
+const REGEN: &str = "run `cargo run -p nova_assets --bin content -- gen` and commit the result";
 
 /// The workspace `assets` dir (tests run with the crate root as cwd).
 fn assets_dir() -> PathBuf {

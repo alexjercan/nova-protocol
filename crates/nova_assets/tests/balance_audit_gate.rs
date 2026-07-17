@@ -1,5 +1,5 @@
 //! CI gate for the balance audit (task 20260717-112656): the same walk the
-//! `balance_audit` bin runs must produce ZERO error-grade findings over the
+//! `content` CLI's `audit` subcommand runs must produce ZERO error-grade findings over the
 //! shipped content tree - a scenario that opens with an armed hostile
 //! inside its own effective range of the player spawn (the pre-rework
 //! ledger_ch2 shape) fails the build, not a playtest. Warn-grade findings

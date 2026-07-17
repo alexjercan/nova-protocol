@@ -98,7 +98,7 @@ Authored shapes that are easy to get wrong by hand (generate them with
 
 The built-ins are all data files under `assets/base/scenarios/` and load through
 `nova_modding`; `register_scenario` builds none in code. The files are written by
-`cargo run -p nova_assets --bin gen_content`, which serializes the code configs with
+`cargo run -p nova_assets --bin content -- gen`, which serializes the code configs with
 path-based `AssetRef`s (`SectionMeshRefs::from_paths` + the scenario builders taking
 asset refs); run it (and commit the result) after any builder change. The
 `content_ron_parity` test asserts each committed file matches its builder and that
@@ -141,7 +141,7 @@ flowchart TD
   folder (shipped `assets/mods/<id>/`, or `mods://<id>/` for a downloaded bundle)
   instead of the base game - so a mod's look is its own, and it never hard-codes
   its id. A `self://` ref must name a listed resource: the portal generator, the
-  static `content_lint`, and the runtime content gate all reject an undeclared
+  static `content lint`, and the runtime content gate all reject an undeclared
   one. Sidecar `.meta` files (a skybox's `RowCount` cube reinterpret) ship
   automatically and are NOT listed. `assets/mods/example/` is the worked example.
   A second scheme, `dep://<id>/<path>`, references a DECLARED dependency's

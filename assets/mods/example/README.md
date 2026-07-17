@@ -63,7 +63,7 @@ return to the pristine base game.
   when installed from the portal - native and web alike. You never hard-code
   your own id.
 - A `self://` ref that names no declared resource is rejected by the portal
-  generator, the static `content_lint`, and the in-game content gate.
+  generator, the static `content lint`, and the in-game content gate.
 
 ## Learn more
 
