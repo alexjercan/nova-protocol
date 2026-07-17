@@ -129,6 +129,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   against the new file AND reconciling counts, before review, not by
   eyeballing the diff (a CHANGELOG regroup dropped the "Screenshot Reel"
   entry; a token cross-check + 93=94-1 count caught it). 20260716-102950.
+- `cited-finding-reread-not-recalled` (x1): citing a sibling task's technical
+  finding from memory inverted it one task later (the torpedo bay's +Y launch
+  kick became "launch axis -Z" in the next cycle's notes, caught by review);
+  when a doc cites a prior REVIEW/NOTES fact, re-open the file and quote it.
+  Kin of recheck-referenced-task-freshness. 20260717-151214.
 - `rule-inputs-rederive-from-engine` (x1): when a derived metric becomes a
   graded RULE's input, re-derive the rule's meaning from the engine's own
   decision constants, not from the fields the metric struct happens to have -
