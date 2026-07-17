@@ -62,9 +62,8 @@ pub mod prelude {
     pub use super::{
         asset_ref::prelude::*,
         audio::{
-            load_world_sfx_bank, NovaAudioPlugin, SfxListenerMarker, UiSfx, WorldSfx,
-            MENU_SELECT_VOLUME, SALVAGE_PICKUP_VOLUME, UI_SFX_FILES, UI_TOGGLE_VOLUME,
-            WORLD_SFX_FILES,
+            NovaAudioPlugin, SfxListenerMarker, UiSfx, MENU_SELECT_VOLUME, SALVAGE_PICKUP_VOLUME,
+            UI_SFX_FILES, UI_TOGGLE_VOLUME,
         },
         beacon::prelude::*,
         camera_controller::prelude::*,

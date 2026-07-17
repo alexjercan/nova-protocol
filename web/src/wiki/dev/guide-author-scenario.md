@@ -254,7 +254,10 @@ SpawnScenarioObject((
 )),
 ```
 
-Object kinds also include `Spaceship` and `SalvageCrate`; ships inline a whole
+Object kinds also include `Spaceship` and `SalvageCrate` (whose optional
+`pickup_sound` asset ref voices the collection ding -
+`dep://base/sounds/salvage_pickup.wav` is the base one; omit for a silent
+pickup); ships inline a whole
 section list and are verbose to hand-author (see the sharp edges in section 8,
 and [Ship sections (internals)](../sections/)). A ship's side is authorable:
 omit `allegiance` and the controller decides (Player ships fight for the

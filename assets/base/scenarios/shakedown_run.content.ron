@@ -403,6 +403,7 @@
                         kind: SalvageCrate((
                             size: 1.5,
                             area_radius: 8.0,
+                            pickup_sound: Some("self://sounds/salvage_pickup.wav"),
                         )),
                     )),
                     SpawnScenarioObject((
@@ -424,6 +425,7 @@
                         kind: SalvageCrate((
                             size: 1.5,
                             area_radius: 8.0,
+                            pickup_sound: Some("self://sounds/salvage_pickup.wav"),
                         )),
                     )),
                     SpawnScenarioObject((
@@ -445,6 +447,7 @@
                         kind: SalvageCrate((
                             size: 1.5,
                             area_radius: 8.0,
+                            pickup_sound: Some("self://sounds/salvage_pickup.wav"),
                         )),
                     )),
                     VariableSet((

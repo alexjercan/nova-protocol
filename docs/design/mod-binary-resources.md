@@ -233,9 +233,10 @@ ecosystem is small). Three landed tasks:
   `assets/base/sounds/` + base `resources` behind a TRANSITIONAL `WorldSfx`
   bank (`load_world_sfx_bank`, `base/sounds/` paths) that the per-family
   section-sound tasks (weapon one-shots, controller cues, per-target
-  impact/destroy, thruster loop, salvage pickup) shrink to deletion - end
-  state: every world sound is an authorable `AssetRef<AudioSource>` on its
-  owning config, and only the UI bank remains.
+  impact/destroy, thruster loop, salvage pickup) shrank to deletion. END STATE
+  REACHED (task 20260717-101659): every world sound is an authorable
+  `AssetRef<AudioSource>` on its owning config, resolved authored-or-silent by
+  its cue; only the UI bank (`UiSfx`, root `assets/sounds/`) remains.
 - **Canonical enforcement (20260717-002133).** An asset ref in content MUST carry
   a scheme (`self://` / `dep://`). A bare, scheme-less asset-path ref is an Error
   at author/publish time (static `content_lint` + portal). The hard no-bare

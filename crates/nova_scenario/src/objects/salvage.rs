@@ -46,7 +46,24 @@ pub struct SalvageCrateConfig {
     pub size: f32,
     /// Pickup radius: the sensor sphere that counts as "collected".
     pub area_radius: f32,
+    /// The pickup "ding" this crate plays, an authorable
+    /// [`AssetRef<AudioSource>`] like any other content sound (task
+    /// 20260717-101659, spike 20260717-101524 - the LAST world sound to move
+    /// onto content; the transitional WorldSfx bank is gone). AUTHORED-OR-
+    /// SILENT: an omitted sound picks up quietly; base crates author
+    /// `self://sounds/salvage_pickup.wav`.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub pickup_sound: Option<AssetRef<AudioSource>>,
 }
+
+/// The crate's authored pickup ding, snapshotted UNRESOLVED from
+/// [`SalvageCrateConfig::pickup_sound`] by the bundle; the pickup cue resolves
+/// it.
+#[derive(Component, Clone, Debug)]
+struct SalvageCratePickupSound(Option<AssetRef<AudioSource>>);
 
 pub fn salvage_crate_scenario_object(config: SalvageCrateConfig) -> impl Bundle {
     debug!("salvage_crate_scenario_object: config {:?}", config);
@@ -55,6 +72,7 @@ pub fn salvage_crate_scenario_object(config: SalvageCrateConfig) -> impl Bundle 
         SalvageCrateMarker,
         EntityTypeName::new(SALVAGE_CRATE_TYPE_NAME),
         SalvageCrateSize(config.size),
+        SalvageCratePickupSound(config.pickup_sound.clone()),
         // Every pickup advertises itself (task 20260712-093831): the HUD's
         // item-highlights observer grows a bracket sized to the crate's
         // VISIBLE half-diagonal (authored, not collider-derived - the only
@@ -147,21 +165,20 @@ struct DingedCrates(bevy::platform::collections::HashSet<Entity>);
 /// many section colliders each fire the event.
 fn on_crate_pickup_play_sfx(
     collision: On<CollisionStart>,
-    bank: Option<Res<SoundBank<WorldSfx>>>,
-    q_crate: Query<(), With<SalvageCrateMarker>>,
+    asset_server: Res<AssetServer>,
+    q_crate: Query<&SalvageCratePickupSound, With<SalvageCrateMarker>>,
     q_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut dinged: ResMut<DingedCrates>,
     mut commands: Commands,
 ) {
-    let Some(bank) = bank else { return };
     let (Some(a), Some(b)) = (collision.body1, collision.body2) else {
         return;
     };
     // Identify which body is the crate; avian does not guarantee the ordering.
-    let crate_entity = if q_crate.contains(a) {
-        a
-    } else if q_crate.contains(b) {
-        b
+    let (crate_entity, pickup_sound) = if let Ok(sound) = q_crate.get(a) {
+        (a, sound)
+    } else if let Ok(sound) = q_crate.get(b) {
+        (b, sound)
     } else {
         return;
     };
@@ -171,9 +188,12 @@ fn on_crate_pickup_play_sfx(
         return;
     }
     // `insert` returns true only the first time this crate is seen, collapsing
-    // the per-section-collider burst to a single ding.
+    // the per-section-collider burst to a single ding. AUTHORED-OR-SILENT
+    // (spike 20260717-101524): the ding is the crate's own authored ref.
     if dinged.0.insert(crate_entity) {
-        commands.play_sfx_volume(bank.get(WorldSfx::SalvagePickup), SALVAGE_PICKUP_VOLUME);
+        if let Some(handle) = pickup_sound.0.as_ref().map(|r| r.resolve(&asset_server)) {
+            commands.play_sfx_volume(handle, SALVAGE_PICKUP_VOLUME);
+        }
     }
 }
 
@@ -271,6 +291,7 @@ mod tests {
             .spawn(salvage_crate_scenario_object(SalvageCrateConfig {
                 size: 1.5,
                 area_radius: 6.0,
+                pickup_sound: None,
             }))
             .id();
 
@@ -347,6 +368,7 @@ mod tests {
             salvage_crate_scenario_object(SalvageCrateConfig {
                 size: 1.5,
                 area_radius: 6.0,
+                pickup_sound: None,
             }),
             EntityId::new("crate_1".to_string()),
             Transform::from_translation(Vec3::ZERO),
@@ -421,7 +443,6 @@ mod tests {
         app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
             0.02,
         )));
-        app.insert_resource(load_world_sfx_bank(app.world().resource::<AssetServer>()));
         app.init_resource::<PickupDings>();
         app.init_resource::<DingedCrates>();
         app.add_observer(on_crate_pickup_play_sfx);
@@ -439,6 +460,7 @@ mod tests {
                 salvage_crate_scenario_object(SalvageCrateConfig {
                     size: 1.5,
                     area_radius: 6.0,
+                    pickup_sound: Some(AssetRef::from("base/sounds/salvage_pickup.wav")),
                 }),
                 CollisionEventsEnabled,
                 Transform::from_translation(Vec3::ZERO),
@@ -485,6 +507,33 @@ mod tests {
             app.world().resource::<PickupDings>().0,
             1,
             "one crate, one player pickup ding"
+        );
+    }
+
+    #[test]
+    fn an_unauthored_crate_picks_up_silently() {
+        // AUTHORED-OR-SILENT (task 20260717-101659, the last world sound to
+        // move onto content): a crate whose config omits pickup_sound plays
+        // nothing. `a_player_flying_into_a_crate_dings_once` is the delivery
+        // guard - same rig, authored crate, dings.
+        let mut app = pickup_audio_app();
+        app.world_mut().spawn((
+            salvage_crate_scenario_object(SalvageCrateConfig {
+                size: 1.5,
+                area_radius: 6.0,
+                pickup_sound: None,
+            }),
+            CollisionEventsEnabled,
+            Transform::from_translation(Vec3::ZERO),
+        ));
+        spawn_mover(&mut app, PlayerSpaceshipMarker);
+        for _ in 0..25 {
+            app.update();
+        }
+        assert_eq!(
+            app.world().resource::<PickupDings>().0,
+            0,
+            "an unauthored crate must pick up silently"
         );
     }
 
@@ -598,6 +647,7 @@ mod tests {
             .spawn(salvage_crate_scenario_object(SalvageCrateConfig {
                 size: 1.5,
                 area_radius: 6.0,
+                pickup_sound: None,
             }))
             .id();
 
@@ -652,6 +702,7 @@ mod tests {
             .spawn(salvage_crate_scenario_object(SalvageCrateConfig {
                 size: 1.5,
                 area_radius: 6.0,
+                pickup_sound: None,
             }))
             .id();
 

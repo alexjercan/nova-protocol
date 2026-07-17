@@ -461,6 +461,7 @@ pub(crate) fn menu_scrapyard(
             kind: ScenarioObjectKind::SalvageCrate(SalvageCrateConfig {
                 size: 2.0,
                 area_radius: 3.0,
+                pickup_sound: Some(AssetRef::from("self://sounds/salvage_pickup.wav")),
             }),
         },
         asteroid_radius: None,

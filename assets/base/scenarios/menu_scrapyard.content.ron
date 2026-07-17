@@ -211,6 +211,7 @@
                             kind: SalvageCrate((
                                 size: 2.0,
                                 area_radius: 3.0,
+                                pickup_sound: Some("self://sounds/salvage_pickup.wav"),
                             )),
                         ),
                     )),

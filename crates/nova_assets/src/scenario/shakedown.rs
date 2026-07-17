@@ -336,6 +336,7 @@ fn crate_object(index: usize, position: Vec3) -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::SalvageCrate(SalvageCrateConfig {
             size: 1.5,
             area_radius: CRATE_AREA_RADIUS,
+            pickup_sound: Some(AssetRef::from("self://sounds/salvage_pickup.wav")),
         }),
     }
 }

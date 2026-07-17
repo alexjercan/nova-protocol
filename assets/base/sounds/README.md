@@ -31,12 +31,12 @@ every section's / asteroid's `impact_sound` + `destroy_sound`, the thruster's
 `loop_sound`, and the
 controller's
 `lock_on_sound`/`lock_off_sound`/`radar_deny_sound`/`radar_retarget_sound`/
-`safety_on_sound` (base sections author `self://sounds/...` for each, so the
-shipped game sounds unchanged - but a mod section can ship and name its own).
-These cues are AUTHORED-OR-SILENT: a section that declares no sound plays none
-(their old `WorldSfx` bank keys are deleted). The remaining
-world cues are migrating onto their owning configs family by family (spike
-20260717-101524); until then they play from the transitional `WorldSfx` bank.
+`safety_on_sound` - plus the salvage crate's `pickup_sound` (base content
+authors `self://sounds/...` for each, so the shipped game sounds unchanged -
+but a mod can ship and name its own). Every cue is AUTHORED-OR-SILENT: content
+that declares no sound plays none. The migration is COMPLETE (spike
+20260717-101524): the transitional `WorldSfx` bank is deleted and no world
+sound plays from any bank.
 
 ## Dropping in real audio
 
@@ -45,14 +45,11 @@ code changes are needed: the loader (`crates/nova_assets/src/lib.rs`) loads
 these fixed paths and the audio module plays whatever handle it is given.
 
 - Formats: WAV works out of the box (the `bevy` dependency enables the `wav`
-  decoder in `crates/nova_gameplay/Cargo.toml`). These sounds are loaded by
-  `register_sounds` in `crates/nova_assets/src/lib.rs` into the transitional
-  `WorldSfx` bank via `SoundBank::load_paths(&assets, ...)` with full
-  `base/sounds/<name>.wav` paths; each cue family is migrating onto its owning
-  section/object config as an authorable `AssetRef<AudioSource>` (spike
-  20260717-101524), after which the file here is just the base mod's authored
-  default. OGG Vorbis also decodes (vorbis is on by default); to use `.ogg`,
-  change the extension in the paths `register_sounds` builds (and in base
+  decoder in `crates/nova_gameplay/Cargo.toml`). Nothing here loads through a
+  bank: each file is the base mod's authored default, referenced from base
+  content (`self://sounds/...`) and resolved by its cue at play time. OGG
+  Vorbis also decodes (vorbis is on by default); to use `.ogg`, change the
+  extension in the base content refs (regenerate via gen_content; and in base
   content refs).
 - Suggested: 44.1 kHz, normalized but not clipping. Keep the one-shots short;
   `thruster_loop.wav` is the only looping asset and should be seamless (its
@@ -62,16 +59,14 @@ these fixed paths and the audio module plays whatever handle it is given.
 
 ## Required files
 
-Two kinds of file live here. SECTION-AUTHORED DEFAULTS are referenced from
-base content (`self://sounds/...` on the owning section config) and are NOT in
-any bank - replacing the file re-voices the base sections, and a mod section
-can author its own instead. The remaining WORLDSFX BANK keys (transitional,
-`WORLD_SFX_FILES` in `crates/nova_gameplay/src/audio.rs`, guarded by
-`every_world_sfx_key_has_a_file`) still load globally until their families
-migrate. Combat/world cues are **positional** (distance-attenuated from the
+Every file here is a SECTION/OBJECT-AUTHORED DEFAULT: referenced from base
+content (`self://sounds/...` on the owning config) and in no bank anywhere -
+replacing a file re-voices the base content, and a mod can author its own
+instead (spike 20260717-101524's end state; the transitional WorldSfx bank is
+gone). Combat/world cues are **positional** (distance-attenuated from the
 listener camera); the feedback ticks are **non-positional**.
 
-### Section-authored defaults (not in any bank)
+### Authored defaults
 
 | File | Authored on | Character / length |
 | --- | --- | --- |
@@ -83,15 +78,11 @@ listener camera); the feedback ticks are **non-positional**.
 | `radar_deny.wav` | controller `radar_deny_sound` | low flat buzz, ~0.16 s |
 | `radar_retarget.wav` | controller `radar_retarget_sound` | very short quiet tick (subtler than `lock_on`), ~0.045 s |
 | `safety_on.wav` | controller `safety_on_sound` | dull low click, ~0.06 s |
+| `salvage_pickup.wav` | the salvage crate's `pickup_sound` | light rising "ding", quieter than the objective chime, ~0.10 s |
 | `impact.wav` | every section's / asteroid's `impact_sound` (positional) | short low thud, ~0.1 s, played quietly (fires per hit) |
 | `explosion.wav` | every section's / asteroid's `destroy_sound` + the torpedo's `detonation_sound` (positional) | noisy burst, fast decay, ~0.45 s |
 | `thruster_loop.wav` | the thruster's `loop_sound` (one loop per distinct sound; volume tracks the loudest burning ship) | steady low drone, loops seamlessly, ~1 s |
 
-### WorldSfx bank (transitional, 1 key)
-
-| File | Event | Character / length |
-| --- | --- | --- |
-| `salvage_pickup.wav` | A salvage crate is picked up | light rising "ding", quieter than the objective chime, ~0.10 s |
 
 (The UI cues - `menu_select`, `ui_toggle`, `objective_new`,
 `objective_complete` - are engine chrome and live in root `assets/sounds/`.)

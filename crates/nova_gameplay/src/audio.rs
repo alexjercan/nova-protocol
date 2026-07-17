@@ -34,8 +34,10 @@
 //! out by mode and the orbit survey dolly stretches it to 250 u, deep in the
 //! rolloff band; see [`compute_thruster_hum_volume`]).
 //!
-//! The [`SoundBank<WorldSfx>`] resource is inserted by `nova_assets` once assets
-//! load; every system here degrades gracefully (does nothing) until it exists.
+//! The [`SoundBank<UiSfx>`] resource is inserted by `nova_assets` once assets
+//! load; every system here degrades gracefully (does nothing) until the
+//! resources it needs exist. World sounds carry no bank at all - each cue
+//! resolves its target's authored `AssetRef` (authored-or-silent).
 
 use std::collections::HashMap;
 
@@ -54,9 +56,10 @@ use crate::{
 /// Keys for the game's UI/interface sound effects - engine chrome, like
 /// `assets/icons/`: loaded from the root `assets/sounds/`, NOT part of any mod
 /// and never referenceable by content (spike 20260717-101524). Everything a
-/// player would call "the interface" lives here; world/gameplay sounds are mod
-/// content and live in [`WorldSfx`] (transitional) or, once migrated, on the
-/// owning section/object config as authorable `AssetRef<AudioSource>` fields.
+/// player would call "the interface" lives here; every world/gameplay sound is
+/// mod content, authored on its owning section/object config as an
+/// `AssetRef<AudioSource>` field (spike 20260717-101524's end state - the
+/// transitional WorldSfx bank is gone).
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum UiSfx {
     /// A new objective was posted to the panel (non-positional).
@@ -72,23 +75,6 @@ pub enum UiSfx {
     UiToggle,
 }
 
-/// Keys for the world/gameplay sound effects still played from a global bank.
-///
-/// TRANSITIONAL (spike 20260717-101524): these are base-MOD sounds
-/// (`assets/base/sounds/`, in base `resources`), but ownership belongs on the
-/// section/object configs as authorable `AssetRef<AudioSource>` fields - the
-/// pattern the turret's `fire_sound` established (task 20260717-002228). Each
-/// follow-up family task moves its cues onto content and DELETES its keys here;
-/// when the last key goes, this enum and its bank go with it, leaving only
-/// [`UiSfx`]. Do not add new keys - author new world sounds on content instead.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum WorldSfx {
-    /// A salvage crate was picked up - a light per-crate "ding", quieter than
-    /// and separate from the objective chime (task 20260714-090002). Fired
-    /// from `nova_scenario`'s salvage plugin, which owns the crate marker.
-    SalvagePickup,
-}
-
 /// The `(key, base-filename)` pairs for the UI bank. Loaded by
 /// `nova_assets::register_sounds` via `SoundBank::load`, whose
 /// `sounds/<name>.wav` convention maps these to the root `assets/sounds/` -
@@ -99,30 +85,6 @@ pub const UI_SFX_FILES: [(UiSfx, &str); 4] = [
     (UiSfx::MenuSelect, "menu_select"),
     (UiSfx::UiToggle, "ui_toggle"),
 ];
-
-/// The `(key, base-filename)` pairs for the transitional world bank. Loaded by
-/// `nova_assets::register_sounds` via `SoundBank::load_paths` from
-/// `base/sounds/<name>.wav` - the base mod's own bundled cues (mods reference
-/// them via `dep://base/sounds/<name>.wav`). Shrinks as cue families migrate
-/// onto content (see [`WorldSfx`]).
-pub const WORLD_SFX_FILES: [(WorldSfx, &str); 1] = [(WorldSfx::SalvagePickup, "salvage_pickup")];
-
-/// Build the transitional [`WorldSfx`] bank: every [`WORLD_SFX_FILES`] entry
-/// loaded from its `base/sounds/<name>.wav` path. The ONE place that path
-/// convention lives - used by `nova_assets::register_sounds` (production) and
-/// by test rigs, so a rig's handles are keyed by the same paths production
-/// loads (and the same paths base content's `self://sounds/...` refs rewrite
-/// to).
-pub fn load_world_sfx_bank(assets: &AssetServer) -> SoundBank<WorldSfx> {
-    let paths: Vec<(WorldSfx, String)> = WORLD_SFX_FILES
-        .iter()
-        .map(|(key, name)| (*key, format!("base/sounds/{name}.wav")))
-        .collect();
-    SoundBank::load_paths(
-        assets,
-        paths.iter().map(|(key, path)| (*key, path.as_str())),
-    )
-}
 
 /// Per-cue *base* playback volumes (at point-blank; distance attenuation scales
 /// them down from here). The PDC fires ~100 rounds/s and impacts arrive in
@@ -1083,8 +1045,6 @@ mod tests {
         app.init_asset::<AudioSource>();
         app.init_resource::<SfxThrottle>();
         app.init_resource::<PlayedSfx>();
-        let bank = load_world_sfx_bank(app.world().resource::<AssetServer>());
-        app.insert_resource(bank);
         app.add_observer(on_damage_play_impact);
         app.add_observer(|_: On<PlaySfx>, mut played: ResMut<PlayedSfx>| played.0 += 1);
 
@@ -1814,20 +1774,6 @@ mod tests {
             assert!(
                 UI_SFX_FILES.iter().any(|(k, _)| *k == key),
                 "UiSfx::{key:?} is missing from UI_SFX_FILES"
-            );
-        }
-    }
-
-    #[test]
-    fn every_world_sfx_key_has_a_file() {
-        // Guards against adding a WorldSfx variant without a placeholder asset.
-        // (New world sounds should be authored on content, not added here - see
-        // the WorldSfx doc - but a key that DOES exist must have a file.)
-        use WorldSfx::*;
-        for key in [SalvagePickup] {
-            assert!(
-                WORLD_SFX_FILES.iter().any(|(k, _)| *k == key),
-                "WorldSfx::{key:?} is missing from WORLD_SFX_FILES"
             );
         }
     }

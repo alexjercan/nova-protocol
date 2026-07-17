@@ -224,3 +224,7 @@ one is 5 (behavioral refactor of a continuous cue) and the fiddly one is 4
   math per handle). The torpedo's internal thruster keeps the base hum via a
   DIRECT path (runtime-built; lifting to a config field is a noted future
   step). WorldSfx 2 -> 1 (SalvagePickup).
+- 20260717-101659 (salvage pickup): `pickup_sound` on SalvageCrateConfig; the
+  cue resolves the crate's authored ref. The LAST key left with it: the
+  WorldSfx enum, bank, loader and guard test are DELETED - the spike's end
+  state. Only UiSfx remains; every world sound is content-authored.

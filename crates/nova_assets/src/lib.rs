@@ -1076,24 +1076,16 @@ fn prepare_cubemap_view(mut images: ResMut<Assets<Image>>, game_assets: Res<Game
     }
 }
 
-/// Load the game's sound effects into the two keyed [`SoundBank`]s the audio
-/// consumers read - the ownership split from spike 20260717-101524:
-///
-/// - [`UiSfx`]: interface chrome (menu clicks, objective chimes), loaded via
-///   `SoundBank::load`'s root `sounds/<name>.wav` convention from
-///   `assets/sounds/` - engine assets like `icons/`, outside every mod.
-/// - [`WorldSfx`]: the TRANSITIONAL world bank, loaded via `load_paths` from
-///   `base/sounds/<name>.wav` - the base mod's own cues (task 20260717-002228),
-///   the SAME paths base content's `self://sounds/...` refs rewrite to, so a
-///   section-authored handle and its bank cue are the same asset. Family tasks
-///   migrate these onto content configs and shrink this bank to deletion.
-///
-/// Banks rather than `GameAssets` because the bank has no public "build from
-/// existing handles" constructor; loading here kicks the (tiny) WAVs off well
-/// before the first sound plays.
+/// Load the game's UI sound effects into the [`SoundBank<UiSfx>`] the
+/// interface consumers read - engine chrome from root `assets/sounds/` via
+/// `SoundBank::load`'s convention (like `icons/`, outside every mod). World
+/// sounds have NO bank (spike 20260717-101524 end state): every one is an
+/// authored `AssetRef<AudioSource>` on its owning content config, resolved by
+/// its cue. A bank rather than `GameAssets` because the bank has no public
+/// "build from existing handles" constructor; loading here kicks the (tiny)
+/// WAVs off well before the first sound plays.
 fn register_sounds(mut commands: Commands, assets: Res<AssetServer>) {
     commands.insert_resource(SoundBank::load(&assets, UI_SFX_FILES));
-    commands.insert_resource(load_world_sfx_bank(&assets));
 }
 
 // TODO(20260525-133028): Probably need to refactor this somehow
