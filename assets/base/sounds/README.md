@@ -24,12 +24,14 @@ the ownership split in spike `tasks/20260717-101524/SPIKE.md`.
 
 A section can declare a sound as an authorable `AssetRef<AudioSource>` content
 field, exactly like it declares a render mesh, and ship + reference it through
-the `self://` / `dep://base` / `dep://<id>` pipeline. The weapon-section family owns
-its sounds this way: the turret's `fire_sound` + `dry_fire_sound` and the
-torpedo bay's `launch_sound` (base sections author `self://sounds/...` for
-each, so the shipped game sounds unchanged - but a mod section can ship and
-name its own). These cues are AUTHORED-OR-SILENT: a section that declares no
-sound plays none (their old `WorldSfx` bank keys are deleted). The remaining
+the `self://` / `dep://base` / `dep://<id>` pipeline. The weapon and controller
+families own their sounds this way: the turret's `fire_sound` +
+`dry_fire_sound`, the torpedo bay's `launch_sound`, and the controller's
+`lock_on_sound`/`lock_off_sound`/`radar_deny_sound`/`radar_retarget_sound`/
+`safety_on_sound` (base sections author `self://sounds/...` for each, so the
+shipped game sounds unchanged - but a mod section can ship and name its own).
+These cues are AUTHORED-OR-SILENT: a section that declares no sound plays none
+(their old `WorldSfx` bank keys are deleted). The remaining
 world cues are migrating onto their owning configs family by family (spike
 20260717-101524); until then they play from the transitional `WorldSfx` bank.
 
@@ -57,33 +59,36 @@ these fixed paths and the audio module plays whatever handle it is given.
 
 ## Required files
 
-The full set is the single source of truth `WORLD_SFX_FILES` in
-`crates/nova_gameplay/src/audio.rs` (one row per `WorldSfx` variant); the
-`every_world_sfx_key_has_a_file` test guards that each key has a file here.
-Combat/world cues are **positional** (distance-attenuated from the listener
-camera); the feedback ticks are **non-positional**.
+Two kinds of file live here. SECTION-AUTHORED DEFAULTS are referenced from
+base content (`self://sounds/...` on the owning section config) and are NOT in
+any bank - replacing the file re-voices the base sections, and a mod section
+can author its own instead. The remaining WORLDSFX BANK keys (transitional,
+`WORLD_SFX_FILES` in `crates/nova_gameplay/src/audio.rs`, guarded by
+`every_world_sfx_key_has_a_file`) still load globally until their families
+migrate. Combat/world cues are **positional** (distance-attenuated from the
+listener camera); the feedback ticks are **non-positional**.
 
-### Combat / world (positional)
+### Section-authored defaults (not in any bank)
+
+| File | Authored on | Character / length |
+| --- | --- | --- |
+| `turret_fire.wav` | turret `fire_sound` (positional) | dry gunshot pop, ~0.07 s, played quietly (fires ~100/s) |
+| `dry_fire.wav` | turret `dry_fire_sound` | dull descending click, ~0.06 s |
+| `torpedo_launch.wav` | torpedo bay `launch_sound` (positional) | airy rising whoosh, ~0.3 s |
+| `lock_on.wav` | controller `lock_on_sound` | quick rising chirp, ~0.09 s |
+| `lock_off.wav` | controller `lock_off_sound` | falling mirror of `lock_on`, ~0.09 s |
+| `radar_deny.wav` | controller `radar_deny_sound` | low flat buzz, ~0.16 s |
+| `radar_retarget.wav` | controller `radar_retarget_sound` | very short quiet tick (subtler than `lock_on`), ~0.045 s |
+| `safety_on.wav` | controller `safety_on_sound` | dull low click, ~0.06 s |
+
+### WorldSfx bank (transitional, 4 keys)
 
 | File | Event | Character / length |
 | --- | --- | --- |
-| `turret_fire.wav` | A PDC/turret round is fired (`shoot_spawn_projectile`) | dry gunshot pop, ~0.07 s, played quietly (fires ~100/s) |
-| `torpedo_launch.wav` | A torpedo leaves its bay (`shoot_spawn_projectile`) | airy rising whoosh, ~0.3 s |
 | `explosion.wav` | A section/asteroid is destroyed or a torpedo detonates (`IntegrityDestroyMarker`) | noisy burst, fast decay, ~0.45 s |
 | `impact.wav` | Damage is applied to a target (`HealthApplyDamage`) | short low thud, ~0.1 s, played quietly (fires per hit) |
 | `thruster_loop.wav` | The engine hum, played continuously; volume tracks throttle | steady low drone, loops seamlessly, ~1 s |
-
-### Ship feedback ticks (non-positional)
-
-| File | Event | Character / length |
-| --- | --- | --- |
-| `lock_on.wav` | A radar gesture acquires its first target (once per gesture) | quick rising chirp, ~0.09 s |
-| `lock_off.wav` | A tap-clear releases a lock | falling mirror of `lock_on`, ~0.09 s |
-| `safety_on.wav` | The weapons safety re-engages (hot -> cold) | dull low click, ~0.06 s |
-| `radar_deny.wav` | A radar hold is denied (computer grants no Lock) | low flat buzz, ~0.16 s |
 | `salvage_pickup.wav` | A salvage crate is picked up | light rising "ding", quieter than the objective chime, ~0.10 s |
-| `dry_fire.wav` | A turret pulls its trigger on an empty magazine | dull descending click, ~0.06 s |
-| `radar_retarget.wav` | A held radar gesture re-designates to a new target | very short quiet tick (subtler than `lock_on`), ~0.045 s |
 
 (The UI cues - `menu_select`, `ui_toggle`, `objective_new`,
 `objective_complete` - are engine chrome and live in root `assets/sounds/`.)

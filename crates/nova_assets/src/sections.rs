@@ -56,6 +56,12 @@ pub struct SectionMeshRefs {
     pub turret_dry_fire_sound: AssetRef<AudioSource>,
     /// The torpedo bay launch sound (task 20260717-101624).
     pub torpedo_launch_sound: AssetRef<AudioSource>,
+    /// The controller's radar/lock/safety feedback cues (task 20260717-101633).
+    pub controller_lock_on_sound: AssetRef<AudioSource>,
+    pub controller_lock_off_sound: AssetRef<AudioSource>,
+    pub controller_radar_deny_sound: AssetRef<AudioSource>,
+    pub controller_radar_retarget_sound: AssetRef<AudioSource>,
+    pub controller_safety_on_sound: AssetRef<AudioSource>,
 }
 
 impl SectionMeshRefs {
@@ -71,6 +77,13 @@ impl SectionMeshRefs {
             turret_fire_sound: AssetRef::from("self://sounds/turret_fire.wav".to_string()),
             turret_dry_fire_sound: AssetRef::from("self://sounds/dry_fire.wav".to_string()),
             torpedo_launch_sound: AssetRef::from("self://sounds/torpedo_launch.wav".to_string()),
+            controller_lock_on_sound: AssetRef::from("self://sounds/lock_on.wav".to_string()),
+            controller_lock_off_sound: AssetRef::from("self://sounds/lock_off.wav".to_string()),
+            controller_radar_deny_sound: AssetRef::from("self://sounds/radar_deny.wav".to_string()),
+            controller_radar_retarget_sound: AssetRef::from(
+                "self://sounds/radar_retarget.wav".to_string(),
+            ),
+            controller_safety_on_sound: AssetRef::from("self://sounds/safety_on.wav".to_string()),
         }
     }
 }
@@ -135,6 +148,11 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 // action (the shakedown's GOTO-off intro) rather than baking it
                 // into this shared catalog entry, which the pirate reuses too.
                 render_mesh: None,
+                lock_on_sound: Some(meshes.controller_lock_on_sound.clone()),
+                lock_off_sound: Some(meshes.controller_lock_off_sound.clone()),
+                radar_deny_sound: Some(meshes.controller_radar_deny_sound.clone()),
+                radar_retarget_sound: Some(meshes.controller_radar_retarget_sound.clone()),
+                safety_on_sound: Some(meshes.controller_safety_on_sound.clone()),
             }),
         },
         SectionConfig {

@@ -206,3 +206,9 @@ one is 5 (behavioral refactor of a continuous cue) and the fiddly one is 4
   resolved by the cue observers), and `fire_sound` flipped to
   authored-or-silent; WorldSfx dropped TurretFire/TorpedoLaunch/DryFire
   (12 -> 9 keys). Base content authors all three, so shipped audio unchanged.
+- 20260717-101633 (controller sounds): the five radar/lock/safety cues became
+  `ControllerSectionConfig` fields snapshotted into one
+  `ControllerSectionSounds` component; the cues resolve the PLAYER ship's
+  controller (messages carry no entity) and drain unconditionally. WorldSfx
+  9 -> 4 (ThrusterLoop, Explosion, Impact, SalvagePickup remain). safety_on
+  placed on the controller per the spike recommendation.

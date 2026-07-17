@@ -31,6 +31,81 @@ pub struct ControllerSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub render_mesh: Option<AssetRef<WorldAsset>>,
+    /// The radar/lock and weapons-safety cues this computer plays, as
+    /// authorable [`AssetRef<AudioSource>`]s like the render mesh (task
+    /// 20260717-101633, spike 20260717-101524): the controller IS the ship's
+    /// computer (it grants the Lock capability), so its feedback ticks are its
+    /// own authorable voice. Snapshotted (unresolved) into
+    /// [`ControllerSectionSounds`]; the audio cues resolve the PLAYER ship's
+    /// controller's refs. AUTHORED-OR-SILENT: `None` plays nothing; base
+    /// controllers author all five via gen_content.
+    ///
+    /// Lock acquired (once per radar gesture).
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub lock_on_sound: Option<AssetRef<AudioSource>>,
+    /// Lock cleared (tap-clear).
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub lock_off_sound: Option<AssetRef<AudioSource>>,
+    /// Radar hold denied (no Lock capability).
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub radar_deny_sound: Option<AssetRef<AudioSource>>,
+    /// Held radar gesture re-designated to a new target.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub radar_retarget_sound: Option<AssetRef<AudioSource>>,
+    /// Weapons safety re-engaged (hot -> cold edge).
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub safety_on_sound: Option<AssetRef<AudioSource>>,
+}
+
+/// The controller's authored feedback sounds, snapshotted UNRESOLVED from
+/// [`ControllerSectionConfig`] by the [`controller_section`] bundle (one
+/// component for the five cues - they share the same consumers). The audio
+/// module reads the PLAYER ship's controller and resolves per cue.
+/// `pub(crate)` for the audio module.
+#[derive(Component, Clone, Debug, Default, Reflect)]
+pub(crate) struct ControllerSectionSounds {
+    #[reflect(ignore)]
+    pub lock_on: Option<AssetRef<AudioSource>>,
+    #[reflect(ignore)]
+    pub lock_off: Option<AssetRef<AudioSource>>,
+    #[reflect(ignore)]
+    pub radar_deny: Option<AssetRef<AudioSource>>,
+    #[reflect(ignore)]
+    pub radar_retarget: Option<AssetRef<AudioSource>>,
+    #[reflect(ignore)]
+    pub safety_on: Option<AssetRef<AudioSource>>,
+}
+
+impl ControllerSectionSounds {
+    fn from_config(config: &ControllerSectionConfig) -> Self {
+        Self {
+            lock_on: config.lock_on_sound.clone(),
+            lock_off: config.lock_off_sound.clone(),
+            radar_deny: config.radar_deny_sound.clone(),
+            radar_retarget: config.radar_retarget_sound.clone(),
+            safety_on: config.safety_on_sound.clone(),
+        }
+    }
 }
 
 impl Default for ControllerSectionConfig {
@@ -40,6 +115,11 @@ impl Default for ControllerSectionConfig {
             damping_ratio: 2.0,
             max_torque: 1.0,
             render_mesh: None,
+            lock_on_sound: None,
+            lock_off_sound: None,
+            radar_deny_sound: None,
+            radar_retarget_sound: None,
+            safety_on_sound: None,
         }
     }
 }
@@ -60,6 +140,7 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
             max_torque: config.max_torque,
         },
         ControllerSectionRotationInput::default(),
+        ControllerSectionSounds::from_config(&config),
         ControllerSectionRenderMesh(config.render_mesh),
     )
 }

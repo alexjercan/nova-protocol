@@ -101,6 +101,11 @@ kind: Controller((
 - `damping_ratio` - the PD damping ratio (overshoot vs settle).
 - `max_torque` - the maximum torque the controller may apply.
 - `render_mesh` (optional) - custom mesh; omit for the default body.
+- `lock_on_sound`, `lock_off_sound`, `radar_deny_sound`,
+  `radar_retarget_sound`, `safety_on_sound` (all optional) - the computer's
+  radar/lock and weapons-safety feedback ticks, asset refs like the meshes
+  (`dep://base/sounds/lock_on.wav` etc. for the base cues); an omitted cue is
+  silent. Your ship's computer can have its own voice.
 
 ## Turret
 

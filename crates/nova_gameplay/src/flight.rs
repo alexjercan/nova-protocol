@@ -4113,6 +4113,7 @@ mod tests {
                     damping_ratio: 4.0,
                     max_torque: 40.0,
                     render_mesh: None,
+                    ..default()
                 }),
                 Transform::default(),
             ))

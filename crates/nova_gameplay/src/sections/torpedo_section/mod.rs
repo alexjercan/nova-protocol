@@ -710,6 +710,10 @@ fn shoot_spawn_projectile(
                         damping_ratio: 4.0,
                         max_torque: 10.0,
                         render_mesh: None,
+                        // A torpedo's guidance computer has no radar/safety
+                        // voice; the player-controller cue lookup never matches
+                        // it anyway (its parent is the projectile, not a ship).
+                        ..default()
                     }),
                 ),
                 (

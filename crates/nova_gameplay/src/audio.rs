@@ -41,6 +41,7 @@ use bevy::{audio::Volume, prelude::*};
 use crate::{
     prelude::*,
     sections::{
+        controller_section::ControllerSectionSounds,
         torpedo_section::{TorpedoSectionLaunchSound, TorpedoSectionSpawnerEntity},
         turret_section::{TurretSectionDryFireSound, TurretSectionFireSound, TurretSectionPartOf},
     },
@@ -84,25 +85,10 @@ pub enum WorldSfx {
     Explosion,
     /// Damage is applied to a target.
     Impact,
-    /// A radar gesture acquired its first target (once per gesture -
-    /// Q3a of spike 20260713-110039).
-    LockOn,
-    /// A tap-clear released a lock (pairs with the unlatch ghost).
-    LockOff,
-    /// The weapons safety re-engaged - the player's hot -> cold edge (a held
-    /// burst must not just silently stop).
-    SafetyOn,
-    /// A radar hold was denied - the computer grants no Lock capability
-    /// (F7/Q8a).
-    RadarDeny,
     /// A salvage crate was picked up - a light per-crate "ding", quieter than
     /// and separate from the objective chime (task 20260714-090002). Fired
     /// from `nova_scenario`'s salvage plugin, which owns the crate marker.
     SalvagePickup,
-    /// A held radar gesture re-designated to a new target - a subtle, lower
-    /// tick, distinct from the once-per-gesture [`LockOn`] acquire cue (task
-    /// 20260714-090006).
-    RadarRetarget,
 }
 
 /// The `(key, base-filename)` pairs for the UI bank. Loaded by
@@ -121,16 +107,11 @@ pub const UI_SFX_FILES: [(UiSfx, &str); 4] = [
 /// `base/sounds/<name>.wav` - the base mod's own bundled cues (mods reference
 /// them via `dep://base/sounds/<name>.wav`). Shrinks as cue families migrate
 /// onto content (see [`WorldSfx`]).
-pub const WORLD_SFX_FILES: [(WorldSfx, &str); 9] = [
+pub const WORLD_SFX_FILES: [(WorldSfx, &str); 4] = [
     (WorldSfx::ThrusterLoop, "thruster_loop"),
     (WorldSfx::Explosion, "explosion"),
     (WorldSfx::Impact, "impact"),
-    (WorldSfx::LockOn, "lock_on"),
-    (WorldSfx::LockOff, "lock_off"),
-    (WorldSfx::SafetyOn, "safety_on"),
-    (WorldSfx::RadarDeny, "radar_deny"),
     (WorldSfx::SalvagePickup, "salvage_pickup"),
-    (WorldSfx::RadarRetarget, "radar_retarget"),
 ];
 
 /// Build the transitional [`WorldSfx`] bank: every [`WORLD_SFX_FILES`] entry
@@ -608,29 +589,53 @@ fn on_torpedo_launch_play_sfx(
 /// deny buzz ([`RadarDenied`], F7/Q8a), and the subtle retarget tick
 /// ([`RadarRetargeted`], task 20260714-090006). One cue per kind per frame - a
 /// staged double-clear in one frame plays one LockOff, not a chord.
+/// The PLAYER ship's controller sounds: the first controller section whose
+/// `ChildOf` parent carries [`PlayerSpaceshipMarker`]. The radar/lock/safety
+/// messages are player-scoped (no entity payload), so this lookup names the
+/// computer whose authored voice plays them. `None` when no player controller
+/// exists (menu, editor, tests) - the cues stay silent, and readers must still
+/// drain.
+fn player_controller_sounds<'a>(
+    q_controller: &'a Query<(&ControllerSectionSounds, &ChildOf)>,
+    q_player: &Query<(), With<PlayerSpaceshipMarker>>,
+) -> Option<&'a ControllerSectionSounds> {
+    q_controller
+        .iter()
+        .find(|(_, ChildOf(ship))| q_player.contains(*ship))
+        .map(|(sounds, _)| sounds)
+}
+
 fn play_lock_cues(
     mut commands: Commands,
-    bank: Option<Res<SoundBank<WorldSfx>>>,
+    asset_server: Res<AssetServer>,
+    q_controller: Query<(&ControllerSectionSounds, &ChildOf)>,
+    q_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut acquired: MessageReader<RadarLockAcquired>,
     mut retargeted: MessageReader<RadarRetargeted>,
     mut cleared: MessageReader<LockClearedToast>,
     mut denied: MessageReader<RadarDenied>,
 ) {
-    let Some(bank) = bank else {
-        // No bank (headless tests, assets not loaded): drain quietly so the
-        // cursors do not replay stale messages once it appears.
-        acquired.read().for_each(|_| {});
-        retargeted.read().for_each(|_| {});
-        cleared.read().for_each(|_| {});
-        denied.read().for_each(|_| {});
-        return;
-    };
-    // DRAIN each reader (count, not next): a leftover unread message would
-    // replay the cue on the NEXT frame.
+    // DRAIN each reader unconditionally (count, not next): a leftover unread
+    // message would replay the cue on the NEXT frame - and with no player
+    // controller (menu, editor, headless tests) the cues are silent but the
+    // cursors must still advance (the old no-bank drain, same reason).
     let acquired_now = acquired.read().count() > 0;
     let retargeted_now = retargeted.read().count() > 0;
+    let cleared_now = cleared.read().count() > 0;
+    let denied_now = denied.read().count() > 0;
+    let Some(sounds) = player_controller_sounds(&q_controller, &q_player) else {
+        return;
+    };
+    // AUTHORED-OR-SILENT (spike 20260717-101524): each cue plays the player
+    // controller's own authored ref, resolved here; an unauthored cue is
+    // silent. Base controllers author all of them via gen_content.
+    let mut play = |ref_opt: &Option<AssetRef<AudioSource>>, volume: f32| {
+        if let Some(handle) = ref_opt.as_ref().map(|r| r.resolve(&asset_server)) {
+            commands.play_sfx_volume(handle, volume);
+        }
+    };
     if acquired_now {
-        commands.play_sfx_volume(bank.get(WorldSfx::LockOn), LOCK_ON_VOLUME);
+        play(&sounds.lock_on, LOCK_ON_VOLUME);
     }
     // The acquire and a retarget can both land in the frames of one gesture, but
     // never the same frame for the same slot (acquire is the first resolve,
@@ -638,13 +643,13 @@ fn play_lock_cues(
     // anyway so a gesture that resolves and immediately settles plays only the
     // richer LockOn, never LockOn + tick.
     if retargeted_now && !acquired_now {
-        commands.play_sfx_volume(bank.get(WorldSfx::RadarRetarget), RADAR_RETARGET_VOLUME);
+        play(&sounds.radar_retarget, RADAR_RETARGET_VOLUME);
     }
-    if cleared.read().count() > 0 {
-        commands.play_sfx_volume(bank.get(WorldSfx::LockOff), LOCK_OFF_VOLUME);
+    if cleared_now {
+        play(&sounds.lock_off, LOCK_OFF_VOLUME);
     }
-    if denied.read().count() > 0 {
-        commands.play_sfx_volume(bank.get(WorldSfx::RadarDeny), RADAR_DENY_VOLUME);
+    if denied_now {
+        play(&sounds.radar_deny, RADAR_DENY_VOLUME);
     }
 }
 
@@ -654,15 +659,22 @@ fn play_lock_cues(
 /// seen state so an unrelated change (spawn) cannot click.
 fn play_safety_engaged_cue(
     mut commands: Commands,
-    bank: Option<Res<SoundBank<WorldSfx>>>,
+    asset_server: Res<AssetServer>,
+    q_controller: Query<(&ControllerSectionSounds, &ChildOf)>,
+    q_player_sounds: Query<(), With<PlayerSpaceshipMarker>>,
     q_player: Query<&WeaponsHot, (With<PlayerSpaceshipMarker>, Changed<WeaponsHot>)>,
     mut was_hot: Local<bool>,
 ) {
     for hot in &q_player {
         let is_hot = hot.0;
         if *was_hot && !is_hot {
-            if let Some(bank) = &bank {
-                commands.play_sfx_volume(bank.get(WorldSfx::SafetyOn), SAFETY_ON_VOLUME);
+            // AUTHORED-OR-SILENT: the click is the player controller's own
+            // authored safety_on ref (the weapons computer's voice).
+            if let Some(handle) = player_controller_sounds(&q_controller, &q_player_sounds)
+                .and_then(|sounds| sounds.safety_on.as_ref())
+                .map(|r| r.resolve(&asset_server))
+            {
+                commands.play_sfx_volume(handle, SAFETY_ON_VOLUME);
             }
         }
         *was_hot = is_hot;
@@ -1202,6 +1214,138 @@ mod tests {
         );
     }
 
+    /// App rig for the lock/safety controller cues: the real systems with a
+    /// `PlaySfx` capture. No bank - the cues resolve the player controller's
+    /// authored refs (authored-or-silent).
+    fn controller_cue_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.init_resource::<LastPlayed>();
+        app.add_message::<RadarLockAcquired>();
+        app.add_message::<RadarRetargeted>();
+        app.add_message::<LockClearedToast>();
+        app.add_message::<RadarDenied>();
+        app.add_systems(Update, (play_lock_cues, play_safety_engaged_cue));
+        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.handle.clone());
+        });
+        app
+    }
+
+    /// A player ship carrying a controller with the given sounds; returns the
+    /// ship entity.
+    fn spawn_player_controller(app: &mut App, sounds: ControllerSectionSounds) -> Entity {
+        let ship = app.world_mut().spawn(PlayerSpaceshipMarker).id();
+        app.world_mut().spawn((sounds, ChildOf(ship)));
+        ship
+    }
+
+    #[test]
+    fn lock_cue_plays_the_player_controllers_authored_sound() {
+        // The controller-owned cue path (task 20260717-101633): a lock acquire
+        // plays the PLAYER controller's authored lock_on ref. Delivery guard
+        // for the silent cases below.
+        let mut app = controller_cue_app();
+        spawn_player_controller(
+            &mut app,
+            ControllerSectionSounds {
+                lock_on: Some(AssetRef::from("mods/x/sounds/chirp.wav")),
+                ..default()
+            },
+        );
+        let expected: Handle<AudioSource> = app
+            .world()
+            .resource::<AssetServer>()
+            .load("mods/x/sounds/chirp.wav");
+        app.world_mut()
+            .write_message(RadarLockAcquired { combat: true });
+        app.update();
+        assert_eq!(
+            app.world().resource::<LastPlayed>().0,
+            Some(expected),
+            "the player controller's authored lock_on must play"
+        );
+    }
+
+    #[test]
+    fn lock_cues_are_silent_without_a_player_controller_and_still_drain() {
+        // No player controller (menu/editor/headless): silent, but the reader
+        // cursors MUST advance - a message sent while controller-less must not
+        // replay once a controller appears.
+        let mut app = controller_cue_app();
+        app.world_mut()
+            .write_message(RadarLockAcquired { combat: true });
+        app.update();
+        assert_eq!(
+            app.world().resource::<LastPlayed>().0,
+            None,
+            "no player controller -> silent"
+        );
+
+        // Controller arrives AFTER the message was drained: no stale replay.
+        spawn_player_controller(
+            &mut app,
+            ControllerSectionSounds {
+                lock_on: Some(AssetRef::from("mods/x/sounds/chirp.wav")),
+                ..default()
+            },
+        );
+        app.update();
+        assert_eq!(
+            app.world().resource::<LastPlayed>().0,
+            None,
+            "a drained message must not replay when the controller appears"
+        );
+
+        // And an unauthored cue on an existing controller stays silent while a
+        // different authored cue plays (per-cue authorship, not all-or-nothing).
+        app.world_mut().write_message(RadarDenied);
+        app.update();
+        assert_eq!(
+            app.world().resource::<LastPlayed>().0,
+            None,
+            "unauthored radar_deny -> silent"
+        );
+        app.world_mut()
+            .write_message(RadarLockAcquired { combat: true });
+        app.update();
+        assert!(
+            app.world().resource::<LastPlayed>().0.is_some(),
+            "the authored lock_on still plays (delivery guard)"
+        );
+    }
+
+    #[test]
+    fn safety_cue_plays_the_controllers_authored_click_on_hot_to_cold() {
+        let mut app = controller_cue_app();
+        let ship = spawn_player_controller(
+            &mut app,
+            ControllerSectionSounds {
+                safety_on: Some(AssetRef::from("base/sounds/safety_on.wav")),
+                ..default()
+            },
+        );
+        let expected: Handle<AudioSource> = app
+            .world()
+            .resource::<AssetServer>()
+            .load("base/sounds/safety_on.wav");
+        app.world_mut().entity_mut(ship).insert(WeaponsHot(true));
+        app.update();
+        assert_eq!(
+            app.world().resource::<LastPlayed>().0,
+            None,
+            "arming is silent"
+        );
+        app.world_mut().entity_mut(ship).insert(WeaponsHot(false));
+        app.update();
+        assert_eq!(
+            app.world().resource::<LastPlayed>().0,
+            Some(expected),
+            "the hot -> cold edge plays the controller's authored click"
+        );
+    }
+
     /// App rig for the hum-volume computation: the real
     /// [`compute_thruster_hum_volume`] system over production markers, no
     /// audio device needed (the sink-apply half is split off for exactly
@@ -1410,17 +1554,7 @@ mod tests {
         // (New world sounds should be authored on content, not added here - see
         // the WorldSfx doc - but a key that DOES exist must have a file.)
         use WorldSfx::*;
-        for key in [
-            ThrusterLoop,
-            Explosion,
-            Impact,
-            LockOn,
-            LockOff,
-            SafetyOn,
-            RadarDeny,
-            SalvagePickup,
-            RadarRetarget,
-        ] {
+        for key in [ThrusterLoop, Explosion, Impact, SalvagePickup] {
             assert!(
                 WORLD_SFX_FILES.iter().any(|(k, _)| *k == key),
                 "WorldSfx::{key:?} is missing from WORLD_SFX_FILES"

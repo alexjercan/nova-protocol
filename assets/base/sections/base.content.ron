@@ -35,6 +35,11 @@
             frequency: 4.0,
             damping_ratio: 4.0,
             max_torque: 40.0,
+            lock_on_sound: Some("self://sounds/lock_on.wav"),
+            lock_off_sound: Some("self://sounds/lock_off.wav"),
+            radar_deny_sound: Some("self://sounds/radar_deny.wav"),
+            radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
+            safety_on_sound: Some("self://sounds/safety_on.wav"),
         )),
     )),
     Section((
