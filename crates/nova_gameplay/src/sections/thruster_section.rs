@@ -13,9 +13,9 @@ use crate::prelude::{AssetRef, SectionDamageClass, SectionInactiveMarker, Sectio
 
 pub mod prelude {
     pub use super::{
-        thruster_section, ThrusterExhaust, ThrusterExhaustConfig, ThrusterSectionConfig,
-        ThrusterSectionInput, ThrusterSectionMagnitude, ThrusterSectionMarker,
-        ThrusterSectionPlugin, ThrusterSectionRenderMarker,
+        thruster_section, ThrusterExhaust, ThrusterExhaustConfig, ThrusterExhaustShape,
+        ThrusterSectionConfig, ThrusterSectionInput, ThrusterSectionMagnitude,
+        ThrusterSectionMarker, ThrusterSectionPlugin, ThrusterSectionRenderMarker,
     };
 }
 
@@ -103,6 +103,9 @@ pub fn thruster_section(config: ThrusterSectionConfig) -> impl Bundle {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(default))]
 pub struct ThrusterExhaustConfig {
+    /// Cross-section of the exhaust flame: round `Cone` or axis-aligned `Square`
+    /// nozzle (square reuses the radius fields as the half-side).
+    pub geometry: ThrusterExhaustShape,
     pub exhaust_height: f32,
     pub exhaust_radius: f32,
     pub exhaust_max: f32,
@@ -113,9 +116,22 @@ pub struct ThrusterExhaustConfig {
     pub emissive_inner_color: LinearRgba,
 }
 
+/// The exhaust flame's cross-section. `Square` builds an axis-aligned square
+/// pyramid instead of a round cone, reusing `exhaust_radius` /
+/// `exhaust_inner_radius` as the half-side (the glow shader is shape-agnostic:
+/// it elongates along +Y using the xz radius, which still fades a square).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ThrusterExhaustShape {
+    #[default]
+    Cone,
+    Square,
+}
+
 impl Default for ThrusterExhaustConfig {
     fn default() -> Self {
         Self {
+            geometry: ThrusterExhaustShape::Cone,
             exhaust_height: 0.1,
             exhaust_radius: 0.4,
             exhaust_max: 1.0,
@@ -126,6 +142,54 @@ impl Default for ThrusterExhaustConfig {
             emissive_inner_color: LinearRgba::rgb(0.0, 0.0, 10.0),
         }
     }
+}
+
+/// A unit square pyramid (base square [-1,1]^2 at y=0, tip at y=1), sides
+/// subdivided by height, mirroring `TriangleMeshBuilder::new_cone` so the glow
+/// shader (which reads position.y / xz) treats it exactly like a cone. Scaled by
+/// `(radius, height, radius)` at the call site, so the half-side becomes radius.
+fn square_exhaust_builder(height_subdivisions: u32) -> TriangleMeshBuilder {
+    let vertical = height_subdivisions.max(1);
+    let mut builder = TriangleMeshBuilder::new_empty();
+    let tip = Vec3::new(0.0, 1.0, 0.0);
+    let corners = [
+        Vec3::new(1.0, 0.0, -1.0),
+        Vec3::new(1.0, 0.0, 1.0),
+        Vec3::new(-1.0, 0.0, 1.0),
+        Vec3::new(-1.0, 0.0, -1.0),
+    ];
+    for i in 0..4 {
+        let c0 = corners[i];
+        let c1 = corners[(i + 1) % 4];
+        for v in 0..vertical {
+            let t0 = v as f32 / vertical as f32;
+            let t1 = (v + 1) as f32 / vertical as f32;
+            let p00 = Vec3::lerp(tip, c0, t0);
+            let p01 = Vec3::lerp(tip, c1, t0);
+            let p10 = Vec3::lerp(tip, c0, t1);
+            let p11 = Vec3::lerp(tip, c1, t1);
+            builder.add_triangle(Triangle3d::new(p00, p10, p11));
+            builder.add_triangle(Triangle3d::new(p00, p11, p01));
+        }
+    }
+    // Base cap, wound to face -Y (down), matching the cone's base.
+    for i in 0..4 {
+        let c0 = corners[i];
+        let c1 = corners[(i + 1) % 4];
+        builder.add_triangle(Triangle3d::new(Vec3::ZERO, c1, c0));
+    }
+    builder
+}
+
+/// Build the exhaust flame mesh for the given shape, scaled to `radius`/`height`.
+fn exhaust_mesh(shape: ThrusterExhaustShape, radius: f32, height: f32) -> Mesh {
+    let builder = match shape {
+        ThrusterExhaustShape::Cone => TriangleMeshBuilder::new_cone(32, 4),
+        ThrusterExhaustShape::Square => square_exhaust_builder(4),
+    };
+    builder
+        .with_scale(Vec3::new(radius, height, radius))
+        .build()
 }
 
 /// Authorable placement + shape of a thruster's exhaust cone. `offset`/`rotation`
@@ -408,13 +472,11 @@ fn insert_thruster_shader(
         return;
     };
 
-    let mesh = TriangleMeshBuilder::new_cone(32, 4)
-        .with_scale(Vec3::new(
-            config.exhaust_radius,
-            config.exhaust_height,
-            config.exhaust_radius,
-        ))
-        .build();
+    let mesh = exhaust_mesh(
+        config.geometry,
+        config.exhaust_radius,
+        config.exhaust_height,
+    );
     let material = ExtendedMaterial {
         base: StandardMaterial {
             base_color: Color::srgba(1.0, 1.0, 1.0, 1.0),
@@ -428,13 +490,11 @@ fn insert_thruster_shader(
             .with_exhaust_radius(config.exhaust_radius),
     };
 
-    let inner_mesh = TriangleMeshBuilder::new_cone(32, 4)
-        .with_scale(Vec3::new(
-            config.exhaust_inner_radius,
-            config.exhaust_inner_height,
-            config.exhaust_inner_radius,
-        ))
-        .build();
+    let inner_mesh = exhaust_mesh(
+        config.geometry,
+        config.exhaust_inner_radius,
+        config.exhaust_inner_height,
+    );
     let inner_material = ExtendedMaterial {
         base: StandardMaterial {
             base_color: Color::srgba(1.0, 1.0, 1.0, 1.0),
@@ -499,6 +559,31 @@ impl MaterialExtension for ThrusterExhaustMaterial {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn square_exhaust_builder_is_a_unit_square_pyramid() {
+        let mesh = square_exhaust_builder(4).build();
+        let Some(bevy::render::mesh::VertexAttributeValues::Float32x3(positions)) =
+            mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+        else {
+            panic!("square exhaust mesh has no Float32x3 positions");
+        };
+        assert!(!positions.is_empty());
+        for &[x, y, z] in positions {
+            assert!((-1.001..=1.001).contains(&x), "x {x} out of range");
+            assert!((-0.001..=1.001).contains(&y), "y {y} out of range");
+            assert!((-1.001..=1.001).contains(&z), "z {z} out of range");
+        }
+        // A square base reaches the corners (|x|~1 AND |z|~1) - a round cone's
+        // xz traces the unit circle and never has both near 1, so this pins the
+        // shape as square, not cone.
+        assert!(
+            positions
+                .iter()
+                .any(|&[x, _, z]| x.abs() > 0.99 && z.abs() > 0.99),
+            "expected a square corner near (+-1, _, +-1)"
+        );
+    }
 
     #[test]
     fn spawns_thruster_with_default_config() {

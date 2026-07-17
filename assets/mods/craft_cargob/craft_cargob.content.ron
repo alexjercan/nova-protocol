@@ -385,6 +385,9 @@
                                             exhaust: Some((
                                                 offset: (0.0, 0.0, 0.5),
                                                 rotation: (0.70710677, 0.0, 0.0, 0.70710677),
+                                                shape: (
+                                                    geometry: Square,
+                                                ),
                                             )),
                                         )),
                                     )),
@@ -665,6 +668,9 @@
                                             exhaust: Some((
                                                 offset: (0.0, 0.0, 0.5),
                                                 rotation: (0.70710677, 0.0, 0.0, 0.70710677),
+                                                shape: (
+                                                    geometry: Square,
+                                                ),
                                             )),
                                         )),
                                     )),

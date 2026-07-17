@@ -768,6 +768,7 @@ fn shoot_spawn_projectile(
                         ))
                         .with_translation(Vec3::new(0.0, 0.0, -0.45)),
                         ThrusterExhaustConfig {
+                            geometry: ThrusterExhaustShape::Cone,
                             exhaust_height: 0.1,
                             exhaust_radius: 0.15,
                             exhaust_max: 1.0,
