@@ -1,6 +1,21 @@
 [build]
 public_url = "./"
 
+# After Trunk copies `assets/` into the staging dir, generate a default `.meta`
+# sidecar for every asset that lacks one, so `AssetMetaCheck::Always` (see
+# nova_core::assets_plugin) never has to fetch a missing meta on the web. Without
+# this, `trunk serve` (and any SPA-fallback host) answers a missing `.meta` with
+# `200 OK` + an HTML page, which Bevy tries to parse as RON and fails on, and the
+# asset never loads. post_build runs against $TRUNK_STAGING_DIR BEFORE Trunk
+# moves staging into dist/, and Trunk blocks on the hook, so the fresh sidecars
+# ride along to dist. nova_meta_gen reads TRUNK_STAGING_DIR itself and writes into
+# <staging>/assets. See docs/wasm-asset-meta-always-investigation.md. (Cost: the
+# native tool compiles Bevy once per fresh checkout; cached thereafter.)
+[[hooks]]
+stage = "post_build"
+command = "cargo"
+command_arguments = ["run", "--quiet", "-p", "nova_meta_gen"]
+
 [serve]
 port = 8080
 

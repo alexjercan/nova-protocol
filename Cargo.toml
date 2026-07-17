@@ -99,6 +99,7 @@ members = [
   "crates/nova_info",
   "crates/nova_menu",
   "crates/nova_mod_format",
+  "crates/nova_meta_gen",
   "crates/nova_modding",
   "crates/nova_portal_gen",
   "crates/nova_scenario",
