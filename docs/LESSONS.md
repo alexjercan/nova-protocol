@@ -129,6 +129,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   against the new file AND reconciling counts, before review, not by
   eyeballing the diff (a CHANGELOG regroup dropped the "Screenshot Reel"
   entry; a token cross-check + 93=94-1 count caught it). 20260716-102950.
+- `parallel-gates-pin-all` (x1): when an edit tightens N handlers sharing one
+  gate value (three act < 3 -> act < 2 filters), the test edit must pin all N -
+  mirroring only the handler the old test covered left the hauler soft-fail
+  gate free to regress; count the gates in the diff and count the pins.
+  20260717-112639.
 - `prose-invariant-becomes-pin` (x1): a design invariant stated in prose
   ("full aggression in the arena", "the line stays flyable") is where review
   finds the hole - turn the sentence into a computed assertion in the same
@@ -270,7 +275,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   20260713-175416.
 - `presence-vs-behavior-tests` (x2): component-exists assertions stay green
   while behavior regresses; assert the behavior. 20260709-160753.
-- `sweep-then-delete` (x9): before deleting, moving, or swapping a mechanism or
+- `sweep-then-delete` (x10): before deleting, moving, or swapping a mechanism or
   marker, grep the WHOLE repo for its symbol names, describing words, and
   observers/queries - including root-level docs (README, AGENTS.md), the
   CHANGELOG, text the same branch added earlier, and PROSE inside
@@ -279,8 +284,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   bare filename/stem AND the markdown-link forms `[x](x.md)`, not the old
   `dir/x.md` PATH - a path-prefixed grep misses relative links and renamed
   targets (a doc move shipped four `/wiki/dev/...` 404 links past a docs/-prefixed
-  sweep). 20260711-212519, 20260712-133343, 20260712-211352, 20260714-204219,
-  20260715-151551, 20260715-195621.
+  sweep). A stale CLAIM can be twinned too: the same superseded infinite-ammo
+  comment lived in the builder AND its test; fixing one and declaring victory
+  left the twin for review - grep the describing words before claiming a
+  comment fix complete. 20260711-212519, 20260712-133343, 20260712-211352,
+  20260714-204219, 20260715-151551, 20260715-195621, 20260717-112639.
 - `reread-after-insert` (x2): after inserting into a function or test, re-read
   the whole thing for bindings, assertions, or invariants the insertion
   duplicated or broke. 20260710-214316.
