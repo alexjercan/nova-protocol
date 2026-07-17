@@ -290,14 +290,17 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `commit-before-sabotage` (x2, PROMOTED 2026-07-11 -> work skill): commit the
   fix before A/B sabotage; anchor scripted splices on unique strings and
   compile immediately after. 20260710-231930, 20260713-082330.
-- `production-faithful-rigs` (x7, PROMOTED 2026-07-11 -> work skill): test rigs
+- `production-faithful-rigs` (x8, PROMOTED 2026-07-11 -> work skill): test rigs
   must mirror production - scheduling, every system that ticks the state, the
   real body-vs-collider hierarchy an engine observer needs, and the shipped
   CONFIGURATION (a rig on default AssetPlugin settings "verified" a meta fix
   the app's meta_check never read). MIRRORING a load-bearing registration
   inline in a rig is the weak form - extract ONE shared registration helper
   the plugin and the rigs both call, so the chain/gate cannot drift
-  (20260717-112647 R1.2). 20260711-103527, 20260712-133343,
+  (20260717-112647 R1.2). REQUIRED-COMPONENT DEFAULTS are configuration too:
+  a rig that hand-picks a "tidy" state (Patrol) instead of the spawn default
+  (Engage) dodges the exact path every production spawn takes - a mutation
+  probe survived until the rig seeded the default (20260717-163042 R1.1). 20260711-103527, 20260712-133343,
   20260713-175416.
 - `presence-vs-behavior-tests` (x2): component-exists assertions stay green
   while behavior regresses; assert the behavior. 20260709-160753.
