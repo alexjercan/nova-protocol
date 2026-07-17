@@ -116,6 +116,16 @@ Two independent decisions: **(A) how to partition the geometry into cells**, and
 
 **A1 (face-centroid bucketing) + B1 (stdlib glb writer).**
 
+> UPDATE (during implementation, task 20260717-221101): the user chose **A2
+> (grid clipping)** over A1 - each triangle is sliced at the cube-boundary
+> planes so every piece is strictly self-contained in its 1x1x1 slot, making the
+> cut pieces reusable as a generic parts library (not just this ship). The
+> "hollow shell" downside of A2 is handled not by capping cut faces but by
+> backing each tile with the game's existing default-hull scaffold cube. The
+> slicing mirrors `bevy-common-systems` `src/mesh/builder.rs` `triangle_slice`.
+> B1 (stdlib glb writer) stands. Loss-free is now area-conservation, not
+> triangle-count.
+
 Rationale:
 
 - A1 is the only option that gives **exact, loss-free reconstruction** of the
