@@ -1036,6 +1036,7 @@ mod tests {
             app.insert_resource(CurrentOutcome(Some(OutcomeActionConfig {
                 outcome: ScenarioOutcomeKind::Victory,
                 message: None,
+                auto_advance_secs: None,
             })));
             app.add_observer(on_load_scenario);
             app
@@ -1194,6 +1195,7 @@ mod tests {
         app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
             outcome: ScenarioOutcomeKind::Defeat,
             message: None,
+            auto_advance_secs: None,
         });
         let scoped = app.world_mut().spawn(ScenarioScopedMarker).id();
         app.update();

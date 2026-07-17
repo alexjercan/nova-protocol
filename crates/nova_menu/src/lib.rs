@@ -237,6 +237,7 @@ impl Plugin for NovaMenuPlugin {
                 sync_outcome_overlay,
                 sync_outcome_cursor,
                 sync_outcome_pause,
+                auto_advance_outcome,
             )
                 .run_if(in_state(GameStates::Playing))
                 .run_if(resource_exists::<CurrentOutcome>),
@@ -772,6 +773,52 @@ fn sync_outcome_overlay(
 fn on_outcome_advance(_activate: On<Activate>, mut world: Option<ResMut<NovaEventWorld>>) {
     if let Some(world) = world.as_deref_mut() {
         world.release_lingering_next();
+    }
+}
+
+/// The timed overlay (task 20260717-163050): an outcome declared with
+/// `auto_advance_secs` advances its queued LINGERING chain by itself after
+/// N REAL seconds - the overlay pauses virtual time, so the wall clock is
+/// the only one still moving - via exactly the Continue button's release.
+/// The local clock re-arms per outcome (reset on any CurrentOutcome
+/// change) and idles when no lingering chain waits (nothing to advance).
+fn auto_advance_outcome(
+    // Optional: headless rigs run without TimePlugin (the menu tests feed
+    // their clocks by hand) - no wall clock, no auto-advance.
+    time: Option<Res<Time<Real>>>,
+    outcome: Res<CurrentOutcome>,
+    mut world: Option<ResMut<NovaEventWorld>>,
+    mut clock: Local<Option<Timer>>,
+) {
+    let Some(time) = time else {
+        return;
+    };
+    if outcome.is_changed() {
+        *clock = None;
+    }
+    let Some(secs) = outcome.0.as_ref().and_then(|o| o.auto_advance_secs) else {
+        *clock = None;
+        return;
+    };
+    let Some(world) = world.as_deref_mut() else {
+        return;
+    };
+    if !world.next_scenario.as_ref().is_some_and(|next| next.linger) {
+        *clock = None;
+        return;
+    }
+    // Finite-check and cap before Timer::from_seconds: an authored 1e300
+    // parses fine and `as f32` is inf, which panics Duration construction
+    // (review R1.1).
+    if !secs.is_finite() {
+        *clock = None;
+        return;
+    }
+    let capped = secs.clamp(0.0, nova_scenario::prelude::OUTCOME_AUTO_ADVANCE_MAX_SECS) as f32;
+    let timer = clock.get_or_insert_with(|| Timer::from_seconds(capped, TimerMode::Once));
+    if timer.tick(time.delta()).just_finished() {
+        world.release_lingering_next();
+        *clock = None;
     }
 }
 
@@ -4346,6 +4393,7 @@ mod tests {
             .next_scenario = Some(NextScenarioActionConfig {
             scenario_id: "retry_me".to_string(),
             linger: true,
+            delay: None,
         });
         app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig::new(
             ScenarioOutcomeKind::Defeat,
@@ -4372,6 +4420,95 @@ mod tests {
         );
     }
 
+    /// The timed overlay (task 20260717-163050): auto_advance_secs
+    /// releases the lingering chain after N REAL seconds with no click -
+    /// and an outcome WITHOUT it waits forever (delivery guard).
+    #[test]
+    fn auto_advance_releases_the_lingering_switch_after_real_seconds() {
+        use core::time::Duration;
+
+        let mut app = app_with_outcome();
+        // The headless rig has no TimePlugin: provide the wall clock and
+        // advance it by hand (the overlay pauses virtual time; the advance
+        // clock must run on real time).
+        app.insert_resource(Time::<Real>::default());
+        let step = |app: &mut App| {
+            app.world_mut()
+                .resource_mut::<Time<Real>>()
+                .advance_by(Duration::from_millis(200));
+            app.update();
+        };
+        enter_playing(&mut app);
+
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .next_scenario = Some(NextScenarioActionConfig {
+            scenario_id: "next_up".to_string(),
+            linger: true,
+            delay: None,
+        });
+        app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
+            outcome: ScenarioOutcomeKind::Victory,
+            message: Some("Onward.".to_string()),
+            auto_advance_secs: Some(1.0),
+        });
+        step(&mut app);
+        step(&mut app);
+        assert_eq!(
+            app.world()
+                .resource::<NovaEventWorld>()
+                .next_scenario
+                .as_ref()
+                .map(|next| next.linger),
+            Some(true),
+            "inside the window the overlay still waits"
+        );
+
+        for _ in 0..8 {
+            step(&mut app);
+        }
+        assert_eq!(
+            app.world()
+                .resource::<NovaEventWorld>()
+                .next_scenario
+                .as_ref()
+                .map(|next| next.linger),
+            Some(false),
+            "the timed banner released the chain by itself"
+        );
+
+        // Delivery guard: without auto_advance_secs nothing ever releases.
+        let mut app = app_with_outcome();
+        app.insert_resource(Time::<Real>::default());
+        enter_playing(&mut app);
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .next_scenario = Some(NextScenarioActionConfig {
+            scenario_id: "next_up".to_string(),
+            linger: true,
+            delay: None,
+        });
+        app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig::new(
+            ScenarioOutcomeKind::Victory,
+            "Take your time.",
+        ));
+        for _ in 0..12 {
+            app.world_mut()
+                .resource_mut::<Time<Real>>()
+                .advance_by(Duration::from_millis(200));
+            app.update();
+        }
+        assert_eq!(
+            app.world()
+                .resource::<NovaEventWorld>()
+                .next_scenario
+                .as_ref()
+                .map(|next| next.linger),
+            Some(true),
+            "no auto_advance_secs: the overlay waits for the player"
+        );
+    }
+
     /// Victory with nothing queued (end of content): VICTORY banner, no
     /// Continue/Retry, the hint points at the menu, and the Main Menu button
     /// exits to MainMenu. Clearing the outcome (scenario teardown) despawns
@@ -4384,6 +4521,7 @@ mod tests {
         app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
             outcome: ScenarioOutcomeKind::Victory,
             message: None,
+            auto_advance_secs: None,
         });
         app.update();
 
@@ -4417,6 +4555,7 @@ mod tests {
         app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
             outcome: ScenarioOutcomeKind::Victory,
             message: None,
+            auto_advance_secs: None,
         });
         app.update();
 
@@ -4461,6 +4600,7 @@ mod tests {
         app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
             outcome: ScenarioOutcomeKind::Victory,
             message: None,
+            auto_advance_secs: None,
         });
         app.update();
         app.update();
@@ -4513,6 +4653,7 @@ mod tests {
                 Some(NextScenarioActionConfig {
                     scenario_id: "next".to_string(),
                     linger: true,
+                    delay: None,
                 }),
             ),
             (
@@ -4520,6 +4661,7 @@ mod tests {
                 Some(NextScenarioActionConfig {
                     scenario_id: "retry".to_string(),
                     linger: true,
+                    delay: None,
                 }),
             ),
             (ScenarioOutcomeKind::Victory, None),
@@ -4543,6 +4685,7 @@ mod tests {
             app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
                 outcome: kind,
                 message: None,
+                auto_advance_secs: None,
             });
             app.update();
             app.update();
@@ -4587,6 +4730,7 @@ mod tests {
         app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
             outcome: ScenarioOutcomeKind::Victory,
             message: None,
+            auto_advance_secs: None,
         });
         app.update();
         app.update();
@@ -4626,6 +4770,7 @@ mod tests {
         app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
             outcome: ScenarioOutcomeKind::Defeat,
             message: None,
+            auto_advance_secs: None,
         });
         app.update();
         app.update();
@@ -4666,6 +4811,7 @@ mod tests {
         app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
             outcome: ScenarioOutcomeKind::Victory,
             message: None,
+            auto_advance_secs: None,
         });
         app.update();
         assert!(
@@ -4679,6 +4825,7 @@ mod tests {
             .next_scenario = Some(NextScenarioActionConfig {
             scenario_id: "next_chapter".to_string(),
             linger: true,
+            delay: None,
         });
         app.update();
 

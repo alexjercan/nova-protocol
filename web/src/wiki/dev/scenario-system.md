@@ -172,6 +172,25 @@ expression tree: `VariableExpressionNode` (add/subtract), `VariableTermNode`
 (multiply/divide), `VariableFactorNode` (literal/name/parens);
 `VariableConditionNode` (less/greater/equal) yields booleans for filters.
 
+### Transition pacing (the three gears)
+
+A scenario switch has three speeds (task 20260717-163050):
+
+- **Hard cut** - `NextScenario((scenario_id: "x", linger: false))`:
+  instant. Never pair it with an `Outcome` in the same handler (the
+  teardown swallows the overlay; content_lint warns).
+- **Delayed cut** - `NextScenario((scenario_id: "x", linger: false,
+  delay: Some(4.0)))`: the world keeps playing for the delay (a story
+  line can land and be read), then cuts. Ticks on virtual
+  (pause-frozen) time, so a player pausing holds the cut. Non-positive or
+  omitted = instant.
+- **Modal hold** - `Outcome((...))` + `NextScenario((..., linger:
+  true))`: the banner freezes the sim and Continue/Retry releases the
+  chain. Add `auto_advance_secs: Some(6.0)` to the Outcome for a TIMED
+  banner: it advances by itself after that many real seconds (the pause
+  stops virtual time, not the wall clock) - the player can still click
+  sooner.
+
 ### Story pacing (`StoryMessage` and the comms queue)
 
 Story lines display through a PACED queue (task 20260717-163033), not

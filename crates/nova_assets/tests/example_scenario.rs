@@ -697,6 +697,7 @@ fn merge_sweep_flags_bad_content_and_passes_the_shipped_tree() {
                 nova_scenario::prelude::NextScenarioActionConfig {
                     scenario_id: "no_such_chapter".to_string(),
                     linger: true,
+                    delay: None,
                 },
             )],
         }],

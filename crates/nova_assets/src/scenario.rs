@@ -747,6 +747,7 @@ pub(crate) fn asteroid_field(
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: "asteroid_field".to_string(),
                     linger: true,
+                    delay: None,
                 }),
             ],
         },
@@ -856,6 +857,7 @@ pub(crate) fn asteroid_field(
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: "asteroid_next".to_string(),
                     linger: true,
+                    delay: None,
                 }),
             ],
         },
@@ -881,6 +883,7 @@ pub(crate) fn asteroid_next(cubemap: AssetRef<Image>) -> ScenarioConfig {
         actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
             scenario_id: "asteroid_field".to_string(),
             linger: true,
+            delay: None,
         })],
     }];
 

@@ -22,7 +22,8 @@ pub mod prelude {
         ScatterObjectsConfig, ScatterRegion, ScenarioAreaConfig, ScenarioObjectConfig,
         ScenarioObjectKind, ScenarioOutcomeKind, ScreenshotActionConfig, SetCameraActionConfig,
         SetControllerVerbActionConfig, SetSkyboxActionConfig, SetSpeedCapActionConfig,
-        StoryMessageActionConfig, VariableSetActionConfig,
+        StoryMessageActionConfig, VariableSetActionConfig, NEXT_SCENARIO_DELAY_MAX_SECS,
+        NEXT_SCENARIO_DELAY_WARN_SECS, OUTCOME_AUTO_ADVANCE_MAX_SECS,
     };
 }
 
@@ -458,6 +459,16 @@ pub struct OutcomeActionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub message: Option<String>,
+    /// Timed overlay (task 20260717-163050): after this many REAL seconds
+    /// (the overlay pauses virtual time) the banner advances the queued
+    /// LINGERING chain exactly as if Continue were pressed. Strict RON:
+    /// `auto_advance_secs: Some(6.0)`. Absent = wait for the player;
+    /// meaningless without a queued lingering NextScenario.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub auto_advance_secs: Option<f64>,
 }
 
 impl OutcomeActionConfig {
@@ -466,6 +477,7 @@ impl OutcomeActionConfig {
         Self {
             outcome,
             message: Some(message.to_string()),
+            auto_advance_secs: None,
         }
     }
 }
@@ -497,20 +509,52 @@ impl EventAction<NovaEventWorld> for OutcomeActionConfig {
     }
 }
 
+/// Runtime cap on the delayed cut (panic-proofing Timer construction);
+/// content_lint warns above [`NEXT_SCENARIO_DELAY_WARN_SECS`] already.
+pub const NEXT_SCENARIO_DELAY_MAX_SECS: f32 = 300.0;
+/// The authored range content_lint considers sane for a delayed cut.
+pub const NEXT_SCENARIO_DELAY_WARN_SECS: f32 = 60.0;
+/// Runtime cap on the timed banner (same panic-proofing).
+pub const OUTCOME_AUTO_ADVANCE_MAX_SECS: f64 = 300.0;
+
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NextScenarioActionConfig {
     pub scenario_id: String,
     pub linger: bool,
+    /// Delayed non-lingering switch (task 20260717-163050, user-directed):
+    /// with `linger: false`, hold the cut for this many seconds while the
+    /// world keeps playing - the middle gear between the hard cut and the
+    /// modal overlay. Strict RON: `delay: Some(4.0)`. Ticks on virtual
+    /// (pause-frozen) time; non-positive or absent = instant.
+    /// Meaningless with `linger: true` (the overlay's Continue is the
+    /// release; see `OutcomeActionConfig::auto_advance_secs` for a timed
+    /// overlay).
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub delay: Option<f32>,
 }
 
 impl EventAction<NovaEventWorld> for NextScenarioActionConfig {
     fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
         debug!(
-            "NextScenario: queuing scenario '{}' (linger: {})",
-            self.scenario_id, self.linger
+            "NextScenario: queuing scenario '{}' (linger: {}, delay: {:?})",
+            self.scenario_id, self.linger, self.delay
         );
         world.next_scenario = Some(self.clone());
+        // Arm the delayed cut only for the non-lingering shape; a fresh
+        // queue always resets the clock (last request wins wholesale).
+        // Finite-check and cap before Timer::from_seconds - an authored
+        // 1e30 parses fine and would PANIC Duration::from_secs_f32
+        // (review R1.1); content_lint warns outside (0, 60].
+        world.next_scenario_delay = match self.delay {
+            Some(delay) if !self.linger && delay > 0.0 && delay.is_finite() => Some(
+                Timer::from_seconds(delay.min(NEXT_SCENARIO_DELAY_MAX_SECS), TimerMode::Once),
+            ),
+            _ => None,
+        };
     }
 }
 
@@ -991,6 +1035,34 @@ pub fn base_scenario_object(config: &BaseScenarioObjectConfig) -> impl Bundle {
 mod tests {
     use super::*;
 
+    /// The transition-pacing fields parse in their documented strict-RON
+    /// shapes and default when omitted (task 20260717-163050).
+    #[cfg(feature = "serde")]
+    #[test]
+    fn transition_pacing_ron_parses_and_defaults() {
+        let delayed = r#"NextScenario((scenario_id: "x", linger: false, delay: Some(4.0)))"#;
+        let parsed: EventActionConfig = ron::from_str(delayed).expect("delay syntax parses");
+        let EventActionConfig::NextScenario(next) = &parsed else {
+            panic!("NextScenario variant");
+        };
+        assert_eq!(next.delay, Some(4.0));
+
+        let plain = r#"NextScenario((scenario_id: "x", linger: true))"#;
+        let parsed: EventActionConfig = ron::from_str(plain).expect("omitted delay parses");
+        let EventActionConfig::NextScenario(next) = &parsed else {
+            panic!("NextScenario variant");
+        };
+        assert_eq!(next.delay, None);
+
+        let timed = r#"Outcome((outcome: Victory, auto_advance_secs: Some(6.0)))"#;
+        let parsed: EventActionConfig = ron::from_str(timed).expect("auto_advance parses");
+        let EventActionConfig::Outcome(outcome) = &parsed else {
+            panic!("Outcome variant");
+        };
+        assert_eq!(outcome.auto_advance_secs, Some(6.0));
+        assert_eq!(outcome.message, None);
+    }
+
     /// The authored RON shape parses and round-trips - the exact syntax the
     /// authoring guide documents: `StoryMessage((speaker: ..., text: ...))`,
     /// with `dwell` OMITTED defaulting to None and the documented strict-RON
@@ -1080,6 +1152,7 @@ mod tests {
         let action = EventActionConfig::Outcome(OutcomeActionConfig {
             outcome: ScenarioOutcomeKind::Defeat,
             message: None,
+            auto_advance_secs: None,
         });
         {
             let mut world = app.world_mut().resource_mut::<NovaEventWorld>();

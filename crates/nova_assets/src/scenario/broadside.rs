@@ -426,6 +426,7 @@ pub(crate) fn broadside(
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: BROADSIDE_GUNSHIP_SCENARIO_ID.to_string(),
                     linger: true,
+                    delay: None,
                 }),
             ],
         },
@@ -458,6 +459,7 @@ pub(crate) fn broadside(
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: BROADSIDE_SCENARIO_ID.to_string(),
                     linger: true,
+                    delay: None,
                 }),
             ],
         },
@@ -557,6 +559,7 @@ pub(crate) fn broadside_gunship(
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: BROADSIDE_GUNSHIP_SCENARIO_ID.to_string(),
                     linger: true,
+                    delay: None,
                 }),
             ],
         },

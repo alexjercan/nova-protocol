@@ -16,6 +16,10 @@ pub struct NovaEventWorld {
     story_messages: Vec<StoryMessageActionConfig>,
     variables: HashMap<String, VariableLiteral>,
     pub next_scenario: Option<NextScenarioActionConfig>,
+    /// The delayed non-lingering cut's clock (task 20260717-163050): armed
+    /// by the NextScenario action, ticked by `state_to_world_system` on
+    /// the world's (pause-frozen) time; the switch executes at expiry.
+    pub next_scenario_delay: Option<Timer>,
     /// Logging-only: the last variable snapshot we debug-logged. `state_to_world_system`
     /// runs every frame, so it logs the variables only when they DIFFER from this, to
     /// avoid per-frame spam.
@@ -118,28 +122,45 @@ impl EventWorld for NovaEventWorld {
         // NextScenario action until something clears the flag.
         let request = world.resource::<Self>().next_scenario.clone();
         if let Some(request) = request.filter(|r| !r.linger) {
-            // Consume the request up front so the switch fires exactly once, rather than
-            // relying on the subsequent LoadScenario/UnloadScenario to clear the world.
-            world.resource_mut::<Self>().next_scenario = None;
-
-            match world
-                .resource::<GameScenarios>()
-                .get(&request.scenario_id)
-                .cloned()
-            {
-                Some(config) => {
-                    debug!(
-                        "state_to_world: switching to next scenario '{}'",
-                        request.scenario_id
-                    );
-                    world.trigger(LoadScenario(config));
+            // The delayed cut (task 20260717-163050): while the delay runs,
+            // the world keeps playing - tick on the world's virtual clock
+            // (a paused game holds the cut) and only switch at expiry.
+            let delta = world.resource::<Time>().delta();
+            let still_waiting = {
+                let mut event_world = world.resource_mut::<Self>();
+                match event_world.next_scenario_delay.as_mut() {
+                    Some(timer) => !timer.tick(delta).is_finished(),
+                    None => false,
                 }
-                None => {
-                    error!(
-                        "state_to_world: next scenario id '{}' not found in GameScenarios; unloading",
-                        request.scenario_id
-                    );
-                    world.trigger(UnloadScenario);
+            };
+            // NO early return while waiting: the command-queue flush below
+            // must keep running through the delay window, or every queued
+            // spawn/effect starves until the cut.
+            if !still_waiting {
+                // Consume the request up front so the switch fires exactly once, rather than
+                // relying on the subsequent LoadScenario/UnloadScenario to clear the world.
+                world.resource_mut::<Self>().next_scenario = None;
+                world.resource_mut::<Self>().next_scenario_delay = None;
+
+                match world
+                    .resource::<GameScenarios>()
+                    .get(&request.scenario_id)
+                    .cloned()
+                {
+                    Some(config) => {
+                        debug!(
+                            "state_to_world: switching to next scenario '{}'",
+                            request.scenario_id
+                        );
+                        world.trigger(LoadScenario(config));
+                    }
+                    None => {
+                        error!(
+                            "state_to_world: next scenario id '{}' not found in GameScenarios; unloading",
+                            request.scenario_id
+                        );
+                        world.trigger(UnloadScenario);
+                    }
                 }
             }
         }
@@ -185,6 +206,7 @@ impl NovaEventWorld {
         self.story_messages.clear();
         self.variables.clear();
         self.next_scenario = None;
+        self.next_scenario_delay = None;
     }
 
     pub fn push_command<F>(&mut self, f: F)
@@ -233,6 +255,12 @@ impl NovaEventWorld {
         match self.next_scenario.as_mut() {
             Some(request) => {
                 request.linger = false;
+                // A release also skips any pending delayed cut (review
+                // R1.3): Enter during a delay window jumps the beat, and a
+                // cross-handler overlay's Continue is never a dead button
+                // (the frozen delay clock would otherwise hold the switch
+                // under the pause forever).
+                self.next_scenario_delay = None;
                 true
             }
             None => false,
@@ -251,6 +279,194 @@ impl NovaEventWorld {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The delayed non-lingering cut (task 20260717-163050): the switch
+    /// holds for the authored delay while the world keeps running, then
+    /// fires. The fail-first is the first assert - today's instant cut
+    /// would have switched on the first update.
+    #[test]
+    fn a_delayed_cut_holds_then_switches() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+
+        #[derive(Resource, Default)]
+        struct Loads(usize);
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            0.5,
+        )));
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<bevy_common_systems::prelude::GameObjectives>();
+        app.init_resource::<Loads>();
+        let mut scenarios = GameScenarios::default();
+        scenarios.insert(
+            "next_up".to_string(),
+            crate::loader::ScenarioConfig {
+                id: "next_up".to_string(),
+                name: "Next".to_string(),
+                description: String::new(),
+                cubemap: "self://sky.png".into(),
+                thumbnail: None,
+                hidden: true,
+                menu_backdrop: false,
+                events: vec![],
+            },
+        );
+        app.insert_resource(scenarios);
+        app.add_observer(|_: On<LoadScenario>, mut loads: ResMut<Loads>| loads.0 += 1);
+        app.add_systems(Update, NovaEventWorld::state_to_world_system);
+
+        {
+            let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
+            let action = NextScenarioActionConfig {
+                scenario_id: "next_up".to_string(),
+                linger: false,
+                delay: Some(2.0),
+            };
+            use bevy_common_systems::prelude::EventAction;
+            action.action(&mut world, &default());
+        }
+
+        // ~1s in (0.25s measured/update): still holding.
+        for _ in 0..4 {
+            app.update();
+        }
+        assert_eq!(
+            app.world().resource::<Loads>().0,
+            0,
+            "the delayed cut must NOT switch inside its window (the \
+             pre-change instant cut fails here)"
+        );
+        // Past 2s: the cut fires exactly once.
+        for _ in 0..8 {
+            app.update();
+        }
+        assert_eq!(app.world().resource::<Loads>().0, 1, "the cut fired once");
+        assert!(
+            app.world()
+                .resource::<NovaEventWorld>()
+                .next_scenario
+                .is_none(),
+            "the request was consumed"
+        );
+    }
+
+    /// Review R1.2: the command flush must keep RUNNING through the delay
+    /// window (the tick must not early-return past it) - a command queued
+    /// mid-window applies before the cut. Mutation-proven: an early
+    /// return while waiting fails this test.
+    #[test]
+    fn the_command_flush_runs_through_the_delay_window() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+
+        #[derive(Resource, Default)]
+        struct Applied(bool);
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            0.5,
+        )));
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<bevy_common_systems::prelude::GameObjectives>();
+        app.init_resource::<Applied>();
+        app.insert_resource(GameScenarios::default());
+        app.add_systems(Update, NovaEventWorld::state_to_world_system);
+
+        {
+            let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
+            use bevy_common_systems::prelude::EventAction;
+            NextScenarioActionConfig {
+                scenario_id: "never_loads".to_string(),
+                linger: false,
+                delay: Some(30.0),
+            }
+            .action(&mut world, &default());
+            world.push_command(|commands| {
+                commands.queue(|world: &mut World| {
+                    world.resource_mut::<Applied>().0 = true;
+                });
+            });
+        }
+        app.update();
+        assert!(
+            app.world().resource::<Applied>().0,
+            "a command queued mid-window must apply long before the cut \
+             (an early return while waiting starves the flush)"
+        );
+    }
+
+    /// Review R1.1: an authored absurd delay must not panic Timer
+    /// construction - the apply finite-checks and caps it.
+    #[test]
+    fn absurd_delays_are_capped_not_panics() {
+        use bevy_common_systems::prelude::EventAction;
+        let mut world = NovaEventWorld::default();
+        NextScenarioActionConfig {
+            scenario_id: "x".to_string(),
+            linger: false,
+            delay: Some(1e30),
+        }
+        .action(&mut world, &default());
+        let timer = world.next_scenario_delay.as_ref().expect("armed, capped");
+        assert!(timer.duration().as_secs_f32() <= 300.0);
+
+        NextScenarioActionConfig {
+            scenario_id: "x".to_string(),
+            linger: false,
+            delay: Some(f32::INFINITY),
+        }
+        .action(&mut world, &default());
+        assert!(
+            world.next_scenario_delay.is_none(),
+            "non-finite delays arm nothing"
+        );
+    }
+
+    /// Review R1.3: releasing skips a pending delayed cut - Enter during
+    /// the window jumps the beat instead of a silent no-op.
+    #[test]
+    fn release_skips_the_pending_delay() {
+        use bevy_common_systems::prelude::EventAction;
+        let mut world = NovaEventWorld::default();
+        NextScenarioActionConfig {
+            scenario_id: "x".to_string(),
+            linger: false,
+            delay: Some(30.0),
+        }
+        .action(&mut world, &default());
+        assert!(world.next_scenario_delay.is_some());
+        assert!(world.release_lingering_next());
+        assert!(
+            world.next_scenario_delay.is_none(),
+            "release clears the delay so the next sync switches at once"
+        );
+    }
+
+    /// clear() (teardown) drops a pending delayed cut with the request.
+    #[test]
+    fn clear_drops_the_pending_delayed_cut() {
+        let mut world = NovaEventWorld::default();
+        use bevy_common_systems::prelude::EventAction;
+        NextScenarioActionConfig {
+            scenario_id: "x".to_string(),
+            linger: false,
+            delay: Some(9.0),
+        }
+        .action(&mut world, &default());
+        assert!(world.next_scenario_delay.is_some(), "armed");
+        world.clear();
+        assert!(world.next_scenario.is_none());
+        assert!(
+            world.next_scenario_delay.is_none(),
+            "teardown drops the clock"
+        );
+    }
 
     /// The story log syncs into the HUD's StoryFeed with the same
     /// write-on-diff discipline as objectives, clears with the event world

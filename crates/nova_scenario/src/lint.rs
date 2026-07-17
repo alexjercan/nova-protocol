@@ -171,6 +171,34 @@ pub fn lint_scenario(
         }
     }
 
+    // Outcome + non-lingering NextScenario in ONE handler is an authoring
+    // trap either way (task 20260717-163050): undelayed, the instant
+    // switch tears the world down and SWALLOWS the overlay before it can
+    // show (NovaEventWorld::clear's documented footgun); delayed, the
+    // overlay's pause freezes the delay clock so the cut never comes
+    // while the player reads. Pair Outcome with linger: true (+
+    // auto_advance_secs for a timed banner), or drop the Outcome for a
+    // pure delayed cut.
+    for event in &scenario.events {
+        let has_outcome = event
+            .actions
+            .iter()
+            .any(|a| matches!(a, EventActionConfig::Outcome(_)));
+        let hard_switch = event
+            .actions
+            .iter()
+            .any(|a| matches!(a, EventActionConfig::NextScenario(next) if !next.linger));
+        if has_outcome && hard_switch {
+            issues.push(LintIssue::warn(
+                id,
+                "an Outcome and a non-lingering NextScenario in one handler: the \
+                 switch swallows (or, delayed, is frozen under) the overlay - use \
+                 linger: true with the Outcome, or drop the Outcome for a pure cut"
+                    .to_string(),
+            ));
+        }
+    }
+
     for var in &used_vars {
         // The scenario clock is ENGINE-set every live unpaused tick
         // (loader::tick_scenario_clock); reading it needs no VariableSet.
@@ -235,6 +263,19 @@ fn check_action(
             // (review R1.1).
             check_object_prototypes(&config.template, scenario, known_sections, issues);
         }
+        EventActionConfig::Outcome(config) => {
+            if let Some(secs) = config.auto_advance_secs {
+                if !secs.is_finite() || !(0.0..=OUTCOME_AUTO_ADVANCE_MAX_SECS).contains(&secs) {
+                    issues.push(LintIssue::warn(
+                        scenario,
+                        format!(
+                            "Outcome auto_advance_secs {secs}s is outside (0, \
+                             {OUTCOME_AUTO_ADVANCE_MAX_SECS}]s"
+                        ),
+                    ));
+                }
+            }
+        }
         EventActionConfig::VariableSet(config) => {
             // The scenario clock is engine-owned: the tick system rewrites
             // it every frame, so an authored write is at best a one-frame
@@ -268,6 +309,30 @@ fn check_action(
             }
         }
         EventActionConfig::NextScenario(config) => {
+            // Pacing-field sanity (reviews R1.1/R1.5 of 20260717-163050):
+            // non-finite or huge delays are runtime-capped, a delay on a
+            // LINGERING request is a silently dead field.
+            if let Some(delay) = config.delay {
+                if config.linger {
+                    issues.push(LintIssue::warn(
+                        scenario,
+                        "NextScenario delay with linger: true is dead (the overlay's \
+                         release is the timing) - drop the field or use linger: false"
+                            .to_string(),
+                    ));
+                } else if !delay.is_finite()
+                    || !(0.0..=NEXT_SCENARIO_DELAY_WARN_SECS).contains(&delay)
+                {
+                    issues.push(LintIssue::warn(
+                        scenario,
+                        format!(
+                            "NextScenario delay {delay}s is outside (0, \
+                             {NEXT_SCENARIO_DELAY_WARN_SECS}]s (runtime caps at \
+                             {NEXT_SCENARIO_DELAY_MAX_SECS}s)"
+                        ),
+                    ));
+                }
+            }
             if !known_scenarios.contains(&config.scenario_id) {
                 issues.push(LintIssue::error(
                     scenario,
@@ -616,6 +681,7 @@ mod tests {
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: "next_chapter".to_string(),
                     linger: true,
+                    delay: None,
                 }),
             ],
             vec![
@@ -796,6 +862,7 @@ mod tests {
             vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
                 scenario_id: "gone".to_string(),
                 linger: true,
+                delay: None,
             })],
             vec![],
         );
@@ -890,6 +957,85 @@ mod tests {
         assert_eq!(issues.len(), 2, "{issues:?}");
         assert!(issues.iter().any(|i| i.message.contains("never_set")));
         assert!(issues.iter().any(|i| i.message.contains("never_posted")));
+    }
+
+    /// Outcome + non-lingering NextScenario in one handler warns (task
+    /// 20260717-163050): undelayed it swallows the overlay, delayed it
+    /// freezes under the pause. The lingering pair stays clean.
+    #[test]
+    fn outcome_with_hard_switch_in_one_handler_warns() {
+        let outcome = || {
+            EventActionConfig::Outcome(OutcomeActionConfig {
+                outcome: ScenarioOutcomeKind::Victory,
+                message: None,
+                auto_advance_secs: None,
+            })
+        };
+        let next = |linger: bool, delay: Option<f32>| {
+            EventActionConfig::NextScenario(NextScenarioActionConfig {
+                scenario_id: "test_scenario".to_string(),
+                linger,
+                delay,
+            })
+        };
+
+        let s = scenario(vec![outcome(), next(false, None)], vec![]);
+        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        assert_eq!(issues.len(), 1, "{issues:?}");
+        assert!(issues[0].message.contains("non-lingering"));
+
+        let s = scenario(vec![outcome(), next(false, Some(4.0))], vec![]);
+        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        assert_eq!(issues.len(), 1, "delayed is the same trap: {issues:?}");
+
+        let s = scenario(vec![outcome(), next(true, None)], vec![]);
+        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        assert!(
+            issues.is_empty(),
+            "the lingering pair is the good shape: {issues:?}"
+        );
+    }
+
+    /// Pacing-field ranges (reviews R1.1/R1.5 of 20260717-163050):
+    /// absurd/non-finite delays warn, a delay on a lingering request is
+    /// dead and warns, sane values stay clean.
+    #[test]
+    fn pacing_field_ranges_warn() {
+        let next = |linger: bool, delay: Option<f32>| {
+            EventActionConfig::NextScenario(NextScenarioActionConfig {
+                scenario_id: "test_scenario".to_string(),
+                linger,
+                delay,
+            })
+        };
+        let outcome_adv = |secs: Option<f64>| {
+            EventActionConfig::Outcome(OutcomeActionConfig {
+                outcome: ScenarioOutcomeKind::Victory,
+                message: None,
+                auto_advance_secs: secs,
+            })
+        };
+
+        // Range/dead-field warns, isolated from the same-handler swallow
+        // trap (which is its own test): switches only.
+        let s = scenario(vec![next(false, Some(1e30)), next(true, Some(4.0))], vec![]);
+        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
+        assert_eq!(issues.len(), 2, "{issues:?}");
+        assert!(issues.iter().any(|i| i.message.contains("outside (0, 60]")));
+        assert!(issues.iter().any(|i| i.message.contains("dead")));
+
+        // The outcome range warn, without a hard switch in the handler.
+        let s = scenario(vec![outcome_adv(Some(f64::INFINITY))], vec![]);
+        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        assert_eq!(issues.len(), 1, "{issues:?}");
+        assert!(issues[0].message.contains("auto_advance_secs"));
+
+        // Sane values, trap-free shapes: clean.
+        let s = scenario(vec![next(false, Some(4.0))], vec![]);
+        assert!(lint_scenario(&s, &known(&[]), &known(&["test_scenario"])).is_empty());
+        let s = scenario(vec![outcome_adv(Some(6.0))], vec![]);
+        assert!(lint_scenario(&s, &known(&[]), &known(&["test_scenario"])).is_empty());
     }
 
     /// StoryMessage dwell range (task 20260717-163033): out-of-range warns,

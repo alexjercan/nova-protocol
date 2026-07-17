@@ -859,6 +859,7 @@ pub(crate) fn shakedown_run(
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: super::broadside::BROADSIDE_SCENARIO_ID.to_string(),
                     linger: true,
+                    delay: None,
                 }),
             ],
         },
@@ -877,6 +878,7 @@ pub(crate) fn shakedown_run(
                 EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: SHAKEDOWN_SCENARIO_ID.to_string(),
                     linger: true,
+                    delay: None,
                 }),
             ],
         },
