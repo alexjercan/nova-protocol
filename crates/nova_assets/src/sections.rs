@@ -45,6 +45,12 @@ pub struct SectionMeshRefs {
     pub turret_pitch: AssetRef<WorldAsset>,
     pub turret_barrel: AssetRef<WorldAsset>,
     pub torpedo_bay: AssetRef<WorldAsset>,
+    /// The turret fire sound, authored the same `self://` way as the meshes
+    /// (task 20260717-002228). Serialized into the section config's `fire_sound`
+    /// field so base turrets ship + reference their weapon sound through the
+    /// scheme pipeline; `base/sounds/turret_fire.wav` resolves to the same handle
+    /// the global bank loads, so the audible result is unchanged.
+    pub turret_fire_sound: AssetRef<AudioSource>,
 }
 
 impl SectionMeshRefs {
@@ -57,6 +63,7 @@ impl SectionMeshRefs {
             turret_pitch: AssetRef::from("self://gltf/turret-pitch-01.glb#Scene0".to_string()),
             turret_barrel: AssetRef::from("self://gltf/turret-barrel-01.glb#Scene0".to_string()),
             torpedo_bay: AssetRef::from("self://gltf/torpedo-bay-01.glb#Scene0".to_string()),
+            turret_fire_sound: AssetRef::from("self://sounds/turret_fire.wav".to_string()),
         }
     }
 }
@@ -160,6 +167,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 bullet_kind: DamageType::Kinetic,
                 projectile_render_mesh: None,
                 muzzle_effect: None,
+                fire_sound: Some(meshes.turret_fire_sound.clone()),
                 // ~5s of sustained fire at 100 rounds/s. Generous on purpose:
                 // the player should feel the limit without running dry in a
                 // normal engagement. Playtest knob.
@@ -230,6 +238,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 bullet_kind: DamageType::Kinetic,
                 projectile_render_mesh: None,
                 muzzle_effect: None,
+                fire_sound: Some(meshes.turret_fire_sound.clone()),
                 // ~6s of fire at 25 rounds/s. Scavenger grade: a shorter fight
                 // before the pirate's guns run dry. Playtest knob.
                 ammo_capacity: Some(150),

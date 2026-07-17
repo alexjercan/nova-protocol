@@ -9,7 +9,7 @@ description = "Gameplay systems and logic for the Nova Protocol game"
 [dependencies]
 avian3d = { version = "0.7" }
 # `wav` enables bevy's WAV audio decoder so the shipped binary can play the
-# placeholder sound effects under `assets/sounds/*.wav`. It is a normal (not
+# placeholder sound effects under `assets/base/sounds/*.wav`. It is a normal (not
 # dev-only) feature because the game itself decodes them at runtime; cargo
 # unifies it across the workspace, so this single declaration covers every crate
 # and example. Vorbis stays default-on, so `.ogg` swap-ins work with only a

@@ -209,9 +209,22 @@ ecosystem is small). Three landed tasks:
   self-contained bundle. `GameAssets` `#[asset(path)]` + `meta_check` repointed to
   `base/...`; `gen_content` builders emit `self://` and base declares a
   `resources` list; every shipped/web mod's bare base ref became `dep://base/...`.
-  `icons/`, `sounds/`, `shaders/` stay at root (UI/engine; a `sounds/` follow-up
-  is task 20260717-002228). Now `resource_base = "base"` is correct: base's
-  `self://X` and any `dep://base/X` both resolve to `assets/base/X`.
+  `icons/` (game UI) and `shaders/` (engine) stay at root. Now
+  `resource_base = "base"` is correct: base's `self://X` and any `dep://base/X`
+  both resolve to `assets/base/X`.
+- **Sounds under base + section-authored audio (20260717-002228).** The
+  `sounds/` follow-up: base `sounds/` MOVED to `assets/base/sounds/` and joined
+  the base `resources` list, so mods can reference them with
+  `dep://base/sounds/<name>.wav`. `register_sounds` loads them with
+  `SoundBank::load_paths` from `base/sounds/<name>.wav` (the global bank cues -
+  damage/UI/thruster - stay code-driven). Sections can now DECLARE a sound as an
+  authorable `AssetRef<AudioSource>` content field, exactly like a render mesh:
+  the first is the turret section's `fire_sound`, snapshotted (unresolved) onto
+  the turret at spawn and resolved + preferred over the bank cue by the audio
+  observer, so a mod turret ships + references its own weapon sound through the
+  same `self://`/`dep://` walk. Audio was the LAST
+  root-art exception; nothing base loads sits at the asset root now except
+  `icons/`/`shaders/`.
 - **Canonical enforcement (20260717-002133).** An asset ref in content MUST carry
   a scheme (`self://` / `dep://`). A bare, scheme-less asset-path ref is an Error
   at author/publish time (static `content_lint` + portal). The hard no-bare

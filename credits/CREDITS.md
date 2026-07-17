@@ -15,8 +15,8 @@ THIRD-PARTY material the build includes and the licenses it carries.
 All game assets are original to the project unless listed under "Third-party
 assets" below:
 
-- **Sounds** (`assets/sounds/*.wav`) - generated placeholders produced by
-  `scripts/gen-placeholder-sounds.py`; see `assets/sounds/README.md`.
+- **Sounds** (`assets/base/sounds/*.wav`) - generated placeholders produced by
+  `scripts/gen-placeholder-sounds.py`; see `assets/base/sounds/README.md`.
 - **3D models** (`assets/gltf/*.glb`) - exported from the project's own Blender
   sources in `art/blender/`.
 - **Textures** (`assets/textures/*.png`, except the skybox cubemaps

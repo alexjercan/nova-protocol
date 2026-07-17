@@ -1074,13 +1074,25 @@ fn prepare_cubemap_view(mut images: ResMut<Assets<Image>>, game_assets: Res<Game
 
 /// Load the Nova sound effects into a keyed [`SoundBank`] the audio module reads.
 ///
-/// Uses `SoundBank::load` (the bcs registry) rather than the `GameAssets`
+/// Uses `SoundBank::load_paths` (the bcs registry) rather than the `GameAssets`
 /// collection because the bank has no public "build from existing handles"
 /// constructor; loading here kicks the (tiny) WAVs off well before the first
-/// gameplay sound plays. The `sounds/<name>.wav` convention is applied by the
-/// bank, and `NOVA_SFX_FILES` is the single source of truth for the key->file map.
+/// gameplay sound plays. `NOVA_SFX_FILES` is the single source of truth for the
+/// key->file map; the base sounds now live UNDER `assets/base/` (task
+/// 20260717-002228, closing the last root-art exception), so the bank loads them
+/// from `base/sounds/<name>.wav` - the SAME path a base turret's
+/// `self://sounds/turret_fire.wav` content ref rewrites to, so the section-authored
+/// handle and the bank cue are the same asset. `load_paths` (full paths) replaces
+/// `load` (which hardcodes the old `sounds/<name>.wav` root convention).
 fn register_sounds(mut commands: Commands, assets: Res<AssetServer>) {
-    commands.insert_resource(SoundBank::load(&assets, NOVA_SFX_FILES));
+    let paths: Vec<(NovaSfx, String)> = NOVA_SFX_FILES
+        .iter()
+        .map(|(key, name)| (*key, format!("base/sounds/{name}.wav")))
+        .collect();
+    commands.insert_resource(SoundBank::load_paths(
+        &assets,
+        paths.iter().map(|(key, path)| (*key, path.as_str())),
+    ));
 }
 
 // TODO(20260525-133028): Probably need to refactor this somehow

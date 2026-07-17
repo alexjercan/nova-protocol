@@ -2,7 +2,7 @@
 """Generate tiny placeholder WAV sound effects for Nova Protocol.
 
 The game has no real audio yet. Until a sound designer supplies the final
-assets (see assets/sounds/README.md), this writes a short, deterministic
+assets (see assets/base/sounds/README.md), this writes a short, deterministic
 placeholder for each gameplay cue so the game is audibly wired end to end and
 runs out of the box. Each cue has its own character (noise burst, pitch sweep,
 or steady tone) so they are distinguishable by ear while testing.
@@ -126,7 +126,7 @@ def write_wav(path, data):
 
 
 def main():
-    out_dir = os.path.join(os.path.dirname(__file__), "..", "assets", "sounds")
+    out_dir = os.path.join(os.path.dirname(__file__), "..", "assets", "base", "sounds")
     out_dir = os.path.normpath(out_dir)
     os.makedirs(out_dir, exist_ok=True)
 

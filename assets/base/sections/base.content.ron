@@ -83,6 +83,7 @@
             projectile_lifetime: 5.0,
             bullet_damage: 4.0,
             bullet_kind: Kinetic,
+            fire_sound: Some("self://sounds/turret_fire.wav"),
             ammo_capacity: Some(500),
             reload: Some((
                 reload_time: 3.0,
@@ -149,6 +150,7 @@
             projectile_lifetime: 5.0,
             bullet_damage: 3.825,
             bullet_kind: Kinetic,
+            fire_sound: Some("self://sounds/turret_fire.wav"),
             ammo_capacity: Some(150),
             reload: Some((
                 reload_time: 2.5,

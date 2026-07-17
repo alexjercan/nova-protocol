@@ -122,6 +122,21 @@ pub struct TurretSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub muzzle_effect: Option<AssetRef<EffectAsset>>,
+    /// The sound played when this turret fires a round. An authorable
+    /// [`AssetRef<AudioSource>`] like the render meshes and muzzle effect, so a
+    /// section (base or mod) can ship and reference its own weapon sound through
+    /// the same `self://`/`dep://` scheme pipeline (task 20260717-002228). `None`
+    /// falls back to the global [`NovaSfx::TurretFire`] cue, so existing turrets
+    /// are unchanged. Snapshotted (unresolved) at spawn onto a
+    /// [`TurretSectionFireSound`] on the turret entity; the audio observer
+    /// resolves and prefers it over the bank default. All
+    /// throttle/attenuation/positioning is unchanged.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub fire_sound: Option<AssetRef<AudioSource>>,
     /// Magazine size in rounds. `None` fires without limit (the pre-ammo
     /// behavior); `Some(n)` gives the turret a [`SectionAmmo`] of `n` rounds
     /// that depletes one per bullet and blocks firing once empty. Reloading it
@@ -166,6 +181,7 @@ impl Default for TurretSectionConfig {
             bullet_kind: DamageType::Kinetic,
             projectile_render_mesh: None,
             muzzle_effect: None,
+            fire_sound: None,
             ammo_capacity: None,
             reload: None,
         }
@@ -283,6 +299,24 @@ pub struct TurretSectionBarrelFireState(pub Timer);
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct TurretSectionBarrelMuzzleEffect(#[reflect(ignore)] Option<AssetRef<EffectAsset>>);
+
+/// A turret's authored fire sound, snapshotted from
+/// [`TurretSectionConfig::fire_sound`] onto the turret section entity at spawn -
+/// the UNRESOLVED [`AssetRef`], exactly like [`TurretSectionBarrelMuzzleEffect`]
+/// carries the unresolved muzzle effect. The audio module resolves it (against
+/// its own `AssetServer`, only when it actually plays the cue) and prefers it
+/// over the global [`NovaSfx::TurretFire`] bank cue. `None` when the config left
+/// `fire_sound` unset (the bank default).
+///
+/// Carrying the `AssetRef` rather than a resolved `Handle` keeps
+/// `insert_turret_section` free of an `AssetServer` dependency (it is registered
+/// unconditionally, so many headless section rigs spawn turrets through it);
+/// resolution lives with the one system that needs it.
+///
+/// `pub(crate)` so the audio module can read it, keyed by the firing turret via
+/// [`TurretSectionPartOf`] - the same seam the fire cue already uses.
+#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
+pub(crate) struct TurretSectionFireSound(#[reflect(ignore)] pub Option<AssetRef<AudioSource>>);
 
 #[derive(Component, Clone, Copy, Debug, Reflect)]
 struct TurretRotatorBaseMarker;
@@ -552,9 +586,15 @@ fn insert_turret_section(
         .add_child(rotator_yaw_base)
         .id();
 
+    // Snapshot the authorable fire sound (unresolved) onto the turret, like the
+    // render-mesh refs; the audio module resolves + plays it (see
+    // [`TurretSectionFireSound`]). `None` leaves the observer on the bank cue.
     commands
         .entity(turret)
-        .insert((TurretSectionMuzzleEntity(muzzle),))
+        .insert((
+            TurretSectionMuzzleEntity(muzzle),
+            TurretSectionFireSound(config.fire_sound.clone()),
+        ))
         .add_child(rotator_base);
 
     // Opt-in finite ammo: a magazine on the turret SECTION entity (the one
@@ -1949,6 +1989,53 @@ mod tests {
                 .kind,
             DamageType::Kinetic,
             "catalog default loadout is Kinetic (feel-preserving)"
+        );
+    }
+
+    #[test]
+    fn insert_turret_section_snapshots_the_configs_fire_sound_onto_the_turret() {
+        // The declaration half of the section-authored audio seam (task
+        // 20260717-002228): a turret whose CONFIG declares `fire_sound` must carry
+        // that UNRESOLVED ref as a `TurretSectionFireSound` after the build
+        // observer runs, so the audio module can resolve + play it. Pairs with the
+        // audio-module test that resolves the component and plays its handle - the
+        // two halves marry declaration -> component -> resolved playback. No
+        // `AssetServer` needed here: the snapshot carries the ref, not a handle.
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_observer(insert_turret_section);
+
+        let with_sound = app
+            .world_mut()
+            .spawn(turret_section(TurretSectionConfig {
+                fire_sound: Some(AssetRef::from("base/sounds/turret_fire.wav")),
+                ..default()
+            }))
+            .id();
+        let without_sound = app
+            .world_mut()
+            .spawn(turret_section(TurretSectionConfig::default()))
+            .id();
+        app.world_mut().flush();
+
+        assert_eq!(
+            app.world()
+                .entity(with_sound)
+                .get::<TurretSectionFireSound>()
+                .and_then(|s| s.0.as_ref())
+                .and_then(|r| r.path()),
+            Some("base/sounds/turret_fire.wav"),
+            "the declared fire_sound must be snapshotted onto the turret"
+        );
+        // The snapshot is unconditional (None passes through), so the audio side
+        // reads one component shape whether or not a sound was authored.
+        assert_eq!(
+            app.world()
+                .entity(without_sound)
+                .get::<TurretSectionFireSound>()
+                .map(|s| s.0.is_none()),
+            Some(true),
+            "a turret without a fire_sound still carries the component as None"
         );
     }
 

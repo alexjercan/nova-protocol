@@ -36,7 +36,10 @@ use std::collections::HashMap;
 
 use bevy::{audio::Volume, prelude::*};
 
-use crate::{prelude::*, sections::turret_section::TurretSectionPartOf};
+use crate::{
+    prelude::*,
+    sections::turret_section::{TurretSectionFireSound, TurretSectionPartOf},
+};
 
 /// Keys for Nova's sound effects, naming each cue the game plays. Used as the
 /// [`SoundBank`] key so call sites read `bank.get(NovaSfx::Explosion)`.
@@ -88,9 +91,12 @@ pub enum NovaSfx {
     RadarRetarget,
 }
 
-/// The `(key, base-filename)` pairs Nova loads into its [`SoundBank`]. The bank
-/// applies the `sounds/<name>.wav` convention, so these map to
-/// `assets/sounds/<name>.wav`. Shared with `nova_assets`, which does the load.
+/// The `(key, base-filename)` pairs Nova loads into its [`SoundBank`]. Shared
+/// with `nova_assets::register_sounds`, which does the load: since the base
+/// sounds moved UNDER `assets/base/` (task 20260717-002228) it maps each name to
+/// `base/sounds/<name>.wav` via `SoundBank::load_paths`, so these files are the
+/// base game's own bundled cues (and mods can reference them via
+/// `dep://base/sounds/<name>.wav`).
 pub const NOVA_SFX_FILES: [(NovaSfx, &str); 16] = [
     (NovaSfx::ThrusterLoop, "thruster_loop"),
     (NovaSfx::TurretFire, "turret_fire"),
@@ -279,12 +285,27 @@ fn play_positional(
     source: Vec3,
     listener: Option<Vec3>,
 ) {
+    play_positional_handle(commands, bank.get(key), base_volume, source, listener);
+}
+
+/// The handle-taking core of [`play_positional`]: same distance attenuation and
+/// audible-threshold gate, but for an already-resolved [`Handle<AudioSource>`]
+/// rather than a bank key. Lets a caller play a section's own authored sound
+/// (a resolved [`AssetRef<AudioSource>`]) through the exact same positional path
+/// the bank cues use.
+fn play_positional_handle(
+    commands: &mut Commands,
+    handle: Handle<AudioSource>,
+    base_volume: f32,
+    source: Vec3,
+    listener: Option<Vec3>,
+) {
     let attenuation = listener.map_or(1.0, |l| distance_attenuation(l.distance(source)));
     let volume = base_volume * attenuation;
     if volume < SFX_AUDIBLE_THRESHOLD {
         return;
     }
-    commands.play_sfx_volume(bank.get(key), volume);
+    commands.play_sfx_volume(handle, volume);
 }
 
 /// Marks the camera that acts as the SFX/juice listener: distance attenuation
@@ -460,11 +481,20 @@ fn on_damage_play_impact(
 
 /// Turret-fire cue when a round spawns. Throttled hard because the PDC fires at
 /// a high rate.
+///
+/// The firing turret (named by `TurretSectionPartOf`) may declare its own
+/// authored fire sound via [`TurretSectionConfig::fire_sound`], resolved at
+/// spawn into a [`TurretSectionFireSound`] handle: when present that handle
+/// plays instead of the global [`NovaSfx::TurretFire`] cue, so a modded turret
+/// can ship its own weapon sound. Everything else (per-turret throttle key,
+/// distance attenuation, positioning) is unchanged.
 fn on_turret_fire_play_sfx(
     add: On<Add, TurretBulletProjectileMarker>,
     bank: Option<Res<SoundBank<NovaSfx>>>,
+    asset_server: Res<AssetServer>,
     time: Res<Time>,
     q_projectile: Query<(&Transform, &TurretSectionPartOf)>,
+    q_fire_sound: Query<&TurretSectionFireSound>,
     q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
@@ -482,10 +512,20 @@ fn on_turret_fire_play_sfx(
         time.elapsed_secs(),
         TURRET_FIRE_MIN_INTERVAL,
     ) {
-        play_positional(
+        // Prefer the firing turret's own authored sound, resolving its AssetRef
+        // here (idempotent - the asset server dedups by path, so a base turret's
+        // `base/sounds/turret_fire.wav` yields the SAME handle the bank loaded;
+        // only a mod's own sound diverges). Fall back to the bank cue when the
+        // turret declared none.
+        let handle = q_fire_sound
+            .get(part_of.0)
+            .ok()
+            .and_then(|s| s.0.as_ref())
+            .map(|r| r.resolve(&asset_server))
+            .unwrap_or_else(|| bank.get(NovaSfx::TurretFire));
+        play_positional_handle(
             &mut commands,
-            &bank,
-            NovaSfx::TurretFire,
+            handle,
             TURRET_FIRE_VOLUME,
             transform.translation,
             listener_position(&q_camera),
@@ -960,6 +1000,109 @@ mod tests {
             .last
             .contains_key(&ThrottleKey::Impact(area_cell(Vec3::ZERO))));
         assert_eq!(throttle.last.len(), 1);
+    }
+
+    /// The handle of the last `PlaySfx` observed, so a test can assert WHICH
+    /// sound played (not just that one did) - the discriminator between a
+    /// section's own authored fire sound and the global bank cue.
+    #[derive(Resource, Default)]
+    struct LastPlayed(Option<Handle<AudioSource>>);
+
+    /// App rig for the turret-fire cue: the real `on_turret_fire_play_sfx`
+    /// observer with a loaded bank, capturing the played handle. No audio device
+    /// needed (nothing constructs an `AudioSink`). The bank is built with
+    /// `load_paths` + `base/sounds/` to mirror production `register_sounds`
+    /// (nova_assets), so the bank's `TurretFire` handle is keyed by the exact
+    /// path a base turret's ref resolves to.
+    fn turret_fire_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.init_resource::<SfxThrottle>();
+        app.init_resource::<LastPlayed>();
+        let paths: Vec<(NovaSfx, String)> = NOVA_SFX_FILES
+            .iter()
+            .map(|(key, name)| (*key, format!("base/sounds/{name}.wav")))
+            .collect();
+        let bank = SoundBank::load_paths(
+            app.world().resource::<AssetServer>(),
+            paths.iter().map(|(key, path)| (*key, path.as_str())),
+        );
+        app.insert_resource(bank);
+        app.add_observer(on_turret_fire_play_sfx);
+        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.handle.clone());
+        });
+        app
+    }
+
+    /// Spawn a turret round parented (by `TurretSectionPartOf`) to `turret`,
+    /// firing the `On<Add, TurretBulletProjectileMarker>` cue observer.
+    fn fire_round(app: &mut App, turret: Entity) {
+        app.world_mut().spawn((
+            TurretBulletProjectileMarker,
+            Transform::default(),
+            TurretSectionPartOf(turret),
+        ));
+        app.world_mut().flush();
+    }
+
+    #[test]
+    fn a_turret_with_a_declared_fire_sound_plays_that_handle_not_the_bank() {
+        // The section-authored audio path (task 20260717-002228): a turret
+        // carrying a `TurretSectionFireSound(Some(AssetRef))` must have the cue
+        // RESOLVE that ref and play its handle, not the global `NovaSfx::TurretFire`
+        // bank cue - so a mod turret sounds like its own gun.
+        let mut app = turret_fire_app();
+        let bank_fire = app
+            .world()
+            .resource::<SoundBank<NovaSfx>>()
+            .get(NovaSfx::TurretFire);
+        // A distinct path standing in for a mod's own shipped sound; resolving it
+        // (asset_server.load, same as the observer) yields a different handle than
+        // the bank's, so the assertion is a real substitution.
+        let mod_sound: Handle<AudioSource> = app
+            .world()
+            .resource::<AssetServer>()
+            .load("mods/x/sounds/railgun.wav");
+        assert_ne!(mod_sound, bank_fire, "the rig's two handles must differ");
+
+        let turret = app
+            .world_mut()
+            .spawn(TurretSectionFireSound(Some(AssetRef::from(
+                "mods/x/sounds/railgun.wav",
+            ))))
+            .id();
+        fire_round(&mut app, turret);
+
+        assert_eq!(
+            app.world().resource::<LastPlayed>().0,
+            Some(mod_sound),
+            "a turret with a declared fire_sound must resolve + play its own handle"
+        );
+    }
+
+    #[test]
+    fn a_turret_without_a_declared_fire_sound_falls_back_to_the_bank_cue() {
+        // The unchanged-default guard: a turret that left `fire_sound` unset (no
+        // `TurretSectionFireSound` component) must still fire the global bank cue,
+        // so existing turrets are audibly identical. Also the delivery guard for
+        // the test above - it proves the cue fires at all, so the override
+        // assertion is a real substitution, not a silent no-op.
+        let mut app = turret_fire_app();
+        let bank_fire = app
+            .world()
+            .resource::<SoundBank<NovaSfx>>()
+            .get(NovaSfx::TurretFire);
+
+        let turret = app.world_mut().spawn_empty().id();
+        fire_round(&mut app, turret);
+
+        assert_eq!(
+            app.world().resource::<LastPlayed>().0,
+            Some(bank_fire),
+            "a turret without a fire_sound must fall back to NovaSfx::TurretFire"
+        );
     }
 
     /// App rig for the hum-volume computation: the real

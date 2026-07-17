@@ -347,7 +347,7 @@ fn collect_bare(value: &serde_json::Value, out: &mut Vec<String>) {
 
 #[cfg(test)]
 mod tests {
-    use nova_gameplay::prelude::AssetRef;
+    use nova_gameplay::prelude::{AssetRef, SectionKind};
     use nova_scenario::prelude::ScenarioConfig;
 
     use super::*;
@@ -525,6 +525,96 @@ mod tests {
         assert!(
             ron_out.contains("mods/example/models/hull.glb#Scene0"),
             "the rewrite keeps the #Scene0 label: {ron_out}"
+        );
+    }
+
+    /// A turret section whose `fire_sound` (an `AssetRef<AudioSource>` content
+    /// field, task 20260717-002228) references `reference`. Only the required
+    /// config fields are set; the mesh/effect/ammo options are omitted.
+    fn turret_section_with_fire_sound(reference: &str) -> Content {
+        let ron = format!(
+            r#"Section((
+                base: (id: "mod_turret", name: "Mod Turret", description: "", mass: 1.0, health: 100.0),
+                kind: Turret((
+                    yaw_speed: 3.14, pitch_speed: 3.14,
+                    base_offset: (0.0, 0.0, 0.0),
+                    yaw_offset: (0.0, 0.0, 0.0),
+                    pitch_offset: (0.0, 0.0, 0.0),
+                    barrel_offset: (0.0, 0.0, 0.0),
+                    muzzle_offset: (0.0, 0.0, 0.0),
+                    fire_rate: 10.0, muzzle_speed: 60.0, projectile_lifetime: 5.0,
+                    bullet_damage: 4.0, bullet_kind: Kinetic,
+                    fire_sound: Some("{reference}"),
+                )),
+            ))"#
+        );
+        ron::from_str(&ron).expect("turret section parses")
+    }
+
+    #[test]
+    fn a_mod_turret_references_a_base_sound_via_dep_base() {
+        // The mod-shippable audio round-trip (task 20260717-002228): a mod turret
+        // declares its fire sound as `dep://base/sounds/turret_fire.wav`; with base
+        // declaring that sound in its resources the ref is valid and rewrites to
+        // the base bundle's folder - exactly the path `register_sounds` loads, so
+        // the mod turret plays the shipped base cue. Proves an AudioSource AssetRef
+        // flows through the same generic walk as textures and meshes.
+        let content = turret_section_with_fire_sound("dep://base/sounds/turret_fire.wav");
+        let declared: HashSet<String> = ["base".to_string()].into_iter().collect();
+        let base_resources = vec!["sounds/turret_fire.wav".to_string()];
+        let mut deps = HashMap::new();
+        deps.insert(
+            "base".to_string(),
+            DepRef {
+                base: Some("base"),
+                resources: Some(&base_resources),
+            },
+        );
+        let scope = RefScope {
+            self_base: "mods/consumer",
+            self_resources: &[],
+            declared_deps: &declared,
+            deps: &deps,
+        };
+        assert!(
+            resource_ref_violations(&content, &scope).is_empty(),
+            "a declared base dep + declared base sound resource is valid"
+        );
+        let Content::Section(cfg) = rewrite_refs(&content, &scope) else {
+            panic!("still a section");
+        };
+        let SectionKind::Turret(turret) = cfg.kind else {
+            panic!("still a turret");
+        };
+        assert_eq!(
+            turret.fire_sound.as_ref().and_then(|s| s.path()),
+            Some("base/sounds/turret_fire.wav"),
+            "the dep://base sound ref resolves against the base bundle folder"
+        );
+    }
+
+    #[test]
+    fn a_mod_turret_shipping_its_own_sound_rewrites_against_self() {
+        // The other half: a mod ships its OWN weapon sound and references it with
+        // `self://` - it must rewrite against the mod's own folder, giving the mod
+        // turret a distinct sound from the base cue (the moddability win).
+        let content = turret_section_with_fire_sound("self://sounds/railgun.wav");
+        let declared = vec!["sounds/railgun.wav".to_string()];
+        let scope = self_only_scope("mods/example", &declared);
+        assert!(
+            resource_ref_violations(&content, &scope).is_empty(),
+            "a self:// sound the mod declares in its own resources is valid"
+        );
+        let Content::Section(cfg) = rewrite_refs(&content, &scope) else {
+            panic!("still a section");
+        };
+        let SectionKind::Turret(turret) = cfg.kind else {
+            panic!("still a turret");
+        };
+        assert_eq!(
+            turret.fire_sound.as_ref().and_then(|s| s.path()),
+            Some("mods/example/sounds/railgun.wav"),
+            "the self:// sound rewrites against the mod's own folder"
         );
     }
 
