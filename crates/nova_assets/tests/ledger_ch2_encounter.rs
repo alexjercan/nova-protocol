@@ -590,8 +590,21 @@ fn the_bundle_ships_both_parts_and_the_bump() {
             && LEDGER_BUNDLE_RON.contains("ledger_ch2b.content.ron"),
         "the bundle lists both chapter-two parts"
     );
+    // The durable intent is "bumped PAST the pre-rework 1.0.0", not one
+    // frozen literal: sibling tasks legitimately keep bumping (the Auditor
+    // cycles took it to 1.3.0 and this exact-version pin went red on
+    // master - the sibling-change-leaves-stale-fixture lesson).
+    let version = LEDGER_BUNDLE_RON
+        .split("version: \"")
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .expect("the bundle declares a version");
+    let parts: Vec<u32> = version
+        .split('.')
+        .map(|p| p.parse().expect("numeric version parts"))
+        .collect();
     assert!(
-        LEDGER_BUNDLE_RON.contains("version: \"1.1.0\""),
-        "the bundle is bumped for the republish"
+        parts.as_slice() > [1, 0, 0].as_slice(),
+        "the bundle ({version}) is bumped past the pre-rework 1.0.0"
     );
 }
