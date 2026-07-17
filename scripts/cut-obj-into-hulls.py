@@ -591,23 +591,66 @@ def _wall_quad(axis, sign, half):
     return [Triangle(a, b, c, "_wall"), Triangle(a, c, d, "_wall")]
 
 
+def _cap_boundary(triangles, half, eps=1e-4):
+    """Close the open cut edges of a surface patch with white caps that HUG the
+    geometry, not full cube faces. The Kenney mesh is closed, so a piece's only
+    open (boundary) edges are where grid planes cut it - and those lie on the
+    cube-face planes. Gather each plane's boundary vertices and fan them to their
+    centroid, capping just the cut cross-section."""
+    quant = lambda v: (round(v[0], 5), round(v[1], 5), round(v[2], 5))
+    counts = defaultdict(int)
+    for t in triangles:
+        vs = [quant(t.a), quant(t.b), quant(t.c)]
+        for a, b in ((vs[0], vs[1]), (vs[1], vs[2]), (vs[2], vs[0])):
+            counts[tuple(sorted((a, b)))] += 1
+    bverts = set()
+    for edge, c in counts.items():
+        if c == 1:  # used by one triangle -> open boundary edge
+            bverts.update(edge)
+    caps = []
+    for axis in range(3):
+        for sign in (1, -1):
+            plane = sign * half
+            pts = [v for v in bverts if abs(v[axis] - plane) < eps]
+            if len(pts) < 3:
+                continue
+            u, w = (a for a in range(3) if a != axis)
+            cu = sum(p[u] for p in pts) / len(pts)
+            cw = sum(p[w] for p in pts) / len(pts)
+            pts.sort(key=lambda p: math.atan2(p[w] - cw, p[u] - cu))
+            center = [0.0, 0.0, 0.0]
+            center[axis], center[u], center[w] = plane, cu, cw
+            center = tuple(center)
+            for m in range(len(pts)):
+                caps.append(Triangle(pts[m], pts[(m + 1) % len(pts)], center, "_wall"))
+    return caps
+
+
 def add_walls(cells, cell):
-    """Cap each cube face SHARED with an occupied neighbour with white walls, so
-    a destroyed section reveals a solid wall instead of a see-through hole. The
-    exterior look is untouched (only faces between two occupied cells get a
-    wall). Cells are already recentred, so a cube spans [-cell/2, cell/2]^3.
-    Returns the number of wall triangles added."""
+    """Close each cube so a destroyed section is not see-through. A fully
+    enclosed 'inner' cube (all 6 neighbours occupied) gets solid white cube-face
+    walls; an 'outer' cube (on the hull surface) instead gets white caps only
+    along its open cut edges, hugging the triangles so nothing juts past the
+    exterior. Cells are already recentred (a cube spans [-cell/2, cell/2]^3).
+    Returns the number of wall/cap triangles added."""
     half = cell / 2.0
     occupied = set(cells)
     added = 0
     for (i, j, k), tris in cells.items():
+        faces = []
         for axis, sign in ((0, 1), (0, -1), (1, 1), (1, -1), (2, 1), (2, -1)):
             nb = [i, j, k]
             nb[axis] += sign
             if tuple(nb) in occupied:
-                quad = _wall_quad(axis, sign, half)
-                tris.extend(quad)
-                added += len(quad)
+                faces.append((axis, sign))
+        if len(faces) == 6:  # inner cube: solid closed box
+            walls = []
+            for axis, sign in faces:
+                walls.extend(_wall_quad(axis, sign, half))
+        else:  # outer cube: cap only the open cut edges (hug the surface)
+            walls = _cap_boundary(tris, half)
+        tris.extend(walls)
+        added += len(walls)
     return added
 
 
@@ -679,11 +722,19 @@ def self_test():
     )[0]  # byteLength matches the (padded) BIN chunk length
     assert piece_name((1, -1, 0)) == "cube_i1_jm1_k0"
 
-    # add_walls caps only faces shared with an occupied neighbour.
-    two = {(0, 0, 0): [], (1, 0, 0): []}
-    n = add_walls(two, 1.0)
-    assert n == 4, n  # one shared face each side -> 2 tris x 2 cells
-    assert all(t.material == "_wall" for t in two[(0, 0, 0)])
+    # An inner cube (all 6 neighbours occupied) gets a full white box.
+    core = {(0, 0, 0): []}
+    for a in range(3):
+        for sgn in (1, -1):
+            nb = [0, 0, 0]
+            nb[a] += sgn
+            core[tuple(nb)] = []
+    n = add_walls(core, 1.0)
+    assert n == 12, n  # 6 faces x 2 tris on the enclosed cube
+    assert all(t.material == "_wall" for t in core[(0, 0, 0)])
+    # Boundary capping runs on a surface patch and yields _wall caps.
+    patch = slice_grid([Triangle((-0.9, 0.0, 0.0), (0.9, 0.0, 0.0), (0.0, 0.9, 0.0), "a")], 1.0)
+    assert all(t.material == "_wall" for t in _cap_boundary(patch, 0.5))
 
     print("self-test OK")
     return 0
