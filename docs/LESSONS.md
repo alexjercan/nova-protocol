@@ -10,7 +10,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 
 ## Process lessons
 
-- `keep-docs-in-sync-with-code` (x3, already enforced in AGENTS.md): a code
+- `keep-docs-in-sync-with-code` (x4, already enforced in AGENTS.md): a code
   change is not done until the docs
   it invalidates are fixed in the SAME task - Nova documents itself across
   several surfaces (terse `CHANGELOG.md`, the `/news/` posts, the player wiki,
@@ -20,7 +20,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   AGENTS.md ("The website"). Ask what a PLAYER loses or gains before filing a
   change as pure refactor (a deleted picker row needed a CHANGELOG line, caught
   only in review); removing a shipped example mod meant sweeping 4 wiki guides +
-  a design doc + CHANGELOG in the same task. Across a TASK FAMILY the player
+  a design doc + CHANGELOG in the same task. A TICKED docs step is not proof:
+  002228's plan named CHANGELOG+wiki, the step was checked, neither was touched
+  (caught a cycle later by 20260717-101615) - review a docs step's OWN list of
+  surfaces against the diff, not the diff alone. Across a TASK FAMILY the player
   wiki is the surface that falls between siblings: the ammo-reload mechanic task
   did CHANGELOG + dev wiki but never the player wiki, and the readout sibling had
   to backfill it - so the last task of a multi-task feature should sweep the
