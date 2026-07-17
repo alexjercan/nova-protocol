@@ -363,10 +363,15 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `one-cargo-test-filter` (x5): `cargo test` takes one filter and one `-p` per
   invocation; separate runs otherwise (recurred under flow momentum: a chained
   two-filter run silently tested nothing). 20260713-082324, 20260716-162701.
-- `check-all-targets-for-struct-field` (x2): a new non-Default field breaks
-  every initializer (exhaustive literals in builders AND tests), but plain
-  `cargo check --workspace` skips examples/tests; use `--all-targets`.
-  20260712-140250, 20260716-155849.
+- `check-all-targets-for-struct-field` (x3 -> Pending promotions): a new
+  non-Default field breaks every exhaustive initializer - builders, TESTS
+  (`#[cfg(test)]`), and EXAMPLES - but `cargo check`/`check -p <crate>` compiles
+  none of those; only `cargo check --all-targets` does. Grep the WHOLE repo for
+  the literal (not just `crates/`), and run `--all-targets` BEFORE landing.
+  20260717-165031 hit it twice in one task: a `#[cfg(test)]` literal `cargo check`
+  missed (caught by `cargo test`), then 8 `examples/*.rs` literals that escaped to
+  master because the pre-land checks were crate-scoped, not `--all-targets`.
+  20260712-140250, 20260716-155849, 20260717-165031.
 - `mod-facing-surface-plans-failure-paths` (x1): a task exposing a surface to
   MOD DATA must plan its failure paths up front - enumerate "what breaks when a
   mod does this badly" (missing entity contracts, empty sets, unregistered ids)
@@ -981,6 +986,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   reads the LAST command's exit, so a compile failure reports as success; run
   cargo bare (backgrounded) and read the output text, or `set -o pipefail`.
   See the main-list entry. 20260717-002228 (x2 in one task), 20260717-013440.
+
+- `check-all-targets-for-struct-field` (x3) -> work skill / AGENTS.md: a new
+  non-Default struct field breaks exhaustive initializers in builders, tests
+  AND examples; `cargo check -p <crate>` compiles none of the latter two. Grep
+  the WHOLE repo for the literal and run `cargo check --all-targets` BEFORE
+  landing. See the main-list entry. 20260712-140250, 20260716-155849,
+  20260717-165031.
 
 - `sibling-change-leaves-stale-fixture` (x3) -> work skill: before landing a
   content/data change, grep for tests that include_str or assert on the exact
