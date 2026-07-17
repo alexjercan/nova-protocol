@@ -12,7 +12,7 @@ pub mod prelude {
         scenario_is_live, ContentIssues, CurrentScenario, GameScenarios, LoadScenario,
         NewGameStart, ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig, ScenarioId,
         ScenarioLoaded, ScenarioLoaderPlugin, ScenarioScopedMarker, ScenarioStartFailure,
-        ScenarioStartFailureReport, ScriptedCameraPose, UnloadScenario,
+        ScenarioStartFailureReport, ScriptedCameraPose, UnloadScenario, SCENARIO_ELAPSED_VAR,
     };
 }
 
@@ -261,10 +261,11 @@ impl Plugin for ScenarioLoaderPlugin {
         // NEWLY fires. apply_pending_skybox_swaps stays ungated too: it is
         // cosmetic and asset-load driven (not clock driven), and letting a
         // queued swap finish under pause is harmless. Do not blanket-gate.
-        app.add_systems(
-            Update,
-            fire_on_update.run_if(scenario_is_live.and_then(in_state(PauseStates::Unpaused))),
-        );
+        //
+        // The scenario clock ticks chained ahead of the pulse under the
+        // SAME gate: time-gated handlers see this frame's clock, and both
+        // freeze together under a pause (task 20260717-112647).
+        register_clock_and_pulse(app);
 
         // The orbit-hold tracker behind `EventConfig::OnOrbit` (task
         // 20260712-110730 finding 5): "in orbit" is autopilot state, not
@@ -321,6 +322,50 @@ fn enforce_scripted_camera_pose(mut cameras: Query<(&mut Transform, &ScriptedCam
     for (mut transform, pose) in &mut cameras {
         *transform = Transform::from_translation(pose.position).looking_at(pose.look_at, Vec3::Y);
     }
+}
+
+/// The reserved scenario-clock variable (task 20260717-112647): seconds of
+/// LIVE, UNPAUSED scenario time, maintained by [`tick_scenario_clock`] and
+/// readable from any expression filter as
+/// `Term(Factor(Name("scenario_elapsed")))`. Authors GATE on it, they never
+/// write it - a `VariableSet` on this key is a content_lint ERROR, because
+/// the engine overwrites it every tick. It clears with the rest of the
+/// event world at teardown, so it is the CURRENT scenario's clock (a retry
+/// restarts it), and an early read before the first tick fails closed via
+/// the undefined-variable rule.
+///
+/// One-shots compose with the standard act/flag gate: `elapsed > N` plus
+/// an act filter, then advance the act. Repeating waves compose with a
+/// rearm write: gate on `elapsed > next_at`, then
+/// `VariableSet(next_at, Add(next_at, interval))`.
+pub const SCENARIO_ELAPSED_VAR: &str = "scenario_elapsed";
+
+/// Accumulate the scenario clock. Registered CHAINED AHEAD of
+/// [`fire_on_update`] under the same live+unpaused gate, so the pulse that
+/// evaluates time-gated handlers always sees this frame's clock; pausing
+/// (ESC menu or the outcome frame) freezes the clock by construction.
+fn tick_scenario_clock(time: Res<Time>, mut world: ResMut<NovaEventWorld>) {
+    let elapsed = match world.get_variable(SCENARIO_ELAPSED_VAR) {
+        Some(VariableLiteral::Number(n)) => *n,
+        _ => 0.0,
+    };
+    world.insert_variable(
+        SCENARIO_ELAPSED_VAR.to_string(),
+        VariableLiteral::Number(elapsed + time.delta_secs_f64()),
+    );
+}
+
+/// The ONE registration of the clock + pulse pair, shared by the plugin
+/// and the test rigs so the load-bearing chain + gate cannot drift between
+/// them (review 20260717-112647 R1.2): tick first, pulse second, both
+/// gated live + Unpaused.
+fn register_clock_and_pulse(app: &mut App) {
+    app.add_systems(
+        Update,
+        (tick_scenario_clock, fire_on_update)
+            .chain()
+            .run_if(scenario_is_live.and_then(in_state(PauseStates::Unpaused))),
+    );
 }
 
 /// The per-frame pulse behind `EventConfig::OnUpdate` handlers. Scenarios
@@ -1476,6 +1521,165 @@ mod tests {
             "unpausing must resume the OnUpdate pulse ({} -> {})",
             at_pause,
             count(&app)
+        );
+    }
+
+    /// The scenario clock (task 20260717-112647): accumulates live unpaused
+    /// seconds into the reserved variable and gates a real time-filtered
+    /// OnUpdate handler - held before the threshold, fired after. Driven
+    /// through the production tick + pulse pair on a manual 0.1s clock
+    /// (steps under Time<Virtual>'s 0.25s max_delta clamp - the
+    /// manual-time-rig lesson).
+    #[test]
+    fn scenario_clock_gates_time_filtered_handlers() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+        use bevy_common_systems::prelude::{EventHandler, GameEventsPlugin, GameObjectives};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<PauseStates>();
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<CurrentScenario>();
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
+            100,
+        )));
+        register_clock_and_pulse(&mut app);
+
+        // A one-shot beat the way an author writes it: elapsed > 0.5s AND
+        // the flag unfired, then the action raises the flag.
+        let mut handler = EventHandler::<NovaEventWorld>::from(EventConfig::OnUpdate);
+        handler.add_filter(EventFilterConfig::Expression(ExpressionFilterConfig(
+            VariableConditionNode::new_greater_than(
+                VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                    VariableFactorNode::new_name(SCENARIO_ELAPSED_VAR),
+                )),
+                VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                    VariableFactorNode::new_literal(VariableLiteral::Number(0.5)),
+                )),
+            ),
+        )));
+        handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: "beat_fired".to_string(),
+            expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                VariableFactorNode::new_literal(VariableLiteral::Boolean(true)),
+            )),
+        }));
+        app.world_mut().spawn(handler);
+
+        app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
+
+        // ~0.3s of scenario time: the gate must hold (fails closed while
+        // the clock is below the threshold).
+        for _ in 0..3 {
+            app.update();
+        }
+        assert!(
+            app.world()
+                .resource::<NovaEventWorld>()
+                .get_variable("beat_fired")
+                .is_none(),
+            "the time gate holds before the threshold"
+        );
+
+        // Past 0.5s the beat fires - the delivery guard proving the clock
+        // is what advanced (with the tick removed this stays None forever).
+        for _ in 0..5 {
+            app.update();
+        }
+        assert_eq!(
+            app.world()
+                .resource::<NovaEventWorld>()
+                .get_variable("beat_fired"),
+            Some(&VariableLiteral::Boolean(true)),
+            "the beat fires once the scenario clock passes the threshold"
+        );
+    }
+
+    /// The clock freezes under pause exactly like the pulse it feeds (same
+    /// chained registration, same run condition), and resumes on unpause.
+    #[test]
+    fn scenario_clock_freezes_while_paused() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+        use bevy_common_systems::prelude::{GameEventsPlugin, GameObjectives};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<PauseStates>();
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<CurrentScenario>();
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
+            100,
+        )));
+        register_clock_and_pulse(&mut app);
+        let elapsed = |app: &App| match app
+            .world()
+            .resource::<NovaEventWorld>()
+            .get_variable(SCENARIO_ELAPSED_VAR)
+        {
+            Some(VariableLiteral::Number(n)) => *n,
+            _ => 0.0,
+        };
+
+        app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
+        for _ in 0..3 {
+            app.update();
+        }
+        let before_pause = elapsed(&app);
+        assert!(
+            before_pause > 0.0,
+            "a live unpaused scenario ticks the clock"
+        );
+
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Paused);
+        app.update(); // applies the transition
+        let at_pause = elapsed(&app);
+        for _ in 0..4 {
+            app.update();
+        }
+        assert_eq!(
+            elapsed(&app),
+            at_pause,
+            "a paused game must freeze the scenario clock"
+        );
+
+        // Unpause: delivery-guarded - the clock climbs again.
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Unpaused);
+        app.update();
+        app.update();
+        assert!(
+            elapsed(&app) > at_pause,
+            "unpausing must resume the scenario clock"
+        );
+    }
+
+    /// The clock dies with the event world (teardown/retry): after clear()
+    /// the variable is gone, so a time gate on the next scenario fails
+    /// closed until the fresh clock ticks - never inherits stale seconds.
+    #[test]
+    fn scenario_clock_resets_with_the_event_world() {
+        let mut world = NovaEventWorld::default();
+        world.insert_variable(
+            SCENARIO_ELAPSED_VAR.to_string(),
+            VariableLiteral::Number(42.0),
+        );
+        world.clear();
+        assert!(
+            world.get_variable(SCENARIO_ELAPSED_VAR).is_none(),
+            "teardown clears the clock with the rest of the event world"
         );
     }
 

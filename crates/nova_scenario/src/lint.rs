@@ -172,6 +172,11 @@ pub fn lint_scenario(
     }
 
     for var in &used_vars {
+        // The scenario clock is ENGINE-set every live unpaused tick
+        // (loader::tick_scenario_clock); reading it needs no VariableSet.
+        if var == crate::loader::SCENARIO_ELAPSED_VAR {
+            continue;
+        }
         if !declared.set_vars.contains(var) {
             issues.push(LintIssue::warn(
                 id,
@@ -231,6 +236,19 @@ fn check_action(
             check_object_prototypes(&config.template, scenario, known_sections, issues);
         }
         EventActionConfig::VariableSet(config) => {
+            // The scenario clock is engine-owned: the tick system rewrites
+            // it every frame, so an authored write is at best a one-frame
+            // glitch and at worst a broken time gate - always a bug.
+            if config.key == crate::loader::SCENARIO_ELAPSED_VAR {
+                issues.push(LintIssue::error(
+                    scenario,
+                    format!(
+                        "VariableSet writes the reserved engine clock '{}' \
+                         (gate on it with expression filters instead)",
+                        crate::loader::SCENARIO_ELAPSED_VAR
+                    ),
+                ));
+            }
             collect_expression_vars(&config.expression, used_vars);
         }
         EventActionConfig::NextScenario(config) => {
@@ -665,5 +683,51 @@ mod tests {
         assert_eq!(issues.len(), 2, "{issues:?}");
         assert!(issues.iter().any(|i| i.message.contains("never_set")));
         assert!(issues.iter().any(|i| i.message.contains("never_posted")));
+    }
+
+    /// The reserved scenario clock (task 20260717-112647): reading it needs
+    /// no VariableSet (the engine ticks it), so no unset-variable warning;
+    /// WRITING it is always a bug, so an authored VariableSet errors.
+    #[test]
+    fn scenario_clock_reads_are_clean_and_writes_are_errors() {
+        use crate::loader::SCENARIO_ELAPSED_VAR;
+
+        // A time-gated handler the way an author writes one: no warning.
+        let read_only = scenario(
+            vec![],
+            vec![EventFilterConfig::Expression(ExpressionFilterConfig(
+                VariableConditionNode::new_greater_than(
+                    VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_name(SCENARIO_ELAPSED_VAR),
+                    )),
+                    VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(VariableLiteral::Number(30.0)),
+                    )),
+                ),
+            ))],
+        );
+        let issues = lint_scenario(&read_only, &known(&[]), &known(&["test_scenario"]));
+        assert!(
+            issues.is_empty(),
+            "gating on the engine clock is the intended pattern: {issues:?}"
+        );
+
+        // An authored write to the clock: an error, not a warning.
+        let stomp = scenario(
+            vec![EventActionConfig::VariableSet(VariableSetActionConfig {
+                key: SCENARIO_ELAPSED_VAR.to_string(),
+                expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                    VariableFactorNode::new_literal(VariableLiteral::Number(0.0)),
+                )),
+            })],
+            vec![],
+        );
+        let issues = lint_scenario(&stomp, &known(&[]), &known(&["test_scenario"]));
+        assert_eq!(
+            errors(&issues).len(),
+            1,
+            "writing the reserved clock is an error: {issues:?}"
+        );
+        assert!(issues[0].message.contains(SCENARIO_ELAPSED_VAR));
     }
 }

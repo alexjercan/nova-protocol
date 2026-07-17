@@ -87,9 +87,18 @@ impl EventWorld for NovaEventWorld {
         // Log variables ONLY when they change since the last log - this system runs
         // every frame (the OnUpdate pulse keeps the event queue warm), so an
         // unconditional log spams the debug stream. Clone the snapshot only on a change.
+        // The engine clock is EXCLUDED from the diff: it advances every live frame
+        // by design, and letting it count as "changed" would defeat this guard
+        // (full dump + snapshot clone per frame; review 20260717-112647 R1.1).
         let changed_snapshot = {
             let this = world.resource::<Self>();
-            if this.variables != this.last_logged_variables {
+            let differs_ignoring_clock =
+                |a: &HashMap<String, VariableLiteral>, b: &HashMap<String, VariableLiteral>| {
+                    let clock = crate::loader::SCENARIO_ELAPSED_VAR;
+                    a.iter().any(|(k, v)| k != clock && b.get(k) != Some(v))
+                        || b.keys().any(|k| k != clock && !a.contains_key(k))
+                };
+            if differs_ignoring_clock(&this.variables, &this.last_logged_variables) {
                 debug!("# Current Variables:");
                 for (key, value) in &this.variables {
                     debug!("Variable: {} = {:?}", key, value);

@@ -159,6 +159,65 @@ expression tree: `VariableExpressionNode` (add/subtract), `VariableTermNode`
 (multiply/divide), `VariableFactorNode` (literal/name/parens);
 `VariableConditionNode` (less/greater/equal) yields booleans for filters.
 
+### The scenario clock (`scenario_elapsed`)
+
+The engine maintains one RESERVED variable: `scenario_elapsed`, the seconds
+of live, unpaused scenario time (`tick_scenario_clock` in `loader.rs`,
+chained ahead of the `OnUpdate` pulse under the same live+unpaused gate, so
+pausing freezes both together). It clears at teardown with the rest of the
+event world - it is the current scenario's clock, and a retry restarts it.
+Gate on it from any expression filter; never write it (the engine rewrites
+it every tick, and `content_lint` errors on an authored `VariableSet` to
+it). A read before the first tick fails closed like any undefined variable.
+
+A one-shot timed beat is the clock threshold plus your own fired-flag:
+
+```ron
+filters: [
+    Expression((GreaterThan(
+        Term(Factor(Name("scenario_elapsed"))),
+        Term(Factor(Literal(Number(30.0)))),
+    ))),
+    Expression((Equal(
+        Term(Factor(Name("beat_fired"))),
+        Term(Factor(Literal(Number(0.0)))),
+    ))),
+],
+actions: [
+    VariableSet((key: "beat_fired", expression: Term(Factor(Literal(Number(1.0)))))),
+    // ... the beat ...
+],
+```
+
+Seed `beat_fired: 0` in `OnStart` (an unseeded gate fails closed forever).
+
+A repeating wave is the same shape gating on `elapsed > next_at`, rearmed
+inside its own action (seed `next_at` in `OnStart` too):
+
+```ron
+filters: [
+    Expression((GreaterThan(
+        Term(Factor(Name("scenario_elapsed"))),
+        Term(Factor(Name("next_at"))),
+    ))),
+],
+actions: [
+    VariableSet((
+        key: "next_at",
+        expression: Add(Factor(Name("next_at")), Term(Factor(Literal(Number(30.0))))),
+    )),
+    // ... spawn the wave ...
+],
+```
+
+You can also SNAPSHOT the clock into your own variable to measure a
+duration since an event (`VariableSet((key: "ambush_started", expression:
+Term(Factor(Name("scenario_elapsed")))))`, then gate on
+`elapsed > ambush_started + grace` via an `Add` expression) - reading the
+reserved key is always fine; only writing it is gated. The example mod's
+arena ships a timed comms nudge and a timed bonus spawn as copyable worked
+examples.
+
 ## Scenario objects (`objects/`, `ScenarioObjectKind`)
 
 All share `BaseScenarioObjectConfig` (id, name, position, rotation) and spawn

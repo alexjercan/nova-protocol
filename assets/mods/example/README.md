@@ -18,6 +18,10 @@ binary assets it ships).
   prototypes plus this mod's own sections, two destructible targets, an
   objective, and a win check. Ends in a Victory or Defeat `Outcome`, with a
   `StoryMessage` comms beat at the open and the clear.
+- **Timed beats on the scenario clock** - the arena gates a comms nudge
+  (25s) and a bonus drifting target (45s) on the engine's reserved
+  `scenario_elapsed` variable: threshold filter + a seeded one-shot flag,
+  the copyable pattern for breathers, late waves and slow-play nudges.
 - **Mod-shipped binary art** - ships its own skybox and asteroid texture under
   `textures/`, declared in the manifest's `resources`, referenced with the
   `self://` scheme so they resolve against this mod's own folder.

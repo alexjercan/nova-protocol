@@ -209,6 +209,18 @@
                         key: "arena_done",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
+                    // One-shot flags for the TIMED beats below. Seeding them
+                    // here matters: an undefined variable in a filter fails
+                    // closed, so an unseeded `nudge_sent == 0` gate would
+                    // never pass and the beat would never fire.
+                    VariableSet((
+                        key: "nudge_sent",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    VariableSet((
+                        key: "drifter_sent",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
                     Objective((
                         id: "clear_range",
                         message: "Destroy the two derelict rocks. Aim with the mouse, [Left Mouse] fires.",
@@ -300,6 +312,89 @@
                     Outcome((
                         outcome: Victory,
                         message: Some("Range cleared - both derelicts are scrap."),
+                    )),
+                ],
+            ),
+            // TIMED beats, gated on the engine's scenario clock: the
+            // reserved `scenario_elapsed` variable counts live, unpaused
+            // seconds (the engine ticks it - never write it yourself; the
+            // content gate errors on a VariableSet to it). Compose a
+            // one-shot as clock threshold + your own fired-flag, exactly
+            // like any other act gate. A repeating wave is the same shape
+            // gating on `elapsed > next_at` and rearming `next_at` in the
+            // action.
+            //
+            // Beat one: a friendly nudge if the range is not clear by 25s.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Literal(Number(25.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("arena_done"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("nudge_sent"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "nudge_sent",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Range Control",
+                        text: "Clock's running. Put your reticle on a derelict and hold the trigger.",
+                    )),
+                ],
+            ),
+            // Beat two: at 45s a third derelict drifts onto the range -
+            // a timed spawn (bonus target; the win still needs only the
+            // first two).
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Literal(Number(45.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("arena_done"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("drifter_sent"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "drifter_sent",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Range Control",
+                        text: "Late contact drifting onto the range - bonus target if you want it.",
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "example_target_3",
+                            name: "Late Drifter",
+                            position: (60.0, 15.0, -140.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 2.0,
+                            texture: "self://textures/rock.png",
+                            health: 50.0,
+                            surface_gravity: None,
+                            invulnerable: false,
+                            lock_signature: None,
+                        )),
                     )),
                 ],
             ),
