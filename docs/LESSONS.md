@@ -54,12 +54,15 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   `Assets::insert` `Result` (`#[must_use]`) in a test - both hidden by an
   error-only grep and caught only by the editor's post-land LSP diagnostic.
   20260716-215423, 20260717-003613.
-- `merge-red-check-preexisting` (x1): when merging the default branch surfaces a
+- `merge-red-check-preexisting` (x2): when merging the default branch surfaces a
   red test, `git show <default>:<file>` the failing test FIRST to decide whether
   your change caused it or you inherited it - turns "did I break this?" into a
   definite answer. Here two shipped-id fixtures (`demo`) were already red on
   master from a parallel task's rename; fixed as merge integration (naming the
-  source task) rather than mis-blamed on this branch. 20260716-215423.
+  source task) rather than mis-blamed on this branch. Recurred: a sibling's
+  hand comment in a GENERATED RON left content_ron_parity red on master;
+  same recipe (git show, named merge-integration regen). 20260716-215423,
+  20260717-162121.
 - `sweep-content-repo-wide-not-just-assets` (x2): when relocating/renaming an
   ASSET, grep EVERY content-shaped file repo-wide - `examples/**`, `include_str!`
   embedded RON, test data - not just the shipped `assets/` tree. Content loaded
@@ -181,7 +184,9 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   (a scoped-out reposition feature; "the writing survives" over three trimmed
   clauses); write it from the final diff, then re-read asking "does the prose
   claim anything the diff does not do?". 20260717-112622, 20260717-163058.
-- `lint-arm-sweeps-own-fixtures` (x2): a new lint arm fires on the lint test
+- `lint-arm-sweeps-own-fixtures` (x2, applied preventively on
+  20260717-162121: fixtures swept at plan time, zero collisions): a new
+  lint arm fires on the lint test
   module's own pre-existing fixtures whose shape it matches (swallow arm on a
   3-warn fixture; beat-sheet arm on the 3-lines-one-handler dwell fixture);
   before the first run, grep the test module for matching shapes and isolate
@@ -427,12 +432,17 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   migration, grep the whole target type tree for non-derivable members - raw
   `Handle`s, foreign-crate types, Reflect-only types; scope hides in the leaves
   ("2 handles" was really 13 + 3 foreign types, a whole second tier). 20260525-133028.
-- `generate-data-from-code` (x2): migrate code-defined content to data files by
+- `generate-data-from-code` (x3, -> Pending promotions): migrate code-defined content to data files by
   serializing the code config with a parity test, never hand-authoring - provably
   faithful and sidesteps every format-syntax gotcha. Corollary: a change to any
   builder behind a committed generated artifact regenerates the artifact in the
   SAME commit (713ac855 changed the shakedown builder, left the RON stale, and
-  master's parity test went red until 172138). 20260525-133028, 20260715-172138.
+  master's parity test went red until 172138). Mirror image: hand-edits
+  (even comments) in a GENERATED artifact don't survive regen and ride
+  master red until someone regenerates - author them in the BUILDER; the
+  parity test is the contract (a sibling's hand comment in
+  asteroid_next.content.ron, regenerated away as merge integration by
+  20260717-162121). 20260525-133028, 20260715-172138, 20260717-201534.
 - `effect-not-just-helper` (x1): test a spawn/mutation action's EFFECT through the
   ECS harness (fire -> drain -> assert on the world), not just its pure sub-helper
   plus a non-asserting example; the helper passing hid an untested spawn loop.
@@ -589,7 +599,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   the test's own shape (a race pin with an update inside the race window
   stayed green under sabotage and had to be tightened to the true window).
   20260711-180426, 20260711-212521, 20260712-115902, 20260717-163033.
-- `out-of-context-review-pass` (positive, x28): a fresh-context review of a
+- `out-of-context-review-pass` (positive, x29): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
   load-bearing claims instead of trusting them - checking cited evidence IS
   the spawn site, re-running the sabotage or the whole smoke suite, reading
@@ -600,10 +610,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   overclaim, and re-deriving a course's geometric invariants from raw RON with
   its own script to surface a load-bearing dependency override, and re-deriving
   two engine-semantics claims from bevy source (skybox sanity check, AssetMut
-  write-tracking) - killing a bogus follow-up work item. 20260712-133343,
+  write-tracking) - killing a bogus follow-up work item. Verify the VERIFIER
+  too: re-derive its counterexamples before filing them (a real non-unit-quat
+  MINOR arrived with a wrong zero-quat sub-claim - glam's mul_vec3(q=0)
+  returns v, not 0). 20260712-133343,
   20260711-183417, 20260712-115902, 20260715-142900, 20260715-142931,
   20260716-125856, 20260708-203659, 20260716-162701, 20260716-124722,
-  20260716-214919, 20260717-013440.
+  20260716-214919, 20260717-013440, 20260717-162121.
 - `required-component-in-shared-query` (x2): a required fetch added to an
   existing query narrows its membership and every gate computed from it; fetch
   `Option<&T>` or use a separate query. New `Res<T>` params also panic every
@@ -876,7 +889,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   to an observer many headless section rigs run); the sibling `muzzle_effect`
   snapshots the ref UNRESOLVED at build and resolves in a render-time observer.
   Caught in self-review by comparing to the sibling, not by a test. 20260717-002228.
-- `piped-cargo-masks-exit-code` (x3, -> Pending promotions): `cargo ... | tail`/`| grep` reports the
+- `piped-cargo-masks-exit-code` (x4, -> Pending promotions): `cargo ... | tail`/`| grep` reports the
   PIPELINE's exit (tail/grep = 0), so a compile FAILURE reads as "exit 0" in the
   harness notification; read the OUTPUT text for `error[`/`could not compile` vs
   `Finished`, or `set -o pipefail`. Bit twice in one task - a masked E0593 in a
@@ -885,7 +898,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   `echo EXIT: ${PIPESTATUS[0]}` masks the same way - the harness reads the
   LAST command's exit, so print nothing after cargo (or `set -o pipefail`).
   Sibling of `warnings-clean-before-land` (error-only greps hide warnings;
-  pipes hide the exit code too). 20260717-002228, 20260717-013440.
+  pipes hide the exit code too). `| tail -N` also EATS the earlier
+  binaries' `test result:` lines in a multi-binary run - filter with
+  grep "test result", never tail. 20260717-002228, 20260717-013440,
+  20260717-162121.
 
 ## Domain lessons (nova-protocol specific)
 
@@ -1010,7 +1026,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   sibling, or workspace-wide. Grep this ledger for the crate before crate-scoped
   runs. See the main-list entry. 20260716-125856, 20260716-155830, 20260716-231855.
 
-- `piped-cargo-masks-exit-code` (x3) -> work skill / AGENTS.md: never end a
+- `piped-cargo-masks-exit-code` (x4) -> work skill / AGENTS.md: never end a
   cargo command with tail/grep/echo that eats its exit code - the harness
   reads the LAST command's exit, so a compile failure reports as success; run
   cargo bare (backgrounded) and read the output text, or `set -o pipefail`.
@@ -1054,6 +1070,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   behavior - ordering guarantees, observer semantics, and panic-on-precondition
   (e.g. a bcs `On<Insert>` observer that `.unwrap()`s an unloaded asset). See the
   main-list entry. 20260525-133004, 20260712-115902, 20260525-133017.
+
+- `generate-data-from-code` (x3) -> work skill: generated artifacts follow
+  their builder, both directions - a builder change regenerates the
+  artifact in the same commit, and hand-edits (even comments) in the
+  artifact belong in the builder instead; the parity test is the
+  contract. See the main-list entry. 20260525-133028, 20260715-172138,
+  20260717-201534.
 
 ## Promoted (kept for history)
 
