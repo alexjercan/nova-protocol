@@ -245,3 +245,9 @@ switching input (the `LoadedBullet` swap seam, already architected).
   One timer yields both A3 (discrete on-empty) and A1 (regen) via
   `only_when_empty`/`rounds_per_cycle`. `progress()` exposes the reload state for
   the readout task. Details: tasks/20260717-085640/NOTES.md.
+- 20260716-123556 (readout reload-state): `drive_ammo_readouts` now renders a
+  reload sweep (option B1) - pips above the live rounds fill in the loaded hue at
+  `RELOAD_ALPHA` proportional to `SectionReload::progress()`, one pure path
+  (`reload_fill_segments`) for both discrete and regen. No separate corner chip
+  (B2 stays rejected). Player wiki gained an "Ammo & reloading" section. Details:
+  tasks/20260716-123556/NOTES.md. Family complete.

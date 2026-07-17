@@ -27,6 +27,10 @@ A [turret](../sections/turret/) is an articulated mount that aims at your combat
 
 A torpedo homes on the combat lock with **proportional-navigation** guidance - turning toward where the target will be - after an arming gate clears (a short time or distance from launch, so it cannot go off in your lap). It detonates on a proximity fuze and deals **blast (area) damage** that falls off from the center, so torpedoes are about zoning and catching clustered or fragile targets where turret fire is precise and pointed.
 
+## Ammo & reloading
+
+Weapons carry a finite magazine, shown by a small diegetic gauge riding on the weapon: a **ring** on each turret that drains as it fires, and a **row of pips** on the torpedo bay, one per loaded torpedo. Running dry is not the end of the fight - a spent weapon **auto-reloads**. Turrets dump their magazine then reload it to full after a few seconds; the torpedo bay slowly rearms one torpedo at a time. While a weapon is reloading the gauge fills back up as a **reload sweep** in a dimmer shade of the same color, so you can read at a glance how close it is to firing again. Because ammo always comes back, magazine size is a firing-rhythm limit, not a way to be permanently disarmed. (Some tutorial or sandbox ships fly with unlimited ammo, and then carry no gauge at all.)
+
 ## Damage types
 
 Every round carries a damage type, and each turret has a loaded-ammo slot that sets its rounds' type (the ammo readout is color-coded to match):

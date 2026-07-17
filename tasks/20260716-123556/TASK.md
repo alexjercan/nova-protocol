@@ -1,6 +1,6 @@
 # Ammo/magazine HUD readout: show loaded type, rounds and reload state
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 32
 - TAGS: v0.7.0,hud,ui,spike
 
@@ -20,30 +20,30 @@ clutter.
 
 ## Steps
 
-- [ ] Extend `drive_ammo_readouts` in `crates/nova_gameplay/src/hud/ammo_readout.rs`
+- [x] Extend `drive_ammo_readouts` in `crates/nova_gameplay/src/hud/ammo_readout.rs`
   (`:359`) to also read `Query<&SectionReload>` (Option per section) alongside
   the existing `SectionAmmo`/`LoadedBullet` queries.
-- [ ] Compute a per-readout reload state: `reloading` = the section has a
+- [x] Compute a per-readout reload state: `reloading` = the section has a
   `SectionReload` whose `progress() > 0` while `rounds < capacity`, plus the
   fraction `progress()`. Keep the current steady lit/dim path when not reloading.
-- [ ] Render the reload visual over the existing pips (both `AmmoReadoutKind`):
+- [x] Render the reload visual over the existing pips (both `AmmoReadoutKind`):
   while reloading, drive the ring/bar as a progress SWEEP - light pips up to
   `floor(progress * segment_count)` in the loaded hue at a distinct
   reloading alpha (a pulse between `DIM_ALPHA` and `LIT_ALPHA`, or a fixed
   mid alpha), so a discrete on-empty reload reads as the ring filling from empty
   to full and a torpedo bar fills a pip at a time. Reuse `turret_lit_segments`'
   segment count for the ring and `capacity` for the bar; no new pip nodes.
-- [ ] Keep the visual purely a function of `progress()` so it works for both
+- [x] Keep the visual purely a function of `progress()` so it works for both
   reload modes (discrete full-reload sweep and continuous regen) without
   branching on the mode.
-- [ ] Tests (headless, in `ammo_readout.rs`, extending the existing color/drive
+- [x] Tests (headless, in `ammo_readout.rs`, extending the existing color/drive
   tests): (1) with a mid-reload `SectionReload` (progress ~0.5) on an empty
   turret, the count of reload-lit pips equals `floor(0.5 * RING_SEGMENTS)` and
   differs from the steady-empty lighting. (2) a torpedo bay part-way through
   rearm lights the expected number of bar pips. (3) with no `SectionReload` (or
   progress 0) the output is byte-identical to today's steady path (no regression
   to the shipped loaded-type/count behavior).
-- [ ] Docs: `tasks/20260716-123556/NOTES.md` (the reload-visual design, why it
+- [x] Docs: `tasks/20260716-123556/NOTES.md` (the reload-visual design, why it
   rides the existing readout instead of a new chip). Append a Fix record line to
   the spike. CHANGELOG Unreleased line.
 
@@ -62,3 +62,25 @@ clutter.
   once shakedown flips finite (20260717-085640) it appears in combat naturally.
 - Coordinate styling with diegetic HP (20260711-202901) if both land this
   release.
+
+## Implementation record
+
+Landed on branch `feature/ammo-readout-reload-state`. `drive_ammo_readouts`
+reads `SectionReload` and renders a reload sweep (pips above the live-round
+level fill in the loaded hue at the new `RELOAD_ALPHA` 0.5, proportional to
+`progress()`); the sweep math is the pure `reload_fill_segments`. One code path
+serves both reload modes (discrete turret fills the whole ring from empty;
+continuous torpedo lights the rounds coming back above the live ones) because
+the visual is a function of `progress()` + steady lit count, not the mode. No
+separate corner chip (spike B2 rejected). `RELOAD_ALPHA` sits below the existing
+tests' lit/dim threshold, so the shipped drive tests are unaffected. Player wiki
+`combat-weapons.md` gained an "Ammo & reloading" section (the first
+player-facing description of finite ammo + auto-reload, backfilling
+20260717-085640 which only touched the CHANGELOG + dev wiki); module doc +
+CHANGELOG updated. Design + self-reflection: tasks/20260716-123556/NOTES.md;
+spike Fix record appended (family complete).
+
+Verification (per the standing skip-local-full-suite instruction): `cargo check
+--workspace --all-targets` clean (no warnings in touched crates); `cargo fmt`
+clean; `hud::ammo_readout` tests 13/13 (4 new: the pure sweep math + turret/
+torpedo sweep + a rested-reload==no-reload regression guard). Full suite in CI.
