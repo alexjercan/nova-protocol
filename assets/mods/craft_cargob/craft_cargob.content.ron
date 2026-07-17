@@ -1,10 +1,9 @@
 // Hand-authored example mod: the Kenney craft_cargoB reassembled from its cut
-// hull cubes (scripts/cut-obj-into-hulls.py, grid Y lowered 0.3). Pieces are
-// inline Hull sections EXCEPT: the two rear engines (-1,1,-2)/(1,1,-2) are
-// Thruster sections yawed 180 to thrust forward, and a Controller sits in the
-// empty core cell (0,1,0). Cube meshes ship under gltf/ (self://). The whole
-// ship is yawed 180 (rotation (0,1,0,0)) so it faces +Z. Player-controlled
-// (WASD thrust drives the two rear thrusters).
+// hull cubes (scripts/cut-obj-into-hulls.py --walls, grid Y lowered 0.3).
+// Pieces are inline Hull sections EXCEPT the two rear engines (-1,1,-2)/(1,1,-2)
+// (Thrusters yawed 180 to thrust forward) and a Controller in the empty core
+// (0,1,0). Cube meshes ship under gltf/ (self://). Player-controlled: both
+// thrusters bound to W. Ship yawed 180 (rotation (0,1,0,0)) so it faces +Z.
 [
     Scenario((
         id: "craft_cargob_reconstruct",
@@ -24,7 +23,14 @@
                         ),
                         kind: Spaceship((
                             controller: Player((
-                                input_mapping: {},
+                                input_mapping: {
+                                    "cube_im1_j1_km2": [
+                                        Keyboard(KeyW),
+                                    ],
+                                    "cube_i1_j1_km2": [
+                                        Keyboard(KeyW),
+                                    ],
+                                },
                                 infinite_ammo: false,
                             )),
                             sections: [
