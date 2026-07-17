@@ -240,9 +240,10 @@ adding an event/observer over coupling two systems.
 ## Assets
 
 `assets/` is **runtime-only** - everything the game actually loads: `shaders/`
-(`.wgsl`), `icons/`, and the `base/`/`mods/` data (`.ron`). The base game's own
-art and audio live UNDER `assets/base/` (exported `gltf/` models `.glb`,
-`textures/`, `sounds/` `.wav`, `banner.png`), referenced by base content with
+(`.wgsl`), `icons/`, `sounds/` (UI chrome: menu clicks + objective chimes),
+and the `base/`/`mods/` data (`.ron`). The base game's own art and world audio
+live UNDER `assets/base/` (exported `gltf/` models `.glb`, `textures/`,
+`sounds/` `.wav` world cues, `banner.png`), referenced by base content with
 `self://` and by mods with `dep://base/<path>`. It is the whole directory the
 web (Trunk `copy-dir`) and native (`release.yaml`) builds ship, so non-runtime
 files must not live here. The Blender SOURCES the `gltf/` models are exported

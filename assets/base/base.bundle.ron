@@ -27,20 +27,20 @@
         "gltf/turret-barrel-01.glb",
         "gltf/torpedo-bay-01.glb",
         "banner.png",
-        // Base sound effects, now shipped UNDER assets/base/ (task 20260717-002228,
-        // closing the last root-art exception). Base content references
+        // The base mod's WORLD sound effects (task 20260717-002228; ownership
+        // split in spike 20260717-101524). Base content references
         // `turret_fire.wav` via `self://sounds/...` (the turret section's authorable
-        // `fire_sound`); the rest are the base game's own cues, loaded directly by
-        // `register_sounds`, listed here so mods can reference any of them via
-        // `dep://base/sounds/<name>.wav`.
+        // `fire_sound`); the rest are played by the game's cue observers (the
+        // transitional WorldSfx bank) until their families migrate onto section/
+        // object configs. Listed here so mods can reference any of them via
+        // `dep://base/sounds/<name>.wav`. UI/interface sounds (menu clicks,
+        // objective chimes) are engine chrome like `icons/` and live at the
+        // asset root, NOT here.
         "sounds/dry_fire.wav",
         "sounds/explosion.wav",
         "sounds/impact.wav",
         "sounds/lock_off.wav",
         "sounds/lock_on.wav",
-        "sounds/menu_select.wav",
-        "sounds/objective_complete.wav",
-        "sounds/objective_new.wav",
         "sounds/radar_deny.wav",
         "sounds/radar_retarget.wav",
         "sounds/safety_on.wav",
@@ -48,7 +48,6 @@
         "sounds/thruster_loop.wav",
         "sounds/torpedo_launch.wav",
         "sounds/turret_fire.wav",
-        "sounds/ui_toggle.wav",
     ],
     meta: (
         name: "Base Game",

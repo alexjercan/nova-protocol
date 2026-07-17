@@ -127,6 +127,7 @@ kind: Turret((
     projectile_lifetime: 5.0,
     bullet_damage: 4.0,
     bullet_kind: Kinetic,
+    fire_sound: Some("dep://base/sounds/turret_fire.wav"),
     ammo_capacity: Some(500),
 )),
 ```
@@ -139,6 +140,10 @@ kind: Turret((
   -> muzzle (bare 3-tuples).
 - `render_mesh_base`, `render_mesh_yaw`, `render_mesh_pitch`,
   `render_mesh_barrel` (all optional) - the per-part meshes; omit for defaults.
+- `fire_sound` (optional) - the sound each fired round plays, an asset ref like
+  the meshes (`self://` a wav your mod ships, or `dep://base/sounds/
+  turret_fire.wav` for the base cue); omit for the base fire sound. Your turret
+  can sound like its own gun.
 - `fire_rate` - rounds per second.
 - `muzzle_speed` - projectile launch speed in units per second.
 - `projectile_lifetime` - projectile lifetime in seconds.

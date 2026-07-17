@@ -10,11 +10,15 @@ The audio layer itself is the reusable `SfxPlugin` / `SoundBank` from
 `bevy-common-systems`; Nova only owns the mapping from gameplay events to these
 files (see `crates/nova_gameplay/src/audio.rs`).
 
-These files live UNDER `assets/base/` because the base game is just a mod (the
-Option A migration; task 20260717-002228 moved them here, closing the last
-root-art exception). They are declared in the base bundle's `resources` list
+These files live UNDER `assets/base/` because the base game is just a mod
+(task 20260717-002228) and these are its WORLD/GAMEPLAY cues - the sounds of
+things that exist in the game world, which mods can reship or reference. They
+are declared in the base bundle's `resources` list
 (`assets/base/base.bundle.ron`), so a mod can reference any of them with
 `dep://base/sounds/<name>.wav` - the same scheme the base uses with `self://`.
+The UI/interface cues (menu clicks, objective chimes) are engine chrome like
+`assets/icons/` and live at the asset ROOT in `assets/sounds/` instead - see
+the ownership split in spike `tasks/20260717-101524/SPIKE.md`.
 
 ## Section-authored sounds
 
@@ -25,8 +29,9 @@ turret section's `fire_sound` (`TurretSectionConfig::fire_sound`): base turrets
 set it to `self://sounds/turret_fire.wav`, which resolves to the same handle the
 global bank loads, so the base sound is unchanged - but a mod turret can ship and
 name its own weapon sound. When a turret leaves `fire_sound` unset the audio
-observer falls back to the global `NovaSfx::TurretFire` cue. The remaining cues
-(damage, UI, thruster hum) are code-driven and stay on the global bank.
+observer falls back to the global `WorldSfx::TurretFire` cue. The remaining
+world cues are migrating onto their owning configs family by family (spike
+20260717-101524); until then they play from the transitional `WorldSfx` bank.
 
 ## Dropping in real audio
 
@@ -35,13 +40,15 @@ code changes are needed: the loader (`crates/nova_assets/src/lib.rs`) loads
 these fixed paths and the audio module plays whatever handle it is given.
 
 - Formats: WAV works out of the box (the `bevy` dependency enables the `wav`
-  decoder in `crates/nova_gameplay/Cargo.toml`). Sounds are loaded by
-  `register_sounds` in `crates/nova_assets/src/lib.rs` via
-  `SoundBank::load_paths(&assets, ...)` with full `base/sounds/<name>.wav`
-  paths (they now live under `assets/base/`, so the old root
-  `SoundBank::load` `sounds/<name>.wav` convention no longer applies). OGG
-  Vorbis also decodes (vorbis is on by default); to use `.ogg`, change the
-  extension in the paths `register_sounds` builds.
+  decoder in `crates/nova_gameplay/Cargo.toml`). These sounds are loaded by
+  `register_sounds` in `crates/nova_assets/src/lib.rs` into the transitional
+  `WorldSfx` bank via `SoundBank::load_paths(&assets, ...)` with full
+  `base/sounds/<name>.wav` paths; each cue family is migrating onto its owning
+  section/object config as an authorable `AssetRef<AudioSource>` (spike
+  20260717-101524), after which the file here is just the base mod's authored
+  default. OGG Vorbis also decodes (vorbis is on by default); to use `.ogg`,
+  change the extension in the paths `register_sounds` builds (and in base
+  content refs).
 - Suggested: 44.1 kHz, normalized but not clipping. Keep the one-shots short;
   `thruster_loop.wav` is the only looping asset and should be seamless (its
   start and end must meet without a click).
@@ -50,11 +57,11 @@ these fixed paths and the audio module plays whatever handle it is given.
 
 ## Required files
 
-The full set is the single source of truth `NOVA_SFX_FILES` in
-`crates/nova_gameplay/src/audio.rs` (one row per `NovaSfx` variant); the
-`every_nova_sfx_key_has_a_file` test guards that each key has a file here.
+The full set is the single source of truth `WORLD_SFX_FILES` in
+`crates/nova_gameplay/src/audio.rs` (one row per `WorldSfx` variant); the
+`every_world_sfx_key_has_a_file` test guards that each key has a file here.
 Combat/world cues are **positional** (distance-attenuated from the listener
-camera); UI/feedback cues are **non-positional**.
+camera); the feedback ticks are **non-positional**.
 
 ### Combat / world (positional)
 
@@ -66,21 +73,20 @@ camera); UI/feedback cues are **non-positional**.
 | `impact.wav` | Damage is applied to a target (`HealthApplyDamage`) | short low thud, ~0.1 s, played quietly (fires per hit) |
 | `thruster_loop.wav` | The engine hum, played continuously; volume tracks throttle | steady low drone, loops seamlessly, ~1 s |
 
-### UI / feedback (non-positional)
+### Ship feedback ticks (non-positional)
 
 | File | Event | Character / length |
 | --- | --- | --- |
-| `objective_new.wav` | A new objective is posted to the panel | short neutral blip, ~0.12 s |
-| `objective_complete.wav` | An objective is completed | rising fifth (success), ~0.22 s |
 | `lock_on.wav` | A radar gesture acquires its first target (once per gesture) | quick rising chirp, ~0.09 s |
 | `lock_off.wav` | A tap-clear releases a lock | falling mirror of `lock_on`, ~0.09 s |
 | `safety_on.wav` | The weapons safety re-engages (hot -> cold) | dull low click, ~0.06 s |
 | `radar_deny.wav` | A radar hold is denied (computer grants no Lock) | low flat buzz, ~0.16 s |
 | `salvage_pickup.wav` | A salvage crate is picked up | light rising "ding", quieter than the objective chime, ~0.10 s |
-| `menu_select.wav` | A menu button is pressed (New Game / Sandbox / Settings / Exit, pause, mods) | crisp rising click, ~0.06 s |
-| `ui_toggle.wav` | The pause overlay toggles open/close (ESC) | soft two-state blip, ~0.05 s |
 | `dry_fire.wav` | A turret pulls its trigger on an empty magazine | dull descending click, ~0.06 s |
 | `radar_retarget.wav` | A held radar gesture re-designates to a new target | very short quiet tick (subtler than `lock_on`), ~0.045 s |
+
+(The UI cues - `menu_select`, `ui_toggle`, `objective_new`,
+`objective_complete` - are engine chrome and live in root `assets/sounds/`.)
 
 ## Web (wasm) builds
 

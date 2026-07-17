@@ -43,6 +43,7 @@ tagged **(breaking)**.
 - Broken mod content fails loud, not weird: scenarios with reference errors (unknown prototypes, dangling chapter chains) refuse to start with a FAILED TO START report naming each problem, and the menu backdrop rotation skips them.
 - `cargo run -p nova_assets --bin content_lint` lints every scenario in the repo (base, shipped mods, portal mods) for the reference bugs the loaders cannot see - unknown section prototypes, dangling chapter chains, filter targets nothing spawns; CI enforces it. Mod developers can check just their own mod with `-- --target <mod dir or id>`.
 - The Ledger, the first campaign mod on the portal: a four-chapter salvage arc (strip the wreck, break the claim jumpers, run the quiet channel, pick the buyer - or the buoy) with comms-driven story beats and a two-ending finale. Install from Mods > Explore.
+- Mods can ship and reference sounds like any other binary resource: list a wav in `resources` and reference it with `self://` (or `dep://base/sounds/<name>.wav` for a base cue). The first authorable sound field is the turret's `fire_sound` - a modded turret can sound like its own gun, with more section sounds on the way. The base game's world sounds ship with the base mod under `assets/base/sounds/`; UI sounds (menu clicks, objective chimes) are engine chrome at the asset root, not mod content.
 
 ### Interface & HUD
 

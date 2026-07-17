@@ -29,7 +29,7 @@
 //! out by mode and the orbit survey dolly stretches it to 250 u, deep in the
 //! rolloff band; see [`compute_thruster_hum_volume`]).
 //!
-//! The [`SoundBank<NovaSfx>`] resource is inserted by `nova_assets` once assets
+//! The [`SoundBank<WorldSfx>`] resource is inserted by `nova_assets` once assets
 //! load; every system here degrades gracefully (does nothing) until it exists.
 
 use std::collections::HashMap;
@@ -41,39 +41,18 @@ use crate::{
     sections::turret_section::{TurretSectionFireSound, TurretSectionPartOf},
 };
 
-/// Keys for Nova's sound effects, naming each cue the game plays. Used as the
-/// [`SoundBank`] key so call sites read `bank.get(NovaSfx::Explosion)`.
+/// Keys for the game's UI/interface sound effects - engine chrome, like
+/// `assets/icons/`: loaded from the root `assets/sounds/`, NOT part of any mod
+/// and never referenceable by content (spike 20260717-101524). Everything a
+/// player would call "the interface" lives here; world/gameplay sounds are mod
+/// content and live in [`WorldSfx`] (transitional) or, once migrated, on the
+/// owning section/object config as authorable `AssetRef<AudioSource>` fields.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum NovaSfx {
-    /// Continuous engine hum, looped; volume tracks thruster input.
-    ThrusterLoop,
-    /// A PDC/turret round is fired.
-    TurretFire,
-    /// A torpedo leaves its bay.
-    TorpedoLaunch,
-    /// A section/asteroid is destroyed or a torpedo detonates.
-    Explosion,
-    /// Damage is applied to a target.
-    Impact,
-    /// A new objective was posted to the panel (UI cue, non-positional).
+pub enum UiSfx {
+    /// A new objective was posted to the panel (non-positional).
     ObjectiveNew,
-    /// An objective was completed (UI cue, non-positional).
+    /// An objective was completed (non-positional).
     ObjectiveComplete,
-    /// A radar gesture acquired its first target (UI cue, once per gesture -
-    /// Q3a of spike 20260713-110039).
-    LockOn,
-    /// A tap-clear released a lock (UI cue; pairs with the unlatch ghost).
-    LockOff,
-    /// The weapons safety re-engaged - the player's hot -> cold edge (UI
-    /// cue; a held burst must not just silently stop).
-    SafetyOn,
-    /// A radar hold was denied - the computer grants no Lock capability
-    /// (UI cue, F7/Q8a).
-    RadarDeny,
-    /// A salvage crate was picked up - a light per-crate "ding", quieter than
-    /// and separate from the objective chime (task 20260714-090002). Fired
-    /// from `nova_scenario`'s salvage plugin, which owns the crate marker.
-    SalvagePickup,
     /// A menu button was pressed (New Game / Sandbox / Settings / Exit and the
     /// pause/mods buttons) - a crisp UI click (task 20260714-090006). Fired from
     /// `nova_menu`'s global `On<Activate>` observer.
@@ -81,6 +60,45 @@ pub enum NovaSfx {
     /// A pause overlay open/close toggle via ESC - a soft two-state UI blip
     /// (task 20260714-090006).
     UiToggle,
+}
+
+/// Keys for the world/gameplay sound effects still played from a global bank.
+///
+/// TRANSITIONAL (spike 20260717-101524): these are base-MOD sounds
+/// (`assets/base/sounds/`, in base `resources`), but ownership belongs on the
+/// section/object configs as authorable `AssetRef<AudioSource>` fields - the
+/// pattern the turret's `fire_sound` established (task 20260717-002228). Each
+/// follow-up family task moves its cues onto content and DELETES its keys here;
+/// when the last key goes, this enum and its bank go with it, leaving only
+/// [`UiSfx`]. Do not add new keys - author new world sounds on content instead.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum WorldSfx {
+    /// Continuous engine hum, looped; volume tracks thruster input.
+    ThrusterLoop,
+    /// A PDC/turret round is fired (the bank default a turret's authored
+    /// `fire_sound` overrides).
+    TurretFire,
+    /// A torpedo leaves its bay.
+    TorpedoLaunch,
+    /// A section/asteroid is destroyed or a torpedo detonates.
+    Explosion,
+    /// Damage is applied to a target.
+    Impact,
+    /// A radar gesture acquired its first target (once per gesture -
+    /// Q3a of spike 20260713-110039).
+    LockOn,
+    /// A tap-clear released a lock (pairs with the unlatch ghost).
+    LockOff,
+    /// The weapons safety re-engaged - the player's hot -> cold edge (a held
+    /// burst must not just silently stop).
+    SafetyOn,
+    /// A radar hold was denied - the computer grants no Lock capability
+    /// (F7/Q8a).
+    RadarDeny,
+    /// A salvage crate was picked up - a light per-crate "ding", quieter than
+    /// and separate from the objective chime (task 20260714-090002). Fired
+    /// from `nova_scenario`'s salvage plugin, which owns the crate marker.
+    SalvagePickup,
     /// A turret pulled its trigger on an empty magazine - a dull dry-fire click,
     /// so a held burst that runs dry is not silently blocked (task
     /// 20260714-090006).
@@ -91,30 +109,53 @@ pub enum NovaSfx {
     RadarRetarget,
 }
 
-/// The `(key, base-filename)` pairs Nova loads into its [`SoundBank`]. Shared
-/// with `nova_assets::register_sounds`, which does the load: since the base
-/// sounds moved UNDER `assets/base/` (task 20260717-002228) it maps each name to
-/// `base/sounds/<name>.wav` via `SoundBank::load_paths`, so these files are the
-/// base game's own bundled cues (and mods can reference them via
-/// `dep://base/sounds/<name>.wav`).
-pub const NOVA_SFX_FILES: [(NovaSfx, &str); 16] = [
-    (NovaSfx::ThrusterLoop, "thruster_loop"),
-    (NovaSfx::TurretFire, "turret_fire"),
-    (NovaSfx::TorpedoLaunch, "torpedo_launch"),
-    (NovaSfx::Explosion, "explosion"),
-    (NovaSfx::Impact, "impact"),
-    (NovaSfx::ObjectiveNew, "objective_new"),
-    (NovaSfx::ObjectiveComplete, "objective_complete"),
-    (NovaSfx::LockOn, "lock_on"),
-    (NovaSfx::LockOff, "lock_off"),
-    (NovaSfx::SafetyOn, "safety_on"),
-    (NovaSfx::RadarDeny, "radar_deny"),
-    (NovaSfx::SalvagePickup, "salvage_pickup"),
-    (NovaSfx::MenuSelect, "menu_select"),
-    (NovaSfx::UiToggle, "ui_toggle"),
-    (NovaSfx::DryFire, "dry_fire"),
-    (NovaSfx::RadarRetarget, "radar_retarget"),
+/// The `(key, base-filename)` pairs for the UI bank. Loaded by
+/// `nova_assets::register_sounds` via `SoundBank::load`, whose
+/// `sounds/<name>.wav` convention maps these to the root `assets/sounds/` -
+/// engine chrome, outside every mod.
+pub const UI_SFX_FILES: [(UiSfx, &str); 4] = [
+    (UiSfx::ObjectiveNew, "objective_new"),
+    (UiSfx::ObjectiveComplete, "objective_complete"),
+    (UiSfx::MenuSelect, "menu_select"),
+    (UiSfx::UiToggle, "ui_toggle"),
 ];
+
+/// The `(key, base-filename)` pairs for the transitional world bank. Loaded by
+/// `nova_assets::register_sounds` via `SoundBank::load_paths` from
+/// `base/sounds/<name>.wav` - the base mod's own bundled cues (mods reference
+/// them via `dep://base/sounds/<name>.wav`). Shrinks as cue families migrate
+/// onto content (see [`WorldSfx`]).
+pub const WORLD_SFX_FILES: [(WorldSfx, &str); 12] = [
+    (WorldSfx::ThrusterLoop, "thruster_loop"),
+    (WorldSfx::TurretFire, "turret_fire"),
+    (WorldSfx::TorpedoLaunch, "torpedo_launch"),
+    (WorldSfx::Explosion, "explosion"),
+    (WorldSfx::Impact, "impact"),
+    (WorldSfx::LockOn, "lock_on"),
+    (WorldSfx::LockOff, "lock_off"),
+    (WorldSfx::SafetyOn, "safety_on"),
+    (WorldSfx::RadarDeny, "radar_deny"),
+    (WorldSfx::SalvagePickup, "salvage_pickup"),
+    (WorldSfx::DryFire, "dry_fire"),
+    (WorldSfx::RadarRetarget, "radar_retarget"),
+];
+
+/// Build the transitional [`WorldSfx`] bank: every [`WORLD_SFX_FILES`] entry
+/// loaded from its `base/sounds/<name>.wav` path. The ONE place that path
+/// convention lives - used by `nova_assets::register_sounds` (production) and
+/// by test rigs, so a rig's handles are keyed by the same paths production
+/// loads (and the same paths base content's `self://sounds/...` refs rewrite
+/// to).
+pub fn load_world_sfx_bank(assets: &AssetServer) -> SoundBank<WorldSfx> {
+    let paths: Vec<(WorldSfx, String)> = WORLD_SFX_FILES
+        .iter()
+        .map(|(key, name)| (*key, format!("base/sounds/{name}.wav")))
+        .collect();
+    SoundBank::load_paths(
+        assets,
+        paths.iter().map(|(key, path)| (*key, path.as_str())),
+    )
+}
 
 /// Per-cue *base* playback volumes (at point-blank; distance attenuation scales
 /// them down from here). The PDC fires ~100 rounds/s and impacts arrive in
@@ -279,8 +320,8 @@ fn distance_attenuation(distance: f32) -> f32 {
 /// silence.
 fn play_positional(
     commands: &mut Commands,
-    bank: &SoundBank<NovaSfx>,
-    key: NovaSfx,
+    bank: &SoundBank<WorldSfx>,
+    key: WorldSfx,
     base_volume: f32,
     source: Vec3,
     listener: Option<Vec3>,
@@ -405,7 +446,7 @@ fn prune_sfx_throttle(time: Res<Time>, mut throttle_state: ResMut<SfxThrottle>) 
 /// which all funnel through `IntegrityDestroyMarker`).
 fn on_destroyed_play_explosion(
     add: On<Add, IntegrityDestroyMarker>,
-    bank: Option<Res<SoundBank<NovaSfx>>>,
+    bank: Option<Res<SoundBank<WorldSfx>>>,
     time: Res<Time>,
     q_transform: Query<&GlobalTransform>,
     q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
@@ -427,7 +468,7 @@ fn on_destroyed_play_explosion(
         play_positional(
             &mut commands,
             &bank,
-            NovaSfx::Explosion,
+            WorldSfx::Explosion,
             EXPLOSION_VOLUME,
             pos,
             listener_position(&q_camera),
@@ -448,7 +489,7 @@ fn on_destroyed_play_explosion(
 /// guard.
 fn on_damage_play_impact(
     damage: On<HealthApplyDamage>,
-    bank: Option<Res<SoundBank<NovaSfx>>>,
+    bank: Option<Res<SoundBank<WorldSfx>>>,
     time: Res<Time>,
     q_transform: Query<&GlobalTransform>,
     q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
@@ -471,7 +512,7 @@ fn on_damage_play_impact(
         play_positional(
             &mut commands,
             &bank,
-            NovaSfx::Impact,
+            WorldSfx::Impact,
             IMPACT_VOLUME,
             pos,
             listener_position(&q_camera),
@@ -485,12 +526,12 @@ fn on_damage_play_impact(
 /// The firing turret (named by `TurretSectionPartOf`) may declare its own
 /// authored fire sound via [`TurretSectionConfig::fire_sound`], resolved at
 /// spawn into a [`TurretSectionFireSound`] handle: when present that handle
-/// plays instead of the global [`NovaSfx::TurretFire`] cue, so a modded turret
+/// plays instead of the global [`WorldSfx::TurretFire`] cue, so a modded turret
 /// can ship its own weapon sound. Everything else (per-turret throttle key,
 /// distance attenuation, positioning) is unchanged.
 fn on_turret_fire_play_sfx(
     add: On<Add, TurretBulletProjectileMarker>,
-    bank: Option<Res<SoundBank<NovaSfx>>>,
+    bank: Option<Res<SoundBank<WorldSfx>>>,
     asset_server: Res<AssetServer>,
     time: Res<Time>,
     q_projectile: Query<(&Transform, &TurretSectionPartOf)>,
@@ -522,7 +563,7 @@ fn on_turret_fire_play_sfx(
             .ok()
             .and_then(|s| s.0.as_ref())
             .map(|r| r.resolve(&asset_server))
-            .unwrap_or_else(|| bank.get(NovaSfx::TurretFire));
+            .unwrap_or_else(|| bank.get(WorldSfx::TurretFire));
         play_positional_handle(
             &mut commands,
             handle,
@@ -536,7 +577,7 @@ fn on_turret_fire_play_sfx(
 /// Launch cue when a torpedo projectile spawns.
 fn on_torpedo_launch_play_sfx(
     add: On<Add, TorpedoProjectileMarker>,
-    bank: Option<Res<SoundBank<NovaSfx>>>,
+    bank: Option<Res<SoundBank<WorldSfx>>>,
     q_transform: Query<&Transform>,
     q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
     mut commands: Commands,
@@ -549,7 +590,7 @@ fn on_torpedo_launch_play_sfx(
     play_positional(
         &mut commands,
         &bank,
-        NovaSfx::TorpedoLaunch,
+        WorldSfx::TorpedoLaunch,
         TORPEDO_LAUNCH_VOLUME,
         source.translation,
         listener_position(&q_camera),
@@ -564,7 +605,7 @@ fn on_torpedo_launch_play_sfx(
 /// staged double-clear in one frame plays one LockOff, not a chord.
 fn play_lock_cues(
     mut commands: Commands,
-    bank: Option<Res<SoundBank<NovaSfx>>>,
+    bank: Option<Res<SoundBank<WorldSfx>>>,
     mut acquired: MessageReader<RadarLockAcquired>,
     mut retargeted: MessageReader<RadarRetargeted>,
     mut cleared: MessageReader<LockClearedToast>,
@@ -584,7 +625,7 @@ fn play_lock_cues(
     let acquired_now = acquired.read().count() > 0;
     let retargeted_now = retargeted.read().count() > 0;
     if acquired_now {
-        commands.play_sfx_volume(bank.get(NovaSfx::LockOn), LOCK_ON_VOLUME);
+        commands.play_sfx_volume(bank.get(WorldSfx::LockOn), LOCK_ON_VOLUME);
     }
     // The acquire and a retarget can both land in the frames of one gesture, but
     // never the same frame for the same slot (acquire is the first resolve,
@@ -592,13 +633,13 @@ fn play_lock_cues(
     // anyway so a gesture that resolves and immediately settles plays only the
     // richer LockOn, never LockOn + tick.
     if retargeted_now && !acquired_now {
-        commands.play_sfx_volume(bank.get(NovaSfx::RadarRetarget), RADAR_RETARGET_VOLUME);
+        commands.play_sfx_volume(bank.get(WorldSfx::RadarRetarget), RADAR_RETARGET_VOLUME);
     }
     if cleared.read().count() > 0 {
-        commands.play_sfx_volume(bank.get(NovaSfx::LockOff), LOCK_OFF_VOLUME);
+        commands.play_sfx_volume(bank.get(WorldSfx::LockOff), LOCK_OFF_VOLUME);
     }
     if denied.read().count() > 0 {
-        commands.play_sfx_volume(bank.get(NovaSfx::RadarDeny), RADAR_DENY_VOLUME);
+        commands.play_sfx_volume(bank.get(WorldSfx::RadarDeny), RADAR_DENY_VOLUME);
     }
 }
 
@@ -608,7 +649,7 @@ fn play_lock_cues(
 /// seen state so an unrelated change (spawn) cannot click.
 fn play_safety_engaged_cue(
     mut commands: Commands,
-    bank: Option<Res<SoundBank<NovaSfx>>>,
+    bank: Option<Res<SoundBank<WorldSfx>>>,
     q_player: Query<&WeaponsHot, (With<PlayerSpaceshipMarker>, Changed<WeaponsHot>)>,
     mut was_hot: Local<bool>,
 ) {
@@ -616,7 +657,7 @@ fn play_safety_engaged_cue(
         let is_hot = hot.0;
         if *was_hot && !is_hot {
             if let Some(bank) = &bank {
-                commands.play_sfx_volume(bank.get(NovaSfx::SafetyOn), SAFETY_ON_VOLUME);
+                commands.play_sfx_volume(bank.get(WorldSfx::SafetyOn), SAFETY_ON_VOLUME);
             }
         }
         *was_hot = is_hot;
@@ -637,7 +678,7 @@ fn play_safety_engaged_cue(
 /// (unlimited ammo, e.g. the shakedown player) never dry-fires.
 fn play_dry_fire_cue(
     mut commands: Commands,
-    bank: Option<Res<SoundBank<NovaSfx>>>,
+    bank: Option<Res<SoundBank<WorldSfx>>>,
     q_turret: Query<
         (Entity, &TurretSectionInput, Option<&SectionAmmo>, &ChildOf),
         (With<TurretSectionMarker>, Without<SectionInactiveMarker>),
@@ -655,7 +696,7 @@ fn play_dry_fire_cue(
         let was = latched.entry(turret).or_insert(false);
         if dry && !*was {
             if let Some(bank) = &bank {
-                commands.play_sfx_volume(bank.get(NovaSfx::DryFire), DRY_FIRE_VOLUME);
+                commands.play_sfx_volume(bank.get(WorldSfx::DryFire), DRY_FIRE_VOLUME);
             }
         }
         *was = dry;
@@ -671,7 +712,7 @@ struct ThrusterLoopSfx;
 /// thrust-driven target computed by [`compute_thruster_hum_volume`].
 /// `PlaybackSettings::LOOP` keeps it playing for the whole session.
 fn ensure_thruster_loop(
-    bank: Option<Res<SoundBank<NovaSfx>>>,
+    bank: Option<Res<SoundBank<WorldSfx>>>,
     existing: Query<(), With<ThrusterLoopSfx>>,
     mut commands: Commands,
 ) {
@@ -683,7 +724,7 @@ fn ensure_thruster_loop(
     commands.spawn((
         Name::new("Thruster Loop Sfx"),
         ThrusterLoopSfx,
-        AudioPlayer(bank.get(NovaSfx::ThrusterLoop)),
+        AudioPlayer(bank.get(WorldSfx::ThrusterLoop)),
         PlaybackSettings::LOOP.with_volume(Volume::Linear(0.0)),
     ));
 }
@@ -963,7 +1004,7 @@ mod tests {
         app.init_asset::<AudioSource>();
         app.init_resource::<SfxThrottle>();
         app.init_resource::<PlayedSfx>();
-        let bank = SoundBank::load(app.world().resource::<AssetServer>(), NOVA_SFX_FILES);
+        let bank = load_world_sfx_bank(app.world().resource::<AssetServer>());
         app.insert_resource(bank);
         app.add_observer(on_damage_play_impact);
         app.add_observer(|_: On<PlaySfx>, mut played: ResMut<PlayedSfx>| played.0 += 1);
@@ -1020,15 +1061,7 @@ mod tests {
         app.init_asset::<AudioSource>();
         app.init_resource::<SfxThrottle>();
         app.init_resource::<LastPlayed>();
-        let paths: Vec<(NovaSfx, String)> = NOVA_SFX_FILES
-            .iter()
-            .map(|(key, name)| (*key, format!("base/sounds/{name}.wav")))
-            .collect();
-        let bank = SoundBank::load_paths(
-            app.world().resource::<AssetServer>(),
-            paths.iter().map(|(key, path)| (*key, path.as_str())),
-        );
-        app.insert_resource(bank);
+        app.insert_resource(load_world_sfx_bank(app.world().resource::<AssetServer>()));
         app.add_observer(on_turret_fire_play_sfx);
         app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
             last.0 = Some(ev.handle.clone());
@@ -1051,13 +1084,13 @@ mod tests {
     fn a_turret_with_a_declared_fire_sound_plays_that_handle_not_the_bank() {
         // The section-authored audio path (task 20260717-002228): a turret
         // carrying a `TurretSectionFireSound(Some(AssetRef))` must have the cue
-        // RESOLVE that ref and play its handle, not the global `NovaSfx::TurretFire`
+        // RESOLVE that ref and play its handle, not the global `WorldSfx::TurretFire`
         // bank cue - so a mod turret sounds like its own gun.
         let mut app = turret_fire_app();
         let bank_fire = app
             .world()
-            .resource::<SoundBank<NovaSfx>>()
-            .get(NovaSfx::TurretFire);
+            .resource::<SoundBank<WorldSfx>>()
+            .get(WorldSfx::TurretFire);
         // A distinct path standing in for a mod's own shipped sound; resolving it
         // (asset_server.load, same as the observer) yields a different handle than
         // the bank's, so the assertion is a real substitution.
@@ -1092,8 +1125,8 @@ mod tests {
         let mut app = turret_fire_app();
         let bank_fire = app
             .world()
-            .resource::<SoundBank<NovaSfx>>()
-            .get(NovaSfx::TurretFire);
+            .resource::<SoundBank<WorldSfx>>()
+            .get(WorldSfx::TurretFire);
 
         let turret = app.world_mut().spawn_empty().id();
         fire_round(&mut app, turret);
@@ -1101,7 +1134,7 @@ mod tests {
         assert_eq!(
             app.world().resource::<LastPlayed>().0,
             Some(bank_fire),
-            "a turret without a fire_sound must fall back to NovaSfx::TurretFire"
+            "a turret without a fire_sound must fall back to WorldSfx::TurretFire"
         );
     }
 
@@ -1296,30 +1329,40 @@ mod tests {
     }
 
     #[test]
-    fn every_nova_sfx_key_has_a_file() {
-        // Guards against adding a NovaSfx variant without a placeholder asset.
-        use NovaSfx::*;
+    fn every_ui_sfx_key_has_a_file() {
+        // Guards against adding a UiSfx variant without a placeholder asset.
+        use UiSfx::*;
+        for key in [ObjectiveNew, ObjectiveComplete, MenuSelect, UiToggle] {
+            assert!(
+                UI_SFX_FILES.iter().any(|(k, _)| *k == key),
+                "UiSfx::{key:?} is missing from UI_SFX_FILES"
+            );
+        }
+    }
+
+    #[test]
+    fn every_world_sfx_key_has_a_file() {
+        // Guards against adding a WorldSfx variant without a placeholder asset.
+        // (New world sounds should be authored on content, not added here - see
+        // the WorldSfx doc - but a key that DOES exist must have a file.)
+        use WorldSfx::*;
         for key in [
             ThrusterLoop,
             TurretFire,
             TorpedoLaunch,
             Explosion,
             Impact,
-            ObjectiveNew,
-            ObjectiveComplete,
             LockOn,
             LockOff,
             SafetyOn,
             RadarDeny,
             SalvagePickup,
-            MenuSelect,
-            UiToggle,
             DryFire,
             RadarRetarget,
         ] {
             assert!(
-                NOVA_SFX_FILES.iter().any(|(k, _)| *k == key),
-                "NovaSfx::{key:?} is missing from NOVA_SFX_FILES"
+                WORLD_SFX_FILES.iter().any(|(k, _)| *k == key),
+                "WorldSfx::{key:?} is missing from WORLD_SFX_FILES"
             );
         }
     }
@@ -1330,10 +1373,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
-        app.insert_resource(SoundBank::load(
-            app.world().resource::<AssetServer>(),
-            NOVA_SFX_FILES,
-        ));
+        app.insert_resource(load_world_sfx_bank(app.world().resource::<AssetServer>()));
         app.init_resource::<PlayedSfx>();
         app.add_systems(Update, play_dry_fire_cue);
         app.add_observer(|_: On<PlaySfx>, mut played: ResMut<PlayedSfx>| played.0 += 1);

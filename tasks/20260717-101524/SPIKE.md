@@ -196,3 +196,8 @@ one is 5 (behavioral refactor of a continuous cue) and the fiddly one is 4
 - 20260717-002228 (pre-spike): turret `fire_sound` AssetRef exemplar landed;
   all 16 wavs currently under `assets/base/sounds/` - the foundation task
   re-splits them per the table above.
+- 20260717-101615 (foundation): UiSfx (4 keys, root `assets/sounds/`) /
+  WorldSfx (12 keys, `base/sounds/`, transitional) bank split landed; the 4 UI
+  wavs moved back to the root and out of base `resources`;
+  `load_world_sfx_bank` is the one place the world path convention lives. The
+  five family tasks now shrink WorldSfx to deletion.

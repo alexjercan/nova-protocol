@@ -3,8 +3,8 @@
 //! and new postings were easy to miss mid-flight. This module diffs
 //! [`GameObjectives`] by id each time it changes and answers with:
 //!
-//! - a UI sound per change (NovaSfx::ObjectiveComplete for removals,
-//!   NovaSfx::ObjectiveNew for additions; non-positional one-shots), and
+//! - a UI sound per change (UiSfx::ObjectiveComplete for removals,
+//!   UiSfx::ObjectiveNew for additions; non-positional one-shots), and
 //! - a transient "ghost" line for each completed objective: the finished
 //!   message in done-green, fading out over a couple of seconds. The
 //!   ghost is NOT a child of the bcs panel - rebuild_lines replaces the
@@ -130,7 +130,7 @@ fn spawn_ghost_stack(mut commands: Commands) {
 fn objective_change_feedback(
     mut commands: Commands,
     objectives: Res<GameObjectives>,
-    bank: Option<Res<SoundBank<NovaSfx>>>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
     settings: Res<ObjectiveFeedbackSettings>,
     mut new_cue: ResMut<NewCueState>,
     q_stack: Query<Entity, With<ObjectiveGhostsHudMarker>>,
@@ -162,7 +162,7 @@ fn objective_change_feedback(
         // plays both once, not per objective.
         if !completed.is_empty() {
             commands.play_sfx_volume(
-                bank.get(NovaSfx::ObjectiveComplete),
+                bank.get(UiSfx::ObjectiveComplete),
                 OBJECTIVE_COMPLETE_VOLUME,
             );
             // A chime just played: restart any pending blip's clock, or a
@@ -177,7 +177,7 @@ fn objective_change_feedback(
             if completed.is_empty() {
                 // Nothing finished in this change: the posting blip plays
                 // immediately.
-                commands.play_sfx_volume(bank.get(NovaSfx::ObjectiveNew), OBJECTIVE_NEW_VOLUME);
+                commands.play_sfx_volume(bank.get(UiSfx::ObjectiveNew), OBJECTIVE_NEW_VOLUME);
             } else {
                 // The completion chime just played - hold the posting blip
                 // back so the two cues do not mask each other (playtest
@@ -217,7 +217,7 @@ fn objective_change_feedback(
 fn play_pending_new_cue(
     time: Res<Time>,
     mut commands: Commands,
-    bank: Option<Res<SoundBank<NovaSfx>>>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
     mut new_cue: ResMut<NewCueState>,
 ) {
     let Some(timer) = new_cue.pending.as_mut() else {
@@ -228,7 +228,7 @@ fn play_pending_new_cue(
     }
     new_cue.pending = None;
     if let Some(bank) = &bank {
-        commands.play_sfx_volume(bank.get(NovaSfx::ObjectiveNew), OBJECTIVE_NEW_VOLUME);
+        commands.play_sfx_volume(bank.get(UiSfx::ObjectiveNew), OBJECTIVE_NEW_VOLUME);
     }
 }
 
@@ -287,15 +287,15 @@ mod tests {
         app.init_asset::<AudioSource>();
         let bank = SoundBank::load(
             app.world().resource::<AssetServer>(),
-            crate::audio::NOVA_SFX_FILES,
+            crate::audio::UI_SFX_FILES,
         );
         app.insert_resource(bank);
         app.init_resource::<CueCounts>();
         app.add_observer(
-            |sfx: On<PlaySfx>, bank: Res<SoundBank<NovaSfx>>, mut counts: ResMut<CueCounts>| {
-                if sfx.handle == bank.get(NovaSfx::ObjectiveComplete) {
+            |sfx: On<PlaySfx>, bank: Res<SoundBank<UiSfx>>, mut counts: ResMut<CueCounts>| {
+                if sfx.handle == bank.get(UiSfx::ObjectiveComplete) {
                     counts.complete += 1;
-                } else if sfx.handle == bank.get(NovaSfx::ObjectiveNew) {
+                } else if sfx.handle == bank.get(UiSfx::ObjectiveNew) {
                     counts.new += 1;
                 }
             },

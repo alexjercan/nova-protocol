@@ -147,7 +147,7 @@ struct DingedCrates(bevy::platform::collections::HashSet<Entity>);
 /// many section colliders each fire the event.
 fn on_crate_pickup_play_sfx(
     collision: On<CollisionStart>,
-    bank: Option<Res<SoundBank<NovaSfx>>>,
+    bank: Option<Res<SoundBank<WorldSfx>>>,
     q_crate: Query<(), With<SalvageCrateMarker>>,
     q_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut dinged: ResMut<DingedCrates>,
@@ -173,7 +173,7 @@ fn on_crate_pickup_play_sfx(
     // `insert` returns true only the first time this crate is seen, collapsing
     // the per-section-collider burst to a single ding.
     if dinged.0.insert(crate_entity) {
-        commands.play_sfx_volume(bank.get(NovaSfx::SalvagePickup), SALVAGE_PICKUP_VOLUME);
+        commands.play_sfx_volume(bank.get(WorldSfx::SalvagePickup), SALVAGE_PICKUP_VOLUME);
     }
 }
 
@@ -421,10 +421,7 @@ mod tests {
         app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
             0.02,
         )));
-        app.insert_resource(SoundBank::load(
-            app.world().resource::<AssetServer>(),
-            NOVA_SFX_FILES,
-        ));
+        app.insert_resource(load_world_sfx_bank(app.world().resource::<AssetServer>()));
         app.init_resource::<PickupDings>();
         app.init_resource::<DingedCrates>();
         app.add_observer(on_crate_pickup_play_sfx);

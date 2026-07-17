@@ -126,7 +126,7 @@ pub struct TurretSectionConfig {
     /// [`AssetRef<AudioSource>`] like the render meshes and muzzle effect, so a
     /// section (base or mod) can ship and reference its own weapon sound through
     /// the same `self://`/`dep://` scheme pipeline (task 20260717-002228). `None`
-    /// falls back to the global [`NovaSfx::TurretFire`] cue, so existing turrets
+    /// falls back to the global [`WorldSfx::TurretFire`] cue, so existing turrets
     /// are unchanged. Snapshotted (unresolved) at spawn onto a
     /// [`TurretSectionFireSound`] on the turret entity; the audio observer
     /// resolves and prefers it over the bank default. All
@@ -305,7 +305,7 @@ struct TurretSectionBarrelMuzzleEffect(#[reflect(ignore)] Option<AssetRef<Effect
 /// the UNRESOLVED [`AssetRef`], exactly like [`TurretSectionBarrelMuzzleEffect`]
 /// carries the unresolved muzzle effect. The audio module resolves it (against
 /// its own `AssetServer`, only when it actually plays the cue) and prefers it
-/// over the global [`NovaSfx::TurretFire`] bank cue. `None` when the config left
+/// over the global [`WorldSfx::TurretFire`] bank cue. `None` when the config left
 /// `fire_sound` unset (the bank default).
 ///
 /// Carrying the `AssetRef` rather than a resolved `Handle` keeps

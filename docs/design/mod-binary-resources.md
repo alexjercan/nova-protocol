@@ -225,6 +225,17 @@ ecosystem is small). Three landed tasks:
   same `self://`/`dep://` walk. Audio was the LAST
   root-art exception; nothing base loads sits at the asset root now except
   `icons/`/`shaders/`.
+- **Sound ownership split (spike 20260717-101524, task 20260717-101615).** The
+  002228 move overshot: UI/interface sounds are engine chrome like `icons/`,
+  not mod content. The 4 UI cues (menu_select, ui_toggle, objective_new,
+  objective_complete) moved BACK to root `assets/sounds/` behind a `UiSfx`
+  bank (`SoundBank::load`, root convention); the 12 world cues stay under
+  `assets/base/sounds/` + base `resources` behind a TRANSITIONAL `WorldSfx`
+  bank (`load_world_sfx_bank`, `base/sounds/` paths) that the per-family
+  section-sound tasks (weapon one-shots, controller cues, per-target
+  impact/destroy, thruster loop, salvage pickup) shrink to deletion - end
+  state: every world sound is an authorable `AssetRef<AudioSource>` on its
+  owning config, and only the UI bank remains.
 - **Canonical enforcement (20260717-002133).** An asset ref in content MUST carry
   a scheme (`self://` / `dep://`). A bare, scheme-less asset-path ref is an Error
   at author/publish time (static `content_lint` + portal). The hard no-bare

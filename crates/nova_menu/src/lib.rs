@@ -267,14 +267,14 @@ impl Plugin for NovaMenuPlugin {
 fn on_menu_button_activate(
     activate: On<Activate>,
     q_button: Query<(), With<MenuButton>>,
-    bank: Option<Res<SoundBank<NovaSfx>>>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
 ) {
     if !q_button.contains(activate.entity) {
         return;
     }
     if let Some(bank) = bank {
-        commands.play_sfx_volume(bank.get(NovaSfx::MenuSelect), MENU_SELECT_VOLUME);
+        commands.play_sfx_volume(bank.get(UiSfx::MenuSelect), MENU_SELECT_VOLUME);
     }
 }
 
@@ -286,7 +286,7 @@ fn toggle_pause(
     gamepad: Option<Res<ButtonInput<GamepadButton>>>,
     current: Res<State<PauseStates>>,
     mut next: ResMut<NextState<PauseStates>>,
-    bank: Option<Res<SoundBank<NovaSfx>>>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
     outcome: Option<Res<CurrentOutcome>>,
     mut commands: Commands,
 ) {
@@ -310,7 +310,7 @@ fn toggle_pause(
         // on both directions. The Resume/Exit buttons close it with their own
         // MenuSelect click, so only the ESC/pad toggle needs this.
         if let Some(bank) = bank {
-            commands.play_sfx_volume(bank.get(NovaSfx::UiToggle), UI_TOGGLE_VOLUME);
+            commands.play_sfx_volume(bank.get(UiSfx::UiToggle), UI_TOGGLE_VOLUME);
         }
     }
 }
@@ -4046,7 +4046,7 @@ mod tests {
         app.init_asset::<AudioSource>();
         app.insert_resource(SoundBank::load(
             app.world().resource::<AssetServer>(),
-            NOVA_SFX_FILES,
+            UI_SFX_FILES,
         ));
         app.init_resource::<PlayedCues>();
         app.add_observer(|_: On<PlaySfx>, mut cues: ResMut<PlayedCues>| cues.0 += 1);

@@ -2,7 +2,8 @@
 """Generate tiny placeholder WAV sound effects for Nova Protocol.
 
 The game has no real audio yet. Until a sound designer supplies the final
-assets (see assets/base/sounds/README.md), this writes a short, deterministic
+assets (see assets/sounds/README.md and assets/base/sounds/README.md), this
+writes a short, deterministic
 placeholder for each gameplay cue so the game is audibly wired end to end and
 runs out of the box. Each cue has its own character (noise burst, pitch sweep,
 or steady tone) so they are distinguishable by ear while testing.
@@ -125,14 +126,23 @@ def write_wav(path, data):
     print("wrote", path)
 
 
+# UI/interface cues live at the asset ROOT (assets/sounds/) - engine chrome
+# like icons/, outside every mod; world/gameplay cues ship with the base mod
+# under assets/base/sounds/ (ownership split, spike 20260717-101524).
+UI_SOUNDS = {"menu_select", "ui_toggle", "objective_new", "objective_complete"}
+
+
 def main():
-    out_dir = os.path.join(os.path.dirname(__file__), "..", "assets", "base", "sounds")
-    out_dir = os.path.normpath(out_dir)
-    os.makedirs(out_dir, exist_ok=True)
+    assets = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "assets"))
+    ui_dir = os.path.join(assets, "sounds")
+    world_dir = os.path.join(assets, "base", "sounds")
+    os.makedirs(ui_dir, exist_ok=True)
+    os.makedirs(world_dir, exist_ok=True)
 
     for name, (kind, f0, f1, duration, amp) in SOUNDS.items():
         # Seed per name so regenerating gives byte-identical output.
         random.seed(name)
+        out_dir = ui_dir if name in UI_SOUNDS else world_dir
         write_wav(os.path.join(out_dir, name + ".wav"), render(kind, f0, f1, duration, amp))
 
 
