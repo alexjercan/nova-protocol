@@ -1,0 +1,14 @@
+{
+  "label": "asteroid_field-low",
+  "frames": 600,
+  "total_ms": 10039.319,
+  "mean_ms": 16.7322,
+  "min_ms": 11.7700,
+  "max_ms": 36.3272,
+  "p50_ms": 15.7444,
+  "p95_ms": 24.6302,
+  "p99_ms": 28.9846,
+  "p999_ms": 36.3272,
+  "mean_fps": 59.77,
+  "one_pct_low_fps": 34.50
+}

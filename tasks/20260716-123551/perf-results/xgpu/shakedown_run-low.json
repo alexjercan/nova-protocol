@@ -1,0 +1,14 @@
+{
+  "label": "shakedown_run-low",
+  "frames": 600,
+  "total_ms": 12303.320,
+  "mean_ms": 20.5055,
+  "min_ms": 15.8387,
+  "max_ms": 31.8298,
+  "p50_ms": 20.4653,
+  "p95_ms": 22.5209,
+  "p99_ms": 25.7684,
+  "p999_ms": 31.8298,
+  "mean_fps": 48.77,
+  "one_pct_low_fps": 38.81
+}
