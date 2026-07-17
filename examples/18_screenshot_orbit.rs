@@ -87,6 +87,7 @@ fn orbit_scene(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
             input_mapping: bevy::platform::collections::HashMap::new(),
             speed_cap: None,
             infinite_ammo: true,
+            lock_refire_secs: None,
         }),
         sections: vec![
             at("controller", "basic_controller_section", 0.0),

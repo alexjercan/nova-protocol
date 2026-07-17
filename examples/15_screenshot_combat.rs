@@ -121,6 +121,7 @@ fn combat_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             input_mapping: HashMap::new(),
             speed_cap: None,
             infinite_ammo: true,
+            lock_refire_secs: None,
         }),
         sections: player_sections,
     };

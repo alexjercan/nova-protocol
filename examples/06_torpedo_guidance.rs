@@ -111,6 +111,7 @@ fn guidance_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scena
             speed_cap: None,
             // Dev/tuning harness: fire freely.
             infinite_ammo: true,
+            lock_refire_secs: None,
         }),
         sections: vec![
             SpaceshipSectionConfig {

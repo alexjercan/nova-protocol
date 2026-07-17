@@ -152,6 +152,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             speed_cap: None,
             // Dev/tuning harness: fire freely.
             infinite_ammo: true,
+            lock_refire_secs: None,
         }),
         sections: vec![
             SpaceshipSectionConfig {

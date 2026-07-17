@@ -95,6 +95,7 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             )]),
             speed_cap: None,
             infinite_ammo: true,
+            lock_refire_secs: None,
         }),
         sections: vec![
             SpaceshipSectionConfig {
