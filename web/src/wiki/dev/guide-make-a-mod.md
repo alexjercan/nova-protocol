@@ -114,7 +114,11 @@ texture: "self://textures/rock.png",
   and web alike - you never hard-code your own id.
 - A skybox needs its `<name>.png.meta` sidecar (the `RowCount` cube reinterpret,
   copy `assets/base/textures/cubemap.png.meta`); sidecar `.meta` files ship
-  automatically and are NOT listed in `resources`.
+  automatically and are NOT listed in `resources`. The game reads it at load
+  time on every platform - shipped or portal-downloaded, native or web - so the
+  cubemap arrives as the 6-layer array the renderer needs. (Without the sidecar
+  the skybox still usually renders, via a runtime fallback, but that fallback can
+  crash on WebGL2-class GPUs mid-scenario-swap: ship the sidecar.)
 - `assets/mods/example/` is the copy-me example (it ships this skybox and rock
   texture and renders its arena and menu backdrop from them); a `self://` ref
   that names a missing file fails the mod's gates before it ever runs.

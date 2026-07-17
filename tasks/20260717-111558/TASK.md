@@ -1,8 +1,33 @@
 # Mod-shipped skybox cubemaps bypass load-time meta: fallback reinterpret keeps the teardown upload race
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.7.0,assets,modding,bug
+
+## Decision (2026-07-17): global `AssetMetaCheck::Always`
+
+Picked the "Idea" direction (global `Always`) over the per-source / bcs
+options, after verifying the load-bearing objection against the pinned bevy
+source rather than the old doc comment's assertion:
+
+- `Always` sets `read_meta = true` for every asset
+  (`bevy_asset-0.19.0/src/server/mod.rs:1564`); on wasm the reader `fetch()`es
+  `<path>.meta` (`io/wasm.rs:122`), a missing sidecar returns HTTP 404
+  (`io/wasm.rs:100`), and bevy falls back to `default_meta()`
+  (`server/mod.rs:1616`). So the 404 the old comment warned about is REAL but
+  NON-FATAL: extra web requests + console noise, negligible on native. User
+  chose to accept that cost for closing the class with zero per-path
+  bookkeeping.
+- `Paths` cannot list dynamic `self://`/`mods://` paths; bevy has no per-source
+  `meta_check` and no predicate variant; a nova-side reinterpret would leave the
+  teardown race open for any cubemap reaching `Assets` single-layer. `Always`
+  makes the cube arrive 6-layer from the loader, so the single-layer form never
+  exists - the base fix's mechanism, now for every source.
+
+Implementation + verification: see `docs/design/mod-skybox-meta-always.md`.
+Pre-existing out-of-scope note captured there: `nova_editor` inserts
+`SkyboxConfig` directly and may miss its `Cube` view (not regressed by this
+change).
 
 ## Context (split out of 20260717-013440, 2026-07-17)
 

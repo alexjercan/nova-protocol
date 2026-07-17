@@ -344,9 +344,10 @@ pub struct PendingSkyboxSwap {
 /// wait indefinitely, but nothing constructs one).
 ///
 /// A cubemap that arrives ALREADY multi-layer (its `.meta` `array_layout`
-/// applied at load time - the base cubemaps via `assets_plugin()`'s
-/// `meta_check` set) skips the bcs setup observer's single-layer fallback
-/// branch, which is also where the Cube texture view was set. Without the
+/// applied at load time - now every cubemap with a sidecar, base or mod, since
+/// `assets_plugin()` reads metas with `AssetMetaCheck::Always`) skips the bcs
+/// setup observer's single-layer fallback branch, which is also where the Cube
+/// texture view was set. Without the
 /// view, bevy's skybox sanity check (`sanity_check_skybox_image_and_warn` in
 /// bevy_core_pipeline's skybox module) refuses the non-Cube view with a
 /// `warn_once` and withholds the skybox bind group - the sky silently

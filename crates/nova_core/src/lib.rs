@@ -230,35 +230,38 @@ fn log_filter_str<'a>() -> &'a str {
 /// here: the cubemap meta fix was verified against default settings while the
 /// app ignored metas entirely, task 20260713-175416).
 ///
-/// Meta files are read only for the paths listed here. `Never` silently
-/// defeated `cubemap.png.meta`'s `array_layout`, resurrecting the skybox
-/// upload race (tasks/20260710-143138/NOTES.md); `Always` would fire an HTTP
-/// request per asset on wasm just to 404 on the missing metas. Per-path
-/// opt-in gives the cubemaps their loader settings at no cost to the rest.
+/// `AssetMetaCheck::Always` reads a `.meta` sidecar for EVERY asset, whatever
+/// its source. This is what makes the shipped `.meta` files actually take
+/// effect. `Never` silently defeated `cubemap.png.meta`'s `array_layout` and
+/// resurrected the skybox upload race (tasks/20260710-143138/NOTES.md); the
+/// `Paths` set that followed (task 20260717-013440) fixed the two BASE cubemaps
+/// but could not cover mod-shipped skyboxes, whose `mods://`/`self://` paths are
+/// dynamic and never appear in a set fixed at App build - so a mod's own
+/// cubemap loaded single-layer and rode the same teardown race (task
+/// 20260717-111558). `Always` honors every mod's sidecar with no per-path
+/// bookkeeping and closes that class for good.
 ///
-/// Both shipped base cubemaps are listed: `cubemap_alt.png` (broadside's sky,
-/// also `dep://base`'d by mods) was missing at first (task 20260717-013440),
-/// so it loaded as a single-layer 4096x24576 stacked image and relied on the
-/// bcs SkyboxPlugin fallback reinterpret - safe in the normal path, but a
-/// scenario teardown during the PNG decode left the raw stacked image to be
-/// uploaded as-is, over the 16384 texture limit of llvmpipe/WebGL2-class GPUs.
-/// A cubemap loaded via this meta arrives already 6-layer, which SKIPS the bcs
-/// fallback branch that also set the Cube texture view - the swap applier
-/// (`nova_scenario::apply_pending_skybox_swaps`) sets the view for that case;
-/// keep the two in sync. Mod-shipped cubemaps (dynamic `mods://` paths) cannot
-/// join this static set: task 20260717-111558 tracks that class.
+/// The cost is web-only and non-fatal: on wasm the asset reader `fetch()`es
+/// `<path>.meta` for every asset, and the ones without a sidecar (most of them)
+/// come back HTTP 404, which bevy handles by falling back to the loader's
+/// default meta (bevy_asset 0.19 `server/mod.rs:1564-1644`, `io/wasm.rs:100-124`
+/// - verified at the pinned rev). So the price is one extra request per asset
+/// and some 404 console noise on web; native pays only a filesystem stat. We
+/// take that over shipping a class of skybox that crashes on WebGL2-class GPUs.
+///
+/// A cubemap whose `.meta` `array_layout` applied arrives already 6-layer, which
+/// SKIPS the bcs SkyboxPlugin fallback branch that also set the Cube texture
+/// view - the swap applier (`nova_scenario::apply_pending_skybox_swaps`) sets the
+/// view for that case; keep the two in sync. That fallback (a single-layer
+/// stacked image reinterpreted only when the observer runs) is exactly the
+/// teardown race `Always` avoids by loading the array up front.
 ///
 /// The `mods://` source for downloaded mods is NOT configured here - it must be
 /// registered on the App before this plugin is added; `AppBuilder::new` calls
 /// `nova_assets::mod_cache::register_mods_source` for that.
 pub fn assets_plugin() -> AssetPlugin {
     AssetPlugin {
-        meta_check: bevy::asset::AssetMetaCheck::Paths(
-            bevy::platform::collections::HashSet::from_iter([
-                bevy::asset::AssetPath::from("base/textures/cubemap.png"),
-                bevy::asset::AssetPath::from("base/textures/cubemap_alt.png"),
-            ]),
-        ),
+        meta_check: bevy::asset::AssetMetaCheck::Always,
         ..default()
     }
 }
