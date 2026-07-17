@@ -118,7 +118,7 @@ fn slice_autopilot(world: &mut World, elapsed: f32) {
         );
     }
 
-    let mut advance = |state: &mut SliceAutopilot, to: u32, note: &str| {
+    let advance = |state: &mut SliceAutopilot, to: u32, note: &str| {
         info!("probe: stage {} -> {to}: {note}", state.stage);
         state.stage = to;
         state.stage_started = elapsed;
