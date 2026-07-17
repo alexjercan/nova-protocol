@@ -20,8 +20,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   AGENTS.md ("The website"). Ask what a PLAYER loses or gains before filing a
   change as pure refactor (a deleted picker row needed a CHANGELOG line, caught
   only in review); removing a shipped example mod meant sweeping 4 wiki guides +
-  a design doc + CHANGELOG in the same task. 20260716-115938, 20260716-155816,
-  20260716-215513.
+  a design doc + CHANGELOG in the same task. Across a TASK FAMILY the player
+  wiki is the surface that falls between siblings: the ammo-reload mechanic task
+  did CHANGELOG + dev wiki but never the player wiki, and the readout sibling had
+  to backfill it - so the last task of a multi-task feature should sweep the
+  whole feature's player-facing surfaces, not just its own diff.
+  20260716-115938, 20260716-155816, 20260716-215513, 20260716-123556.
 - `rename-id-sweep-in-file` (x1): after renaming an entity/asset id in a
   content file, grep the WHOLE file for the OLD id before trusting the linter -
   `content_lint` validates spawn/prototype/filter refs but NOT AI orbit/patrol
