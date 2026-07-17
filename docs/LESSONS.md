@@ -129,6 +129,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   against the new file AND reconciling counts, before review, not by
   eyeballing the diff (a CHANGELOG regroup dropped the "Screenshot Reel"
   entry; a token cross-check + 93=94-1 count caught it). 20260716-102950.
+- `rule-inputs-rederive-from-engine` (x1): when a derived metric becomes a
+  graded RULE's input, re-derive the rule's meaning from the engine's own
+  decision constants, not from the fields the metric struct happens to have -
+  a threat-range rule priced turret reach only, and torpedo tubes (whose AI
+  launch envelope is 1000u with an elapsed-start cooldown) evaded it until
+  review. 20260717-112656.
 - `new-cadence-reaudits-readers` (x1): a value whose CHANGE CADENCE changes
   (per-event -> per-frame: the scenario clock in the variables map) re-prices
   every reader of its containing structure - a change-only debug diff became
