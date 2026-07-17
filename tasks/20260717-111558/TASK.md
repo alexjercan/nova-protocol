@@ -54,3 +54,10 @@ directions (weigh in the task, pick one):
   (gauntlet/ledger use `dep://base/...` and are covered by the base fix).
 - Evidence and mechanism trace: tasks/20260717-013440/TASK.md (Investigation
   section).
+
+## Idea
+
+- is using `Always` a bad idea? If not then we can just set it like that and
+  the fix from 20260717-013440 is no longer needed, right? Like we would set
+  `Always` for all assets, not only for mods; that way bevy checks for `.meta`
+  files by itself. Validate that this would work;
