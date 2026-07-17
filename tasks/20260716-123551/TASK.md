@@ -1,9 +1,8 @@
 # Gameplay performance baseline: frame-time capture on heavy scenes (native + web), fix what the numbers justify
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 40
-- TAGS: v0.7.0,performance,spike
-
+- TAGS: v0.7.0, performance, spike
 
 ## Goal
 

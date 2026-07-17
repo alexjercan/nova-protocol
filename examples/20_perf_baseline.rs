@@ -36,7 +36,7 @@
 //!
 //! Extra env: `NOVA_PERF_QUALITY=low|medium|high` sweeps the graphics preset
 //! (task 20260525-133013), whose `GraphicsBudget` fractions this baseline exists
-//! to tune. See `nova_debug::perf` for the capture knobs
+//! to tune. See `nova_perf` for the capture knobs
 //! (`NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` / `NOVA_PERF_RES`).
 
 use bevy::prelude::*;

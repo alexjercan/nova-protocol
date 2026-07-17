@@ -80,7 +80,7 @@ The three shipped scenarios the task names
 
 ## Method
 
-A new env-gated capture plugin, `nova_debug::perf::nova_frametime`, drives the
+A new env-gated capture plugin, `nova_perf::nova_frametime`, drives the
 **real gameplay app** (the exact `AppBuilder` plugin stack the binary runs:
 render + ECS + avian physics + gravity + hanabi particles + HUD) to `Playing`,
 then:
