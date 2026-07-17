@@ -69,7 +69,14 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   after a base-art move and 404'd in the shipped screenshot tool; `cargo test`
   never runs that example, so the full green suite hid it - the independent
   completeness review caught it. A green suite proves the TESTED paths; it says
-  nothing about a shipped tool no test exercises. 20260717-002105. Recurred on webmods/ (15 silent asteroids). 20260717-101641.
+  nothing about a shipped tool no test exercises. 20260717-002105. Recurred on webmods/ (15 silent asteroids). 20260717-101641. Also the audit direction: a "does X hold everywhere" claim must sweep base + webmods + `assets/mods/*` + Rust-coded scenarios, and be re-derived independently in review (28 NextScenario handlers re-enumerated to confirm only 2 qualified for linger:false). 20260717-201534.
+- `audit-framed-task-delivers-the-audit` (x1): when a task is framed "apply X
+  where it makes sense", the primary deliverable is the bounding audit (which
+  cases qualify and why), not the edit - the code change is often a line or two.
+  Write the audit into the task record and re-derive it repo-wide in review;
+  "apply linger:false" resolved to exactly 2 of 28 scenario transitions because
+  the rest were Outcome-paired (a rule the lint already encoded - read the
+  existing guard before hand-ruling the boundary). 20260717-201534.
 - `truncated-sweep-is-not-a-sweep` (x3, -> Pending promotions): a grep sweep
   that feeds a work checklist must never be head-truncated - one audit's
   `| head` sweeps hid a third assertion (one failed run), a whole extra file
