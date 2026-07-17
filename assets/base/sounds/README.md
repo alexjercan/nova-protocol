@@ -27,7 +27,8 @@ field, exactly like it declares a render mesh, and ship + reference it through
 the `self://` / `dep://base` / `dep://<id>` pipeline. The weapon and controller
 families own their sounds this way: the turret's `fire_sound` +
 `dry_fire_sound`, the torpedo bay's `launch_sound` + `detonation_sound`,
-every section's / asteroid's `impact_sound` + `destroy_sound`, and the
+every section's / asteroid's `impact_sound` + `destroy_sound`, the thruster's
+`loop_sound`, and the
 controller's
 `lock_on_sound`/`lock_off_sound`/`radar_deny_sound`/`radar_retarget_sound`/
 `safety_on_sound` (base sections author `self://sounds/...` for each, so the
@@ -84,12 +85,12 @@ listener camera); the feedback ticks are **non-positional**.
 | `safety_on.wav` | controller `safety_on_sound` | dull low click, ~0.06 s |
 | `impact.wav` | every section's / asteroid's `impact_sound` (positional) | short low thud, ~0.1 s, played quietly (fires per hit) |
 | `explosion.wav` | every section's / asteroid's `destroy_sound` + the torpedo's `detonation_sound` (positional) | noisy burst, fast decay, ~0.45 s |
+| `thruster_loop.wav` | the thruster's `loop_sound` (one loop per distinct sound; volume tracks the loudest burning ship) | steady low drone, loops seamlessly, ~1 s |
 
-### WorldSfx bank (transitional, 2 keys)
+### WorldSfx bank (transitional, 1 key)
 
 | File | Event | Character / length |
 | --- | --- | --- |
-| `thruster_loop.wav` | The engine hum, played continuously; volume tracks throttle | steady low drone, loops seamlessly, ~1 s |
 | `salvage_pickup.wav` | A salvage crate is picked up | light rising "ding", quieter than the objective chime, ~0.10 s |
 
 (The UI cues - `menu_select`, `ui_toggle`, `objective_new`,

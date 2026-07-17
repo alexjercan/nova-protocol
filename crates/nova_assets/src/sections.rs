@@ -67,6 +67,8 @@ pub struct SectionMeshRefs {
     /// content.
     pub section_impact_sound: AssetRef<AudioSource>,
     pub section_destroy_sound: AssetRef<AudioSource>,
+    /// The thruster engine hum (task 20260717-101650).
+    pub thruster_loop_sound: AssetRef<AudioSource>,
 }
 
 impl SectionMeshRefs {
@@ -91,6 +93,7 @@ impl SectionMeshRefs {
             controller_safety_on_sound: AssetRef::from("self://sounds/safety_on.wav".to_string()),
             section_impact_sound: AssetRef::from("self://sounds/impact.wav".to_string()),
             section_destroy_sound: AssetRef::from("self://sounds/explosion.wav".to_string()),
+            thruster_loop_sound: AssetRef::from("self://sounds/thruster_loop.wav".to_string()),
         }
     }
 }
@@ -129,6 +132,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
             kind: SectionKind::Thruster(ThrusterSectionConfig {
                 magnitude: 1.0,
                 render_mesh: None,
+                loop_sound: Some(meshes.thruster_loop_sound.clone()),
             }),
         },
         SectionConfig {

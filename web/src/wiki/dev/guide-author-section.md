@@ -87,6 +87,10 @@ kind: Thruster((
 
 - `magnitude` - the thrust force this section produces at full throttle.
 - `render_mesh` (optional) - custom mesh; omit for the default thruster body.
+- `loop_sound` (optional) - the engine hum this thruster contributes to
+  (`dep://base/sounds/thruster_loop.wav` is the base drone); thrusters sharing
+  a sound share one loop whose volume tracks the loudest ship burning it. An
+  omitted sound hums nothing.
 
 ## Controller
 

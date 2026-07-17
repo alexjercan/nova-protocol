@@ -218,3 +218,9 @@ one is 5 (behavioral refactor of a continuous cue) and the fiddly one is 4
   walk (asteroids keep Health on a child node). Editor-sandbox asteroids use
   DIRECT base/ paths (runtime-built outside the merge - the reel precedent).
   WorldSfx 4 -> 2 (ThrusterLoop, SalvagePickup).
+- 20260717-101650 (thruster loop): `loop_sound` on ThrusterSectionConfig;
+  the single global hum became one loop entity per DISTINCT resolved handle
+  (per-handle targets/smoothing, same per-ship avg x attenuation, loudest-wins
+  math per handle). The torpedo's internal thruster keeps the base hum via a
+  DIRECT path (runtime-built; lifting to a config field is a noted future
+  step). WorldSfx 2 -> 1 (SalvagePickup).

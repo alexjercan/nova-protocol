@@ -17,7 +17,9 @@
 //!   (`On<Add, TorpedoProjectileMarker>`, authored-or-silent).
 //!
 //! The fifth cue, the thruster engine hum, is continuous: one looping audio
-//! entity whose volume tracks how hard the ship is thrusting.
+//! entity per DISTINCT authored `loop_sound` (task 20260717-101650 - thrusters
+//! sharing a sound share a loop), each tracking how hard the ships burning
+//! that sound are thrusting.
 //!
 //! The four one-shots are **distance-attenuated**: their volume is scaled by how
 //! far the event is from the listener (the camera carrying
@@ -26,7 +28,8 @@
 //! the cinematic feel, not true spatialization - stereo panning would need bevy
 //! spatial audio (`SpatialListener` + `spatial: true`) and is a future step. The
 //! thruster hum attenuates per SHIP: each ship's throttle-driven contribution is
-//! scaled by its root's distance to the listener and the loudest wins, except
+//! scaled by its root's distance to the listener and the loudest wins PER HUM
+//! SOUND, except
 //! the player's own ship, which is never attenuated (the camera rig sits 11-32 u
 //! out by mode and the orbit survey dolly stretches it to 250 u, deep in the
 //! rolloff band; see [`compute_thruster_hum_volume`]).
@@ -42,6 +45,7 @@ use crate::{
     prelude::*,
     sections::{
         controller_section::ControllerSectionSounds,
+        thruster_section::ThrusterSectionLoopSound,
         torpedo_section::{TorpedoSectionLaunchSound, TorpedoSectionSpawnerEntity},
         turret_section::{TurretSectionDryFireSound, TurretSectionFireSound, TurretSectionPartOf},
     },
@@ -79,8 +83,6 @@ pub enum UiSfx {
 /// [`UiSfx`]. Do not add new keys - author new world sounds on content instead.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum WorldSfx {
-    /// Continuous engine hum, looped; volume tracks thruster input.
-    ThrusterLoop,
     /// A salvage crate was picked up - a light per-crate "ding", quieter than
     /// and separate from the objective chime (task 20260714-090002). Fired
     /// from `nova_scenario`'s salvage plugin, which owns the crate marker.
@@ -103,10 +105,7 @@ pub const UI_SFX_FILES: [(UiSfx, &str); 4] = [
 /// `base/sounds/<name>.wav` - the base mod's own bundled cues (mods reference
 /// them via `dep://base/sounds/<name>.wav`). Shrinks as cue families migrate
 /// onto content (see [`WorldSfx`]).
-pub const WORLD_SFX_FILES: [(WorldSfx, &str); 2] = [
-    (WorldSfx::ThrusterLoop, "thruster_loop"),
-    (WorldSfx::SalvagePickup, "salvage_pickup"),
-];
+pub const WORLD_SFX_FILES: [(WorldSfx, &str); 1] = [(WorldSfx::SalvagePickup, "salvage_pickup")];
 
 /// Build the transitional [`WorldSfx`] bank: every [`WORLD_SFX_FILES`] entry
 /// loaded from its `base/sounds/<name>.wav` path. The ONE place that path
@@ -377,7 +376,7 @@ impl Plugin for NovaAudioPlugin {
         app.add_systems(
             Update,
             (
-                ensure_thruster_loop,
+                ensure_thruster_loops,
                 compute_thruster_hum_volume,
                 apply_thruster_loop_volume,
             )
@@ -752,44 +751,55 @@ fn play_dry_fire_cue(
     }
 }
 
-/// Marker for the single looping engine-hum audio entity.
+/// Marker for one looping engine-hum audio entity, keyed by the resolved
+/// [`Handle<AudioSource>`] it loops (one entity per DISTINCT authored hum;
+/// task 20260717-101650). Entities persist for the session like the old
+/// single loop did - a hum that goes quiet holds volume 0.
 #[derive(Component)]
-struct ThrusterLoopSfx;
+struct ThrusterLoopSfx(Handle<AudioSource>);
 
-/// Spawn the looping engine-hum entity once, after the sound bank exists. It
-/// starts silent; [`apply_thruster_loop_volume`] raises its volume with the
-/// thrust-driven target computed by [`compute_thruster_hum_volume`].
+/// Spawn a looping engine-hum entity for every hum handle the compute pass
+/// discovered that has no loop entity yet. Each starts silent;
+/// [`apply_thruster_loop_volume`] raises it with its handle's smoothed level.
 /// `PlaybackSettings::LOOP` keeps it playing for the whole session.
-fn ensure_thruster_loop(
-    bank: Option<Res<SoundBank<WorldSfx>>>,
-    existing: Query<(), With<ThrusterLoopSfx>>,
+fn ensure_thruster_loops(
+    hum: Res<ThrusterHumVolume>,
+    existing: Query<&ThrusterLoopSfx>,
     mut commands: Commands,
 ) {
-    if !existing.is_empty() {
-        return;
+    for handle in hum.hums.keys() {
+        if existing.iter().any(|sfx| sfx.0 == *handle) {
+            continue;
+        }
+        commands.spawn((
+            Name::new("Thruster Loop Sfx"),
+            ThrusterLoopSfx(handle.clone()),
+            AudioPlayer(handle.clone()),
+            PlaybackSettings::LOOP.with_volume(Volume::Linear(0.0)),
+        ));
     }
-    let Some(bank) = bank else { return };
-
-    commands.spawn((
-        Name::new("Thruster Loop Sfx"),
-        ThrusterLoopSfx,
-        AudioPlayer(bank.get(WorldSfx::ThrusterLoop)),
-        PlaybackSettings::LOOP.with_volume(Volume::Linear(0.0)),
-    ));
 }
 
-/// The live engine-hum volume, written by [`compute_thruster_hum_volume`] and
-/// read by [`apply_thruster_loop_volume`]. Split from the `AudioSink` write so
-/// the volume logic is App-testable headless - an `AudioSink` cannot be
-/// constructed without an audio output device.
-#[derive(Resource, Default, Debug)]
-struct ThrusterHumVolume {
-    /// Where the hum wants to be this frame: the loudest per-ship
-    /// contribution, each `engine_volume(avg throttle) * distance
-    /// attenuation`.
+/// One hum's live volume pair: where it wants to be this frame and the
+/// smoothed level chasing it.
+#[derive(Default, Debug)]
+struct HumLevels {
+    /// The loudest per-ship contribution for this handle, each
+    /// `engine_volume(avg throttle) * distance attenuation`.
     target: f32,
     /// The smoothed volume actually applied to the sink, chasing `target`.
     smoothed: f32,
+}
+
+/// The live engine-hum volumes PER RESOLVED HANDLE, written by
+/// [`compute_thruster_hum_volume`] and read by [`apply_thruster_loop_volume`].
+/// Split from the `AudioSink` write so the volume logic is App-testable
+/// headless - an `AudioSink` cannot be constructed without an audio output
+/// device. Entries persist once seen (bounded by the session's distinct
+/// authored hums); a handle nobody burns smooths down to 0.
+#[derive(Resource, Default, Debug)]
+struct ThrusterHumVolume {
+    hums: HashMap<Handle<AudioSource>, HumLevels>,
 }
 
 /// The entity a thruster's hum contribution is attributed to: its
@@ -834,8 +844,9 @@ fn hum_source_root(
 /// [`play_positional`].
 fn compute_thruster_hum_volume(
     time: Res<Time>,
+    asset_server: Res<AssetServer>,
     q_thrusters: Query<
-        (Entity, &ThrusterSectionInput),
+        (Entity, &ThrusterSectionInput, &ThrusterSectionLoopSound),
         (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>),
     >,
     q_child_of: Query<&ChildOf>,
@@ -847,37 +858,56 @@ fn compute_thruster_hum_volume(
 ) {
     let listener = listener_position(&q_camera);
 
-    // Group the active thrusters' throttle by hum source (ship root or
-    // rootless thruster): (sum, count) per source.
-    let mut per_source: HashMap<Entity, (f32, u32)> = HashMap::new();
-    for (thruster, input) in &q_thrusters {
+    // Group the active AUTHORED thrusters' throttle by (hum handle, source):
+    // (sum, count) per pair. AUTHORED-OR-SILENT (spike 20260717-101524): a
+    // thruster with no loop_sound contributes to no hum. Resolving here is
+    // idempotent (the asset server dedups by path), so thrusters authoring the
+    // same ref share one handle and one loop entity.
+    #[allow(clippy::type_complexity)]
+    let mut per_pair: HashMap<(Handle<AudioSource>, Entity), (f32, u32)> = HashMap::new();
+    for (thruster, input, loop_sound) in &q_thrusters {
+        let Some(handle) = loop_sound.0.as_ref().map(|r| r.resolve(&asset_server)) else {
+            continue;
+        };
         let source = hum_source_root(thruster, &q_child_of, &q_is_root);
-        let slot = per_source.entry(source).or_insert((0.0, 0));
+        let slot = per_pair.entry((handle, source)).or_insert((0.0, 0));
         slot.0 += input.0.abs();
         slot.1 += 1;
     }
 
-    // Loudest ship wins. Max, not sum: distinct ships' hums do not stack the
-    // single loop past its per-ship ceiling.
-    let mut target = 0.0f32;
-    for (source, (sum, count)) in &per_source {
+    // Per handle: loudest ship wins. Max, not sum: distinct ships burning the
+    // SAME hum do not stack its loop past the per-ship ceiling; DIFFERENT hums
+    // are independent loops and may sound together.
+    let mut targets: HashMap<Handle<AudioSource>, f32> = HashMap::new();
+    for ((handle, source), (sum, count)) in &per_pair {
         let avg_throttle = sum / *count as f32;
         let attenuation = if q_is_player.contains(*source) {
             1.0
         } else {
             match (listener, q_pose.get(*source)) {
                 (Some(l), Ok(pose)) => distance_attenuation(l.distance(pose.translation())),
-                // No listener or no pose: full volume, like play_positional.
+                // No listener or no pose: full volume, like the one-shots.
                 _ => 1.0,
             }
         };
-        target = target.max(engine_volume(avg_throttle) * attenuation);
+        let level = engine_volume(avg_throttle) * attenuation;
+        let slot = targets.entry(handle.clone()).or_insert(0.0);
+        *slot = slot.max(level);
     }
-    hum.target = target;
 
-    // Exponential smoothing, framerate-independent: ~8 units/s of catch-up.
+    // Fold into the persistent map: unseen handles keep an entry targeting 0
+    // (their loop smooths down and idles), new handles join. Exponential
+    // smoothing per handle, framerate-independent: ~8 units/s of catch-up.
     let alpha = (time.delta_secs() * 8.0).clamp(0.0, 1.0);
-    hum.smoothed += (target - hum.smoothed) * alpha;
+    for levels in hum.hums.values_mut() {
+        levels.target = 0.0;
+    }
+    for (handle, target) in targets {
+        hum.hums.entry(handle).or_default().target = target;
+    }
+    for levels in hum.hums.values_mut() {
+        levels.smoothed += (levels.target - levels.smoothed) * alpha;
+    }
 }
 
 /// Copy the computed hum volume onto the loop's sink. The `AudioSink` appears
@@ -894,13 +924,13 @@ fn compute_thruster_hum_volume(
 fn apply_thruster_loop_volume(
     hum: Res<ThrusterHumVolume>,
     master: Option<Res<crate::settings::MasterVolume>>,
-    mut q_sink: Query<&mut AudioSink, With<ThrusterLoopSfx>>,
+    mut q_sink: Query<(&mut AudioSink, &ThrusterLoopSfx)>,
 ) {
-    let Ok(mut sink) = q_sink.single_mut() else {
-        return;
-    };
     let master = master.map(|m| m.factor()).unwrap_or(1.0);
-    sink.set_volume(Volume::Linear(hum.smoothed * master));
+    for (mut sink, sfx) in &mut q_sink {
+        let smoothed = hum.hums.get(&sfx.0).map(|l| l.smoothed).unwrap_or(0.0);
+        sink.set_volume(Volume::Linear(smoothed * master));
+    }
 }
 
 #[cfg(test)]
@@ -1503,10 +1533,30 @@ mod tests {
     /// (torpedo_section/projectile.rs).
     fn hum_app() -> App {
         let mut app = App::new();
-        app.add_plugins(MinimalPlugins);
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
         app.init_resource::<ThrusterHumVolume>();
         app.add_systems(Update, compute_thruster_hum_volume);
         app
+    }
+
+    /// The standard authored hum for rig thrusters (the base default's path).
+    const RIG_HUM: &str = "base/sounds/thruster_loop.wav";
+
+    fn rig_hum_handle(app: &App) -> Handle<AudioSource> {
+        app.world().resource::<AssetServer>().load(RIG_HUM)
+    }
+
+    /// The (target, smoothed) pair for the rig's standard hum, or (0, 0) when
+    /// no thruster has raised it yet.
+    fn rig_hum_levels(app: &App) -> (f32, f32) {
+        let handle = rig_hum_handle(app);
+        app.world()
+            .resource::<ThrusterHumVolume>()
+            .hums
+            .get(&handle)
+            .map(|l| (l.target, l.smoothed))
+            .unwrap_or((0.0, 0.0))
     }
 
     fn spawn_listener_at(app: &mut App, pos: Vec3) {
@@ -1529,6 +1579,7 @@ mod tests {
         app.world_mut().spawn((
             ThrusterSectionMarker,
             ThrusterSectionInput(throttle),
+            ThrusterSectionLoopSound(Some(AssetRef::from(RIG_HUM))),
             ChildOf(root),
         ));
         root
@@ -1536,7 +1587,7 @@ mod tests {
 
     fn hum_target(app: &mut App) -> f32 {
         app.update();
-        app.world().resource::<ThrusterHumVolume>().target
+        rig_hum_levels(app).0
     }
 
     #[test]
@@ -1641,6 +1692,7 @@ mod tests {
         app.world_mut().spawn((
             ThrusterSectionMarker,
             ThrusterSectionInput(1.0),
+            ThrusterSectionLoopSound(Some(AssetRef::from(RIG_HUM))),
             ChildOf(torpedo),
             GlobalTransform::from(Transform::from_translation(Vec3::new(400.0, 0.0, 0.0))),
         ));
@@ -1650,6 +1702,7 @@ mod tests {
         app.world_mut().spawn((
             ThrusterSectionMarker,
             ThrusterSectionInput(1.0),
+            ThrusterSectionLoopSound(Some(AssetRef::from(RIG_HUM))),
             GlobalTransform::from(Transform::from_translation(Vec3::new(10.0, 0.0, 0.0))),
         ));
         assert_eq!(
@@ -1668,19 +1721,89 @@ mod tests {
         spawn_burning_ship(&mut app, Vec3::ZERO, 1.0);
 
         app.update(); // first frame: dt = 0, smoothed stays put
-        let mut last = app.world().resource::<ThrusterHumVolume>().smoothed;
+        let (_, mut last) = rig_hum_levels(&app);
         for _ in 0..5 {
             std::thread::sleep(std::time::Duration::from_millis(4));
             app.update();
-            let hum = app.world().resource::<ThrusterHumVolume>();
+            let (target, smoothed) = rig_hum_levels(&app);
             assert!(
-                hum.smoothed >= last && hum.smoothed <= hum.target,
-                "smoothed must rise monotonically toward the target, got {} after {last}",
-                hum.smoothed
+                smoothed >= last && smoothed <= target,
+                "smoothed must rise monotonically toward the target, got {smoothed} after {last}"
             );
-            last = hum.smoothed;
+            last = smoothed;
         }
         assert!(last > 0.0, "smoothed must have started chasing the target");
+    }
+
+    #[test]
+    fn distinct_hum_sounds_get_independent_loops() {
+        // Two ships burning DIFFERENT authored hums (task 20260717-101650):
+        // each handle gets its own level - per-handle grouping, not a single
+        // global loop. The half-throttle ship's quieter hum must not be
+        // swallowed by the other handle's louder one (the old single-loop max
+        // would have).
+        let mut app = hum_app();
+        spawn_listener_at(&mut app, Vec3::ZERO);
+        spawn_burning_ship(&mut app, Vec3::ZERO, 0.5); // RIG_HUM at half
+        let other = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                GlobalTransform::from(Transform::from_translation(Vec3::new(5.0, 0.0, 0.0))),
+            ))
+            .id();
+        app.world_mut().spawn((
+            ThrusterSectionMarker,
+            ThrusterSectionInput(1.0),
+            ThrusterSectionLoopSound(Some(AssetRef::from("mods/x/sounds/ion_whine.wav"))),
+            ChildOf(other),
+        ));
+        app.update();
+
+        let (rig_target, _) = rig_hum_levels(&app);
+        assert!(
+            (rig_target - engine_volume(0.5)).abs() < 1e-6,
+            "the rig hum tracks ITS ship, got {rig_target}"
+        );
+        let whine: Handle<AudioSource> = app
+            .world()
+            .resource::<AssetServer>()
+            .load("mods/x/sounds/ion_whine.wav");
+        let whine_target = app
+            .world()
+            .resource::<ThrusterHumVolume>()
+            .hums
+            .get(&whine)
+            .map(|l| l.target)
+            .unwrap_or(0.0);
+        assert!(
+            (whine_target - engine_volume(1.0)).abs() < 1e-6,
+            "the mod hum tracks ITS ship independently, got {whine_target}"
+        );
+    }
+
+    #[test]
+    fn an_unauthored_thruster_contributes_no_hum() {
+        // Authored-or-silent: a thruster with no loop_sound raises nothing -
+        // the map stays empty. The burning-ship rigs above are the delivery
+        // guard (same spawn shape WITH the ref hums).
+        let mut app = hum_app();
+        spawn_listener_at(&mut app, Vec3::ZERO);
+        let root = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, GlobalTransform::default()))
+            .id();
+        app.world_mut().spawn((
+            ThrusterSectionMarker,
+            ThrusterSectionInput(1.0),
+            ThrusterSectionLoopSound(None),
+            ChildOf(root),
+        ));
+        app.update();
+        assert!(
+            app.world().resource::<ThrusterHumVolume>().hums.is_empty(),
+            "an unauthored thruster must raise no hum entry"
+        );
     }
 
     #[test]
@@ -1701,7 +1824,7 @@ mod tests {
         // (New world sounds should be authored on content, not added here - see
         // the WorldSfx doc - but a key that DOES exist must have a file.)
         use WorldSfx::*;
-        for key in [ThrusterLoop, SalvagePickup] {
+        for key in [SalvagePickup] {
             assert!(
                 WORLD_SFX_FILES.iter().any(|(k, _)| *k == key),
                 "WorldSfx::{key:?} is missing from WORLD_SFX_FILES"

@@ -4132,6 +4132,7 @@ mod tests {
                 thruster_section(ThrusterSectionConfig {
                     magnitude: 1.0,
                     render_mesh: None,
+                    ..default()
                 }),
                 Transform::from_translation(Vec3::new(0.0, 0.0, 2.0)),
             ))

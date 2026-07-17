@@ -754,6 +754,11 @@ fn shoot_spawn_projectile(
                     thruster_section(ThrusterSectionConfig {
                         magnitude: 1.0,
                         render_mesh: None,
+                        // The torpedo's engine keeps the base hum (DIRECT path:
+                        // this bundle is built at runtime outside the merge).
+                        // Lifting it to a TorpedoSectionConfig field is a
+                        // future authoring step if a mod wants a custom whine.
+                        loop_sound: Some(AssetRef::from("base/sounds/thruster_loop.wav")),
                     }),
                     children![(
                         Name::new("Thruster Exhaust"),

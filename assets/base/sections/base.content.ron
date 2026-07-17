@@ -25,6 +25,7 @@
         ),
         kind: Thruster((
             magnitude: 1.0,
+            loop_sound: Some("self://sounds/thruster_loop.wav"),
         )),
     )),
     Section((

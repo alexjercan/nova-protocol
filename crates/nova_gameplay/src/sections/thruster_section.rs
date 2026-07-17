@@ -34,13 +34,35 @@ pub struct ThrusterSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub render_mesh: Option<AssetRef<WorldAsset>>,
+    /// The engine-hum loop this thruster contributes to. An authorable
+    /// [`AssetRef<AudioSource>`] like the render mesh (task 20260717-101650,
+    /// spike 20260717-101524): thrusters sharing a sound share one loop entity
+    /// whose volume tracks the loudest ship burning it. AUTHORED-OR-SILENT: a
+    /// thruster with no loop_sound hums nothing; base thrusters author
+    /// `self://sounds/thruster_loop.wav` via gen_content. Snapshotted
+    /// (unresolved) as [`ThrusterSectionLoopSound`]; the audio module resolves
+    /// and groups by handle.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub loop_sound: Option<AssetRef<AudioSource>>,
 }
+
+/// A thruster's authored hum, snapshotted UNRESOLVED from
+/// [`ThrusterSectionConfig::loop_sound`] by [`thruster_section`]; the audio
+/// module resolves it and groups thrusters by handle. `pub(crate)` for the
+/// audio module.
+#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
+pub(crate) struct ThrusterSectionLoopSound(#[reflect(ignore)] pub Option<AssetRef<AudioSource>>);
 
 impl Default for ThrusterSectionConfig {
     fn default() -> Self {
         Self {
             magnitude: THRUSTER_SECTION_DEFAULT_MAGNITUDE,
             render_mesh: None,
+            loop_sound: None,
         }
     }
 }
@@ -54,6 +76,7 @@ pub fn thruster_section(config: ThrusterSectionConfig) -> impl Bundle {
         SectionDamageClass::Thruster,
         ThrusterSectionMagnitude(config.magnitude),
         ThrusterSectionInput(0.0),
+        ThrusterSectionLoopSound(config.loop_sound.clone()),
         ThrusterSectionRenderMesh(config.render_mesh),
     )
 }
