@@ -107,6 +107,13 @@ pub(crate) fn setup_editor_scene(
         PostProcessingCamera,
         WASDCameraController,
         Transform::from_xyz(0.0, 5.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
+        // Direct SkyboxConfig insert (no PendingSkyboxSwap): safe because
+        // `game_assets.cubemap` already has its Cube view. `prepare_cubemap_view`
+        // (nova_assets) sets it at startup, before any camera spawns, so the bcs
+        // SkyboxPlugin observer - which only sets the view on its single-layer
+        // fallback branch - sees a ready 6-layer + Cube image and just attaches
+        // Skybox. Pinned by prepare_cubemap_view_sets_cube_view_on_the_game_assets_cubemap
+        // (task 20260717-133332, which confirmed there is no missing-view bug here).
         SkyboxConfig {
             cubemap: game_assets.cubemap.clone().into(),
             brightness: 1000.0,

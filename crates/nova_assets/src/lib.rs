@@ -1110,6 +1110,95 @@ mod tests {
 
     use super::*;
 
+    /// The editor (and any other DIRECT `SkyboxConfig` insert on the preloaded
+    /// `GameAssets` cubemap - `nova_editor::setup_editor_scene`) relies on
+    /// `prepare_cubemap_view` having already set the Cube texture view at
+    /// startup. It runs in `OnEnter(GameAssetsStates::Processing)`, before any
+    /// camera spawns, so the bcs `SkyboxPlugin` observer - which sets the view
+    /// only on its single-layer fallback branch - sees a ready 6-layer + Cube
+    /// image and just attaches `Skybox`. Task 20260717-133332 suspected the
+    /// editor was missing this view; the investigation found this system already
+    /// covers it. This pins that coverage: an arrayed cubemap gets its Cube
+    /// view, a single-layer one is left for the fallback. If someone drops or
+    /// breaks `prepare_cubemap_view`, this fails before the editor sky silently
+    /// disappears on a 16384-limit GPU.
+    #[test]
+    fn prepare_cubemap_view_sets_cube_view_on_the_game_assets_cubemap() {
+        use bevy::{
+            asset::RenderAssetUsages,
+            render::render_resource::{Extent3d, TextureDimension, TextureFormat},
+        };
+
+        fn game_assets_with(cubemap: Handle<Image>) -> GameAssets {
+            GameAssets {
+                cubemap,
+                asteroid_texture: default(),
+                hull_01: default(),
+                turret_yaw_01: default(),
+                turret_pitch_01: default(),
+                turret_barrel_01: default(),
+                torpedo_bay_01: default(),
+                fps_icon: default(),
+                target_sprite: default(),
+                catalog: default(),
+            }
+        }
+
+        fn stacked_image() -> Image {
+            Image::new_fill(
+                Extent3d {
+                    width: 1,
+                    height: 6,
+                    depth_or_array_layers: 1,
+                },
+                TextureDimension::D2,
+                &[0, 0, 0, 255],
+                TextureFormat::Rgba8UnormSrgb,
+                RenderAssetUsages::all(),
+            )
+        }
+
+        fn run_prepare_on(image: Image) -> Option<TextureViewDimension> {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+            app.init_asset::<Image>();
+            app.add_systems(Update, prepare_cubemap_view);
+            app.finish();
+            let cubemap = app.world_mut().resource_mut::<Assets<Image>>().add(image);
+            app.insert_resource(game_assets_with(cubemap.clone()));
+            app.update();
+            app.world()
+                .resource::<Assets<Image>>()
+                .get(&cubemap)
+                .expect("cubemap is in Assets")
+                .texture_view_descriptor
+                .as_ref()
+                .and_then(|descriptor| descriptor.dimension)
+        }
+
+        // A meta'd cubemap arrives 6-layer (no view yet) -> gets its Cube view.
+        let mut arrayed = stacked_image();
+        let _ = arrayed.reinterpret_stacked_2d_as_array(6);
+        assert!(
+            arrayed.texture_view_descriptor.is_none(),
+            "rig sanity: a freshly-arrayed cubemap has no view yet"
+        );
+        assert_eq!(
+            run_prepare_on(arrayed),
+            Some(TextureViewDimension::Cube),
+            "prepare_cubemap_view must give the arrayed cubemap its Cube view \
+             (the editor's direct SkyboxConfig insert depends on this)"
+        );
+
+        // A single-layer arrival (meta not applied) is left untouched so the
+        // SkyboxPlugin fallback reinterpret still runs.
+        assert_eq!(
+            run_prepare_on(stacked_image()),
+            None,
+            "a single-layer cubemap is left alone for the SkyboxPlugin fallback"
+        );
+    }
+
     fn section(id: &str, health: f32) -> SectionConfig {
         SectionConfig {
             base: BaseSectionConfig {
