@@ -292,8 +292,9 @@ fn on_start_stages_the_slice() {
         "the PDC turret is the player's weapon"
     );
     assert!(
-        player_controller.infinite_ammo,
-        "infinite turret ammo (chapter-one precedent)"
+        !player_controller.infinite_ammo,
+        "finite auto-reloading ammo (matches Shakedown's chapter-one precedent, \
+         now finite since task 20260717-085640)"
     );
 
     let hauler = ships

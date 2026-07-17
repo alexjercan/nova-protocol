@@ -45,7 +45,7 @@
                                         Gamepad(RightTrigger2),
                                     ],
                                 },
-                                infinite_ammo: true,
+                                infinite_ammo: false,
                             )),
                             sections: [
                                 (
