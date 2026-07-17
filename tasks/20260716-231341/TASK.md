@@ -1,8 +1,8 @@
 # Shipped art-pack dogfood for cross-mod dep:// refs
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 30
-- TAGS: v0.7.0,modding,content,assets,dogfood
+- TAGS: v0.7.0,modding,content,assets,dogfood,wonto
 
 ## Context
 
@@ -41,3 +41,7 @@ the way `assets/mods/variety/` dogfoods `self://` today.
 - Consider whether the pack should also be published to the portal (`webmods/`)
   to dogfood the DOWNLOADED cross-mod path, or leave that to a further task.
 
+
+## Reason
+
+We already ship base as an art pack
