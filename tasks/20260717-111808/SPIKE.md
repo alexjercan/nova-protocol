@@ -254,3 +254,27 @@ Direction-level tasks this spike seeded, for /plan to break into steps:
 
 (Each implementing task appends a few lines here as it lands: what shipped,
 the headline number, a pointer to its TASK.md.)
+
+- 2026-07-17 20260717-112622 (AI LOS fire gate, landed 2d006707): turrets
+  hold fire and torpedo bays hold launches when a tangible non-target
+  blocks the line; sensors transparent, PD exempt. Cover now relieves
+  pressure engine-wide. tasks/20260717-112622/TASK.md.
+- 2026-07-17 20260717-112630 (ledger_ch2 rework, landed b415d321): chapter
+  two split into two acts with the act boundary as checkpoint; wave one
+  light-turret/single-lane at 622u+ with 5 invulnerable corridor boulders;
+  wave two 922u+ opposite lane, one better turret; Mule 85u off the fight
+  plane. Geometry computed-pinned. tasks/20260717-112630/TASK.md.
+- 2026-07-17 20260717-112639 (broadside rework, landed ebe8b77f): the
+  corvette win is now a checkpoint chaining into a hidden gunship
+  scenario that retries itself; 5 invulnerable boulders anchor both
+  threat lanes; builder-generated, example walks the checkpoint.
+  tasks/20260717-112639/TASK.md.
+- 2026-07-17 20260717-112647 (scenario clock, landed a4c6390d): reserved
+  scenario_elapsed variable (live unpaused seconds) for timed beats;
+  lint-guarded; example arena ships the copy-me one-shots. Resolves F5.
+  tasks/20260717-112647/TASK.md.
+- 2026-07-17 20260717-112656 (balance audit rig, landed 8d445b0b):
+  nova_assets::balance + balance_audit bin + CI gate; 11 combat scenarios
+  audited, zero errors (the reworks hold), one discovery - ch4's Auditor
+  spawns hot on both ending branches, filed as 20260717-143806. Answers
+  the "unmeasured ch3/ch4" open question. tasks/20260717-112656/TASK.md.
