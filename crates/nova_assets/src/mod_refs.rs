@@ -536,13 +536,11 @@ mod tests {
             r#"Section((
                 base: (id: "mod_turret", name: "Mod Turret", description: "", mass: 1.0, health: 100.0),
                 kind: Turret((
-                    yaw_speed: 3.14, pitch_speed: 3.14,
-                    base_offset: (0.0, 0.0, 0.0),
-                    yaw_offset: (0.0, 0.0, 0.0),
-                    pitch_offset: (0.0, 0.0, 0.0),
-                    barrel_offset: (0.0, 0.0, 0.0),
-                    muzzle_offset: (0.0, 0.0, 0.0),
-                    fire_rate: 10.0, muzzle_speed: 60.0, projectile_lifetime: 5.0,
+                    root: (
+                        offset: (0.0, 0.0, 0.0),
+                        muzzle: Some((fire_rate: 10.0)),
+                    ),
+                    muzzle_speed: 60.0, projectile_lifetime: 5.0,
                     bullet_damage: 4.0, bullet_kind: Kinetic,
                     fire_sound: Some("{reference}"),
                 )),

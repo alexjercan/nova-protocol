@@ -114,6 +114,18 @@ impl ShipStats {
     }
 }
 
+/// Sum the fire rate of every muzzle in a turret's joint tree. Fire rate is
+/// per-muzzle since the joint-tree refactor (spike 20260717-214834); the shipped
+/// turrets each carry one muzzle, so for the catalog this is that one rate.
+fn turret_total_fire_rate(joint: &nova_gameplay::prelude::TurretJoint) -> f32 {
+    let here = joint.muzzle.as_ref().map(|m| m.fire_rate).unwrap_or(0.0);
+    here + joint
+        .children
+        .iter()
+        .map(turret_total_fire_rate)
+        .sum::<f32>()
+}
+
 /// Sum a ship's stats through the catalog. Unknown prototypes contribute
 /// nothing (content_lint already errors on them; the audit stays total).
 pub fn ship_stats(ship: &SpaceshipConfig, catalog: &SectionCatalog) -> ShipStats {
@@ -138,7 +150,10 @@ pub fn ship_stats(ship: &SpaceshipConfig, catalog: &SectionCatalog) -> ShipStats
         stats.hp += hp_override.unwrap_or(config.base.health);
         match &config.kind {
             SectionKind::Turret(turret) => {
-                stats.dps += turret.fire_rate * turret.bullet_damage;
+                // Fire rate is per-muzzle now (spike 20260717-214834); burst DPS
+                // sums every muzzle in the joint tree. The shipped turrets each
+                // carry one muzzle, so this is unchanged for the catalog.
+                stats.dps += turret_total_fire_rate(&turret.root) * turret.bullet_damage;
                 stats.max_effective_range = stats
                     .max_effective_range
                     .max(EFFECTIVE_RANGE_MARGIN * turret.muzzle_speed * turret.projectile_lifetime);
@@ -525,6 +540,23 @@ mod tests {
     }
 
     fn turret(id: &str, health: f32, fire_rate: f32, damage: f32, speed: f32) -> SectionConfig {
+        use nova_gameplay::prelude::{MuzzleConfig, TurretJoint};
+
+        // A minimal one-muzzle tree carrying this test's fire rate; every other
+        // field falls back to the default tree's shape.
+        let root = TurretJoint {
+            offset: Vec3::ZERO,
+            axis: None,
+            speed: std::f32::consts::PI,
+            min: None,
+            max: None,
+            render_mesh: None,
+            muzzle: Some(MuzzleConfig {
+                fire_rate,
+                muzzle_effect: None,
+            }),
+            children: vec![],
+        };
         SectionConfig {
             base: BaseSectionConfig {
                 id: id.to_string(),
@@ -532,7 +564,7 @@ mod tests {
                 ..Default::default()
             },
             kind: SectionKind::Turret(TurretSectionConfig {
-                fire_rate,
+                root,
                 bullet_damage: damage,
                 muzzle_speed: speed,
                 projectile_lifetime: 5.0,

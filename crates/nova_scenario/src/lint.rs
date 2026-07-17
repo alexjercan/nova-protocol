@@ -16,12 +16,12 @@
 use std::collections::HashSet;
 
 use bevy::prelude::Vec3;
-use nova_gameplay::prelude::{SectionConfig, SectionKind};
+use nova_gameplay::prelude::{SectionConfig, SectionKind, TurretJoint, TurretSectionConfig};
 
 use crate::prelude::*;
 
 pub mod prelude {
-    pub use super::{lint_scenario, KnownSections, LintIssue, LintSeverity};
+    pub use super::{lint_scenario, lint_section_config, KnownSections, LintIssue, LintSeverity};
 }
 
 /// The section-prototype view a caller lints against: every visible
@@ -501,6 +501,14 @@ fn check_object_prototypes(
         check_section_overlaps(config.base.id.as_str(), ship, scenario, issues);
         check_mount_adjacency(config.base.id.as_str(), ship, scenario, sections, issues);
         check_controller_durations(config.base.id.as_str(), ship, scenario, issues);
+        // Inline section configs a scenario writes directly (a Prototype ref
+        // resolves to a catalog section, which is linted where the catalog is
+        // walked - lint_bundle - so it is not re-linted here).
+        for section in &ship.sections {
+            if let SectionSource::Inline(inline) = &section.source {
+                issues.extend(lint_section_config(inline, scenario));
+            }
+        }
     }
 }
 
@@ -550,6 +558,102 @@ fn check_controller_durations(
             }
         }
         SpaceshipController::None => {}
+    }
+}
+
+/// Static well-formedness of one section's config that the RON parser cannot
+/// catch (a well-typed field can still be nonsense). Currently the turret joint
+/// tree; other kinds pass. Pure over the config, so every consumer - the author
+/// CLI's `lint`, the CI gate, the runtime merge - runs the SAME check on base +
+/// mod section catalogs, and `lint_scenario` runs it on inline turret sections.
+pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssue> {
+    let mut issues = Vec::new();
+    if let SectionKind::Turret(turret) = &config.kind {
+        check_turret_tree(config.base.id.as_str(), turret, source, &mut issues);
+    }
+    issues
+}
+
+/// Walk a turret's joint tree and flag authoring mistakes the parser accepts but
+/// the runtime cannot use: a hinge with a degenerate (zero or non-finite) axis
+/// or a non-positive traverse speed can never aim, min > max locks the hinge
+/// shut, and a tree with no muzzle can never fire (the spawn observer rejects it
+/// at runtime). Cheap: one DFS. `min`/`max`/a non-default `speed` on a FIXED
+/// node (no `axis`) is a soft warning - harmless (the runtime ignores them) but
+/// usually a forgotten `axis`.
+fn check_turret_tree(
+    section_id: &str,
+    config: &TurretSectionConfig,
+    source: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    fn walk(
+        section_id: &str,
+        joint: &TurretJoint,
+        source: &str,
+        issues: &mut Vec<LintIssue>,
+    ) -> usize {
+        let mut muzzles = usize::from(joint.muzzle.is_some());
+        match joint.axis {
+            Some(axis) => {
+                if !axis.is_finite() || axis.length_squared() < 1e-12 {
+                    issues.push(LintIssue::error(
+                        source,
+                        format!(
+                            "section '{section_id}': turret joint has a degenerate hinge axis \
+                             {axis:?} - a hinge axis must be a non-zero, finite vector"
+                        ),
+                    ));
+                }
+                if !joint.speed.is_finite() || joint.speed <= 0.0 {
+                    issues.push(LintIssue::error(
+                        source,
+                        format!(
+                            "section '{section_id}': turret hinge speed must be a positive, \
+                             finite number of rad/s, got {}",
+                            joint.speed
+                        ),
+                    ));
+                }
+                if let (Some(min), Some(max)) = (joint.min, joint.max) {
+                    if min > max {
+                        issues.push(LintIssue::error(
+                            source,
+                            format!(
+                                "section '{section_id}': turret hinge min {min} exceeds max {max} \
+                                 - the hinge is locked shut"
+                            ),
+                        ));
+                    }
+                }
+            }
+            None => {
+                if joint.min.is_some() || joint.max.is_some() {
+                    issues.push(LintIssue::warn(
+                        source,
+                        format!(
+                            "section '{section_id}': turret joint sets rotation limits but has no \
+                             `axis`, so it never rotates - did you forget the hinge axis?"
+                        ),
+                    ));
+                }
+            }
+        }
+        for child in &joint.children {
+            muzzles += walk(section_id, child, source, issues);
+        }
+        muzzles
+    }
+
+    let muzzles = walk(section_id, &config.root, source, issues);
+    if muzzles == 0 {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "section '{section_id}': turret has no muzzle joint - it can never fire \
+                 (add a `muzzle:` to a leaf joint)"
+            ),
+        ));
     }
 }
 
@@ -1552,6 +1656,98 @@ mod tests {
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("mount base"), "{issues:?}");
+    }
+
+    #[test]
+    fn turret_joint_tree_wellformedness_is_linted() {
+        use nova_gameplay::prelude::{
+            BaseSectionConfig, MuzzleConfig, TurretJoint, TurretSectionConfig,
+        };
+
+        fn joint(
+            axis: Option<Vec3>,
+            min: Option<f32>,
+            max: Option<f32>,
+            muzzle: bool,
+            children: Vec<TurretJoint>,
+        ) -> TurretJoint {
+            TurretJoint {
+                offset: Vec3::ZERO,
+                axis,
+                speed: std::f32::consts::PI,
+                min,
+                max,
+                render_mesh: None,
+                muzzle: muzzle.then(|| MuzzleConfig {
+                    fire_rate: 10.0,
+                    muzzle_effect: None,
+                }),
+                children,
+            }
+        }
+        let turret = |root: TurretJoint| SectionConfig {
+            base: BaseSectionConfig {
+                id: "t".to_string(),
+                ..Default::default()
+            },
+            kind: SectionKind::Turret(TurretSectionConfig {
+                root,
+                ..Default::default()
+            }),
+        };
+
+        // Valid: a hinge over a muzzle leaf, and the shipped default, pass clean.
+        let ok = joint(
+            Some(Vec3::Y),
+            None,
+            None,
+            false,
+            vec![joint(None, None, None, true, vec![])],
+        );
+        assert!(lint_section_config(&turret(ok), "s").is_empty());
+        assert!(
+            lint_section_config(&turret(TurretSectionConfig::default().root), "s").is_empty(),
+            "the shipped default turret must lint clean"
+        );
+
+        // No muzzle anywhere -> error (can never fire).
+        let none = joint(Some(Vec3::Y), None, None, false, vec![]);
+        assert!(errors(&lint_section_config(&turret(none), "s"))
+            .iter()
+            .any(|i| i.message.contains("no muzzle")));
+
+        // Degenerate hinge axis -> error.
+        let zero = joint(
+            Some(Vec3::ZERO),
+            None,
+            None,
+            false,
+            vec![joint(None, None, None, true, vec![])],
+        );
+        assert!(errors(&lint_section_config(&turret(zero), "s"))
+            .iter()
+            .any(|i| i.message.contains("degenerate hinge axis")));
+
+        // min > max -> error (locked shut).
+        let inverted = joint(
+            Some(Vec3::X),
+            Some(1.0),
+            Some(-1.0),
+            false,
+            vec![joint(None, None, None, true, vec![])],
+        );
+        assert!(errors(&lint_section_config(&turret(inverted), "s"))
+            .iter()
+            .any(|i| i.message.contains("exceeds max")));
+
+        // Rotation limits on a FIXED node -> warning, not error.
+        let limits_no_axis = joint(None, Some(-1.0), Some(1.0), true, vec![]);
+        let issues = lint_section_config(&turret(limits_no_axis), "s");
+        assert!(errors(&issues).is_empty(), "{issues:?}");
+        assert!(
+            issues.iter().any(|i| i.message.contains("no `axis`")),
+            "{issues:?}"
+        );
     }
 
     /// `KnownSections::from_configs` classifies turret/torpedo kinds as

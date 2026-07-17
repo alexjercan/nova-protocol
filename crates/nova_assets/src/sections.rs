@@ -31,6 +31,68 @@ const TORPEDO_BASE_HEALTH: f32 = 100.0;
 // shakedown pirate still dying in a short burst (~0.15s on a 60-HP hull).
 const BETTER_TURRET_BULLET_DAMAGE: f32 = 4.0;
 
+/// Build the shipped turret's kinematic joint tree: the exact chain the flat
+/// config used to author 1:1 (spike 20260717-214834). base(fixed, at
+/// (0,-0.5,0)) -> yaw(Y, meshed) -> pitch(X, meshed, -30..90 deg) ->
+/// barrel(fixed, meshed) -> muzzle(fixed, fire point). `fire_rate` is per-muzzle
+/// now; every other numeric value is preserved from the old fields.
+fn turret_joint_tree(
+    yaw_mesh: &AssetRef<WorldAsset>,
+    pitch_mesh: &AssetRef<WorldAsset>,
+    barrel_mesh: &AssetRef<WorldAsset>,
+    fire_rate: f32,
+) -> TurretJoint {
+    TurretJoint {
+        offset: Vec3::new(0.0, -0.5, 0.0),
+        axis: None,
+        speed: std::f32::consts::PI,
+        min: None,
+        max: None,
+        render_mesh: None,
+        muzzle: None,
+        children: vec![TurretJoint {
+            offset: Vec3::new(0.0, 0.1, 0.0),
+            axis: Some(Vec3::Y),
+            speed: std::f32::consts::PI, // 180 degrees per second
+            min: None,
+            max: None,
+            render_mesh: Some(yaw_mesh.clone()),
+            muzzle: None,
+            children: vec![TurretJoint {
+                offset: Vec3::new(0.0, 0.332706, 0.303954),
+                axis: Some(Vec3::X),
+                speed: std::f32::consts::PI, // 180 degrees per second
+                min: Some(-std::f32::consts::FRAC_PI_6),
+                max: Some(std::f32::consts::FRAC_PI_2),
+                render_mesh: Some(pitch_mesh.clone()),
+                muzzle: None,
+                children: vec![TurretJoint {
+                    offset: Vec3::new(0.0, 0.128437, -0.110729),
+                    axis: None,
+                    speed: std::f32::consts::PI,
+                    min: None,
+                    max: None,
+                    render_mesh: Some(barrel_mesh.clone()),
+                    muzzle: None,
+                    children: vec![TurretJoint {
+                        offset: Vec3::new(0.0, 0.0, -1.2),
+                        axis: None,
+                        speed: std::f32::consts::PI,
+                        min: None,
+                        max: None,
+                        render_mesh: None,
+                        muzzle: Some(MuzzleConfig {
+                            fire_rate,
+                            muzzle_effect: None,
+                        }),
+                        children: vec![],
+                    }],
+                }],
+            }],
+        }],
+    }
+}
+
 /// The render-mesh asset references the section catalog needs, as `AssetRef`s.
 ///
 /// The catalog itself (`build_sections`) is defined ONCE and is agnostic to how
@@ -186,20 +248,14 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
             },
             kind: SectionKind::Turret(TurretSectionConfig {
-                yaw_speed: std::f32::consts::PI,   // 180 degrees per second
-                pitch_speed: std::f32::consts::PI, // 180 degrees per second
-                min_pitch: Some(-std::f32::consts::FRAC_PI_6),
-                max_pitch: Some(std::f32::consts::FRAC_PI_2),
-                render_mesh_base: None,
-                base_offset: Vec3::new(0.0, -0.5, 0.0),
-                render_mesh_yaw: Some(meshes.turret_yaw.clone()),
-                yaw_offset: Vec3::new(0.0, 0.1, 0.0),
-                render_mesh_pitch: Some(meshes.turret_pitch.clone()),
-                pitch_offset: Vec3::new(0.0, 0.332706, 0.303954),
-                render_mesh_barrel: Some(meshes.turret_barrel.clone()),
-                barrel_offset: Vec3::new(0.0, 0.128437, -0.110729),
-                muzzle_offset: Vec3::new(0.0, 0.0, -1.2),
-                fire_rate: 100.0,
+                // base(fixed) -> yaw(Y) -> pitch(X) -> barrel(fixed) -> muzzle,
+                // migrated 1:1 from the old flat fields (spike 20260717-214834).
+                root: turret_joint_tree(
+                    &meshes.turret_yaw,
+                    &meshes.turret_pitch,
+                    &meshes.turret_barrel,
+                    100.0,
+                ),
                 muzzle_speed: 100.0,
                 projectile_lifetime: 5.0,
                 // Point-defense per-hit (task 20260712-172035): low damage, high
@@ -211,7 +267,6 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 // 20260712-133349).
                 bullet_kind: DamageType::Kinetic,
                 projectile_render_mesh: None,
-                muzzle_effect: None,
                 fire_sound: Some(meshes.turret_fire_sound.clone()),
                 dry_fire_sound: Some(meshes.turret_dry_fire_sound.clone()),
                 // ~5s of sustained fire at 100 rounds/s. Generous on purpose:
@@ -260,24 +315,19 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
             },
             kind: SectionKind::Turret(TurretSectionConfig {
-                yaw_speed: std::f32::consts::PI,
-                pitch_speed: std::f32::consts::PI,
-                min_pitch: Some(-std::f32::consts::FRAC_PI_6),
-                max_pitch: Some(std::f32::consts::FRAC_PI_2),
-                render_mesh_base: None,
-                base_offset: Vec3::new(0.0, -0.5, 0.0),
-                render_mesh_yaw: Some(meshes.turret_yaw.clone()),
-                yaw_offset: Vec3::new(0.0, 0.1, 0.0),
-                render_mesh_pitch: Some(meshes.turret_pitch.clone()),
-                pitch_offset: Vec3::new(0.0, 0.332706, 0.303954),
-                render_mesh_barrel: Some(meshes.turret_barrel.clone()),
-                barrel_offset: Vec3::new(0.0, 0.128437, -0.110729),
-                muzzle_offset: Vec3::new(0.0, 0.0, -1.2),
-                // Scavenger grade: a quarter of the better turret's fire rate,
-                // slower rounds. Since the typed-damage pass (task
-                // 20260712-133343) the per-hit damage is authored below
+                // Same joint tree as the better turret; scavenger grade differs
+                // only in fire rate, muzzle speed, damage and ammo below.
+                root: turret_joint_tree(
+                    &meshes.turret_yaw,
+                    &meshes.turret_pitch,
+                    &meshes.turret_barrel,
+                    // Scavenger grade: a quarter of the better turret's fire
+                    // rate (per-muzzle now).
+                    25.0,
+                ),
+                // Scavenger grade: slower rounds. Since the typed-damage pass
+                // (task 20260712-133343) the per-hit damage is authored below
                 // (bullet_damage) rather than emergent from mass x velocity.
-                fire_rate: 25.0,
                 muzzle_speed: 60.0,
                 projectile_lifetime: 5.0,
                 // Authored Kinetic damage reproducing the old emergent per-hit
@@ -287,7 +337,6 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 // Kinetic loadout (task 20260712-133349).
                 bullet_kind: DamageType::Kinetic,
                 projectile_render_mesh: None,
-                muzzle_effect: None,
                 fire_sound: Some(meshes.turret_fire_sound.clone()),
                 dry_fire_sound: Some(meshes.turret_dry_fire_sound.clone()),
                 // ~6s of fire at 25 rounds/s. Scavenger grade: a shorter fight

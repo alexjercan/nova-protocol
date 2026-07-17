@@ -1524,6 +1524,15 @@ pub mod lint_walk {
             }
         }
 
+        // Section-config well-formedness (turret joint trees today): validate
+        // every section THIS bundle ships, so a malformed turret in a base or
+        // mod catalog is caught even when no scenario inlines it.
+        for section in &bundle.sections {
+            for issue in nova_scenario::prelude::lint_section_config(section, bundle.id.as_str()) {
+                issues.push((bundle.id.clone(), issue));
+            }
+        }
+
         // Resource-ref membership (tasks 20260716-123544 + 20260716-215423): every
         // `self://` ref in this bundle's content - section OR scenario - must name
         // a declared `resources` member of THIS bundle, and every `dep://<id>/`

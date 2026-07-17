@@ -14,9 +14,9 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        turret_section, LoadedBullet, TurretBulletProjectileMarker, TurretSectionAimPoint,
-        TurretSectionAimSystems, TurretSectionBarrelMuzzleMarker, TurretSectionConfig,
-        TurretSectionConfigHelper, TurretSectionInput, TurretSectionMarker,
+        turret_section, LoadedBullet, MuzzleConfig, TurretBulletProjectileMarker, TurretJoint,
+        TurretSectionAimPoint, TurretSectionAimSystems, TurretSectionBarrelMuzzleMarker,
+        TurretSectionConfig, TurretSectionConfigHelper, TurretSectionInput, TurretSectionMarker,
         TurretSectionMuzzleEntity, TurretSectionPlugin, TurretSectionTargetInput,
         TurretSectionTargetVelocity,
     };
@@ -28,66 +28,102 @@ pub mod prelude {
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TurretSectionAimSystems;
 
+/// A fire point on a turret: where bullets leave. A joint carries at most one.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct MuzzleConfig {
+    /// Rounds per second for THIS muzzle.
+    pub fire_rate: f32,
+    /// Muzzle effect (flash) asset; None = no flash.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub muzzle_effect: Option<AssetRef<EffectAsset>>,
+}
+
+/// Default hinge speed (rad/s) when a joint's `speed` is not authored: 180
+/// deg/s, matching the old yaw/pitch defaults.
+fn default_joint_speed() -> f32 {
+    std::f32::consts::PI
+}
+
+/// Skip serializing a joint's `speed` when it is the default (the common case:
+/// every shipped joint traverses at 180 deg/s), so authored trees are not
+/// littered with `speed: 3.1415927` on every node - fixed nodes included, where
+/// it is meaningless. A joint that wants a different traverse speed still writes
+/// it. Round-trips through [`default_joint_speed`].
+#[cfg(feature = "serde")]
+fn is_default_joint_speed(speed: &f32) -> bool {
+    *speed == default_joint_speed()
+}
+
+/// One node of a turret's kinematic joint tree. Recursive. Today's turret is
+/// the tree base(fixed) -> yaw(axis Y) -> pitch(axis X) -> barrel(fixed) ->
+/// muzzle(fixed, has `muzzle`). Arbitrary arm count / multi-hinge = wider/deeper
+/// trees.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct TurretJoint {
+    /// Local translation from the parent joint (section origin for the root).
+    pub offset: Vec3,
+    /// Local hinge axis. None = fixed node (offsets + may carry mesh/muzzle,
+    /// never rotates). Some(axis) = articulated, driven by the aim solver.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub axis: Option<Vec3>,
+    /// Rotation speed rad/s (only when `axis` is Some).
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            default = "default_joint_speed",
+            skip_serializing_if = "is_default_joint_speed"
+        )
+    )]
+    pub speed: f32,
+    /// Lower rotation limit in radians (only when `axis` is Some).
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub min: Option<f32>,
+    /// Upper rotation limit in radians (only when `axis` is Some).
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub max: Option<f32>,
+    /// This joint's render mesh; None = a generic default primitive.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub render_mesh: Option<AssetRef<WorldAsset>>,
+    /// Present iff this joint is a fire point.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub muzzle: Option<MuzzleConfig>,
+    /// Child joints, composed in this joint's ROTATED frame.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
+    pub children: Vec<TurretJoint>,
+}
+
 /// Configuration for a turret section of a spaceship.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TurretSectionConfig {
-    /// The yaw speed of the turret section in radians per second.
-    pub yaw_speed: f32,
-    /// The pitch speed of the turret section in radians per second.
-    pub pitch_speed: f32,
-    /// The minimum pitch angle of the turret section in radians. If None, there is no limit.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub min_pitch: Option<f32>,
-    /// The maximum pitch angle of the turret section in radians. If None, there is no limit.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub max_pitch: Option<f32>,
-    /// The render mesh of the base, defaults to a cylinder base
-    #[reflect(ignore)]
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub render_mesh_base: Option<AssetRef<WorldAsset>>,
-    /// The offset of the base from the section origin
-    pub base_offset: Vec3,
-    /// The render mesh of the yaw rotator, defaults to a cylinder with ridges
-    #[reflect(ignore)]
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub render_mesh_yaw: Option<AssetRef<WorldAsset>>,
-    /// The offset of the yaw rotator from the base
-    pub yaw_offset: Vec3,
-    /// The render mesh of the pitch rotator, defaults to a cylinder with ridges
-    #[reflect(ignore)]
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub render_mesh_pitch: Option<AssetRef<WorldAsset>>,
-    /// The offset of the pitch rotator from the yaw rotator
-    pub pitch_offset: Vec3,
-    /// The render mesh of the barrel, defaults to a simple barrel shape
-    #[reflect(ignore)]
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub render_mesh_barrel: Option<AssetRef<WorldAsset>>,
-    /// The offset of the barrel from the pitch rotator
-    pub barrel_offset: Vec3,
-    /// The offset of the muzzle from the barrel
-    pub muzzle_offset: Vec3,
-    /// The fire rate of the turret in rounds per second.
-    pub fire_rate: f32,
+    /// The turret's kinematic joint tree (base -> ... -> muzzle). Replaces the
+    /// old flat yaw/pitch/offset/render-mesh fields (spike 20260717-214834).
+    pub root: TurretJoint,
     /// The muzzle speed of the turret in units per second.
     pub muzzle_speed: f32,
     /// The projectile lifetime
@@ -115,13 +151,6 @@ pub struct TurretSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub projectile_render_mesh: Option<AssetRef<WorldAsset>>,
-    /// The muzzle particle effect when shooting.
-    #[reflect(ignore)]
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub muzzle_effect: Option<AssetRef<EffectAsset>>,
     /// The sound played when this turret fires a round. An authorable
     /// [`AssetRef<AudioSource>`] like the render meshes and muzzle effect, so a
     /// section (base or mod) can ship and reference its own weapon sound through
@@ -171,27 +200,63 @@ pub struct TurretSectionConfig {
 impl Default for TurretSectionConfig {
     fn default() -> Self {
         Self {
-            yaw_speed: std::f32::consts::PI,   // 180 degrees per second
-            pitch_speed: std::f32::consts::PI, // 180 degrees per second
-            min_pitch: Some(-std::f32::consts::FRAC_PI_6),
-            max_pitch: Some(std::f32::consts::FRAC_PI_2),
-            render_mesh_base: None,
-            base_offset: Vec3::new(0.0, -0.5, 0.0),
-            render_mesh_yaw: None,
-            yaw_offset: Vec3::new(0.0, 0.1, 0.0),
-            render_mesh_pitch: None,
-            pitch_offset: Vec3::new(0.0, 0.2, 0.0),
-            render_mesh_barrel: None,
-            barrel_offset: Vec3::new(0.1, 0.2, 0.0),
-            muzzle_offset: Vec3::new(0.0, 0.0, -0.5),
-            fire_rate: 100.0,
+            // The same kinematic chain the flat config used to build:
+            // base(fixed) -> yaw(Y) -> pitch(X) -> barrel(fixed) -> muzzle.
+            root: TurretJoint {
+                offset: Vec3::new(0.0, -0.5, 0.0),
+                axis: None,
+                speed: default_joint_speed(),
+                min: None,
+                max: None,
+                render_mesh: None,
+                muzzle: None,
+                children: vec![TurretJoint {
+                    offset: Vec3::new(0.0, 0.1, 0.0),
+                    axis: Some(Vec3::Y),
+                    speed: std::f32::consts::PI, // 180 degrees per second
+                    min: None,
+                    max: None,
+                    render_mesh: None,
+                    muzzle: None,
+                    children: vec![TurretJoint {
+                        offset: Vec3::new(0.0, 0.2, 0.0),
+                        axis: Some(Vec3::X),
+                        speed: std::f32::consts::PI, // 180 degrees per second
+                        min: Some(-std::f32::consts::FRAC_PI_6),
+                        max: Some(std::f32::consts::FRAC_PI_2),
+                        render_mesh: None,
+                        muzzle: None,
+                        children: vec![TurretJoint {
+                            offset: Vec3::new(0.1, 0.2, 0.0),
+                            axis: None,
+                            speed: default_joint_speed(),
+                            min: None,
+                            max: None,
+                            render_mesh: None,
+                            muzzle: None,
+                            children: vec![TurretJoint {
+                                offset: Vec3::new(0.0, 0.0, -0.5),
+                                axis: None,
+                                speed: default_joint_speed(),
+                                min: None,
+                                max: None,
+                                render_mesh: None,
+                                muzzle: Some(MuzzleConfig {
+                                    fire_rate: 100.0,
+                                    muzzle_effect: None,
+                                }),
+                                children: vec![],
+                            }],
+                        }],
+                    }],
+                }],
+            },
             muzzle_speed: 100.0,
             projectile_lifetime: 5.0,
             // Matches the old emergent kinetic (mass 0.1 @ muzzle 100 u/s).
             bullet_damage: representative_kinetic_damage(0.1, 100.0),
             bullet_kind: DamageType::Kinetic,
             projectile_render_mesh: None,
-            muzzle_effect: None,
             fire_sound: None,
             dry_fire_sound: None,
             ammo_capacity: None,
@@ -285,17 +350,17 @@ pub(crate) struct TurretSectionPartOf(pub Entity);
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct BulletProjectileRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
 
-#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TurretSectionBaseRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
+/// A turret joint entity: the runtime of one [`TurretJoint`] node. Articulated
+/// joints (axis Some) also carry a [`SmoothLookRotation`]. Paired with a
+/// [`TurretSectionPartOf`] pointing at the turret section root.
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+struct TurretJointMarker {
+    axis: Option<Vec3>,
+}
 
+/// This joint's render mesh (generic; was the per-type `*RenderMesh` zoo).
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TurretSectionYawRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
-
-#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TurretSectionPitchRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
-
-#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
-struct TurretSectionBarrelRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
+struct TurretJointRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
 
 /// The live tuning config carried by a turret section entity. The aim/shoot systems read
 /// `muzzle_speed` from it directly every frame; the rotator speeds, pitch limits and fire rate
@@ -336,29 +401,18 @@ pub(crate) struct TurretSectionFireSound(#[reflect(ignore)] pub Option<AssetRef<
 pub(crate) struct TurretSectionDryFireSound(#[reflect(ignore)] pub Option<AssetRef<AudioSource>>);
 
 #[derive(Component, Clone, Copy, Debug, Reflect)]
-struct TurretRotatorBaseMarker;
-
-#[derive(Component, Clone, Copy, Debug, Reflect)]
-struct TurretSectionRotatorYawBaseMarker;
-
-#[derive(Component, Clone, Copy, Debug, Reflect)]
-struct TurretSectionRotatorYawMarker;
-
-#[derive(Component, Clone, Copy, Debug, Reflect)]
-struct TurretSectionRotatorPitchBaseMarker;
-
-#[derive(Component, Clone, Copy, Debug, Reflect)]
-struct TurretSectionRotatorPitchMarker;
-
-#[derive(Component, Clone, Copy, Debug, Reflect)]
-struct TurretSectionRotatorBarrelMarker;
-
-#[derive(Component, Clone, Copy, Debug, Reflect)]
 struct TurretSectionBarrelMuzzleEffectMarker;
 
 /// The entity that represents the muzzle of the turret.
 #[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
 pub struct TurretSectionMuzzleEntity(pub Entity);
+
+/// Every muzzle (fire point) of a turret, in tree DFS order. The section-wide
+/// fire/aim path iterates these; [`TurretSectionMuzzleEntity`] stays as the
+/// PRIMARY muzzle (the first) for the single-point consumers (lead HUD pip, the
+/// aim-point lead solve, AI alignment gate).
+#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
+pub struct TurretSectionMuzzles(pub Vec<Entity>);
 
 /// A plugin that enables the TurretSection component and its related systems.
 #[derive(Default)]
@@ -374,10 +428,7 @@ impl Plugin for TurretSectionPlugin {
         app.add_observer(despawn_bullet_on_hit);
 
         if self.render {
-            app.add_observer(insert_turret_section_render);
-            app.add_observer(insert_turret_yaw_rotator_render);
-            app.add_observer(insert_turret_pitch_rotator_render);
-            app.add_observer(insert_turret_barrel_render);
+            app.add_observer(insert_turret_joint_render);
             app.add_observer(insert_projectile_render);
 
             // Hanabi muzzle-flash and projectile-trail effects: run on wasm too
@@ -388,11 +439,7 @@ impl Plugin for TurretSectionPlugin {
 
         app.add_systems(
             Update,
-            (
-                apply_turret_config_to_children,
-                sync_turret_rotator_yaw_system,
-                sync_turret_rotator_pitch_system,
-            )
+            (apply_turret_config_to_children, sync_turret_joint_rotation)
                 .in_set(super::SpaceshipSectionSystems),
         );
 
@@ -415,11 +462,7 @@ impl Plugin for TurretSectionPlugin {
         // late.
         app.add_systems(
             PostUpdate,
-            (
-                update_turret_aim_point,
-                update_turret_target_yaw_system,
-                update_turret_target_pitch_system,
-            )
+            (update_turret_aim_point, update_turret_target_joints_system)
                 .chain()
                 .in_set(TurretSectionAimSystems)
                 .in_set(super::SpaceshipSectionSystems),
@@ -481,6 +524,88 @@ fn despawn_bullet_on_hit(
     }
 }
 
+/// Recursively spawn one entity per [`TurretJoint`] node, returning the spawned
+/// entity. Articulated joints (axis Some) carry a [`SmoothLookRotation`]; a
+/// joint with a `muzzle` also gets the muzzle bundle and its entity is recorded
+/// in `muzzles`. Children are added as child entities in DFS order.
+///
+/// Collapsing the old base+rotator PAIR into ONE entity is safe because
+/// [`SmoothLookRotation`] does not read `Transform` (verified): a single entity
+/// carries both the offset `Transform` (with the axis's zero-angle rotation) and
+/// the controller, and the sync system writes the hinge rotation back onto the
+/// SAME transform. The composed math `parent * T(offset) * R(theta) * ...` is
+/// identical to the old two-entity chain.
+fn spawn_turret_joint(
+    commands: &mut Commands,
+    turret: Entity,
+    joint: &TurretJoint,
+    muzzles: &mut Vec<Entity>,
+) -> Entity {
+    // A hinge needs a non-zero, finite axis: `sync_turret_joint_rotation` and the
+    // aim solver normalize it, so a zero/NaN axis would spread NaN through the
+    // transform. The content lint (`lint_section_config`) rejects this at author
+    // time; here is the runtime backstop for a turret built in code or a mod that
+    // bypasses the lint - a degenerate axis degrades to a FIXED joint (marker
+    // axis `None`, no controller) instead of NaN.
+    let hinge_axis = joint
+        .axis
+        .filter(|a| a.is_finite() && a.length_squared() > 1e-12);
+    if joint.axis.is_some() && hinge_axis.is_none() {
+        warn!(
+            "spawn_turret_joint: turret {:?} has a degenerate hinge axis {:?}; \
+             treating the joint as fixed",
+            turret, joint.axis
+        );
+    }
+
+    let mut entity = commands.spawn((
+        Name::new("Turret Joint"),
+        TurretSectionPartOf(turret),
+        TurretJointRenderMesh(joint.render_mesh.clone()),
+        Transform::from_translation(joint.offset),
+        Visibility::Inherited,
+    ));
+
+    if let Some(axis) = hinge_axis {
+        entity.insert(SmoothLookRotation {
+            axis,
+            initial: 0.0,
+            speed: joint.speed,
+            min: joint.min,
+            max: joint.max,
+        });
+    }
+
+    if let Some(muzzle) = &joint.muzzle {
+        let interval = 1.0 / muzzle.fire_rate;
+        let mut timer = Timer::from_seconds(interval, TimerMode::Once);
+        timer.finish(); // Ready to fire immediately
+        entity.insert((
+            TurretSectionBarrelMuzzleMarker,
+            TurretSectionBarrelFireState(timer),
+            TurretSectionBarrelMuzzleEffect(muzzle.muzzle_effect.clone()),
+        ));
+    }
+
+    // Add the marker LAST: the render observer keys on `Add, TurretJointMarker`
+    // and reads the muzzle marker to skip fire points, so the muzzle bundle must
+    // already be on the entity when the marker lands.
+    entity.insert(TurretJointMarker { axis: hinge_axis });
+
+    let id = entity.id();
+
+    if joint.muzzle.is_some() {
+        muzzles.push(id);
+    }
+
+    for child in &joint.children {
+        let child_id = spawn_turret_joint(commands, turret, child, muzzles);
+        commands.entity(id).add_child(child_id);
+    }
+
+    id
+}
+
 fn insert_turret_section(
     add: On<Add, TurretSectionMarker>,
     mut commands: Commands,
@@ -498,110 +623,20 @@ fn insert_turret_section(
     };
     let config = (**config).clone();
 
-    let interval = 1.0 / config.fire_rate;
-    let mut timer = Timer::from_seconds(interval, TimerMode::Once);
-    timer.finish(); // Ready to fire immediately
+    let mut muzzles = Vec::new();
+    let root = spawn_turret_joint(&mut commands, turret, &config.root, &mut muzzles);
 
-    let muzzle = commands
-        .spawn((
-            Name::new("Turret Barrel Muzzle"),
-            TurretSectionBarrelMuzzleMarker,
-            TurretSectionPartOf(turret),
-            TurretSectionBarrelFireState(timer),
-            TurretSectionBarrelMuzzleEffect(config.muzzle_effect.clone()),
-            Transform::from_translation(config.muzzle_offset),
-            Visibility::Inherited,
-        ))
-        .id();
-
-    let rotator_barrel = commands
-        .spawn((
-            Name::new("Turret Rotator Barrel"),
-            TurretSectionRotatorBarrelMarker,
-            TurretSectionPartOf(turret),
-            TurretSectionMuzzleEntity(muzzle),
-            TurretSectionBarrelRenderMesh(config.render_mesh_barrel),
-            Transform::from_translation(config.barrel_offset),
-            Visibility::Inherited,
-        ))
-        .add_child(muzzle)
-        .id();
-
-    let rotator_pitch = commands
-        .spawn((
-            Name::new("Turret Rotator Pitch"),
-            TurretSectionRotatorPitchMarker,
-            TurretSectionPartOf(turret),
-            TurretSectionMuzzleEntity(muzzle),
-            Transform::default(),
-            TurretSectionPitchRenderMesh(config.render_mesh_pitch),
-            Visibility::Inherited,
-        ))
-        .add_child(rotator_barrel)
-        .id();
-
-    let rotator_pitch_base = commands
-        .spawn((
-            Name::new("Turret Rotator Pitch Base"),
-            TurretSectionRotatorPitchBaseMarker,
-            TurretSectionPartOf(turret),
-            TurretSectionMuzzleEntity(muzzle),
-            SmoothLookRotation {
-                axis: Vec3::X,
-                initial: 0.0,
-                speed: config.pitch_speed,
-                min: config.min_pitch,
-                max: config.max_pitch,
-            },
-            Transform::from_translation(config.pitch_offset),
-            Visibility::Inherited,
-        ))
-        .add_child(rotator_pitch)
-        .id();
-
-    let rotator_yaw = commands
-        .spawn((
-            Name::new("Turret Rotator Yaw"),
-            TurretSectionRotatorYawMarker,
-            TurretSectionPartOf(turret),
-            TurretSectionMuzzleEntity(muzzle),
-            Transform::default(),
-            TurretSectionYawRenderMesh(config.render_mesh_yaw),
-            Visibility::Inherited,
-        ))
-        .add_child(rotator_pitch_base)
-        .id();
-
-    let rotator_yaw_base = commands
-        .spawn((
-            Name::new("Turret Rotator Yaw Base"),
-            TurretSectionRotatorYawBaseMarker,
-            TurretSectionPartOf(turret),
-            TurretSectionMuzzleEntity(muzzle),
-            SmoothLookRotation {
-                axis: Vec3::Y,
-                initial: 0.0,
-                speed: config.yaw_speed,
-                ..default()
-            },
-            Transform::from_translation(config.yaw_offset),
-            Visibility::Inherited,
-        ))
-        .add_child(rotator_yaw)
-        .id();
-
-    let rotator_base = commands
-        .spawn((
-            Name::new("Turret Rotator Base"),
-            TurretRotatorBaseMarker,
-            TurretSectionPartOf(turret),
-            TurretSectionMuzzleEntity(muzzle),
-            Transform::from_translation(config.base_offset),
-            TurretSectionBaseRenderMesh(config.render_mesh_base),
-            Visibility::Inherited,
-        ))
-        .add_child(rotator_yaw_base)
-        .id();
+    // The section-wide fire/aim path drives ALL muzzles (task 20260717-215857);
+    // the FIRST is the PRIMARY, kept in `TurretSectionMuzzleEntity` for the
+    // single-point consumers (lead HUD pip, the aim-point lead solve, AI gate).
+    // A well-formed tree has at least one muzzle joint.
+    let Some((&muzzle, _)) = muzzles.split_first() else {
+        error!(
+            "insert_turret_section: turret {:?} tree has no muzzle joint",
+            turret
+        );
+        return;
+    };
 
     // Snapshot the authorable fire sound (unresolved) onto the turret, like the
     // render-mesh refs; the audio module resolves + plays it (see
@@ -610,10 +645,11 @@ fn insert_turret_section(
         .entity(turret)
         .insert((
             TurretSectionMuzzleEntity(muzzle),
+            TurretSectionMuzzles(muzzles.clone()),
             TurretSectionFireSound(config.fire_sound.clone()),
             TurretSectionDryFireSound(config.dry_fire_sound.clone()),
         ))
-        .add_child(rotator_base);
+        .add_child(root);
 
     // Opt-in finite ammo: a magazine on the turret SECTION entity (the one
     // `shoot_spawn_projectile` queries), so the fire loop spends and gates on it
@@ -637,49 +673,59 @@ fn insert_turret_section(
 /// pushed here. Gated on `Changed` so it costs nothing when nothing is being tuned.
 fn apply_turret_config_to_children(
     q_turret: Query<
-        (Entity, &TurretSectionConfigHelper),
+        (&TurretSectionConfigHelper, &Children),
         (
             With<TurretSectionMarker>,
             Changed<TurretSectionConfigHelper>,
         ),
     >,
-    mut q_yaw: Query<
-        (&TurretSectionPartOf, &mut SmoothLookRotation),
-        (
-            With<TurretSectionRotatorYawBaseMarker>,
-            Without<TurretSectionRotatorPitchBaseMarker>,
-        ),
-    >,
-    mut q_pitch: Query<
-        (&TurretSectionPartOf, &mut SmoothLookRotation),
-        (
-            With<TurretSectionRotatorPitchBaseMarker>,
-            Without<TurretSectionRotatorYawBaseMarker>,
-        ),
-    >,
-    mut q_fire: Query<
-        (&TurretSectionPartOf, &mut TurretSectionBarrelFireState),
-        With<TurretSectionBarrelMuzzleMarker>,
-    >,
+    q_children: Query<&Children>,
+    mut q_joint: Query<(
+        Option<&mut SmoothLookRotation>,
+        Option<&mut TurretSectionBarrelFireState>,
+    )>,
 ) {
-    for (turret, config) in &q_turret {
-        for (part_of, mut yaw) in &mut q_yaw {
-            if **part_of == turret {
-                yaw.speed = config.yaw_speed;
+    // Match each config node to its joint entity by tree POSITION (DFS order):
+    // `insert_turret_section` spawns children in `joint.children` order, so the
+    // config tree and the entity tree walk in lockstep.
+    fn apply_node(
+        joint: &TurretJoint,
+        entity: Entity,
+        q_children: &Query<&Children>,
+        q_joint: &mut Query<(
+            Option<&mut SmoothLookRotation>,
+            Option<&mut TurretSectionBarrelFireState>,
+        )>,
+    ) {
+        if let Ok((rotation, fire_state)) = q_joint.get_mut(entity) {
+            if let (Some(axis), Some(mut rotation)) = (joint.axis, rotation) {
+                rotation.axis = axis;
+                rotation.speed = joint.speed;
+                rotation.min = joint.min;
+                rotation.max = joint.max;
             }
-        }
-        for (part_of, mut pitch) in &mut q_pitch {
-            if **part_of == turret {
-                pitch.speed = config.pitch_speed;
-                pitch.min = config.min_pitch;
-                pitch.max = config.max_pitch;
-            }
-        }
-        for (part_of, mut fire_state) in &mut q_fire {
-            if **part_of == turret {
-                let interval = 1.0 / config.fire_rate.max(f32::EPSILON);
+            if let (Some(muzzle), Some(mut fire_state)) = (&joint.muzzle, fire_state) {
+                let interval = 1.0 / muzzle.fire_rate.max(f32::EPSILON);
                 fire_state.0.set_duration(Duration::from_secs_f32(interval));
             }
+        }
+
+        // Recurse over the matching child entities (skipping non-joint children
+        // like render meshes/effects, which are appended AFTER the joint kids).
+        let joint_children: Vec<Entity> = q_children
+            .get(entity)
+            .map(|c| c.iter().collect())
+            .unwrap_or_default();
+        for (child_joint, &child_entity) in joint.children.iter().zip(joint_children.iter()) {
+            apply_node(child_joint, child_entity, q_children, q_joint);
+        }
+    }
+
+    for (config, children) in &q_turret {
+        // The turret section entity has exactly one joint child: the tree root
+        // (render children are added to the joint entities, not the section).
+        if let Some(&root) = children.iter().collect::<Vec<_>>().first() {
+            apply_node(&config.root, root, &q_children, &mut q_joint);
         }
     }
 }
@@ -817,186 +863,160 @@ pub(crate) fn update_turret_aim_point(
     }
 }
 
-fn update_turret_target_yaw_system(
+/// The signed angle (radians) that rotates `from` onto `to` about `axis`,
+/// measured in the plane perpendicular to `axis`. `axis` is assumed normalized.
+///
+/// Near-antiparallel `from`/`to` (target dead behind the barrel) is a rotation
+/// singularity: either half-turn is valid and the cross product carries no
+/// reliable sign, so a naive `atan2` dithers frame to frame and the hinge freezes
+/// in place ("stuck, won't turn around"). When the vectors are within ~1.6 deg of
+/// opposite, commit to a deterministic +pi half-turn so the joint swings around;
+/// once it moves off the singularity the normal solve resumes and finishes the
+/// turn the short way.
+fn signed_angle_about(from: Vec3, to: Vec3, axis: Vec3) -> f32 {
+    let from = from.normalize();
+    let to = to.normalize();
+    let c = from.cross(to).dot(axis);
+    let d = from.dot(to);
+    if d < -0.9996 {
+        return std::f32::consts::PI;
+    }
+    c.atan2(d)
+}
+
+/// Damping gain on each hinge's per-frame CCD correction. The step target is
+/// `output + AIM_CORRECTION_GAIN * delta`, NOT the full `output + delta`. A hinge
+/// solves its `delta` assuming every OTHER joint holds still, but a turret's
+/// joints are coupled (yaw and pitch both swing the offset muzzle), so applying
+/// each full correction at once overshoots the joint solution and settles into a
+/// visible limit cycle - the barrel shakes a few degrees around the aim. A gain
+/// below 1 makes each joint under-correct, so the coupled system converges
+/// monotonically instead of ringing. Large errors are still rate-limited by
+/// `SmoothLookRotation` (not the gain), so a slew stays responsive; the gain
+/// only shapes the settle. Lowered to 0.35 (from 0.5) after playtest - a
+/// stronger damp for extra shake margin; lower further if a deep chain rings.
+const AIM_CORRECTION_GAIN: f32 = 0.35;
+
+/// Below this per-frame correction (radians, ~0.23 deg) a hinge is treated as
+/// ON target and HOLDS (target = current output) instead of chasing sub-degree
+/// residuals - stops the micro-jitter that the lead-point feedback (the aim
+/// point moves with the muzzle it is aiming) would otherwise sustain forever.
+const AIM_DEADBAND_RAD: f32 = 0.004;
+
+/// Generic aim: a Jacobi per-frame hinge-CCD pass over each turret's muzzle
+/// chain (one step per articulated joint, from the muzzle up to the root). Each
+/// articulated joint nudges its [`SmoothLookRotationTarget`] toward the angle
+/// that swings the muzzle forward (-Z) at the aim point, decomposed in that
+/// joint's own hinge plane and DAMPED by [`AIM_CORRECTION_GAIN`] so coupled
+/// joints do not overshoot into a shake; the [`SmoothLookRotation`] controller
+/// rate-limits and clamps the visible motion. Basis-independent, so it reduces
+/// to the old yaw/pitch behavior for the Y/X chain and solves arbitrary trees.
+///
+/// Same fresh-pose composition as [`update_turret_aim_point`]: runs BEFORE this
+/// frame's transform propagation, so poses are composed via [`TransformHelper`].
+fn update_turret_target_joints_system(
     q_turret: Query<
-        (&TurretSectionAimPoint, Has<SectionInactiveMarker>),
-        With<TurretSectionMarker>,
+        (&TurretSectionAimPoint, &TurretSectionMuzzles),
+        (With<TurretSectionMarker>, Without<SectionInactiveMarker>),
     >,
-    mut q_rotator_yaw_base: Query<
-        (
-            Entity,
-            &mut SmoothLookRotationTarget,
-            &TurretSectionPartOf,
-            &TurretSectionMuzzleEntity,
-        ),
-        With<TurretSectionRotatorYawBaseMarker>,
-    >,
-    // Same fresh-pose composition as update_turret_aim_point: this chain
-    // runs before this frame's transform propagation.
+    q_child_of: Query<&ChildOf>,
+    q_joint: Query<(&TurretJointMarker, &Transform)>,
+    mut q_target_mut: Query<&mut SmoothLookRotationTarget>,
+    q_output: Query<&SmoothLookRotationOutput>,
     transform_helper: TransformHelper,
 ) {
-    for (yaw_base, mut target, TurretSectionPartOf(turret), TurretSectionMuzzleEntity(muzzle)) in
-        &mut q_rotator_yaw_base
-    {
-        let Ok(yaw_chain) = transform_helper.compute_global_transform(yaw_base) else {
-            error!(
-                "update_turret_target_yaw_system: entity {:?} has no computable pose",
-                yaw_base
-            );
-            continue;
-        };
-        let Ok(muzzle_transform) = transform_helper.compute_global_transform(*muzzle) else {
-            error!(
-                "update_turret_target_yaw_system: entity {:?} not found in q_muzzle",
-                *muzzle
-            );
+    for (aim_point, muzzles) in &q_turret {
+        let Some(target) = **aim_point else {
             continue;
         };
 
-        let Ok((aim_point, inactive)) = q_turret.get(*turret) else {
-            error!(
-                "update_turret_target_yaw_system: entity {:?} not found in q_turret",
-                *turret
-            );
-            continue;
-        };
+        // Steer EVERY muzzle of the turret at the shared aim point (task
+        // 20260717-215857). Shared joints (a twin barrel's common yaw/pitch) are
+        // written by each muzzle's pass and agree for symmetric barrels; a
+        // muzzle's private joints refine only its own chain.
+        for &muzzle in &muzzles.0 {
+            let Ok(muzzle_transform) = transform_helper.compute_global_transform(muzzle) else {
+                error!(
+                    "update_turret_target_joints_system: muzzle {:?} has no computable pose",
+                    muzzle
+                );
+                continue;
+            };
+            let m = muzzle_transform.translation();
+            let d: Vec3 = muzzle_transform.forward().into();
+            if target == m {
+                continue;
+            }
 
-        if inactive {
-            continue;
-        }
+            // Walk from the muzzle up to the turret root via ChildOf, collecting
+            // the articulated joints along the chain. A single Jacobi pass: every
+            // joint steps from the CURRENT pose this frame.
+            let mut chain = muzzle;
+            loop {
+                let Ok(&ChildOf(parent)) = q_child_of.get(chain) else {
+                    break;
+                };
+                // Only walk while the current node is a turret joint; the parent
+                // of the root joint is the turret section entity (not a joint),
+                // which stops the walk.
+                let Ok((marker, joint_transform)) = q_joint.get(chain) else {
+                    break;
+                };
 
-        let Some(target_pos) = **aim_point else {
-            continue;
-        };
+                if let Some(a_local) = marker.axis {
+                    // Parent global pose, then the joint's pre-rotation frame F:
+                    // parent orientation + this joint's origin (offset applied).
+                    if let Ok(parent_global) = transform_helper.compute_global_transform(parent) {
+                        let f = parent_global
+                            * Transform::from_translation(joint_transform.translation);
+                        let w2j = f.to_matrix().inverse();
 
-        let world_to_yaw_base = yaw_chain.to_matrix().inverse();
+                        let ml = w2j.transform_point3(m);
+                        let dl = w2j.transform_vector3(d);
+                        let tl = w2j.transform_point3(target);
+                        let a = a_local.normalize();
 
-        let barrel_pos = muzzle_transform.translation();
-        let barrel_dir = muzzle_transform.forward().into();
-        if target_pos == barrel_pos {
-            continue;
-        }
+                        let des = tl - ml;
+                        let d_perp = dl - a * dl.dot(a);
+                        let t_perp = des - a * des.dot(a);
+                        if d_perp.length() > 1e-6 && t_perp.length() > 1e-6 {
+                            let delta = signed_angle_about(d_perp, t_perp, a);
+                            let out = q_output.get(chain).map(|o| **o).unwrap_or(0.0);
+                            if let Ok(mut target_angle) = q_target_mut.get_mut(chain) {
+                                // Damp the correction so coupled joints converge
+                                // instead of ringing; hold once aimed (deadband).
+                                **target_angle = if delta.abs() <= AIM_DEADBAND_RAD {
+                                    out
+                                } else {
+                                    out + AIM_CORRECTION_GAIN * delta
+                                };
+                            }
+                        }
+                    }
+                }
 
-        let barrel_yaw_local_pos = world_to_yaw_base.transform_point3(barrel_pos);
-        let target_yaw_local_pos = world_to_yaw_base.transform_point3(target_pos);
-        let barrel_yaw_local_dir = world_to_yaw_base.transform_vector3(barrel_dir);
-
-        // phi is the angle from the x axis to the (x,-z) position
-        let phi = (-target_yaw_local_pos.z).atan2(target_yaw_local_pos.x);
-        // r is the distance from the origin to the barrel direction projected onto the xz plane
-        let r = barrel_yaw_local_pos.cross(barrel_yaw_local_dir).y;
-        let target_r = target_yaw_local_pos.xz().length();
-        if target_r > r.abs() {
-            let theta = (phi - (r / target_r).acos()) % (std::f32::consts::TAU);
-            **target = theta;
-        }
-    }
-}
-
-fn update_turret_target_pitch_system(
-    q_turret: Query<
-        (&TurretSectionAimPoint, Has<SectionInactiveMarker>),
-        With<TurretSectionMarker>,
-    >,
-    mut q_rotator_pitch_base: Query<
-        (
-            Entity,
-            &mut SmoothLookRotationTarget,
-            &TurretSectionPartOf,
-            &TurretSectionMuzzleEntity,
-        ),
-        With<TurretSectionRotatorPitchBaseMarker>,
-    >,
-    // Same fresh-pose composition as update_turret_aim_point.
-    transform_helper: TransformHelper,
-) {
-    for (pitch_base, mut target, TurretSectionPartOf(turret), TurretSectionMuzzleEntity(muzzle)) in
-        &mut q_rotator_pitch_base
-    {
-        let Ok(pitch_chain) = transform_helper.compute_global_transform(pitch_base) else {
-            error!(
-                "update_turret_target_pitch_system: entity {:?} has no computable pose",
-                pitch_base
-            );
-            continue;
-        };
-        let Ok(muzzle_transform) = transform_helper.compute_global_transform(*muzzle) else {
-            error!(
-                "update_turret_target_pitch_system: entity {:?} not found in q_muzzle",
-                *muzzle
-            );
-            continue;
-        };
-
-        let Ok((aim_point, inactive)) = q_turret.get(*turret) else {
-            error!(
-                "update_turret_target_pitch_system: entity {:?} not found in q_turret",
-                *turret
-            );
-            continue;
-        };
-
-        if inactive {
-            continue;
-        }
-
-        let Some(target_pos) = **aim_point else {
-            continue;
-        };
-
-        let world_to_pitch_base = pitch_chain.to_matrix().inverse();
-
-        let barrel_pos = muzzle_transform.translation();
-        let barrel_dir = muzzle_transform.forward().into();
-        if target_pos == barrel_pos {
-            continue;
-        }
-
-        let barrel_pitch_local_pos = world_to_pitch_base.transform_point3(barrel_pos);
-        let target_pitch_local_pos = world_to_pitch_base.transform_point3(target_pos);
-        let barrel_pitch_local_dir = world_to_pitch_base.transform_vector3(barrel_dir);
-
-        let phi = (-target_pitch_local_pos.z).atan2(target_pitch_local_pos.y);
-        let r = -barrel_pitch_local_pos.cross(barrel_pitch_local_dir).x;
-        let target_r = target_pitch_local_pos.yz().length();
-        if target_r > r.abs() {
-            let theta = phi - (r / target_r).acos();
-            **target = -theta;
+                chain = parent;
+            }
         }
     }
 }
 
-fn sync_turret_rotator_yaw_system(
-    q_base: Query<&SmoothLookRotationOutput, With<TurretSectionRotatorYawBaseMarker>>,
-    mut q_yaw_rotator: Query<(&mut Transform, &ChildOf), With<TurretSectionRotatorYawMarker>>,
+/// Apply each articulated joint's controller output onto its own transform's
+/// rotation (fixed joints keep identity). One generic sync, replacing the
+/// per-yaw/per-pitch pair - the joint entity carries both the offset transform
+/// and the controller, so the hinge rotation is written back onto the SAME
+/// transform.
+fn sync_turret_joint_rotation(
+    mut q_joint: Query<(
+        &TurretJointMarker,
+        &SmoothLookRotationOutput,
+        &mut Transform,
+    )>,
 ) {
-    for (mut yaw_transform, &ChildOf(entity)) in &mut q_yaw_rotator {
-        let Ok(rotator_output) = q_base.get(entity) else {
-            error!(
-                "sync_turret_rotator_yaw_system: entity {:?} not found in q_base",
-                entity
-            );
-            continue;
-        };
-
-        yaw_transform.rotation = Quat::from_euler(EulerRot::YXZ, **rotator_output, 0.0, 0.0);
-    }
-}
-
-fn sync_turret_rotator_pitch_system(
-    q_base: Query<&SmoothLookRotationOutput, With<TurretSectionRotatorPitchBaseMarker>>,
-    mut q_pitch_rotator: Query<(&mut Transform, &ChildOf), With<TurretSectionRotatorPitchMarker>>,
-) {
-    for (mut pitch_transform, &ChildOf(entity)) in &mut q_pitch_rotator {
-        let Ok(rotator_output) = q_base.get(entity) else {
-            error!(
-                "sync_turret_rotator_pitch_system: entity {:?} not found in q_base",
-                entity
-            );
-            continue;
-        };
-
-        pitch_transform.rotation = Quat::from_euler(EulerRot::YXZ, 0.0, **rotator_output, 0.0);
+    for (marker, output, mut transform) in &mut q_joint {
+        if let Some(axis) = marker.axis {
+            transform.rotation = Quat::from_axis_angle(axis.normalize(), **output);
+        }
     }
 }
 
@@ -1023,7 +1043,7 @@ fn shoot_spawn_projectile(
     mut q_turret: Query<
         (
             Entity,
-            &TurretSectionMuzzleEntity,
+            &TurretSectionMuzzles,
             &ChildOf,
             &TurretSectionConfigHelper,
             Option<&LoadedBullet>,
@@ -1037,7 +1057,7 @@ fn shoot_spawn_projectile(
     q_hot: Query<&WeaponsHot>,
 ) {
     let dt = time.delta_secs();
-    for (turret, muzzle, ChildOf(spaceship), config, loaded, input, mut ammo) in &mut q_turret {
+    for (turret, muzzles, ChildOf(spaceship), config, loaded, input, mut ammo) in &mut q_turret {
         // The weapons safety is a LIVE predicate (deliberate-radar task
         // 20260713-082337): a managed ship (player, mirrored AI) cannot fire
         // while SAFE even mid-held-trigger - the input bool is latched, so a
@@ -1052,35 +1072,10 @@ fn shoot_spawn_projectile(
         let (bullet_kind, bullet_damage) = loaded
             .map(|loaded| (loaded.kind, loaded.damage))
             .unwrap_or((config.bullet_kind, config.bullet_damage));
-        let Ok(mut fire_state) = q_muzzle.get_mut(**muzzle) else {
-            error!(
-                "shoot_spawn_projectile: entity {:?} not found in q_muzzle",
-                **muzzle
-            );
-            continue;
-        };
 
-        // The cooldown elapses on the fixed clock whether or not the trigger
-        // is held (absorbed from the old update_barrel_fire_state, which also
-        // removed an unordered-tick-vs-shoot ambiguity in the Update set).
-        // `elapsed` is sampled BEFORE the tick because a Once timer clamps at
-        // its duration: `before + dt - interval` is the only way to recover
-        // how far past due the shot came within this tick window.
-        let before = fire_state.elapsed_secs();
-        fire_state.tick(Duration::from_secs_f32(dt));
-
-        if !**input || !fire_state.is_finished() {
-            continue;
-        }
-
-        // Out of ammo: an empty magazine suppresses the whole turret this tick.
-        // A turret with no `SectionAmmo` (unlimited) is never gated here, so the
-        // pre-ammo behavior is untouched. The per-shot decrement below stops a
-        // magazine that empties partway through this tick's burst.
-        if ammo.as_deref().is_some_and(SectionAmmo::is_empty) {
-            continue;
-        }
-
+        // The spaceship pose is a per-TURRET quantity: every muzzle spawns
+        // relative to the same root avian pose, so read it once before the
+        // muzzle loop (task 20260717-215857).
         let Ok((position, rotation, lin_vel, ang_vel, center, allegiance)) =
             q_spaceship.get(*spaceship)
         else {
@@ -1091,163 +1086,202 @@ fn shoot_spawn_projectile(
             continue;
         };
 
-        // Muzzle pose on the RAW physics clock: the root's avian pose
-        // composed with the local mount chain (turret -> rotators ->
-        // muzzle). This system runs in FixedUpdate, where `GlobalTransform`
-        // still holds the previous frame's EASED render pose - sampling it
-        // scattered spawn points by up to a tick of ship motion per shot
-        // (task 20260710-231930). The rotator locals are written by the
-        // Update-schedule aim systems; reading them here means the aim is at
-        // most one frame old, which is control input staleness, not a
-        // velocity-proportional error.
-        let Some((muzzle_local_pos, muzzle_local_rot)) =
-            local_pose_in_root(**muzzle, *spaceship, &q_chain)
-        else {
-            error!(
-                "shoot_spawn_projectile: muzzle {:?} is not a descendant of ship {:?}",
-                **muzzle, spaceship
-            );
-            continue;
-        };
-        let projectile_rotation = rotation.0 * muzzle_local_rot;
-        let muzzle_position = position.0 + rotation.mul_vec3(muzzle_local_pos);
-        let muzzle_direction = projectile_rotation * Vec3::NEG_Z;
-
-        // Inherit the full motion of the muzzle, not just the ship's linear
-        // velocity: a muzzle offset from the center of mass of a rotating
-        // ship also swings tangentially. avian's `ComputedCenterOfMass` is
-        // body-local; lift it with the same raw pose as everything else.
-        let center_of_mass = position.0 + rotation.mul_vec3(**center);
-        let inertia_vel =
-            rigid_body_point_velocity(**lin_vel, **ang_vel, center_of_mass, muzzle_position);
-        let muzzle_exit_velocity = muzzle_direction * config.muzzle_speed;
-        let linear_velocity = muzzle_exit_velocity + inertia_vel;
-
-        let interval = fire_state.duration().as_secs_f32();
-        // How far past due the shot came within this tick window. A timer
-        // that finished in an earlier tick (idle barrel, trigger just
-        // pulled) reads `before == interval`, so the clamp lands the first
-        // shot on this tick's start - fire NOW, exactly the old semantics.
-        let mut excess = (before + dt - interval).clamp(0.0, dt);
-
-        for _ in 0..MAX_SHOTS_PER_TICK {
-            // Spend one round per bullet. A magazine that runs dry mid-burst
-            // stops the stream exactly at zero (a high fire rate can queue
-            // several shots per tick, so the gate above is not enough on its
-            // own). Unlimited turrets carry no `SectionAmmo` and never break.
-            if let Some(ammo) = ammo.as_deref_mut() {
-                if !ammo.try_consume() {
-                    break;
-                }
-            }
-
-            // Sub-tick exactness: a shot due `lead` seconds into this tick
-            // starts one lead-time of muzzle-exit travel BEHIND the muzzle,
-            // so after this tick's integration it sits exactly where a
-            // bullet fired at the due moment would - the stream stays
-            // uniformly spaced at any ship velocity. (The ship-motion terms
-            // cancel: spawn = muzzle + (v_muzzle - v_bullet) * lead, and
-            // v_bullet - v_muzzle is the muzzle exit velocity.)
-            let lead = dt - excess;
-            let projectile_transform = Transform {
-                translation: muzzle_position - muzzle_exit_velocity * lead,
-                rotation: projectile_rotation,
-                ..default()
+        // Copy the muzzle Entity list out of the component BEFORE the inner
+        // loop, so `q_muzzle` (fire timers) and `commands` are free to borrow
+        // while we iterate. Every muzzle draws from the ONE `SectionAmmo` below:
+        // a shared magazine, not a per-barrel one.
+        let muzzle_entities: Vec<Entity> = muzzles.0.clone();
+        for muzzle in muzzle_entities {
+            let Ok(mut fire_state) = q_muzzle.get_mut(muzzle) else {
+                error!(
+                    "shoot_spawn_projectile: entity {:?} not found in q_muzzle",
+                    muzzle
+                );
+                continue;
             };
 
-            let mut projectile = commands.spawn((
-                Name::new("Turret Projectile"),
-                TurretBulletProjectileMarker,
-                ProjectileOwner(*spaceship),
-                projectile_transform,
-                RigidBody::Dynamic,
-                LinearVelocity(linear_velocity),
-                // Sensor: the impact-damage observer computes damage from
-                // masses and velocities, never from the solver contact -
-                // so a bullet needs NO physical contact response, and a
-                // solid one was the knockback bug (mass 0.1 at 100 u/s
-                // plus restitution shoved a ~4-mass ship ~3 u/s per hit;
-                // playtest round 2 finding 2). despawn_bullet_on_hit
-                // keeps a sensor round from crossing on through every
-                // collider behind the first. CollisionEventsEnabled is
-                // carried by the BULLET because the other side may not
-                // have it: an invulnerable planetoid's collider has no
-                // Health, so bcs never enables events on it, and an
-                // event-less sensor pair raises nothing - rounds tunneled
-                // straight through solid cover (review R1.2 MAJOR).
-                // Nested tuple: bundle arity.
-                (Collider::sphere(0.05), Sensor, CollisionEventsEnabled),
-                ActiveCollisionHooks::FILTER_PAIRS,
-                // Near-zero mass so bcs's emergent kinetic term (mass x velocity)
-                // vanishes; nova's authored ProjectileDamage is the only weapon
-                // damage. Gravity is mass-independent, so flight is unaffected
-                // (task 20260712-133343). Nested tuple: bundle arity.
-                (
-                    Mass(NEUTRALIZED_BULLET_MASS),
-                    // A Dynamic body needs finite, non-zero ANGULAR INERTIA too, or
-                    // avian warns "no mass or inertia" once per fired round and
-                    // risks NaN (task 20260716-205025). The Sensor collider above
-                    // contributes no mass properties, and the neutralized `Mass`
-                    // carries no inertia of its own, so derive a matching sphere
-                    // inertia from the same shape + mass. The bullet never takes
-                    // torque (sensor, authored damage, no angular velocity), so the
-                    // value only has to be VALID, not tuned - flight is unaffected.
-                    AngularInertia::from_shape(&Collider::sphere(0.05), NEUTRALIZED_BULLET_MASS),
-                    // The fired round comes from the turret's loaded-ammo slot,
-                    // not a hardcoded type (task 20260712-133349), so a future
-                    // ammo switch changes what this stamps.
-                    ProjectileDamage {
-                        amount: bullet_damage,
-                        kind: bullet_kind,
-                    },
-                ),
-                TurretSectionPartOf(turret),
-                TurretSectionMuzzleEntity(**muzzle),
-                BulletProjectileRenderMesh(config.projectile_render_mesh.clone()),
-                TempEntity(config.projectile_lifetime),
-                Visibility::Visible,
-                // Interpolation plus its render-clock seed (task
-                // 20260711-121839): a body spawned mid-tick misses
-                // FixedFirst, so its easing `start` stays None and the first
-                // rendered frame would show the RAW spawn pose (sub-tick
-                // lead offset and all) while the rest of the world renders
-                // EASED - one visible frame of muzzle pop, cross-stream
-                // error up to a tick of ship motion. Seeding `start` with
-                // the tick-start muzzle pose (no lead offset) puts the first
-                // frame at lerp(muzzle, raw_end, alpha): attached to the
-                // rendered barrel, and only ever ahead of it along the
-                // stream. FixedLast fills `end` with this tick's integrated
-                // raw pose as usual, and the teleport-reset guard keeps the
-                // seed because the written Transform equals `end` exactly.
-                (
-                    TransformInterpolation,
-                    TranslationEasingState {
-                        start: Some(muzzle_position),
-                        end: None,
-                    },
-                    RotationEasingState {
-                        start: Some(projectile_rotation),
-                        end: None,
-                    },
-                ),
-            ));
-            // The projectile COPIES the shooter's allegiance instead of
-            // resolving through ProjectileOwner at read time: it stays
-            // attributable even if the owner dies mid-flight, and consumers
-            // stay single-query.
-            if let Some(&allegiance) = allegiance {
-                projectile.insert(allegiance);
+            // The cooldown elapses on the fixed clock whether or not the trigger
+            // is held (absorbed from the old update_barrel_fire_state, which also
+            // removed an unordered-tick-vs-shoot ambiguity in the Update set).
+            // `elapsed` is sampled BEFORE the tick because a Once timer clamps at
+            // its duration: `before + dt - interval` is the only way to recover
+            // how far past due the shot came within this tick window.
+            let before = fire_state.elapsed_secs();
+            fire_state.tick(Duration::from_secs_f32(dt));
+
+            if !**input || !fire_state.is_finished() {
+                continue;
             }
 
-            // Re-arm and immediately advance by the leftover: if the excess
-            // spans another full interval the barrel fires again this tick
-            // (fire rates above the tick rate keep their true cadence).
-            fire_state.reset();
-            fire_state.tick(Duration::from_secs_f32(excess));
-            if !fire_state.is_finished() {
-                break;
+            // Out of ammo: the ONE shared magazine gates every muzzle. A mag that
+            // empties on an earlier muzzle's burst this tick stops the later ones
+            // too. A turret with no `SectionAmmo` (unlimited) is never gated here,
+            // so the pre-ammo behavior is untouched.
+            if ammo.as_deref().is_some_and(SectionAmmo::is_empty) {
+                continue;
             }
-            excess -= interval;
+
+            // Muzzle pose on the RAW physics clock: the root's avian pose
+            // composed with the local mount chain (turret -> rotators ->
+            // muzzle). This system runs in FixedUpdate, where `GlobalTransform`
+            // still holds the previous frame's EASED render pose - sampling it
+            // scattered spawn points by up to a tick of ship motion per shot
+            // (task 20260710-231930). The rotator locals are written by the
+            // Update-schedule aim systems; reading them here means the aim is at
+            // most one frame old, which is control input staleness, not a
+            // velocity-proportional error.
+            let Some((muzzle_local_pos, muzzle_local_rot)) =
+                local_pose_in_root(muzzle, *spaceship, &q_chain)
+            else {
+                error!(
+                    "shoot_spawn_projectile: muzzle {:?} is not a descendant of ship {:?}",
+                    muzzle, spaceship
+                );
+                continue;
+            };
+            let projectile_rotation = rotation.0 * muzzle_local_rot;
+            let muzzle_position = position.0 + rotation.mul_vec3(muzzle_local_pos);
+            let muzzle_direction = projectile_rotation * Vec3::NEG_Z;
+
+            // Inherit the full motion of the muzzle, not just the ship's linear
+            // velocity: a muzzle offset from the center of mass of a rotating
+            // ship also swings tangentially. avian's `ComputedCenterOfMass` is
+            // body-local; lift it with the same raw pose as everything else.
+            let center_of_mass = position.0 + rotation.mul_vec3(**center);
+            let inertia_vel =
+                rigid_body_point_velocity(**lin_vel, **ang_vel, center_of_mass, muzzle_position);
+            let muzzle_exit_velocity = muzzle_direction * config.muzzle_speed;
+            let linear_velocity = muzzle_exit_velocity + inertia_vel;
+
+            let interval = fire_state.duration().as_secs_f32();
+            // How far past due the shot came within this tick window. A timer
+            // that finished in an earlier tick (idle barrel, trigger just
+            // pulled) reads `before == interval`, so the clamp lands the first
+            // shot on this tick's start - fire NOW, exactly the old semantics.
+            let mut excess = (before + dt - interval).clamp(0.0, dt);
+
+            for _ in 0..MAX_SHOTS_PER_TICK {
+                // Spend one round per bullet. A magazine that runs dry mid-burst
+                // stops the stream exactly at zero (a high fire rate can queue
+                // several shots per tick, so the gate above is not enough on its
+                // own). Unlimited turrets carry no `SectionAmmo` and never break.
+                if let Some(ammo) = ammo.as_deref_mut() {
+                    if !ammo.try_consume() {
+                        break;
+                    }
+                }
+
+                // Sub-tick exactness: a shot due `lead` seconds into this tick
+                // starts one lead-time of muzzle-exit travel BEHIND the muzzle,
+                // so after this tick's integration it sits exactly where a
+                // bullet fired at the due moment would - the stream stays
+                // uniformly spaced at any ship velocity. (The ship-motion terms
+                // cancel: spawn = muzzle + (v_muzzle - v_bullet) * lead, and
+                // v_bullet - v_muzzle is the muzzle exit velocity.)
+                let lead = dt - excess;
+                let projectile_transform = Transform {
+                    translation: muzzle_position - muzzle_exit_velocity * lead,
+                    rotation: projectile_rotation,
+                    ..default()
+                };
+
+                let mut projectile = commands.spawn((
+                    Name::new("Turret Projectile"),
+                    TurretBulletProjectileMarker,
+                    ProjectileOwner(*spaceship),
+                    projectile_transform,
+                    RigidBody::Dynamic,
+                    LinearVelocity(linear_velocity),
+                    // Sensor: the impact-damage observer computes damage from
+                    // masses and velocities, never from the solver contact -
+                    // so a bullet needs NO physical contact response, and a
+                    // solid one was the knockback bug (mass 0.1 at 100 u/s
+                    // plus restitution shoved a ~4-mass ship ~3 u/s per hit;
+                    // playtest round 2 finding 2). despawn_bullet_on_hit
+                    // keeps a sensor round from crossing on through every
+                    // collider behind the first. CollisionEventsEnabled is
+                    // carried by the BULLET because the other side may not
+                    // have it: an invulnerable planetoid's collider has no
+                    // Health, so bcs never enables events on it, and an
+                    // event-less sensor pair raises nothing - rounds tunneled
+                    // straight through solid cover (review R1.2 MAJOR).
+                    // Nested tuple: bundle arity.
+                    (Collider::sphere(0.05), Sensor, CollisionEventsEnabled),
+                    ActiveCollisionHooks::FILTER_PAIRS,
+                    // Near-zero mass so bcs's emergent kinetic term (mass x velocity)
+                    // vanishes; nova's authored ProjectileDamage is the only weapon
+                    // damage. Gravity is mass-independent, so flight is unaffected
+                    // (task 20260712-133343). Nested tuple: bundle arity.
+                    (
+                        Mass(NEUTRALIZED_BULLET_MASS),
+                        // A Dynamic body needs finite, non-zero ANGULAR INERTIA too, or
+                        // avian warns "no mass or inertia" once per fired round and
+                        // risks NaN (task 20260716-205025). The Sensor collider above
+                        // contributes no mass properties, and the neutralized `Mass`
+                        // carries no inertia of its own, so derive a matching sphere
+                        // inertia from the same shape + mass. The bullet never takes
+                        // torque (sensor, authored damage, no angular velocity), so the
+                        // value only has to be VALID, not tuned - flight is unaffected.
+                        AngularInertia::from_shape(
+                            &Collider::sphere(0.05),
+                            NEUTRALIZED_BULLET_MASS,
+                        ),
+                        // The fired round comes from the turret's loaded-ammo slot,
+                        // not a hardcoded type (task 20260712-133349), so a future
+                        // ammo switch changes what this stamps.
+                        ProjectileDamage {
+                            amount: bullet_damage,
+                            kind: bullet_kind,
+                        },
+                    ),
+                    TurretSectionPartOf(turret),
+                    TurretSectionMuzzleEntity(muzzle),
+                    BulletProjectileRenderMesh(config.projectile_render_mesh.clone()),
+                    TempEntity(config.projectile_lifetime),
+                    Visibility::Visible,
+                    // Interpolation plus its render-clock seed (task
+                    // 20260711-121839): a body spawned mid-tick misses
+                    // FixedFirst, so its easing `start` stays None and the first
+                    // rendered frame would show the RAW spawn pose (sub-tick
+                    // lead offset and all) while the rest of the world renders
+                    // EASED - one visible frame of muzzle pop, cross-stream
+                    // error up to a tick of ship motion. Seeding `start` with
+                    // the tick-start muzzle pose (no lead offset) puts the first
+                    // frame at lerp(muzzle, raw_end, alpha): attached to the
+                    // rendered barrel, and only ever ahead of it along the
+                    // stream. FixedLast fills `end` with this tick's integrated
+                    // raw pose as usual, and the teleport-reset guard keeps the
+                    // seed because the written Transform equals `end` exactly.
+                    (
+                        TransformInterpolation,
+                        TranslationEasingState {
+                            start: Some(muzzle_position),
+                            end: None,
+                        },
+                        RotationEasingState {
+                            start: Some(projectile_rotation),
+                            end: None,
+                        },
+                    ),
+                ));
+                // The projectile COPIES the shooter's allegiance instead of
+                // resolving through ProjectileOwner at read time: it stays
+                // attributable even if the owner dies mid-flight, and consumers
+                // stay single-query.
+                if let Some(&allegiance) = allegiance {
+                    projectile.insert(allegiance);
+                }
+
+                // Re-arm and immediately advance by the leftover: if the excess
+                // spans another full interval the barrel fires again this tick
+                // (fire rates above the tick rate keep their true cadence).
+                fire_state.reset();
+                fire_state.tick(Duration::from_secs_f32(excess));
+                if !fire_state.is_finished() {
+                    break;
+                }
+                excess -= interval;
+            }
         }
     }
 }
@@ -1379,23 +1413,34 @@ fn insert_projectile_render(
     }
 }
 
-fn insert_turret_section_render(
-    add: On<Add, TurretRotatorBaseMarker>,
+/// Generic joint render (replaces the four per-type render observers). Fires on
+/// `Add, TurretJointMarker` (gated by `self.render`). If the joint authored a
+/// mesh, spawn a `WorldAssetRoot` child; otherwise spawn a small generic
+/// default primitive so an unmeshed joint is still visible. The old bespoke
+/// per-type placeholder art (ridged yaw/pitch cylinders, layered barrel shape)
+/// is dropped in favor of one default; shipped turrets author GLB meshes so the
+/// visible game is unchanged.
+fn insert_turret_joint_render(
+    add: On<Add, TurretJointMarker>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
-    q_base: Query<
-        (&TurretSectionPartOf, &TurretSectionBaseRenderMesh),
-        With<TurretRotatorBaseMarker>,
+    q_joint: Query<
+        (
+            &TurretSectionPartOf,
+            &TurretJointRenderMesh,
+            Has<TurretSectionBarrelMuzzleMarker>,
+        ),
+        With<TurretJointMarker>,
     >,
 ) {
     let entity = add.entity;
-    trace!("insert_turret_section_render: entity {:?}", entity);
+    trace!("insert_turret_joint_render: entity {:?}", entity);
 
-    let Ok((turret, render_mesh)) = q_base.get(entity) else {
+    let Ok((turret, render_mesh, is_muzzle)) = q_joint.get(entity) else {
         error!(
-            "insert_turret_section_render: entity {:?} not found in q_base",
+            "insert_turret_joint_render: entity {:?} not found in q_joint",
             entity
         );
         return;
@@ -1405,266 +1450,26 @@ fn insert_turret_section_render(
         Some(asset_ref) => {
             let scene = asset_ref.resolve(&asset_server);
             commands.entity(entity).insert((children![(
-                Name::new("Render Turret Base"),
+                Name::new("Render Turret Joint"),
                 SectionRenderOf(**turret),
                 WorldAssetRoot(scene),
             ),],));
         }
-        None => {
+        // A muzzle is an invisible fire point (the original never rendered it);
+        // only a STRUCTURAL unmeshed joint (the base plate) gets a default
+        // primitive so the mount is not floating meshes with a gap under it. The
+        // shape matches the pre-refactor base plate (a wide flat disc slightly
+        // above the joint origin) so an unmeshed base looks exactly as it did.
+        None if !is_muzzle => {
             commands.entity(entity).insert((children![(
-                Name::new("Render Turret Base"),
+                Name::new("Render Turret Joint"),
                 Transform::from_xyz(0.0, 0.05, 0.0),
                 SectionRenderOf(**turret),
                 Mesh3d(meshes.add(Cylinder::new(0.5, 0.1))),
                 MeshMaterial3d(materials.add(Color::srgb(0.25, 0.25, 0.25))),
             ),],));
         }
-    }
-}
-
-fn insert_turret_yaw_rotator_render(
-    add: On<Add, TurretSectionRotatorYawMarker>,
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    asset_server: Res<AssetServer>,
-    q_yaw: Query<
-        (&TurretSectionPartOf, &TurretSectionYawRenderMesh),
-        With<TurretSectionRotatorYawMarker>,
-    >,
-) {
-    let entity = add.entity;
-    trace!("insert_turret_yaw_rotator_render: entity {:?}", entity);
-
-    let Ok((turret, render_mesh)) = q_yaw.get(entity) else {
-        error!(
-            "insert_turret_yaw_rotator_render: entity {:?} not found in q_yaw",
-            entity
-        );
-        return;
-    };
-
-    match &**render_mesh {
-        Some(asset_ref) => {
-            let scene = asset_ref.resolve(&asset_server);
-            commands.entity(entity).insert((children![(
-                Name::new("Render Turret Yaw"),
-                SectionRenderOf(**turret),
-                WorldAssetRoot(scene),
-            ),],));
-        }
-        None => {
-            let base_mat = materials.add(Color::srgb(0.4, 0.4, 0.4));
-            let ridge_mat = materials.add(Color::srgb(0.3, 0.3, 0.3));
-
-            let base_cylinder = meshes.add(Cylinder::new(0.2, 0.2));
-
-            let ridge_count = 16;
-            let ridge_radius = 0.22;
-            let ridge_height = 0.2;
-            let ridge_width = 0.04;
-            let ridge_depth = 0.02;
-
-            commands.entity(entity).with_children(|parent| {
-                parent
-                    .spawn((
-                        Name::new("Render Turret Yaw"),
-                        Transform::from_xyz(0.0, 0.1, 0.0),
-                        Visibility::Inherited,
-                    ))
-                    .with_children(|parent| {
-                        parent.spawn((
-                            Name::new("Yaw Base"),
-                            SectionRenderOf(**turret),
-                            Mesh3d(base_cylinder.clone()),
-                            MeshMaterial3d(base_mat.clone()),
-                        ));
-
-                        for i in 0..ridge_count {
-                            let angle = i as f32 / ridge_count as f32 * std::f32::consts::TAU;
-                            parent.spawn((
-                                Name::new(format!("Ridge {i}")),
-                                Transform::from_xyz(
-                                    angle.cos() * ridge_radius,
-                                    0.0,
-                                    angle.sin() * ridge_radius,
-                                )
-                                .with_rotation(Quat::from_rotation_y(angle)),
-                                Mesh3d(meshes.add(Cuboid::new(
-                                    ridge_depth,
-                                    ridge_height,
-                                    ridge_width,
-                                ))),
-                                MeshMaterial3d(ridge_mat.clone()),
-                            ));
-                        }
-                    });
-            });
-        }
-    }
-}
-
-fn insert_turret_pitch_rotator_render(
-    add: On<Add, TurretSectionRotatorPitchMarker>,
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    asset_server: Res<AssetServer>,
-    q_pitch: Query<
-        (&TurretSectionPartOf, &TurretSectionPitchRenderMesh),
-        With<TurretSectionRotatorPitchMarker>,
-    >,
-) {
-    let entity = add.entity;
-    trace!("insert_turret_pitch_rotator_render: entity {:?}", entity);
-
-    let Ok((turret, render_mesh)) = q_pitch.get(entity) else {
-        error!(
-            "insert_turret_pitch_rotator_render: entity {:?} not found in q_pitch",
-            entity
-        );
-        return;
-    };
-
-    match &**render_mesh {
-        Some(asset_ref) => {
-            let scene = asset_ref.resolve(&asset_server);
-            commands.entity(entity).insert((children![(
-                Name::new("Render Turret Pitch"),
-                SectionRenderOf(**turret),
-                WorldAssetRoot(scene),
-            ),],));
-        }
-        None => {
-            let base_mat = materials.add(Color::srgb(0.5, 0.5, 0.5));
-            let ridge_mat = materials.add(Color::srgb(0.3, 0.3, 0.3));
-
-            let base_cylinder = meshes.add(Cylinder::new(0.2, 0.2));
-
-            let ridge_count = 16;
-            let ridge_radius = 0.22;
-            let ridge_height = 0.2;
-            let ridge_width = 0.04;
-            let ridge_depth = 0.02;
-
-            commands.entity(entity).with_children(|parent| {
-                parent
-                    .spawn((
-                        Name::new("Render Turret Pitch"),
-                        Transform::from_xyz(0.3, 0.2, 0.0)
-                            .with_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)),
-                        Visibility::Inherited,
-                    ))
-                    .with_children(|parent| {
-                        parent.spawn((
-                            Name::new("Pitch Base"),
-                            SectionRenderOf(**turret),
-                            Mesh3d(base_cylinder.clone()),
-                            MeshMaterial3d(base_mat.clone()),
-                        ));
-
-                        for i in 0..ridge_count {
-                            let angle = i as f32 / ridge_count as f32 * std::f32::consts::TAU;
-                            parent.spawn((
-                                Name::new(format!("Ridge {i}")),
-                                Transform::from_xyz(
-                                    angle.cos() * ridge_radius,
-                                    0.0,
-                                    angle.sin() * ridge_radius,
-                                )
-                                .with_rotation(Quat::from_rotation_y(angle)),
-                                Mesh3d(meshes.add(Cuboid::new(
-                                    ridge_depth,
-                                    ridge_height,
-                                    ridge_width,
-                                ))),
-                                MeshMaterial3d(ridge_mat.clone()),
-                            ));
-                        }
-                    });
-            });
-        }
-    }
-}
-
-fn insert_turret_barrel_render(
-    add: On<Add, TurretSectionRotatorBarrelMarker>,
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    asset_server: Res<AssetServer>,
-    q_barrel: Query<
-        (&TurretSectionPartOf, &TurretSectionBarrelRenderMesh),
-        With<TurretSectionRotatorBarrelMarker>,
-    >,
-) {
-    let entity = add.entity;
-    trace!("insert_turret_barrel_render: entity {:?}", entity);
-
-    let Ok((turret, render_mesh)) = q_barrel.get(entity) else {
-        error!(
-            "insert_turret_barrel_render: entity {:?} not found in q_barrel",
-            entity
-        );
-        return;
-    };
-
-    match &**render_mesh {
-        Some(asset_ref) => {
-            let scene = asset_ref.resolve(&asset_server);
-            commands.entity(entity).insert((children![(
-                Name::new("Render Turret Barrel"),
-                SectionRenderOf(**turret),
-                WorldAssetRoot(scene),
-            ),],));
-        }
-        None => {
-            let body_mat = materials.add(Color::srgb(0.2, 0.2, 0.5));
-            let barrel_mat = materials.add(Color::srgb(0.2, 0.2, 0.7));
-            let tip_mat = materials.add(Color::srgb(0.9, 0.2, 0.2));
-
-            let body_mesh = meshes.add(Cuboid::new(0.2, 0.2, 0.3));
-            let barrel_mesh = meshes.add(Cuboid::new(0.12, 0.12, 0.2));
-            let tip_mesh = meshes.add(Cone::new(0.08, 0.18));
-
-            commands.entity(entity).with_children(|parent| {
-                parent
-                    .spawn((
-                        Name::new("Render Turret Barrel"),
-                        Transform::default(),
-                        Visibility::Inherited,
-                    ))
-                    .with_children(|parent| {
-                        parent
-                            .spawn((
-                                Name::new("Turret Body"),
-                                Transform::from_xyz(0.0, 0.0, -0.05),
-                                SectionRenderOf(**turret),
-                                Mesh3d(body_mesh.clone()),
-                                MeshMaterial3d(body_mat.clone()),
-                            ))
-                            .with_children(|parent| {
-                                parent
-                                    .spawn((
-                                        Name::new("Turret Barrel"),
-                                        Transform::from_xyz(0.0, 0.0, -0.25),
-                                        Mesh3d(barrel_mesh.clone()),
-                                        MeshMaterial3d(barrel_mat.clone()),
-                                    ))
-                                    .with_children(|parent| {
-                                        parent.spawn((
-                                            Name::new("Barrel Tip"),
-                                            Transform::from_xyz(0.0, 0.0, -0.05).with_rotation(
-                                                Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
-                                            ),
-                                            Mesh3d(tip_mesh.clone()),
-                                            MeshMaterial3d(tip_mat.clone()),
-                                        ));
-                                    });
-                            });
-                    });
-            });
-        }
+        None => {}
     }
 }
 
@@ -1809,7 +1614,8 @@ mod tests {
     /// so the first tick can fire. `q_spaceship` reads avian `Position`/
     /// `Rotation`, so those are inserted directly (no physics stepping).
     fn spawn_firing_turret(app: &mut App, ammo: Option<u32>) -> Entity {
-        let interval = 1.0 / TurretSectionConfig::default().fire_rate;
+        // The default turret's single muzzle fires at 100 rounds/s.
+        let interval = 1.0 / 100.0;
         let mut timer = Timer::from_seconds(interval, TimerMode::Once);
         timer.finish();
 
@@ -1841,9 +1647,10 @@ mod tests {
                 ChildOf(turret),
             ))
             .id();
-        world
-            .entity_mut(turret)
-            .insert(TurretSectionMuzzleEntity(muzzle));
+        world.entity_mut(turret).insert((
+            TurretSectionMuzzleEntity(muzzle),
+            TurretSectionMuzzles(vec![muzzle]),
+        ));
         if let Some(capacity) = ammo {
             world.entity_mut(turret).insert(SectionAmmo::new(capacity));
         }
@@ -1883,6 +1690,128 @@ mod tests {
         assert_eq!(
             ammo.rounds, 0,
             "the magazine must read empty after firing out"
+        );
+    }
+
+    /// The number of fired bullets stamped with each given muzzle entity.
+    fn bullets_per_muzzle(app: &mut App, muzzles: &[Entity]) -> Vec<usize> {
+        let stamped: Vec<Entity> = app
+            .world_mut()
+            .query_filtered::<&TurretSectionMuzzleEntity, With<TurretBulletProjectileMarker>>()
+            .iter(app.world())
+            .map(|m| **m)
+            .collect();
+        muzzles
+            .iter()
+            .map(|&muzzle| stamped.iter().filter(|&&s| s == muzzle).count())
+            .collect()
+    }
+
+    #[test]
+    fn a_twin_barrel_fires_both_muzzles_over_one_shared_magazine() {
+        // MULTI-MUZZLE + SHARED MAG (task 20260717-215857): a turret whose barrel
+        // joint carries TWO muzzles fires BOTH, and both draw from the ONE section
+        // magazine. The key claim is the SHARED magazine: N muzzles do NOT each get
+        // their own ammo pool - a 3-round mag yields 3 bullets TOTAL across both
+        // barrels, not 3 per barrel (6). Built via the spawn observer so both
+        // muzzle entities, their fire timers and `TurretSectionMuzzles` all exist.
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(
+            std::time::Duration::from_secs_f32(1.0),
+        ));
+        app.add_observer(insert_turret_section);
+        app.add_systems(Update, shoot_spawn_projectile);
+
+        // base(fixed) -> yaw(Y) -> pitch(X) -> barrel(fixed) with TWO muzzle
+        // children at symmetric lateral offsets. fire_rate 10, shared mag of 3.
+        let muzzle = |x: f32| TurretJoint {
+            offset: Vec3::new(x, 0.0, -0.5),
+            axis: None,
+            speed: default_joint_speed(),
+            min: None,
+            max: None,
+            render_mesh: None,
+            muzzle: Some(MuzzleConfig {
+                fire_rate: 10.0,
+                muzzle_effect: None,
+            }),
+            children: vec![],
+        };
+        let barrel = TurretJoint {
+            offset: Vec3::new(0.0, 0.0, 0.0),
+            axis: None,
+            speed: default_joint_speed(),
+            min: None,
+            max: None,
+            render_mesh: None,
+            muzzle: None,
+            children: vec![muzzle(0.1), muzzle(-0.1)],
+        };
+        let config = TurretSectionConfig {
+            root: barrel,
+            ammo_capacity: Some(3),
+            ..default()
+        };
+
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                Position(Vec3::ZERO),
+                Rotation::default(),
+                LinearVelocity(Vec3::ZERO),
+                AngularVelocity(Vec3::ZERO),
+                ComputedCenterOfMass(Vec3::ZERO),
+            ))
+            .id();
+        let turret = app.world_mut().spawn(turret_section(config)).id();
+        app.world_mut().entity_mut(turret).insert((
+            ChildOf(ship),
+            Transform::default(),
+            TurretSectionInput(true),
+        ));
+        app.world_mut().flush();
+
+        // The two muzzle entities the observer recorded, in DFS order.
+        let muzzles = app
+            .world()
+            .entity(turret)
+            .get::<TurretSectionMuzzles>()
+            .expect("the turret records its muzzles")
+            .0
+            .clone();
+        assert_eq!(muzzles.len(), 2, "the twin barrel must record two muzzles");
+
+        // Hold the trigger for far more ticks than the magazine can supply.
+        for _ in 0..10 {
+            app.update();
+        }
+
+        let per = bullets_per_muzzle(&mut app, &muzzles);
+        assert!(
+            per[0] > 0 && per[1] > 0,
+            "both muzzles must produce bullets, got {per:?}"
+        );
+        assert_eq!(
+            per[0] + per[1],
+            3,
+            "the magazine is SHARED: 3 rounds total across both barrels, not per \
+             barrel, got {per:?}"
+        );
+        assert_eq!(
+            bullet_count(&mut app),
+            3,
+            "exactly the shared magazine's worth of bullets ever spawn"
+        );
+        let ammo = app
+            .world()
+            .entity(turret)
+            .get::<SectionAmmo>()
+            .expect("the turret keeps its magazine");
+        assert_eq!(
+            ammo.rounds, 0,
+            "the shared magazine reads empty after firing out"
         );
     }
 
@@ -2269,81 +2198,94 @@ mod tests {
         assert!((aim - target).length() < 1e-3);
     }
 
-    /// Spawn a bare turret whose base rotators and fire timer are seeded from `config`,
-    /// mimicking what `insert_turret_section` builds, without needing the render/physics
-    /// plugins. Returns `(turret, yaw_base, pitch_base, muzzle)`.
-    fn spawn_turret_rig(
-        app: &mut App,
-        config: &TurretSectionConfig,
-    ) -> (Entity, Entity, Entity, Entity) {
-        let turret = app
-            .world_mut()
-            .spawn((
-                TurretSectionMarker,
-                TurretSectionConfigHelper(config.clone()),
-            ))
-            .id();
-        let yaw = app
-            .world_mut()
-            .spawn((
-                TurretSectionRotatorYawBaseMarker,
-                TurretSectionPartOf(turret),
-                SmoothLookRotation {
-                    axis: Vec3::Y,
-                    initial: 0.0,
-                    speed: config.yaw_speed,
-                    ..default()
-                },
-            ))
-            .id();
-        let pitch = app
-            .world_mut()
-            .spawn((
-                TurretSectionRotatorPitchBaseMarker,
-                TurretSectionPartOf(turret),
-                SmoothLookRotation {
-                    axis: Vec3::X,
-                    initial: 0.0,
-                    speed: config.pitch_speed,
-                    min: config.min_pitch,
-                    max: config.max_pitch,
-                },
-            ))
-            .id();
-        let muzzle = app
-            .world_mut()
-            .spawn((
-                TurretSectionBarrelMuzzleMarker,
-                TurretSectionPartOf(turret),
-                TurretSectionBarrelFireState(Timer::from_seconds(
-                    1.0 / config.fire_rate,
-                    TimerMode::Once,
-                )),
-            ))
-            .id();
-        (turret, yaw, pitch, muzzle)
+    /// The mutable config joint whose hinge axis is roughly `axis` (DFS order).
+    fn config_joint_mut(root: &mut TurretJoint, axis: Vec3) -> Option<&mut TurretJoint> {
+        if root
+            .axis
+            .is_some_and(|a| a.normalize().dot(axis.normalize()) > 0.99)
+        {
+            return Some(root);
+        }
+        root.children
+            .iter_mut()
+            .find_map(|c| config_joint_mut(c, axis))
+    }
+
+    /// The articulated joint entity of `turret` whose axis is roughly `axis`.
+    fn joint_entity_with_axis(app: &App, turret: Entity, axis: Vec3) -> Entity {
+        let world = app.world();
+        let mut best = None;
+        // Every joint entity carries TurretSectionPartOf(turret) + a marker.
+        for entity in world.iter_entities() {
+            let id = entity.id();
+            let Some(part_of) = world.get::<TurretSectionPartOf>(id) else {
+                continue;
+            };
+            if **part_of != turret {
+                continue;
+            }
+            let Some(marker) = world.get::<TurretJointMarker>(id) else {
+                continue;
+            };
+            if marker
+                .axis
+                .is_some_and(|a| a.normalize().dot(axis.normalize()) > 0.99)
+            {
+                best = Some(id);
+            }
+        }
+        best.expect("a joint with the requested axis exists")
+    }
+
+    /// The muzzle joint entity of `turret`.
+    fn muzzle_entity(app: &App, turret: Entity) -> Entity {
+        **app
+            .world()
+            .get::<TurretSectionMuzzleEntity>(turret)
+            .expect("the turret records its muzzle")
+    }
+
+    /// Build a real turret via the spawn observer, so the joint entities and
+    /// their `Children`/`ChildOf` links exist for the config-sync systems.
+    fn spawn_real_turret(app: &mut App, config: TurretSectionConfig) -> Entity {
+        let turret = app.world_mut().spawn(turret_section(config)).id();
+        app.world_mut().flush();
+        turret
     }
 
     #[test]
     fn editing_the_config_retunes_the_live_turret() {
         // The tuning sliders write `TurretSectionConfigHelper`; the snapshotted knobs on the
-        // child rotators and the fire timer must follow.
+        // joint rotators and the fire timer must follow.
         let mut app = App::new();
+        app.add_observer(insert_turret_section);
         app.add_systems(Update, apply_turret_config_to_children);
 
-        let (turret, yaw, pitch, muzzle) =
-            spawn_turret_rig(&mut app, &TurretSectionConfig::default());
+        let turret = spawn_real_turret(&mut app, TurretSectionConfig::default());
+        let yaw = joint_entity_with_axis(&app, turret, Vec3::Y);
+        let pitch = joint_entity_with_axis(&app, turret, Vec3::X);
+        let muzzle = muzzle_entity(&app, turret);
 
         {
             let mut helper = app
                 .world_mut()
                 .get_mut::<TurretSectionConfigHelper>(turret)
                 .unwrap();
-            helper.yaw_speed = 5.0;
-            helper.pitch_speed = 6.0;
-            helper.min_pitch = Some(-0.25);
-            helper.max_pitch = Some(0.5);
-            helper.fire_rate = 25.0;
+            config_joint_mut(&mut helper.root, Vec3::Y).unwrap().speed = 5.0;
+            let pitch_cfg = config_joint_mut(&mut helper.root, Vec3::X).unwrap();
+            pitch_cfg.speed = 6.0;
+            pitch_cfg.min = Some(-0.25);
+            pitch_cfg.max = Some(0.5);
+            // The muzzle is the pitch joint's fixed descendant; retune its rate.
+            fn set_fire_rate(joint: &mut TurretJoint, rate: f32) {
+                if let Some(m) = &mut joint.muzzle {
+                    m.fire_rate = rate;
+                }
+                for c in &mut joint.children {
+                    set_fire_rate(c, rate);
+                }
+            }
+            set_fire_rate(&mut helper.root, 25.0);
         }
         app.update();
 
@@ -2366,18 +2308,23 @@ mod tests {
 
     #[test]
     fn retuning_one_turret_leaves_another_alone() {
-        // The `TurretSectionPartOf` guard must scope edits to the edited turret's own children.
+        // The tree-position match must scope edits to the edited turret's own joints.
         let mut app = App::new();
+        app.add_observer(insert_turret_section);
         app.add_systems(Update, apply_turret_config_to_children);
 
-        let (edited, edited_yaw, _, _) =
-            spawn_turret_rig(&mut app, &TurretSectionConfig::default());
-        let (_other, other_yaw, _, _) = spawn_turret_rig(&mut app, &TurretSectionConfig::default());
+        let edited = spawn_real_turret(&mut app, TurretSectionConfig::default());
+        let other = spawn_real_turret(&mut app, TurretSectionConfig::default());
+        let edited_yaw = joint_entity_with_axis(&app, edited, Vec3::Y);
+        let other_yaw = joint_entity_with_axis(&app, other, Vec3::Y);
 
-        app.world_mut()
-            .get_mut::<TurretSectionConfigHelper>(edited)
-            .unwrap()
-            .yaw_speed = 9.0;
+        {
+            let mut helper = app
+                .world_mut()
+                .get_mut::<TurretSectionConfigHelper>(edited)
+                .unwrap();
+            config_joint_mut(&mut helper.root, Vec3::Y).unwrap().speed = 9.0;
+        }
         app.update();
 
         assert_eq!(
@@ -2392,7 +2339,7 @@ mod tests {
                 .get::<SmoothLookRotation>(other_yaw)
                 .unwrap()
                 .speed,
-            TurretSectionConfig::default().yaw_speed,
+            std::f32::consts::PI,
             "an untouched turret's rotators must not change"
         );
     }
@@ -2434,6 +2381,7 @@ mod tests {
             TurretSectionMarker,
             ChildOf(ship),
             TurretSectionMuzzleEntity(muzzle),
+            TurretSectionMuzzles(vec![muzzle]),
             TurretSectionConfigHelper(TurretSectionConfig::default()),
             TurretSectionInput(true),
         ));
@@ -2502,8 +2450,9 @@ mod tests {
                 // rig's velocity is in place, so every bullet belongs to the
                 // same stream.
                 TurretSectionInput(false),
+                // The muzzle child below carries the fire timer directly; the
+                // config's per-muzzle rate is unused by this rig.
                 TurretSectionConfigHelper(TurretSectionConfig {
-                    fire_rate,
                     muzzle_speed: 200.0,
                     ..default()
                 }),
@@ -2523,9 +2472,10 @@ mod tests {
                 }),
             ))
             .id();
-        app.world_mut()
-            .entity_mut(turret)
-            .insert(TurretSectionMuzzleEntity(muzzle));
+        app.world_mut().entity_mut(turret).insert((
+            TurretSectionMuzzleEntity(muzzle),
+            TurretSectionMuzzles(vec![muzzle]),
+        ));
         (ship, turret)
     }
 
@@ -3001,5 +2951,538 @@ mod tests {
             (95..=105).contains(&count),
             "one second at 100 rounds/s must yield ~100 bullets, got {count}"
         );
+    }
+
+    // -- joint tree (spike 20260717-214834) --
+
+    /// Collect every joint entity of `turret` in DFS order (root first).
+    fn joint_entities(app: &App) -> Vec<Entity> {
+        let world = app.world();
+        world
+            .iter_entities()
+            .filter(|e| world.get::<TurretJointMarker>(e.id()).is_some())
+            .map(|e| e.id())
+            .collect()
+    }
+
+    #[test]
+    fn every_turret_joint_render_child_is_parented_to_its_joint() {
+        // BASE-FLOATING REGRESSION: the base (and every unmeshed fixed joint)
+        // renders a default primitive as a CHILD of the joint entity. If that
+        // render child is not actually parented (ChildOf == joint), it drifts to
+        // world origin instead of riding the ship - the "base floats" report.
+        use bevy::asset::AssetPlugin;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default(), TransformPlugin));
+        app.init_asset::<Mesh>();
+        app.init_asset::<StandardMaterial>();
+        app.add_observer(insert_turret_section);
+        app.add_observer(insert_turret_joint_render);
+
+        // Place the turret far from the world origin, like a section on a flying
+        // ship. If a render child is detached, its GlobalTransform stays near the
+        // origin - hundreds of units from where the turret actually is.
+        let ship_pos = Vec3::new(100.0, 50.0, 200.0);
+        let turret = app
+            .world_mut()
+            .spawn((turret_section(TurretSectionConfig::default()),))
+            .id();
+        app.world_mut()
+            .entity_mut(turret)
+            .insert(Transform::from_translation(ship_pos));
+        app.world_mut().flush();
+        app.update(); // propagate transforms
+
+        for joint in joint_entities(&app) {
+            let render_children: Vec<Entity> = app
+                .world()
+                .get::<Children>(joint)
+                .map(|c| {
+                    c.iter()
+                        .filter(|&e| app.world().get::<SectionRenderOf>(e).is_some())
+                        .collect()
+                })
+                .unwrap_or_default();
+            // A muzzle is an invisible fire point (no render child); every other
+            // joint renders and must be parented on the ship.
+            if app
+                .world()
+                .get::<TurretSectionBarrelMuzzleMarker>(joint)
+                .is_some()
+            {
+                assert!(
+                    render_children.is_empty(),
+                    "muzzle joint {joint:?} should be invisible but has a render child"
+                );
+                continue;
+            }
+            assert!(
+                !render_children.is_empty(),
+                "joint {joint:?} has no render child"
+            );
+            for rc in render_children {
+                let parent = app.world().get::<ChildOf>(rc).map(|c| c.0);
+                assert_eq!(
+                    parent,
+                    Some(joint),
+                    "render child {rc:?} is not parented to its joint {joint:?}"
+                );
+                // The whole turret assembly spans ~2 units; a correctly mounted
+                // render child sits within that of the turret's world position.
+                let world = app
+                    .world()
+                    .get::<GlobalTransform>(rc)
+                    .map(|g| g.translation())
+                    .unwrap_or(Vec3::ZERO);
+                assert!(
+                    world.distance(ship_pos) < 5.0,
+                    "render child {rc:?} of joint {joint:?} is at {world:?}, {} units \
+                     from the turret at {ship_pos:?} - it floats",
+                    world.distance(ship_pos)
+                );
+            }
+        }
+
+        // FOLLOW CHECK: move the turret (like a flying ship) and confirm every
+        // render child rode along instead of staying behind at the old spot - a
+        // detached child "floats" in place while the ship flies off.
+        let moved = Vec3::new(-400.0, 900.0, -50.0);
+        app.world_mut()
+            .entity_mut(turret)
+            .insert(Transform::from_translation(moved));
+        app.update();
+        for joint in joint_entities(&app) {
+            let render_children: Vec<Entity> = app
+                .world()
+                .get::<Children>(joint)
+                .map(|c| {
+                    c.iter()
+                        .filter(|&e| app.world().get::<SectionRenderOf>(e).is_some())
+                        .collect()
+                })
+                .unwrap_or_default();
+            for rc in render_children {
+                let world = app
+                    .world()
+                    .get::<GlobalTransform>(rc)
+                    .map(|g| g.translation())
+                    .unwrap_or(Vec3::ZERO);
+                assert!(
+                    world.distance(moved) < 5.0,
+                    "render child {rc:?} of joint {joint:?} did not follow the turret \
+                     to {moved:?} (it is at {world:?}) - it floats"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn default_turret_builds_the_base_yaw_pitch_barrel_muzzle_chain() {
+        // GOLDEN CHAIN: the migrated default turret must produce the SAME
+        // kinematic chain the flat config used to: 5 joint entities
+        // base(fixed) -> yaw(Y) -> pitch(X) -> barrel(fixed) -> muzzle(fixed),
+        // with SmoothLookRotation only on yaw+pitch (right axes/speeds/limits)
+        // and the muzzle marker + fire timer on the leaf. Offsets preserved.
+        let mut app = App::new();
+        app.add_observer(insert_turret_section);
+        let turret = spawn_real_turret(&mut app, TurretSectionConfig::default());
+
+        let joints = joint_entities(&app);
+        assert_eq!(joints.len(), 5, "the default tree has five joints");
+
+        let axes: Vec<Option<Vec3>> = joints
+            .iter()
+            .map(|&e| app.world().get::<TurretJointMarker>(e).unwrap().axis)
+            .collect();
+        // Exactly two articulated joints, on Y then X.
+        let articulated: Vec<Vec3> = axes.iter().filter_map(|a| *a).collect();
+        assert_eq!(articulated.len(), 2, "yaw + pitch are the only hinges");
+
+        let yaw = joint_entity_with_axis(&app, turret, Vec3::Y);
+        let pitch = joint_entity_with_axis(&app, turret, Vec3::X);
+
+        let yaw_rot = app.world().get::<SmoothLookRotation>(yaw).unwrap();
+        assert_eq!(yaw_rot.axis, Vec3::Y);
+        assert_eq!(yaw_rot.speed, std::f32::consts::PI);
+        assert_eq!(yaw_rot.min, None);
+        assert_eq!(yaw_rot.max, None);
+
+        let pitch_rot = app.world().get::<SmoothLookRotation>(pitch).unwrap();
+        assert_eq!(pitch_rot.axis, Vec3::X);
+        assert_eq!(pitch_rot.speed, std::f32::consts::PI);
+        assert_eq!(pitch_rot.min, Some(-std::f32::consts::FRAC_PI_6));
+        assert_eq!(pitch_rot.max, Some(std::f32::consts::FRAC_PI_2));
+
+        // The muzzle joint is a fixed leaf carrying the muzzle marker + timer.
+        let muzzle = muzzle_entity(&app, turret);
+        assert!(app
+            .world()
+            .get::<TurretSectionBarrelMuzzleMarker>(muzzle)
+            .is_some());
+        assert!(app
+            .world()
+            .get::<TurretSectionBarrelFireState>(muzzle)
+            .is_some());
+        assert_eq!(
+            app.world().get::<TurretJointMarker>(muzzle).unwrap().axis,
+            None,
+            "the muzzle joint is fixed"
+        );
+
+        // Offsets are preserved on the joint transforms.
+        assert_eq!(
+            app.world().get::<Transform>(muzzle).unwrap().translation,
+            Vec3::new(0.0, 0.0, -0.5)
+        );
+        assert_eq!(
+            app.world().get::<Transform>(yaw).unwrap().translation,
+            Vec3::new(0.0, 0.1, 0.0)
+        );
+    }
+
+    /// An app that runs the full aim + controller + sync + propagation loop on a
+    /// manual clock, so a stepped turret converges its muzzle onto a target.
+    fn aim_convergence_app() -> App {
+        use bevy::time::TimeUpdateStrategy;
+        use bevy_common_systems::prelude::SmoothLookRotationPlugin;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, TransformPlugin, SmoothLookRotationPlugin));
+        app.add_observer(insert_turret_section);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            1.0 / 60.0,
+        )));
+        // The aim chain runs in PostUpdate BEFORE the controller's Sync (matching
+        // production ordering is not required - either order is a stable servo).
+        app.add_systems(
+            PostUpdate,
+            (update_turret_aim_point, update_turret_target_joints_system)
+                .chain()
+                .before(SmoothLookRotationSystems::Sync),
+        );
+        app.add_systems(Update, sync_turret_joint_rotation);
+        app
+    }
+
+    /// The world-space muzzle forward (-Z) after propagation.
+    fn muzzle_aim_error_deg(app: &mut App, muzzle: Entity, target: Vec3) -> f32 {
+        let gt = *app.world().get::<GlobalTransform>(muzzle).unwrap();
+        let pos = gt.translation();
+        let forward: Vec3 = gt.forward().into();
+        let to_target = (target - pos).normalize();
+        forward.dot(to_target).clamp(-1.0, 1.0).acos().to_degrees()
+    }
+
+    #[test]
+    fn a_default_turret_converges_its_muzzle_onto_a_target() {
+        // AIM CONVERGENCE (behavioral CCD parity): a default turret steered at a
+        // reachable target must point its muzzle forward (-Z) at the target
+        // within a few degrees after stepping frames. This is the parity
+        // guarantee for the CCD swap - proven behaviorally, not by theta match.
+        for target in [
+            Vec3::new(10.0, 5.0, -30.0),
+            Vec3::new(-15.0, 8.0, -25.0),
+            Vec3::new(0.0, 3.0, -40.0),
+        ] {
+            let mut app = aim_convergence_app();
+            let ship = app
+                .world_mut()
+                .spawn((SpaceshipRootMarker, Transform::IDENTITY))
+                .id();
+            let turret = app
+                .world_mut()
+                .spawn(turret_section({
+                    let mut c = TurretSectionConfig::default();
+                    c.muzzle_speed = 1000.0; // near-straight lead so aim ~= target dir
+                    c
+                }))
+                .id();
+            app.world_mut()
+                .entity_mut(turret)
+                .insert((ChildOf(ship), Transform::IDENTITY));
+            app.world_mut().flush();
+            app.world_mut()
+                .entity_mut(turret)
+                .insert(TurretSectionTargetInput(Some(target)));
+            let muzzle = muzzle_entity(&app, turret);
+
+            for _ in 0..240 {
+                app.update();
+            }
+
+            let error = muzzle_aim_error_deg(&mut app, muzzle, target);
+            assert!(
+                error < 5.0,
+                "muzzle should converge onto {target:?}, aim error {error} deg"
+            );
+        }
+    }
+
+    #[test]
+    fn a_turret_swings_around_to_a_target_directly_behind() {
+        // STUCK-BEHIND REGRESSION: a target dead behind the barrel is a rotation
+        // singularity (either way is a valid 180); the naive solve dithered and
+        // the turret froze facing forward. It must commit and swing around.
+        let mut app = aim_convergence_app();
+        let ship = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, Transform::IDENTITY))
+            .id();
+        let turret = app
+            .world_mut()
+            .spawn(turret_section({
+                let mut c = TurretSectionConfig::default();
+                c.muzzle_speed = 1000.0;
+                c
+            }))
+            .id();
+        app.world_mut()
+            .entity_mut(turret)
+            .insert((ChildOf(ship), Transform::IDENTITY));
+        app.world_mut().flush();
+        // Barrel rest points -Z; put the target dead behind at +Z (a hair off the
+        // axis so it is a true 180, level so pitch can hold it).
+        let target = Vec3::new(0.0, 0.0, 30.0);
+        app.world_mut()
+            .entity_mut(turret)
+            .insert(TurretSectionTargetInput(Some(target)));
+        let muzzle = muzzle_entity(&app, turret);
+
+        for _ in 0..240 {
+            app.update();
+        }
+
+        let error = muzzle_aim_error_deg(&mut app, muzzle, target);
+        assert!(
+            error < 5.0,
+            "turret must swing around to a target behind, not freeze forward: \
+             aim error {error} deg"
+        );
+    }
+
+    #[test]
+    fn an_aimed_turret_holds_steady_without_shaking() {
+        // NO-SHAKE REGRESSION (task 20260717-214834 follow-up): an undamped CCD
+        // step (`target = output + delta`) made the coupled yaw+pitch overshoot
+        // and settle into a ~4-5 deg limit cycle - the barrel visibly shook
+        // around the aim. With the damping gain + deadband the muzzle must HOLD:
+        // after it converges, its aim error must barely move frame to frame.
+        let target = Vec3::new(8.0, 6.0, -28.0);
+        let mut app = aim_convergence_app();
+        let ship = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, Transform::IDENTITY))
+            .id();
+        let turret = app
+            .world_mut()
+            .spawn(turret_section({
+                let mut c = TurretSectionConfig::default();
+                c.muzzle_speed = 1000.0;
+                c
+            }))
+            .id();
+        app.world_mut()
+            .entity_mut(turret)
+            .insert((ChildOf(ship), Transform::IDENTITY));
+        app.world_mut().flush();
+        app.world_mut()
+            .entity_mut(turret)
+            .insert(TurretSectionTargetInput(Some(target)));
+        let muzzle = muzzle_entity(&app, turret);
+
+        // Converge.
+        for _ in 0..240 {
+            app.update();
+        }
+
+        // Then watch the aim error for 120 more frames: its peak-to-peak swing is
+        // the shake amplitude. A limit cycle would read several degrees; a held
+        // turret reads a fraction of one.
+        let mut min = f32::INFINITY;
+        let mut max = f32::NEG_INFINITY;
+        for _ in 0..120 {
+            app.update();
+            let e = muzzle_aim_error_deg(&mut app, muzzle, target);
+            min = min.min(e);
+            max = max.max(e);
+        }
+        let peak_to_peak = max - min;
+        assert!(
+            peak_to_peak < 0.5,
+            "an aimed turret must hold steady, not shake: aim error swings \
+             {peak_to_peak} deg (min {min}, max {max})"
+        );
+    }
+
+    #[test]
+    fn a_three_hinge_tree_reaches_a_target_a_two_dof_turret_cannot() {
+        // MULTI-HINGE: a hand-built 3-hinge arm (Y at base, then X, then Y two
+        // down) converges onto a target, sanity that arbitrary chains solve.
+        let mut app = aim_convergence_app();
+        let ship = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, Transform::IDENTITY))
+            .id();
+
+        // Y -> X -> Y -> muzzle, each a link one unit long, generous limits.
+        let hinge = |axis: Vec3, offset: Vec3, children: Vec<TurretJoint>| TurretJoint {
+            offset,
+            axis: Some(axis),
+            speed: std::f32::consts::TAU,
+            min: Some(-std::f32::consts::PI),
+            max: Some(std::f32::consts::PI),
+            render_mesh: None,
+            muzzle: None,
+            children,
+        };
+        let root = hinge(
+            Vec3::Y,
+            Vec3::ZERO,
+            vec![hinge(
+                Vec3::X,
+                Vec3::new(0.0, 1.0, 0.0),
+                vec![hinge(
+                    Vec3::Y,
+                    Vec3::new(0.0, 1.0, 0.0),
+                    vec![TurretJoint {
+                        offset: Vec3::new(0.0, 0.0, -1.0),
+                        axis: None,
+                        speed: std::f32::consts::PI,
+                        min: None,
+                        max: None,
+                        render_mesh: None,
+                        muzzle: Some(MuzzleConfig {
+                            fire_rate: 10.0,
+                            muzzle_effect: None,
+                        }),
+                        children: vec![],
+                    }],
+                )],
+            )],
+        );
+
+        let config = TurretSectionConfig {
+            root,
+            muzzle_speed: 1000.0,
+            ..default()
+        };
+        let turret = app.world_mut().spawn(turret_section(config)).id();
+        app.world_mut()
+            .entity_mut(turret)
+            .insert((ChildOf(ship), Transform::IDENTITY));
+        app.world_mut().flush();
+
+        let target = Vec3::new(6.0, -4.0, 8.0); // behind + below: needs the extra DOF
+        app.world_mut()
+            .entity_mut(turret)
+            .insert(TurretSectionTargetInput(Some(target)));
+        let muzzle = muzzle_entity(&app, turret);
+
+        for _ in 0..600 {
+            app.update();
+        }
+
+        let error = muzzle_aim_error_deg(&mut app, muzzle, target);
+        assert!(
+            error < 8.0,
+            "a 3-hinge arm must converge onto {target:?}, aim error {error} deg"
+        );
+    }
+
+    #[test]
+    fn a_shared_chain_twin_barrel_points_both_muzzles_at_the_target() {
+        // MULTI-MUZZLE AIM (task 20260717-215857): a twin barrel that shares its
+        // yaw+pitch chain (two muzzles hanging off one common barrel) steers BOTH
+        // muzzles onto the target - the shared joints are written by each muzzle's
+        // CCD pass and agree for the symmetric barrels.
+        let mut app = aim_convergence_app();
+        let ship = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, Transform::IDENTITY))
+            .id();
+
+        // base(fixed) -> yaw(Y) -> pitch(X) -> barrel(fixed) with TWO muzzles.
+        let muzzle = |x: f32| TurretJoint {
+            offset: Vec3::new(x, 0.0, -0.5),
+            axis: None,
+            speed: default_joint_speed(),
+            min: None,
+            max: None,
+            render_mesh: None,
+            muzzle: Some(MuzzleConfig {
+                fire_rate: 10.0,
+                muzzle_effect: None,
+            }),
+            children: vec![],
+        };
+        let yaw = TurretJoint {
+            offset: Vec3::ZERO,
+            axis: Some(Vec3::Y),
+            speed: std::f32::consts::TAU,
+            min: Some(-std::f32::consts::PI),
+            max: Some(std::f32::consts::PI),
+            render_mesh: None,
+            muzzle: None,
+            children: vec![TurretJoint {
+                offset: Vec3::ZERO,
+                axis: Some(Vec3::X),
+                speed: std::f32::consts::TAU,
+                min: Some(-std::f32::consts::PI),
+                max: Some(std::f32::consts::PI),
+                render_mesh: None,
+                muzzle: None,
+                children: vec![muzzle(0.1), muzzle(-0.1)],
+            }],
+        };
+
+        let config = TurretSectionConfig {
+            root: yaw,
+            muzzle_speed: 1000.0, // near-straight lead so aim ~= target dir
+            ..default()
+        };
+        let turret = app.world_mut().spawn(turret_section(config)).id();
+        app.world_mut()
+            .entity_mut(turret)
+            .insert((ChildOf(ship), Transform::IDENTITY));
+        app.world_mut().flush();
+
+        let target = Vec3::new(10.0, 5.0, -30.0);
+        app.world_mut()
+            .entity_mut(turret)
+            .insert(TurretSectionTargetInput(Some(target)));
+        let muzzles = app
+            .world()
+            .entity(turret)
+            .get::<TurretSectionMuzzles>()
+            .expect("the turret records its muzzles")
+            .0
+            .clone();
+        assert_eq!(muzzles.len(), 2, "the twin barrel must record two muzzles");
+
+        for _ in 0..240 {
+            app.update();
+        }
+
+        for muzzle in muzzles {
+            let error = muzzle_aim_error_deg(&mut app, muzzle, target);
+            assert!(
+                error < 5.0,
+                "both muzzles must converge onto {target:?}, muzzle {muzzle:?} \
+                 aim error {error} deg"
+            );
+        }
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn a_turret_joint_tree_survives_a_ron_round_trip() {
+        // RON ROUND-TRIP: a tree config serializes + deserializes back to an
+        // equal tree (the authored content path).
+        let config = TurretSectionConfig::default();
+        let ron = ron::ser::to_string(&config.root).expect("serialize");
+        let back: TurretJoint = ron::from_str(&ron).expect("deserialize");
+        // Compare structurally via a re-serialize (TurretJoint has no PartialEq).
+        let ron_back = ron::ser::to_string(&back).expect("re-serialize");
+        assert_eq!(ron, ron_back, "the tree must round-trip unchanged");
     }
 }

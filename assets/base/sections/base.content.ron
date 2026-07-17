@@ -60,39 +60,67 @@
             destroy_sound: Some("self://sounds/explosion.wav"),
         ),
         kind: Turret((
-            yaw_speed: 3.1415927,
-            pitch_speed: 3.1415927,
-            min_pitch: Some(-0.5235988),
-            max_pitch: Some(1.5707964),
-            base_offset: (
-                0.0,
-                -0.5,
-                0.0,
+            root: (
+                offset: (
+                    0.0,
+                    -0.5,
+                    0.0,
+                ),
+                children: [
+                    (
+                        offset: (
+                            0.0,
+                            0.1,
+                            0.0,
+                        ),
+                        axis: Some((
+                            0.0,
+                            1.0,
+                            0.0,
+                        )),
+                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
+                        children: [
+                            (
+                                offset: (
+                                    0.0,
+                                    0.332706,
+                                    0.303954,
+                                ),
+                                axis: Some((
+                                    1.0,
+                                    0.0,
+                                    0.0,
+                                )),
+                                min: Some(-0.5235988),
+                                max: Some(1.5707964),
+                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
+                                children: [
+                                    (
+                                        offset: (
+                                            0.0,
+                                            0.128437,
+                                            -0.110729,
+                                        ),
+                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
+                                        children: [
+                                            (
+                                                offset: (
+                                                    0.0,
+                                                    0.0,
+                                                    -1.2,
+                                                ),
+                                                muzzle: Some((
+                                                    fire_rate: 100.0,
+                                                )),
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
             ),
-            render_mesh_yaw: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-            yaw_offset: (
-                0.0,
-                0.1,
-                0.0,
-            ),
-            render_mesh_pitch: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-            pitch_offset: (
-                0.0,
-                0.332706,
-                0.303954,
-            ),
-            render_mesh_barrel: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-            barrel_offset: (
-                0.0,
-                0.128437,
-                -0.110729,
-            ),
-            muzzle_offset: (
-                0.0,
-                0.0,
-                -1.2,
-            ),
-            fire_rate: 100.0,
             muzzle_speed: 100.0,
             projectile_lifetime: 5.0,
             bullet_damage: 4.0,
@@ -132,39 +160,67 @@
             destroy_sound: Some("self://sounds/explosion.wav"),
         ),
         kind: Turret((
-            yaw_speed: 3.1415927,
-            pitch_speed: 3.1415927,
-            min_pitch: Some(-0.5235988),
-            max_pitch: Some(1.5707964),
-            base_offset: (
-                0.0,
-                -0.5,
-                0.0,
+            root: (
+                offset: (
+                    0.0,
+                    -0.5,
+                    0.0,
+                ),
+                children: [
+                    (
+                        offset: (
+                            0.0,
+                            0.1,
+                            0.0,
+                        ),
+                        axis: Some((
+                            0.0,
+                            1.0,
+                            0.0,
+                        )),
+                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
+                        children: [
+                            (
+                                offset: (
+                                    0.0,
+                                    0.332706,
+                                    0.303954,
+                                ),
+                                axis: Some((
+                                    1.0,
+                                    0.0,
+                                    0.0,
+                                )),
+                                min: Some(-0.5235988),
+                                max: Some(1.5707964),
+                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
+                                children: [
+                                    (
+                                        offset: (
+                                            0.0,
+                                            0.128437,
+                                            -0.110729,
+                                        ),
+                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
+                                        children: [
+                                            (
+                                                offset: (
+                                                    0.0,
+                                                    0.0,
+                                                    -1.2,
+                                                ),
+                                                muzzle: Some((
+                                                    fire_rate: 25.0,
+                                                )),
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
             ),
-            render_mesh_yaw: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-            yaw_offset: (
-                0.0,
-                0.1,
-                0.0,
-            ),
-            render_mesh_pitch: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-            pitch_offset: (
-                0.0,
-                0.332706,
-                0.303954,
-            ),
-            render_mesh_barrel: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-            barrel_offset: (
-                0.0,
-                0.128437,
-                -0.110729,
-            ),
-            muzzle_offset: (
-                0.0,
-                0.0,
-                -1.2,
-            ),
-            fire_rate: 25.0,
             muzzle_speed: 60.0,
             projectile_lifetime: 5.0,
             bullet_damage: 3.825,

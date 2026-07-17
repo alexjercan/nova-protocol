@@ -516,11 +516,21 @@ impl Knob {
     /// Read the knob from a config, in slider (display) units.
     fn read(self, c: &TurretSectionConfig) -> f32 {
         match self {
-            Knob::YawSpeed => c.yaw_speed.to_degrees(),
-            Knob::PitchSpeed => c.pitch_speed.to_degrees(),
-            Knob::MinPitch => c.min_pitch.unwrap_or(0.0).to_degrees(),
-            Knob::MaxPitch => c.max_pitch.unwrap_or(0.0).to_degrees(),
-            Knob::FireRate => c.fire_rate,
+            Knob::YawSpeed => find_axis(&c.root, Vec3::Y)
+                .map(|j| j.speed.to_degrees())
+                .unwrap_or(0.0),
+            Knob::PitchSpeed => find_axis(&c.root, Vec3::X)
+                .map(|j| j.speed.to_degrees())
+                .unwrap_or(0.0),
+            Knob::MinPitch => find_axis(&c.root, Vec3::X)
+                .and_then(|j| j.min)
+                .unwrap_or(0.0)
+                .to_degrees(),
+            Knob::MaxPitch => find_axis(&c.root, Vec3::X)
+                .and_then(|j| j.max)
+                .unwrap_or(0.0)
+                .to_degrees(),
+            Knob::FireRate => find_muzzle(&c.root).map(|m| m.fire_rate).unwrap_or(0.0),
             Knob::MuzzleSpeed => c.muzzle_speed,
         }
     }
@@ -528,14 +538,73 @@ impl Knob {
     /// Write the knob into a config from a slider (display) value.
     fn write(self, c: &mut TurretSectionConfig, v: f32) {
         match self {
-            Knob::YawSpeed => c.yaw_speed = v.to_radians(),
-            Knob::PitchSpeed => c.pitch_speed = v.to_radians(),
-            Knob::MinPitch => c.min_pitch = Some(v.to_radians()),
-            Knob::MaxPitch => c.max_pitch = Some(v.to_radians()),
-            Knob::FireRate => c.fire_rate = v,
+            Knob::YawSpeed => {
+                if let Some(j) = find_axis_mut(&mut c.root, Vec3::Y) {
+                    j.speed = v.to_radians();
+                }
+            }
+            Knob::PitchSpeed => {
+                if let Some(j) = find_axis_mut(&mut c.root, Vec3::X) {
+                    j.speed = v.to_radians();
+                }
+            }
+            Knob::MinPitch => {
+                if let Some(j) = find_axis_mut(&mut c.root, Vec3::X) {
+                    j.min = Some(v.to_radians());
+                }
+            }
+            Knob::MaxPitch => {
+                if let Some(j) = find_axis_mut(&mut c.root, Vec3::X) {
+                    j.max = Some(v.to_radians());
+                }
+            }
+            Knob::FireRate => {
+                if let Some(m) = find_muzzle_mut(&mut c.root) {
+                    m.fire_rate = v;
+                }
+            }
             Knob::MuzzleSpeed => c.muzzle_speed = v,
         }
     }
+}
+
+/// The first joint whose hinge axis is roughly `axis`, in DFS order.
+fn find_axis(joint: &TurretJoint, axis: Vec3) -> Option<&TurretJoint> {
+    if joint
+        .axis
+        .is_some_and(|a| a.normalize().dot(axis.normalize()) > 0.99)
+    {
+        return Some(joint);
+    }
+    joint.children.iter().find_map(|c| find_axis(c, axis))
+}
+
+fn find_axis_mut(joint: &mut TurretJoint, axis: Vec3) -> Option<&mut TurretJoint> {
+    if joint
+        .axis
+        .is_some_and(|a| a.normalize().dot(axis.normalize()) > 0.99)
+    {
+        return Some(joint);
+    }
+    joint
+        .children
+        .iter_mut()
+        .find_map(|c| find_axis_mut(c, axis))
+}
+
+/// The first joint carrying a muzzle, in DFS order.
+fn find_muzzle(joint: &TurretJoint) -> Option<&MuzzleConfig> {
+    if let Some(m) = &joint.muzzle {
+        return Some(m);
+    }
+    joint.children.iter().find_map(find_muzzle)
+}
+
+fn find_muzzle_mut(joint: &mut TurretJoint) -> Option<&mut MuzzleConfig> {
+    if joint.muzzle.is_some() {
+        return joint.muzzle.as_mut();
+    }
+    joint.children.iter_mut().find_map(find_muzzle_mut)
 }
 
 /// Marks a knob's value-readout text.

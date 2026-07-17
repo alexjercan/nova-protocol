@@ -1,8 +1,8 @@
 # Spike: refactor PDC turret to arbitrary arm count with multiple hinges and rotators
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 4
-- TAGS: v0.7.0,spike,refactor,weapons,turret
+- TAGS: v0.7.0, spike, refactor, weapons, turret
 
 This is a SPIKE, not shippable work. The output is a SPIKE.md documenting the
 chosen direction plus the concrete follow-up tatr tasks it seeds (data model,

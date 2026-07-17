@@ -29,6 +29,19 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   to backfill it - so the last task of a multi-task feature should sweep the
   whole feature's player-facing surfaces, not just its own diff.
   20260716-115938, 20260716-155816, 20260716-215513, 20260716-123556.
+- `inseparable-seeded-tasks-remerge` (x1): a spike seeds COARSE direction-level
+  tasks; some turn out architecturally inseparable (the turret data-model / ECS /
+  aim tasks each needed the others to compile - splitting them means throwaway
+  shim code). When flow's plan phase hits this, surface the re-cut to the user
+  and merge to one commit rather than grinding out shims (AGENTS.md: no wasted
+  code). One review/retro covers the merged core. 20260717-215742.
+- `review-the-generated-artifact-too` (x1): when a refactor changes an AUTHORED
+  or GENERATED schema, READ the regenerated file with the author's eye, not just
+  the code - a bare `f32` joint `speed` with `serde(default)` serialized
+  `speed: 3.1415927` onto every node (fixed ones included) of the turret RON;
+  parity (builder==committed) stayed green because it never checks readability.
+  Fixed with `skip_serializing_if`. Kin of `warnings-clean-before-land` for
+  content. 20260717-215742.
 - `rename-id-sweep-in-file` (x1): after renaming an entity/asset id in a
   content file, grep the WHOLE file for the OLD id before trusting the linter -
   `content_lint` validates spawn/prototype/filter refs but NOT AI orbit/patrol
@@ -139,12 +152,14 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   against the new file AND reconciling counts, before review, not by
   eyeballing the diff (a CHANGELOG regroup dropped the "Screenshot Reel"
   entry; a token cross-check + 93=94-1 count caught it). 20260716-102950.
-- `authored-durations-clamp-trio` (x1): every authored duration/magnitude
+- `authored-durations-clamp-trio` (x2): every authored duration/magnitude/VECTOR
   field gets the finite-check + runtime-cap + lint-range trio AT THE FIELD'S
   BIRTH - two pacing durations reached Timer::from_seconds unclamped (an
   authored 1e30 panics at runtime) one task after the sibling dwell field got
-  the full treatment; the pattern failed to transfer across crates.
-  20260717-163050.
+  the full treatment; the pattern failed to transfer across crates. Recurred on
+  the turret hinge `axis` Vec3 (a zero/NaN axis NaN-s through `normalize()`):
+  got the trio at once - runtime degrades to a fixed joint, the content lint
+  errors, so no path reaches the NaN. 20260717-163050, 20260717-215920.
 - `pin-the-window-not-the-ingredients` (x1): a regression pin for a
   race/aliasing bug must reproduce the failure WINDOW (clear + repush before
   any sync frame), not just its ingredients - a pin with an intermediate

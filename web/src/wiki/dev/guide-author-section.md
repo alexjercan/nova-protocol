@@ -119,24 +119,39 @@ kind: Controller((
 ## Turret
 
 `TurretSectionConfig` - an articulated gun that aims with intercept lead and
-fires bullets. The most field-heavy kind; the shipped `better_turret_section`
+fires bullets. The mount is an arbitrary tree of joints (`root`): each joint
+sits at an `offset` from its parent, optionally rotates about an `axis` (a hinge
+the aim solver drives), optionally carries a `render_mesh`, optionally is a
+`muzzle` (a fire point), and hangs `children` joints off itself. Today's turret
+is one specific tree - base(fixed) -> yaw(axis Y) -> pitch(axis X) ->
+barrel(fixed) -> muzzle - but you can build twin barrels, extra hinges, or a
+turret whose elevation lives two joints down. The shipped `better_turret_section`
 is the reference:
 
 ```ron
 kind: Turret((
-    yaw_speed: 3.1415927,
-    pitch_speed: 3.1415927,
-    min_pitch: Some(-0.5235988),
-    max_pitch: Some(1.5707964),
-    base_offset: (0.0, -0.5, 0.0),
-    render_mesh_yaw: Some("dep://base/gltf/turret-yaw-01.glb#Scene0"),
-    yaw_offset: (0.0, 0.1, 0.0),
-    render_mesh_pitch: Some("dep://base/gltf/turret-pitch-01.glb#Scene0"),
-    pitch_offset: (0.0, 0.332706, 0.303954),
-    render_mesh_barrel: Some("dep://base/gltf/turret-barrel-01.glb#Scene0"),
-    barrel_offset: (0.0, 0.128437, -0.110729),
-    muzzle_offset: (0.0, 0.0, -1.2),
-    fire_rate: 100.0,
+    root: (
+        offset: (0.0, -0.5, 0.0),                                     // base (fixed)
+        children: [(
+            offset: (0.0, 0.1, 0.0),
+            axis: Some((0.0, 1.0, 0.0)),                              // yaw hinge (Y)
+            render_mesh: Some("dep://base/gltf/turret-yaw-01.glb#Scene0"),
+            children: [(
+                offset: (0.0, 0.332706, 0.303954),
+                axis: Some((1.0, 0.0, 0.0)),                         // pitch hinge (X)
+                min: Some(-0.5235988), max: Some(1.5707964),          // pitch limits
+                render_mesh: Some("dep://base/gltf/turret-pitch-01.glb#Scene0"),
+                children: [(
+                    offset: (0.0, 0.128437, -0.110729),               // barrel (fixed)
+                    render_mesh: Some("dep://base/gltf/turret-barrel-01.glb#Scene0"),
+                    children: [(
+                        offset: (0.0, 0.0, -1.2),                     // muzzle (fixed)
+                        muzzle: Some((fire_rate: 100.0)),
+                    )],
+                )],
+            )],
+        )],
+    ),
     muzzle_speed: 100.0,
     projectile_lifetime: 5.0,
     bullet_damage: 4.0,
@@ -146,14 +161,32 @@ kind: Turret((
 )),
 ```
 
-- `yaw_speed`, `pitch_speed` - traverse speeds in radians per second.
-- `min_pitch`, `max_pitch` (optional) - pitch limits in radians; `None` for no
-  limit.
-- `base_offset`, `yaw_offset`, `pitch_offset`, `barrel_offset`,
-  `muzzle_offset` - `Vec3` mount offsets stacking base -> yaw -> pitch -> barrel
-  -> muzzle (bare 3-tuples).
-- `render_mesh_base`, `render_mesh_yaw`, `render_mesh_pitch`,
-  `render_mesh_barrel` (all optional) - the per-part meshes; omit for defaults.
+Per-joint fields (on every `root`/`children` node):
+
+- `offset` - `Vec3` local translation from the parent joint (the section origin
+  for `root`), a bare 3-tuple. A joint's `children` are placed in its ROTATED
+  frame, so they swing with it.
+- `axis` (optional) - the local hinge axis (a bare 3-tuple like `(0.0, 1.0,
+  0.0)`). Omit for a FIXED node (offsets and can still carry a mesh/muzzle, never
+  rotates); set it to make the joint a hinge the aim solver steers. A muzzle's
+  forward is its local `-Z`; the solver distributes the aim across every hinge
+  above it.
+- `speed` (optional) - traverse speed in radians per second; omit for the
+  default 180 deg/s (PI). Only meaningful on a hinge (`axis` set).
+- `min`, `max` (optional) - rotation limits in radians for this hinge; `None`
+  for no limit.
+- `render_mesh` (optional) - this joint's mesh; omit for a plain default
+  primitive. Shipped turrets author a GLB per visible joint.
+- `muzzle` (optional) - marks this joint a fire point: `Some((fire_rate: N))`
+  (rounds per second), plus an optional `muzzle_effect` flash asset ref. A turret
+  aims and fires ALL of its muzzles: hang two off one barrel for a twin PDC, or
+  give each its own arm. Every muzzle fires at its own `fire_rate` but draws from
+  the ONE shared section magazine (`ammo_capacity`), so a twin barrel empties the
+  same mag twice as fast rather than carrying a pool per gun.
+- `children` (optional) - joints hanging off this one; omit for a leaf.
+
+Section-wide fields (once, alongside `root`):
+
 - `fire_sound` (optional) - the sound each fired round plays, an asset ref like
   the meshes (`self://` a wav your mod ships, or `dep://base/sounds/
   turret_fire.wav` for the base cue); omit and the turret fires SILENTLY (the
@@ -162,8 +195,8 @@ kind: Turret((
 - `dry_fire_sound` (optional) - the click when the trigger is pulled on an
   empty magazine; same asset-ref rules (`dep://base/sounds/dry_fire.wav` is the
   base click), omit for a silent dry pull.
-- `fire_rate` - rounds per second.
-- `muzzle_speed` - projectile launch speed in units per second.
+- `muzzle_speed` - projectile launch speed in units per second (shared by all
+  muzzles; `fire_rate` is per-muzzle, see the joint fields above).
 - `projectile_lifetime` - projectile lifetime in seconds.
 - `bullet_damage` - authored per-hit damage (pre-resistance).
 - `bullet_kind` - the damage type of the loaded round (`Kinetic`, and the other
