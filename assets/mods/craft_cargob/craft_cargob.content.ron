@@ -372,6 +372,10 @@
                                         kind: Thruster((
                                             magnitude: 1.0,
                                             render_mesh: Some("self://gltf/cube_i1_j1_k2.glb#Scene0"),
+                                            exhaust: Some((
+                                                offset: (0.0, 0.0, 0.5),
+                                                rotation: (0.70710677, 0.0, 0.0, 0.70710677),
+                                            )),
                                         )),
                                     )),
                                 ),
@@ -628,6 +632,10 @@
                                         kind: Thruster((
                                             magnitude: 1.0,
                                             render_mesh: Some("self://gltf/cube_im1_j1_k2.glb#Scene0"),
+                                            exhaust: Some((
+                                                offset: (0.0, 0.0, 0.5),
+                                                rotation: (0.70710677, 0.0, 0.0, 0.70710677),
+                                            )),
                                         )),
                                     )),
                                 ),

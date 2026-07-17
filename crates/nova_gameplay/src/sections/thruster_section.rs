@@ -13,9 +13,9 @@ use crate::prelude::{AssetRef, SectionDamageClass, SectionInactiveMarker, Sectio
 
 pub mod prelude {
     pub use super::{
-        thruster_section, ThrusterExhaustConfig, ThrusterSectionConfig, ThrusterSectionInput,
-        ThrusterSectionMagnitude, ThrusterSectionMarker, ThrusterSectionPlugin,
-        ThrusterSectionRenderMarker,
+        thruster_section, ThrusterExhaust, ThrusterExhaustConfig, ThrusterSectionConfig,
+        ThrusterSectionInput, ThrusterSectionMagnitude, ThrusterSectionMarker,
+        ThrusterSectionPlugin, ThrusterSectionRenderMarker,
     };
 }
 
@@ -48,6 +48,14 @@ pub struct ThrusterSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub loop_sound: Option<AssetRef<AudioSource>>,
+    /// Authorable exhaust cone: where it sits, how it is rotated, and its shape.
+    /// `None` uses the default placement/shape (same cone the procedural
+    /// thruster always had); set it to align the cone with a custom render mesh.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub exhaust: Option<ThrusterExhaust>,
 }
 
 /// A thruster's authored hum, snapshotted UNRESOLVED from
@@ -63,9 +71,15 @@ impl Default for ThrusterSectionConfig {
             magnitude: THRUSTER_SECTION_DEFAULT_MAGNITUDE,
             render_mesh: None,
             loop_sound: None,
+            exhaust: None,
         }
     }
 }
+
+/// The section's authored exhaust placement/shape, snapshotted from
+/// [`ThrusterSectionConfig::exhaust`] so the render observer can spawn the cone.
+#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
+struct ThrusterSectionExhaust(Option<ThrusterExhaust>);
 
 /// Helper function to create an thruster section entity bundle.
 pub fn thruster_section(config: ThrusterSectionConfig) -> impl Bundle {
@@ -78,11 +92,16 @@ pub fn thruster_section(config: ThrusterSectionConfig) -> impl Bundle {
         ThrusterSectionInput(0.0),
         ThrusterSectionLoopSound(config.loop_sound.clone()),
         ThrusterSectionRenderMesh(config.render_mesh),
+        ThrusterSectionExhaust(config.exhaust),
     )
 }
 
-/// Configuration for the thruster exhaust shader.
+/// Configuration for the thruster exhaust shader (cone shape + glow). Authorable
+/// via [`ThrusterExhaust::shape`]; `#[serde(default)]` lets a mod set only the
+/// fields it cares about.
 #[derive(Component, Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(default))]
 pub struct ThrusterExhaustConfig {
     pub exhaust_height: f32,
     pub exhaust_radius: f32,
@@ -105,6 +124,30 @@ impl Default for ThrusterExhaustConfig {
             exhaust_inner_max: 0.5,
             emissive_color: LinearRgba::rgb(0.0, 10.0, 10.0),
             emissive_inner_color: LinearRgba::rgb(0.0, 0.0, 10.0),
+        }
+    }
+}
+
+/// Authorable placement + shape of a thruster's exhaust cone. `offset`/`rotation`
+/// position and orient the cone relative to the section (the cone is built along
+/// +Y); `shape` is the shader/size config. The default matches the procedural
+/// thruster's historical hardcoded placement, so an omitted `exhaust` still
+/// yields the same cone.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(default))]
+pub struct ThrusterExhaust {
+    pub offset: Vec3,
+    pub rotation: Quat,
+    pub shape: ThrusterExhaustConfig,
+}
+
+impl Default for ThrusterExhaust {
+    fn default() -> Self {
+        Self {
+            offset: Vec3::new(0.0, 0.0, 0.3),
+            rotation: Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
+            shape: ThrusterExhaustConfig::default(),
         }
     }
 }
@@ -273,14 +316,18 @@ fn insert_thruster_section_render(
     mut standard_materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
     q_thruster: Query<
-        (&ThrusterSectionRenderMesh, Has<ThrusterSectionRenderMarker>),
+        (
+            &ThrusterSectionRenderMesh,
+            &ThrusterSectionExhaust,
+            Has<ThrusterSectionRenderMarker>,
+        ),
         With<ThrusterSectionMarker>,
     >,
 ) {
     let entity = add.entity;
     trace!("insert_thruster_section_render: entity {:?}", entity);
 
-    let Ok((render_mesh, has_render)) = q_thruster.get(entity) else {
+    let Ok((render_mesh, exhaust, has_render)) = q_thruster.get(entity) else {
         error!(
             "insert_thruster_section_render: entity {:?} not found in q_thruster",
             entity
@@ -323,15 +370,22 @@ fn insert_thruster_section_render(
                     MeshMaterial3d(standard_materials.add(Color::srgb(0.9, 0.3, 0.2))),
                     Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
                 ),
-                (
-                    Name::new("Thruster Exhaust"),
-                    ThrusterExhaustConfig::default(),
-                    Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
-                        .with_translation(Vec3::new(0.0, 0.0, 0.3)),
-                ),
             ],));
         }
     }
+
+    // Spawn the exhaust cone for EVERY thruster (custom mesh or procedural),
+    // using the authored placement/shape or the default. `insert_thruster_shader`
+    // turns the ThrusterExhaustConfig into the cone mesh + glow material.
+    let exhaust = exhaust.0.clone().unwrap_or_default();
+    commands.entity(entity).with_children(|parent| {
+        parent.spawn((
+            Name::new("Thruster Exhaust"),
+            SectionRenderOf(entity),
+            exhaust.shape,
+            Transform::from_translation(exhaust.offset).with_rotation(exhaust.rotation),
+        ));
+    });
 }
 
 fn insert_thruster_shader(

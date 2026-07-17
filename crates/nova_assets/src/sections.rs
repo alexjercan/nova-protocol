@@ -133,6 +133,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 magnitude: 1.0,
                 render_mesh: None,
                 loop_sound: Some(meshes.thruster_loop_sound.clone()),
+                exhaust: None,
             }),
         },
         SectionConfig {
