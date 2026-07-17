@@ -70,9 +70,8 @@ spawns / despawns with the player ship via the hud/mod.rs observers, and the
 to the mechanic so the HUD renders the fill without recomputing the distance
 curve.
 
-Palette: an acquiring SPRING-GREEN `LinearRgba(0.35, 1.0, 0.6, 0.9)`, chosen to
-be distinct from every other lock colour (amber lead pip, nav cyan, red combat
-reticle, white travel crosshair, hot-red component markers). A feel knob.
+Palette: a near-white `LinearRgba(1.0, 1.0, 1.0, 0.9)` acquiring ring (playtest
+tweak 2026-07-17, from the initial spring-green), sized 39.2 px. A feel knob.
 
 Rendering choice: a real `UiMaterial` arc, not the `ammo_readout` trig-pip
 segment ring. The segmented ring was the wasm escape hatch; the shader is

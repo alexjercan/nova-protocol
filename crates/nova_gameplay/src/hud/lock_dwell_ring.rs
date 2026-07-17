@@ -22,9 +22,9 @@ use bevy::{
 
 use crate::prelude::*;
 
-/// On-screen diameter (px) of the ring, sized a little larger than the reticle
-/// so it reads as a halo around the pending target.
-const RING_PX: f32 = 56.0;
+/// On-screen diameter (px) of the ring, sized to sit as a tight halo around
+/// the pending target's reticle.
+const RING_PX: f32 = 39.2;
 
 /// Inner radius of the annulus in normalized node units (outer edge = 1.0):
 /// a thin band near the rim.
@@ -33,11 +33,10 @@ const RING_INNER: f32 = 0.74;
 /// Anti-alias / edge softness of the band and the leading fill edge.
 const RING_SOFTNESS: f32 = 0.05;
 
-/// Acquiring accent: a bright spring-green that reads as "scanning / charging"
-/// and is deliberately distinct from every other lock colour - the amber lead
-/// pip, nav cyan, the red combat reticle, the white travel crosshair and the
-/// hot-red component markers. A feel knob (see the arc doc).
-const RING_COLOR: LinearRgba = LinearRgba::new(0.35, 1.0, 0.6, 0.9);
+/// Acquiring accent: a near-white ring that reads as "scanning / charging"
+/// against the coloured lock reticles it fills toward. A feel knob (see the
+/// arc doc).
+const RING_COLOR: LinearRgba = LinearRgba::new(1.0, 1.0, 1.0, 0.9);
 
 pub mod prelude {
     pub use super::{
