@@ -3,7 +3,8 @@
 // inline Hull sections EXCEPT: the two rear engines (-1,1,-2)/(1,1,-2) are
 // Thruster sections yawed 180 to thrust forward, and a Controller sits in the
 // empty core cell (0,1,0). Cube meshes ship under gltf/ (self://). The whole
-// ship is yawed 180 (rotation (0,1,0,0)) so it faces +Z.
+// ship is yawed 180 (rotation (0,1,0,0)) so it faces +Z. Player-controlled
+// (WASD thrust drives the two rear thrusters).
 [
     Scenario((
         id: "craft_cargob_reconstruct",
@@ -22,7 +23,10 @@
                             rotation: (0.0, 1.0, 0.0, 0.0),
                         ),
                         kind: Spaceship((
-                            controller: r#None,
+                            controller: Player((
+                                input_mapping: {},
+                                infinite_ammo: false,
+                            )),
                             sections: [
                                 (
                                     id: "cube_i0_j0_k0",
