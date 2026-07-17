@@ -742,6 +742,23 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   persistence-scope fork WAS surfaced, the control-style fork was not.
   20260711-180511.
 
+- `mirror-sibling-resolve-site` (x1): when adding an `AssetRef<_>` (or any
+  resource-resolving) content field, mirror the nearest SIBLING field's resolve
+  SITE, not just its declaration attributes - the resolve site decides which
+  systems gain a resource dependency. A turret `fire_sound` first resolved inside
+  the UNCONDITIONALLY-registered `insert_turret_section` (adding `Res<AssetServer>`
+  to an observer many headless section rigs run); the sibling `muzzle_effect`
+  snapshots the ref UNRESOLVED at build and resolves in a render-time observer.
+  Caught in self-review by comparing to the sibling, not by a test. 20260717-002228.
+- `piped-cargo-masks-exit-code` (x2): `cargo ... | tail`/`| grep` reports the
+  PIPELINE's exit (tail/grep = 0), so a compile FAILURE reads as "exit 0" in the
+  harness notification; read the OUTPUT text for `error[`/`could not compile` vs
+  `Finished`, or `set -o pipefail`. Bit twice in one task - a masked E0593 in a
+  `| tail` build (surfaced only on the next `cargo run`) and a feature-gated
+  Serialize error under `cargo test -p nova_scenario | tail`. Sibling of
+  `warnings-clean-before-land` (error-only greps hide warnings; pipes hide the
+  exit code too). 20260717-002228.
+
 ## Domain lessons (nova-protocol specific)
 
 - `gate-scenario-handlers-to-their-acts` (x1): in an act/phase-structured
@@ -749,7 +766,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   asking "which acts may this fire in?", terminal states especially (an
   act-ungated death handler flipped an earned VICTORY to DEFEAT); gate by
   default, globality is the deliberate exception. 20260708-203659.
-- `crate-solo-tests-miss-unified-features` (x3 -> Pending promotions): `cargo
+- `crate-solo-tests-miss-unified-features` (x4 -> Pending promotions): `cargo
   test -p nova_scenario` alone fails to compile - its serde round-trip tests
   lean on workspace feature unification (nova_assets -> nova_modding ->
   nova_scenario/serde); run crate tests with a unifying sibling (`-p
@@ -757,7 +774,8 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   --features serde`), or workspace-wide as CI does. Reconfirmed the hard way a
   THIRD time (paid one ~8min cold compile before adding `--features serde`);
   grep this ledger for the crate name before crate-scoped runs. 20260716-125856,
-  20260716-155830, 20260716-231855.
+  20260716-155830, 20260716-231855, 20260717-002228 (hit a FOURTH
+  time - did not grep the ledger for the crate name first, as the lesson says).
 - `deleted-content-tests-carry-engine-coverage` (x1): tests over shipped
   DATA can be the only exercise of an engine mechanism (filters.rs owned
   filter/action semantics with zero tests of its own); before deleting such
