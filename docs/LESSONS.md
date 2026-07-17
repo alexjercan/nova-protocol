@@ -129,6 +129,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   against the new file AND reconciling counts, before review, not by
   eyeballing the diff (a CHANGELOG regroup dropped the "Screenshot Reel"
   entry; a token cross-check + 93=94-1 count caught it). 20260716-102950.
+- `prose-from-diff-not-intent` (x1): player-facing text (CHANGELOG, wiki)
+  written from the task title's ASPIRATION claimed a reposition feature the
+  implementation deliberately scoped out; write release prose from the final
+  diff, then re-read the title asking "does the prose claim anything the diff
+  does not do?". 20260717-112622.
 - `diagnostic-first` (x10): trace the exact reported scenario, with real
   numbers, before theorizing a mechanism (the wasm CORS "bug" was a
   cross-origin `?portal=` override, not a client fetch bug - reading the deploy
@@ -466,9 +471,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   docs kept claiming all 3 and the review caught it). Assert replace counts,
   grep the produced text, and after a failed batch re-verify EVERY member.
   20260712-110730, 20260716-125856, 20260708-203659.
-- `reuse-production-helpers-in-tests` (x2): tests compose expected values and
-  spawn rigs via the production helpers, not inline re-derivations.
-  20260711-121839, 20260712-110730.
+- `reuse-production-helpers-in-tests` (x3, -> Pending promotions): tests
+  compose expected values and spawn rigs via the production helpers, not
+  inline re-derivations - a hand-written bay rig hit a private-field wall
+  the production `torpedo_section()` bundle four screens up already solved.
+  20260711-121839, 20260712-110730, 20260717-112622.
 - `constant-offset-is-rig-math` (x1): an error invariant across interpolation
   alpha implicates the rig's math, not the timing under test. 20260711-121839.
 - `ab-toggle-via-vcs-not-sed` (x1): toggle a fix off via stash/checkout, not by
@@ -533,7 +540,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   proven not eyeballed and the fail-first A/B is one edit away (a gauntlet
   course's flyable-line clearance). 20260711-180455, 20260711-180506,
   20260716-124722.
-- `verify-engine-guarantees-in-source` (x5): read the engine/dependency source
+- `verify-engine-guarantees-in-source` (x6): read the engine/dependency source
   (or write a five-line probe) before designing around its behavior - observer
   order is arbitrary; observer-queued commands apply BEFORE the queue's remaining
   pending commands; a bcs `On<Insert>` observer `.unwrap()`s the asset, so
@@ -545,8 +552,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   crash" written from wgpu folklore was wrong twice in one task (bevy's skybox
   sanity check warn_once's and SKIPS a non-Cube view; AssetMut queues Modified
   only on an actual write) - read the consumer that produces the claimed
-  failure and cite its file:line. 20260525-133004, 20260712-115902,
-  20260525-133017, 20260716-162701, 20260717-013440.
+  failure and cite its file:line. Upstream DOC COMMENTS are folklore too:
+  avian's cast_ray_predicate doc says the ray stops on predicate-false, the
+  implementation SKIPS and continues (caught at plan time, 20260717-112622).
+  20260525-133004, 20260712-115902,
+  20260525-133017, 20260716-162701, 20260717-013440, 20260717-112622.
 - `advertised-but-unwired` (x3): a config surface is not a capability until its
   producer/consumer wiring, data source, and runtime preconditions are
   verified in the new context. 20260712-093044, 20260712-093831.
@@ -908,6 +918,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   cargo bare (backgrounded) and read the output text, or `set -o pipefail`.
   See the main-list entry. 20260717-002228 (x2 in one task), 20260717-013440.
 
+- `reuse-production-helpers-in-tests` (x3) -> work skill: compose test rigs
+  and expected values via the production helpers/bundles, not hand-written
+  component lists; grep the same file for an existing rig of the same entity
+  kind first. 20260711-121839, 20260712-110730, 20260717-112622.
 - `tatr-same-second-collision` (x7) -> tatr skill / AGENTS.md: never issue two
   `tatr new` calls in the same second or one bash line - they share a
   second-resolution ID and the later silently overwrites the earlier. One `tatr
