@@ -1,7 +1,7 @@
 // Hand-authored example mod: the Kenney craft_cargoB reassembled from its
-// cut hull cubes (scripts/cut-obj-into-hulls.py output in
-// assets/base/gltf/craft_cargoB/), every piece an inline Hull section. The
-// cube meshes are base art, referenced via dep://base.
+// cut hull cubes (scripts/cut-obj-into-hulls.py), every piece an inline Hull
+// section. The cube meshes are shipped by this mod under gltf/ (self://).
+// The ship is yawed 180 (rotation (0,1,0,0)) so it faces +Z (forward).
 [
     Scenario((
         id: "craft_cargob_reconstruct",
@@ -17,7 +17,7 @@
                             id: "craft_cargob",
                             name: "Craft Cargo B",
                             position: (0.0, 0.0, 0.0),
-                            rotation: (0.0, 0.0, 0.0, 1.0),
+                            rotation: (0.0, 1.0, 0.0, 0.0),
                         ),
                         kind: Spaceship((
                             controller: r#None,
@@ -35,7 +35,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i0_j0_k0.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i0_j0_k0.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -52,7 +52,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i0_j0_k1.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i0_j0_k1.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -69,7 +69,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i0_j0_k2.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i0_j0_k2.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -86,7 +86,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i0_j0_km1.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i0_j0_km1.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -103,7 +103,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i0_j0_km2.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i0_j0_km2.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -120,7 +120,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i0_j1_k0.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i0_j1_k0.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -137,7 +137,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i0_j1_k2.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i0_j1_k2.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -154,7 +154,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i0_j1_km1.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i0_j1_km1.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -171,7 +171,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i0_j1_km2.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i0_j1_km2.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -188,7 +188,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i0_j2_k0.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i0_j2_k0.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -205,7 +205,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i0_j2_k1.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i0_j2_k1.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -222,7 +222,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i0_j2_k2.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i0_j2_k2.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -239,7 +239,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i1_j0_k0.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i1_j0_k0.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -256,7 +256,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i1_j0_k1.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i1_j0_k1.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -273,7 +273,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i1_j0_k2.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i1_j0_k2.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -290,7 +290,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i1_j0_km1.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i1_j0_km1.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -307,7 +307,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i1_j0_km2.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i1_j0_km2.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -324,7 +324,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i1_j1_k0.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i1_j1_k0.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -341,7 +341,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i1_j1_k1.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i1_j1_k1.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -358,7 +358,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i1_j1_k2.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i1_j1_k2.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -375,7 +375,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i1_j1_km1.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i1_j1_km1.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -392,7 +392,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i1_j1_km2.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i1_j1_km2.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -409,7 +409,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i1_j2_k0.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i1_j2_k0.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -426,7 +426,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i1_j2_k1.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i1_j2_k1.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -443,7 +443,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_i1_j2_k2.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_i1_j2_k2.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -460,7 +460,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_im1_j0_k0.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_im1_j0_k0.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -477,7 +477,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_im1_j0_k1.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_im1_j0_k1.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -494,7 +494,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_im1_j0_k2.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_im1_j0_k2.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -511,7 +511,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_im1_j0_km1.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_im1_j0_km1.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -528,7 +528,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_im1_j0_km2.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_im1_j0_km2.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -545,7 +545,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_im1_j1_k0.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_im1_j1_k0.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -562,7 +562,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_im1_j1_k1.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_im1_j1_k1.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -579,7 +579,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_im1_j1_k2.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_im1_j1_k2.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -596,7 +596,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_im1_j1_km1.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_im1_j1_km1.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -613,7 +613,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_im1_j1_km2.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_im1_j1_km2.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -630,7 +630,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_im1_j2_k0.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_im1_j2_k0.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -647,7 +647,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_im1_j2_k1.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_im1_j2_k1.glb#Scene0"),
                                         )),
                                     )),
                                 ),
@@ -664,7 +664,7 @@
                                             health: 100.0,
                                         ),
                                         kind: Hull((
-                                            render_mesh: Some("dep://base/gltf/craft_cargoB/cube_im1_j2_k2.glb#Scene0"),
+                                            render_mesh: Some("self://gltf/cube_im1_j2_k2.glb#Scene0"),
                                         )),
                                     )),
                                 ),
