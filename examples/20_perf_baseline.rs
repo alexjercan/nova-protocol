@@ -41,6 +41,7 @@
 
 use bevy::prelude::*;
 use clap::Parser;
+use nova_perf::{combat_burst_driver, nova_frametime};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -87,22 +88,21 @@ fn main() {
         app.insert_resource(quality);
     }
 
-    // The capture harness (inert unless NOVA_PERF is set) plus the smoke-test
-    // assertion that the requested scenario actually loaded with real content -
-    // so a run against a typo'd id fails loudly instead of measuring an empty
-    // scene. `NOVA_PERF_COMBAT=1` attaches the combat-burst driver (raise + hold
-    // fire, keep combatants alive) so the capture measures particles/projectiles
-    // in flight rather than the scene at rest - use it on a combat scenario.
+    // The capture harness (from nova_perf; inert unless NOVA_PERF is set).
+    // `NOVA_PERF_COMBAT=1` attaches the combat-burst driver (raise + hold fire,
+    // keep combatants alive) so the capture measures particles/projectiles in
+    // flight rather than the scene at rest - use it on a combat scenario.
+    let capture = if std::env::var("NOVA_PERF_COMBAT").is_ok() {
+        nova_frametime().drive(combat_burst_driver)
+    } else {
+        nova_frametime()
+    };
+    app.add_plugins(capture);
+
+    // Smoke-test assertion (debug-only, in nova_debug): fail a run against a
+    // typo'd id loudly instead of measuring an empty scene.
     #[cfg(feature = "debug")]
-    {
-        let capture = if std::env::var("NOVA_PERF_COMBAT").is_ok() {
-            nova_frametime().drive(combat_burst_driver)
-        } else {
-            nova_frametime()
-        };
-        app.add_plugins(capture);
-        app.add_plugins(assert_scenario_loaded(scenario_id));
-    }
+    app.add_plugins(assert_scenario_loaded(scenario_id));
 
     app.run();
 }

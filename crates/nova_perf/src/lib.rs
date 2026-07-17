@@ -5,8 +5,8 @@
 //! fixed window, then writes percentile frame-time stats (JSON + a CSV row) and
 //! exits cleanly with [`AppExit::Success`]. Inert unless `NOVA_PERF` is set, so
 //! an example adds it permanently and pays nothing in a normal run - the same
-//! contract the [`nova_autopilot`](crate::harness::nova_autopilot) /
-//! [`nova_screenshot`](crate::harness::nova_screenshot) presets follow.
+//! contract the `nova_autopilot` / `nova_screenshot` harness presets (in
+//! `nova_debug`) follow.
 //!
 //! ## Why measure this way
 //!
@@ -31,7 +31,7 @@
 //!
 //! ```no_run
 //! # use bevy::prelude::*;
-//! # use nova_debug::perf::nova_frametime;
+//! # use nova_perf::nova_frametime;
 //! # fn add(app: &mut App) {
 //! app.add_plugins(nova_frametime());
 //! # }
@@ -70,8 +70,10 @@ use bevy::{
     window::{PresentMode, PrimaryWindow},
     winit::WinitSettings,
 };
-use bevy_common_systems::health::Health;
+// Health is re-exported by nova_gameplay, so nova_perf pins the same
+// bevy_common_systems version the game uses (no direct bcs dep, no version skew).
 use nova_gameplay::{
+    bevy_common_systems::health::Health,
     prelude::{PlayerSpaceshipMarker, WeaponsHot},
     GameStates,
 };

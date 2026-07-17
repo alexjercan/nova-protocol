@@ -16,10 +16,5 @@ nova_gameplay = { path = "../nova_gameplay", features = ["debug"] }
 nova_scenario = { path = "../nova_scenario" }
 bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", tag = "v0.19.1", features = ["debug"] }
 
-# Wasm-only: the frame-time harness (`perf.rs`) reads its config from the URL
-# query string in the browser (no process env there).
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-web-sys = { version = "0.3", features = ["Window", "Location"] }
-
 [lints]
 workspace = true
