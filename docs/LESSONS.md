@@ -129,6 +129,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   against the new file AND reconciling counts, before review, not by
   eyeballing the diff (a CHANGELOG regroup dropped the "Screenshot Reel"
   entry; a token cross-check + 93=94-1 count caught it). 20260716-102950.
+- `authored-durations-clamp-trio` (x1): every authored duration/magnitude
+  field gets the finite-check + runtime-cap + lint-range trio AT THE FIELD'S
+  BIRTH - two pacing durations reached Timer::from_seconds unclamped (an
+  authored 1e30 panics at runtime) one task after the sibling dwell field got
+  the full treatment; the pattern failed to transfer across crates.
+  20260717-163050.
 - `pin-the-window-not-the-ingredients` (x1): a regression pin for a
   race/aliasing bug must reproduce the failure WINDOW (clear + repush before
   any sync frame), not just its ingredients - a pin with an intermediate
