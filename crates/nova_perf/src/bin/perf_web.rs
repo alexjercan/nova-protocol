@@ -7,14 +7,15 @@
 //! logged to the console (`nova perf: label=...`) - on web there is no
 //! filesystem, so a browser driver scrapes that console line.
 //!
-//! Requires the `debug` feature (the harness lives in `nova_debug`, which is
-//! debug-gated). Built for web via `scripts/perf-web.sh` / `perf.html`.
+//! Built for web via `scripts/perf-web.sh` / `perf.html`; no `debug` feature
+//! needed (the harness lives in this crate, `nova_perf`, not `nova_debug`).
 //!
 //! Query/env params (all optional): `scenario`, `quality` (low|medium|high),
 //! `combat` (present = drive a combat burst), plus the capture knobs the plugin
 //! reads (`warmup`, `frames`, `label`, `res`; `perf` arms it on web).
 
 use bevy::prelude::*;
+use nova_perf::{combat_burst_driver, nova_frametime, perf_param};
 use nova_protocol::prelude::*;
 
 fn main() {

@@ -274,7 +274,7 @@ console, since wasm cannot write files).
 
 ### 1. Frame-time capture harness (`20260716-123551`) - DONE
 
-Shipped `crates/nova_debug/src/perf.rs` (the `nova_frametime` plugin, pure
+Shipped `crates/nova_perf/src/lib.rs` (the `nova_frametime` plugin, pure
 unit-tested percentile stats), `examples/20_perf_baseline.rs` (boots any shipped
 scenario by id, with a preset knob), and `scripts/perf-baseline.sh` (the sweep
 driver). This is the reusable gate future perf work runs against. Numbers,
@@ -358,17 +358,17 @@ scripts/perf-web.sh broadside            # QUALITY=high COMBAT=1 scripts/perf-we
 `scripts/perf-baseline.sh gpu` / `sw` wrap the native sweep: both stand up a
 throwaway Xvfb display (real GPU for `gpu`, forced lavapipe ICD for `sw`) and set
 `BEVY_ASSET_ROOT`, reproducing this report's tables. Pass `DISPLAY_OVERRIDE=:0`
-for the live desktop. Full env/URL param table is in `crates/nova_debug/src/perf.rs`.
+for the live desktop. Full env/URL param table is in `crates/nova_perf/src/lib.rs`.
 Raw results are under `tasks/20260716-123551/perf-results/{xgpu,sw,combat,web}/`.
 
 ## Tooling added
 
 | Tool | Where | Why |
 |------|-------|-----|
-| `nova_frametime` capture plugin | `crates/nova_debug/src/perf.rs` | env/URL-gated whole-frame capture over the real app; a `drive` hook for active-scene drivers; writes JSON + CSV (native) / console line (web); pure, unit-tested percentile stats |
-| `combat_burst_driver` | `crates/nova_debug/src/perf.rs` | a `PerfDriver` that holds player fire and keeps combatants alive, so a capture measures a sustained combat burst |
+| `nova_frametime` capture plugin | `crates/nova_perf/src/lib.rs` | env/URL-gated whole-frame capture over the real app; a `drive` hook for active-scene drivers; writes JSON + CSV (native) / console line (web); pure, unit-tested percentile stats |
+| `combat_burst_driver` | `crates/nova_perf/src/lib.rs` | a `PerfDriver` that holds player fire and keeps combatants alive, so a capture measures a sustained combat burst |
 | `20_perf_baseline` example | `examples/20_perf_baseline.rs` | boots any shipped scenario by id under the harness, with preset + `NOVA_PERF_COMBAT` knobs |
-| `perf_web` bin + `perf.html` | `src/bin/perf_web.rs`, `perf.html` | the same harness built to wasm by Trunk (config from the URL query), for the web/WebGPU capture |
+| `perf_web` bin + `perf.html` | `crates/nova_perf/src/bin/perf_web.rs`, `perf.html` | the same harness built to wasm by Trunk (config from the URL query), for the web/WebGPU capture |
 | `perf-baseline.sh` / `perf-web.sh` | `scripts/` | native sweep (scene x preset x renderer) and the web capture (Trunk build -> serve -> headless Chromium -> console scrape) |
 
 ## What was tried and rejected as a measurement rig

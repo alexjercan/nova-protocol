@@ -4537,6 +4537,7 @@ dependencies = [
  "embed-resource",
  "nova_core",
  "nova_modding",
+ "nova_perf",
  "rand 0.10.2",
  "ron",
  "serde",
@@ -4600,7 +4601,6 @@ dependencies = [
  "itertools 0.15.0",
  "nova_gameplay",
  "nova_scenario",
- "web-sys",
 ]
 
 [[package]]
@@ -4697,6 +4697,16 @@ dependencies = [
  "nova_scenario",
  "ron",
  "serde",
+]
+
+[[package]]
+name = "nova_perf"
+version = "0.6.0"
+dependencies = [
+ "bevy",
+ "nova-protocol",
+ "nova_gameplay",
+ "web-sys",
 ]
 
 [[package]]

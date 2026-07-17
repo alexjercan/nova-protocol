@@ -6,7 +6,6 @@ use nova_gameplay::GameStates;
 
 pub mod gravity;
 pub mod harness;
-pub mod perf;
 pub mod screenshot;
 pub mod sections;
 
@@ -21,7 +20,6 @@ pub mod prelude {
             assert_scenario_loaded, capture_window, hide_dev_overlays, nova_autopilot,
             nova_screenshot, reel_pose_camera, ReelBeat, ReelCamera, ScreenshotReelPlugin,
         },
-        perf::{combat_burst_driver, nova_frametime, perf_armed, perf_param},
         screenshot::{ScreenshotHotkeyPlugin, SCREENSHOT_KEYCODE},
         DebugPlugin,
     };

@@ -6,7 +6,15 @@ implementation/reflection log AGENTS.md asks for.
 
 ## What changed and why
 
-- New env-gated plugin `crates/nova_debug/src/perf.rs` (`nova_frametime`). It
+- The perf tooling lives in its own crate, `crates/nova_perf` (lib = the capture
+  plugin, `[[bin]] perf_web` = the web/native entry). It started inside
+  `nova_debug` but moved out: a `perf_web` `[[bin]]` in the ROOT package made
+  `cargo run` ambiguous (it wanted `--bin nova-protocol`), and the harness is not
+  really a "debug overlay". The crate depends on `nova-protocol` for the bin (a
+  dev-dependency cycle cargo allows, since the root only dev-depends back on
+  `nova_perf` for the example); `Health` is pulled via `nova_gameplay`'s
+  re-export so there is no second bevy_common_systems version.
+- New env-gated plugin `crates/nova_perf/src/lib.rs` (`nova_frametime`). It
   drives the real gameplay app to `Playing`, warms up, records `Time<Real>`
   per-frame deltas for a fixed window, computes nearest-rank percentile stats,
   writes `<label>.json` + a `frametime.csv` row, and exits. Env-gated by
