@@ -273,6 +273,11 @@ the headline number, a pointer to its TASK.md.)
   scenario_elapsed variable (live unpaused seconds) for timed beats;
   lint-guarded; example arena ships the copy-me one-shots. Resolves F5.
   tasks/20260717-112647/TASK.md.
+- 2026-07-17 playtest VERDICT (user): "the difficulty is a bit better
+  now; we can leave it like this" - the family's rework holds as landed.
+  Residuals routed to tasks: Auditor gun downgrade (20260717-143806,
+  decided), Auditor bay clipping (20260717-151208), Rust Tally turret
+  mounts (20260717-151214).
 - 2026-07-17 20260717-112656 (balance audit rig, landed 8d445b0b):
   nova_assets::balance + balance_audit bin + CI gate; 11 combat scenarios
   audited, zero errors (the reworks hold), one discovery - ch4's Auditor
