@@ -1,8 +1,8 @@
 # Numeric hull-integrity chip in the flight-status chip family (exact-value backstop)
 
 - STATUS: OPEN
-- PRIORITY: 29
-- TAGS: v0.7.0,hud,ui,spike
+- PRIORITY: 0
+- TAGS: backlog,hud,ui,spike
 
 Goal: keep an exact hull-integrity number available once the generic bar is
 gone, as a subordinate backstop to the diegetic mesh tint (20260717-003613).
