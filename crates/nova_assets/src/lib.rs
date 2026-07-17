@@ -750,8 +750,8 @@ pub fn register_bundles(
     // scenario against the MERGED registries - the only place cross-mod
     // references are decidable. `on_load_scenario` refuses Error-flagged
     // scenarios; the menu filters them out of the backdrop draw.
-    let merged_sections: std::collections::HashSet<String> =
-        outcome.sections.iter().map(|s| s.base.id.clone()).collect();
+    let merged_sections =
+        nova_scenario::prelude::KnownSections::from_configs(outcome.sections.iter());
     let merged_scenarios: std::collections::HashSet<String> =
         outcome.scenarios.keys().cloned().collect();
     let mut content_issues = nova_scenario::prelude::ContentIssues::default();
@@ -1386,14 +1386,16 @@ pub mod lint_walk {
     use nova_gameplay::prelude::SectionConfig;
     use nova_mod_format::BundleManifest;
     use nova_modding::prelude::Content;
-    use nova_scenario::prelude::{lint_scenario, LintIssue, LintSeverity, ScenarioConfig};
+    use nova_scenario::prelude::{
+        lint_scenario, KnownSections, LintIssue, LintSeverity, ScenarioConfig,
+    };
 
     /// One walked bundle: its id (directory-derived), manifest, parsed content
-    /// items, and the section-id / scenario views derived from them.
+    /// items, and the section / scenario views derived from them.
     struct WalkedBundle {
         id: String,
         manifest: BundleManifest,
-        sections: HashSet<String>,
+        sections: Vec<SectionConfig>,
         scenarios: Vec<ScenarioConfig>,
         /// Every parsed content item (sections and scenarios), kept so the
         /// mod-relative `self://` resource-ref check can see both kinds.
@@ -1434,13 +1436,11 @@ pub mod lint_walk {
             .unwrap_or_else(|err| panic!("parse {}: {err}", path.display()));
             content.extend(items);
         }
-        let mut sections = HashSet::new();
+        let mut sections = Vec::new();
         let mut scenarios = Vec::new();
         for item in &content {
             match item {
-                Content::Section(section) => {
-                    sections.insert(section.base.id.clone());
-                }
+                Content::Section(section) => sections.push(section.clone()),
                 Content::Scenario(scenario) => scenarios.push(scenario.clone()),
             }
         }
@@ -1489,8 +1489,10 @@ pub mod lint_walk {
     /// = base + the bundle's own + its declared dependencies'; known
     /// scenarios = every id across `all` plus the bundle's own).
     fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, LintIssue)> {
-        let sections_by_id: HashMap<&str, &HashSet<String>> =
-            all.iter().map(|b| (b.id.as_str(), &b.sections)).collect();
+        let sections_by_bundle: HashMap<&str, &[SectionConfig]> = all
+            .iter()
+            .map(|b| (b.id.as_str(), b.sections.as_slice()))
+            .collect();
         let bundles_by_id: HashMap<&str, &WalkedBundle> =
             all.iter().map(|b| (b.id.as_str(), b)).collect();
         let mut known_scenarios: HashSet<String> = all
@@ -1500,17 +1502,19 @@ pub mod lint_walk {
         known_scenarios.extend(bundle.scenarios.iter().map(|s| s.id.clone()));
 
         // Visible prototypes: base + this bundle's own + its declared
-        // dependencies' ('base' is implicit and never declared).
-        let mut known_sections: HashSet<String> = sections_by_id
+        // dependencies' ('base' is implicit and never declared). Full
+        // configs, so the catalog can classify mount kinds.
+        let mut visible: Vec<&SectionConfig> = sections_by_bundle
             .get("base")
-            .map(|s| (*s).clone())
+            .map(|s| s.iter().collect())
             .unwrap_or_default();
-        known_sections.extend(bundle.sections.iter().cloned());
+        visible.extend(bundle.sections.iter());
         for dep in &bundle.manifest.meta.dependencies {
-            if let Some(dep_sections) = sections_by_id.get(dep.as_str()) {
-                known_sections.extend(dep_sections.iter().cloned());
+            if let Some(dep_sections) = sections_by_bundle.get(dep.as_str()) {
+                visible.extend(dep_sections.iter());
             }
         }
+        let known_sections = KnownSections::from_configs(visible);
 
         let mut issues = Vec::new();
         for scenario in &bundle.scenarios {
@@ -1615,14 +1619,7 @@ pub mod lint_walk {
             .into_iter()
             .map(|bundle| AuditBundle {
                 dependencies: bundle.manifest.meta.dependencies.clone(),
-                sections: bundle
-                    .content
-                    .iter()
-                    .filter_map(|item| match item {
-                        Content::Section(section) => Some(section.clone()),
-                        _ => None,
-                    })
-                    .collect(),
+                sections: bundle.sections,
                 scenarios: bundle.scenarios,
                 id: bundle.id,
             })
@@ -1727,7 +1724,7 @@ pub mod lint_walk {
             let sections = content
                 .iter()
                 .filter_map(|c| match c {
-                    Content::Section(s) => Some(s.base.id.clone()),
+                    Content::Section(s) => Some(s.clone()),
                     _ => None,
                 })
                 .collect();

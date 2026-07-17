@@ -14,10 +14,61 @@
 
 use std::collections::HashSet;
 
+use bevy::prelude::Vec3;
+use nova_gameplay::prelude::{SectionConfig, SectionKind};
+
 use crate::prelude::*;
 
 pub mod prelude {
-    pub use super::{lint_scenario, LintIssue, LintSeverity};
+    pub use super::{lint_scenario, KnownSections, LintIssue, LintSeverity};
+}
+
+/// The section-prototype view a caller lints against: every visible
+/// prototype id, plus the subset that MOUNTS - kinds whose model has a base
+/// face at local -Y that must sit flush against a neighboring section
+/// (turrets and torpedo bays; established from the GLB vertex data in task
+/// 20260717-151208's review - the turret turntable and the bay hatch sit at
+/// +Y). Built from full configs via [`KnownSections::from_configs`] so the
+/// kind classification lives in ONE place for every caller (author CLI
+/// walk, CI gate, runtime merge sweep).
+#[derive(Clone, Debug, Default)]
+pub struct KnownSections {
+    /// Every visible section-prototype id.
+    pub ids: HashSet<String>,
+    /// The ids whose every visible definition is a mount kind. Conservative
+    /// on cross-bundle id conflicts (a mod overriding a mount id with a
+    /// hull, say): a contested id is NOT treated as a mount, so the
+    /// adjacency check can under-flag but never false-fail. The static
+    /// walk unions every VISIBLE definition and is where a contested id
+    /// can under-flag; the runtime merge gate classifies from the actual
+    /// last-wins overlay, so it is the accurate one - conflicting content
+    /// can pass CI yet still be refused in-game.
+    pub mounts: HashSet<String>,
+}
+
+impl KnownSections {
+    /// Whether a section kind mounts by its -Y base face.
+    pub fn kind_mounts(kind: &SectionKind) -> bool {
+        matches!(kind, SectionKind::Turret(_) | SectionKind::Torpedo(_))
+    }
+
+    /// Classify full section configs into the catalog view.
+    pub fn from_configs<'a>(configs: impl IntoIterator<Item = &'a SectionConfig>) -> Self {
+        let mut ids = HashSet::new();
+        let mut mounts = HashSet::new();
+        let mut non_mounts = HashSet::new();
+        for config in configs {
+            let id = &config.base.id;
+            if Self::kind_mounts(&config.kind) {
+                mounts.insert(id.clone());
+            } else {
+                non_mounts.insert(id.clone());
+            }
+            ids.insert(id.clone());
+        }
+        mounts.retain(|id| !non_mounts.contains(id));
+        Self { ids, mounts }
+    }
 }
 
 /// How bad a finding is: `Error` fails gates (the content WILL misbehave),
@@ -70,12 +121,12 @@ struct Declared {
 }
 
 /// Lint one scenario against the identifier sets the caller knows about:
-/// `known_sections` (the section-prototype catalog visible to this
-/// scenario's bundle) and `known_scenarios` (every scenario id a
-/// `NextScenario` may target, normally base + all installed bundles).
+/// `sections` (the section-prototype catalog visible to this scenario's
+/// bundle) and `known_scenarios` (every scenario id a `NextScenario` may
+/// target, normally base + all installed bundles).
 pub fn lint_scenario(
     scenario: &ScenarioConfig,
-    known_sections: &HashSet<String>,
+    sections: &KnownSections,
     known_scenarios: &HashSet<String>,
 ) -> Vec<LintIssue> {
     let id = scenario.id.as_str();
@@ -151,7 +202,7 @@ pub fn lint_scenario(
             check_action(
                 action,
                 id,
-                known_sections,
+                sections,
                 known_scenarios,
                 &satisfiable,
                 &mut used_vars,
@@ -285,7 +336,7 @@ fn collect_declared(action: &EventActionConfig, declared: &mut Declared) {
 fn check_action(
     action: &EventActionConfig,
     scenario: &str,
-    known_sections: &HashSet<String>,
+    sections: &KnownSections,
     known_scenarios: &HashSet<String>,
     satisfiable: &dyn Fn(&str) -> bool,
     used_vars: &mut HashSet<String>,
@@ -293,13 +344,13 @@ fn check_action(
 ) {
     match action {
         EventActionConfig::SpawnScenarioObject(config) => {
-            check_object_prototypes(config, scenario, known_sections, issues);
+            check_object_prototypes(config, scenario, sections, issues);
         }
         EventActionConfig::ScatterObjects(config) => {
             // The template is a full object config too - a scattered ship
             // with a bad prototype is the same bug one wrapper deeper
             // (review R1.1).
-            check_object_prototypes(&config.template, scenario, known_sections, issues);
+            check_object_prototypes(&config.template, scenario, sections, issues);
         }
         EventActionConfig::Outcome(config) => {
             if let Some(secs) = config.auto_advance_secs {
@@ -429,13 +480,13 @@ fn check_action(
 fn check_object_prototypes(
     config: &ScenarioObjectConfig,
     scenario: &str,
-    known_sections: &HashSet<String>,
+    sections: &KnownSections,
     issues: &mut Vec<LintIssue>,
 ) {
     if let ScenarioObjectKind::Spaceship(ship) = &config.kind {
         for section in &ship.sections {
             if let SectionSource::Prototype(proto) = &section.source {
-                if !known_sections.contains(proto) {
+                if !sections.ids.contains(proto) {
                     issues.push(LintIssue::error(
                         scenario,
                         format!(
@@ -447,6 +498,7 @@ fn check_object_prototypes(
             }
         }
         check_section_overlaps(config.base.id.as_str(), ship, scenario, issues);
+        check_mount_adjacency(config.base.id.as_str(), ship, scenario, sections, issues);
         check_controller_durations(config.base.id.as_str(), ship, scenario, issues);
     }
 }
@@ -529,6 +581,79 @@ fn check_section_overlaps(
                     ),
                 ));
             }
+        }
+    }
+}
+
+/// Mount-base adjacency (task 20260717-162121, seeded by review R1.2 of
+/// 20260717-151214): a mount section's base face (local -Y) must sit flush
+/// against an occupied neighbor cell - `position + rotation * -Y` lands on
+/// a sibling section's cell. ANY sibling counts, not just hulls (most
+/// shipped ships seat the aft turret's base against the controller cell).
+/// All shipped content rotates sections by quarter-turns, so the base
+/// direction is axis-aligned; a mount with a non-quarter rotation gets a
+/// Warn note and is otherwise skipped (conservative, like the overlap
+/// check's rotation caveat). This check would have caught both shipped
+/// wrong-roll bugs at authoring time: the Auditor bay bottom-down at a
+/// flank cell (task 20260717-151208) and all four gunship side mounts
+/// with spine-end rolls (task 20260717-151214).
+fn check_mount_adjacency(
+    ship_id: &str,
+    ship: &SpaceshipConfig,
+    scenario: &str,
+    sections: &KnownSections,
+    issues: &mut Vec<LintIssue>,
+) {
+    // f32 quat error on authored quarter-turns is ~1e-7 and authored
+    // positions sit on the unit grid; the smallest shipped slip (the
+    // Auditor bay's 0.5-cell offset) is orders above both epsilons.
+    const AXIS_EPS: f32 = 1e-4;
+    const CELL_EPS: f32 = 1e-3;
+    for section in &ship.sections {
+        let is_mount = match &section.source {
+            SectionSource::Inline(config) => KnownSections::kind_mounts(&config.kind),
+            SectionSource::Prototype(proto) => sections.mounts.contains(proto),
+        };
+        if !is_mount {
+            continue;
+        }
+        let base_dir = section.rotation * Vec3::NEG_Y;
+        let snapped = base_dir.round();
+        // A quarter-turn of a UNIT quat sends -Y to a unit axis vector.
+        // Anything else - a free angle, or a non-unit hand-typed quat, for
+        // which `q * v` is not a rotation at all (a sqrt(2)-scaled
+        // quarter-turn yields an INTEGER base direction like (-2, 1, 0)
+        // that would pass the deviation test alone; review R1.1) - is
+        // statically uncheckable: note and skip. `snapped` components are
+        // exact integers, so the length comparison is exact.
+        if (base_dir - snapped).abs().max_element() > AXIS_EPS || snapped.length_squared() != 1.0 {
+            issues.push(LintIssue::warn(
+                scenario,
+                format!(
+                    "ship '{ship_id}' section '{}': non-quarter-turn (or non-unit) rotation, \
+                     mount-base adjacency unchecked (base direction {base_dir:?})",
+                    section.id
+                ),
+            ));
+            continue;
+        }
+        // The section can never satisfy itself: the target cell is a full
+        // unit away from its own position.
+        let target = section.position + snapped;
+        let occupied = ship
+            .sections
+            .iter()
+            .any(|other| (other.position - target).abs().max_element() < CELL_EPS);
+        if !occupied {
+            issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "ship '{ship_id}' section '{}' at {:?}: mount base (rotation * -Y = \
+                     {snapped:?}) points at empty cell {target:?} - a turret/torpedo bay \
+                     must sit base-against an occupied neighbor cell",
+                    section.id, section.position
+                ),
+            ));
         }
     }
 }
@@ -637,6 +762,25 @@ mod tests {
         ids.iter().map(|s| s.to_string()).collect()
     }
 
+    /// A catalog of known prototype ids, none of them mounts (the shape
+    /// every pre-mount-check test wants: the adjacency arm stays silent).
+    fn sections(ids: &[&str]) -> KnownSections {
+        KnownSections {
+            ids: known(ids),
+            mounts: HashSet::new(),
+        }
+    }
+
+    /// A catalog where `mounts` are mount-kind prototypes (also known).
+    fn sections_with_mounts(ids: &[&str], mounts: &[&str]) -> KnownSections {
+        let mut catalog = sections(ids);
+        for id in mounts {
+            catalog.ids.insert(id.to_string());
+            catalog.mounts.insert(id.to_string());
+        }
+        catalog
+    }
+
     fn spawn_object(id: &str) -> EventActionConfig {
         EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
@@ -742,7 +886,7 @@ mod tests {
         );
         let issues = lint_scenario(
             &s,
-            &known(&["known_proto"]),
+            &sections(&["known_proto"]),
             &known(&["test_scenario", "next_chapter"]),
         );
         assert!(issues.is_empty(), "clean scenario flagged: {issues:?}");
@@ -751,7 +895,7 @@ mod tests {
     #[test]
     fn unknown_prototype_is_an_error() {
         let s = scenario(vec![spawn_ship("player", "no_such_proto")], vec![]);
-        let issues = lint_scenario(&s, &known(&["known_proto"]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&["known_proto"]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("no_such_proto"));
@@ -796,7 +940,7 @@ mod tests {
         );
         let issues = lint_scenario(
             &scenario(vec![bad_orbit], vec![]),
-            &known(&["known_proto"]),
+            &sections(&["known_proto"]),
             &known(&["test_scenario"]),
         );
         let errs = errors(&issues);
@@ -812,7 +956,7 @@ mod tests {
         );
         let issues = lint_scenario(
             &scenario(vec![bad_lock], vec![]),
-            &known(&["known_proto"]),
+            &sections(&["known_proto"]),
             &known(&["test_scenario"]),
         );
         let errs = errors(&issues);
@@ -830,7 +974,7 @@ mod tests {
         );
         let issues = lint_scenario(
             &scenario(vec![ok], vec![]),
-            &known(&["known_proto"]),
+            &sections(&["known_proto"]),
             &known(&["test_scenario"]),
         );
         assert!(
@@ -854,7 +998,7 @@ mod tests {
             )],
             vec![],
         );
-        let issues = lint_scenario(&s, &known(&["known_proto"]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&["known_proto"]), &known(&["test_scenario"]));
         assert!(errors(&issues).is_empty(), "should not error: {issues:?}");
         assert!(
             issues
@@ -888,7 +1032,7 @@ mod tests {
             })],
             vec![],
         );
-        let issues = lint_scenario(&s, &known(&["known_proto"]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&["known_proto"]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("no_such_proto"));
@@ -904,7 +1048,7 @@ mod tests {
             })],
             vec![],
         );
-        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("gone"));
@@ -913,7 +1057,7 @@ mod tests {
     #[test]
     fn duplicate_spawn_ids_in_one_handler_are_an_error() {
         let s = scenario(vec![spawn_object("twin"), spawn_object("twin")], vec![]);
-        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("twin"));
@@ -929,7 +1073,7 @@ mod tests {
             filters: vec![],
             actions: vec![spawn_object("boss")],
         });
-        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("mutually exclusive"));
@@ -965,7 +1109,7 @@ mod tests {
                 }),
             ],
         );
-        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "only the ghost flags: {issues:?}");
         assert!(errs[0].message.contains("ghost"));
@@ -990,7 +1134,7 @@ mod tests {
                 ),
             ))],
         );
-        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 2, "{issues:?}");
         assert!(issues.iter().any(|i| i.message.contains("never_set")));
@@ -1018,16 +1162,16 @@ mod tests {
         };
 
         let s = scenario(vec![outcome(), next(false, None)], vec![]);
-        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("non-lingering"));
 
         let s = scenario(vec![outcome(), next(false, Some(4.0))], vec![]);
-        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "delayed is the same trap: {issues:?}");
 
         let s = scenario(vec![outcome(), next(true, None)], vec![]);
-        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
         assert!(
             issues.is_empty(),
             "the lingering pair is the good shape: {issues:?}"
@@ -1054,17 +1198,17 @@ mod tests {
         };
 
         let s = scenario(vec![line("one"), line("two")], vec![]);
-        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("one line per beat"));
 
         let s = scenario(vec![line("dead"), outcome()], vec![]);
-        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("never read"));
 
         let s = scenario(vec![line("solo")], vec![]);
-        assert!(lint_scenario(&s, &known(&[]), &known(&["test_scenario"])).is_empty());
+        assert!(lint_scenario(&s, &sections(&[]), &known(&["test_scenario"])).is_empty());
     }
 
     /// Pacing-field ranges (reviews R1.1/R1.5 of 20260717-163050):
@@ -1090,7 +1234,7 @@ mod tests {
         // Range/dead-field warns, isolated from the same-handler swallow
         // trap (which is its own test): switches only.
         let s = scenario(vec![next(false, Some(1e30)), next(true, Some(4.0))], vec![]);
-        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 2, "{issues:?}");
         assert!(issues.iter().any(|i| i.message.contains("outside (0, 60]")));
@@ -1098,15 +1242,15 @@ mod tests {
 
         // The outcome range warn, without a hard switch in the handler.
         let s = scenario(vec![outcome_adv(Some(f64::INFINITY))], vec![]);
-        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("auto_advance_secs"));
 
         // Sane values, trap-free shapes: clean.
         let s = scenario(vec![next(false, Some(4.0))], vec![]);
-        assert!(lint_scenario(&s, &known(&[]), &known(&["test_scenario"])).is_empty());
+        assert!(lint_scenario(&s, &sections(&[]), &known(&["test_scenario"])).is_empty());
         let s = scenario(vec![outcome_adv(Some(6.0))], vec![]);
-        assert!(lint_scenario(&s, &known(&[]), &known(&["test_scenario"])).is_empty());
+        assert!(lint_scenario(&s, &sections(&[]), &known(&["test_scenario"])).is_empty());
     }
 
     /// StoryMessage dwell range (task 20260717-163033): out-of-range warns,
@@ -1129,7 +1273,7 @@ mod tests {
                 actions: vec![l],
             });
         }
-        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("120"));
@@ -1173,13 +1317,13 @@ mod tests {
 
         // The Auditor shape: half-embedded on the spine.
         let s = scenario(vec![ship_with(Vec3::new(0.0, 0.0, 0.5))], vec![]);
-        let issues = lint_scenario(&s, &known(&["known"]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&["known"]), &known(&["test_scenario"]));
         assert_eq!(errors(&issues).len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("overlap"));
 
         // Flush side mount: legal.
         let s = scenario(vec![ship_with(Vec3::new(1.0, 0.0, 0.0))], vec![]);
-        let issues = lint_scenario(&s, &known(&["known"]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&s, &sections(&["known"]), &known(&["test_scenario"]));
         assert!(issues.is_empty(), "{issues:?}");
     }
 
@@ -1204,7 +1348,7 @@ mod tests {
                 ),
             ))],
         );
-        let issues = lint_scenario(&read_only, &known(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&read_only, &sections(&[]), &known(&["test_scenario"]));
         assert!(
             issues.is_empty(),
             "gating on the engine clock is the intended pattern: {issues:?}"
@@ -1220,12 +1364,244 @@ mod tests {
             })],
             vec![],
         );
-        let issues = lint_scenario(&stomp, &known(&[]), &known(&["test_scenario"]));
+        let issues = lint_scenario(&stomp, &sections(&[]), &known(&["test_scenario"]));
         assert_eq!(
             errors(&issues).len(),
             1,
             "writing the reserved clock is an error: {issues:?}"
         );
         assert!(issues[0].message.contains(SCENARIO_ELAPSED_VAR));
+    }
+
+    /// The mount-fixture ship (task 20260717-162121): a hull cell at the
+    /// origin plus one MOUNT prototype at `pos`/`rotation`. Catalog for
+    /// these tests: `sections_with_mounts(&["hull_proto"], &["mount_proto"])`.
+    fn ship_with_mount(pos: Vec3, rotation: Quat) -> EventActionConfig {
+        EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+            base: BaseScenarioObjectConfig {
+                id: "ship".to_string(),
+                name: "ship".to_string(),
+                position: Vec3::ZERO,
+                rotation: Quat::IDENTITY,
+            },
+            kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                controller: SpaceshipController::None,
+                allegiance: None,
+                sections: vec![
+                    SpaceshipSectionConfig {
+                        id: "hull".to_string(),
+                        position: Vec3::ZERO,
+                        rotation: Quat::IDENTITY,
+                        source: SectionSource::Prototype("hull_proto".to_string()),
+                        modifications: vec![],
+                    },
+                    SpaceshipSectionConfig {
+                        id: "mount".to_string(),
+                        position: pos,
+                        rotation,
+                        source: SectionSource::Prototype("mount_proto".to_string()),
+                        modifications: vec![],
+                    },
+                ],
+            }),
+        })
+    }
+
+    /// Task 20260717-162121: every shipped mount-roll shape lints clean -
+    /// flank mounts with inboard Rz rolls, a top mount's identity, and the
+    /// bow mount's Rx(-90) (base against the cell astern of it).
+    #[test]
+    fn mount_bases_against_occupied_cells_are_clean() {
+        use std::f32::consts::FRAC_PI_2;
+        let catalog = sections_with_mounts(&["hull_proto"], &["mount_proto"]);
+        for (pos, rotation) in [
+            // Starboard flank, base rolled inboard (-Y -> -X).
+            (Vec3::new(1.0, 0.0, 0.0), Quat::from_rotation_z(-FRAC_PI_2)),
+            // Port flank, the mirror roll (-Y -> +X).
+            (Vec3::new(-1.0, 0.0, 0.0), Quat::from_rotation_z(FRAC_PI_2)),
+            // Top mount, identity: base straight down at the hull.
+            (Vec3::new(0.0, 1.0, 0.0), Quat::IDENTITY),
+            // Bow mount, the player-ship roll: base astern (-Y -> +Z).
+            (Vec3::new(0.0, 0.0, -1.0), Quat::from_rotation_x(-FRAC_PI_2)),
+        ] {
+            let s = scenario(vec![ship_with_mount(pos, rotation)], vec![]);
+            let issues = lint_scenario(&s, &catalog, &known(&["test_scenario"]));
+            assert!(issues.is_empty(), "mount at {pos:?} flagged: {issues:?}");
+        }
+    }
+
+    /// The two shipped wrong-roll shapes are errors: the Auditor bay
+    /// bottom-down on a flank cell (identity roll, base into empty space,
+    /// task 20260717-151208) and the gunship side mounts with the spine-end
+    /// Rx(-90) roll (base astern instead of inboard, task 20260717-151214).
+    #[test]
+    fn mount_base_at_an_empty_cell_is_an_error() {
+        let catalog = sections_with_mounts(&["hull_proto"], &["mount_proto"]);
+        for (pos, rotation) in [
+            (Vec3::new(1.0, 0.0, 0.0), Quat::IDENTITY),
+            (
+                Vec3::new(1.0, 0.0, 0.0),
+                Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
+            ),
+        ] {
+            let s = scenario(vec![ship_with_mount(pos, rotation)], vec![]);
+            let issues = lint_scenario(&s, &catalog, &known(&["test_scenario"]));
+            let errs = errors(&issues);
+            assert_eq!(errs.len(), 1, "mount rot {rotation:?}: {issues:?}");
+            assert!(errs[0].message.contains("mount base"), "{issues:?}");
+        }
+    }
+
+    /// A non-quarter-turn - or non-unit (review R1.1: `q * v` is not a
+    /// rotation for a non-unit hand-typed quat, and a sqrt(2)-scaled
+    /// quarter-turn snaps to an integer NON-UNIT direction that the
+    /// deviation test alone would accept) - mount rotation is skipped with
+    /// a Warn note, never errored: the static check cannot reason about
+    /// either (the same conservative caveat as the overlap check's).
+    #[test]
+    fn mount_with_non_quarter_rotation_warns_and_skips() {
+        let catalog = sections_with_mounts(&["hull_proto"], &["mount_proto"]);
+        for rotation in [
+            Quat::from_rotation_z(0.7),
+            // Rz(-90) scaled by sqrt(2): base_dir snaps to (-2, 1, 0).
+            Quat::from_xyzw(0.0, 0.0, -1.0, 1.0),
+        ] {
+            let s = scenario(
+                vec![ship_with_mount(Vec3::new(1.0, 0.0, 0.0), rotation)],
+                vec![],
+            );
+            let issues = lint_scenario(&s, &catalog, &known(&["test_scenario"]));
+            assert!(
+                errors(&issues).is_empty(),
+                "warn-only for {rotation:?}: {issues:?}"
+            );
+            assert_eq!(issues.len(), 1, "{issues:?}");
+            assert!(issues[0].message.contains("non-quarter"), "{issues:?}");
+        }
+    }
+
+    /// Occupancy is kind-blind (review R1.4): a mount seated base-against
+    /// ANOTHER MOUNT's cell passes - any sibling section counts, matching
+    /// the shipped ships that seat turrets against the controller cell.
+    #[test]
+    fn mount_seated_against_another_mount_is_clean() {
+        use std::f32::consts::FRAC_PI_2;
+        let inboard = Quat::from_rotation_z(-FRAC_PI_2);
+        let mount = |id: &str, pos: Vec3| SpaceshipSectionConfig {
+            id: id.to_string(),
+            position: pos,
+            rotation: inboard,
+            source: SectionSource::Prototype("mount_proto".to_string()),
+            modifications: vec![],
+        };
+        let s = scenario(
+            vec![EventActionConfig::SpawnScenarioObject(
+                ScenarioObjectConfig {
+                    base: BaseScenarioObjectConfig {
+                        id: "ship".to_string(),
+                        name: "ship".to_string(),
+                        position: Vec3::ZERO,
+                        rotation: Quat::IDENTITY,
+                    },
+                    kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                        controller: SpaceshipController::None,
+                        allegiance: None,
+                        sections: vec![
+                            SpaceshipSectionConfig {
+                                id: "hull".to_string(),
+                                position: Vec3::ZERO,
+                                rotation: Quat::IDENTITY,
+                                source: SectionSource::Prototype("hull_proto".to_string()),
+                                modifications: vec![],
+                            },
+                            // Inner mount seats against the hull; the outer one
+                            // seats against the INNER MOUNT.
+                            mount("mount_inner", Vec3::new(1.0, 0.0, 0.0)),
+                            mount("mount_outer", Vec3::new(2.0, 0.0, 0.0)),
+                        ],
+                    }),
+                },
+            )],
+            vec![],
+        );
+        let catalog = sections_with_mounts(&["hull_proto"], &["mount_proto"]);
+        let issues = lint_scenario(&s, &catalog, &known(&["test_scenario"]));
+        assert!(issues.is_empty(), "{issues:?}");
+    }
+
+    /// An INLINE mount section is checked from its own kind - no catalog
+    /// membership involved.
+    #[test]
+    fn inline_mount_sections_are_checked() {
+        use nova_gameplay::prelude::{BaseSectionConfig, TurretSectionConfig};
+
+        let mut action = ship_with_mount(Vec3::new(1.0, 0.0, 0.0), Quat::IDENTITY);
+        let EventActionConfig::SpawnScenarioObject(config) = &mut action else {
+            unreachable!()
+        };
+        let ScenarioObjectKind::Spaceship(ship) = &mut config.kind else {
+            unreachable!()
+        };
+        ship.sections[1].source = SectionSource::Inline(SectionConfig {
+            base: BaseSectionConfig::default(),
+            kind: SectionKind::Turret(TurretSectionConfig::default()),
+        });
+        let s = scenario(vec![action], vec![]);
+        let issues = lint_scenario(&s, &sections(&["hull_proto"]), &known(&["test_scenario"]));
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 1, "{issues:?}");
+        assert!(errs[0].message.contains("mount base"), "{issues:?}");
+    }
+
+    /// `KnownSections::from_configs` classifies turret/torpedo kinds as
+    /// mounts and everything else as plain sections - and an id CONFLICT
+    /// (one definition a mount, another not) conservatively drops the id
+    /// from the mount set rather than risking a false Error.
+    #[test]
+    fn section_catalog_classifies_mount_kinds() {
+        use nova_gameplay::prelude::{
+            BaseSectionConfig, ControllerSectionConfig, HullSectionConfig, ThrusterSectionConfig,
+            TorpedoSectionConfig, TurretSectionConfig,
+        };
+
+        let section = |id: &str, kind: SectionKind| SectionConfig {
+            base: BaseSectionConfig {
+                id: id.to_string(),
+                ..Default::default()
+            },
+            kind,
+        };
+        let configs = vec![
+            section("hull", SectionKind::Hull(HullSectionConfig::default())),
+            section(
+                "thruster",
+                SectionKind::Thruster(ThrusterSectionConfig::default()),
+            ),
+            section(
+                "controller",
+                SectionKind::Controller(ControllerSectionConfig::default()),
+            ),
+            section(
+                "turret",
+                SectionKind::Turret(TurretSectionConfig::default()),
+            ),
+            section(
+                "torpedo",
+                SectionKind::Torpedo(TorpedoSectionConfig::default()),
+            ),
+            // The same id defined as a mount in one bundle, a hull in another.
+            section(
+                "contested",
+                SectionKind::Turret(TurretSectionConfig::default()),
+            ),
+            section("contested", SectionKind::Hull(HullSectionConfig::default())),
+        ];
+        let catalog = KnownSections::from_configs(&configs);
+        assert_eq!(catalog.ids.len(), 6, "{catalog:?}");
+        assert_eq!(
+            catalog.mounts,
+            known(&["turret", "torpedo"]),
+            "only uncontested mount kinds: {catalog:?}"
+        );
     }
 }

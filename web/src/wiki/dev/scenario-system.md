@@ -285,7 +285,10 @@ scoped, interpolated, dynamic bodies via `base_scenario_object`.
   warning story beat so enemies ARRIVE instead of appearing: `elapsed >
   T` announce line -> spawn far with `engage_delay` covering the
   approach -> the fight starts when the player has read the warning).
-  See [Ship sections (internals)](../sections/).
+  Section geometry is linted: overlapping unit-cube cells and a
+  turret/torpedo mount whose base (local -Y under its rotation) points at
+  an empty neighbor cell are `content_lint` errors (see the authoring
+  guide's sharp edges). See [Ship sections (internals)](../sections/).
 - `Beacon(BeaconConfig)` - nav waypoint with an automatic HUD chip: label,
   radius, color, optional `lock_signature`, optional `area_radius` (the
   beacon doubles as its own `OnEnter`/`OnExit` trigger).

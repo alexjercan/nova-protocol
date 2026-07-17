@@ -66,7 +66,10 @@ Lint your content before shipping it: `cargo run -p nova_assets --bin
 content_lint` (add `-- --target <mod dir or id>` to check just one mod) checks what the loaders cannot - section prototype ids,
 `NextScenario` targets, filter/action target ids, duplicate object ids
 (these all resolve at SPAWN time, so a typo loads green and misbehaves
-in-game). CI runs the same checks; an Error fails the build.
+in-game) - plus ship-section geometry: sections that overlap on the
+unit-cube grid, or a turret/torpedo mount whose base does not seat
+against a neighboring section (see section 8), are errors too. CI runs
+the same checks; an Error fails the build.
 
 The same checks run in-game when mods merge: a scenario with Error-level
 findings REFUSES to start - the player sees a FAILED TO START report
@@ -984,6 +987,17 @@ file, so it is not a way to test your own scenario.)
   from a shipped scenario rather than typing it out, or generate the file by
   serializing a code-built config (`ron::ser::to_string_pretty`). See the
   authoring-verbosity note in [RON scenario/mod format](../modding-ron/).
+- Ship sections sit on a unit-cube grid: positions are cell centers 1.0
+  apart, and two sections closer than 1.0 on EVERY axis overlap (a lint
+  error). Turrets and torpedo bays MOUNT: their model's base face is local
+  -Y, so give each one the quarter-turn rotation that points
+  `rotation * (0,-1,0)` at an occupied neighbor cell - identity for a top
+  mount, `(0.0, 0.0, -0.7071068, 0.7071068)` rolls a starboard (+X flank)
+  mount's base inboard, the mirror `(0.0, 0.0, 0.7071068, 0.7071068)` for
+  port, and `(-0.7071068, 0.0, 0.0, 0.7071068)` seats a bow mount against
+  the cell astern of it. A mount whose base points at empty space is a lint
+  error (the class behind two shipped wrong-roll bugs); a non-quarter-turn
+  rotation on a mount only warns, since the lint cannot check free angles.
 - Pair events (`OnEnter`, `OnOrbit`, the locks) recur every 5s while the
   condition holds. Always gate their handlers on a variable so the repeat runs
   are no-ops, or you will re-fire actions.
