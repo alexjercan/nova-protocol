@@ -22,17 +22,8 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            controller: Player((
-                                input_mapping: {
-                                    "cube_im1_j1_k2": [
-                                        Keyboard(KeyW),
-                                    ],
-                                    "cube_i1_j1_k2": [
-                                        Keyboard(KeyW),
-                                    ],
-                                },
-                                infinite_ammo: false,
-                            )),
+                            controller: r#None,
+                            allegiance: Some(Enemy),
                             sections: [
                                 (
                                     id: "cube_i0_j0_k0",
@@ -776,6 +767,44 @@
                                             max_torque: 800.0,
                                         )),
                                     )),
+                                ),
+                            ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "test_gunner",
+                            name: "Test Gunner",
+                            position: (0.0, 0.0, 25.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: Player((
+                                input_mapping: {
+                                    "turret": [
+                                        Mouse(Left),
+                                    ],
+                                },
+                                infinite_ammo: true,
+                            )),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (0.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (0.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                                (
+                                    id: "turret",
+                                    position: (0.0, 0.0, -1.0),
+                                    rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+                                    source: Prototype("better_turret_section"),
                                 ),
                             ],
                         )),
