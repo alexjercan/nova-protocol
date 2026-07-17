@@ -191,3 +191,9 @@ Direction-level tasks this spike seeded, for `/plan` to break into steps:
 ## Fix record
 
 (Appended by each implementing task as it lands.)
+
+- 20260717 tatr 20260717-221101 (obj cutter): LANDED. `scripts/cut-obj-into-hulls.py`
+  cuts `craft_cargoB.obj` into 38 grid-aligned `.glb` cube meshes via clipping
+  (A2), area-conserved. Scope was then narrowed to cutting ONLY (no
+  classification/mod scaffold) - tasks 221106 and 221110 CLOSED as descoped;
+  reconstruction/classification to be handled in-game, re-planned when picked up.
