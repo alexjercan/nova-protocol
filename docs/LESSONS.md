@@ -169,11 +169,24 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   sitting (the ONE un-computed layout quantity, a leash radius chosen by
   feel, was the one finding; leash-covers-spawn is now a pin).
   20260717-112630.
-- `prose-from-diff-not-intent` (x1): player-facing text (CHANGELOG, wiki)
-  written from the task title's ASPIRATION claimed a reposition feature the
-  implementation deliberately scoped out; write release prose from the final
-  diff, then re-read the title asking "does the prose claim anything the diff
-  does not do?". 20260717-112622.
+- `prose-from-diff-not-intent` (x2): prose about the change (CHANGELOG, wiki,
+  task NOTES) written from the ASPIRATION claims things the diff does not do
+  (a scoped-out reposition feature; "the writing survives" over three trimmed
+  clauses); write it from the final diff, then re-read asking "does the prose
+  claim anything the diff does not do?". 20260717-112622, 20260717-163058.
+- `lint-arm-sweeps-own-fixtures` (x2): a new lint arm fires on the lint test
+  module's own pre-existing fixtures whose shape it matches (swallow arm on a
+  3-warn fixture; beat-sheet arm on the 3-lines-one-handler dwell fixture);
+  before the first run, grep the test module for matching shapes and isolate
+  each fixture to the arm it exercises. 20260717-163050, 20260717-163058.
+- `chain-gates-must-fail-on-red` (x1): `cargo test | grep "test result"`
+  succeeds even when the line says FAILED, so everything after it in the
+  &&-chain (here: the commit) runs on a red tree; a gate must exit non-zero
+  on red - grep "test result: ok" or run the command bare. 20260717-163058.
+- `spike-fix-record-appends-on-land` (x1): a multi-task spike's fix record
+  stayed empty through all four landings and was back-filled at flow finish;
+  the append belongs next to the TASK.md close in each cycle's landing, not
+  at the end. 20260717-163058 (flow-level).
 - `diagnostic-first` (x10): trace the exact reported scenario, with real
   numbers, before theorizing a mechanism (the wasm CORS "bug" was a
   cross-origin `?portal=` override, not a client fetch bug - reading the deploy

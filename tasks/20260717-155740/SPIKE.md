@@ -146,4 +146,25 @@ Direction-level tasks this spike seeded, for /plan to break into steps:
 
 ## Fix record
 
-(Each implementing task appends a few lines here as it lands.)
+(Each implementing task appends a few lines here as it lands.
+Back-filled at flow finish - see 20260717-163058's retro.)
+
+- tatr 20260717-163033 (landed 2fc938be): paced comms queue - one line
+  on screen at a time, 8s dwell (authorable, clamped [3,30]), 4s
+  minimum yield, cap 4 drop-oldest, fade + blip. tasks/20260717-163033/TASK.md
+- tatr 20260717-163042 (landed a31b0492): arrival mechanics -
+  engage_delay grace on the AI controller (damage cancels it) and the
+  line-of-fire gate so ships hold fire without line of sight.
+  tasks/20260717-163042/TASK.md
+- tatr 20260717-163050 (landed 5f486f3b): transition three-gears -
+  NextScenario delay for unceremonial cuts, Outcome auto_advance_secs
+  for timed banners, both clamped and linted. tasks/20260717-163050/TASK.md
+- tatr 20260717-163058 (landed 488483d8): the content pass - two
+  beat-sheet lint arms (9 shipped violations -> 0), dead closing lines
+  folded into their banners, clock-gated openings, arrival graces on
+  ledger/broadside/shakedown hostiles, authoring convention in the dev
+  wiki. Bundle 1.4.0. tasks/20260717-163058/TASK.md
+
+Family status: COMPLETE. All four seeded tasks CLOSED and landed; the
+beat sheet is enforced by content_lint and documented in
+web/src/wiki/dev/guide-author-scenario.md.
