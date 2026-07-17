@@ -348,13 +348,9 @@
                     ObjectiveComplete((
                         id: "obj_auditor",
                     )),
-                    StoryMessage((
-                        speaker: "Foreman Okono",
-                        text: "Paid in full, Kestrel. Every ledger line, cleared. Try to look surprised when the yard asks how.",
-                    )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("SOLD. The debt is cleared, the buyer is silent, and somewhere a manifest lists a box that never existed."),
+                        message: Some("SOLD. Paid in full - every ledger line cleared. The buyer is silent, and somewhere a manifest lists a box that never existed. Try to look surprised when the yard asks how."),
                     )),
                 ],
             ),
@@ -381,13 +377,9 @@
                     ObjectiveComplete((
                         id: "obj_auditor",
                     )),
-                    StoryMessage((
-                        speaker: "Foreman Okono",
-                        text: "Still broke, still breathing, and nobody owns that thing now. The belt will drink to you, Kestrel. I'll even pay.",
-                    )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("BURNED. The debt stands, the belt stays free, and the Kestrel flies a little lighter."),
+                        message: Some("BURNED. Still broke, still breathing - the debt stands, nobody owns that thing now, and the belt will drink to you. The Kestrel flies a little lighter."),
                     )),
                 ],
             ),

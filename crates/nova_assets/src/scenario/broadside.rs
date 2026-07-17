@@ -188,6 +188,9 @@ fn corvette(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: vec![spawn_pos, HAULER_POS + Vec3::new(0.0, 40.0, 60.0)],
                 leash: Some(420.0),
+                // Arrival grace (beat-sheet pass, task 20260717-163058):
+                // "drop off the rocks" is readable before the tracers.
+                engage_delay: Some(5.0),
                 ..Default::default()
             }),
             allegiance: None,

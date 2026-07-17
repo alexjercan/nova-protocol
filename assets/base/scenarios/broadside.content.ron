@@ -437,6 +437,7 @@
                                     ),
                                 ],
                                 leash: Some(420.0),
+                                engage_delay: Some(5.0),
                             )),
                             sections: [
                                 (
@@ -533,6 +534,7 @@
                                     ),
                                 ],
                                 leash: Some(420.0),
+                                engage_delay: Some(5.0),
                             )),
                             sections: [
                                 (

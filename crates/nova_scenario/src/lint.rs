@@ -171,6 +171,44 @@ pub fn lint_scenario(
         }
     }
 
+    // The beat-sheet convention, mechanized (task 20260717-163058):
+    // (a) one story line per beat - a multi-line handler reads as one
+    // burst even through the paced queue; (b) a StoryMessage beside an
+    // Outcome is a DEAD line - the overlay pauses the comms queue and the
+    // chained teardown drops it unread. Fold it into the overlay message
+    // or move it to an earlier beat.
+    for event in &scenario.events {
+        let story_lines = event
+            .actions
+            .iter()
+            .filter(|a| matches!(a, EventActionConfig::StoryMessage(_)))
+            .count();
+        if story_lines > 1 {
+            issues.push(LintIssue::warn(
+                id,
+                format!(
+                    "{story_lines} StoryMessages in one handler: space beats with the \
+                     scenario clock (one line per beat; the comms queue is the safety \
+                     net, not the style)"
+                ),
+            ));
+        }
+        if story_lines > 0
+            && event
+                .actions
+                .iter()
+                .any(|a| matches!(a, EventActionConfig::Outcome(_)))
+        {
+            issues.push(LintIssue::warn(
+                id,
+                "a StoryMessage beside an Outcome is never read (frozen behind the \
+                 overlay, dropped by the chained teardown) - fold it into the \
+                 overlay's message or move it to an earlier beat"
+                    .to_string(),
+            ));
+        }
+    }
+
     // Outcome + non-lingering NextScenario in ONE handler is an authoring
     // trap either way (task 20260717-163050): undelayed, the instant
     // switch tears the world down and SWALLOWS the overlay before it can
@@ -996,6 +1034,39 @@ mod tests {
         );
     }
 
+    /// The beat-sheet arms (task 20260717-163058): double lines warn,
+    /// story-beside-outcome warns, one line per handler is clean.
+    #[test]
+    fn beat_sheet_arms_warn() {
+        let line = |text: &str| {
+            EventActionConfig::StoryMessage(StoryMessageActionConfig {
+                speaker: "Okono".to_string(),
+                text: text.to_string(),
+                dwell: None,
+            })
+        };
+        let outcome = || {
+            EventActionConfig::Outcome(OutcomeActionConfig {
+                outcome: ScenarioOutcomeKind::Victory,
+                message: Some("done".to_string()),
+                auto_advance_secs: None,
+            })
+        };
+
+        let s = scenario(vec![line("one"), line("two")], vec![]);
+        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        assert_eq!(issues.len(), 1, "{issues:?}");
+        assert!(issues[0].message.contains("one line per beat"));
+
+        let s = scenario(vec![line("dead"), outcome()], vec![]);
+        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        assert_eq!(issues.len(), 1, "{issues:?}");
+        assert!(issues[0].message.contains("never read"));
+
+        let s = scenario(vec![line("solo")], vec![]);
+        assert!(lint_scenario(&s, &known(&[]), &known(&["test_scenario"])).is_empty());
+    }
+
     /// Pacing-field ranges (reviews R1.1/R1.5 of 20260717-163050):
     /// absurd/non-finite delays warn, a delay on a lingering request is
     /// dead and warns, sane values stay clean.
@@ -1049,10 +1120,15 @@ mod tests {
                 dwell,
             })
         };
-        let s = scenario(
-            vec![line(Some(120.0)), line(Some(12.0)), line(None)],
-            vec![],
-        );
+        // One line per handler so the beat-sheet arm stays out of frame.
+        let mut s = scenario(vec![line(Some(120.0))], vec![]);
+        for l in [line(Some(12.0)), line(None)] {
+            s.events.push(ScenarioEventConfig {
+                name: EventConfig::OnStart,
+                filters: vec![],
+                actions: vec![l],
+            });
+        }
         let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 1, "{issues:?}");

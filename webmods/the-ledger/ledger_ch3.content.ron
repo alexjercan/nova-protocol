@@ -235,7 +235,9 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            controller: AI(()),
+                            controller: AI((
+                                engage_delay: Some(8.0),
+                            )),
                             sections: [
                                 (
                                     id: "controller",
@@ -272,7 +274,9 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
-                            controller: AI(()),
+                            controller: AI((
+                                engage_delay: Some(8.0),
+                            )),
                             sections: [
                                 (
                                     id: "controller",
@@ -347,13 +351,9 @@
                     ObjectiveComplete((
                         id: "obj_gates",
                     )),
-                    StoryMessage((
-                        speaker: "Broker Vesh",
-                        text: "Welcome to the yard, Kestrel. Now let's talk about who exactly is buying this thing.",
-                    )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("The channel is behind you. The buyer is ahead."),
+                        message: Some("The channel is behind you. Vesh waves you into the yard: now the talk is about who exactly is buying this thing. The buyer is ahead."),
                     )),
                     NextScenario((
                         scenario_id: "ledger_ch4_the_buyer",

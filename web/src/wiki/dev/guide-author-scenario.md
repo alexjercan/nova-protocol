@@ -349,6 +349,29 @@ ObjectiveComplete((
 Re-adding the same id with a new `message` updates the text in place (the
 shakedown uses this for its "recovered N/3" tally).
 
+### The beat sheet
+
+The rhythm every base scenario follows (task 20260717-163058), and the
+convention new content should copy: **announce -> breathe -> arrive ->
+fight -> confirm -> breathe -> next.**
+
+- ONE story line per beat. Space consecutive lines with the scenario
+  clock (`scenario_elapsed` gate + a seeded one-shot flag); the comms
+  queue is the safety net for overlap, not the style.
+- Every fight gets a lead-in: a warning line, a far spawn, and an
+  `engage_delay` grace so the arrival is readable before it is lethal.
+- Never put a StoryMessage beside an `Outcome` - it is frozen behind the
+  overlay and dropped by the chained teardown (content_lint warns). The
+  overlay's own `message` carries the closing line.
+- Pick the transition gear deliberately: hard cut for menu scenes,
+  `delay: Some(secs)` for an unceremonial beat, the modal overlay (plus
+  optional `auto_advance_secs`) for checkpoints and chapter ends.
+
+The pacing toolbox, all authorable in RON: the scenario clock
+(`scenario_elapsed`), per-line `dwell` on StoryMessage, `engage_delay`
+on the AI controller, `delay` on a non-lingering NextScenario, and
+`auto_advance_secs` on an Outcome.
+
 ### Telegraphed arrivals
 
 Enemies read better when they ARRIVE. The pattern: announce with a

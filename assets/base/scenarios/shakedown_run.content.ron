@@ -1141,6 +1141,7 @@
                                     ),
                                 ],
                                 leash: Some(150.0),
+                                engage_delay: Some(5.0),
                             )),
                             sections: [
                                 (

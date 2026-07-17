@@ -35,13 +35,15 @@
                         key: "kills",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
-                    StoryMessage((
-                        speaker: "Foreman Okono",
-                        text: "Kestrel, the Mule's inbound for the pickup - and so are the Magpies. Two contacts burning in from the east lane, light hulls.",
+                    // One-shot flag for the clock-spaced teach beat below
+                    // (seeded: an undefined gate fails closed forever).
+                    VariableSet((
+                        key: "teach_sent",
+                        expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     StoryMessage((
                         speaker: "Foreman Okono",
-                        text: "They only have eyes for you, not the Mule - so drag their fire wide of her, and keep a rock between you when the tracers come.",
+                        text: "Kestrel, the Mule's inbound for the pickup - and so are the Magpies. Two contacts burning in from the east lane, light hulls.",
                     )),
                     Objective((
                         id: "obj_ch2_recap",
@@ -304,6 +306,7 @@
                                     (60.0, 10.0, -100.0),
                                 ],
                                 leash: Some(550.0),
+                                engage_delay: Some(8.0),
                             )),
                             sections: [
                                 (
@@ -347,6 +350,7 @@
                                     (90.0, -10.0, -130.0),
                                 ],
                                 leash: Some(550.0),
+                                engage_delay: Some(8.0),
                             )),
                             sections: [
                                 (
@@ -375,6 +379,36 @@
                                 ),
                             ],
                         )),
+                    )),
+                ],
+            ),
+            // The teach beat, clock-spaced off the opening line (one line per
+            // beat - the beat-sheet convention): eight seconds after the
+            // contact call, while the arrivals are still inbound.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("teach_sent"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "teach_sent",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Foreman Okono",
+                        text: "They only have eyes for you, not the Mule - so drag their fire wide of her, and keep a rock between you when the tracers come.",
                     )),
                 ],
             ),
@@ -449,13 +483,9 @@
                     ObjectiveComplete((
                         id: "obj_escort",
                     )),
-                    StoryMessage((
-                        speaker: "Foreman Okono",
-                        text: "Wave one's drifting in pieces. Catch your breath - the Magpies don't send the heavies until they're angry. They're angry.",
-                    )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("Wave one broken. The Mule holds station - and the scope already shows two more burns."),
+                        message: Some("Wave one broken. Catch your breath while you can - the Mule holds station, and the scope already shows two more burns. The Magpies are angry now."),
                     )),
                     NextScenario((
                         scenario_id: "ledger_ch2b_the_heavies",

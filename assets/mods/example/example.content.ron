@@ -303,15 +303,11 @@
                     ObjectiveComplete((
                         id: "clear_range",
                     )),
-                    StoryMessage((
-                        speaker: "Range Control",
-                        text: "Board's clear. Nice shooting - range is yours.",
-                    )),
                     // Outcome ends the run with a result banner. Victory here;
                     // the player-destroyed handler below ends in Defeat.
                     Outcome((
                         outcome: Victory,
-                        message: Some("Range cleared - both derelicts are scrap."),
+                        message: Some("Range cleared - both derelicts are scrap. Nice shooting: the range is yours."),
                     )),
                 ],
             ),

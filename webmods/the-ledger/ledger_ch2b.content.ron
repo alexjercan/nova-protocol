@@ -31,13 +31,15 @@
                         key: "kills",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
-                    StoryMessage((
-                        speaker: "Foreman Okono",
-                        text: "Two more burns on the scope, south-west lane - reinforced hulls. They really want that box, Kestrel.",
+                    // One-shot flag for the clock-spaced teach beat below
+                    // (seeded: an undefined gate fails closed forever).
+                    VariableSet((
+                        key: "teach_sent",
+                        expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     StoryMessage((
                         speaker: "Foreman Okono",
-                        text: "Same play as before: they'll come to you, not the Mule. Meet them on the far side of the rocks and make the big one work for every shot.",
+                        text: "Two more burns on the scope, south-west lane - reinforced hulls. They really want that box, Kestrel.",
                     )),
                     Objective((
                         id: "obj_ch2b_recap",
@@ -307,6 +309,7 @@
                                     (-90.0, -10.0, -160.0),
                                 ],
                                 leash: Some(650.0),
+                                engage_delay: Some(8.0),
                             )),
                             sections: [
                                 (
@@ -355,6 +358,7 @@
                                 // (review R1.1) or the heavy yo-yos at the
                                 // spawn-side edge.
                                 leash: Some(700.0),
+                                engage_delay: Some(8.0),
                             )),
                             sections: [
                                 (
@@ -383,6 +387,36 @@
                                 ),
                             ],
                         )),
+                    )),
+                ],
+            ),
+            // The teach beat, clock-spaced off the opening line (one line per
+            // beat - the beat-sheet convention): eight seconds after the
+            // contact call, while the arrivals are still inbound.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((GreaterThan(
+                        Term(Factor(Name("scenario_elapsed"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("teach_sent"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "teach_sent",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Foreman Okono",
+                        text: "Same play as before: they'll come to you, not the Mule. Meet them on the far side of the rocks and make the big one work for every shot.",
                     )),
                 ],
             ),
@@ -455,13 +489,9 @@
                     ObjectiveComplete((
                         id: "obj_escort",
                     )),
-                    StoryMessage((
-                        speaker: "Foreman Okono",
-                        text: "Lane's clear. Vesh says she can move the box quiet - IF you can reach her yard. Go dark, Kestrel.",
-                    )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("The Mule is safe, the Magpies are scrap, and the box is officially trouble."),
+                        message: Some("The Mule is safe, the Magpies are scrap, and the box is officially trouble. Vesh says she can move it quiet - IF you can reach her yard. Go dark, Kestrel."),
                     )),
                     NextScenario((
                         scenario_id: "ledger_ch3_quiet_channel",

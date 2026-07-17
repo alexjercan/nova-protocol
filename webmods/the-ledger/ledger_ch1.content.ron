@@ -430,13 +430,9 @@
                     ObjectiveComplete((
                         id: "obj_blackbox",
                     )),
-                    StoryMessage((
-                        speaker: "Foreman Okono",
-                        text: "Sealed military casing, no transponder, and my board just lit up with buyers I never called. Bring it home slow, Kestrel.",
-                    )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("The quota's in the hold - and so is something that was never on the books."),
+                        message: Some("The quota's in the hold - and so is a sealed military casing that was never on the books. Okono's board is already lighting up with buyers nobody called."),
                     )),
                     NextScenario((
                         scenario_id: "ledger_ch2_claim_jumpers",

@@ -461,6 +461,10 @@ fn pirate_ship() -> ScenarioObjectConfig {
                 // 3 finding 3) - the leash comfortably covers the patrol
                 // loop and the crate scatter.
                 leash: Some(PIRATE_LEASH_RADIUS),
+                // Arrival grace (beat-sheet pass, task 20260717-163058):
+                // the tutorial's one fight announces itself - the
+                // scavenger prowls readably before its guns come up.
+                engage_delay: Some(5.0),
                 ..Default::default()
             }),
             sections: vec![
