@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>nova perf</title>
+        <!-- Build the perf_web bin (frame-time harness) instead of the game, with
+             the debug feature (the harness lives in nova_debug). nova_core adds
+             bevy's `webgpu` feature for wasm, so this is a WebGPU build. -->
+        <!-- data-wasm-opt="0": trunk's bundled wasm-opt is too old for rustc's
+             default bulk-memory ops (memory.fill/copy). rustc --release already
+             optimizes; skipping wasm-opt only forgoes extra size shrinking. -->
+        <link
+            data-trunk
+            rel="rust"
+            data-bin="perf_web"
+            data-cargo-features="debug"
+            data-wasm-opt="0"
+        />
+        <link data-trunk rel="copy-dir" href="assets" />
+        <!-- No webgpu-check.js here: for a benchmark we WANT the wasm to boot and
+             log its surface/adapter error if WebGPU is missing, rather than being
+             swapped out for a fallback message. -->
+    </head>
+    <body>
+        <canvas id="bevy">Canvas + WebGPU required</canvas>
+    </body>
+</html>

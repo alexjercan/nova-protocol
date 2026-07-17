@@ -21,7 +21,7 @@ pub mod prelude {
             assert_scenario_loaded, capture_window, hide_dev_overlays, nova_autopilot,
             nova_screenshot, reel_pose_camera, ReelBeat, ReelCamera, ScreenshotReelPlugin,
         },
-        perf::nova_frametime,
+        perf::{combat_burst_driver, nova_frametime, perf_armed, perf_param},
         screenshot::{ScreenshotHotkeyPlugin, SCREENSHOT_KEYCODE},
         DebugPlugin,
     };

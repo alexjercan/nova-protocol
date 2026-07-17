@@ -60,6 +60,27 @@ Design choices worth keeping:
    rest - exactly the blind-optimization trap the measure-first gate exists to
    prevent.
 
+## Combat-burst + web capture (follow-up, same task)
+
+Both deferred pieces were then built and captured:
+
+- **Combat driver** (`combat_burst_driver` + a `drive` hook on the plugin). The
+  trap: the weapon-range examples press `Space` to fire, but in the real ship rig
+  `Space` is the main thruster ("Flight Burn") and the gun is `LMB` ("Turret") -
+  a trace (`RUST_LOG=trace`, count `on_projectile_marker`) caught 0 projectiles
+  until the fire button was corrected to `MouseButton::Left`. Health top-up keeps
+  the burst sustained. Combat cost is genuinely volatile (bullet ramp, ammo
+  reload, AI engage/evade) *and* the shared box's load swings 3->17, so several
+  runs were needed to separate signal (combat ~+54%, particles ~11%) from noise.
+- **Web/WebGPU** via a `perf_web` wasm bin (config from the URL query, not env),
+  a `perf.html` Trunk entry, and `perf-web.sh`. Three environment fights: (1)
+  bevy is a dev-dep of the root crate, so a real `[[bin]]` needed bevy promoted to
+  a normal dep; (2) Trunk's wasm-opt is too old for rustc bulk-memory ->
+  `data-wasm-opt="0"`; (3) headless Chromium exposes no WebGPU - the working rig
+  is Chromium under Xvfb with `--enable-features=Vulkan,WebGPU --use-angle=vulkan`
+  over an `http://localhost` origin, which gives a real `BrowserWebGpu` NVIDIA
+  adapter. Result: web ~2x native, the real constrained target.
+
 ## What could have gone better / next time
 
 - **Pick the rig before building.** ~19 min of release-LTO build happened before

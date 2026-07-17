@@ -1,0 +1,14 @@
+{
+  "label": "bs-rest-high",
+  "frames": 400,
+  "total_ms": 7816.720,
+  "mean_ms": 19.5418,
+  "min_ms": 16.9893,
+  "max_ms": 29.4705,
+  "p50_ms": 18.1582,
+  "p95_ms": 24.9886,
+  "p99_ms": 25.8370,
+  "p999_ms": 29.4705,
+  "mean_fps": 51.17,
+  "one_pct_low_fps": 38.70
+}

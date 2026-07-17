@@ -24,6 +24,9 @@
 //! - **Fixed resolution.** The window is forced to a known size (default
 //!   1280x720) so runs are comparable across machines and renderers.
 //!
+//! Chain [`drive`](FrameTimePlugin::drive) (e.g. [`combat_burst_driver`]) to
+//! measure an active scene - particle bursts and projectiles - not just at rest.
+//!
 //! ## Usage
 //!
 //! ```no_run
@@ -34,38 +37,96 @@
 //! # }
 //! ```
 //!
-//! Run it (needs a display; use the real GPU on `:0`, or `Xvfb` for the
-//! software-raster floor that proxies the constrained web target):
+//! Run it (needs a display; use the real GPU headless via `Xvfb`, or force the
+//! lavapipe software-raster floor - see `scripts/perf-baseline.sh`):
 //!
 //! ```text
+//! Xvfb :95 -screen 0 1280x720x24 &
 //! NOVA_PERF=1 NOVA_PERF_SCENARIO=asteroid_field NOVA_PERF_LABEL=asteroid_field-gpu \
-//!   NOVA_PERF_OUT=/tmp/perf cargo run --example 20_perf_baseline --features debug
+//!   NOVA_PERF_OUT=/tmp/perf BEVY_ASSET_ROOT="$PWD" DISPLAY=:95 \
+//!   cargo run --release --example 20_perf_baseline --features debug
 //! # look for: `nova perf: label=... frames=... mean=..ms p99=..ms mean_fps=.. 1%low_fps=..`
 //! ```
 //!
-//! ## Environment
+//! ## Config source
 //!
-//! | Var | Default | Meaning |
-//! |-----|---------|---------|
-//! | `NOVA_PERF`         | (unset) | Arms the plugin. Any value, even empty. |
-//! | `NOVA_PERF_WARMUP`  | `180`   | Frames discarded after reaching `Playing` before capture (shader compile, asset upload, first-frame spikes). |
-//! | `NOVA_PERF_FRAMES`  | `900`   | Frames captured for the stats window. |
-//! | `NOVA_PERF_LABEL`   | `scene` | Label recorded in the JSON/CSV row. |
-//! | `NOVA_PERF_OUT`     | (none)  | Directory for `<label>.json` and an appended row in `frametime.csv`. When unset, only the summary log line is emitted (the web/wasm path). |
-//! | `NOVA_PERF_RES`     | `1280x720` | Forced primary-window resolution `WxH`. |
+//! Parameters come from [`perf_param`]: **native** reads env vars
+//! `NOVA_PERF_<UPPER>`; **wasm** reads the URL query `<name>` (so a browser drives
+//! it by URL - see `scripts/perf-web.sh`). The knobs:
+//!
+//! | Native env / wasm query | Default | Meaning |
+//! |-------------------------|---------|---------|
+//! | `NOVA_PERF` / `?perf`         | (unset) | Arms the plugin. |
+//! | `NOVA_PERF_WARMUP` / `warmup` | `180`   | Frames discarded after reaching `Playing` (shader compile, asset upload, spikes; also lets a combat burst saturate). |
+//! | `NOVA_PERF_FRAMES` / `frames` | `900`   | Frames captured for the stats window. |
+//! | `NOVA_PERF_LABEL` / `label`   | `scene` | Label recorded in the row. |
+//! | `NOVA_PERF_OUT` / (n/a)       | (none)  | Native only: dir for `<label>.json` + a `frametime.csv` row. Web has no fs, so it logs the summary line only. |
+//! | `NOVA_PERF_RES` / `res`       | `1280x720` | Forced primary-window resolution `WxH`. |
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use bevy::{
     prelude::*,
     window::{PresentMode, PrimaryWindow},
     winit::WinitSettings,
 };
-use nova_gameplay::GameStates;
+use bevy_common_systems::health::Health;
+use nova_gameplay::{
+    prelude::{PlayerSpaceshipMarker, WeaponsHot},
+    GameStates,
+};
 
-/// Environment variable that arms [`nova_frametime`]. Any value (even empty)
-/// enables it; when unset the plugin adds nothing.
+/// Environment variable that arms [`nova_frametime`] on native. Any value (even
+/// empty) enables it; when unset the plugin adds nothing. On wasm the arm is the
+/// `?perf` URL query flag instead (there are no process env vars in a browser).
 pub const PERF_ENV: &str = "NOVA_PERF";
+
+/// A per-frame combat/scene driver run under [`FrameTimePlugin::drive`]: given
+/// `&mut World` and a monotonic frame counter (frames since `Playing`), it can
+/// fire weapons, spawn hostiles, or poke input so the capture measures an
+/// *active* scene (particle bursts, projectiles) rather than the scene at rest.
+pub type PerfDriver = dyn Fn(&mut World, u32) + Send + Sync;
+
+/// Read a perf parameter by logical name. Native: env var `NOVA_PERF_<UPPER>`
+/// (e.g. `warmup` -> `NOVA_PERF_WARMUP`). Wasm: the URL query parameter `<name>`
+/// (e.g. `?warmup=300`). One source abstraction so the same harness runs from a
+/// shell env sweep and from a browser URL.
+pub fn perf_param(name: &str) -> Option<String> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::env::var(format!("NOVA_PERF_{}", name.to_ascii_uppercase()))
+            .ok()
+            .filter(|s| !s.is_empty())
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        query_param(name)
+    }
+}
+
+/// Whether frame-time capture is requested. Native: `NOVA_PERF` is set. Wasm:
+/// the `?perf` query flag is present.
+pub fn perf_armed() -> bool {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::env::var(PERF_ENV).is_ok()
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        query_param("perf").is_some()
+    }
+}
+
+/// Parse `window.location.search` for `name` (browser config channel).
+#[cfg(target_arch = "wasm32")]
+fn query_param(name: &str) -> Option<String> {
+    let search = web_sys::window()?.location().search().ok()?;
+    let query = search.strip_prefix('?').unwrap_or(&search);
+    query.split('&').find_map(|pair| {
+        let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
+        (key == name).then(|| value.replace('+', " "))
+    })
+}
 
 /// Default warm-up frames discarded before the capture window opens.
 pub const DEFAULT_WARMUP_FRAMES: u32 = 180;
@@ -77,13 +138,32 @@ pub const DEFAULT_CAPTURE_FRAMES: u32 = 900;
 pub const DEFAULT_RESOLUTION: (f32, f32) = (1280.0, 720.0);
 
 /// Env-gated frame-time capture preset for nova examples. See the module docs.
-/// Inert unless `NOVA_PERF` is set.
+/// Inert unless `NOVA_PERF` (native) / `?perf` (wasm) is set. Chain
+/// [`drive`](FrameTimePlugin::drive) to measure an *active* scene.
 pub fn nova_frametime() -> FrameTimePlugin {
-    FrameTimePlugin
+    FrameTimePlugin { driver: None }
 }
 
 /// Plugin returned by [`nova_frametime`]. Construct it through that preset.
-pub struct FrameTimePlugin;
+pub struct FrameTimePlugin {
+    driver: Option<Arc<PerfDriver>>,
+}
+
+impl FrameTimePlugin {
+    /// Attach a per-frame [`PerfDriver`] run every frame the app is in
+    /// `Playing` (warm-up included, so the scene is already active when capture
+    /// opens). Use it to fire weapons / spawn hostiles so the capture measures a
+    /// combat burst (particles, projectiles) rather than the scene at rest - see
+    /// [`combat_burst_driver`].
+    pub fn drive(mut self, driver: impl Fn(&mut World, u32) + Send + Sync + 'static) -> Self {
+        self.driver = Some(Arc::new(driver));
+        self
+    }
+}
+
+/// Holds the active [`PerfDriver`] so the exclusive driving system can run it.
+#[derive(Resource, Clone)]
+struct PerfDriverRes(Arc<PerfDriver>);
 
 /// Capture configuration, resolved once from the environment at plugin build.
 #[derive(Resource, Clone, Debug)]
@@ -96,28 +176,23 @@ struct PerfConfig {
 }
 
 impl PerfConfig {
-    /// Read the config from the environment, falling back to the documented
-    /// defaults for anything unset or unparseable.
-    fn from_env() -> Self {
+    /// Read the config from the active source ([`perf_param`]: env on native,
+    /// URL query on wasm), falling back to the documented defaults for anything
+    /// unset or unparseable.
+    fn resolve() -> Self {
         fn parse_u32(key: &str, default: u32) -> u32 {
-            std::env::var(key)
-                .ok()
+            perf_param(key)
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(default)
         }
-        let resolution = std::env::var("NOVA_PERF_RES")
-            .ok()
-            .and_then(|v| parse_resolution(&v))
-            .unwrap_or(DEFAULT_RESOLUTION);
         Self {
-            warmup_frames: parse_u32("NOVA_PERF_WARMUP", DEFAULT_WARMUP_FRAMES),
-            capture_frames: parse_u32("NOVA_PERF_FRAMES", DEFAULT_CAPTURE_FRAMES),
-            label: std::env::var("NOVA_PERF_LABEL").unwrap_or_else(|_| "scene".to_string()),
-            out_dir: std::env::var("NOVA_PERF_OUT")
-                .ok()
-                .filter(|s| !s.is_empty())
-                .map(PathBuf::from),
-            resolution,
+            warmup_frames: parse_u32("warmup", DEFAULT_WARMUP_FRAMES),
+            capture_frames: parse_u32("frames", DEFAULT_CAPTURE_FRAMES),
+            label: perf_param("label").unwrap_or_else(|| "scene".to_string()),
+            out_dir: perf_param("out").map(PathBuf::from),
+            resolution: perf_param("res")
+                .and_then(|v| parse_resolution(&v))
+                .unwrap_or(DEFAULT_RESOLUTION),
         }
     }
 }
@@ -146,36 +221,64 @@ enum Phase {
 struct PerfState {
     phase: Phase,
     warmed: u32,
+    /// Frames the driver has run (monotonic since `Playing`).
+    driven: u32,
     /// Per-frame wall-clock deltas, milliseconds.
     samples: Vec<f64>,
 }
 
 impl Plugin for FrameTimePlugin {
     fn build(&self, app: &mut App) {
-        if std::env::var(PERF_ENV).is_err() {
+        if !perf_armed() {
             return;
         }
-        let config = PerfConfig::from_env();
+        let config = PerfConfig::resolve();
         info!(
-            "nova perf: armed (label={}, warmup={}, frames={}, res={}x{}, out={:?})",
+            "nova perf: armed (label={}, warmup={}, frames={}, res={}x{}, out={:?}, driven={})",
             config.label,
             config.warmup_frames,
             config.capture_frames,
             config.resolution.0,
             config.resolution.1,
             config.out_dir,
+            self.driver.is_some(),
         );
         app.insert_resource(PerfState {
             phase: Phase::WaitPlaying,
             warmed: 0,
+            driven: 0,
             samples: Vec::with_capacity(config.capture_frames as usize),
         });
         app.insert_resource(config);
         // Continuous updates so an unfocused/headless window still runs flat out.
         app.insert_resource(WinitSettings::game());
         app.add_systems(Startup, perf_force_window);
+        // The driver runs before the capture read so its work is inside the
+        // measured frame.
+        if let Some(driver) = &self.driver {
+            app.insert_resource(PerfDriverRes(driver.clone()));
+            app.add_systems(Update, perf_drive.before(perf_capture));
+        }
         app.add_systems(Update, perf_capture);
     }
+}
+
+/// Run the attached [`PerfDriver`] every frame the app is in `Playing`
+/// (warm-up + capture), passing a monotonic frame counter. Exclusive because a
+/// driver needs `&mut World` to fire weapons / spawn entities.
+fn perf_drive(world: &mut World) {
+    let phase = world.resource::<PerfState>().phase;
+    if !matches!(phase, Phase::Warmup | Phase::Capture) {
+        return;
+    }
+    let frame = {
+        let mut state = world.resource_mut::<PerfState>();
+        let frame = state.driven;
+        state.driven += 1;
+        frame
+    };
+    let driver = world.resource::<PerfDriverRes>().0.clone();
+    driver(world, frame);
 }
 
 /// Force the primary window to the capture resolution with vsync off, so every
@@ -417,6 +520,55 @@ fn sanitize(label: &str) -> String {
             }
         })
         .collect()
+}
+
+/// A [`PerfDriver`] that drives a sustained combat burst, so a capture measures
+/// the active-scene cost (turret muzzle flashes, projectiles in flight, torpedo
+/// blasts - the particle load the graphics preset exists to cut) instead of the
+/// scene at rest. Pass it to [`FrameTimePlugin::drive`] on a combat scenario
+/// (e.g. `broadside`).
+///
+/// It does two things every frame:
+///
+/// 1. **Holds the player's fire.** Raises the combat stance (RMB held) and, once
+///    the player's weapons read hot, holds the fire key - the exact proven
+///    headless fire chain from the weapon-range examples (raise, wait for
+///    [`WeaponsHot`], then hold, because the safety denies a press that lands
+///    while cold). The player's turrets then fire continuously.
+/// 2. **Keeps every combatant alive** (tops up [`Health`] to full). A kill would
+///    end the burst early and can advance/reload the scenario mid-capture; the
+///    top-up pins a steady-state burst for the whole window. Detonations still
+///    fire (torpedoes blast on proximity, not only on kill), so the blast
+///    particles are still measured. AI hostiles engage on their own and add
+///    return fire and torpedo blasts on top.
+pub fn combat_burst_driver(world: &mut World, _frame: u32) {
+    // Sustain: no combatant dies, so the burst does not fizzle and no kill
+    // advances the scenario out from under the capture.
+    {
+        let mut healths = world.query::<&mut Health>();
+        for mut health in healths.iter_mut(world) {
+            if health.current < health.max {
+                health.current = health.max;
+            }
+        }
+    }
+
+    // Fire: hold the combat stance (RMB -> "Combat Mode" -> weapons hot), then,
+    // once the player reads hot, hold the turret trigger (LMB -> "Turret"). The
+    // safety denies a trigger press that lands while cold, so the wait matters;
+    // fire is LMB (Space is the main-thruster "Flight Burn", not the gun).
+    world
+        .resource_mut::<ButtonInput<MouseButton>>()
+        .press(MouseButton::Right);
+    let player_hot = {
+        let mut hot = world.query_filtered::<&WeaponsHot, With<PlayerSpaceshipMarker>>();
+        hot.iter(world).next().is_some_and(|hot| hot.0)
+    };
+    if player_hot {
+        world
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Left);
+    }
 }
 
 #[cfg(test)]
