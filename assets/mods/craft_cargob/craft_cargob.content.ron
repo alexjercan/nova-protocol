@@ -1,13 +1,14 @@
-// Hand-authored example mod: the Kenney craft_cargoB reassembled from its
-// cut hull cubes (scripts/cut-obj-into-hulls.py, grid Y lowered 0.3 via
-// --center 0,-0.3,0), every piece an inline Hull section. The cube meshes are
-// shipped by this mod under gltf/ (self://). The ship is yawed 180
-// (rotation (0,1,0,0)) so it faces +Z (forward).
+// Hand-authored example mod: the Kenney craft_cargoB reassembled from its cut
+// hull cubes (scripts/cut-obj-into-hulls.py, grid Y lowered 0.3). Pieces are
+// inline Hull sections EXCEPT: the two rear engines (-1,1,-2)/(1,1,-2) are
+// Thruster sections yawed 180 to thrust forward, and a Controller sits in the
+// empty core cell (0,1,0). Cube meshes ship under gltf/ (self://). The whole
+// ship is yawed 180 (rotation (0,1,0,0)) so it faces +Z.
 [
     Scenario((
         id: "craft_cargob_reconstruct",
         name: "Craft Cargo B - Reconstructed",
-        description: "The Kenney craft_cargoB rebuilt from its cut hull cubes, all as hull sections.",
+        description: "The Kenney craft_cargoB rebuilt from its cut hull cubes, with two rear thrusters and a core controller.",
         cubemap: "dep://base/textures/cubemap.png",
         events: [
             (
@@ -383,16 +384,17 @@
                                 (
                                     id: "cube_i1_j1_km2",
                                     position: (1.0, 1.0, -2.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    rotation: (0.0, 1.0, 0.0, 0.0),
                                     source: Inline((
                                         base: (
                                             id: "cube_i1_j1_km2",
-                                            name: "Cargo Cube (1,1,-2)",
-                                            description: "A cut hull cube of the Kenney craft_cargoB.",
+                                            name: "Cargo Thruster (1,1,-2)",
+                                            description: "A rear thruster tile of the Kenney craft_cargoB (thrusts forward).",
                                             mass: 1.0,
-                                            health: 100.0,
+                                            health: 70.0,
                                         ),
-                                        kind: Hull((
+                                        kind: Thruster((
+                                            magnitude: 1.0,
                                             render_mesh: Some("self://gltf/cube_i1_j1_km2.glb#Scene0"),
                                         )),
                                     )),
@@ -638,16 +640,17 @@
                                 (
                                     id: "cube_im1_j1_km2",
                                     position: (-1.0, 1.0, -2.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    rotation: (0.0, 1.0, 0.0, 0.0),
                                     source: Inline((
                                         base: (
                                             id: "cube_im1_j1_km2",
-                                            name: "Cargo Cube (-1,1,-2)",
-                                            description: "A cut hull cube of the Kenney craft_cargoB.",
+                                            name: "Cargo Thruster (-1,1,-2)",
+                                            description: "A rear thruster tile of the Kenney craft_cargoB (thrusts forward).",
                                             mass: 1.0,
-                                            health: 100.0,
+                                            health: 70.0,
                                         ),
-                                        kind: Hull((
+                                        kind: Thruster((
+                                            magnitude: 1.0,
                                             render_mesh: Some("self://gltf/cube_im1_j1_km2.glb#Scene0"),
                                         )),
                                     )),
@@ -734,6 +737,25 @@
                                         ),
                                         kind: Hull((
                                             render_mesh: Some("self://gltf/cube_im1_j2_km2.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "core_controller",
+                                    position: (0.0, 1.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "core_controller",
+                                            name: "Core Controller",
+                                            description: "The ship's controller, seated in the empty core cell.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Controller((
+                                            frequency: 4.0,
+                                            damping_ratio: 4.0,
+                                            max_torque: 40.0,
                                         )),
                                     )),
                                 ),
