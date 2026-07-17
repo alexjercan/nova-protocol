@@ -212,9 +212,17 @@
                                     source: Prototype("light_turret_section"),
                                 ),
                                 (
+                                    // Side mount, flush on hull_bow's +X
+                                    // face; rolled so the bay's base
+                                    // (local -Y) seats against the hull
+                                    // instead of hanging bottom-down. Was
+                                    // authored at (0,0,0.5) - embedded in
+                                    // the spine (task 20260717-151208; the
+                                    // section-overlap lint now catches
+                                    // that class).
                                     id: "tube",
-                                    position: (0.0, 0.0, 0.5),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    position: (1.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, -0.70710677, 0.70710677),
                                     source: Prototype("torpedo_section"),
                                 ),
                             ],
@@ -297,9 +305,17 @@
                                     source: Prototype("light_turret_section"),
                                 ),
                                 (
+                                    // Side mount, flush on hull_bow's +X
+                                    // face; rolled so the bay's base
+                                    // (local -Y) seats against the hull
+                                    // instead of hanging bottom-down. Was
+                                    // authored at (0,0,0.5) - embedded in
+                                    // the spine (task 20260717-151208; the
+                                    // section-overlap lint now catches
+                                    // that class).
                                     id: "tube",
-                                    position: (0.0, 0.0, 0.5),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    position: (1.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, -0.70710677, 0.70710677),
                                     source: Prototype("torpedo_section"),
                                 ),
                             ],

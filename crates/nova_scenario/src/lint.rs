@@ -327,6 +327,40 @@ fn check_object_prototypes(
                 }
             }
         }
+        check_section_overlaps(config.base.id.as_str(), ship, scenario, issues);
+    }
+}
+
+/// Sections are unit cubes centered on their authored grid position
+/// (base_section's `Collider::cuboid(1.0, 1.0, 1.0)`), so two sections of
+/// one ship OVERLAP - clip visually and double up their colliders in the
+/// same space - iff their centers are strictly closer than 1.0 on EVERY
+/// axis. Flush contact (distance exactly 1.0 on some axis) is the normal
+/// spine/side-mount layout and passes. The check ignores section ROTATION:
+/// exact for the quarter-turn rotations all shipped content uses (a unit
+/// cube is symmetric under them), conservative-only for exotic angles.
+/// Caught in the wild by the Auditor's torpedo bay authored at z 0.5,
+/// embedded between two spine sections (task 20260717-151208).
+fn check_section_overlaps(
+    ship_id: &str,
+    ship: &SpaceshipConfig,
+    scenario: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    for i in 0..ship.sections.len() {
+        for j in (i + 1)..ship.sections.len() {
+            let (a, b) = (&ship.sections[i], &ship.sections[j]);
+            let d = a.position - b.position;
+            if d.x.abs() < 1.0 && d.y.abs() < 1.0 && d.z.abs() < 1.0 {
+                issues.push(LintIssue::error(
+                    scenario,
+                    format!(
+                        "ship '{ship_id}': sections '{}' at {:?} and '{}' at {:?} overlap (unit-cube grid: centers must be >= 1.0 apart on some axis)",
+                        a.id, a.position, b.id, b.position
+                    ),
+                ));
+            }
+        }
     }
 }
 
@@ -683,6 +717,54 @@ mod tests {
         assert_eq!(issues.len(), 2, "{issues:?}");
         assert!(issues.iter().any(|i| i.message.contains("never_set")));
         assert!(issues.iter().any(|i| i.message.contains("never_posted")));
+    }
+
+    /// Section overlaps (task 20260717-151208): strictly-inside-the-cube
+    /// errors; flush spine/side mounts pass (the fail-first is the shipped
+    /// Auditor tube at z 0.5 this check was born from).
+    #[test]
+    fn overlapping_sections_error_and_flush_sections_pass() {
+        let ship_with = |tube_pos: Vec3| {
+            EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: "ship".to_string(),
+                    name: "ship".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                    controller: SpaceshipController::None,
+                    allegiance: None,
+                    sections: vec![
+                        SpaceshipSectionConfig {
+                            id: "a".to_string(),
+                            position: Vec3::ZERO,
+                            rotation: Quat::IDENTITY,
+                            source: SectionSource::Prototype("known".to_string()),
+                            modifications: vec![],
+                        },
+                        SpaceshipSectionConfig {
+                            id: "b".to_string(),
+                            position: tube_pos,
+                            rotation: Quat::IDENTITY,
+                            source: SectionSource::Prototype("known".to_string()),
+                            modifications: vec![],
+                        },
+                    ],
+                }),
+            })
+        };
+
+        // The Auditor shape: half-embedded on the spine.
+        let s = scenario(vec![ship_with(Vec3::new(0.0, 0.0, 0.5))], vec![]);
+        let issues = lint_scenario(&s, &known(&["known"]), &known(&["test_scenario"]));
+        assert_eq!(errors(&issues).len(), 1, "{issues:?}");
+        assert!(issues[0].message.contains("overlap"));
+
+        // Flush side mount: legal.
+        let s = scenario(vec![ship_with(Vec3::new(1.0, 0.0, 0.0))], vec![]);
+        let issues = lint_scenario(&s, &known(&["known"]), &known(&["test_scenario"]));
+        assert!(issues.is_empty(), "{issues:?}");
     }
 
     /// The reserved scenario clock (task 20260717-112647): reading it needs

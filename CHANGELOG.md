@@ -32,6 +32,7 @@ tagged **(breaking)**.
 
 ### Fixes
 
+- The Ledger finale's Auditor no longer carries its torpedo bay INSIDE its hull: the bay was authored half-embedded in the spine (visibly clipping through the controller and bow sections) and now mounts flush on the bow's flank, seated base-to-hull. A new content-lint check errors on any ship whose unit-cube sections overlap, so this whole class of authoring slip is caught at build time now.
 - Broadside's deep-field skybox (and the gauntlet/ledger mods that reuse it via `dep://base`) now gets its 6-face cube layout at load time: the alt cubemap's `.meta` sidecar was ignored by the asset config, leaving the raw 4096x24576 stacked image to be uploaded as-is if the scenario tore down mid-load - a fatal error on GPUs with a 16384 texture limit (WebGL2-class hardware, CI's software renderer).
 - Mods that ship their OWN skybox now get the same protection: the asset config reads every asset's `.meta` sidecar (not just a hand-listed set of base paths), so a mod cubemap's `RowCount` layout applies at load time whether the mod is shipped or portal-downloaded. Previously a mod's own cube loaded as a raw stacked image and hit the same WebGL2 upload crash if a scenario tore down mid-load.
 - Restarting a scenario (Retry, from the pause menu or the Victory/Defeat frame) no longer loses the objective text: the objectives HUD is now reset on scenario teardown, so a restart that re-posts the same objectives repaints the panel instead of leaving it blank.
