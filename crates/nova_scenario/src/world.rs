@@ -79,6 +79,7 @@ impl EventWorld for NovaEventWorld {
                     .map(|m| StoryLine {
                         speaker: m.speaker.clone(),
                         text: m.text.clone(),
+                        dwell: m.dwell,
                     })
                     .collect();
             }
@@ -280,6 +281,7 @@ mod tests {
             .push_story_message(StoryMessageActionConfig {
                 speaker: "Okono".to_string(),
                 text: "Strip it clean.".to_string(),
+                dwell: None,
             });
         for _ in 0..5 {
             app.update();
@@ -314,8 +316,37 @@ mod tests {
             .push_story_message(StoryMessageActionConfig {
                 speaker: "Okono".to_string(),
                 text: "No HUD here.".to_string(),
+                dwell: None,
             });
         bare.update();
+    }
+
+    /// The authored per-line dwell rides the sync into the HUD line
+    /// (review 20260717-163033 R1.2: this was claimed but untested).
+    #[test]
+    fn story_sync_carries_the_authored_dwell() {
+        let mut app = App::new();
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<StoryFeed>();
+        app.add_systems(Update, NovaEventWorld::state_to_world_system);
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .push_story_message(StoryMessageActionConfig {
+                speaker: "Okono".to_string(),
+                text: "Read this slowly.".to_string(),
+                dwell: Some(12.0),
+            });
+        for _ in 0..5 {
+            app.update();
+        }
+        let feed = app.world().resource::<StoryFeed>();
+        assert_eq!(feed.0.len(), 1);
+        assert_eq!(
+            feed.0[0].dwell,
+            Some(12.0),
+            "the sync must carry the authored hold to the panel"
+        );
     }
 
     /// The objectives sync is write-on-diff (review R2.1 of task

@@ -76,6 +76,9 @@ pub struct ObjectiveGhostsHudMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct ObjectiveGhostLineMarker {
     pub age: f32,
+    /// The line's full-alpha color; the fade only ramps alpha (green for
+    /// completions, objective gold for fresh postings - task 20260717-163033).
+    pub base: Color,
 }
 
 #[derive(Default)]
@@ -135,6 +138,7 @@ fn objective_change_feedback(
     mut new_cue: ResMut<NewCueState>,
     q_stack: Query<Entity, With<ObjectiveGhostsHudMarker>>,
     mut snapshot: Local<Vec<Objective>>,
+    q_ghost_lines: Query<Entity, With<ObjectiveGhostLineMarker>>,
 ) {
     // A transition to an EMPTY list is scenario teardown (death restart,
     // quit to menu - NovaEventWorld.clear() empties the resource), not a
@@ -145,6 +149,12 @@ fn objective_change_feedback(
     if objectives.objectives.is_empty() {
         *snapshot = Vec::new();
         new_cue.pending = None;
+        // Live ghosts die with the scenario too: a line fading over the
+        // menu (or the next scenario's opening) is the same leak class as
+        // a surviving comms line (state-diff-aliases-reset).
+        for ghost in &q_ghost_lines {
+            commands.entity(ghost).try_despawn();
+        }
         return;
     }
 
@@ -152,10 +162,13 @@ fn objective_change_feedback(
         .iter()
         .filter(|old| !objectives.objectives.iter().any(|new| new.id == old.id))
         .collect();
-    let added = objectives
+    let added_objectives: Vec<Objective> = objectives
         .objectives
         .iter()
-        .any(|new| !snapshot.iter().any(|old| old.id == new.id));
+        .filter(|new| !snapshot.iter().any(|old| old.id == new.id))
+        .cloned()
+        .collect();
+    let added = !added_objectives.is_empty();
 
     if let Some(bank) = &bank {
         // One cue per change kind per frame: a complete+re-add tally swap
@@ -191,18 +204,30 @@ fn objective_change_feedback(
     }
 
     if let Ok(stack) = q_stack.single() {
-        for objective in &completed {
+        // Completions fade green; fresh postings flash objective gold so a
+        // mid-fight objective change registers at a glance (the panel row
+        // itself rebuilds silently; the ghost column is the animation
+        // surface - task 20260717-163033).
+        let spawns = completed
+            .iter()
+            .map(|objective| (*objective, GHOST_COLOR))
+            .chain(
+                added_objectives
+                    .iter()
+                    .map(|objective| (objective, super::OBJECTIVE_GOLD)),
+            );
+        for (objective, base) in spawns {
             commands.entity(stack).with_children(|parent| {
                 parent.spawn((
                     Name::new(format!("ObjectiveGhost {}", objective.id)),
-                    ObjectiveGhostLineMarker { age: 0.0 },
+                    ObjectiveGhostLineMarker { age: 0.0, base },
                     Text::new(objective.message.clone()),
                     TextFont::from_font_size(GHOST_FONT_PX),
                     TextLayout {
                         justify: Justify::Left,
                         linebreak: LineBreak::WordBoundary,
                     },
-                    TextColor(GHOST_COLOR),
+                    TextColor(base),
                     Pickable::IGNORE,
                 ));
             });
@@ -245,7 +270,7 @@ fn fade_ghost_lines(
             continue;
         }
         let alpha = 1.0 - marker.age / GHOST_FADE_SECS;
-        color.0 = GHOST_COLOR.with_alpha(alpha);
+        color.0 = marker.base.with_alpha(alpha);
     }
 }
 
@@ -378,20 +403,27 @@ mod tests {
         app.update();
         app.update();
 
-        let ghost_count = |app: &mut App| -> usize {
-            let mut q = app
-                .world_mut()
-                .query_filtered::<(), With<ObjectiveGhostLineMarker>>();
-            q.iter(app.world()).count()
-        };
-        assert_eq!(ghost_count(&mut app), 0, "no completions yet, no ghosts");
+        // Fresh postings flash GOLD now (task 20260717-163033): two posts,
+        // two gold ghosts, zero green.
+        assert_eq!(ghosts_by(&mut app, super::super::OBJECTIVE_GOLD), 2);
+        assert_eq!(ghosts_by(&mut app, GHOST_COLOR), 0, "no completions yet");
+
+        // Ride out the posting flashes so the completion assert is clean.
+        for _ in 0..20 {
+            app.update();
+        }
+        assert_eq!(ghosts_by(&mut app, super::super::OBJECTIVE_GOLD), 0);
 
         // Complete b1 (remove it), keep b2.
         app.world_mut().resource_mut::<GameObjectives>().objectives =
             vec![Objective::new("b2", "Find Beacon 2")];
         app.update();
 
-        assert_eq!(ghost_count(&mut app), 1, "the completed objective ghosts");
+        assert_eq!(
+            ghosts_by(&mut app, GHOST_COLOR),
+            1,
+            "the completed objective ghosts green"
+        );
         let mut q = app
             .world_mut()
             .query_filtered::<&Text, With<ObjectiveGhostLineMarker>>();
@@ -405,7 +437,18 @@ mod tests {
         for _ in 0..20 {
             app.update();
         }
-        assert_eq!(ghost_count(&mut app), 0, "the ghost fades out and despawns");
+        assert_eq!(
+            ghosts_by(&mut app, GHOST_COLOR),
+            0,
+            "the ghost fades out and despawns"
+        );
+    }
+
+    /// Count live ghost lines by their base color (gold = posting flash,
+    /// green = completion).
+    fn ghosts_by(app: &mut App, base: Color) -> usize {
+        let mut q = app.world_mut().query::<&ObjectiveGhostLineMarker>();
+        q.iter(app.world()).filter(|m| m.base == base).count()
     }
 
     /// Scenario teardown empties GameObjectives (death restart, quit to
@@ -427,19 +470,21 @@ mod tests {
         app.world_mut().resource_mut::<GameObjectives>().objectives = Vec::new();
         app.update();
 
-        let ghost_count = |app: &mut App| -> usize {
+        let total = |app: &mut App| -> usize {
             let mut q = app
                 .world_mut()
                 .query_filtered::<(), With<ObjectiveGhostLineMarker>>();
             q.iter(app.world()).count()
         };
         assert_eq!(
-            ghost_count(&mut app),
+            total(&mut app),
             0,
-            "dying must not celebrate the failed objectives"
+            "dying must not celebrate the failed objectives - and the \
+             posting flashes die with the scenario too"
         );
 
-        // The restarted run behaves normally: post one, complete it, ghost.
+        // The restarted run behaves normally: post one (gold flash),
+        // complete it (green ghost) - one of each.
         app.world_mut().resource_mut::<GameObjectives>().objectives =
             vec![Objective::new("b1", "Burn for Beacon 1")];
         app.update();
@@ -447,9 +492,9 @@ mod tests {
             vec![Objective::new("b2", "Find Beacon 2")];
         app.update();
         assert_eq!(
-            ghost_count(&mut app),
+            ghosts_by(&mut app, GHOST_COLOR),
             1,
-            "a real completion after the reset still ghosts"
+            "a real completion after the reset still ghosts green"
         );
     }
 
@@ -466,13 +511,16 @@ mod tests {
             vec![Objective::new("b3", "Crates: 1/3")];
         app.update();
 
-        let mut q = app
-            .world_mut()
-            .query_filtered::<(), With<ObjectiveGhostLineMarker>>();
         assert_eq!(
-            q.iter(app.world()).count(),
+            ghosts_by(&mut app, GHOST_COLOR),
             0,
             "same-id message swaps are progress, not completion"
+        );
+        assert_eq!(
+            ghosts_by(&mut app, super::super::OBJECTIVE_GOLD),
+            1,
+            "only the ORIGINAL posting's gold flash exists - the swap \
+             added no second one (same id is not a fresh posting)"
         );
     }
 }

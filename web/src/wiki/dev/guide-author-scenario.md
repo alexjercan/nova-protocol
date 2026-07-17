@@ -352,11 +352,18 @@ shakedown uses this for its "recovered N/3" tally).
 ### StoryMessage
 
 Speaker-attributed story text, rendered by the HUD comms panel
-(bottom-left) as `SPEAKER > text` for about eight seconds; a new line
-replaces the previous one and rewinds the clock. This is the dialog
-surface for story content - objectives state goals, comms lines carry
-voice. Scenario-scoped like every event-world effect: teardown clears the
-log, so lines never leak into the next scenario or the menu.
+(bottom-left) as `SPEAKER > text`. Lines QUEUE and display in arrival
+order with a fade and a soft blip (task 20260717-163033): each holds
+about eight seconds alone, yields to a waiting line after four, and an
+optional per-line hold is authored as strict-RON
+`dwell: Some(12.0)` (clamped to 3-30s; content_lint warns outside it).
+At most four lines wait - older ones drop (the full log persists
+engine-side). Prefer one line per beat regardless; the queue is the
+safety net, not the style. This is the dialog surface for story
+content - objectives state goals, comms lines carry voice.
+Scenario-scoped like every event-world effect: teardown clears the log
+AND the on-screen mirror, so lines never leak into the next scenario,
+the menu, or a retry of the same scenario.
 
 ```ron
 StoryMessage((

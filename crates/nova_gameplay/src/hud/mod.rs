@@ -164,6 +164,9 @@ impl Plugin for NovaHudPlugin {
         // sections::damage_tint / task 20260717-003613); the generic
         // HealthDisplay bar is no longer spawned for the player ship.
         app.add_plugins(ObjectivesPlugin);
+        // bcs tween advancement for HUD fades (first Nova adoption, task
+        // 20260717-163033); registered here once for every HUD widget.
+        app.add_plugins(bevy_common_systems::prelude::TweenPlugin);
         app.add_plugins(comms_panel::CommsPanelPlugin);
         app.add_plugins(screen_indicator::ScreenIndicatorPlugin);
         app.add_plugins(torpedo_target::TorpedoTargetHudPlugin);

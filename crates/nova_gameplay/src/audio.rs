@@ -70,6 +70,11 @@ pub enum UiSfx {
     /// pause/mods buttons) - a crisp UI click (task 20260714-090006). Fired from
     /// `nova_menu`'s global `On<Activate>` observer.
     MenuSelect,
+    /// A comms line just SHOWED on the panel (task 20260717-163033) - a
+    /// soft radio blip so a story beat registers mid-fight. PLACEHOLDER
+    /// AUDIO: reuses ui_toggle.wav until real comms art lands (distinct
+    /// key so the swap is one file-map line).
+    CommsLine,
     /// A pause overlay open/close toggle via ESC - a soft two-state UI blip
     /// (task 20260714-090006).
     UiToggle,
@@ -79,11 +84,13 @@ pub enum UiSfx {
 /// `nova_assets::register_sounds` via `SoundBank::load`, whose
 /// `sounds/<name>.wav` convention maps these to the root `assets/sounds/` -
 /// engine chrome, outside every mod.
-pub const UI_SFX_FILES: [(UiSfx, &str); 4] = [
+pub const UI_SFX_FILES: [(UiSfx, &str); 5] = [
     (UiSfx::ObjectiveNew, "objective_new"),
     (UiSfx::ObjectiveComplete, "objective_complete"),
     (UiSfx::MenuSelect, "menu_select"),
     (UiSfx::UiToggle, "ui_toggle"),
+    // Placeholder file (see the key's doc): swap for real comms art.
+    (UiSfx::CommsLine, "ui_toggle"),
 ];
 
 /// Per-cue *base* playback volumes (at point-blank; distance attenuation scales

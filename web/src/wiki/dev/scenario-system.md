@@ -159,6 +159,23 @@ expression tree: `VariableExpressionNode` (add/subtract), `VariableTermNode`
 (multiply/divide), `VariableFactorNode` (literal/name/parens);
 `VariableConditionNode` (less/greater/equal) yields booleans for filters.
 
+### Story pacing (`StoryMessage` and the comms queue)
+
+Story lines display through a PACED queue (task 20260717-163033), not
+latest-wins: lines show in arrival order with a fade and a comms blip,
+each holds ~8s but yields to a waiting line after 4s; at most 4 lines
+wait (oldest dropped; the full log stays in the feed). Author an
+optional per-line hold with strict-RON `Some`:
+
+```ron
+StoryMessage((speaker: "Foreman Okono", text: "Read this slowly.", dwell: Some(15.0))),
+```
+
+`dwell` clamps to [3, 30] seconds (content_lint warns outside it). The
+queue means a two-line beat is READ as two beats - but prefer one line
+per beat anyway (the beat-sheet convention); the queue is the safety
+net, not the style.
+
 ### The scenario clock (`scenario_elapsed`)
 
 The engine maintains one RESERVED variable: `scenario_elapsed`, the seconds

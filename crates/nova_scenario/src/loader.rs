@@ -638,6 +638,7 @@ fn teardown_scenario_entities(
     emphasis: Option<&mut HintEmphasis>,
     outcome: Option<&mut CurrentOutcome>,
     objectives: Option<&mut GameObjectives>,
+    story_feed: Option<&mut StoryFeed>,
 ) {
     world.clear();
     // The objectives HUD mirror dies with the scenario too (same reset class as
@@ -652,6 +653,18 @@ fn teardown_scenario_entities(
     if let Some(objectives) = objectives {
         if !objectives.objectives.is_empty() {
             objectives.objectives.clear();
+        }
+    }
+    // The comms mirror dies with the scenario for the SAME reason (review
+    // 20260717-163033 R1.1): the sync's write-on-diff is length-only, so a
+    // retry whose reload pushes as many lines as the old scenario had
+    // (clear + repush inside one sync window) would never rewrite the feed
+    // and the new scenario's OPENING story line would silently vanish.
+    // Clearing here makes the empty state observable to the panel's reset
+    // before the next scenario's lines arrive. Guarded like the objectives.
+    if let Some(story_feed) = story_feed {
+        if !story_feed.0.is_empty() {
+            story_feed.0.clear();
         }
     }
     // Scenario-driven HUD emphasis dies with the scenario: a leaked
@@ -682,6 +695,7 @@ fn unload_scenario(
     mut emphasis: Option<ResMut<HintEmphasis>>,
     mut outcome: Option<ResMut<CurrentOutcome>>,
     mut objectives: Option<ResMut<GameObjectives>>,
+    mut story_feed: Option<ResMut<StoryFeed>>,
 ) {
     teardown_scenario_entities(
         &mut commands,
@@ -690,6 +704,7 @@ fn unload_scenario(
         emphasis.as_deref_mut(),
         outcome.as_deref_mut(),
         objectives.as_deref_mut(),
+        story_feed.as_deref_mut(),
     );
     **current_scenario = None;
 }
@@ -703,6 +718,7 @@ fn on_load_scenario(
     mut emphasis: Option<ResMut<HintEmphasis>>,
     mut outcome: Option<ResMut<CurrentOutcome>>,
     mut objectives: Option<ResMut<GameObjectives>>,
+    mut story_feed: Option<ResMut<StoryFeed>>,
     asset_server: Res<AssetServer>,
     issues: Option<Res<ContentIssues>>,
     mut failure: Option<ResMut<ScenarioStartFailure>>,
@@ -745,6 +761,7 @@ fn on_load_scenario(
         emphasis.as_deref_mut(),
         outcome.as_deref_mut(),
         objectives.as_deref_mut(),
+        story_feed.as_deref_mut(),
     );
 
     let scenario = (**load).clone();
@@ -1415,6 +1432,74 @@ mod tests {
              teardown that leaves GameObjectives stale makes the identical re-post \
              a no-op and the panel stays blank ({painted_on_fresh} -> {painted_on_restart})"
         );
+    }
+
+    /// Review 20260717-163033 R1.1: the comms mirror must be CLEARED at
+    /// teardown, or a reload that pushes as many story lines as the old
+    /// scenario had (retry, or chapter chain with equal counts) slips the
+    /// sync's length-only diff and the NEW scenario's opening line never
+    /// reaches the HUD. Two scenarios, one line each, different text: the
+    /// feed must say the second scenario's line after the switch.
+    #[test]
+    fn scenario_switch_replaces_an_equal_length_story_feed() {
+        use nova_gameplay::prelude::{StoryFeed, StoryLine};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(bevy_common_systems::prelude::GameEventsPlugin::<
+            NovaEventWorld,
+        >::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<bevy_common_systems::prelude::GameObjectives>();
+        app.init_resource::<StoryFeed>();
+        app.init_resource::<CurrentScenario>();
+        app.add_observer(unload_scenario);
+
+        // Scenario A's line is on screen (simulate the synced state).
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .push_story_message(StoryMessageActionConfig {
+                speaker: "Okono".to_string(),
+                text: "alpha".to_string(),
+                dwell: None,
+            });
+        app.world_mut()
+            .resource_mut::<StoryFeed>()
+            .0
+            .push(StoryLine {
+                speaker: "Okono".to_string(),
+                text: "alpha".to_string(),
+                dwell: None,
+            });
+        app.insert_resource(CurrentScenario(Some(scenario_with("a", vec![]))));
+        app.update();
+
+        // The aliasing window: teardown AND scenario B's equal-count push
+        // land before any sync frame runs (production's on_load_scenario
+        // clears the world and fires OnStart in one observer chain). The
+        // trigger runs the unload observer synchronously; push B's line
+        // immediately after, THEN let the sync run. Without the teardown
+        // feed-clear the sync sees len 1 == len 1 and never rewrites -
+        // scenario B opens showing scenario A's line (the sabotage shape
+        // this test was tightened against: an intermediate update here
+        // masks the bug).
+        app.world_mut().trigger(UnloadScenario);
+        assert!(
+            app.world().resource::<StoryFeed>().0.is_empty(),
+            "the unload observer itself must clear the comms mirror"
+        );
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .push_story_message(StoryMessageActionConfig {
+                speaker: "Vesh".to_string(),
+                text: "beta".to_string(),
+                dwell: None,
+            });
+        app.update();
+        app.update();
+        let feed = app.world().resource::<StoryFeed>();
+        assert_eq!(feed.0.len(), 1);
+        assert_eq!(feed.0[0].text, "beta", "the new scenario's line displays");
     }
 
     /// The OnUpdate pulse: fires every frame while a scenario is live and

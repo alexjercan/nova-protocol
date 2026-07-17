@@ -251,6 +251,22 @@ fn check_action(
             }
             collect_expression_vars(&config.expression, used_vars);
         }
+        EventActionConfig::StoryMessage(config) => {
+            // The panel clamps silently; an authored dwell outside the
+            // documented range is an authoring slip worth a nudge.
+            if let Some(dwell) = config.dwell {
+                use nova_gameplay::prelude::{COMMS_DWELL_MAX_SECS, COMMS_DWELL_MIN_SECS};
+                if !(COMMS_DWELL_MIN_SECS..=COMMS_DWELL_MAX_SECS).contains(&dwell) {
+                    issues.push(LintIssue::warn(
+                        scenario,
+                        format!(
+                            "StoryMessage dwell {dwell}s is outside the [3, 30]s range \
+                             and will be clamped by the comms panel"
+                        ),
+                    ));
+                }
+            }
+        }
         EventActionConfig::NextScenario(config) => {
             if !known_scenarios.contains(&config.scenario_id) {
                 issues.push(LintIssue::error(
@@ -717,6 +733,27 @@ mod tests {
         assert_eq!(issues.len(), 2, "{issues:?}");
         assert!(issues.iter().any(|i| i.message.contains("never_set")));
         assert!(issues.iter().any(|i| i.message.contains("never_posted")));
+    }
+
+    /// StoryMessage dwell range (task 20260717-163033): out-of-range warns,
+    /// in-range and omitted stay clean.
+    #[test]
+    fn story_dwell_out_of_range_warns() {
+        let line = |dwell| {
+            EventActionConfig::StoryMessage(StoryMessageActionConfig {
+                speaker: "Okono".to_string(),
+                text: "test".to_string(),
+                dwell,
+            })
+        };
+        let s = scenario(
+            vec![line(Some(120.0)), line(Some(12.0)), line(None)],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &known(&[]), &known(&["test_scenario"]));
+        assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
+        assert_eq!(issues.len(), 1, "{issues:?}");
+        assert!(issues[0].message.contains("120"));
     }
 
     /// Section overlaps (task 20260717-151208): strictly-inside-the-cube

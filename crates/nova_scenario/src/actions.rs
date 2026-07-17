@@ -549,14 +549,24 @@ impl EventAction<NovaEventWorld> for ObjectiveActionConfig {
 /// 20260716-183220). Appends to the event world's story log; the log is
 /// scenario-scoped (cleared at teardown with the rest of the event world),
 /// so a line can never leak into the next scenario or the menu. RON:
-/// `StoryMessage((speaker: "Foreman Okono", text: "Strip it clean."))`.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// `StoryMessage((speaker: "Foreman Okono", text: "Strip it clean."))`,
+/// optionally `dwell: Some(12.0)` for a longer hold (strict RON `Some`).
+#[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct StoryMessageActionConfig {
     /// Who says it (the panel renders it as the line's prefix).
     pub speaker: String,
     /// The line itself.
     pub text: String,
+    /// Optional on-screen hold override in seconds (task 20260717-163033).
+    /// Strict RON: `dwell: Some(12.0)`, never a bare number; omit the field
+    /// for the default (8s). The panel clamps to [3, 30] at use;
+    /// content_lint warns on an authored value outside that range.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub dwell: Option<f32>,
 }
 
 impl EventAction<NovaEventWorld> for StoryMessageActionConfig {
@@ -982,7 +992,10 @@ mod tests {
     use super::*;
 
     /// The authored RON shape parses and round-trips - the exact syntax the
-    /// authoring guide documents: `StoryMessage((speaker: ..., text: ...))`.
+    /// authoring guide documents: `StoryMessage((speaker: ..., text: ...))`,
+    /// with `dwell` OMITTED defaulting to None and the documented strict-RON
+    /// `dwell: Some(12.0)` parsing (review 20260717-163033 R1.2: the
+    /// authored dwell syntax was documented but never parsed in a test).
     #[cfg(feature = "serde")]
     #[test]
     fn story_message_ron_round_trips() {
@@ -993,6 +1006,15 @@ mod tests {
         };
         assert_eq!(config.speaker, "Foreman Okono");
         assert_eq!(config.text, "Quota's quota.");
+        assert_eq!(config.dwell, None, "omitted dwell defaults to None");
+
+        let with_dwell = r#"StoryMessage((speaker: "Okono", text: "Slowly.", dwell: Some(12.0)))"#;
+        let parsed_dwell: EventActionConfig =
+            ron::from_str(with_dwell).expect("the documented dwell syntax parses");
+        let EventActionConfig::StoryMessage(config_dwell) = &parsed_dwell else {
+            panic!("parsed the StoryMessage variant");
+        };
+        assert_eq!(config_dwell.dwell, Some(12.0));
 
         let ron = ron::to_string(&parsed).expect("serializes");
         let back: EventActionConfig = ron::from_str(&ron).expect("round-trips");
