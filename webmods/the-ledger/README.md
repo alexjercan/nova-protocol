@@ -2,7 +2,8 @@
 
 The alt storyline campaign, published on the mod portal (task
 20260716-123535, spike tasks/20260716-183104/SPIKE.md): a salvage crew in
-over its head, told across four chained scenarios. Install it from the
+over its head, told across four chained chapters (five scenario files -
+chapter two plays in two acts, each its own retry point). Install it from the
 in-game portal (Mods > Explore), enable it, and start "The Ledger 1: Dead
 Weight" from the Scenarios picker - chapters two through four are hidden
 and reached by playing.
@@ -13,8 +14,9 @@ belt starts paying attention.
 
 1. **Dead Weight** - strip the Ceres Matron for the quota; the fourth ping
    is not on the manifest.
-2. **Claim Jumpers** - the Magpies come to take it; keep them off the
-   Dray Mule.
+2. **Claim Jumpers / The Heavies** - the Magpies come to take it, two
+   waves in two acts; keep them off the Dray Mule. Breaking wave one is a
+   checkpoint: dying to the heavies retries the heavies.
 3. **The Quiet Channel** - run the box through the debris channel to
    Broker Vesh's yard.
 4. **The Buyer** - sell it or burn it, then survive the Auditor. Two

@@ -1,24 +1,20 @@
-// The Ledger, chapter 2 of 4, part one: CLAIM JUMPERS. The Magpies come to
-// take the box: a pair of light corvettes burn in from the eastern lane
-// while the Dray Mule - the company hauler carrying the find - must
-// survive. Reworked by the difficulty spike (tasks/20260717-111808/SPIKE.md
-// F1/F2/F3/F4/F6): light turrets on the wave-one mooks, spawns pushed out
-// to ~600u so an approach phase exists, both attackers on ONE bearing (no
-// bracketing crossfire), an invulnerable rock field between their lane and
-// the Mule (real cover - the AI line-of-fire gate holds fire when a rock
-// blocks the shot), and the Mule stationed off the threat axis in the
-// rocks' lee. Chapter two is act-split for retry: this file is wave one
-// only; dying here retries wave one, and breaking the wave checkpoints
-// into ledger_ch2b (The Heavies).
+// The Ledger, chapter 2 of 4, part two: THE HEAVIES. The Magpies' answer
+// to losing wave one: two reinforced-hull corvettes burn in from the
+// south-west lane - the opposite bearing from wave one, so the arena reads
+// differently on the same rocks. Exactly ONE of them carries the better
+// turret (Crowbar, the gun ship); Kettle Black is the tank with the mook
+// gun. Same arena as ledger_ch2 (part one): player, Dray Mule and the
+// invulnerable rock field respawn in the same layout - the act-split is
+// the chapter's checkpoint, so dying here retries the heavies only, never
+// wave one. Spike: tasks/20260717-111808/SPIKE.md (F1/F2/F3/F4/F6/F7).
 //
-// Acts: 1 = the fight, 2 = wave broken (victory beat). Kill gates use
-// `> N-1`, never `== N` (count-gate lesson); the Defeat handlers gate
-// act < 2 so a post-victory loss cannot overwrite the win.
+// Acts: 1 = the fight, 2 = lane clear (victory beat, chains to chapter 3).
+// Kill gates use `> N-1`, never `== N`; Defeat handlers gate act < 2.
 [
     Scenario((
-        id: "ledger_ch2_claim_jumpers",
-        name: "The Ledger 2: Claim Jumpers",
-        description: "The Magpies want the box. Break their first wave and keep them off the Dray Mule. Chapter two of The Ledger, wave one.",
+        id: "ledger_ch2b_the_heavies",
+        name: "The Ledger 2: The Heavies",
+        description: "The Magpies send their reinforced hulls for the box. Hold the lane. Chapter two of The Ledger, wave two.",
         cubemap: "dep://base/textures/cubemap_alt.png",
         thumbnail: Some("dep://base/textures/asteroid.png"),
         hidden: true,
@@ -37,15 +33,15 @@
                     )),
                     StoryMessage((
                         speaker: "Foreman Okono",
-                        text: "Kestrel, the Mule's inbound for the pickup - and so are the Magpies. Two contacts burning in from the east lane, light hulls.",
+                        text: "Two more burns on the scope, south-west lane - reinforced hulls. They really want that box, Kestrel.",
                     )),
                     StoryMessage((
                         speaker: "Foreman Okono",
-                        text: "They only have eyes for you, not the Mule - so drag their fire wide of her, and keep a rock between you when the tracers come.",
+                        text: "Same play as before: they'll come to you, not the Mule. Meet them on the far side of the rocks and make the big one work for every shot.",
                     )),
                     Objective((
-                        id: "obj_ch2_recap",
-                        message: "Ch.2 - Claim Jumpers: the Magpies want what you found.",
+                        id: "obj_ch2b_recap",
+                        message: "Ch.2 - The Heavies: break the Magpies' second wave.",
                     )),
                     Objective((
                         id: "obj_escort",
@@ -53,7 +49,7 @@
                     )),
                     Objective((
                         id: "obj_wave",
-                        message: "Break the first Magpie wave (2 corvettes).",
+                        message: "Destroy the two reinforced Magpies.",
                     )),
                     SpawnScenarioObject((
                         base: (
@@ -101,12 +97,11 @@
                             ],
                         )),
                     )),
-                    // The escort: Mesa Verde's hauler, Neutral (a bystander
-                    // with your future in its hold). Stationed HIGH off the
-                    // fight plane, west of the pickup: the Magpies never
-                    // target her (Neutral), so what kills her is strays -
-                    // and strays fly the attack lanes and their overshoot
-                    // cones, all near the plane. Altitude is her armor.
+                    // The escort, same high station as part one: above
+                    // the fight plane, west of the pickup. Wave two comes
+                    // from the south-west, so the teach-line matters more
+                    // here - drawing the heavies east through the rocks
+                    // pulls every stray further from her hull.
                     SpawnScenarioObject((
                         base: (
                             id: "dray_mule",
@@ -145,12 +140,9 @@
                             ],
                         )),
                     )),
-                    // Hard cover: an invulnerable rock arc between the
-                    // eastern approach lane and the Mule's station. Nominal
-                    // radii are small on purpose - asteroid bodies run
-                    // 3.5x-6x nominal (ASTEROID_GEOMETRIC_FACTOR_MIN/MAX),
-                    // so a nominal 4 is a ~15-24u boulder. Centers are
-                    // spaced so worst-case 6x bodies overlap nothing.
+                    // The same rock arc as part one (arena continuity):
+                    // invulnerable boulders are the armor, chaff is the
+                    // dressing. Bodies run 3.5x-6x nominal radius.
                     SpawnScenarioObject((
                         base: (
                             id: "cover_east_1",
@@ -231,9 +223,6 @@
                             lock_signature: None,
                         )),
                     )),
-                    // Chaff: destructible debris. Concealment that gets
-                    // shot away, not armor - keeps the field readable
-                    // (invulnerable boulders are the big ones).
                     SpawnScenarioObject((
                         base: (
                             id: "chaff_1",
@@ -282,28 +271,26 @@
                             lock_signature: None,
                         )),
                     )),
-                    // Wave one: two LIGHT corvettes (light turrets - the
-                    // mook armament, broadside's canon) from ONE eastern
-                    // bearing ~600u out: the approach is the breathing
-                    // room, and a single bearing means the player can keep
-                    // cover between themselves and ALL incoming fire.
-                    // Patrols converge on the pickup; the leash (centered
-                    // on the patrol centroid) lets a player who runs far
-                    // reset the fight instead of being chased forever.
+                    // Wave two: the heavies, ~950u out on the SOUTH-WEST
+                    // lane (the opposite bearing from wave one - same
+                    // arena, different geometry). One better turret in the
+                    // whole wave: Crowbar is the gun, Kettle Black is the
+                    // tank with the mook gun. Long approach = the breather
+                    // after part one's checkpoint.
                     SpawnScenarioObject((
                         base: (
-                            id: "magpie_1",
-                            name: "Magpie 'Sixpence'",
-                            position: (340.0, 30.0, -480.0),
+                            id: "magpie_3",
+                            name: "Magpie 'Crowbar'",
+                            position: (-520.0, -40.0, -720.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
                             controller: AI((
                                 patrol: [
-                                    (340.0, 30.0, -480.0),
-                                    (60.0, 10.0, -100.0),
+                                    (-520.0, -40.0, -720.0),
+                                    (-90.0, -10.0, -160.0),
                                 ],
-                                leash: Some(550.0),
+                                leash: Some(650.0),
                             )),
                             sections: [
                                 (
@@ -316,7 +303,55 @@
                                     id: "hull_front",
                                     position: (0.0, 0.0, 1.0),
                                     rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Prototype("light_hull_section"),
+                                    source: Prototype("reinforced_hull_section"),
+                                ),
+                                (
+                                    id: "thruster",
+                                    position: (0.0, 0.0, 2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_thruster_section"),
+                                ),
+                                (
+                                    id: "turret",
+                                    position: (0.0, 0.0, -1.0),
+                                    rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+                                    source: Prototype("better_turret_section"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "magpie_4",
+                            name: "Magpie 'Kettle Black'",
+                            position: (-620.0, 30.0, -790.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: AI((
+                                patrol: [
+                                    (-620.0, 30.0, -790.0),
+                                    (-140.0, 10.0, -220.0),
+                                ],
+                                // 700, not 650: the patrol-midpoint anchor
+                                // sits 665u from the player spawn, and the
+                                // leash sphere must cover the whole arena
+                                // (review R1.1) or the heavy yo-yos at the
+                                // spawn-side edge.
+                                leash: Some(700.0),
+                            )),
+                            sections: [
+                                (
+                                    id: "controller",
+                                    position: (0.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("basic_controller_section"),
+                                ),
+                                (
+                                    id: "hull_front",
+                                    position: (0.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Prototype("reinforced_hull_section"),
                                 ),
                                 (
                                     id: "thruster",
@@ -333,57 +368,14 @@
                             ],
                         )),
                     )),
-                    SpawnScenarioObject((
-                        base: (
-                            id: "magpie_2",
-                            name: "Magpie 'Tinfoil King'",
-                            position: (430.0, -20.0, -500.0),
-                            rotation: (0.0, 0.0, 0.0, 1.0),
-                        ),
-                        kind: Spaceship((
-                            controller: AI((
-                                patrol: [
-                                    (430.0, -20.0, -500.0),
-                                    (90.0, -10.0, -130.0),
-                                ],
-                                leash: Some(550.0),
-                            )),
-                            sections: [
-                                (
-                                    id: "controller",
-                                    position: (0.0, 0.0, 0.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Prototype("basic_controller_section"),
-                                ),
-                                (
-                                    id: "hull_front",
-                                    position: (0.0, 0.0, 1.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Prototype("light_hull_section"),
-                                ),
-                                (
-                                    id: "thruster",
-                                    position: (0.0, 0.0, 2.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
-                                    source: Prototype("basic_thruster_section"),
-                                ),
-                                (
-                                    id: "turret",
-                                    position: (0.0, 0.0, -1.0),
-                                    rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
-                                    source: Prototype("light_turret_section"),
-                                ),
-                            ],
-                        )),
-                    )),
                 ],
             ),
-            // --- Wave-one kills. ---
+            // --- Heavy kills. ---
             (
                 name: OnDestroyed,
                 filters: [
                     Entity((
-                        id: Some("magpie_1"),
+                        id: Some("magpie_3"),
                     )),
                     Expression((Equal(
                         Term(Factor(Name("act"))),
@@ -397,7 +389,7 @@
                     )),
                     StoryMessage((
                         speaker: "Foreman Okono",
-                        text: "Sixpence is scrap. Don't cheer yet.",
+                        text: "Crowbar's gun just went quiet. That's the one that mattered.",
                     )),
                 ],
             ),
@@ -405,7 +397,7 @@
                 name: OnDestroyed,
                 filters: [
                     Entity((
-                        id: Some("magpie_2"),
+                        id: Some("magpie_4"),
                     )),
                     Expression((Equal(
                         Term(Factor(Name("act"))),
@@ -419,13 +411,11 @@
                     )),
                     StoryMessage((
                         speaker: "Foreman Okono",
-                        text: "Tinfoil King's down. The Mule's still breathing.",
+                        text: "Kettle Black's cracked. Hull like that and it still wasn't enough.",
                     )),
                 ],
             ),
-            // Wave one broken -> the checkpoint beat. The chapter
-            // continues in ledger_ch2b (The Heavies); dying there retries
-            // there, not here - that split IS the checkpoint.
+            // Lane clear -> chapter 3.
             (
                 name: OnUpdate,
                 filters: [
@@ -451,14 +441,14 @@
                     )),
                     StoryMessage((
                         speaker: "Foreman Okono",
-                        text: "Wave one's drifting in pieces. Catch your breath - the Magpies don't send the heavies until they're angry. They're angry.",
+                        text: "Lane's clear. Vesh says she can move the box quiet - IF you can reach her yard. Go dark, Kestrel.",
                     )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("Wave one broken. The Mule holds station - and the scope already shows two more burns."),
+                        message: Some("The Mule is safe, the Magpies are scrap, and the box is officially trouble."),
                     )),
                     NextScenario((
-                        scenario_id: "ledger_ch2b_the_heavies",
+                        scenario_id: "ledger_ch3_quiet_channel",
                         linger: true,
                     )),
                 ],
@@ -481,7 +471,7 @@
                         message: Some("The Dray Mule breaks apart - the box, the quota, the job, all of it gone."),
                     )),
                     NextScenario((
-                        scenario_id: "ledger_ch2_claim_jumpers",
+                        scenario_id: "ledger_ch2b_the_heavies",
                         linger: true,
                     )),
                 ],
@@ -503,7 +493,7 @@
                         message: Some("The Magpies pick the Kestrel clean and tow the box away whistling."),
                     )),
                     NextScenario((
-                        scenario_id: "ledger_ch2_claim_jumpers",
+                        scenario_id: "ledger_ch2b_the_heavies",
                         linger: true,
                     )),
                 ],
