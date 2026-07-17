@@ -1006,6 +1006,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   the dep's content for the ids your content names; "base for the prototypes" is
   wrong when a second dep is quietly doing the balance. Sibling of the overlay
   lessons (`shared-id-space-shared-overlay`). 20260716-124722.
+- `verify-current-convention-not-task-premise` (x1): a task naming a concrete
+  mechanism ("bump the pinned rev", "edit file X") is a snapshot from when it was
+  written - verify the live state before following it. A cross-repo bump task said
+  "bump the rev (e.g. 4c81117)" but the current pin was already a release tag
+  (`tag = "v0.19.0"`, moved rev->tag in `bb50db75`), so the fix cut a patch
+  release v0.19.1 across all five crates instead of leaving a rev/tag mix. Grep
+  the actual Cargo.toml/config before trusting the premise. 20260716-165617.
 
 ## Pending promotions (3+ occurrences, user decides)
 
