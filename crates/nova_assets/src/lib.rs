@@ -1375,12 +1375,15 @@ mod tests {
 /// the `content_lint` bin (author CLI) and the CI gate test; not part of the
 /// game's public API.
 #[doc(hidden)]
+pub mod balance;
+
 pub mod lint_walk {
     use std::{
         collections::{HashMap, HashSet},
         path::{Path, PathBuf},
     };
 
+    use nova_gameplay::prelude::SectionConfig;
     use nova_mod_format::BundleManifest;
     use nova_modding::prelude::Content;
     use nova_scenario::prelude::{lint_scenario, LintIssue, LintSeverity, ScenarioConfig};
@@ -1593,6 +1596,37 @@ pub mod lint_walk {
             }
         }
         issues
+    }
+
+    /// One walked bundle's full content for the balance audit
+    /// (task 20260717-112656): the same walk as the lint, with the parsed
+    /// section CONFIGS (not just ids) so stats can join through the
+    /// dependency overlay.
+    pub struct AuditBundle {
+        pub id: String,
+        pub dependencies: Vec<String>,
+        pub sections: Vec<SectionConfig>,
+        pub scenarios: Vec<ScenarioConfig>,
+    }
+
+    /// Every bundle in the repo tree for the balance audit, base first.
+    pub fn audit_bundles() -> Vec<AuditBundle> {
+        walk_repo_bundles()
+            .into_iter()
+            .map(|bundle| AuditBundle {
+                dependencies: bundle.manifest.meta.dependencies.clone(),
+                sections: bundle
+                    .content
+                    .iter()
+                    .filter_map(|item| match item {
+                        Content::Section(section) => Some(section.clone()),
+                        _ => None,
+                    })
+                    .collect(),
+                scenarios: bundle.scenarios,
+                id: bundle.id,
+            })
+            .collect()
     }
 
     /// Walk the whole repo content tree and lint every scenario. Returns

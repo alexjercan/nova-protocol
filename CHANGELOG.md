@@ -63,6 +63,7 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- `cargo run -p nova_assets --bin balance_audit` derives every combat scenario's fairness sheet from the shipped content (hostile dps, weapon envelopes, spawn distances, time-to-kill vs the player ship, cover tiers) and grades two findings: an armed hostile opening a scenario inside its own effective range of the player spawn is a CI-failing error, and a triggered hostile spawning inside its own envelope is a warning. First run already earned its keep: it surfaced the Ledger finale's Auditor spawning hot on both ending branches (now tracked for a playtest verdict).
 - Firing no longer spams the log with an avian "no mass or inertia" warning per round: turret bullets, which use a near-zero mass and a sensor collider, now carry an explicit angular inertia, removing the warning and its NaN risk.
 - Debug builds (`--features debug`) bind F12 to a screenshot that saves the primary window to your Downloads directory as `<timestamp>.png`.
 
