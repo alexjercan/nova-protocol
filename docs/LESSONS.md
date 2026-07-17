@@ -335,7 +335,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   20260713-175416.
 - `presence-vs-behavior-tests` (x2): component-exists assertions stay green
   while behavior regresses; assert the behavior. 20260709-160753.
-- `sweep-then-delete` (x10): before deleting, moving, or swapping a mechanism or
+- `sweep-then-delete` (x11): before deleting, moving, or swapping a mechanism or
   marker, grep the WHOLE repo for its symbol names, describing words, and
   observers/queries - including root-level docs (README, AGENTS.md), the
   CHANGELOG, text the same branch added earlier, and PROSE inside
@@ -347,8 +347,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   sweep). A stale CLAIM can be twinned too: the same superseded infinite-ammo
   comment lived in the builder AND its test; fixing one and declaring victory
   left the twin for review - grep the describing words before claiming a
-  comment fix complete. 20260711-212519, 20260712-133343, 20260712-211352,
-  20260714-204219, 20260715-151551, 20260715-195621, 20260717-112639.
+  comment fix complete. When RENAMING a tool/bin/command, grep BOTH the
+  command form (`--bin gen_content`) AND the bare artifact-name prose
+  ("the `X` bin"): a `--bin`-only sweep left "the `balance_audit` bin runs"
+  in balance_audit_gate.rs (review R1.1) plus its twin in balance.rs.
+  20260711-212519, 20260712-133343, 20260712-211352,
+  20260714-204219, 20260715-151551, 20260715-195621, 20260717-112639,
+  20260717-212219.
 - `reread-after-insert` (x2): after inserting into a function or test, re-read
   the whole thing for bindings, assertions, or invariants the insertion
   duplicated or broke. 20260710-214316.
@@ -599,7 +604,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   the test's own shape (a race pin with an update inside the race window
   stayed green under sabotage and had to be tightened to the true window).
   20260711-180426, 20260711-212521, 20260712-115902, 20260717-163033.
-- `out-of-context-review-pass` (positive, x29): a fresh-context review of a
+- `out-of-context-review-pass` (positive, x30): a fresh-context review of a
   substantial branch catches MAJORs shared-session eyes miss, and re-derives
   load-bearing claims instead of trusting them - checking cited evidence IS
   the spawn site, re-running the sabotage or the whole smoke suite, reading
@@ -616,7 +621,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   returns v, not 0). 20260712-133343,
   20260711-183417, 20260712-115902, 20260715-142900, 20260715-142931,
   20260716-125856, 20260708-203659, 20260716-162701, 20260716-124722,
-  20260716-214919, 20260717-013440, 20260717-162121.
+  20260716-214919, 20260717-013440, 20260717-162121, 20260717-212219.
 - `required-component-in-shared-query` (x2): a required fetch added to an
   existing query narrows its membership and every gate computed from it; fetch
   `Option<&T>` or use a separate query. New `Res<T>` params also panic every
