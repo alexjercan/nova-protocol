@@ -1,9 +1,8 @@
 # Weapon-section one-shot sounds: dry_fire on the turret, launch sound on the torpedo bay
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 31
-- TAGS: spike,v0.7.0,audio,modding,feature
-
+- TAGS: spike, v0.7.0, audio, modding, feature
 
 ## Goal
 
