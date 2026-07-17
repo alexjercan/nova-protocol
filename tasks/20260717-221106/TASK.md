@@ -16,6 +16,15 @@ contain `metalRed` faces -> `Thruster`; the most-central occupied cell ->
 Also emit the reconstruction assembly: the list of `SpaceshipSectionConfig`
 (`position: Vec3(i,j,k)`, `source: Prototype("<id>")`) for the demo task.
 
+## Steps
+
+- [ ] Classify each non-empty cell: rear (`min k`) cells containing `metalRed` faces -> `Thruster`; most-central occupied cell -> `Controller`; rest -> `Hull`.
+- [ ] Section stats per kind (mass/health, plus Thruster `magnitude`, Controller `frequency`/`damping_ratio`/`max_torque`).
+- [ ] Emit `<id>.content.ron`: a `[Content]` list of `Section((base:(id,name,description,mass,health), kind:...))` with `render_mesh: Some("self://gltf/<piece>.glb#Scene0")`.
+- [ ] Emit `<id>.bundle.ron`: manifest with `content`, `resources` (every glb), `meta` (name/description/author/version).
+- [ ] Emit the reconstruction assembly (`SpaceshipSectionConfig` list: `position: Vec3(i,j,k)`, `source: Prototype("<id>")`) as a RON snippet for the demo.
+- [ ] Write the mod under `assets/mods/<id>/`; `--classify` toggles kind heuristic.
+
 ## Notes
 
 - Spike: tasks/20260717-220919/SPIKE.md (section format + classification)
