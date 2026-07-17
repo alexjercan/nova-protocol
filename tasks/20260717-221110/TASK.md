@@ -1,8 +1,8 @@
 # Demo scenario spawning reconstructed Kenney ship from cut sections + content lint acceptance
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: spike,backlog,tooling,modding
+- TAGS: spike, backlog, tooling, modding
 
 ## Goal
 
@@ -25,3 +25,12 @@ the reconstructed ship renders correctly.
 
 - Spike: tasks/20260717-220919/SPIKE.md (open question: axis orientation)
 - Depends on tatr 20260717-221106 (the mod scaffold + assembly)
+
+## Descoped 2026-07-17
+
+Closed without implementing. Direction changed: the `cut-obj-into-hulls.py`
+script is kept narrowly scoped to CUTTING the obj into `.glb` cube meshes only.
+Section classification (Hull/Thruster/Controller), the mod scaffold
+(bundle.ron/content.ron), and reconstructing the ship are NOT done by the Python
+tool - they will be handled in-game later. Re-plan fresh tasks when that work is
+picked up; this task's steps no longer reflect the intended approach.

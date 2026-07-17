@@ -1,8 +1,8 @@
 # Emit mod scaffold: bundle.ron + content.ron with Hull/Thruster/Controller classification + assembly
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
-- TAGS: spike,backlog,tooling,modding
+- TAGS: spike, backlog, tooling, modding
 
 ## Goal
 
@@ -29,3 +29,12 @@ Also emit the reconstruction assembly: the list of `SpaceshipSectionConfig`
 
 - Spike: tasks/20260717-220919/SPIKE.md (section format + classification)
 - Depends on tatr 20260717-221101 (the cutter)
+
+## Descoped 2026-07-17
+
+Closed without implementing. Direction changed: the `cut-obj-into-hulls.py`
+script is kept narrowly scoped to CUTTING the obj into `.glb` cube meshes only.
+Section classification (Hull/Thruster/Controller), the mod scaffold
+(bundle.ron/content.ron), and reconstructing the ship are NOT done by the Python
+tool - they will be handled in-game later. Re-plan fresh tasks when that work is
+picked up; this task's steps no longer reflect the intended approach.
