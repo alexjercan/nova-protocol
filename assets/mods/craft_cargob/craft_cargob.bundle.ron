@@ -1,0 +1,13 @@
+// The reconstructed-cargo example mod. Ships no resources of its own: the
+// cube meshes are base art, reached via dep://base/gltf/craft_cargoB/.
+(
+    content: ["craft_cargob.content.ron"],
+    resources: [],
+    meta: (
+        name: "Craft Cargo B (reconstructed)",
+        description: "The Kenney craft_cargoB rebuilt from its cut hull cubes.",
+        author: "cut-obj-into-hulls.py",
+        version: "1.0.0",
+        dependencies: ["base"],
+    ),
+)
