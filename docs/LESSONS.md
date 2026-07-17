@@ -556,7 +556,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   need the same derivation as new ones - an inherited escort station sat 52u
   off a new fire lane and only the computed pin caught it. 20260711-180455,
   20260711-180506, 20260716-124722, 20260717-112630.
-- `verify-engine-guarantees-in-source` (x7): read the engine/dependency source
+- `verify-engine-guarantees-in-source` (x8): read the engine/dependency source
   (or write a five-line probe) before designing around its behavior - observer
   order is arbitrary; observer-queued commands apply BEFORE the queue's remaining
   pending commands; a bcs `On<Insert>` observer `.unwrap()`s the asset, so
@@ -576,9 +576,14 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   asset on wasm" as the reason for the per-path set; source showed the 404 is
   real but NON-FATAL (bevy falls back to default_meta), which flipped the choice
   to global Always. A runtime claim needs a source read or a runtime probe - a
-  BUILD cannot see a runtime 404. 20260525-133004, 20260712-115902,
+  BUILD cannot see a runtime 404. Same class in reverse - before THEORIZING a
+  missing-write bug (a review flagged the editor's direct `SkyboxConfig` insert
+  as maybe skipping its Cube view), grep for a COMPENSATING system that writes
+  the same handle before the consumer runs: `prepare_cubemap_view` sets it at
+  startup, so there was no bug - one grep would have avoided filing the task
+  (20260717-133332). 20260525-133004, 20260712-115902,
   20260525-133017, 20260716-162701, 20260717-013440, 20260717-112622,
-  20260717-111558.
+  20260717-111558, 20260717-133332.
 - `advertised-but-unwired` (x3): a config surface is not a capability until its
   producer/consumer wiring, data source, and runtime preconditions are
   verified in the new context. 20260712-093044, 20260712-093831.
