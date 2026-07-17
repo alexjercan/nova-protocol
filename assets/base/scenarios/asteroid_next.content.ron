@@ -7,11 +7,15 @@
         hidden: true,
         events: [
             (
+                // Non-lingering cut (task 20260717-201534): a bare relay with
+                // no Outcome overlay - a lingering switch would strand the
+                // player in this empty scenario until a stray Enter press, so
+                // cut straight back into the field.
                 name: OnStart,
                 actions: [
                     NextScenario((
                         scenario_id: "asteroid_field",
-                        linger: true,
+                        linger: false,
                     )),
                 ],
             ),
