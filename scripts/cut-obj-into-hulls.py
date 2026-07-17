@@ -204,6 +204,22 @@ def _round_cell(r):
     return fl if r > 0 else fl + 1  # exactly .5: toward zero (interior)
 
 
+def rotate_y_triangles(triangles, degrees):
+    """Rotate every vertex about the Y axis by `degrees`. Used to align the
+    model's nose with the game's forward axis (local -Z, per player.rs) so the
+    controller does not flip the ship - the fix must live in the geometry, not
+    the spawn transform (which the controller overrides)."""
+    if degrees % 360.0 == 0.0:
+        return triangles
+    rad = math.radians(degrees)
+    c, s = math.cos(rad), math.sin(rad)
+
+    def rot(v):
+        return (v[0] * c + v[2] * s, v[1], -v[0] * s + v[2] * c)
+
+    return [Triangle(rot(t.a), rot(t.b), rot(t.c), t.material) for t in triangles]
+
+
 def cell_of(point, cell):
     """Grid cell index (i, j, k) whose cube is centred on `point`.
 
@@ -520,7 +536,7 @@ def build_materials(colours):
 # ---------------------------------------------------------------------------
 
 
-def cut(obj_path, scale, cell, center=(0.0, 0.0, 0.0)):
+def cut(obj_path, scale, cell, center=(0.0, 0.0, 0.0), yaw=0.0):
     """Full cut pipeline. Returns (cells, materials, material_index, colours).
 
     Scale the mesh, re-anchor the grid by `center`, clip every triangle at the
@@ -533,6 +549,7 @@ def cut(obj_path, scale, cell, center=(0.0, 0.0, 0.0)):
     materials, material_index = build_materials(colours)
 
     scaled = scale_triangles(triangles, scale)
+    scaled = rotate_y_triangles(scaled, yaw)
     if center != (0.0, 0.0, 0.0):
         scaled = translate_triangles(scaled, center)
     fragments = slice_grid(scaled, cell)
@@ -591,38 +608,68 @@ def _wall_quad(axis, sign, half):
     return [Triangle(a, b, c, "_wall"), Triangle(a, c, d, "_wall")]
 
 
-def _cap_boundary(triangles, half, eps=1e-4):
+def _loop_area(loop):
+    """Area of a closed 3D polygon via Newell's method (used to drop specks)."""
+    nx = ny = nz = 0.0
+    n = len(loop)
+    for i in range(n):
+        a, b = loop[i], loop[(i + 1) % n]
+        nx += (a[1] - b[1]) * (a[2] + b[2])
+        ny += (a[2] - b[2]) * (a[0] + b[0])
+        nz += (a[0] - b[0]) * (a[1] + b[1])
+    return 0.5 * math.sqrt(nx * nx + ny * ny + nz * nz)
+
+
+def _cap_boundary(triangles, min_area=2e-3):
     """Close the open cut edges of a surface patch with white caps that HUG the
-    geometry, not full cube faces. The Kenney mesh is closed, so a piece's only
-    open (boundary) edges are where grid planes cut it - and those lie on the
-    cube-face planes. Gather each plane's boundary vertices and fan them to their
-    centroid, capping just the cut cross-section."""
+    geometry. The Kenney mesh is closed, so a piece's only open (boundary) edges
+    are where grid planes cut it. We walk the boundary edges into CLOSED loops
+    and fan each loop to its own centroid - fanning disjoint segments to one
+    shared centroid (the old approach) produced stray crossing faces near
+    complex areas like the engines. Open chains and sub-`min_area` specks are
+    skipped."""
     quant = lambda v: (round(v[0], 5), round(v[1], 5), round(v[2], 5))
-    counts = defaultdict(int)
+    edge_count = defaultdict(int)
     for t in triangles:
         vs = [quant(t.a), quant(t.b), quant(t.c)]
         for a, b in ((vs[0], vs[1]), (vs[1], vs[2]), (vs[2], vs[0])):
-            counts[tuple(sorted((a, b)))] += 1
-    bverts = set()
-    for edge, c in counts.items():
-        if c == 1:  # used by one triangle -> open boundary edge
-            bverts.update(edge)
+            edge_count[frozenset((a, b))] += 1
+    remaining = set()
+    adj = defaultdict(set)
+    for edge, c in edge_count.items():
+        if c == 1 and len(edge) == 2:  # open boundary edge
+            a, b = tuple(edge)
+            remaining.add(edge)
+            adj[a].add(b)
+            adj[b].add(a)
     caps = []
-    for axis in range(3):
-        for sign in (1, -1):
-            plane = sign * half
-            pts = [v for v in bverts if abs(v[axis] - plane) < eps]
-            if len(pts) < 3:
-                continue
-            u, w = (a for a in range(3) if a != axis)
-            cu = sum(p[u] for p in pts) / len(pts)
-            cw = sum(p[w] for p in pts) / len(pts)
-            pts.sort(key=lambda p: math.atan2(p[w] - cw, p[u] - cu))
-            center = [0.0, 0.0, 0.0]
-            center[axis], center[u], center[w] = plane, cu, cw
-            center = tuple(center)
-            for m in range(len(pts)):
-                caps.append(Triangle(pts[m], pts[(m + 1) % len(pts)], center, "_wall"))
+    while remaining:
+        a, b = tuple(next(iter(remaining)))
+        remaining.discard(frozenset((a, b)))
+        loop = [a, b]
+        prev, cur = a, b
+        closed = False
+        while True:
+            nxts = [n for n in adj[cur] if n != prev and frozenset((cur, n)) in remaining]
+            if not nxts:
+                break
+            nxt = nxts[0]
+            remaining.discard(frozenset((cur, nxt)))
+            if nxt == loop[0]:
+                closed = True
+                break
+            loop.append(nxt)
+            prev, cur = cur, nxt
+        if not (closed and len(loop) >= 3 and _loop_area(loop) > min_area):
+            continue
+        n = len(loop)
+        center = (
+            sum(p[0] for p in loop) / n,
+            sum(p[1] for p in loop) / n,
+            sum(p[2] for p in loop) / n,
+        )
+        for m in range(n):
+            caps.append(Triangle(loop[m], loop[(m + 1) % n], center, "_wall"))
     return caps
 
 
@@ -648,7 +695,7 @@ def add_walls(cells, cell):
             for axis, sign in faces:
                 walls.extend(_wall_quad(axis, sign, half))
         else:  # outer cube: cap only the open cut edges (hug the surface)
-            walls = _cap_boundary(tris, half)
+            walls = _cap_boundary(tris)
         tris.extend(walls)
         added += len(walls)
     return added
@@ -657,12 +704,13 @@ def add_walls(cells, cell):
 def run(args):
     triangles, _ = parse_obj(args.obj)
     scaled = scale_triangles(triangles, args.scale)
+    scaled = rotate_y_triangles(scaled, args.yaw)
     if args.center != (0.0, 0.0, 0.0):
         scaled = translate_triangles(scaled, args.center)
     original_area = sum(triangle_area(t) for t in scaled)
 
     cells, materials, material_index, _ = cut(
-        args.obj, args.scale, args.cell, args.center
+        args.obj, args.scale, args.cell, args.center, args.yaw
     )
 
     # Loss-free invariant: clipping partitions the surface, so total fragment
@@ -734,7 +782,7 @@ def self_test():
     assert all(t.material == "_wall" for t in core[(0, 0, 0)])
     # Boundary capping runs on a surface patch and yields _wall caps.
     patch = slice_grid([Triangle((-0.9, 0.0, 0.0), (0.9, 0.0, 0.0), (0.0, 0.9, 0.0), "a")], 1.0)
-    assert all(t.material == "_wall" for t in _cap_boundary(patch, 0.5))
+    assert all(t.material == "_wall" for t in _cap_boundary(patch))
 
     print("self-test OK")
     return 0
@@ -760,6 +808,12 @@ def main(argv=None):
         type=_parse_center,
         default=(0.0, 0.0, 0.0),
         help="re-anchor the grid: 'x,y,z' (post-scale) that becomes a cell centre (default 0,0,0)",
+    )
+    parser.add_argument(
+        "--yaw",
+        type=float,
+        default=0.0,
+        help="rotate the model this many degrees about Y before cutting (align nose to forward -Z)",
     )
     parser.add_argument(
         "--walls",
