@@ -1,7 +1,10 @@
 use avian3d::prelude::*;
 use bevy::{
     prelude::*,
-    render::view::screenshot::{save_to_disk, Screenshot},
+    render::{
+        render_resource::{TextureViewDescriptor, TextureViewDimension},
+        view::screenshot::{save_to_disk, Screenshot},
+    },
 };
 use bevy_common_systems::prelude::*;
 use nova_events::prelude::*;
@@ -339,14 +342,39 @@ pub struct PendingSkyboxSwap {
 /// waiting forever; the action always resolves through a server load, so that
 /// covers every real swap (a bare code-built handle that is never added would
 /// wait indefinitely, but nothing constructs one).
+///
+/// A cubemap that arrives ALREADY multi-layer (its `.meta` `array_layout`
+/// applied at load time - the base cubemaps via `assets_plugin()`'s
+/// `meta_check` set) skips the bcs setup observer's single-layer fallback
+/// branch, which is also where the Cube texture view was set. Without the
+/// view, bevy's skybox sanity check (`sanity_check_skybox_image_and_warn` in
+/// bevy_core_pipeline's skybox module) refuses the non-Cube view with a
+/// `warn_once` and withholds the skybox bind group - the sky silently
+/// disappears. So the applier sets the view itself before installing the
+/// config (task 20260717-013440). The write happens only when the view is
+/// actually missing: writing through the `AssetMut` guard queues
+/// `AssetEvent::Modified` (a full re-upload of the hundreds-of-MB cubemap
+/// texture), so the no-change path must provably not write.
 pub fn apply_pending_skybox_swaps(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    images: Res<Assets<Image>>,
+    mut images: ResMut<Assets<Image>>,
     q_pending: Query<(Entity, &PendingSkyboxSwap, Option<&SkyboxConfig>)>,
 ) {
     for (entity, pending, current) in &q_pending {
         if images.contains(&pending.cubemap) {
+            let needs_cube_view = images.get(&pending.cubemap).is_some_and(|image| {
+                image.texture_descriptor.array_layer_count() > 1
+                    && image.texture_view_descriptor.is_none()
+            });
+            if needs_cube_view {
+                if let Some(mut image) = images.get_mut(&pending.cubemap) {
+                    image.texture_view_descriptor = Some(TextureViewDescriptor {
+                        dimension: Some(TextureViewDimension::Cube),
+                        ..default()
+                    });
+                }
+            }
             let brightness = pending
                 .brightness
                 .or_else(|| current.map(|config| config.brightness))
@@ -1251,6 +1279,147 @@ mod tests {
         assert_eq!(
             config.brightness, 250.0,
             "an explicit brightness must override the inherited one"
+        );
+    }
+
+    /// Builds the applier's minimal rig: assets + the applier, no bcs observer
+    /// (its behavior is pinned by the skybox_swap_e2e integration test).
+    fn skybox_applier_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+        app.init_asset::<Image>();
+        app.add_systems(Update, apply_pending_skybox_swaps);
+        app.finish();
+        app
+    }
+
+    /// A 6 layer array image the way a meta'd cubemap comes out of the loader:
+    /// stacked, then reinterpreted - `texture_view_descriptor` still `None`.
+    fn six_layer_image() -> Image {
+        use bevy::{
+            asset::RenderAssetUsages,
+            render::render_resource::{Extent3d, TextureDimension, TextureFormat},
+        };
+        let mut image = Image::new_fill(
+            Extent3d {
+                width: 1,
+                height: 6,
+                depth_or_array_layers: 1,
+            },
+            TextureDimension::D2,
+            &[0, 0, 0, 255],
+            TextureFormat::Rgba8UnormSrgb,
+            RenderAssetUsages::all(),
+        );
+        let _ = image.reinterpret_stacked_2d_as_array(6);
+        assert_eq!(
+            image.texture_descriptor.array_layer_count(),
+            6,
+            "rig sanity: the stacked reinterpret produced the 6 layer array"
+        );
+        image
+    }
+
+    /// A cubemap that arrives ALREADY 6-layer (its `.meta` `array_layout`
+    /// applied at load time, e.g. `base/textures/cubemap_alt.png` through
+    /// `assets_plugin()`) skips the bcs observer's single-layer fallback - the
+    /// branch that also set the Cube texture view. The applier must set the
+    /// view itself, or bevy's skybox sanity check refuses the non-Cube view
+    /// (`warn_once`) and skips rendering - the sky silently disappears
+    /// (task 20260717-013440).
+    #[test]
+    fn skybox_swap_sets_cube_view_on_a_preinterpreted_cubemap() {
+        let mut app = skybox_applier_app();
+
+        let cubemap = app
+            .world_mut()
+            .resource_mut::<Assets<Image>>()
+            .add(six_layer_image());
+        let camera = app
+            .world_mut()
+            .spawn((
+                ScenarioCameraMarker,
+                PendingSkyboxSwap {
+                    cubemap: cubemap.clone(),
+                    brightness: Some(700.0),
+                },
+            ))
+            .id();
+
+        app.update();
+
+        // The swap landed...
+        assert_eq!(
+            app.world()
+                .get::<SkyboxConfig>(camera)
+                .expect("the applier installs the SkyboxConfig")
+                .cubemap,
+            cubemap
+        );
+        // ...and the applier readied the image for bevy's Cube skybox binding.
+        let images = app.world().resource::<Assets<Image>>();
+        let image = images.get(&cubemap).expect("cubemap is in Assets");
+        assert_eq!(
+            image
+                .texture_view_descriptor
+                .as_ref()
+                .and_then(|descriptor| descriptor.dimension),
+            Some(TextureViewDimension::Cube),
+            "an already-arrayed cubemap must get its Cube view from the applier"
+        );
+    }
+
+    /// The applier must not WRITE to an image whose Cube view is already set
+    /// (the preloaded `GameAssets` cubemap after `prepare_cubemap_view`): a
+    /// write through the `AssetMut` guard queues `AssetEvent::Modified`, which
+    /// re-uploads the hundreds-of-MB cubemap texture for nothing.
+    #[test]
+    fn skybox_swap_does_not_remodify_an_already_cubed_image() {
+        let mut app = skybox_applier_app();
+
+        let mut cubed = six_layer_image();
+        cubed.texture_view_descriptor = Some(TextureViewDescriptor {
+            dimension: Some(TextureViewDimension::Cube),
+            ..default()
+        });
+        let cubemap = app.world_mut().resource_mut::<Assets<Image>>().add(cubed);
+        let camera = app
+            .world_mut()
+            .spawn((
+                ScenarioCameraMarker,
+                PendingSkyboxSwap {
+                    cubemap: cubemap.clone(),
+                    brightness: None,
+                },
+            ))
+            .id();
+
+        app.update();
+
+        assert!(
+            app.world().get::<SkyboxConfig>(camera).is_some(),
+            "rig sanity: the applier consumed the swap"
+        );
+        let events: Vec<_> = app
+            .world_mut()
+            .resource_mut::<Messages<AssetEvent<Image>>>()
+            .drain()
+            .collect();
+        // Delivery guard: the `.add()` above must have produced an Added event
+        // in the drained buffer, or the no-Modified assertion below would be
+        // vacuously green whenever asset events stop reaching this resource.
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, AssetEvent::Added { id } if *id == cubemap.id())),
+            "rig sanity: the add's Added event reaches the drained messages: {events:?}"
+        );
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, AssetEvent::Modified { id } if *id == cubemap.id())),
+            "consuming a swap for an already-cubed image must not emit Modified \
+             (a Modified re-uploads the whole cubemap texture): {events:?}"
         );
     }
 

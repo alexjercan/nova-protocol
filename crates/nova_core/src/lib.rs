@@ -232,10 +232,21 @@ fn log_filter_str<'a>() -> &'a str {
 ///
 /// Meta files are read only for the paths listed here. `Never` silently
 /// defeated `cubemap.png.meta`'s `array_layout`, resurrecting the skybox
-/// upload race (docs/retros/20260710-skybox-cubemap-upload-race.md); `Always`
-/// would fire an HTTP request per asset on wasm just to 404 on the missing
-/// metas. Per-path opt-in gives the cubemap its loader settings at no cost to
-/// the rest.
+/// upload race (tasks/20260710-143138/NOTES.md); `Always` would fire an HTTP
+/// request per asset on wasm just to 404 on the missing metas. Per-path
+/// opt-in gives the cubemaps their loader settings at no cost to the rest.
+///
+/// Both shipped base cubemaps are listed: `cubemap_alt.png` (broadside's sky,
+/// also `dep://base`'d by mods) was missing at first (task 20260717-013440),
+/// so it loaded as a single-layer 4096x24576 stacked image and relied on the
+/// bcs SkyboxPlugin fallback reinterpret - safe in the normal path, but a
+/// scenario teardown during the PNG decode left the raw stacked image to be
+/// uploaded as-is, over the 16384 texture limit of llvmpipe/WebGL2-class GPUs.
+/// A cubemap loaded via this meta arrives already 6-layer, which SKIPS the bcs
+/// fallback branch that also set the Cube texture view - the swap applier
+/// (`nova_scenario::apply_pending_skybox_swaps`) sets the view for that case;
+/// keep the two in sync. Mod-shipped cubemaps (dynamic `mods://` paths) cannot
+/// join this static set: task 20260717-111558 tracks that class.
 ///
 /// The `mods://` source for downloaded mods is NOT configured here - it must be
 /// registered on the App before this plugin is added; `AppBuilder::new` calls
@@ -243,9 +254,10 @@ fn log_filter_str<'a>() -> &'a str {
 pub fn assets_plugin() -> AssetPlugin {
     AssetPlugin {
         meta_check: bevy::asset::AssetMetaCheck::Paths(
-            bevy::platform::collections::HashSet::from_iter([bevy::asset::AssetPath::from(
-                "base/textures/cubemap.png",
-            )]),
+            bevy::platform::collections::HashSet::from_iter([
+                bevy::asset::AssetPath::from("base/textures/cubemap.png"),
+                bevy::asset::AssetPath::from("base/textures/cubemap_alt.png"),
+            ]),
         ),
         ..default()
     }

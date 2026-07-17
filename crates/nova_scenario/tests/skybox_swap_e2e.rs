@@ -23,6 +23,7 @@ use bevy::{
     core_pipeline::Skybox,
     image::{CompressedImageFormats, ImageLoader},
     prelude::*,
+    render::render_resource::TextureViewDimension,
 };
 use bevy_common_systems::prelude::{
     EventAction, GameEventInfo, GameEventsPlugin, GameObjectives, SkyboxConfig, SkyboxPlugin,
@@ -180,5 +181,28 @@ fn set_skybox_swaps_a_real_cubemap_on_the_scenario_camera() {
     assert_eq!(
         skybox.brightness, 700.0,
         "the installed Skybox carries the inherited brightness"
+    );
+
+    // And the swapped image is actually renderable as a skybox: 6 array layers
+    // (here from the `.meta` array_layout - this rig's default meta_check reads
+    // every meta) AND a Cube texture view. The view is the applier's job: an
+    // already-arrayed image skips the bcs observer's fallback branch that used
+    // to be the only place the view was set, and bevy's skybox sanity check
+    // refuses a non-Cube view (warn_once) and silently skips rendering the
+    // sky (task 20260717-013440).
+    let images = app.world().resource::<Assets<Image>>();
+    let image = images.get(&swapped).expect("swapped cubemap is in Assets");
+    assert_eq!(
+        image.texture_descriptor.array_layer_count(),
+        6,
+        "the swapped cubemap must be a 6 layer array"
+    );
+    assert_eq!(
+        image
+            .texture_view_descriptor
+            .as_ref()
+            .and_then(|descriptor| descriptor.dimension),
+        Some(TextureViewDimension::Cube),
+        "the swapped cubemap must carry a Cube texture view"
     );
 }
