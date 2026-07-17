@@ -1,0 +1,14 @@
+{
+  "label": "bs-combat-high",
+  "frames": 400,
+  "total_ms": 33092.238,
+  "mean_ms": 82.7306,
+  "min_ms": 30.1480,
+  "max_ms": 191.8765,
+  "p50_ms": 77.1079,
+  "p95_ms": 145.1606,
+  "p99_ms": 172.9805,
+  "p999_ms": 191.8765,
+  "mean_fps": 12.09,
+  "one_pct_low_fps": 5.78
+}

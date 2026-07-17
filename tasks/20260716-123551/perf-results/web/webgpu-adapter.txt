@@ -1,0 +1,1 @@
+AdapterInfo { name: "NVIDIA GeForce RTX 3060 Ti", vendor: 0, device: 0, device_type: Other, device_pci_bus_id: "", driver: "", driver_info: "", backend: BrowserWebGpu, subgroup_min_size: 4, subgroup_max_size: 128, transient_saves_memory: false }

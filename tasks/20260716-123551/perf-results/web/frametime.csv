@@ -1,0 +1,5 @@
+label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_ms,p99_ms,mean_fps,one_pct_low_fps,note
+asteroid_field-high-web,300,38.761,15.800,78.100,37.500,59.500,68.900,25.8,14.5,WebGPU BrowserWebGpu (Chromium+NVIDIA under Xvfb)
+broadside-high-web,300,34.041,17.600,63.700,33.600,48.000,57.000,29.4,17.5,WebGPU
+shakedown_run-high-web,300,35.636,14.700,59.600,36.600,54.100,56.900,28.1,17.6,WebGPU
+broadside-combat-high-web,300,42.239,23.700,62.000,42.200,57.300,60.400,23.7,16.6,WebGPU + combat burst driver

@@ -1,0 +1,14 @@
+{
+  "label": "broadside-low",
+  "frames": 600,
+  "total_ms": 11852.970,
+  "mean_ms": 19.7549,
+  "min_ms": 15.9105,
+  "max_ms": 29.8601,
+  "p50_ms": 19.1488,
+  "p95_ms": 23.4485,
+  "p99_ms": 26.1438,
+  "p999_ms": 29.8601,
+  "mean_fps": 50.62,
+  "one_pct_low_fps": 38.25
+}

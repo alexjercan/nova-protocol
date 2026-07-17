@@ -4600,6 +4600,7 @@ dependencies = [
  "itertools 0.15.0",
  "nova_gameplay",
  "nova_scenario",
+ "web-sys",
 ]
 
 [[package]]

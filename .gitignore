@@ -17,3 +17,6 @@ screenshot.png
 # Generated at build time by cargo-about (scripts/gen-licenses.sh); ships in
 # builds via credits/, not committed (cargo-about output is not byte-stable).
 credits/THIRD-PARTY-LICENSES.md
+
+# perf_web wasm build output (scripts/perf-web.sh)
+/dist-perf

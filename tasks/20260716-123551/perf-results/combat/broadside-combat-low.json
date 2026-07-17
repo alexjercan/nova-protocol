@@ -1,0 +1,14 @@
+{
+  "label": "broadside-combat-low",
+  "frames": 300,
+  "total_ms": 7810.691,
+  "mean_ms": 26.0356,
+  "min_ms": 18.6627,
+  "max_ms": 47.7827,
+  "p50_ms": 25.2831,
+  "p95_ms": 34.0061,
+  "p99_ms": 41.2255,
+  "p999_ms": 47.7827,
+  "mean_fps": 38.41,
+  "one_pct_low_fps": 24.26
+}
