@@ -1915,4 +1915,829 @@
             safety_on_sound: Some("self://sounds/safety_on.wav"),
         )),
     )),
+    Section((
+        base: (
+            id: "cargoa_cube_i0_j0_k0",
+            name: "Cargo Cube (0,0,0)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i0_j0_k0.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i0_j0_k1",
+            name: "Cargo Cube (0,0,1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i0_j0_k1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i0_j0_k2",
+            name: "Cargo Cube (0,0,2)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i0_j0_k2.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i0_j0_km1",
+            name: "Cargo Cube (0,0,-1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i0_j0_km1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i0_j1_k1",
+            name: "Cargo Cube (0,1,1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i0_j1_k1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i0_j1_k2",
+            name: "Cargo Cube (0,1,2)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i0_j1_k2.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i0_j1_km1",
+            name: "Cargo Cube (0,1,-1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i0_j1_km1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i0_j1_km2",
+            name: "Cargo Cube (0,1,-2)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i0_j1_km2.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i0_j2_k0",
+            name: "Cargo Cube (0,2,0)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i0_j2_k0.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i0_j2_k1",
+            name: "Cargo Cube (0,2,1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i0_j2_k1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i0_j2_km1",
+            name: "Cargo Cube (0,2,-1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i0_j2_km1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i0_j2_km2",
+            name: "Cargo Cube (0,2,-2)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i0_j2_km2.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i1_j0_k0",
+            name: "Cargo Cube (1,0,0)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i1_j0_k0.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i1_j0_k1",
+            name: "Cargo Cube (1,0,1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i1_j0_k1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i1_j0_k2",
+            name: "Cargo Cube (1,0,2)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i1_j0_k2.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i1_j0_km1",
+            name: "Cargo Cube (1,0,-1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i1_j0_km1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i1_j1_k0",
+            name: "Cargo Cube (1,1,0)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i1_j1_k0.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i1_j1_k1",
+            name: "Cargo Cube (1,1,1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i1_j1_k1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i1_j1_k2",
+            name: "Cargo Thruster (1,1,2)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Thruster((
+            magnitude: 1.0,
+            render_mesh: Some("self://gltf/cargoa/cube_i1_j1_k2.glb#Scene0"),
+            loop_sound: Some("self://sounds/thruster_loop.wav"),
+            exhaust: Some((
+                offset: (
+                    0.2,
+                    -0.1,
+                    0.4,
+                ),
+                rotation: (
+                    0.70710677,
+                    0.0,
+                    0.0,
+                    0.70710677,
+                ),
+                shape: (
+                    geometry: Rect,
+                    width: 0.56,
+                    height: 0.4,
+                    exhaust_height: 0.1,
+                    exhaust_radius: 0.4,
+                    exhaust_max: 1.0,
+                    exhaust_inner_height: 0.05,
+                    exhaust_inner_radius: 0.1,
+                    exhaust_inner_max: 0.5,
+                    emissive_color: (
+                        red: 0.0,
+                        green: 10.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                    emissive_inner_color: (
+                        red: 0.0,
+                        green: 0.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i1_j1_km1",
+            name: "Cargo Cube (1,1,-1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i1_j1_km1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i1_j1_km2",
+            name: "Cargo Cube (1,1,-2)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i1_j1_km2.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i1_j2_k0",
+            name: "Cargo Cube (1,2,0)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i1_j2_k0.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i1_j2_k1",
+            name: "Cargo Cube (1,2,1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i1_j2_k1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i1_j2_km1",
+            name: "Cargo Cube (1,2,-1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i1_j2_km1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i1_j2_km2",
+            name: "Cargo Cube (1,2,-2)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i1_j2_km2.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i2_j0_k0",
+            name: "Cargo Cube (2,0,0)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i2_j0_k0.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i2_j0_k1",
+            name: "Cargo Cube (2,0,1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i2_j0_k1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i2_j0_km1",
+            name: "Cargo Cube (2,0,-1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i2_j0_km1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i2_j1_k0",
+            name: "Cargo Cube (2,1,0)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i2_j1_k0.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i2_j1_k1",
+            name: "Cargo Cube (2,1,1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i2_j1_k1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i2_j1_k2",
+            name: "Cargo Cube (2,1,2)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i2_j1_k2.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_i2_j1_km1",
+            name: "Cargo Cube (2,1,-1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_i2_j1_km1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im1_j0_k0",
+            name: "Cargo Cube (-1,0,0)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im1_j0_k0.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im1_j0_k1",
+            name: "Cargo Cube (-1,0,1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im1_j0_k1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im1_j0_k2",
+            name: "Cargo Cube (-1,0,2)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im1_j0_k2.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im1_j0_km1",
+            name: "Cargo Cube (-1,0,-1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im1_j0_km1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im1_j1_k0",
+            name: "Cargo Cube (-1,1,0)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im1_j1_k0.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im1_j1_k1",
+            name: "Cargo Cube (-1,1,1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im1_j1_k1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im1_j1_k2",
+            name: "Cargo Thruster (-1,1,2)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Thruster((
+            magnitude: 1.0,
+            render_mesh: Some("self://gltf/cargoa/cube_im1_j1_k2.glb#Scene0"),
+            loop_sound: Some("self://sounds/thruster_loop.wav"),
+            exhaust: Some((
+                offset: (
+                    -0.2,
+                    -0.1,
+                    0.4,
+                ),
+                rotation: (
+                    0.70710677,
+                    0.0,
+                    0.0,
+                    0.70710677,
+                ),
+                shape: (
+                    geometry: Rect,
+                    width: 0.56,
+                    height: 0.4,
+                    exhaust_height: 0.1,
+                    exhaust_radius: 0.4,
+                    exhaust_max: 1.0,
+                    exhaust_inner_height: 0.05,
+                    exhaust_inner_radius: 0.1,
+                    exhaust_inner_max: 0.5,
+                    emissive_color: (
+                        red: 0.0,
+                        green: 10.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                    emissive_inner_color: (
+                        red: 0.0,
+                        green: 0.0,
+                        blue: 10.0,
+                        alpha: 1.0,
+                    ),
+                ),
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im1_j1_km1",
+            name: "Cargo Cube (-1,1,-1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im1_j1_km1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im1_j1_km2",
+            name: "Cargo Cube (-1,1,-2)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im1_j1_km2.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im1_j2_k0",
+            name: "Cargo Cube (-1,2,0)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im1_j2_k0.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im1_j2_k1",
+            name: "Cargo Cube (-1,2,1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im1_j2_k1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im1_j2_km1",
+            name: "Cargo Cube (-1,2,-1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im1_j2_km1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im1_j2_km2",
+            name: "Cargo Cube (-1,2,-2)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im1_j2_km2.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im2_j0_k0",
+            name: "Cargo Cube (-2,0,0)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im2_j0_k0.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im2_j0_k1",
+            name: "Cargo Cube (-2,0,1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im2_j0_k1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im2_j0_km1",
+            name: "Cargo Cube (-2,0,-1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im2_j0_km1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im2_j1_k0",
+            name: "Cargo Cube (-2,1,0)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im2_j1_k0.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im2_j1_k1",
+            name: "Cargo Cube (-2,1,1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im2_j1_k1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im2_j1_k2",
+            name: "Cargo Cube (-2,1,2)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im2_j1_k2.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_cube_im2_j1_km1",
+            name: "Cargo Cube (-2,1,-1)",
+            description: "A cut hull cube of the Kenney craft_cargoA.",
+            mass: 1.0,
+            health: 70.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/cargoa/cube_im2_j1_km1.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargoa_core_controller",
+            name: "Core Controller",
+            description: "The ship\'s controller, in the hollow core cell.",
+            mass: 1.0,
+            health: 100.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+        ),
+        kind: Controller((
+            frequency: 4.0,
+            damping_ratio: 4.0,
+            max_torque: 800.0,
+            lock_on_sound: Some("self://sounds/lock_on.wav"),
+            lock_off_sound: Some("self://sounds/lock_off.wav"),
+            radar_deny_sound: Some("self://sounds/radar_deny.wav"),
+            radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
+            safety_on_sound: Some("self://sounds/safety_on.wav"),
+        )),
+    )),
 ]
