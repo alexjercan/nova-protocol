@@ -4,10 +4,12 @@
 //   python3 scripts/cut-obj-into-hulls.py art/kenney/craft_cargoB.obj \
 //       --out assets/mods/craft_cargob/gltf --yaw 180 --center 0,-0.3,0 --no-walls
 //
-// Hull cubes except: 2 rear engines (1,1,2)/(-1,1,2) are Thrusters (with exhaust
-// cones), 2 front bays (1,1,-2)/(-1,1,-2) are Torpedo bays, and a Controller
-// sits in the empty core (0,1,0). Player-controlled: W = thrust, Mouse Left =
-// fire torpedoes. Nose faces the game forward (-Z), spawn rotation identity.
+// Hull cubes except: 2 rear engines (1,1,2)/(-1,1,2) are Thrusters (with
+// exhaust cones), 2 front bays (1,1,-2)/(-1,1,-2) are Torpedo bays, and a
+// Controller sits in the empty core (0,1,0). And two turrets (1,2,0)/(-1,2,0)
+// are added for fun. Player-controlled: Space = thrust, Mouse Left = fire
+// turrets, R = fire torpedoes. Nose faces the game forward (-Z), spawn
+// rotation identity.
 [
     Scenario((
         id: "craft_cargob_reconstruct",
@@ -29,16 +31,22 @@
                             controller: Player((
                                 input_mapping: {
                                     "cube_im1_j1_k2": [
-                                        Keyboard(KeyW),
+                                        Keyboard(Space),
                                     ],
                                     "cube_i1_j1_k2": [
-                                        Keyboard(KeyW),
+                                        Keyboard(Space),
+                                    ],
+                                    "cube_im1_j2_k0": [
+                                        Mouse(Left),
+                                    ],
+                                    "cube_i1_j2_k0": [
+                                        Mouse(Left),
                                     ],
                                     "cube_im1_j1_km2": [
-                                        Mouse(Left),
+                                        Keyboard(KeyR),
                                     ],
                                     "cube_i1_j1_km2": [
-                                        Mouse(Left),
+                                        Keyboard(KeyR),
                                     ],
                                 },
                                 infinite_ammo: false,
@@ -452,17 +460,110 @@
                                 (
                                     id: "cube_i1_j2_k0",
                                     position: (1.0, 2.0, 0.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        -0.70710677,
+                                        0.70710677,
+                                    ),
                                     source: Inline((
                                         base: (
                                             id: "cube_i1_j2_k0",
-                                            name: "Cargo Cube (1,2,0)",
-                                            description: "A cut hull cube of the Kenney craft_cargoB.",
+                                            name: "Cargo Turret (1,2,0)",
+                                            description: "A better turret section for spaceships.",
                                             mass: 1.0,
-                                            health: 100.0,
+                                            health: 130.0,
+                                            impact_sound: Some("dep://base/sounds/impact.wav"),
+                                            destroy_sound: Some("dep://base/sounds/explosion.wav"),
                                         ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/cube_i1_j2_k0.glb#Scene0"),
+                                        kind: Turret((
+                                            root: (
+                                                offset: (
+                                                    0.0,
+                                                    -0.5,
+                                                    0.0,
+                                                ),
+                                                render_mesh: Some("self://gltf/cube_i1_j2_k0.glb#Scene0"),
+                                                render_mesh_transform: Some((
+                                                    position: (
+                                                        0.0,
+                                                        0.5,
+                                                        0.0,
+                                                    ),
+                                                    rotation: (
+                                                        0.0,
+                                                        0.0,
+                                                        0.70710677,
+                                                        0.70710677,
+                                                    ),
+                                                )),
+                                                children: [
+                                                    (
+                                                        offset: (
+                                                            0.0,
+                                                            0.1,
+                                                            0.0,
+                                                        ),
+                                                        axis: Some((
+                                                            0.0,
+                                                            1.0,
+                                                            0.0,
+                                                        )),
+                                                        render_mesh: Some("dep://base/gltf/turret-yaw-01.glb#Scene0"),
+                                                        children: [
+                                                            (
+                                                                offset: (
+                                                                    0.0,
+                                                                    0.332706,
+                                                                    0.303954,
+                                                                ),
+                                                                axis: Some((
+                                                                    1.0,
+                                                                    0.0,
+                                                                    0.0,
+                                                                )),
+                                                                min: Some(-0.5235988),
+                                                                max: Some(1.5707964),
+                                                                render_mesh: Some("dep://base/gltf/turret-pitch-01.glb#Scene0"),
+                                                                children: [
+                                                                    (
+                                                                        offset: (
+                                                                            0.0,
+                                                                            0.128437,
+                                                                            -0.110729,
+                                                                        ),
+                                                                        render_mesh: Some("dep://base/gltf/turret-barrel-01.glb#Scene0"),
+                                                                        children: [
+                                                                            (
+                                                                                offset: (
+                                                                                    0.0,
+                                                                                    0.0,
+                                                                                    -1.2,
+                                                                                ),
+                                                                                muzzle: Some((
+                                                                                    fire_rate: 100.0,
+                                                                                )),
+                                                                            ),
+                                                                        ],
+                                                                    ),
+                                                                ],
+                                                            ),
+                                                        ],
+                                                    ),
+                                                ],
+                                            ),
+                                            muzzle_speed: 100.0,
+                                            projectile_lifetime: 5.0,
+                                            bullet_damage: 4.0,
+                                            bullet_kind: Kinetic,
+                                            fire_sound: Some("dep://base/sounds/turret_fire.wav"),
+                                            dry_fire_sound: Some("dep://base/sounds/dry_fire.wav"),
+                                            ammo_capacity: Some(500),
+                                            reload: Some((
+                                                reload_time: 3.0,
+                                                rounds_per_cycle: 500,
+                                                only_when_empty: true,
+                                            )),
                                         )),
                                     )),
                                 ),
@@ -744,17 +845,110 @@
                                 (
                                     id: "cube_im1_j2_k0",
                                     position: (-1.0, 2.0, 0.0),
-                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                        0.70710677,
+                                    ),
                                     source: Inline((
                                         base: (
                                             id: "cube_im1_j2_k0",
-                                            name: "Cargo Cube (-1,2,0)",
-                                            description: "A cut hull cube of the Kenney craft_cargoB.",
+                                            name: "Cargo Turret  (-1,2,0)",
+                                            description: "A better turret section for spaceships.",
                                             mass: 1.0,
-                                            health: 100.0,
+                                            health: 130.0,
+                                            impact_sound: Some("dep://base/sounds/impact.wav"),
+                                            destroy_sound: Some("dep://base/sounds/explosion.wav"),
                                         ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/cube_im1_j2_k0.glb#Scene0"),
+                                        kind: Turret((
+                                            root: (
+                                                offset: (
+                                                    0.0,
+                                                    -0.5,
+                                                    0.0,
+                                                ),
+                                                render_mesh: Some("self://gltf/cube_im1_j2_k0.glb#Scene0"),
+                                                render_mesh_transform: Some((
+                                                    position: (
+                                                        0.0,
+                                                        0.5,
+                                                        0.0,
+                                                    ),
+                                                    rotation: (
+                                                        0.0,
+                                                        0.0,
+                                                        -0.70710677,
+                                                        0.70710677,
+                                                    ),
+                                                )),
+                                                children: [
+                                                    (
+                                                        offset: (
+                                                            0.0,
+                                                            0.1,
+                                                            0.0,
+                                                        ),
+                                                        axis: Some((
+                                                            0.0,
+                                                            1.0,
+                                                            0.0,
+                                                        )),
+                                                        render_mesh: Some("dep://base/gltf/turret-yaw-01.glb#Scene0"),
+                                                        children: [
+                                                            (
+                                                                offset: (
+                                                                    0.0,
+                                                                    0.332706,
+                                                                    0.303954,
+                                                                ),
+                                                                axis: Some((
+                                                                    1.0,
+                                                                    0.0,
+                                                                    0.0,
+                                                                )),
+                                                                min: Some(-0.5235988),
+                                                                max: Some(1.5707964),
+                                                                render_mesh: Some("dep://base/gltf/turret-pitch-01.glb#Scene0"),
+                                                                children: [
+                                                                    (
+                                                                        offset: (
+                                                                            0.0,
+                                                                            0.128437,
+                                                                            -0.110729,
+                                                                        ),
+                                                                        render_mesh: Some("dep://base/gltf/turret-barrel-01.glb#Scene0"),
+                                                                        children: [
+                                                                            (
+                                                                                offset: (
+                                                                                    0.0,
+                                                                                    0.0,
+                                                                                    -1.2,
+                                                                                ),
+                                                                                muzzle: Some((
+                                                                                    fire_rate: 100.0,
+                                                                                )),
+                                                                            ),
+                                                                        ],
+                                                                    ),
+                                                                ],
+                                                            ),
+                                                        ],
+                                                    ),
+                                                ],
+                                            ),
+                                            muzzle_speed: 100.0,
+                                            projectile_lifetime: 5.0,
+                                            bullet_damage: 4.0,
+                                            bullet_kind: Kinetic,
+                                            fire_sound: Some("dep://base/sounds/turret_fire.wav"),
+                                            dry_fire_sound: Some("dep://base/sounds/dry_fire.wav"),
+                                            ammo_capacity: Some(500),
+                                            reload: Some((
+                                                reload_time: 3.0,
+                                                rounds_per_cycle: 500,
+                                                only_when_empty: true,
+                                            )),
                                         )),
                                     )),
                                 ),
