@@ -124,12 +124,6 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   `shared-checkout-reads-race`. 20260708-165703, 20260718-122906 (split the land
   into merge/inspect/commit again - got lucky, no parallel clobber, but a
   concurrent craft_racer job DID land on master mid-cycle, proving the race is live).
-- `per-crate-test-needs-gated-features` (x1): `cargo test -p <crate>` in isolation
-  can fail to COMPILE when serde (or other) derives are `#[cfg_attr(feature=...)]`
-  and only get enabled by workspace feature unification - the standalone build
-  drops the feature. Pass the crate's own `--features serde` (or run within the
-  `--workspace` build CI uses). nova_scenario loader tests needed
-  `-p nova_scenario --features serde`. 20260718-122906.
 - `grep-test-module-before-adding-a-helper` (x1): before adding a test helper,
   grep the target test module for the name - flight.rs already had a `velocity_of`
   helper, so the copy broke the build with a duplicate-definition error. Reuse the
@@ -950,7 +944,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   to an observer many headless section rigs run); the sibling `muzzle_effect`
   snapshots the ref UNRESOLVED at build and resolves in a render-time observer.
   Caught in self-review by comparing to the sibling, not by a test. 20260717-002228.
-- `piped-cargo-masks-exit-code` (x4, -> Pending promotions): `cargo ... | tail`/`| grep` reports the
+- `piped-cargo-masks-exit-code` (x5, -> Pending promotions): `cargo ... | tail`/`| grep` reports the
   PIPELINE's exit (tail/grep = 0), so a compile FAILURE reads as "exit 0" in the
   harness notification; read the OUTPUT text for `error[`/`could not compile` vs
   `Finished`, or `set -o pipefail`. Bit twice in one task - a masked E0593 in a
@@ -962,7 +956,9 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   pipes hide the exit code too). `| tail -N` also EATS the earlier
   binaries' `test result:` lines in a multi-binary run - filter with
   grep "test result", never tail. 20260717-002228, 20260717-013440,
-  20260717-162121.
+  20260717-162121, 20260718-122912 (a `| grep -E "test result|..."` on a
+  two-suite run returned EMPTY - matched nothing/buffered - so pass/fail was
+  invisible; re-ran with `| tail -3` per suite to see the counts).
 
 ## Domain lessons (nova-protocol specific)
 
@@ -971,7 +967,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   asking "which acts may this fire in?", terminal states especially (an
   act-ungated death handler flipped an earned VICTORY to DEFEAT); gate by
   default, globality is the deliberate exception. 20260708-203659.
-- `crate-solo-tests-miss-unified-features` (x5 -> Pending promotions): `cargo
+- `crate-solo-tests-miss-unified-features` (x6 -> Pending promotions): `cargo
   test -p nova_scenario` alone fails to compile - its serde round-trip tests
   lean on workspace feature unification (nova_assets -> nova_modding ->
   nova_scenario/serde); run crate tests with a unifying sibling (`-p
@@ -982,7 +978,9 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   20260716-155830, 20260716-231855, 20260717-002228 (hit a FOURTH
   time - did not grep the ledger for the crate name first, as the lesson says),
   20260717-151537 (FIFTH - same crate, same miss: ran `-p nova_scenario`
-  before grepping the ledger, paid a ~4min cold compile).
+  before grepping the ledger, paid a ~4min cold compile), 20260718-122906
+  (SIXTH - same crate; a `per-crate-test-needs-gated-features` duplicate was
+  filed here in error and folded back into this entry).
 - `deleted-content-tests-carry-engine-coverage` (x1): tests over shipped
   DATA can be the only exercise of an engine mechanism (filters.rs owned
   filter/action semantics with zero tests of its own); before deleting such
@@ -999,17 +997,33 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `degenerate-inertia-frames` (x1): avian's eigen sort gives even a symmetric
   ship a cyclic-permutation local frame; test frame composition with
   non-identity frames. 20260709-125640.
-- `assert-each-gesture-step` (x1): modal/chorded input tests assert state after
-  every step of the gesture, not event counts at the end. 20260711-173237.
-- `modal-input-observer-dispatch` (x1): when bevy_enhanced_input's condition
-  DSL fights a modal gesture, dispatch in an observer reading the modifier's
-  TriggerState. 20260711-173237.
-- `half-ticked-compound-steps` (x2): tick a plan step only when every clause is
-  done, or split it - and when the implementation legitimately adapts (a rig
-  cannot deliver a clause), amend the step text in the same edit instead of
-  silently narrowing. 20260708-165704, 20260716-162701.
-- `bei-app-finish-in-tests` (x1): bevy_enhanced_input needs `app.finish()` +
-  `app.cleanup()` before spawning an action rig in tests. 20260708-165705.
+- `assert-each-gesture-step` (x2): modal/chorded input tests assert state after
+  every step of the gesture, not event counts at the end. 20260711-173237,
+  20260718-122912.
+- `modal-input-observer-dispatch` (x2): model a held modifier as a PLAIN action
+  and read its state (Start/Complete/TriggerState) in observers, not a binding
+  Chord - so a modal layer (SHIFT=RCS, CTRL=ship-lock) is a component-presence
+  gate the helm/camera/scroll all read. 20260711-173237, 20260718-122912.
+- `half-ticked-compound-steps` (x3, -> Pending promotions): tick a plan step only
+  when every clause is done, or split it - and when the implementation
+  legitimately adapts (a rig cannot deliver a clause; a cleaner in-place branch
+  replaces separate actions), amend the step text in the same edit instead of
+  silently narrowing. 20260708-165704, 20260716-162701, 20260718-122912.
+- `bei-app-finish-in-tests` (x2): bevy_enhanced_input needs `app.finish()` +
+  `app.cleanup()` before spawning an action rig in tests. 20260708-165705,
+  20260718-122912.
+- `bevy-input-is-messages-in-tests` (x1): Bevy 0.19 input is the MESSAGE API -
+  drive tests with `World::write_message` (not `write_event`); `MouseMotion` /
+  `MouseWheel` messages flow to `AccumulatedMouseMotion`/`AccumulatedMouseScroll`,
+  which bevy_enhanced_input reads, so one message + `update()` fires the action.
+  `MouseWheel` needs unit+x+y+window+PHASE (the `phase: TouchPhase::Moved` field
+  is easy to miss). 20260718-122912.
+- `changed-shared-observer-run-the-module-suites` (x1): when a change alters a
+  SHARED observer/system's signature (here on_component_cycle_next/prev,
+  on_rotation_input across three modules), run the whole affected MODULE suites
+  (`cargo test -p crate --lib "mod::"`), not just the new tests - the risk is
+  silently breaking existing consumers, which only the existing tests catch.
+  20260718-122912.
 - `verify-ci-triggers-before-claiming-coverage` (x2): before writing "CI builds
   this", read the workflow triggers - a `workflow_dispatch`/deploy job is NOT
   automated PR/master coverage. An uncompiled cfg branch (e.g. the wasm
