@@ -251,3 +251,13 @@ Parent request: tasks/20260717-105406.
   not autopilot-gated). Newtonian residual (Q2). 5 tests green (4 flight, 1
   scenario). Detail: tasks/20260718-122906/NOTES.md. Remaining: player input
   (-122912), HUD (-122923), autopilot integration (-122932).
+- 20260718 tatr 20260718-122912 (player input): SHIFT enters a held-direction
+  RCS mode - mouse (XZ) + scroll (Y) integrate into `RcsIntent`, `RcsActive`
+  marker freezes the helm and camera view, exit zeroes the offset. Verb-gated,
+  disengages autopilot. 10 tests. Detail: tasks/20260718-122912/NOTES.md.
+- 20260718 tatr 20260718-122923 (HUD): the RCS-active PALETTE on the velocity
+  sphere (violet `VelocityHudPalette::RCS_ACTIVE`, keyed on `RcsActive`). The
+  "cap ring" half was split to a seeded follow-up (tatr 20260718-144939) - a
+  fixed-radius shader sphere makes "a ring at the cap" a visual-design + playtest
+  question, not a headless-testable add. Detail: tasks/20260718-122923/NOTES.md.
+  Remaining: autopilot integration (-122932), cap ring (-144939).

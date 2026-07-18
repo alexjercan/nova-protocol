@@ -71,13 +71,26 @@ impl VelocityHudPalette {
         indicator: Color::srgba(0.3, 0.9, 1.0, 1.0),
         sphere: Color::srgba(0.3, 0.9, 1.0, 0.2),
     };
+
+    /// The velocity widget while the pilot holds RCS fine-adjust (SHIFT): a
+    /// violet distinct from manual blue, autopilot cyan, and gravity yellow, so
+    /// "I am nudging by hand under the cap" reads from the sphere alone (task
+    /// 20260718-122923). Starting values for the by-eye pass.
+    pub const RCS_ACTIVE: Self = Self {
+        indicator: Color::srgba(0.72, 0.45, 1.0, 1.0),
+        sphere: Color::srgba(0.72, 0.45, 1.0, 0.2),
+    };
 }
 
 /// The palette the velocity widget should wear right now. Pure so the
-/// engaged/manual decision is unit-testable apart from the material
-/// plumbing.
-pub(crate) fn desired_velocity_palette(engaged: bool) -> VelocityHudPalette {
-    if engaged {
+/// rcs/engaged/manual decision is unit-testable apart from the material
+/// plumbing. RCS fine-adjust (the pilot's SHIFT modal) wins over an engaged
+/// autopilot - though the two are mutually exclusive on the player ship, since
+/// entering RCS disengages the autopilot.
+pub(crate) fn desired_velocity_palette(engaged: bool, rcs_active: bool) -> VelocityHudPalette {
+    if rcs_active {
+        VelocityHudPalette::RCS_ACTIVE
+    } else if engaged {
         VelocityHudPalette::ENGAGED
     } else {
         VelocityHudPalette::default()
@@ -174,7 +187,7 @@ impl Plugin for VelocityHudPlugin {
             (
                 update_velocity_hud_input,
                 sync_orbit_state,
-                sync_engaged_palette,
+                sync_velocity_palette,
                 direction_shader_update_system,
             )
                 .in_set(super::NovaHudSystems),
@@ -355,8 +368,9 @@ fn direction_shader_update_system(
 /// spawn-time palette converges on the first run, so a ship that spawns
 /// already engaged wears the right colors from frame one. Gravity-source
 /// widgets report the world, not control, and are never tinted.
-fn sync_engaged_palette(
+fn sync_velocity_palette(
     q_autopilot: Query<(), With<Autopilot>>,
+    q_rcs: Query<(), With<RcsActive>>,
     mut q_hud: Query<
         (
             &mut VelocityHudPalette,
@@ -385,7 +399,10 @@ fn sync_engaged_palette(
         if source != VelocityHudSource::Velocity {
             continue;
         }
-        let desired = desired_velocity_palette(q_autopilot.get(**target).is_ok());
+        let desired = desired_velocity_palette(
+            q_autopilot.get(**target).is_ok(),
+            q_rcs.get(**target).is_ok(),
+        );
         if *palette == desired {
             continue;
         }
@@ -648,11 +665,24 @@ mod tests {
     }
 
     #[test]
-    fn desired_velocity_palette_picks_by_engagement() {
-        assert_eq!(desired_velocity_palette(true), VelocityHudPalette::ENGAGED);
+    fn desired_velocity_palette_picks_by_state() {
+        // Manual, autopilot, RCS - and RCS wins over engaged (mutually
+        // exclusive in practice, but the precedence is pinned).
         assert_eq!(
-            desired_velocity_palette(false),
+            desired_velocity_palette(false, false),
             VelocityHudPalette::default()
+        );
+        assert_eq!(
+            desired_velocity_palette(true, false),
+            VelocityHudPalette::ENGAGED
+        );
+        assert_eq!(
+            desired_velocity_palette(false, true),
+            VelocityHudPalette::RCS_ACTIVE
+        );
+        assert_eq!(
+            desired_velocity_palette(true, true),
+            VelocityHudPalette::RCS_ACTIVE
         );
     }
 
@@ -670,13 +700,39 @@ mod tests {
         let widget = spawn_widget(&mut world, ship, VelocityHudSource::Velocity);
         assert_eq!(palette_of(&world, widget), VelocityHudPalette::default());
 
-        world.run_system_once(sync_engaged_palette).unwrap();
+        world.run_system_once(sync_velocity_palette).unwrap();
         assert_eq!(palette_of(&world, widget), VelocityHudPalette::ENGAGED);
 
         // Disengage: back to the manual white/blue.
         world.entity_mut(ship).remove::<Autopilot>();
-        world.run_system_once(sync_engaged_palette).unwrap();
+        world.run_system_once(sync_velocity_palette).unwrap();
         assert_eq!(palette_of(&world, widget), VelocityHudPalette::default());
+    }
+
+    #[test]
+    fn velocity_palette_follows_rcs_active() {
+        let mut world = palette_world();
+        let ship = world.spawn(LinearVelocity(Vec3::ZERO)).id();
+        let widget = spawn_widget(&mut world, ship, VelocityHudSource::Velocity);
+        assert_eq!(palette_of(&world, widget), VelocityHudPalette::default());
+
+        // Holding RCS: the sphere wears the RCS violet.
+        world.entity_mut(ship).insert(RcsActive);
+        world.run_system_once(sync_velocity_palette).unwrap();
+        assert_eq!(palette_of(&world, widget), VelocityHudPalette::RCS_ACTIVE);
+
+        // Release: back to manual.
+        world.entity_mut(ship).remove::<RcsActive>();
+        world.run_system_once(sync_velocity_palette).unwrap();
+        assert_eq!(palette_of(&world, widget), VelocityHudPalette::default());
+
+        // An engaged autopilot (no RcsActive) still reads ENGAGED, not RCS -
+        // so the autopilot driving RcsIntent later shows as computer-flown.
+        world
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+        world.run_system_once(sync_velocity_palette).unwrap();
+        assert_eq!(palette_of(&world, widget), VelocityHudPalette::ENGAGED);
     }
 
     #[test]
@@ -720,7 +776,7 @@ mod tests {
         world
             .entity_mut(ship)
             .insert(Autopilot::engage(AutopilotAction::Stop));
-        world.run_system_once(sync_engaged_palette).unwrap();
+        world.run_system_once(sync_velocity_palette).unwrap();
 
         let indicator_color = world
             .resource::<Assets<ExtendedMaterial<StandardMaterial, DirectionMagnitudeMaterial>>>()
@@ -759,7 +815,7 @@ mod tests {
             ))
             .id();
 
-        world.run_system_once(sync_engaged_palette).unwrap();
+        world.run_system_once(sync_velocity_palette).unwrap();
         assert_eq!(
             palette_of(&world, widget),
             VelocityHudPalette::GRAVITY,
