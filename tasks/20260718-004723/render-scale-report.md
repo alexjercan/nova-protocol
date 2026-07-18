@@ -24,11 +24,13 @@ baseline `20260716-123551`. This is the user-facing report; the implementation
 ## What shipped
 
 A `render_scale` fraction on `GraphicsBudget` (`crates/nova_gameplay/src/settings.rs`),
-defaulted per tier: High/Medium `1.0`, Low `0.7`. Below `1.0` the scenario view
-(3D world + HUD) renders into an offscreen `Image` sized `render_scale * window`
-and a blit `Camera2d` upscales it to the window
+defaulted per tier: High/Medium `1.0`, Low `0.7`. Below `1.0` the 3D world
+renders into an offscreen `Image` sized `render_scale * window` and a blit
+`Camera2d` (which also hosts the crisp, clickable HUD) upscales it to the window
 (`crates/nova_scenario/src/render_scale.rs`). Native and web both honor it; only
-Low drops resolution, per the user's direction.
+Low drops resolution, per the user's direction. (The first cut baked the HUD into
+the reduced image too; that broke UI clicks and was fixed in task
+20260718-132638 - the HUD now stays on the window.)
 
 ## Correctness: it renders a real frame, not a black one
 
@@ -38,10 +40,11 @@ frame) at a chosen preset. `tasks/20260718-004723/shots/`:
 - `asteroid_field-high.png` - crisp full-resolution reference.
 - `asteroid_field-low.png` - the SAME scene (gravity well, player ship,
   asteroids, full HUD - fps, objective, radar prompt, target indicators),
-  visibly softer from the 0.7 render upscaled to 1280x720, but complete and
-  correctly composited. Low is faster because it draws fewer pixels, not because
-  anything is missing. The softer HUD confirms the whole-frame-into-one-image
-  design (world + HUD share the reduced target).
+  the WORLD visibly softer from the 0.7 render upscaled to 1280x720 while the HUD
+  stays crisp (it renders on the window camera, not into the reduced image), all
+  complete and correctly composited. Low is faster because it draws fewer pixels,
+  not because anything is missing. (Post-fix shots comparing the crisp-HUD/soft-
+  world result are in `tasks/20260718-132638/shots/`.)
 
 ## Method
 

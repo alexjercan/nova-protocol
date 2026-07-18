@@ -115,9 +115,10 @@ pub struct GraphicsBudget {
     /// Internal render-resolution fraction (`0.0..=1.0`) the scenario view is
     /// drawn at before being upscaled to the window for presentation (task
     /// 20260718-004723). `1.0` is native window resolution (no intermediate
-    /// image, the default direct-to-window path). Below `1.0` the 3D scene +
-    /// HUD render into a smaller offscreen target and a blit camera scales it
-    /// up - the one lever that bites on the fill/overhead-bound web target the
+    /// image, the default direct-to-window path). Below `1.0` the 3D scene
+    /// renders into a smaller offscreen target and a blit camera scales it up
+    /// (the HUD stays crisp and clickable on the window) - the one lever that
+    /// bites on the fill/overhead-bound web target the
     /// frame-time baseline (20260716-123551) flagged, where dropping pixels
     /// shaded buys more than the particle toggle. Only `Low` drops it;
     /// `Medium`/`High` stay at native resolution.

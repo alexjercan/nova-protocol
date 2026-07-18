@@ -30,25 +30,32 @@ adds that lever.
     window, exactly as before, so the crisp tiers pay zero cost.
   - `render_scale < 1.0`: create an offscreen `Image` sized
     `render_scale * window_physical`, point every `ScenarioCameraMarker` camera
-    at it AND mark it the `IsDefaultUiCamera`, and spawn one blit `Camera2d` (the
-    only window camera in this mode) that draws a full-window sprite of the
-    image, isolated on `RenderLayers` layer 1.
+    at it (setting the image target's `scale_factor` so the camera still reports
+    the window's logical viewport), and spawn one blit `Camera2d` targeting the
+    window that both draws a full-window sprite of the image AND is the
+    `IsDefaultUiCamera`.
 
 ## Design choices worth keeping
 
-- **Whole frame, HUD included.** The scenario camera is made the
-  `IsDefaultUiCamera` so the HUD renders into the *same* reduced image as the 3D
-  world, not crisp on the blit camera. This keeps the world and the UI in one
-  coordinate space, so the existing world->screen projection (target markers,
-  lock reticles in `hud/screen_indicator`, `hud/target_inset`) needs zero
-  render-scale awareness, and it maximizes the win on a fill-bound target (HUD
-  overdraw is real cost too). The price is a slightly softer HUD on Low - an
-  accepted trade for the lowest preset, whose whole job is playability over
-  crispness. The alternative (crisp HUD on the blit camera) was rejected: bevy's
-  default-UI-camera rule ("highest-order camera targeting the primary window")
-  would have routed UI to the blit camera at full res while `world_to_viewport`
-  still projected through the reduced-res scenario camera, misaligning every
-  screen indicator by the render-scale factor.
+- **World in the image, UI on the window** (revised after task 20260718-132638 -
+  see below). The 3D world renders into the reduced image; the HUD/menus render
+  full-resolution on the blit `Camera2d`, which targets the window. This is
+  forced by bevy_ui: `ui_focus_system` only delivers a cursor to a WINDOW-targeted
+  camera, so UI on the image-targeted scenario camera renders but is *unclickable*
+  (the bug the first cut shipped). Keeping UI on the window also keeps it crisp.
+  The world->screen projection stays aligned NOT by sharing a coordinate space
+  but by setting the scenario camera's image-target `scale_factor` to
+  `image_physical / window_logical`, so `world_to_viewport` /
+  `logical_viewport_size` (read by `hud/screen_indicator`) return window-space
+  coordinates even though the render is at fewer pixels. No RenderLayers isolation
+  is needed: the blit is the only `Camera2d` and a `Camera3d` never draws 2D
+  sprites.
+
+  The first cut instead made the scenario camera the `IsDefaultUiCamera` and baked
+  the HUD into the reduced image ("whole frame, one coordinate space"). It
+  rendered correctly - the screenshots looked right - but every click missed,
+  because the reviewer verified *rendering* (screenshots) and never *interaction*.
+  Lesson: an image-targeted UI camera is a rendering-vs-picking trap.
 
 - **Reconcile, don't spawn-time-configure.** The scenario camera is spawned by
   the loader (`nova_scenario::loader::on_load_scenario`) and is scenario-scoped

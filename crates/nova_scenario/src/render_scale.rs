@@ -16,15 +16,16 @@
 //! before, so the crisp tiers pay zero cost. Below `1.0` (Low) [`reconcile_render_scale`]:
 //!
 //! 1. creates an offscreen [`Image`] sized `render_scale * window_physical`,
-//! 2. points every [`ScenarioCameraMarker`] camera at that image AND marks it
-//!    the [`IsDefaultUiCamera`], so the 3D world **and** the HUD render into the
-//!    same reduced image - one coordinate space, so screen-space projection
-//!    (target markers, lock reticles) stays aligned; the whole frame is scaled
-//!    up as a unit,
-//! 3. spawns a single blit [`Camera2d`] (the only window camera in this mode)
-//!    that draws a full-window sprite of the image, isolated on
-//!    [`UPSCALE_LAYER`] so the world camera never sees the sprite and the blit
-//!    camera never sees the world.
+//! 2. points every [`ScenarioCameraMarker`] camera at that image, setting the
+//!    image target's `scale_factor` so the camera still reports the WINDOW's
+//!    logical viewport (`logical = physical / scale_factor`) - the 3D world is
+//!    drawn with fewer pixels but world->screen HUD projection
+//!    ([`crate::loader`]'s scenario camera feeds `hud::screen_indicator`) stays
+//!    in window space, so nothing HUD-side needs render-scale awareness,
+//! 3. spawns a single blit [`Camera2d`] targeting the window that draws a
+//!    full-window sprite of the image AND is the [`IsDefaultUiCamera`], so the
+//!    HUD/menus render crisp over the upscaled world and, crucially, stay
+//!    interactive.
 //!
 //! The lever is a pure function of `GraphicsBudget` + window size, so switching
 //! quality live (settings menu) or resizing the window reconciles idempotently,
@@ -32,17 +33,20 @@
 //! web-only: native Low downscales too (the user asked for the lever on both;
 //! the win is just largest on the constrained web target).
 //!
-//! ## Why the whole frame, HUD included
+//! ## Why the UI stays on the window (and the world does not)
 //!
-//! Rendering the HUD into the reduced image (rather than crisp on the blit
-//! camera) keeps the world and the UI in one coordinate space, so the existing
-//! world->screen projection needs no render-scale awareness, and it maximizes
-//! the win on a fill-bound target (HUD overdraw is real cost too). The price is
-//! a slightly softer HUD on Low - an accepted trade for the lowest preset,
-//! whose whole job is playability over crispness.
+//! bevy_ui's `ui_focus_system` only delivers a cursor to a camera whose render
+//! target is a WINDOW; a UI camera pointed at an image renders its nodes but
+//! never registers a click. So the HUD and menus MUST live on a window camera to
+//! stay clickable - here the blit `Camera2d`. Only the 3D world goes into the
+//! reduced image; the HUD renders full-resolution on top of the upscale (crisper
+//! than baking it into the reduced image, and it keeps the settings menu that
+//! toggles this very preset usable on Low). The world->screen projection stays
+//! aligned via the image target's `scale_factor` (step 2), not by sharing a
+//! coordinate space with the UI.
 
 use bevy::{
-    camera::{visibility::RenderLayers, RenderTarget},
+    camera::{ImageRenderTarget, RenderTarget},
     prelude::*,
     render::render_resource::TextureFormat,
     ui::IsDefaultUiCamera,
@@ -51,12 +55,6 @@ use bevy::{
 use nova_gameplay::prelude::GraphicsBudget;
 
 use crate::loader::prelude::ScenarioCameraMarker;
-
-/// The [`RenderLayers`] the upscale blit lives on, isolated from the default
-/// layer (0) the scenario world renders on: the world Camera3d (no explicit
-/// layer, so layer 0) never sees the full-window blit sprite, and the blit
-/// Camera2d (this layer only) never sees the world.
-const UPSCALE_LAYER: usize = 1;
 
 /// Camera order for the blit camera. The scenario camera defaults to order 0 and
 /// the HUD target-inset camera to -1, so `1` runs the blit last, after the
@@ -105,10 +103,7 @@ fn reconcile_render_scale(
     windows: Query<&Window, With<PrimaryWindow>>,
     mut images: ResMut<Assets<Image>>,
     mut state: ResMut<RenderScaleState>,
-    mut q_scenario_cam: Query<
-        (Entity, &mut RenderTarget, Has<IsDefaultUiCamera>),
-        With<ScenarioCameraMarker>,
-    >,
+    mut q_scenario_cam: Query<(Entity, &mut RenderTarget), With<ScenarioCameraMarker>>,
     mut q_sprite: Query<&mut Sprite, With<RenderScaleUpscaleSprite>>,
     q_sprite_entity: Query<Entity, With<RenderScaleUpscaleSprite>>,
 ) {
@@ -152,14 +147,29 @@ fn reconcile_render_scale(
     }
     let image = state.image.clone().expect("target ensured just above");
 
-    // Point every scenario camera at the offscreen target and make it the
-    // default UI camera (so the HUD renders into the same reduced image).
-    for (entity, mut target, is_default_ui) in q_scenario_cam.iter_mut() {
-        if !targets_image(&target, &image) {
-            *target = RenderTarget::Image(image.clone().into());
-        }
-        if !is_default_ui {
-            commands.entity(entity).insert(IsDefaultUiCamera);
+    // Point every scenario camera at the offscreen target. The image target's
+    // `scale_factor` is set so the camera reports the WINDOW's logical viewport
+    // (`logical = physical / scale_factor`), NOT the reduced image's - so the
+    // world->screen HUD projection (`hud::screen_indicator`, which reads
+    // `world_to_viewport`/`logical_viewport_size` off this camera) stays in
+    // window space even though the frame is drawn with fewer pixels. Crucially,
+    // the scenario camera is NOT the default UI camera: bevy_ui only delivers a
+    // cursor to WINDOW-targeted cameras (`ui_focus_system`), so UI parented to an
+    // image-targeted camera renders but is unclickable - the blit camera (a real
+    // window camera, below) owns the UI instead.
+    let logical = window.size();
+    let scale_factor = if logical.x > 0.0 {
+        desired.x as f32 / logical.x
+    } else {
+        1.0
+    };
+    let wanted = ImageRenderTarget {
+        handle: image.clone(),
+        scale_factor,
+    };
+    for (_entity, mut target) in q_scenario_cam.iter_mut() {
+        if !matches!(&*target, RenderTarget::Image(current) if *current == wanted) {
+            *target = RenderTarget::Image(wanted.clone());
         }
     }
 
@@ -174,7 +184,14 @@ fn reconcile_render_scale(
                     order: UPSCALE_CAMERA_ORDER,
                     ..default()
                 },
-                RenderLayers::layer(UPSCALE_LAYER),
+                // The blit camera targets the WINDOW (Camera2d's default), so it
+                // is the interactive, full-resolution UI camera: bevy_ui feeds
+                // the cursor only to a window-targeted camera, and the HUD/menus
+                // render crisp over the upscaled world instead of being baked
+                // into the reduced image. It renders only the full-window sprite
+                // (the sole Camera2d, and Camera3d never draws 2D sprites, so no
+                // RenderLayers isolation is needed) plus the UI pass.
+                IsDefaultUiCamera,
                 RenderScaleUpscaleCamera,
             ))
             .id();
@@ -185,7 +202,6 @@ fn reconcile_render_scale(
                 custom_size: Some(window.size()),
                 ..default()
             },
-            RenderLayers::layer(UPSCALE_LAYER),
             RenderScaleUpscaleSprite,
         ));
         state.upscale_camera = Some(camera);
@@ -207,15 +223,13 @@ fn reconcile_render_scale(
 
 /// Restore the direct-to-window path: scenario cameras back to the window, blit
 /// camera + sprite despawned, target dropped. A no-op when nothing is set up
-/// (the steady state on Medium/High).
-#[allow(clippy::type_complexity)]
+/// (the steady state on Medium/High). The scenario camera never carries
+/// `IsDefaultUiCamera` (the blit camera does), so tearing the blit down returns
+/// UI to bevy's single-window-camera default - the scenario camera on the window.
 fn teardown_render_scale(
     commands: &mut Commands,
     state: &mut RenderScaleState,
-    q_scenario_cam: &mut Query<
-        (Entity, &mut RenderTarget, Has<IsDefaultUiCamera>),
-        With<ScenarioCameraMarker>,
-    >,
+    q_scenario_cam: &mut Query<(Entity, &mut RenderTarget), With<ScenarioCameraMarker>>,
     q_sprite_entity: &Query<Entity, With<RenderScaleUpscaleSprite>>,
 ) {
     if state.image.is_none() && state.upscale_camera.is_none() {
@@ -223,16 +237,12 @@ fn teardown_render_scale(
     }
 
     // Reset the target via Commands (not the immediate `&mut`) so it lands with
-    // the blit despawn and the IsDefaultUiCamera removal in one apply - otherwise
-    // this frame would render the scenario straight to the window while the
-    // not-yet-despawned blit draws its stale image on top (a 1-frame glitch on a
-    // live Low->High switch).
-    for (entity, target, is_default_ui) in q_scenario_cam.iter_mut() {
+    // the blit despawn in one apply - otherwise this frame would render the
+    // scenario straight to the window while the not-yet-despawned blit draws its
+    // stale image on top (a 1-frame glitch on a live Low->High switch).
+    for (entity, target) in q_scenario_cam.iter() {
         if !matches!(*target, RenderTarget::Window(_)) {
             commands.entity(entity).insert(RenderTarget::default());
-        }
-        if is_default_ui {
-            commands.entity(entity).remove::<IsDefaultUiCamera>();
         }
     }
     if let Some(camera) = state.upscale_camera.take() {
@@ -243,11 +253,6 @@ fn teardown_render_scale(
     }
     state.image = None;
     state.size = UVec2::ZERO;
-}
-
-/// Whether `target` renders to `handle`.
-fn targets_image(target: &RenderTarget, handle: &Handle<Image>) -> bool {
-    matches!(target, RenderTarget::Image(image) if &image.handle == handle)
 }
 
 /// Create the offscreen render target. Rgba8UnormSrgb with the default view (no
@@ -337,13 +342,45 @@ mod tests {
         assert_eq!(state.size, expected);
         assert!(state.upscale_camera.is_some());
 
-        // Scenario camera now renders into the image and owns the default UI.
+        // Scenario camera renders into the image, with a scale_factor that makes
+        // it report the WINDOW's logical viewport (physical/scale_factor = 1280),
+        // so HUD world->screen projection stays in window space.
         let target = app.world().entity(cam).get::<RenderTarget>().unwrap();
-        assert!(targets_image(target, &image));
-        assert!(app.world().entity(cam).get::<IsDefaultUiCamera>().is_some());
+        let RenderTarget::Image(image_target) = target else {
+            panic!("Low points the scenario camera at an image, got {target:?}");
+        };
+        assert_eq!(image_target.handle, image);
+        let want_scale = expected.x as f32 / 1280.0;
+        assert!(
+            (image_target.scale_factor - want_scale).abs() < 1e-4,
+            "image scale_factor {} should report window-logical viewport (want {want_scale})",
+            image_target.scale_factor
+        );
 
-        // Exactly one blit camera + one full-window sprite, isolated on the
-        // upscale layer.
+        // The scenario camera is NOT the UI camera - UI on an image-targeted
+        // camera would be unclickable (bevy_ui feeds a cursor only to window
+        // cameras). The blit camera owns the UI and targets the window.
+        assert!(
+            app.world().entity(cam).get::<IsDefaultUiCamera>().is_none(),
+            "scenario camera must not be the default UI camera on Low"
+        );
+        let blit = state.upscale_camera.unwrap();
+        assert!(
+            app.world()
+                .entity(blit)
+                .get::<IsDefaultUiCamera>()
+                .is_some(),
+            "the blit (window) camera is the default UI camera"
+        );
+        assert!(
+            matches!(
+                app.world().entity(blit).get::<RenderTarget>(),
+                Some(RenderTarget::Window(_))
+            ),
+            "the UI camera must target the window so clicks register"
+        );
+
+        // Exactly one blit camera + one full-window sprite.
         let mut cams = app
             .world_mut()
             .query_filtered::<Entity, With<RenderScaleUpscaleCamera>>();
