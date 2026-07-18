@@ -32,7 +32,7 @@
                             health: 2000.0,
                             impact_sound: Some("self://sounds/impact.wav"),
                             destroy_sound: Some("self://sounds/explosion.wav"),
-                            surface_gravity: Some(6.0),
+                            surface_gravity: Some(4.0),
                             invulnerable: true,
                         )),
                     )),
