@@ -1,13 +1,24 @@
-//! Diegetic hull integrity: the player ship IS its own health readout.
+//! Diegetic hull integrity: a ship IS its own health readout.
 //!
-//! Instead of a generic screen-space health bar, each player-ship section's
-//! rendered material is graded by that section's `Health`: a healthy section
-//! keeps its authored look, a battered one reddens and darkens, and a dead or
-//! disabled one reads burnt. This surfaces the per-section integrity the
-//! aggregate bar flattened away and fills the damaged-but-alive gap that today
-//! only death (the explode pipeline) reveals.
+//! Instead of a generic screen-space health bar, each ship section's rendered
+//! material is graded by that section's `Health`. Grading has two modes, chosen
+//! by the ship root's [`Allegiance`]:
 //!
-//! - Task: tasks/20260717-003613/TASK.md
+//! - [`TintMode::Full`] (the player ship, `Allegiance::Player`): a healthy
+//!   section keeps its authored look, a battered one reddens and darkens, and a
+//!   dead or disabled one reads burnt. This surfaces the per-section integrity
+//!   the aggregate bar flattened away and fills the damaged-but-alive gap that
+//!   only death (the explode pipeline) otherwise reveals.
+//! - [`TintMode::DeadOnly`] (enemy ships, `Allegiance::Enemy`): only the burnt
+//!   endpoint. A section stays pristine while it has any integrity and blacks
+//!   out the moment it is destroyed or disabled - no intermediate red or glow.
+//!   This gives the player a quick "which of their components have I knocked
+//!   out" read without turning the enemy into a full health gauge.
+//!
+//! Neutral / unmarked bodies are never tinted.
+//!
+//! - Task (player, v1): tasks/20260717-003613/TASK.md
+//! - Task (enemy dead-only): tasks/20260718-181305/TASK.md
 //! - Spike: tasks/20260711-202901/SPIKE.md (Option 1, recommended)
 //!
 //! ## Why per-section material clones
@@ -27,17 +38,18 @@
 //! Capture keys on `Added<MeshMaterial3d<StandardMaterial>>`, which fires the
 //! frame a mesh appears - whether it is a synchronous cuboid or an
 //! asynchronously instantiated gltf node - so it does not depend on any
-//! scene-ready signal. `PlayerSpaceshipMarker` is inserted synchronously when
-//! the ship spawns (`nova_scenario::objects::spaceship`), long before async
-//! gltf materials load, so gating capture on player-ship membership is safe.
+//! scene-ready signal. The ship root's marker (and its required `Allegiance`)
+//! is inserted synchronously when the ship spawns
+//! (`nova_scenario::objects::spaceship`), long before async gltf materials
+//! load, so reading the root's allegiance at capture time is safe.
 
 use bevy::prelude::*;
 use bevy_common_systems::prelude::Health;
 
-use crate::prelude::{PlayerSpaceshipMarker, SectionInactiveMarker, SectionMarker};
+use crate::prelude::{Allegiance, SectionInactiveMarker, SectionMarker};
 
 pub mod prelude {
-    pub use super::{SectionDamageTint, SectionDamageTintPlugin};
+    pub use super::{SectionDamageTint, SectionDamageTintPlugin, TintMode};
 }
 
 /// Below this integrity ratio the section starts to visibly redden/darken.
@@ -56,6 +68,19 @@ const DEAD_COLOR: Color = Color::srgb(0.05, 0.02, 0.02);
 /// Peak red emissive glow added at zero integrity (before death).
 const GLOW_PEAK: LinearRgba = LinearRgba::new(2.2, 0.18, 0.05, 1.0);
 
+/// How a captured section mesh is graded from its section's integrity, selected
+/// by the owning ship's [`Allegiance`] at capture time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TintMode {
+    /// Full diegetic gradient: redden, darken and glow as integrity falls, then
+    /// burnt-black when destroyed. Used for the player ship.
+    Full,
+    /// Only the burnt-black endpoint: pristine while the section has any
+    /// integrity, `DEAD_COLOR` once it is destroyed or disabled. No intermediate
+    /// red or glow. Used for enemy ships.
+    DeadOnly,
+}
+
 /// Records a rendered mesh whose material is graded by a section's health.
 ///
 /// Holds the private (cloned) material handle this module owns and mutates, plus
@@ -72,6 +97,9 @@ pub struct SectionDamageTint {
     pub base_color: Color,
     /// The pristine emissive, captured before grading.
     pub emissive: LinearRgba,
+    /// How this mesh grades from integrity (player full gradient vs enemy
+    /// dead-only), fixed by the owning ship's allegiance at capture time.
+    pub mode: TintMode,
 }
 
 /// Grades player-ship section materials by integrity so the ship shows its own
@@ -102,6 +130,7 @@ impl Plugin for SectionDamageTintPlugin {
 #[derive(Component, Clone, Copy, Debug)]
 struct PendingSectionTint {
     section: Entity,
+    mode: TintMode,
 }
 
 /// Walk up the `ChildOf` chain from `entity` to the nearest ancestor that is a
@@ -121,10 +150,11 @@ fn owning_section(
     }
 }
 
-/// Tag every freshly-spawned player-ship section mesh for tint capture. The
-/// ChildOf walk and player-ship gate happen here, once per mesh; the actual
-/// material clone is deferred to `resolve_pending_tints` so a not-yet-loaded
-/// asset does not drop the mesh.
+/// Tag every freshly-spawned ship section mesh for tint capture, recording the
+/// grading mode its owning ship's allegiance selects. The ChildOf walk and the
+/// allegiance gate happen here, once per mesh; the actual material clone is
+/// deferred to `resolve_pending_tints` so a not-yet-loaded asset does not drop
+/// the mesh.
 #[allow(clippy::type_complexity)]
 fn mark_section_meshes(
     mut commands: Commands,
@@ -138,25 +168,29 @@ fn mark_section_meshes(
     >,
     q_child_of: Query<&ChildOf>,
     q_is_section: Query<(), With<SectionMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    q_allegiance: Query<&Allegiance>,
 ) {
     for entity in &q_new {
         let Some(section) = owning_section(entity, &q_child_of, &q_is_section) else {
             continue;
         };
 
-        // Only the player ship is diegetic in v1. The section is a direct child
-        // of its ship root, which carries `PlayerSpaceshipMarker` for the player.
+        // The section is a direct child of its ship root; the root's `Allegiance`
+        // (required by both the player and AI ship markers) picks the grading
+        // mode. Player ships grade fully, enemy ships only black out on death,
+        // and neutral / unmarked bodies are not diegetic at all.
         let Ok(root) = q_child_of.get(section).map(|c| c.0) else {
             continue;
         };
-        if q_is_player.get(root).is_err() {
-            continue;
-        }
+        let mode = match q_allegiance.get(root) {
+            Ok(Allegiance::Player) => TintMode::Full,
+            Ok(Allegiance::Enemy) => TintMode::DeadOnly,
+            Ok(Allegiance::Neutral) | Err(_) => continue,
+        };
 
         commands
             .entity(entity)
-            .insert(PendingSectionTint { section });
+            .insert(PendingSectionTint { section, mode });
     }
 }
 
@@ -192,6 +226,7 @@ fn resolve_pending_tints(
                     material: handle,
                     base_color,
                     emissive,
+                    mode: pending.mode,
                 },
             ))
             .remove::<PendingSectionTint>();
@@ -209,6 +244,7 @@ fn grade_section_tints(
 ) {
     for tint in &q_tints {
         let (base_color, emissive) = match q_health.get(tint.section) {
+            // Destroyed or disabled: burnt-black in both modes.
             Ok((_, true)) => (DEAD_COLOR, tint.emissive),
             Ok((health, false)) => {
                 let ratio = if health.max > 0.0 {
@@ -216,7 +252,14 @@ fn grade_section_tints(
                 } else {
                     1.0
                 };
-                damage_look(ratio, tint.base_color, tint.emissive)
+                match tint.mode {
+                    // Player: the full redden/darken/glow gradient.
+                    TintMode::Full => damage_look(ratio, tint.base_color, tint.emissive),
+                    // Enemy: pristine until integrity hits zero, then burnt.
+                    // No intermediate red or glow - only the black endpoint.
+                    TintMode::DeadOnly if ratio <= 0.0 => (DEAD_COLOR, tint.emissive),
+                    TintMode::DeadOnly => (tint.base_color, tint.emissive),
+                }
             }
             // Section gone (mid-despawn) or lost its Health: leave pristine.
             Err(_) => (tint.base_color, tint.emissive),
@@ -325,7 +368,7 @@ mod tests {
                 ..default()
             });
 
-        let root = app.world_mut().spawn(PlayerSpaceshipMarker).id();
+        let root = app.world_mut().spawn(Allegiance::Player).id();
         let section = app
             .world_mut()
             .spawn((
@@ -391,6 +434,92 @@ mod tests {
         );
     }
 
+    /// An enemy-ship section (`Allegiance::Enemy` -> `TintMode::DeadOnly`) stays
+    /// pristine at full AND partial health - no intermediate red - and blacks out
+    /// only when its integrity reaches zero or it is disabled.
+    #[test]
+    fn enemy_section_blacks_out_only_when_destroyed_never_reddens() {
+        let mut app = tint_app();
+
+        let pristine = Color::srgb(0.8, 0.8, 0.8);
+        let shared = app
+            .world_mut()
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial {
+                base_color: pristine,
+                ..default()
+            });
+
+        let root = app.world_mut().spawn(Allegiance::Enemy).id();
+        let section = app
+            .world_mut()
+            .spawn((
+                SectionMarker,
+                Health {
+                    current: 100.0,
+                    max: 100.0,
+                },
+                ChildOf(root),
+            ))
+            .id();
+        let mesh = app
+            .world_mut()
+            .spawn((MeshMaterial3d(shared.clone()), ChildOf(section)))
+            .id();
+
+        app.update();
+        app.update();
+
+        let tint = app
+            .world()
+            .get::<SectionDamageTint>(mesh)
+            .expect("enemy section mesh is captured too")
+            .clone();
+        assert_eq!(tint.mode, TintMode::DeadOnly, "enemy grades dead-only");
+
+        let base_of = |app: &App| {
+            app.world()
+                .resource::<Assets<StandardMaterial>>()
+                .get(&tint.material)
+                .unwrap()
+                .base_color
+        };
+
+        // Full health: pristine.
+        assert_eq!(base_of(&app), pristine, "healthy enemy section is pristine");
+
+        // Heavily damaged but still alive: STILL pristine (no red, unlike the
+        // player's full gradient at the same ratio).
+        app.world_mut().get_mut::<Health>(section).unwrap().current = 10.0;
+        app.update();
+        assert_eq!(
+            base_of(&app),
+            pristine,
+            "damaged-but-alive enemy section shows no intermediate red"
+        );
+
+        // Integrity hits zero: burnt-black.
+        app.world_mut().get_mut::<Health>(section).unwrap().current = 0.0;
+        app.update();
+        assert_eq!(
+            base_of(&app),
+            DEAD_COLOR,
+            "destroyed enemy section blacks out"
+        );
+
+        // A disabled (but not yet zero-HP) section also reads burnt.
+        app.world_mut().get_mut::<Health>(section).unwrap().current = 50.0;
+        app.world_mut()
+            .entity_mut(section)
+            .insert(SectionInactiveMarker);
+        app.update();
+        assert_eq!(
+            base_of(&app),
+            DEAD_COLOR,
+            "disabled enemy section blacks out even with residual HP"
+        );
+    }
+
     /// R1.1: a section mesh whose material asset is not yet loaded (async gltf)
     /// must stay pending and be captured once the asset arrives, not dropped.
     #[test]
@@ -404,7 +533,7 @@ mod tests {
             .resource::<Assets<StandardMaterial>>()
             .reserve_handle();
 
-        let root = app.world_mut().spawn(PlayerSpaceshipMarker).id();
+        let root = app.world_mut().spawn(Allegiance::Player).id();
         let section = app
             .world_mut()
             .spawn((

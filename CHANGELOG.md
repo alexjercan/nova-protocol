@@ -19,6 +19,10 @@ tagged **(breaking)**.
 - Weapons auto-reload: a magazine that runs dry now refills on its own instead of leaving the weapon dead for the rest of the scenario. The PDC turrets dump their magazine then reload to full after a few seconds; the torpedo bay slowly rearms one torpedo at a time. Because a spent weapon always comes back, magazine size is now a fire-pacing beat rather than a hard fail, so finite ammo is on by default - the New Game (Shakedown Run) player flies with real ammo and the diegetic ammo readout instead of the old unlimited-ammo intro.
 - Locking is no longer instant: once the radar settles on a target you now hold steady through a short lock-on dwell before it commits, and the dwell is longer the farther away the target is. Sweeping off the target before it fills cancels the acquisition, and re-designating to a new target earns a fresh dwell while the old lock holds - so a lock is something you earn by keeping the target under your aim, not granted the moment you point at it.
 
+### Ships & Sections
+
+- Enemy ships now show battle damage too: knock out one of a hostile's sections and it reads burnt-black, so you can see at a glance which of its components you have already destroyed. Unlike your own ship - which reddens and darkens gradually as each section wears down - enemies only show the black endpoint, staying pristine until a section is actually destroyed or disabled. No intermediate red on the enemy hull.
+
 ### Scenarios & Objectives
 
 - The whole campaign and The Ledger got a storytelling pass: every fight now announces itself and its attackers fly in on a readable arrival grace before going hot (the base ambushes and the ledger's waves alike; ships that already spawn far keep an ungraced entrance, and the finale's Auditor keeps its by-design hot drop); opening comms beats are spaced on the scenario clock instead of arriving as a burst; and the closing lines that used to fire behind the victory banner (where nobody could ever read them) now live in the banner itself. The beat-sheet convention is documented for scenario authors, and the content lint enforces its two hard rules.
