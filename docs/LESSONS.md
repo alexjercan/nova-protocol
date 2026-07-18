@@ -80,6 +80,14 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   hand comment in a GENERATED RON left content_ron_parity red on master;
   same recipe (git show, named merge-integration regen). 20260716-215423,
   20260717-162121.
+- `edit-the-builder-not-the-generated-ron` (x1): the base
+  `assets/base/**/*.content.ron` are GENERATED from Rust builders
+  (`nova_assets::scenario::*`, `cargo run -p nova_assets --bin content -- gen`)
+  and guarded by `content_ron_parity`. Before hand-editing a `.content.ron`,
+  check for a builder - edit the BUILDER and regenerate, or the parity test goes
+  red. Wasted a pass editing 4 scenario `.ron` files directly (to add
+  `DisableVerb(Rcs)`) before discovering they were generated; reverted and edited
+  shakedown.rs/scenario.rs/broadside.rs, then regenerated. 20260718-175502.
 - `sweep-content-repo-wide-not-just-assets` (x2): when relocating/renaming an
   ASSET, grep EVERY content-shaped file repo-wide - `examples/**`, `include_str!`
   embedded RON, test data - not just the shipped `assets/` tree. Content loaded
