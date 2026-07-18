@@ -458,7 +458,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `one-cargo-test-filter` (x5): `cargo test` takes one filter and one `-p` per
   invocation; separate runs otherwise (recurred under flow momentum: a chained
   two-filter run silently tested nothing). 20260713-082324, 20260716-162701.
-- `check-all-targets-for-struct-field` (x5 -> Pending promotions): a new
+- `check-all-targets-for-struct-field` (x6 -> Pending promotions): a new
   non-Default field breaks every exhaustive initializer - builders, TESTS
   (`#[cfg(test)]`), and EXAMPLES - but `cargo check`/`check -p <crate>` compiles
   none of those; only `cargo check --all-targets` does. Grep the WHOLE repo for
@@ -473,7 +473,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   name `render_mesh` ALSO exists on 4 other config structs, so a clean
   `--all-targets` doubled as proof the scoped sweep hit only TurretJoint
   literals (wrong-struct = "unknown field", missed = "missing field").
-  20260712-140250, 20260716-155849, 20260717-165031.
+  20260718-201532: adding `rcs_loop_sound` to `ControllerSectionConfig` - grepped
+  all 6 literals up front, 2 builders needed the field and 3 used `..default()`,
+  no break.
+  20260712-140250, 20260716-155849, 20260717-165031, 20260718-201532.
 - `register-assets-for-new-test-path` (x2): a Bevy test copied from a neighbor
   can omit resources the NEW path needs. A render test reused from unmeshed
   joints panicked because the meshed path calls `asset_server.load::<WorldAsset>`
@@ -508,7 +511,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   migration, grep the whole target type tree for non-derivable members - raw
   `Handle`s, foreign-crate types, Reflect-only types; scope hides in the leaves
   ("2 handles" was really 13 + 3 foreign types, a whole second tier). 20260525-133028.
-- `generate-data-from-code` (x3, -> Pending promotions): migrate code-defined content to data files by
+- `generate-data-from-code` (x4, -> Pending promotions): migrate code-defined content to data files by
   serializing the code config with a parity test, never hand-authoring - provably
   faithful and sidesteps every format-syntax gotcha. Corollary: a change to any
   builder behind a committed generated artifact regenerates the artifact in the
@@ -518,7 +521,10 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   master red until someone regenerates - author them in the BUILDER; the
   parity test is the contract (a sibling's hand comment in
   asteroid_next.content.ron, regenerated away as merge integration by
-  20260717-162121). 20260525-133028, 20260715-172138, 20260717-201534.
+  20260717-162121). 20260718-201532: added a controller `rcs_loop_sound` in the
+  builders + `SectionMeshRefs`, ran `content -- gen`, parity stayed green (never
+  touched base.content.ron by hand). 20260525-133028, 20260715-172138,
+  20260717-201534, 20260718-201532.
 - `effect-not-just-helper` (x1): test a spawn/mutation action's EFFECT through the
   ECS harness (fire -> drain -> assert on the world), not just its pure sub-helper
   plus a non-asserting example; the helper passing hid an untested spawn loop.
@@ -1260,12 +1266,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   cargo bare (backgrounded) and read the output text, or `set -o pipefail`.
   See the main-list entry. 20260717-002228 (x2 in one task), 20260717-013440.
 
-- `check-all-targets-for-struct-field` (x3) -> work skill / AGENTS.md: a new
+- `check-all-targets-for-struct-field` (x6) -> work skill / AGENTS.md: a new
   non-Default struct field breaks exhaustive initializers in builders, tests
   AND examples; `cargo check -p <crate>` compiles none of the latter two. Grep
   the WHOLE repo for the literal and run `cargo check --all-targets` BEFORE
   landing. See the main-list entry. 20260712-140250, 20260716-155849,
-  20260717-165031.
+  20260717-165031, 20260718-102022, 20260718-113307, 20260718-201532.
 
 - `sibling-change-leaves-stale-fixture` (x3) -> work skill: before landing a
   content/data change, grep for tests that include_str or assert on the exact
@@ -1299,12 +1305,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   (e.g. a bcs `On<Insert>` observer that `.unwrap()`s an unloaded asset). See the
   main-list entry. 20260525-133004, 20260712-115902, 20260525-133017.
 
-- `generate-data-from-code` (x3) -> work skill: generated artifacts follow
+- `generate-data-from-code` (x4) -> work skill: generated artifacts follow
   their builder, both directions - a builder change regenerates the
   artifact in the same commit, and hand-edits (even comments) in the
   artifact belong in the builder instead; the parity test is the
   contract. See the main-list entry. 20260525-133028, 20260715-172138,
-  20260717-201534.
+  20260717-201534, 20260718-201532.
 
 ## Promoted (kept for history)
 
