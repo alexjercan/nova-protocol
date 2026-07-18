@@ -4,7 +4,12 @@
 - PRIORITY: 30
 - TAGS: v0.8.0,tooling,refactor,docs
 
-## Goal
+## Story
+
+As the project owner, I want one coherent map of every dev tool - what it is,
+how it runs, and where it should live - so that the individual refactors
+(portal port, meta spike, perf report) execute against one target picture
+instead of moving pieces ad hoc.
 
 The user wants the tooling refactored into a better structure: "what can be
 merged or moved into some kind of buildtime script we do that." Before moving
@@ -14,23 +19,39 @@ and the individual refactor tasks consume.
 
 ## Steps
 
-- Catalog every dev entry point with its purpose, invocation, and dependencies:
-  - Rust bins: `content` (gen/lint/audit), `nova_perf` (perf_web + new report),
-    `nova_meta_gen`, `nova_portal_gen`.
-  - scripts/: perf-baseline.sh, perf-web.sh, preview-web.sh, gen-licenses.sh,
-    gen-web-screenshots.py, gen-placeholder-sounds.py, cut-obj-into-hulls.py.
-- For each, classify: keep-as-Rust, port-to-Python (portal 20260718-152247,
-  maybe meta 20260718-152255), fold-into-build-step, or leave. Note what is a
-  true build-time hook (meta gen on Trunk build; content gen as a pre-commit /
-  CI gate; portal gen on deploy) vs an on-demand dev tool.
-- Recommend the consolidated structure (e.g. a single `scripts/` home + a
-  documented build-time hook list; whether a task-runner/Justfile is worth it)
-  and record it so later tasks execute against one target picture.
-- Update the README tools section + wiki development.md with the final map.
+- [ ] Catalog every dev entry point with its purpose, invocation, and
+      dependencies:
+  - [ ] Rust bins: `content` (gen/lint/audit), `nova_perf` (perf_web + the
+        report bin once 20260718-152230 lands), `nova_meta_gen`,
+        `nova_portal_gen`.
+  - [ ] scripts/: perf-baseline.sh, perf-web.sh, preview-web.sh,
+        gen-licenses.sh, gen-web-screenshots.py, gen-placeholder-sounds.py,
+        cut-obj-into-hulls.py.
+- [ ] For each, classify: keep-as-Rust, port-to-Python (portal
+      20260718-152247, maybe meta 20260718-152255), fold-into-build-step, or
+      leave. Note what is a true build-time hook (meta gen on Trunk build;
+      content gen as a pre-commit / CI gate; portal gen on deploy) vs an
+      on-demand dev tool.
+- [ ] Recommend the consolidated structure (e.g. a single `scripts/` home + a
+      documented build-time hook list; whether a task-runner/Justfile is worth
+      it) and record it so later tasks execute against one target picture.
+- [ ] Sequence the concrete tooling tasks against the map (which move first,
+      which wait) and note it in each task if the order matters.
+- [ ] Update the README tools section (with 20260718-152205) + wiki
+      development.md with the final map.
+
+## Definition of Done
+
+- A written inventory exists (in this task or the dev wiki) covering every bin
+  and script, each with a classification and a home.
+- The Justfile/task-runner question has an explicit yes/no with reasoning.
+- README and development.md agree with the inventory, and the concrete
+  refactor tasks reference it.
 
 ## Notes
 
-- This is the umbrella that sequences the concrete tooling tasks; keep it light,
-  it is a plan + doc, not a big code change. Content linter stays embedded in
-  `nova_scenario::lint` (good as-is), per the survey.
-
+- This is the umbrella that sequences the concrete tooling tasks; keep it
+  light, it is a plan + doc, not a big code change. Content linter stays
+  embedded in `nova_scenario::lint` (good as-is), per the survey.
+- Do this EARLY in the tooling strand - its whole value is sequencing the
+  other tasks; done last it is just a writeup.
