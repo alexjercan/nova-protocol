@@ -76,6 +76,9 @@
                                         1.0,
                                     ),
                                     source: Prototype("basic_controller_section"),
+                                    modifications: [
+                                        DisableVerb(Rcs),
+                                    ],
                                 ),
                                 (
                                     id: "hull_front",

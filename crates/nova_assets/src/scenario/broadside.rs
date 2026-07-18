@@ -129,8 +129,12 @@ fn player_ship() -> ScenarioObjectConfig {
                 lock_refire_secs: None,
             }),
             allegiance: None,
-            // The racer, no tutorial verb-gating this chapter.
-            sections: craft::racer_sections(ShipGrade::Player, vec![]),
+            // The racer. RCS is off in the mainline campaign until the rework
+            // (task 20260718-175502); no other verb is gated this chapter.
+            sections: craft::racer_sections(
+                ShipGrade::Player,
+                vec![SectionModification::DisableVerb(FlightVerb::Rcs)],
+            ),
         }),
     }
 }

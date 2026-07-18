@@ -141,6 +141,9 @@
                                         1.0,
                                     ),
                                     source: Prototype("racer_cube_i0_j1_k0"),
+                                    modifications: [
+                                        DisableVerb(Rcs),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j1_k1",

@@ -370,6 +370,10 @@ fn player_ship() -> ScenarioObjectConfig {
         SectionModification::DisableVerb(FlightVerb::Goto),
         SectionModification::DisableVerb(FlightVerb::Lock),
         SectionModification::DisableVerb(FlightVerb::Orbit),
+        // RCS is off in the mainline campaign until the rework (task
+        // 20260718-175502) - unlike the three above, no beat re-grants it, so it
+        // stays disabled for the whole run.
+        SectionModification::DisableVerb(FlightVerb::Rcs),
     ];
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {

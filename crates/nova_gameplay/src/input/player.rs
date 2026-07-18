@@ -108,6 +108,11 @@ pub struct FlightVerbHints {
     /// a pad button); available while the computer grants Lock (playtest
     /// 2026-07-13: CTRL was missing from the cluster entirely).
     pub radar: VerbHint,
+    /// The RCS fine-adjust modifier (hold SHIFT). Fixed "SHIFT" label like the
+    /// wheel/CTRL rows; available while the computer grants the `Rcs` verb, so
+    /// the row shows only where RCS is enabled - the same opt-out the mainline
+    /// campaign uses while RCS is off pending rework (task 20260718-175502).
+    pub rcs: VerbHint,
     /// Whether any maneuver is engaged right now - explicit, so consumers
     /// (the GOTO cue hides mid-maneuver) do not have to proxy it through
     /// another verb's availability.
@@ -286,6 +291,14 @@ fn update_flight_verb_hints(
         radar: VerbHint {
             key: cycle_label("CTRL", q_stop.single().is_ok()),
             available: verb_granted(FlightVerb::Lock),
+            anchor: None,
+        },
+        rcs: VerbHint {
+            // Fixed "SHIFT" label (a modifier binding, no keyboard key to read),
+            // gated on the rig existing like the wheel/CTRL rows; shown only
+            // while the computer grants RCS.
+            key: cycle_label("SHIFT", q_stop.single().is_ok()),
+            available: verb_granted(FlightVerb::Rcs),
             anchor: None,
         },
         engaged,
@@ -1617,6 +1630,31 @@ mod tests {
         assert_eq!(hints.goto.key, "G");
         assert_eq!(hints.orbit.key, "O");
         assert_eq!(hints.cancel.key, "Z");
+    }
+
+    /// The RCS hint carries the fixed "SHIFT" label and is available only while
+    /// the controller grants the `Rcs` verb - so the cluster row shows only when
+    /// RCS is enabled (the mainline campaign, which withholds it, never shows it).
+    #[test]
+    fn rcs_hint_shows_shift_only_when_the_verb_is_granted() {
+        let mut world = hint_world();
+        let (_, controller) = spawn_flyable_ship(&mut world);
+
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>();
+        assert_eq!(hints.rcs.key, "SHIFT");
+        assert!(hints.rcs.available, "granted RCS lights the SHIFT hint");
+
+        // Withhold RCS (the mainline path): the hint goes unavailable and the
+        // renderer drops the row.
+        world
+            .entity_mut(controller)
+            .insert(WithheldVerbs([FlightVerb::Rcs].into_iter().collect()));
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        assert!(
+            !world.resource::<FlightVerbHints>().rcs.available,
+            "withheld RCS hides the SHIFT hint"
+        );
     }
 
     #[test]

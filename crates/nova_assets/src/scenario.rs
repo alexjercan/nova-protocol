@@ -533,7 +533,7 @@ pub(crate) fn asteroid_field(
                 position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
                 source: SectionSource::Prototype("basic_controller_section".to_string()),
-                modifications: vec![],
+                modifications: vec![SectionModification::DisableVerb(FlightVerb::Rcs)],
             },
             SpaceshipSectionConfig {
                 id: "hull_front".to_string(),

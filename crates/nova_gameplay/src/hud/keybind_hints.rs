@@ -44,7 +44,15 @@ struct KeybindHintRow(usize);
 /// rows document the wheel gestures (task 20260708-165705): plain scroll
 /// steps the component fine-lock, CTRL+scroll steps the ship lock through
 /// the tracked candidates.
-const ROW_VERBS: [&str; 6] = ["STOP", "GOTO", "ORBIT", "CANCEL", "RADAR", "COMPONENT"];
+const ROW_VERBS: [&str; 7] = [
+    "STOP",
+    "GOTO",
+    "ORBIT",
+    "CANCEL",
+    "RADAR",
+    "COMPONENT",
+    "RCS",
+];
 
 /// Emphasis pulse rate and the alpha bands it sweeps. The emphasized row
 /// renders PURE OBJECTIVE_GOLD hue at all times and only its alpha
@@ -144,7 +152,7 @@ pub fn keybind_hint_cluster_hud() -> impl Bundle {
             ..default()
         },
         Pickable::IGNORE,
-        children![row(0), row(1), row(2), row(3), row(4), row(5),],
+        children![row(0), row(1), row(2), row(3), row(4), row(5), row(6),],
     )
 }
 
@@ -216,7 +224,8 @@ fn row_hint(hints: &FlightVerbHints, index: usize) -> &VerbHint {
         2 => &hints.orbit,
         3 => &hints.cancel,
         4 => &hints.radar,
-        _ => &hints.component_cycle,
+        5 => &hints.component_cycle,
+        _ => &hints.rcs,
     }
 }
 
@@ -404,6 +413,11 @@ mod tests {
             radar: VerbHint {
                 key: "CTRL".into(),
                 available: true,
+                anchor: None,
+            },
+            rcs: VerbHint {
+                key: "SHIFT".into(),
+                available: false,
                 anchor: None,
             },
             engaged,

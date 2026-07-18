@@ -134,6 +134,7 @@
                                         DisableVerb(Goto),
                                         DisableVerb(Lock),
                                         DisableVerb(Orbit),
+                                        DisableVerb(Rcs),
                                     ],
                                 ),
                                 (
