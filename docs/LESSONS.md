@@ -1042,15 +1042,25 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   which bevy_enhanced_input reads, so one message + `update()` fires the action.
   `MouseWheel` needs unit+x+y+window+PHASE (the `phase: TouchPhase::Moved` field
   is easy to miss). 20260718-122912.
-- `changed-shared-observer-run-the-module-suites` (x3, -> Pending promotions):
+- `changed-shared-observer-run-the-module-suites` (x4, -> Pending promotions):
   when a change alters a SHARED observer/system (a signature, or a core loop
   like autopilot_system), run the whole affected MODULE suite (`cargo test -p
   crate --lib "mod::"`), not just the new tests - the risk is silently breaking
   existing consumers, which only the existing tests catch. The autopilot RCS
   change regressed 11 flight tests; the full `flight::` run caught them all. The
   delta-control decay added a system to the same FixedUpdate chain; the full
-  `flight::` run (77) confirmed no autopilot regression.
-  20260718-122912, 20260718-122932, 20260718-185826.
+  `flight::` run (77) confirmed no autopilot regression. The error-relative cap
+  modified rcs_burn_system + autopilot_system + the on-remove observer; the full
+  `flight::` run (74) confirmed only the one intentionally-inverted test changed.
+  20260718-122912, 20260718-122932, 20260718-185826, 20260718-151102.
+- `identity-default-makes-no-regression-structural` (x1): when extending a
+  primitive existing code depends on, give the new parameter a default that
+  reproduces the OLD behavior exactly (a null object / zero / identity), so
+  "does not regress the old path" is an algebraic guarantee, not something the
+  tests must chase. The error-relative RCS added `RcsReference` defaulting to
+  `Vec3::ZERO`, and `v - 0 == v` is the old absolute cap - every non-orbit path
+  leaves it unset, so player + STOP modes could not change by construction (60+
+  flight tests passed unmodified). 20260718-151102.
 - `playtest-can-reverse-a-spike-feel-call` (x1): a spike decision that rests on
   "which feels better" is a hypothesis, not a verdict - the on-paper primary can
   lose to its runner-up once it is in the hand. The RCS held-direction joystick
@@ -1214,11 +1224,11 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 
 ## Pending promotions (3+ occurrences, user decides)
 
-- `changed-shared-observer-run-the-module-suites` (x3) -> work/review skill: when
+- `changed-shared-observer-run-the-module-suites` (x4) -> work/review skill: when
   a change alters a SHARED observer/system or adds to a shared FixedUpdate chain,
   run the whole affected MODULE suite, not just the new tests - only the existing
   tests catch a silently broken consumer. See the main-list entry.
-  20260718-122912, 20260718-122932, 20260718-185826.
+  20260718-122912, 20260718-122932, 20260718-185826, 20260718-151102.
 
 - `bg-isolation-guard-allows-sprout-not-main` (x3) -> work/compound skill or
   AGENTS.md: in a background job the Write/Edit guard blocks the main checkout
