@@ -1146,6 +1146,22 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   clicked - the user hit it on the first click. For any change that retargets UI
   or the camera a UI is on, verify a CLICK, and if it can't be automated
   headlessly, say so and flag a human re-test. 20260718-132638.
+- `verify-runtime-transitions-not-just-fresh-state` (x2): for a runtime-toggleable
+  feature, test the TRANSITION (A->B and B->A while running), not just each fresh
+  state - they can differ. Both render-scale bugs the user hit were in state I
+  never exercised: my screenshots always booted directly into Low or High, so a
+  fresh Low looked perfect while a Low reached by SWITCHING was broken (clicks
+  dead, then the resolution stuck/inverted). Fresh start masked the second bug
+  because booting hits bevy's `is_added()` camera-recompute path by luck. Sibling
+  of `verify-interaction-not-just-rendering`. 20260718-132638, 20260718-140903.
+- `bevy-camera-ignores-runtime-rendertarget-swap` (domain, x1): bevy 0.19's
+  `camera_system` (bevy_render `camera.rs`) re-derives a camera's `target_info`
+  (physical size + scale factor) only when the target CONTENT changes (window
+  resize / image asset event), the camera `is_added()`, or its `Projection`
+  `is_changed()` - NOT when the `RenderTarget` component is swapped in place. So
+  mutating a live camera's target (window<->image) leaves its size/scale stale and
+  it renders at the old target's dimensions; `projection.set_changed()` on the
+  swap forces the re-derive. 20260718-140903.
 
 ## Pending promotions (3+ occurrences, user decides)
 
