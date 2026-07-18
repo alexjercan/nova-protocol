@@ -1,6 +1,6 @@
 # Source/create real variety-pack art (skyboxes, asteroid/planet textures, alt hull) to replace placeholders
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 48
 - TAGS: v0.7.0,art,assets
 
