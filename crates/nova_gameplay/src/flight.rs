@@ -162,6 +162,21 @@ const RCS_PLAYER_INTENT_DECAY: f32 = 0.4;
 #[reflect(Component)]
 pub struct RcsSpeedCap(pub f32);
 
+/// World-frame REFERENCE velocity the RCS cap is measured against, on the ship
+/// root. [`rcs_burn_system`] caps the along-axis component of `velocity -
+/// reference`, not of the absolute velocity - so RCS can trim a fast-moving
+/// craft by a sub-cap delta relative to this reference. ABSENT or ZERO restores
+/// the plain absolute cap (`reference = 0`), which is exactly the player
+/// fine-adjust mode and the STOP/GOTO terminal settle - both leave this unset.
+/// The autopilot writes it to the desired ORBITAL velocity while station-keeping
+/// (task 20260718-151102), so a small prograde/retrograde correction trims the
+/// orbit instead of gating to zero (the absolute cap would fight the ~2.5-6 u/s
+/// orbital speed). Cleared to zero on autopilot disengage so a stale reference
+/// never leaks into the player's absolute-cap mode.
+#[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
+#[reflect(Component)]
+pub struct RcsReference(pub Vec3);
+
 /// Fraction of the cap over which the manual burn tapers to zero (the
 /// last stretch below the cap). Wide enough to feel like drag, not a wall.
 const SPEED_CAP_TAPER_FRACTION: f32 = 0.2;
@@ -512,6 +527,7 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<FlightSpeedCap>()
             .register_type::<RcsIntent>()
             .register_type::<RcsSpeedCap>()
+            .register_type::<RcsReference>()
             .register_type::<RcsActive>();
 
         app.add_observer(insert_flight_control);
@@ -1169,6 +1185,10 @@ fn autopilot_system(
             // last-meters brake to the torque-free RCS primitive.
             Option<&RcsSpeedCap>,
             Option<&mut RcsIntent>,
+            // RCS error-relative reference (task 20260718-151102): the autopilot
+            // writes the orbital velocity here so RCS trims a fast orbit by a
+            // sub-cap delta; zero (or absent) everywhere else.
+            Option<&mut RcsReference>,
         ),
         With<SpaceshipRootMarker>,
     >,
@@ -1237,6 +1257,7 @@ fn autopilot_system(
         prev_telemetry,
         rcs_cap_override,
         rcs_intent,
+        rcs_reference,
     ) in &mut q_ship
     {
         let has_telemetry = prev_telemetry.is_some();
@@ -1490,6 +1511,10 @@ fn autopilot_system(
         // Set by the Goto arm when the ship is inside the park envelope;
         // gates the ORBIT handoff in the done branch.
         let mut goto_arrived = false;
+        // Set by the Orbit arm: gates the error-relative RCS trim (task
+        // 20260718-151102), which only applies while station-keeping - the
+        // desired is a fast orbital velocity, not a rest goal.
+        let mut is_orbit = false;
         let desired = match autopilot.action {
             AutopilotAction::Stop => {
                 // STOP has a spatial goal too: the predicted rest point.
@@ -1591,6 +1616,7 @@ fn autopilot_system(
                 // filled the plan this tick or disengaged. The skip is
                 // defensive only.
                 let Some(plan) = plan else { continue };
+                is_orbit = true;
                 let r_vec = position.0 - well_position.0;
                 let to_ring = orbit_ring_offset(r_vec, &plan);
                 let brake_dir = -to_ring
@@ -1635,26 +1661,45 @@ fn autopilot_system(
         // granting the `Rcs` verb, so a hull without it (the mainline campaign,
         // RCS disabled pending rework) keeps the exact main-drive arrival.
         //
-        // ORBIT is EXCLUDED by the `desired ~= 0` gate: its desired is the
-        // orbital velocity (~2.5-6 u/s, above the cap), and the absolute-speed
-        // cap in rcs_burn_system would fight it, not trim it (spike
-        // 20260718-122508; ORBIT via RCS needs an error-relative primitive,
-        // task 20260718-151102).
+        // Two RCS branches share one command formula (`error / rcs_cap`,
+        // proportional toward `desired`), differing only in the cap's reference
+        // frame:
+        //
+        // - SETTLE (task 20260718-122932): the maneuver's GOAL is rest (STOP,
+        //   GOTO/GotoPos inside the standoff - `desired ~= 0`) and the ship is
+        //   already slow enough for the ABSOLUTE cap to act (`|v| < cap`). The
+        //   reference is zero, so RCS brakes the last meters to rest.
+        // - ORBIT trim (task 20260718-151102): station-keeping, where `desired`
+        //   is the orbital velocity (~2.5-6 u/s, above the cap). The RESIDUAL
+        //   `error = desired - v` is what must be sub-cap for RCS to act, and the
+        //   reference is `desired`, so `rcs_burn_system` caps `v - desired` (the
+        //   trim) instead of the absolute orbital speed. While the residual is
+        //   above the cap (spinning up, or a big ring correction), the main drive
+        //   does the work exactly as before.
+        //
+        // Both hand the burn to the torque-free RCS COM push and spool the main
+        // drive down; both are gated on the ship granting the `Rcs` verb, so a
+        // hull without it (the mainline campaign, RCS disabled pending rework)
+        // keeps the exact main-drive behavior.
         let rcs_cap = rcs_cap_override
             .map(|c| c.0)
             .unwrap_or(settings.rcs_speed_cap);
         let rcs_granted = q_computer.iter().any(|(_, &ChildOf(parent), withheld)| {
             parent == ship && withheld.is_none_or(|w| w.granted(FlightVerb::Rcs))
         });
-        let use_rcs = rcs_granted
-            && rcs_cap > 0.0
+        let rcs_capable = rcs_granted && rcs_cap > 0.0 && error_speed > 1e-3;
+        let use_rcs_settle = rcs_capable
             && desired.length() <= settings.stop_speed_epsilon
-            && velocity.length() < rcs_cap
-            && error_speed > 1e-3;
-        // `desired ~= 0` so `error = -velocity`: a proportional brake that fades
-        // to zero as velocity does (no overshoot past rest), scaled so a
-        // cap-sized residual is full deflection. Clear to zero when not settling
-        // so a stale nudge never lingers into the next maneuver.
+            && velocity.length() < rcs_cap;
+        let use_rcs_orbit = rcs_capable && is_orbit && error_speed < rcs_cap;
+        let use_rcs = use_rcs_settle || use_rcs_orbit;
+        // The reference the cap is measured against: the orbital velocity while
+        // trimming an orbit, zero otherwise (absolute cap). Written EVERY tick so
+        // a stale orbital reference never lingers into a settle or the player.
+        let rcs_reference_v = if use_rcs_orbit { desired } else { Vec3::ZERO };
+        // Proportional command toward `desired`, scaled so a cap-sized residual
+        // is full deflection; fades to zero as the residual does (no overshoot).
+        // Clear to zero when not using RCS so a stale nudge never lingers.
         let rcs_command = if use_rcs {
             (rotation.inverse() * error / rcs_cap).clamp(Vec3::splat(-1.0), Vec3::splat(1.0))
         } else {
@@ -1664,6 +1709,11 @@ fn autopilot_system(
             intent.0 = rcs_command;
         } else if use_rcs {
             commands.entity(ship).insert(RcsIntent(rcs_command));
+        }
+        if let Some(mut reference) = rcs_reference {
+            reference.0 = rcs_reference_v;
+        } else if use_rcs_orbit {
+            commands.entity(ship).insert(RcsReference(rcs_reference_v));
         }
 
         // The allocation set: EVERY live engine, with the coefficients the
@@ -1973,19 +2023,24 @@ fn on_autopilot_removed_cool_engines(
         (&mut ControllerSectionRotationInput, &ChildOf),
         With<ControllerSectionMarker>,
     >,
-    mut q_rcs: Query<&mut RcsIntent>,
+    mut q_rcs: Query<(&mut RcsIntent, Option<&mut RcsReference>)>,
 ) {
     for (mut input, &ChildOf(parent)) in &mut q_thruster {
         if parent == remove.entity {
             **input = 0.0;
         }
     }
-    // Clear the RCS terminal-settle command (task 20260718-122932): the
-    // autopilot writes RcsIntent while settling, and rcs_burn_system acts on ANY
-    // non-zero intent regardless of autopilot state - a residual left at
-    // disengage would keep pushing the ship past rest toward the RCS cap.
-    if let Ok(mut intent) = q_rcs.get_mut(remove.entity) {
+    // Clear the RCS command AND its error-relative reference (tasks
+    // 20260718-122932, 20260718-151102): the autopilot writes both while
+    // settling/trimming, and rcs_burn_system acts on ANY non-zero intent
+    // regardless of autopilot state. A residual intent would push the ship past
+    // rest toward the cap; a stale orbital reference would silently rebase the
+    // player's next absolute-cap nudge. Zero both on disengage.
+    if let Ok((mut intent, reference)) = q_rcs.get_mut(remove.entity) {
         intent.0 = Vec3::ZERO;
+        if let Some(mut reference) = reference {
+            reference.0 = Vec3::ZERO;
+        }
     }
     if let Ok(rotation) = q_ship.get(remove.entity) {
         for (mut input, &ChildOf(parent)) in &mut q_rotation_input {
@@ -2153,6 +2208,7 @@ fn rcs_burn_system(
             Entity,
             &RcsIntent,
             Option<&RcsSpeedCap>,
+            Option<&RcsReference>,
             &ComputedMass,
             Forces,
         ),
@@ -2172,7 +2228,7 @@ fn rcs_burn_system(
         return;
     }
 
-    for (ship, intent, cap, mass, mut force) in &mut q_ship {
+    for (ship, intent, cap, reference, mass, mut force) in &mut q_ship {
         // Idle ships cost nothing.
         if intent.0 == Vec3::ZERO {
             continue;
@@ -2202,6 +2258,11 @@ fn rcs_burn_system(
         }
         let rotation = *force.rotation();
         let velocity = force.linear_velocity();
+        // The cap is measured against this REFERENCE velocity: absent/zero means
+        // the plain absolute cap (player fine-adjust, STOP/GOTO settle); the
+        // autopilot supplies the orbital velocity here so RCS caps the RESIDUAL
+        // `v - reference` and can trim a fast-moving orbit (task 20260718-151102).
+        let reference = reference.map(|r| r.0).unwrap_or(Vec3::ZERO);
 
         // Accumulate the per-axis capped push, then apply once at the COM so
         // the summed impulse still produces zero torque. The cap is per
@@ -2215,7 +2276,10 @@ fn rcs_burn_system(
                 continue;
             }
             let world_axis = rotation.mul_vec3(axis);
-            let along = velocity.dot(world_axis);
+            // Residual along the axis, relative to the reference: this is what
+            // the cap limits, so a prograde trim of an orbit sees only the small
+            // `v - v_orbit` delta, not the full orbital speed.
+            let along = (velocity - reference).dot(world_axis);
             // Headroom toward the commanded sign: full push while far from the
             // cap, tapering to zero as the along-axis speed nears the cap in
             // the pushed direction; the opposite direction always has headroom.
@@ -3740,13 +3804,136 @@ mod tests {
             .id()
     }
 
-    /// ORBIT never hands off to RCS: its desired velocity is the orbital speed
-    /// (~4.9 u/s at r=50), well above the 2 u/s RCS cap, so the `desired ~= 0`
-    /// gate keeps `RcsIntent` at zero for the whole insertion + hold. (RCS as
-    /// built caps ABSOLUTE speed and would brake the orbit - the incompatibility
-    /// that split ORBIT-via-RCS to task 20260718-151102.)
+    /// ORBIT trims via the error-relative RCS (task 20260718-151102), but ONLY
+    /// while the residual `|v - v_orbit|` is below the cap. From near-rest the
+    /// desired is the full orbital velocity (~4.9 u/s at r=50, above the 2 u/s
+    /// cap), so the main drive spins the orbit up and RCS stays idle; once the
+    /// ship is near orbital velocity the residual drops sub-cap and RCS takes
+    /// over the trim. The invariant that pins error-relative (not absolute)
+    /// behavior: whenever RCS is trimming, its `RcsReference` is the fast orbital
+    /// velocity (well above the cap) and `|v - reference|` is within the cap -
+    /// impossible under the old absolute cap, which would have gated to zero.
     #[test]
-    fn orbit_never_engages_rcs() {
+    fn orbit_engages_rcs_only_to_trim_a_sub_cap_residual() {
+        let mut app = orbit_app();
+        let well = spawn_orbit_well(&mut app);
+        let (ship, _, _) = spawn_ship(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Transform::from_xyz(50.0, 0.0, 0.0));
+        settle(&mut app);
+        // From rest the residual is the full orbital speed, above the cap, so
+        // the first ticks must NOT engage RCS - the main drive spins up.
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Orbit {
+                well,
+                plan: None,
+            }));
+        for _ in 0..5 {
+            app.update();
+            let intent = app
+                .world()
+                .get::<RcsIntent>(ship)
+                .map(|i| i.0.length())
+                .unwrap_or(0.0);
+            assert!(
+                intent < 1e-3,
+                "RCS must not trim while spinning up from rest (residual > cap), got {intent}"
+            );
+        }
+
+        let cap = 2.0;
+        let mut saw_trim = false;
+        for _ in 0..1500 {
+            app.update();
+            let intent = app
+                .world()
+                .get::<RcsIntent>(ship)
+                .map(|i| i.0)
+                .unwrap_or(Vec3::ZERO);
+            if intent.length() > 1e-3 {
+                saw_trim = true;
+                let reference = app
+                    .world()
+                    .get::<RcsReference>(ship)
+                    .map(|r| r.0)
+                    .unwrap_or(Vec3::ZERO);
+                let v = velocity_of(&app, ship);
+                assert!(
+                    reference.length() > cap,
+                    "the trim reference is the fast orbital velocity, above the cap (got {})",
+                    reference.length()
+                );
+                assert!(
+                    (v - reference).length() <= cap + 0.5,
+                    "RCS only trims a sub-cap residual (|v - ref| = {}, cap {cap})",
+                    (v - reference).length()
+                );
+            }
+        }
+        assert!(
+            saw_trim,
+            "ORBIT should engage the error-relative RCS once at orbital speed"
+        );
+        assert!(
+            app.world().get::<Autopilot>(ship).is_some(),
+            "orbit never self-completes"
+        );
+    }
+
+    /// The error-relative primitive: a ship already moving FASTER than the cap
+    /// can still be trimmed by a sub-cap delta when an `RcsReference` rebases the
+    /// cap. At 5 u/s with a matching 5 u/s reference, a prograde nudge pushes
+    /// (residual is zero, full headroom) and climbs until `v - reference` hits
+    /// the cap. WITHOUT the reference the same command gates to zero - the plain
+    /// absolute cap (2 u/s) is already exceeded. Deleting the reference term in
+    /// rcs_burn_system collapses the two cases, failing the "pushed" assertion.
+    #[test]
+    fn rcs_relative_cap_trims_a_fast_moving_reference() {
+        // With the reference: prograde trim acts despite |v| > cap.
+        let mut app = flight_app();
+        let (ship, _, _) = spawn_ship(&mut app);
+        settle(&mut app);
+        app.world_mut().entity_mut(ship).insert((
+            LinearVelocity(Vec3::new(5.0, 0.0, 0.0)),
+            RcsReference(Vec3::new(5.0, 0.0, 0.0)),
+            RcsIntent(Vec3::new(0.5, 0.0, 0.0)),
+        ));
+        run(&mut app, 300);
+        let with_ref = velocity_of(&app, ship).x;
+        assert!(
+            with_ref > 5.1,
+            "an error-relative trim pushes prograde past the reference despite |v| > cap (v.x = {with_ref})"
+        );
+        assert!(
+            with_ref <= 5.0 + 2.0 + 0.3,
+            "but only up to cap ABOVE the reference (5 + cap = 7), got {with_ref}"
+        );
+
+        // Without the reference: the same command at |v| > cap gates to zero.
+        let mut app = flight_app();
+        let (ship, _, _) = spawn_ship(&mut app);
+        settle(&mut app);
+        app.world_mut().entity_mut(ship).insert((
+            LinearVelocity(Vec3::new(5.0, 0.0, 0.0)),
+            RcsIntent(Vec3::new(0.5, 0.0, 0.0)),
+        ));
+        run(&mut app, 300);
+        let no_ref = velocity_of(&app, ship).x;
+        assert!(
+            no_ref < 5.05,
+            "the plain absolute cap is already exceeded, so the prograde command does nothing (v.x = {no_ref})"
+        );
+    }
+
+    /// The error-relative reference is cleared on disengage
+    /// (`shared-primitive-clear-on-handoff`): an orbit leaves a fast `RcsReference`
+    /// behind, and if it lingered it would silently rebase the player's next
+    /// absolute-cap nudge. After the orbit disengages both the intent and the
+    /// reference must be zero.
+    #[test]
+    fn orbit_rcs_reference_clears_on_disengage() {
         let mut app = orbit_app();
         let well = spawn_orbit_well(&mut app);
         let (ship, _, _) = spawn_ship(&mut app);
@@ -3760,19 +3947,43 @@ mod tests {
                 well,
                 plan: None,
             }));
-        for _ in 0..900 {
+        // Fly until the trim is live (a non-zero reference is written).
+        let mut got_reference = false;
+        for _ in 0..1500 {
             app.update();
-            if let Some(intent) = app.world().get::<RcsIntent>(ship) {
-                assert!(
-                    intent.0.length() < 1e-3,
-                    "ORBIT must never engage RCS, got intent {:?}",
-                    intent.0
-                );
+            if app
+                .world()
+                .get::<RcsReference>(ship)
+                .is_some_and(|r| r.0.length() > 1e-3)
+            {
+                got_reference = true;
+                break;
             }
         }
         assert!(
-            app.world().get::<Autopilot>(ship).is_some(),
-            "orbit never self-completes"
+            got_reference,
+            "the orbit trim should write a live RcsReference"
+        );
+
+        app.world_mut().entity_mut(ship).remove::<Autopilot>();
+        run(&mut app, 3);
+        let reference = app
+            .world()
+            .get::<RcsReference>(ship)
+            .map(|r| r.0.length())
+            .unwrap_or(0.0);
+        let intent = app
+            .world()
+            .get::<RcsIntent>(ship)
+            .map(|i| i.0.length())
+            .unwrap_or(0.0);
+        assert!(
+            reference < 1e-3,
+            "the reference is cleared on disengage (got {reference})"
+        );
+        assert!(
+            intent < 1e-3,
+            "the intent is cleared on disengage (got {intent})"
         );
     }
 
