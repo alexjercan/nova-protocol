@@ -1,9 +1,8 @@
 # Investigate the broadside-high single-frame hitch (75ms max, p99 39ms) seen in the baseline
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,performance
-
+- PRIORITY: 30
+- TAGS: performance,bug,v0.8.0
 
 ## Goal
 

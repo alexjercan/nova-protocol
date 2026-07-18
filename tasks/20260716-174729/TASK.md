@@ -1,8 +1,8 @@
 # Gauntlet time-trial: visible run timer + clean-run bonus
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,scenario,content,modding,hud
+- PRIORITY: 42
+- TAGS: scenario,content,modding,hud,v0.8.0
 
 ## Goal
 
