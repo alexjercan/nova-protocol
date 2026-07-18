@@ -261,3 +261,13 @@ Parent request: tasks/20260717-105406.
   fixed-radius shader sphere makes "a ring at the cap" a visual-design + playtest
   question, not a headless-testable add. Detail: tasks/20260718-122923/NOTES.md.
   Remaining: autopilot integration (-122932), cap ring (-144939).
+- 20260718 tatr 20260718-122932 (autopilot): the autopilot hands the STOP/GOTO
+  terminal SETTLE-TO-REST to RCS (torque-free COM P-brake), verb-gated. ORBIT
+  turned out INCOMPATIBLE with the absolute-speed-capped primitive (orbits run
+  above the cap) and was split to a follow-up (tatr 20260718-151102, needs an
+  error-relative RCS mode). Known limitation: RCS settles to the settle_deadband,
+  not stop_speed_epsilon (also folded into -151102). RCS is a normal
+  granted-by-default verb; legacy autopilot tests withhold it (backward compat).
+  Full flight:: suite green. Detail: tasks/20260718-122932/NOTES.md.
+  Remaining: cap ring (-144939), ORBIT error-relative RCS (-151102), and the
+  keybind(show SHIFT when RCS granted) + disable-RCS-in-mainline work.

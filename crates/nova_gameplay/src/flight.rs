@@ -1153,6 +1153,11 @@ fn autopilot_system(
             &ComputedAngularInertia,
             Option<&ComputedCenterOfMass>,
             Option<&ManeuverTelemetry>,
+            // RCS terminal settle (task 20260718-122932): the per-hull cap
+            // override and the intent the autopilot writes to hand the
+            // last-meters brake to the torque-free RCS primitive.
+            Option<&RcsSpeedCap>,
+            Option<&mut RcsIntent>,
         ),
         With<SpaceshipRootMarker>,
     >,
@@ -1181,7 +1186,7 @@ fn autopilot_system(
     // (preview controllers have none) and is not disabled. Its torque cap is
     // the hull's rotation authority, so the planner reads it too.
     q_computer: Query<
-        (&PDController, &ChildOf),
+        (&PDController, &ChildOf, Option<&WithheldVerbs>),
         (
             With<ControllerSectionMarker>,
             Without<SectionInactiveMarker>,
@@ -1209,8 +1214,19 @@ fn autopilot_system(
 ) {
     let dt = time.delta_secs();
 
-    for (ship, mut autopilot, position, rotation, velocity, mass, inertia, com, prev_telemetry) in
-        &mut q_ship
+    for (
+        ship,
+        mut autopilot,
+        position,
+        rotation,
+        velocity,
+        mass,
+        inertia,
+        com,
+        prev_telemetry,
+        rcs_cap_override,
+        rcs_intent,
+    ) in &mut q_ship
     {
         let has_telemetry = prev_telemetry.is_some();
         // No flight computer, no autopilot - the ship is adrift on manual.
@@ -1219,8 +1235,8 @@ fn autopilot_system(
         let Some(turn_rate) = ship_turn_rate(
             q_computer
                 .iter()
-                .filter(|(_, &ChildOf(parent))| parent == ship)
-                .map(|(pd, _)| pd.max_torque),
+                .filter(|(_, &ChildOf(parent), _)| parent == ship)
+                .map(|(pd, _, _)| pd.max_torque),
             inertia,
             &settings,
         ) else {
@@ -1600,6 +1616,45 @@ fn autopilot_system(
         let error_speed = error.length();
         let error_dir = (error_speed > 1e-3).then(|| error / error_speed);
 
+        // RCS terminal settle (task 20260718-122932): when the maneuver's GOAL
+        // is rest (STOP, GOTO/GotoPos inside the standoff - `desired ~= 0`) and
+        // the ship is already slow enough for the speed-capped RCS to act
+        // (`|v| < cap`), hand the last-meters brake to the RCS primitive - a
+        // torque-free COM push - instead of the main drive. Gated on the ship
+        // granting the `Rcs` verb, so a hull without it (the mainline campaign,
+        // RCS disabled pending rework) keeps the exact main-drive arrival.
+        //
+        // ORBIT is EXCLUDED by the `desired ~= 0` gate: its desired is the
+        // orbital velocity (~2.5-6 u/s, above the cap), and the absolute-speed
+        // cap in rcs_burn_system would fight it, not trim it (spike
+        // 20260718-122508; ORBIT via RCS needs an error-relative primitive,
+        // task 20260718-151102).
+        let rcs_cap = rcs_cap_override
+            .map(|c| c.0)
+            .unwrap_or(settings.rcs_speed_cap);
+        let rcs_granted = q_computer.iter().any(|(_, &ChildOf(parent), withheld)| {
+            parent == ship && withheld.is_none_or(|w| w.granted(FlightVerb::Rcs))
+        });
+        let use_rcs = rcs_granted
+            && rcs_cap > 0.0
+            && desired.length() <= settings.stop_speed_epsilon
+            && velocity.length() < rcs_cap
+            && error_speed > 1e-3;
+        // `desired ~= 0` so `error = -velocity`: a proportional brake that fades
+        // to zero as velocity does (no overshoot past rest), scaled so a
+        // cap-sized residual is full deflection. Clear to zero when not settling
+        // so a stale nudge never lingers into the next maneuver.
+        let rcs_command = if use_rcs {
+            (rotation.inverse() * error / rcs_cap).clamp(Vec3::splat(-1.0), Vec3::splat(1.0))
+        } else {
+            Vec3::ZERO
+        };
+        if let Some(mut intent) = rcs_intent {
+            intent.0 = rcs_command;
+        } else if use_rcs {
+            commands.entity(ship).insert(RcsIntent(rcs_command));
+        }
+
         // The allocation set: EVERY live engine, with the coefficients the
         // balancer needs per unit input - signed thrust along the burn, force
         // perpendicular to it, and lever-arm torque about the live COM. The
@@ -1831,7 +1886,11 @@ fn autopilot_system(
                         / mass.value();
                 }
             }
-            let demand = if desired == Vec3::ZERO && error_speed <= tail_dv {
+            let demand = if use_rcs {
+                // The RCS COM push is braking the last meters; the main drive
+                // spools down so the two never double-push.
+                0.0
+            } else if desired == Vec3::ZERO && error_speed <= tail_dv {
                 0.0
             } else {
                 firing_authority * burn_input(error_speed * mass.value(), firing_authority)
@@ -1903,11 +1962,19 @@ fn on_autopilot_removed_cool_engines(
         (&mut ControllerSectionRotationInput, &ChildOf),
         With<ControllerSectionMarker>,
     >,
+    mut q_rcs: Query<&mut RcsIntent>,
 ) {
     for (mut input, &ChildOf(parent)) in &mut q_thruster {
         if parent == remove.entity {
             **input = 0.0;
         }
+    }
+    // Clear the RCS terminal-settle command (task 20260718-122932): the
+    // autopilot writes RcsIntent while settling, and rcs_burn_system acts on ANY
+    // non-zero intent regardless of autopilot state - a residual left at
+    // disengage would keep pushing the ship past rest toward the RCS cap.
+    if let Ok(mut intent) = q_rcs.get_mut(remove.entity) {
+        intent.0 = Vec3::ZERO;
     }
     if let Ok(rotation) = q_ship.get(remove.entity) {
         for (mut input, &ChildOf(parent)) in &mut q_rotation_input {
@@ -2961,6 +3028,27 @@ mod tests {
         (ship, thruster, controller)
     }
 
+    /// Withhold the RCS verb on every controller of `ship`. The legacy autopilot
+    /// tests predate RCS and assert the MAIN-DRIVE arrival (flip + retro burn);
+    /// with the verb granted (the production default) the autopilot would settle
+    /// their terminal via RCS instead (task 20260718-122932). Disabling RCS here
+    /// keeps them exercising the behavior they were written for - the same
+    /// opt-out the mainline campaign uses while RCS is off pending rework.
+    fn withhold_rcs(app: &mut App, ship: Entity) {
+        let controllers: Vec<Entity> = app
+            .world_mut()
+            .query_filtered::<(Entity, &ChildOf), With<ControllerSectionMarker>>()
+            .iter(app.world())
+            .filter(|(_, ChildOf(parent))| *parent == ship)
+            .map(|(entity, _)| entity)
+            .collect();
+        for controller in controllers {
+            app.world_mut()
+                .entity_mut(controller)
+                .insert(WithheldVerbs([FlightVerb::Rcs].into_iter().collect()));
+        }
+    }
+
     /// Mount an extra engine on the hull with a section-local attitude
     /// (thrust pushes along its local -Z). Kept on the ship's long axis so
     /// the tests stay torque-free unless they want torque.
@@ -3469,6 +3557,7 @@ mod tests {
     fn stop_flips_the_hull_and_kills_velocity_with_no_external_force() {
         let mut app = flight_app();
         let (ship, _, _) = spawn_ship(&mut app);
+        withhold_rcs(&mut app, ship);
         settle(&mut app);
         // Coasting sideways: the nose (-Z) must physically swing ~90 degrees
         // to point retrograde before the drive can brake anything.
@@ -3579,6 +3668,172 @@ mod tests {
                 ),
             ))
             .id()
+    }
+
+    /// ORBIT never hands off to RCS: its desired velocity is the orbital speed
+    /// (~4.9 u/s at r=50), well above the 2 u/s RCS cap, so the `desired ~= 0`
+    /// gate keeps `RcsIntent` at zero for the whole insertion + hold. (RCS as
+    /// built caps ABSOLUTE speed and would brake the orbit - the incompatibility
+    /// that split ORBIT-via-RCS to task 20260718-151102.)
+    #[test]
+    fn orbit_never_engages_rcs() {
+        let mut app = orbit_app();
+        let well = spawn_orbit_well(&mut app);
+        let (ship, _, _) = spawn_ship(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Transform::from_xyz(50.0, 0.0, 0.0));
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Orbit {
+                well,
+                plan: None,
+            }));
+        for _ in 0..900 {
+            app.update();
+            if let Some(intent) = app.world().get::<RcsIntent>(ship) {
+                assert!(
+                    intent.0.length() < 1e-3,
+                    "ORBIT must never engage RCS, got intent {:?}",
+                    intent.0
+                );
+            }
+        }
+        assert!(
+            app.world().get::<Autopilot>(ship).is_some(),
+            "orbit never self-completes"
+        );
+    }
+
+    /// A STOP settling from below the RCS cap hands the brake to the torque-free
+    /// RCS primitive: `RcsIntent` goes non-zero, the main thruster stays cold,
+    /// and the ship still reaches rest. Delete the RCS branch and the main drive
+    /// brakes instead (thruster fires), failing the cold-drive assertion.
+    #[test]
+    fn stop_terminal_brakes_via_rcs() {
+        let mut app = flight_app();
+        let (ship, thruster, _controller) = spawn_ship(&mut app);
+        settle(&mut app);
+        // Below the cap, so RCS can act. STOP's goal is rest (desired == 0).
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::new(1.5, 0.0, 0.0)));
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+
+        let mut saw_rcs = false;
+        let mut max_thruster = 0.0f32;
+        for _ in 0..600 {
+            app.update();
+            if let Some(intent) = app.world().get::<RcsIntent>(ship) {
+                if intent.0.length() > 1e-3 {
+                    saw_rcs = true;
+                }
+            }
+            max_thruster =
+                max_thruster.max(**app.world().get::<ThrusterSectionInput>(thruster).unwrap());
+            if app.world().get::<Autopilot>(ship).is_none() {
+                break;
+            }
+        }
+        assert!(saw_rcs, "STOP's terminal drove RCS (non-zero RcsIntent)");
+        assert!(
+            max_thruster < 0.05,
+            "the main drive stayed cold - RCS did the braking (max input {max_thruster})"
+        );
+        // Settles to WITHIN the autopilot's settle_deadband (0.75) - the same
+        // "bounded creep is the contract" release the main drive gets. RCS
+        // currently releases at the deadband rather than driving to
+        // stop_speed_epsilon (the disengage reads no aligned main engine while
+        // in RCS mode); tightening that terminal creep is a rework item (task
+        // 20260718-151102).
+        assert!(
+            velocity_of(&app, ship).length() < 0.8,
+            "STOP settled to within the deadband via RCS (v = {})",
+            velocity_of(&app, ship).length()
+        );
+    }
+
+    /// After an RCS-settled STOP disengages, the ship must STAY at rest: the
+    /// autopilot's residual `RcsIntent` has to be cleared on disengage, or
+    /// `rcs_burn_system` (which acts on any non-zero intent, autopilot or not)
+    /// keeps pushing and the ship drifts off to the RCS cap. Runs PAST the
+    /// disengage; fails if the on-remove clear is missing.
+    #[test]
+    fn rcs_settled_autopilot_leaves_the_ship_at_rest_after_disengage() {
+        let mut app = flight_app();
+        let (ship, _thruster, _controller) = spawn_ship(&mut app);
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::new(1.5, 0.0, 0.0)));
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+
+        // Settle until the autopilot releases.
+        let mut disengaged = false;
+        for _ in 0..1200 {
+            app.update();
+            if app.world().get::<Autopilot>(ship).is_none() {
+                disengaged = true;
+                break;
+            }
+        }
+        assert!(disengaged, "the STOP should self-complete");
+        let at_release = velocity_of(&app, ship).length();
+
+        // Coast well past release: a leftover RcsIntent would accelerate the
+        // ship toward the cap here.
+        for _ in 0..400 {
+            app.update();
+        }
+        let after = velocity_of(&app, ship).length();
+        assert!(
+            after <= at_release + 0.05,
+            "the ship must stay at rest after disengage, not drift on a residual \
+             RcsIntent (v {at_release} -> {after})"
+        );
+    }
+
+    /// Without the `Rcs` verb the autopilot must NOT write `RcsIntent`; the same
+    /// STOP settles on the main drive instead (the mainline-campaign path while
+    /// RCS is disabled pending rework).
+    #[test]
+    fn stop_terminal_without_rcs_verb_uses_the_main_drive() {
+        let mut app = flight_app();
+        let (ship, _thruster, controller) = spawn_ship(&mut app);
+        app.world_mut()
+            .entity_mut(controller)
+            .insert(WithheldVerbs([FlightVerb::Rcs].into_iter().collect()));
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::new(1.5, 0.0, 0.0)));
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+
+        for _ in 0..900 {
+            app.update();
+            if let Some(intent) = app.world().get::<RcsIntent>(ship) {
+                assert!(
+                    intent.0.length() < 1e-3,
+                    "no Rcs verb: the autopilot must not write RcsIntent, got {:?}",
+                    intent.0
+                );
+            }
+            if app.world().get::<Autopilot>(ship).is_none() {
+                break;
+            }
+        }
+        assert!(
+            velocity_of(&app, ship).length() < 0.8,
+            "still settles to within the deadband on the main drive (v = {})",
+            velocity_of(&app, ship).length()
+        );
     }
 
     #[test]
@@ -4162,6 +4417,7 @@ mod tests {
             ))
             .id();
         let (ship, _, _) = spawn_ship(&mut app);
+        withhold_rcs(&mut app, ship);
         app.world_mut()
             .entity_mut(ship)
             .insert(Transform::from_xyz(0.0, 0.0, 500.0));
@@ -4485,6 +4741,7 @@ mod tests {
             ))
             .id();
         settle(&mut app);
+        withhold_rcs(&mut app, ship);
 
         // Diagnose the exact conditions the autopilot's thruster query needs.
         println!(
@@ -4537,6 +4794,7 @@ mod tests {
     fn high_speed_stop_settles_without_tumbling() {
         let mut app = flight_app();
         let (ship, _, _) = spawn_ship(&mut app);
+        withhold_rcs(&mut app, ship);
         settle(&mut app);
         app.world_mut()
             .entity_mut(ship)
@@ -4632,6 +4890,7 @@ mod tests {
     fn retro_group_brakes_a_small_overspeed_without_flipping() {
         let mut app = flight_app();
         let (ship, _, _) = spawn_ship(&mut app);
+        withhold_rcs(&mut app, ship);
         spawn_extra_thruster(
             &mut app,
             ship,
@@ -4667,6 +4926,7 @@ mod tests {
     fn large_burn_still_flips_to_the_main_drive() {
         let mut app = flight_app();
         let (ship, _, _) = spawn_ship(&mut app);
+        withhold_rcs(&mut app, ship);
         spawn_extra_thruster(
             &mut app,
             ship,
@@ -4698,6 +4958,7 @@ mod tests {
     fn side_thruster_kills_a_lateral_crumb_in_the_deadband() {
         let mut app = flight_app();
         let (ship, _, _) = spawn_ship(&mut app);
+        withhold_rcs(&mut app, ship);
         // Thrust toward -X (local -Z rotated +90 degrees about Y).
         spawn_extra_thruster(
             &mut app,
@@ -4734,6 +4995,7 @@ mod tests {
     fn a_dead_retro_falls_back_to_the_flip() {
         let mut app = flight_app();
         let (ship, _, _) = spawn_ship(&mut app);
+        withhold_rcs(&mut app, ship);
         let retro = spawn_extra_thruster(
             &mut app,
             ship,
@@ -4775,6 +5037,7 @@ mod tests {
     fn stop_accepts_a_crumb_without_pirouetting() {
         let mut app = flight_app();
         let (ship, _, _) = spawn_ship(&mut app);
+        withhold_rcs(&mut app, ship);
         settle(&mut app);
         // Slow lateral creep, below the deadband; killing it would need a
         // ~90 degree pirouette.
@@ -4815,6 +5078,7 @@ mod tests {
     fn autopilot_commands_editor_bound_thrusters() {
         let mut app = flight_app();
         let (ship, thruster, _) = spawn_ship(&mut app);
+        withhold_rcs(&mut app, ship);
         app.world_mut()
             .entity_mut(thruster)
             .insert(SpaceshipThrusterInputBinding(vec![]));
@@ -4903,6 +5167,7 @@ mod tests {
     fn manual_burn_accelerates_and_is_ignored_while_engaged() {
         let mut app = flight_app();
         let (ship, _, _) = spawn_ship(&mut app);
+        withhold_rcs(&mut app, ship);
         settle(&mut app);
 
         // Manual: analog burn accelerates along the nose.
