@@ -36,7 +36,7 @@ const BETTER_TURRET_BULLET_DAMAGE: f32 = 4.0;
 /// (0,-0.5,0)) -> yaw(Y, meshed) -> pitch(X, meshed, -30..90 deg) ->
 /// barrel(fixed, meshed) -> muzzle(fixed, fire point). `fire_rate` is per-muzzle
 /// now; every other numeric value is preserved from the old fields.
-fn turret_joint_tree(
+pub(crate) fn turret_joint_tree(
     yaw_mesh: &AssetRef<WorldAsset>,
     pitch_mesh: &AssetRef<WorldAsset>,
     barrel_mesh: &AssetRef<WorldAsset>,

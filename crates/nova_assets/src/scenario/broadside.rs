@@ -34,11 +34,12 @@
 //! from the hauler fight so it engages on arrival and its tubes are open
 //! through the whole approach.
 
-use bevy::{platform::collections::HashMap, prelude::*};
+use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
 use super::{
+    craft::{self, ShipGrade},
     shakedown::{
         complete, destroyed, emphasize, eq_num, lt_num, mark, num, objective, player_enters,
         section, set, spawn, unmark,
@@ -100,13 +101,6 @@ const GUNSHIP_SPAWN: Vec3 = Vec3::new(80.0, 60.0, -1170.0);
 /// them. Finite ammo: catalog weapons auto-reload (task 20260717-085640),
 /// so a dry magazine is a pacing beat, not a fail state.
 fn player_ship() -> ScenarioObjectConfig {
-    let turret = SpaceshipSectionConfig {
-        id: "turret".to_string(),
-        position: Vec3::new(0.0, 0.0, -2.0),
-        rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-        source: SectionSource::Prototype("better_turret_section".to_string()),
-        modifications: vec![],
-    };
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: ID_PLAYER.to_string(),
@@ -116,13 +110,16 @@ fn player_ship() -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::Player(PlayerControllerConfig {
-                input_mapping: HashMap::from([(
-                    "turret".to_string(),
-                    vec![
-                        MouseButton::Left.into(),
-                        GamepadButton::RightTrigger2.into(),
-                    ],
-                )]),
+                // Both racer turret cubes fire on LMB / right trigger.
+                input_mapping: craft::RACER_TURRET_IDS
+                    .iter()
+                    .map(|id| {
+                        (
+                            id.to_string(),
+                            vec![MouseButton::Left.into(), GamepadButton::RightTrigger2.into()],
+                        )
+                    })
+                    .collect(),
                 // Post-tutorial: unbounded burn.
                 speed_cap: None,
                 // Finite ammo: catalog weapons auto-reload (task 20260717-085640),
@@ -132,13 +129,8 @@ fn player_ship() -> ScenarioObjectConfig {
                 lock_refire_secs: None,
             }),
             allegiance: None,
-            sections: vec![
-                section("controller", "basic_controller_section", Vec3::ZERO),
-                section("hull_front", "reinforced_hull_section", Vec3::Z),
-                section("hull_back", "reinforced_hull_section", Vec3::NEG_Z),
-                section("thruster", "basic_thruster_section", Vec3::Z * 2.0),
-                turret,
-            ],
+            // The racer, no tutorial verb-gating this chapter.
+            sections: craft::racer_sections(ShipGrade::Player, vec![]),
         }),
     }
 }
@@ -170,13 +162,6 @@ fn hauler_ship() -> ScenarioObjectConfig {
 /// A scavenger corvette: shakedown's pirate silhouette, flown in a pair.
 /// Leashed to the hauler fight so the duel stays in the derelict field.
 fn corvette(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
-    let turret = SpaceshipSectionConfig {
-        id: "turret".to_string(),
-        position: Vec3::new(0.0, 0.0, -1.0),
-        rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-        source: SectionSource::Prototype("light_turret_section".to_string()),
-        modifications: vec![],
-    };
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
@@ -194,12 +179,8 @@ fn corvette(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
                 ..Default::default()
             }),
             allegiance: None,
-            sections: vec![
-                section("controller", "basic_controller_section", Vec3::ZERO),
-                section("hull_front", "light_hull_section", Vec3::Z),
-                section("thruster", "basic_thruster_section", Vec3::Z * 2.0),
-                turret,
-            ],
+            // A scavenger-grade racer: weaker turrets, squishier hull.
+            sections: craft::racer_sections(ShipGrade::Enemy, vec![]),
         }),
     }
 }
@@ -208,31 +189,10 @@ fn corvette(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
 /// two torpedo tubes, an armored spine of reinforced hulls. No leash - it
 /// came here to end the fight, and it chases.
 fn gunship() -> ScenarioObjectConfig {
-    // Side-mount rolls (task 20260717-151214): a section's mount base is
-    // its local -Y (verified against the GLBs in 20260717-151208's
-    // review), so a mount hanging off the spine's +X flank rolls Rz(-90)
-    // to seat base-to-hull (-Y -> -X) and a -X mount rolls the mirror
-    // Rz(+90). Rz leaves local -Z untouched, so a bay's launch/spawn axis
-    // still points ship-forward, and its +Y hatch turns outboard. The
-    // bow-mount roll (the player ships' Rx(-90)) stays correct only for
-    // spine-end mounts. Ship-local forward is -Z with up +Y, so
-    // STARBOARD is +X and PORT is -X - the tube ids used to be swapped.
-    let starboard_roll = Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2);
-    let port_roll = Quat::from_rotation_z(std::f32::consts::FRAC_PI_2);
-    let turret = |id: &str, offset: Vec3, roll: Quat| SpaceshipSectionConfig {
-        id: id.to_string(),
-        position: offset,
-        rotation: roll,
-        source: SectionSource::Prototype("better_turret_section".to_string()),
-        modifications: vec![],
-    };
-    let tube = |id: &str, offset: Vec3, roll: Quat| SpaceshipSectionConfig {
-        id: id.to_string(),
-        position: offset,
-        rotation: roll,
-        source: SectionSource::Prototype("torpedo_section".to_string()),
-        modifications: vec![],
-    };
+    // The Rust Tally is the cargob (moved into base from the craft_cargoB
+    // example mod): a 42-cube capital with two PDC turrets, two torpedo tubes
+    // and a core controller. No leash - it came here to end the fight, and it
+    // chases.
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: ID_GUNSHIP.to_string(),
@@ -243,17 +203,7 @@ fn gunship() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::AI(AIControllerConfig::default()),
             allegiance: None,
-            sections: vec![
-                section("controller", "basic_controller_section", Vec3::ZERO),
-                section("hull_bow", "reinforced_hull_section", Vec3::Z),
-                section("hull_mid", "reinforced_hull_section", Vec3::NEG_Z),
-                section("hull_aft", "reinforced_hull_section", Vec3::NEG_Z * 2.0),
-                section("thruster", "basic_thruster_section", Vec3::Z * 2.0),
-                turret("turret_starboard", Vec3::new(1.0, 0.0, 0.0), starboard_roll),
-                turret("turret_port", Vec3::new(-1.0, 0.0, -1.0), port_roll),
-                tube("tube_starboard", Vec3::new(1.0, 0.0, -2.0), starboard_roll),
-                tube("tube_port", Vec3::new(-1.0, 0.0, -2.0), port_roll),
-            ],
+            sections: craft::cargob_sections(),
         }),
     }
 }

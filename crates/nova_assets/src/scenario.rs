@@ -3,6 +3,7 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
 pub mod broadside;
+pub(crate) mod craft;
 pub mod shakedown;
 
 /// The seed of the built-in scenarios' scatter fields. A fixed value: the

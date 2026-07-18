@@ -24,7 +24,7 @@ use bevy_common_systems::prelude::{
 use nova_events::prelude::{
     EntityId, OnDestroyedEvent, OnDestroyedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
-use nova_gameplay::prelude::Allegiance;
+use nova_gameplay::prelude::{Allegiance, SectionKind};
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::*;
 
@@ -349,16 +349,17 @@ fn on_start_stages_the_slice() {
     // weapon this chapter - the player screens them, not trades them - and
     // the magazine is finite with auto-reload (task 20260717-085640).
     assert!(
-        !player_ship
-            .sections
-            .iter()
-            .any(|s| matches!(&s.source, SectionSource::Prototype(p) if p == "torpedo_section")),
+        !player_ship.sections.iter().any(|s| matches!(
+            &s.source,
+            SectionSource::Inline(c) if matches!(c.kind, SectionKind::Torpedo(_))
+        )),
         "the player carries NO torpedo bay in chapter two"
     );
     assert!(
-        player_ship.sections.iter().any(
-            |s| matches!(&s.source, SectionSource::Prototype(p) if p == "better_turret_section")
-        ),
+        player_ship.sections.iter().any(|s| matches!(
+            &s.source,
+            SectionSource::Inline(c) if matches!(c.kind, SectionKind::Turret(_))
+        )),
         "the PDC turret is the player's weapon"
     );
     assert!(
@@ -414,7 +415,10 @@ fn the_gunship_keeps_its_torpedo_tubes() {
     let tubes = ship
         .sections
         .iter()
-        .filter(|s| matches!(&s.source, SectionSource::Prototype(p) if p == "torpedo_section"))
+        .filter(|s| matches!(
+            &s.source,
+            SectionSource::Inline(c) if matches!(c.kind, SectionKind::Torpedo(_))
+        ))
         .count();
     assert!(
         tubes >= 2,
