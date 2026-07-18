@@ -1047,6 +1047,18 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   release v0.19.1 across all five crates instead of leaving a rev/tag mix. Grep
   the actual Cargo.toml/config before trusting the premise. 20260716-165617.
 
+- `grid-flex-item-needs-min-width-0` (x1): a flex/grid ITEM defaults to
+  `min-width: auto`, so it refuses to shrink below its widest child's intrinsic
+  width and a wide child (a long unbreakable line in a `pre`) grows the track
+  past the viewport and forces PAGE scroll-X - even when that child already has
+  `overflow-x: auto`, because the child never gets constrained enough to scroll.
+  The wiki `.wiki__body.prose` article (the `1fr` column of the `.wiki` grid)
+  hit this on the guide-make-a-mod page; `min-width: 0` on the ITEM (not
+  `word-break` on the code) is the fix, matching the existing
+  `.wiki-child__body { min-width: 0 }` guard. When a page scrolls sideways,
+  suspect the flex/grid item's min-width before the child's wrapping.
+  20260718-114128.
+
 ## Pending promotions (3+ occurrences, user decides)
 
 - `verify-scripted-edits-applied` (x3) -> work skill: an edit you believe you
