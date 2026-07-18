@@ -14,11 +14,11 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        turret_section, LoadedBullet, MuzzleConfig, RenderMeshTransform,
-        TurretBulletProjectileMarker, TurretJoint, TurretSectionAimPoint, TurretSectionAimSystems,
-        TurretSectionBarrelMuzzleMarker, TurretSectionConfig, TurretSectionConfigHelper,
-        TurretSectionInput, TurretSectionMarker, TurretSectionMuzzleEntity, TurretSectionPlugin,
-        TurretSectionTargetInput, TurretSectionTargetVelocity,
+        turret_section, LoadedBullet, MuzzleConfig, TurretBulletProjectileMarker, TurretJoint,
+        TurretSectionAimPoint, TurretSectionAimSystems, TurretSectionBarrelMuzzleMarker,
+        TurretSectionConfig, TurretSectionConfigHelper, TurretSectionInput, TurretSectionMarker,
+        TurretSectionMuzzleEntity, TurretSectionPlugin, TurretSectionTargetInput,
+        TurretSectionTargetVelocity,
     };
 }
 
@@ -57,52 +57,6 @@ fn default_joint_speed() -> f32 {
 #[cfg(feature = "serde")]
 fn is_default_joint_speed(speed: &f32) -> bool {
     *speed == default_joint_speed()
-}
-
-/// Skip serializing a zero translation - the common case for a render-mesh
-/// transform that only reorients (or that is authored purely for symmetry with
-/// a sibling). Keeps `render_mesh_transform` blocks minimal.
-#[cfg(feature = "serde")]
-fn is_zero_translation(v: &Vec3) -> bool {
-    *v == Vec3::ZERO
-}
-
-/// Skip serializing an identity rotation - the common case for a render-mesh
-/// transform that only translates.
-#[cfg(feature = "serde")]
-fn is_identity_rotation(q: &Quat) -> bool {
-    *q == Quat::IDENTITY
-}
-
-/// An authored transform applied to a turret joint's RENDER MESH only, relative
-/// to the joint's own frame. It never touches the joint's kinematic transform
-/// (`TurretJoint::offset` / `axis` / children), so art can be nudged or
-/// reoriented without disturbing aim or the joint tree. Position and rotation
-/// are authored independently (each defaults out), so a mesh that only needs a
-/// small rotation writes just `rotation`, and a nudge writes just `position`.
-#[derive(Clone, Copy, Debug, PartialEq, Default, Reflect)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct RenderMeshTransform {
-    /// Local translation of the render mesh, relative to the joint origin.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "is_zero_translation")
-    )]
-    pub position: Vec3,
-    /// Local rotation of the render mesh, relative to the joint frame.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "is_identity_rotation")
-    )]
-    pub rotation: Quat,
-}
-
-impl RenderMeshTransform {
-    /// The bevy [`Transform`] this describes (scale left at 1). Used as the
-    /// render-mesh child entity's local transform.
-    pub fn to_transform(self) -> Transform {
-        Transform::from_translation(self.position).with_rotation(self.rotation)
-    }
 }
 
 /// One node of a turret's kinematic joint tree. Recursive. Today's turret is

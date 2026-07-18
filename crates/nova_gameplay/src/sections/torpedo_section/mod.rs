@@ -37,6 +37,14 @@ pub struct TorpedoSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub render_mesh: Option<AssetRef<WorldAsset>>,
+    /// Optional transform (position + rotation) applied to the torpedo bay's
+    /// render mesh only (the section body, not the projectile). None = the mesh
+    /// sits at the section origin (unchanged).
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub render_mesh_transform: Option<RenderMeshTransform>,
     #[reflect(ignore)]
     #[cfg_attr(
         feature = "serde",
@@ -150,6 +158,7 @@ impl Default for TorpedoSectionConfig {
     fn default() -> Self {
         Self {
             render_mesh: None,
+            render_mesh_transform: None,
             projectile_render_mesh: None,
             spawn_offset: Vec3::Y * 2.0,
             spawn_rotation: Quat::IDENTITY,
@@ -754,6 +763,7 @@ fn shoot_spawn_projectile(
                     thruster_section(ThrusterSectionConfig {
                         magnitude: 1.0,
                         render_mesh: None,
+                        render_mesh_transform: None,
                         // The torpedo's engine keeps the base hum (DIRECT path:
                         // this bundle is built at runtime outside the merge).
                         // Lifting it to a TorpedoSectionConfig field is a

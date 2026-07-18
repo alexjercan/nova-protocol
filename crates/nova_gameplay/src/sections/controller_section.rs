@@ -4,7 +4,10 @@ use avian3d::prelude::*;
 use bevy::{platform::collections::HashSet, prelude::*};
 use bevy_common_systems::prelude::*;
 
-use crate::prelude::{AssetRef, SectionDamageClass, SectionInactiveMarker, SectionRenderOf};
+use crate::prelude::{
+    AssetRef, RenderMeshTransform, SectionDamageClass, SectionInactiveMarker,
+    SectionRenderMeshTransform, SectionRenderOf,
+};
 
 pub mod prelude {
     pub use super::{
@@ -31,6 +34,13 @@ pub struct ControllerSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub render_mesh: Option<AssetRef<WorldAsset>>,
+    /// Optional transform (position + rotation) applied to the controller's
+    /// render mesh only. None = the mesh sits at the section origin (unchanged).
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub render_mesh_transform: Option<RenderMeshTransform>,
     /// The radar/lock and weapons-safety cues this computer plays, as
     /// authorable [`AssetRef<AudioSource>`]s like the render mesh (task
     /// 20260717-101633, spike 20260717-101524): the controller IS the ship's
@@ -115,6 +125,7 @@ impl Default for ControllerSectionConfig {
             damping_ratio: 2.0,
             max_torque: 1.0,
             render_mesh: None,
+            render_mesh_transform: None,
             lock_on_sound: None,
             lock_off_sound: None,
             radar_deny_sound: None,
@@ -142,6 +153,7 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
         ControllerSectionRotationInput::default(),
         ControllerSectionSounds::from_config(&config),
         ControllerSectionRenderMesh(config.render_mesh),
+        SectionRenderMeshTransform(config.render_mesh_transform),
     )
 }
 
@@ -340,6 +352,7 @@ fn insert_controller_section_render(
     q_controller: Query<
         (
             &ControllerSectionRenderMesh,
+            &SectionRenderMeshTransform,
             Has<ControllerSectionRenderMarker>,
         ),
         With<ControllerSectionMarker>,
@@ -348,7 +361,7 @@ fn insert_controller_section_render(
     let entity = add.entity;
     trace!("insert_controller_section_render: entity {:?}", entity);
 
-    let Ok((render_mesh, has_render)) = q_controller.get(entity) else {
+    let Ok((render_mesh, render_mesh_transform, has_render)) = q_controller.get(entity) else {
         error!(
             "insert_controller_section_render: entity {:?} not found in q_controller",
             entity
@@ -370,8 +383,14 @@ fn insert_controller_section_render(
     match &**render_mesh {
         Some(asset_ref) => {
             let scene = asset_ref.resolve(&asset_server);
+            // Authored render-mesh transform (identity when unset), on the mesh
+            // CHILD so it moves the art only.
+            let transform = render_mesh_transform
+                .map(RenderMeshTransform::to_transform)
+                .unwrap_or_default();
             commands.entity(entity).insert((children![(
                 Name::new("Controller Section Body"),
+                transform,
                 SectionRenderOf(entity),
                 WorldAssetRoot(scene),
             ),],));

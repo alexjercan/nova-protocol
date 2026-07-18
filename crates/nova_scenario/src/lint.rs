@@ -1473,7 +1473,10 @@ mod tests {
                         collider,
                         ..Default::default()
                     },
-                    kind: SectionKind::Hull(HullSectionConfig { render_mesh: None }),
+                    kind: SectionKind::Hull(HullSectionConfig {
+                        render_mesh: None,
+                        render_mesh_transform: None,
+                    }),
                 }),
                 modifications: vec![],
             };

@@ -32,8 +32,15 @@ pub(super) fn insert_torpedo_section_render(
     match render_mesh {
         Some(asset_ref) => {
             let scene = asset_ref.resolve(&asset_server);
+            // Authored render-mesh transform (identity when unset), on the mesh
+            // CHILD so it moves the art only.
+            let transform = config
+                .render_mesh_transform
+                .map(RenderMeshTransform::to_transform)
+                .unwrap_or_default();
             commands.entity(entity).insert((children![(
                 Name::new("Torpedo Section Body"),
+                transform,
                 SectionRenderOf(entity),
                 WorldAssetRoot(scene),
             ),],));
@@ -578,5 +585,57 @@ mod tests {
             blast_visual_step(radius, 2.0),
             blast_visual_step(radius, 1.0)
         );
+    }
+
+    /// The torpedo bay reads its `render_mesh_transform` STRAIGHT OFF THE CONFIG
+    /// (unlike hull/thruster/controller which snapshot it into a component), so
+    /// this exercises that distinct path end to end: the authored transform must
+    /// land on the meshed body render child, identity when unset (task
+    /// 20260718-121205).
+    #[test]
+    fn render_mesh_transform_positions_the_torpedo_body_render_child() {
+        use bevy::asset::AssetPlugin;
+
+        let child_transform = |xf: Option<RenderMeshTransform>| {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, AssetPlugin::default(), TransformPlugin));
+            app.init_asset::<Mesh>();
+            app.init_asset::<StandardMaterial>();
+            app.init_asset::<WorldAsset>();
+            // insert_torpedo_section spawns the body; the render observer meshes it.
+            app.add_observer(insert_torpedo_section);
+            app.add_observer(insert_torpedo_section_render);
+            app.world_mut().spawn((
+                TorpedoSectionMarker,
+                Transform::default(),
+                TorpedoSectionConfigHelper(TorpedoSectionConfig {
+                    render_mesh: Some(AssetRef::from("gltf/torpedo-bay-01.glb#Scene0".to_string())),
+                    render_mesh_transform: xf,
+                    ..Default::default()
+                }),
+            ));
+            app.world_mut().flush();
+            app.update();
+
+            let world = app.world_mut();
+            let mut q = world.query_filtered::<&Transform, With<SectionRenderOf>>();
+            let found: Vec<Transform> = q.iter(world).copied().collect();
+            assert_eq!(
+                found.len(),
+                1,
+                "one meshed torpedo body render child expected"
+            );
+            found[0]
+        };
+
+        let authored = RenderMeshTransform {
+            position: Vec3::new(0.0, 0.3, -0.2),
+            rotation: Quat::from_rotation_x(std::f32::consts::FRAC_PI_4),
+        };
+        let got = child_transform(Some(authored));
+        assert_eq!(got.translation, authored.position);
+        assert!(got.rotation.abs_diff_eq(authored.rotation, 1e-5));
+
+        assert_eq!(child_transform(None), Transform::IDENTITY);
     }
 }

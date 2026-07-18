@@ -9,7 +9,10 @@ use bevy::{
 };
 use bevy_common_systems::prelude::*;
 
-use crate::prelude::{AssetRef, SectionDamageClass, SectionInactiveMarker, SectionRenderOf};
+use crate::prelude::{
+    AssetRef, RenderMeshTransform, SectionDamageClass, SectionInactiveMarker,
+    SectionRenderMeshTransform, SectionRenderOf,
+};
 
 pub mod prelude {
     pub use super::{
@@ -34,6 +37,13 @@ pub struct ThrusterSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub render_mesh: Option<AssetRef<WorldAsset>>,
+    /// Optional transform (position + rotation) applied to the thruster's render
+    /// mesh only. None = the mesh sits at the section origin (unchanged).
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub render_mesh_transform: Option<RenderMeshTransform>,
     /// The engine-hum loop this thruster contributes to. An authorable
     /// [`AssetRef<AudioSource>`] like the render mesh (task 20260717-101650,
     /// spike 20260717-101524): thrusters sharing a sound share one loop entity
@@ -70,6 +80,7 @@ impl Default for ThrusterSectionConfig {
         Self {
             magnitude: THRUSTER_SECTION_DEFAULT_MAGNITUDE,
             render_mesh: None,
+            render_mesh_transform: None,
             loop_sound: None,
             exhaust: None,
         }
@@ -92,6 +103,7 @@ pub fn thruster_section(config: ThrusterSectionConfig) -> impl Bundle {
         ThrusterSectionInput(0.0),
         ThrusterSectionLoopSound(config.loop_sound.clone()),
         ThrusterSectionRenderMesh(config.render_mesh),
+        SectionRenderMeshTransform(config.render_mesh_transform),
         ThrusterSectionExhaust(config.exhaust),
     )
 }
@@ -405,6 +417,7 @@ fn insert_thruster_section_render(
     q_thruster: Query<
         (
             &ThrusterSectionRenderMesh,
+            &SectionRenderMeshTransform,
             &ThrusterSectionExhaust,
             Has<ThrusterSectionRenderMarker>,
         ),
@@ -414,7 +427,8 @@ fn insert_thruster_section_render(
     let entity = add.entity;
     trace!("insert_thruster_section_render: entity {:?}", entity);
 
-    let Ok((render_mesh, exhaust, has_render)) = q_thruster.get(entity) else {
+    let Ok((render_mesh, render_mesh_transform, exhaust, has_render)) = q_thruster.get(entity)
+    else {
         error!(
             "insert_thruster_section_render: entity {:?} not found in q_thruster",
             entity
@@ -434,8 +448,14 @@ fn insert_thruster_section_render(
     match &**render_mesh {
         Some(asset_ref) => {
             let scene = asset_ref.resolve(&asset_server);
+            // Authored render-mesh transform (identity when unset), on the mesh
+            // CHILD so it moves the art only.
+            let transform = render_mesh_transform
+                .map(RenderMeshTransform::to_transform)
+                .unwrap_or_default();
             commands.entity(entity).insert((children![(
                 Name::new("Thruster Section Body"),
+                transform,
                 SectionRenderOf(entity),
                 WorldAssetRoot(scene),
             ),],));

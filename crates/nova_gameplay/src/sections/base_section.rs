@@ -12,8 +12,8 @@ use crate::{
 pub mod prelude {
     pub use super::{
         base_section, preview_section, BaseSectionConfig, GameSections, ImpactDestroySounds,
-        SectionCollider, SectionConfig, SectionInactiveMarker, SectionKind, SectionMarker,
-        SectionRenderOf,
+        RenderMeshTransform, SectionCollider, SectionConfig, SectionInactiveMarker, SectionKind,
+        SectionMarker, SectionRenderMeshTransform, SectionRenderOf,
     };
 }
 
@@ -73,6 +73,62 @@ impl SectionCollider {
         }
     }
 }
+
+/// Skip serializing a zero translation - the common case for a render-mesh
+/// transform that only reorients (or is authored purely for symmetry with a
+/// sibling). Keeps `render_mesh_transform` blocks minimal.
+#[cfg(feature = "serde")]
+fn is_zero_translation(v: &Vec3) -> bool {
+    *v == Vec3::ZERO
+}
+
+/// Skip serializing an identity rotation - the common case for a render-mesh
+/// transform that only translates.
+#[cfg(feature = "serde")]
+fn is_identity_rotation(q: &Quat) -> bool {
+    *q == Quat::IDENTITY
+}
+
+/// An authored transform (position + rotation) applied to a section's RENDER
+/// MESH only, relative to the section's own frame. It never touches the
+/// section's physics/kinematic transform, so art can be nudged or reoriented
+/// without moving the collider or (for turrets) disturbing the joint tree.
+/// Position and rotation are authored independently (each defaults out), so a
+/// mesh that only needs a small rotation writes just `rotation`, and a nudge
+/// writes just `position`. Shared by every section kind (turret joints carry it
+/// per-joint; hull/thruster/controller/torpedo carry it per-section).
+#[derive(Clone, Copy, Debug, PartialEq, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct RenderMeshTransform {
+    /// Local translation of the render mesh, relative to the section origin.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "is_zero_translation")
+    )]
+    pub position: Vec3,
+    /// Local rotation of the render mesh, relative to the section frame.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "is_identity_rotation")
+    )]
+    pub rotation: Quat,
+}
+
+impl RenderMeshTransform {
+    /// The bevy [`Transform`] this describes (scale left at 1). Used as the
+    /// render-mesh child entity's local transform.
+    pub fn to_transform(self) -> Transform {
+        Transform::from_translation(self.position).with_rotation(self.rotation)
+    }
+}
+
+/// A section's authored render-mesh transform, snapshotted from its config so
+/// the kind-specific render observer can apply it to the mesh child without
+/// re-reading the config. `None` = identity (unchanged behavior). Hull,
+/// thruster and controller sections carry this; turret joints use their own
+/// per-joint carrier, and the torpedo body reads it straight off the config.
+#[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
+pub struct SectionRenderMeshTransform(pub Option<RenderMeshTransform>);
 
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct SectionMarker;

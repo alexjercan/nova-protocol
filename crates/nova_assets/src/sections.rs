@@ -183,6 +183,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
             },
             kind: SectionKind::Hull(HullSectionConfig {
                 render_mesh: Some(meshes.hull.clone()),
+                render_mesh_transform: None,
             }),
         },
         SectionConfig {
@@ -201,6 +202,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
             kind: SectionKind::Thruster(ThrusterSectionConfig {
                 magnitude: 1.0,
                 render_mesh: None,
+                render_mesh_transform: None,
                 loop_sound: Some(meshes.thruster_loop_sound.clone()),
                 exhaust: None,
             }),
@@ -236,6 +238,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 // action (the shakedown's GOTO-off intro) rather than baking it
                 // into this shared catalog entry, which the pirate reuses too.
                 render_mesh: None,
+                render_mesh_transform: None,
                 lock_on_sound: Some(meshes.controller_lock_on_sound.clone()),
                 lock_off_sound: Some(meshes.controller_lock_off_sound.clone()),
                 radar_deny_sound: Some(meshes.controller_radar_deny_sound.clone()),
@@ -308,6 +311,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
             },
             kind: SectionKind::Hull(HullSectionConfig {
                 render_mesh: Some(meshes.hull.clone()),
+                render_mesh_transform: None,
             }),
         },
         SectionConfig {
@@ -375,6 +379,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
             },
             kind: SectionKind::Torpedo(TorpedoSectionConfig {
                 render_mesh: Some(meshes.torpedo_bay.clone()),
+                render_mesh_transform: None,
                 projectile_render_mesh: None,
                 spawn_offset: Vec3::NEG_Z * 2.0,
                 spawn_rotation: Quat::IDENTITY,

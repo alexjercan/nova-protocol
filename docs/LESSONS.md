@@ -443,12 +443,14 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   `--all-targets` doubled as proof the scoped sweep hit only TurretJoint
   literals (wrong-struct = "unknown field", missed = "missing field").
   20260712-140250, 20260716-155849, 20260717-165031.
-- `register-assets-for-new-test-path` (x1): a Bevy test copied from a neighbor
+- `register-assets-for-new-test-path` (x2): a Bevy test copied from a neighbor
   can omit resources the NEW path needs. A render test reused from unmeshed
   joints panicked because the meshed path calls `asset_server.load::<WorldAsset>`
   and the app only `init_asset`'d Mesh/StandardMaterial; also use schemeless
   asset paths (a `dep://` source is unregistered in tests) and `Quat::abs_diff_eq`
-  (not `angle_between`) for orientation equality. 20260718-113307.
+  (not `angle_between`) for orientation equality. 20260718-113307,
+  20260718-121205 (applying all three pre-emptively made the new render tests
+  pass first try).
 - `mod-facing-surface-plans-failure-paths` (x1): a task exposing a surface to
   MOD DATA must plan its failure paths up front - enumerate "what breaks when a
   mod does this badly" (missing entity contracts, empty sets, unregistered ids)
