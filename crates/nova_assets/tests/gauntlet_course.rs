@@ -537,8 +537,8 @@ fn on_start_spawns_the_full_gate_run() {
 #[test]
 fn bundle_ships_the_bumped_version() {
     assert!(
-        GAUNTLET_BUNDLE_RON.contains("version: \"1.1.0\""),
-        "the bundle is bumped to 1.1.0 for the republish"
+        GAUNTLET_BUNDLE_RON.contains("version: \"1.2.0\""),
+        "the bundle is bumped to 1.2.0 for the republish"
     );
     assert!(
         GAUNTLET_BUNDLE_RON.contains("gauntlet.content.ron"),
