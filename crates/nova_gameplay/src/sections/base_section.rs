@@ -176,6 +176,22 @@ pub struct BaseSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub collider: Option<SectionCollider>,
+    /// When true this section is hidden from the editor sandbox's section
+    /// palette - it can still be authored and spawned, it just does not clutter
+    /// the picker. Used for the cut-cube spaceship prototypes (racer/cargob/
+    /// cargoa), which are dozens of near-identical hull tiles that only make
+    /// sense assembled into a ship, not placed one at a time. Serde-defaulted to
+    /// false, so ordinary sections omit it; author a hidden one as
+    /// `hide_in_editor: true`.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
+    pub hide_in_editor: bool,
+}
+
+/// `skip_serializing_if` predicate for a `bool` that defaults to false: omit it
+/// from the serialized RON when false so unflagged sections stay clean.
+#[cfg(feature = "serde")]
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 /// A damage target's authored impact/destroy sounds, snapshotted UNRESOLVED
@@ -342,6 +358,7 @@ mod tests {
             collider: Some(SectionCollider::Cuboid {
                 size: Vec3::new(0.8, 0.8, 0.8),
             }),
+            hide_in_editor: false,
         };
         let ron = ron::ser::to_string(&authored).expect("serialize");
         let back: BaseSectionConfig = ron::from_str(&ron).expect("deserialize");
@@ -360,5 +377,39 @@ mod tests {
         );
         let back: BaseSectionConfig = ron::from_str(&ron).expect("deserialize");
         assert_eq!(back.collider, None);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn hide_in_editor_defaults_false_round_trips_and_is_omitted_when_unset() {
+        // Defaults to false and is skipped, so ordinary content stays clean.
+        let visible = BaseSectionConfig {
+            id: "s".to_string(),
+            name: "s".to_string(),
+            description: String::new(),
+            mass: 1.0,
+            health: 100.0,
+            impact_sound: None,
+            destroy_sound: None,
+            collider: None,
+            hide_in_editor: false,
+        };
+        let ron = ron::ser::to_string(&visible).expect("serialize");
+        assert!(
+            !ron.contains("hide_in_editor"),
+            "an unset hide_in_editor must not serialize: {ron}"
+        );
+        let back: BaseSectionConfig = ron::from_str(&ron).expect("deserialize");
+        assert!(!back.hide_in_editor);
+
+        // When flagged it survives the round-trip.
+        let hidden = BaseSectionConfig {
+            hide_in_editor: true,
+            ..visible
+        };
+        let ron = ron::ser::to_string(&hidden).expect("serialize");
+        assert!(ron.contains("hide_in_editor:true"), "flagged: {ron}");
+        let back: BaseSectionConfig = ron::from_str(&ron).expect("deserialize");
+        assert!(back.hide_in_editor);
     }
 }
