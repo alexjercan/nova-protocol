@@ -417,6 +417,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
     // base campaign AND downloaded mods (task craft-ships-into-base).
     sections.extend(crate::scenario::craft::racer_prototypes(meshes));
     sections.extend(crate::scenario::craft::cargob_prototypes(meshes));
+    sections.extend(crate::scenario::craft::cargoa_prototypes(meshes));
     sections
 }
 

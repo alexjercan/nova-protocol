@@ -183,12 +183,15 @@ fn backdrop_orbiter(
     id: &str,
     name: &str,
     position: Vec3,
-    // Kept for call-site intent; every backdrop orbiter is now the same full
-    // racer (craft-ships-into-base), so the old extra-hull silhouette knob is a
-    // no-op.
-    _extra_hull: bool,
+    // The hauler silhouette knob: `true` flies the wide unarmed cargoa (the
+    // waystation freighters), `false` the racer (the scrapyard tug).
+    cargo: bool,
 ) -> ScenarioObjectConfig {
-    let sections = craft::racer_sections(craft::ShipGrade::Player, vec![]);
+    let sections = if cargo {
+        craft::cargoa_sections()
+    } else {
+        craft::racer_sections(craft::ShipGrade::Player, vec![])
+    };
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),

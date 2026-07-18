@@ -31,6 +31,19 @@ const CARGOB_CUBES: &[(i32, i32, i32)] = &[
     (-1, 2, 1), (-1, 2, 2), (-1, 2, -1), (-1, 2, -2),
 ];
 
+// The cargoa - a wider, unarmed cargo hauler (no turrets, no torpedoes): hull
+// cubes plus two rear thrusters and a hollow-core controller. Used for NEUTRAL
+// ships (the campaign hauler, the ledger scout/escort, the waystation haulers).
+const CARGOA_CUBES: &[(i32, i32, i32)] = &[
+    (0, 0, 0), (0, 0, 1), (0, 0, 2), (0, 0, -1), (0, 1, 1), (0, 1, 2), (0, 1, -1), (0, 1, -2),
+    (0, 2, 0), (0, 2, 1), (0, 2, -1), (0, 2, -2), (1, 0, 0), (1, 0, 1), (1, 0, 2), (1, 0, -1),
+    (1, 1, 0), (1, 1, 1), (1, 1, 2), (1, 1, -1), (1, 1, -2), (1, 2, 0), (1, 2, 1), (1, 2, -1),
+    (1, 2, -2), (2, 0, 0), (2, 0, 1), (2, 0, -1), (2, 1, 0), (2, 1, 1), (2, 1, 2), (2, 1, -1),
+    (-1, 0, 0), (-1, 0, 1), (-1, 0, 2), (-1, 0, -1), (-1, 1, 0), (-1, 1, 1), (-1, 1, 2),
+    (-1, 1, -1), (-1, 1, -2), (-1, 2, 0), (-1, 2, 1), (-1, 2, -1), (-1, 2, -2), (-2, 0, 0),
+    (-2, 0, 1), (-2, 0, -1), (-2, 1, 0), (-2, 1, 1), (-2, 1, 2), (-2, 1, -1),
+];
+
 /// The two racer turret cubes, in section-id form - the player binds both to its
 /// fire input.
 pub(crate) const RACER_TURRET_IDS: [&str; 2] = ["cube_i1_j0_km1", "cube_im1_j0_km1"];
@@ -43,6 +56,7 @@ const RACER_CONTROLLER_HP: f32 = 100.0;
 const RACER_TURRET_HP: f32 = 130.0;
 const RACER_LIGHT_TURRET_HP: f32 = 60.0;
 const CARGOB_HULL_HP: f32 = 70.0;
+const CARGOA_HULL_HP: f32 = 70.0;
 // AI-scavenger health overrides on the shared player-grade prototypes.
 const ENEMY_HULL_HP: f32 = 35.0;
 const ENEMY_THRUSTER_HP: f32 = 25.0;
@@ -340,6 +354,39 @@ pub(crate) fn cargob_prototypes(m: &SectionMeshRefs) -> Vec<SectionConfig> {
     out
 }
 
+/// The cargoa hauler's section prototypes: one prototype per cut cube
+/// (`cargoa_cube_*`) plus the hollow-core controller (`cargoa_core_controller`).
+/// Unarmed - hull cubes and two rear thrusters only - so it fits neutral,
+/// no-guns roles (campaign hauler, ledger scout/escort, waystation traffic).
+pub(crate) fn cargoa_prototypes(m: &SectionMeshRefs) -> Vec<SectionConfig> {
+    let desc = "A cut hull cube of the Kenney craft_cargoA.";
+    let mut out = Vec::new();
+    for &(i, j, k) in CARGOA_CUBES {
+        let s = stem(i, j, k);
+        let id = format!("cargoa_{s}");
+        let mesh = cube_mesh("cargoa", i, j, k);
+        match (i, j, k) {
+            (1, 1, 2) | (-1, 1, 2) => {
+                let off_x = if i > 0 { 0.2 } else { -0.2 };
+                out.push(proto(id, format!("Cargo Thruster ({i},{j},{k})"), desc, RACER_THRUSTER_HP, m, rect_exhaust(m, mesh, Vec3::new(off_x, -0.1, 0.4), 0.56, 0.4), None));
+            }
+            _ => {
+                out.push(proto(id, format!("Cargo Cube ({i},{j},{k})"), desc, CARGOA_HULL_HP, m, hull_kind(mesh), None));
+            }
+        }
+    }
+    out.push(proto(
+        "cargoa_core_controller".to_string(),
+        "Core Controller".to_string(),
+        "The ship's controller, in the hollow core cell.",
+        RACER_CONTROLLER_HP,
+        m,
+        controller_kind(m, None, 800.0),
+        None,
+    ));
+    out
+}
+
 // ---------------------------------------------------------------------------
 // SHIP BUILDERS (compact prototype references; mods author the same shape).
 // ---------------------------------------------------------------------------
@@ -416,6 +463,26 @@ pub(crate) fn cargob_sections() -> Vec<SpaceshipSectionConfig> {
         Vec3::new(0.0, 1.0, 0.0),
         Quat::IDENTITY,
         "cargob_core_controller".to_string(),
+        vec![],
+    ));
+    out
+}
+
+/// The cargoa hauler's sections as prototype references (a single neutral grade;
+/// the ship carries no weapons). All cubes sit at identity rotation; the hollow
+/// core (0,1,0) gets the `cargoa_core_controller`.
+pub(crate) fn cargoa_sections() -> Vec<SpaceshipSectionConfig> {
+    let mut out = Vec::new();
+    for &(i, j, k) in CARGOA_CUBES {
+        let s = stem(i, j, k);
+        let pos = Vec3::new(i as f32, j as f32, k as f32);
+        out.push(ship_section(s.clone(), pos, Quat::IDENTITY, format!("cargoa_{s}"), vec![]));
+    }
+    out.push(ship_section(
+        "core_controller".to_string(),
+        Vec3::new(0.0, 1.0, 0.0),
+        Quat::IDENTITY,
+        "cargoa_core_controller".to_string(),
         vec![],
     ));
     out

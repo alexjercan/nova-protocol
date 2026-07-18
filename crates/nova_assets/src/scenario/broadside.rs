@@ -41,8 +41,8 @@ use nova_scenario::prelude::*;
 use super::{
     craft::{self, ShipGrade},
     shakedown::{
-        complete, destroyed, emphasize, eq_num, lt_num, mark, num, objective, player_enters,
-        section, set, spawn, unmark,
+        complete, destroyed, emphasize, eq_num, lt_num, mark, num, objective, player_enters, set,
+        spawn, unmark,
     },
     SCATTER_SEED,
 };
@@ -150,11 +150,9 @@ fn hauler_ship() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
             allegiance: Some(Allegiance::Neutral),
-            sections: vec![
-                section("hull_bow", "light_hull_section", Vec3::Z),
-                section("hull_mid", "light_hull_section", Vec3::ZERO),
-                section("hull_stern", "light_hull_section", Vec3::NEG_Z),
-            ],
+            // The Ceres Queen is the cargoa hauler - a wide, unarmed cargo hull
+            // that reads as a civilian freighter caught in the crossfire.
+            sections: craft::cargoa_sections(),
         }),
     }
 }

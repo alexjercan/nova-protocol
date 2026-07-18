@@ -343,16 +343,6 @@ fn crate_object(index: usize, position: Vec3) -> ScenarioObjectConfig {
     }
 }
 
-pub(crate) fn section(id: &str, section_id: &str, position: Vec3) -> SpaceshipSectionConfig {
-    SpaceshipSectionConfig {
-        id: id.to_string(),
-        position,
-        rotation: Quat::IDENTITY,
-        source: SectionSource::Prototype(section_id.to_string()),
-        modifications: vec![],
-    }
-}
-
 /// The shakedown ship: deliberately minimal - controller, one hull, one
 /// thruster, ONE turret (no torpedo bay). One of everything keeps the
 /// component-cycle lesson trivially readable.
