@@ -162,6 +162,14 @@ const RCS_PLAYER_INTENT_DECAY: f32 = 0.4;
 #[reflect(Component)]
 pub struct RcsSpeedCap(pub f32);
 
+/// Fraction of `rcs_accel` the local gravity accel must stay under for the
+/// autopilot to hand ORBIT station-keeping to the RCS trim (task
+/// 20260718-204640). At 0.5 the RCS push has 2x authority over the inward pull,
+/// enough headroom to correct a perturbation; above it the main drive (full
+/// authority) keeps the orbit. The menu planetoid's ~2.2 u/s^2 pull far exceeds
+/// `rcs_accel * 0.5 = 0.75`, so its orbits stay on the main drive.
+const RCS_ORBIT_GRAVITY_AUTHORITY: f32 = 0.5;
+
 /// World-frame REFERENCE velocity the RCS cap is measured against, on the ship
 /// root. [`rcs_burn_system`] caps the along-axis component of `velocity -
 /// reference`, not of the absolute velocity - so RCS can trim a fast-moving
@@ -1515,6 +1523,10 @@ fn autopilot_system(
         // 20260718-151102), which only applies while station-keeping - the
         // desired is a fast orbital velocity, not a rest goal.
         let mut is_orbit = false;
+        // The local gravitational acceleration at the orbiting ship, `mu/r^2`,
+        // set by the Orbit arm. The RCS trim may only take the orbit when it has
+        // clear authority over this pull (task 20260718-204640).
+        let mut orbit_gravity_accel = 0.0f32;
         let desired = match autopilot.action {
             AutopilotAction::Stop => {
                 // STOP has a spatial goal too: the predicted rest point.
@@ -1618,6 +1630,9 @@ fn autopilot_system(
                 let Some(plan) = plan else { continue };
                 is_orbit = true;
                 let r_vec = position.0 - well_position.0;
+                // Local gravity accel `mu/r^2` - the inward pull the RCS trim
+                // would have to counter if it took the orbit (task 20260718-204640).
+                orbit_gravity_accel = well_data.mu / r_vec.length_squared().max(1e-3);
                 let to_ring = orbit_ring_offset(r_vec, &plan);
                 let brake_dir = -to_ring
                     .try_normalize()
@@ -1691,7 +1706,16 @@ fn autopilot_system(
         let use_rcs_settle = rcs_capable
             && desired.length() <= settings.stop_speed_epsilon
             && velocity.length() < rcs_cap;
-        let use_rcs_orbit = rcs_capable && is_orbit && error_speed < rcs_cap;
+        // The RCS trim takes the orbit only where it has CLEAR authority over
+        // the local gravity: its `rcs_accel` push must comfortably exceed the
+        // inward pull `mu/r^2`, or a perturbed ship spirals into the well faster
+        // than RCS can correct - the menu ambience ships crashing the asteroid
+        // (task 20260718-204640). In a strong well the main drive (full
+        // authority) keeps the orbit, exactly as it did before the RCS trim.
+        let rcs_has_orbit_authority =
+            orbit_gravity_accel < settings.rcs_accel * RCS_ORBIT_GRAVITY_AUTHORITY;
+        let use_rcs_orbit =
+            rcs_capable && is_orbit && rcs_has_orbit_authority && error_speed < rcs_cap;
         let use_rcs = use_rcs_settle || use_rcs_orbit;
         // The reference the cap is measured against: the orbital velocity while
         // trimming an orbit, zero otherwise (absolute cap). Written EVERY tick so
@@ -3802,6 +3826,87 @@ mod tests {
                 ),
             ))
             .id()
+    }
+
+    /// A STRONG well, like the menu planetoid: surface gravity 6 at a ~85u
+    /// geometric radius gives `mu ~= 43000`, so at an r=140 orbit the local
+    /// gravity accel `mu/r^2 ~= 2.2 u/s^2` EXCEEDS `rcs_accel` (1.5). The RCS
+    /// fine-adjust cannot counter that inward pull.
+    fn spawn_strong_well(app: &mut App) -> Entity {
+        app.world_mut()
+            .spawn((
+                RigidBody::Static,
+                Transform::default(),
+                crate::gravity::GravityWell::from_surface_gravity(
+                    6.0,
+                    85.0,
+                    &GravitySettings::default(),
+                ),
+            ))
+            .id()
+    }
+
+    /// Regression for task 20260718-204640 (the two menu ambience ships crashed
+    /// the asteroid and could not hold orbit). In a STRONG well - local gravity
+    /// accel above the RCS accel - the error-relative ORBIT trim (task
+    /// 20260718-151102) must NOT take over station-keeping: a 1.5 u/s^2 RCS
+    /// cannot hold against a >1.5 u/s^2 inward pull, so handing it the orbit and
+    /// zeroing the main drive spirals the ship in. The `use_rcs_orbit` gate now
+    /// requires RCS to have clear authority over local gravity; here it does not,
+    /// so the ship keeps the ring on the full-authority main drive and RCS stays
+    /// idle. WITHOUT the gate (the un-fixed 20260718-151102 behavior) the radius
+    /// collapses and this fails.
+    #[test]
+    fn strong_gravity_orbit_holds_the_ring_on_the_main_drive_not_rcs() {
+        let mut app = orbit_app();
+        let well = spawn_strong_well(&mut app);
+        let (ship, _, _) = spawn_ship(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Transform::from_xyz(140.0, 0.0, 0.0));
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Orbit {
+                well,
+                plan: None,
+            }));
+
+        // Let the insertion settle, then watch a long hold.
+        run(&mut app, 3000);
+        let plan_radius = match app.world().get::<Autopilot>(ship) {
+            Some(Autopilot {
+                action:
+                    AutopilotAction::Orbit {
+                        plan: Some(plan), ..
+                    },
+                ..
+            }) => plan.radius,
+            other => panic!("ORBIT should stay engaged with a plan, got {other:?}"),
+        };
+
+        let mut r_min = f32::MAX;
+        let mut saw_rcs = false;
+        for _ in 0..5000 {
+            app.update();
+            r_min = r_min.min(position_of(&app, ship).length());
+            if app
+                .world()
+                .get::<RcsIntent>(ship)
+                .is_some_and(|i| i.0.length() > 1e-3)
+            {
+                saw_rcs = true;
+            }
+        }
+
+        assert!(
+            r_min > 0.6 * plan_radius,
+            "the ship must hold the ring, not spiral into the rock (r_min {r_min}, plan {plan_radius})"
+        );
+        assert!(
+            !saw_rcs,
+            "in a strong well the orbit stays on the main drive - RCS lacks the authority, so it must not engage"
+        );
     }
 
     /// ORBIT trims via the error-relative RCS (task 20260718-151102), but ONLY
