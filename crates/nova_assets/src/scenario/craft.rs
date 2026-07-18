@@ -213,6 +213,7 @@ fn controller_kind(
         radar_deny_sound: Some(m.controller_radar_deny_sound.clone()),
         radar_retarget_sound: Some(m.controller_radar_retarget_sound.clone()),
         safety_on_sound: Some(m.controller_safety_on_sound.clone()),
+        rcs_loop_sound: Some(m.controller_rcs_loop_sound.clone()),
     })
 }
 

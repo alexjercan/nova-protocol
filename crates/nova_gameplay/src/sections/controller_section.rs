@@ -85,6 +85,18 @@ pub struct ControllerSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub safety_on_sound: Option<AssetRef<AudioSource>>,
+    /// RCS fine-adjust LOOP: plays continuously while this controller is burning
+    /// the RCS primitive - whether the player is holding SHIFT or the autopilot
+    /// is trimming an ORBIT / settling a STOP (task 20260718-201532). Unlike the
+    /// five one-shot cues above this is a sustained loop, resolved and volume-
+    /// tracked by the audio module (one loop per distinct handle), exactly like a
+    /// thruster's `loop_sound`. AUTHORED-OR-SILENT: `None` plays nothing.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub rcs_loop_sound: Option<AssetRef<AudioSource>>,
 }
 
 /// The controller's authored feedback sounds, snapshotted UNRESOLVED from
@@ -104,6 +116,8 @@ pub(crate) struct ControllerSectionSounds {
     pub radar_retarget: Option<AssetRef<AudioSource>>,
     #[reflect(ignore)]
     pub safety_on: Option<AssetRef<AudioSource>>,
+    #[reflect(ignore)]
+    pub rcs_loop: Option<AssetRef<AudioSource>>,
 }
 
 impl ControllerSectionSounds {
@@ -114,6 +128,7 @@ impl ControllerSectionSounds {
             radar_deny: config.radar_deny_sound.clone(),
             radar_retarget: config.radar_retarget_sound.clone(),
             safety_on: config.safety_on_sound.clone(),
+            rcs_loop: config.rcs_loop_sound.clone(),
         }
     }
 }
@@ -131,6 +146,7 @@ impl Default for ControllerSectionConfig {
             radar_deny_sound: None,
             radar_retarget_sound: None,
             safety_on_sound: None,
+            rcs_loop_sound: None,
         }
     }
 }

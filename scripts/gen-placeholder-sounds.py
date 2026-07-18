@@ -41,6 +41,11 @@ SOUNDS = {
     # Thruster engine loop: a steady low hum, rendered to loop seamlessly (an
     # integer number of cycles at both partials, no fade envelope).
     "thruster_loop": ("tone", 70.0, 140.0, 1.0, 0.18),
+    # RCS fine-adjust loop: an airy cold-gas hiss, rendered to loop seamlessly
+    # (low-passed noise with an overlap crossfade at the seam). Higher and
+    # breathier than the low thruster hum so a nudge never blurs with the main
+    # drive; quieter, since RCS is a gentle station-keeping push.
+    "rcs_loop": ("hiss", 0.0, 0.0, 0.8, 0.16),
     # New objective posted: short neutral blip.
     "objective_new": ("sweep", 520.0, 560.0, 0.12, 0.20),
     # Objective completed: rising fifth, reads as success.
@@ -96,6 +101,31 @@ def render(kind, f0, f1, duration, amp):
             sample = 0.7 * math.sin(2.0 * math.pi * cyc0 * t)
             sample += 0.3 * math.sin(2.0 * math.pi * cyc1 * t)
             frames += struct.pack("<h", int(_clamp_sample(amp * sample) * 32767.0))
+        return bytes(frames)
+
+    if kind == "hiss":
+        # Sustained airy hiss (RCS cold-gas thrusters): white noise through a
+        # one-pole low-pass (breathy, not harsh), rendered to loop seamlessly.
+        # A steady loop has no decay envelope; instead the loop SEAM is made
+        # click-free with an overlap crossfade - the `seam` samples that follow
+        # the loop point are mixed back over the head, so sample n-1 flows into
+        # sample 0 the way it flowed into sample n.
+        if total <= 0:
+            return bytes(frames)
+        seam = max(1, min(total, int(SAMPLE_RATE * 0.02)))  # ~20 ms crossfade
+        lp = 0.0
+        coeff = 0.35  # one-pole low-pass -> airy hiss around a couple of kHz
+        smoothed = []
+        for _ in range(total + seam):
+            lp += coeff * (random.uniform(-1.0, 1.0) - lp)
+            smoothed.append(lp)
+        out = smoothed[:total]
+        for k in range(seam):
+            w = k / seam
+            out[k] = out[k] * w + smoothed[total + k] * (1.0 - w)
+        peak = max(1e-6, max(abs(s) for s in out))
+        for s in out:
+            frames += struct.pack("<h", int(_clamp_sample(amp * s / peak) * 32767.0))
         return bytes(frames)
 
     # One-shot cues: fast quadratic decay so they read as transients, with a

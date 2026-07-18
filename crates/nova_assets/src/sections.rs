@@ -129,6 +129,9 @@ pub struct SectionMeshRefs {
     pub controller_radar_deny_sound: AssetRef<AudioSource>,
     pub controller_radar_retarget_sound: AssetRef<AudioSource>,
     pub controller_safety_on_sound: AssetRef<AudioSource>,
+    /// The controller's RCS fine-adjust loop (task 20260718-201532): plays while
+    /// the RCS primitive burns, player- or autopilot-driven.
+    pub controller_rcs_loop_sound: AssetRef<AudioSource>,
     /// Per-target hit/destruction voices, shared by every catalog section
     /// (task 20260717-101641); asteroids author the same two in scenario
     /// content.
@@ -158,6 +161,7 @@ impl SectionMeshRefs {
                 "self://sounds/radar_retarget.wav".to_string(),
             ),
             controller_safety_on_sound: AssetRef::from("self://sounds/safety_on.wav".to_string()),
+            controller_rcs_loop_sound: AssetRef::from("self://sounds/rcs_loop.wav".to_string()),
             section_impact_sound: AssetRef::from("self://sounds/impact.wav".to_string()),
             section_destroy_sound: AssetRef::from("self://sounds/explosion.wav".to_string()),
             thruster_loop_sound: AssetRef::from("self://sounds/thruster_loop.wav".to_string()),
@@ -247,6 +251,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 radar_deny_sound: Some(meshes.controller_radar_deny_sound.clone()),
                 radar_retarget_sound: Some(meshes.controller_radar_retarget_sound.clone()),
                 safety_on_sound: Some(meshes.controller_safety_on_sound.clone()),
+                rcs_loop_sound: Some(meshes.controller_rcs_loop_sound.clone()),
             }),
         },
         SectionConfig {

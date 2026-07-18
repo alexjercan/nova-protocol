@@ -177,6 +177,10 @@ const EXPLOSION_MIN_INTERVAL: f32 = 0.06;
 /// Loudest the engine hum ever gets (at full thrust), on the linear scale.
 const ENGINE_MAX_VOLUME: f32 = 0.3;
 
+/// Loudest the RCS fine-adjust loop ever gets (at full-deflection intent).
+/// Below [`ENGINE_MAX_VOLUME`]: RCS is a gentle nudge, not the main drive.
+const RCS_MAX_VOLUME: f32 = 0.22;
+
 /// Per-source throttle key. Turret fire is keyed by the firing turret entity so
 /// each gun sounds independently (even two guns on one ship); the area cues are
 /// keyed by a quantized world cell so a co-located burst collapses to one sound
@@ -229,6 +233,14 @@ impl SfxThrottle {
 /// Pure for tests.
 fn engine_volume(avg_throttle: f32) -> f32 {
     avg_throttle.clamp(0.0, 1.0) * ENGINE_MAX_VOLUME
+}
+
+/// RCS fine-adjust loop volume from the ship's `RcsIntent` magnitude (the burn
+/// effort, ~0..1 per axis; a diagonal command can exceed 1, hence the clamp).
+/// A touch quieter than the main-drive hum ([`RCS_MAX_VOLUME`] < ENGINE_MAX):
+/// RCS is a gentle station-keeping push, not a burn. Pure for tests.
+fn rcs_volume(effort: f32) -> f32 {
+    effort.clamp(0.0, 1.0) * RCS_MAX_VOLUME
 }
 
 /// Distance rolloff in [0, 1]: full within [`SFX_NEAR_DISTANCE`], zero beyond
@@ -315,8 +327,8 @@ impl Plugin for NovaAudioPlugin {
         // Audio sinks do not follow Time<Virtual>: without this the thruster
         // hum keeps roaring at its last volume behind the pause overlay
         // (review R1.5).
-        app.add_systems(OnEnter(crate::PauseStates::Paused), pause_thruster_loops);
-        app.add_systems(OnExit(crate::PauseStates::Paused), resume_thruster_loops);
+        app.add_systems(OnEnter(crate::PauseStates::Paused), pause_loops);
+        app.add_systems(OnExit(crate::PauseStates::Paused), resume_loops);
 
         app.add_observer(on_destroyed_play_explosion);
         app.add_observer(on_damage_play_impact);
@@ -348,6 +360,22 @@ impl Plugin for NovaAudioPlugin {
                 ensure_thruster_loops,
                 compute_thruster_hum_volume,
                 apply_thruster_loop_volume,
+            )
+                .chain()
+                .in_set(SpaceshipSectionSystems),
+        );
+
+        // The RCS fine-adjust loop (task 20260718-201532) polls `RcsIntent`,
+        // written by the player modal and the autopilot both, so it joins the
+        // same scenario-gated set as the thruster hum for the same reasons
+        // (silent in the editor, muted on pause).
+        app.init_resource::<RcsLoopVolume>();
+        app.add_systems(
+            Update,
+            (
+                ensure_rcs_loops,
+                compute_rcs_loop_volume,
+                apply_rcs_loop_volume,
             )
                 .chain()
                 .in_set(SpaceshipSectionSystems),
@@ -898,6 +926,124 @@ fn apply_thruster_loop_volume(
     let master = master.map(|m| m.factor()).unwrap_or(1.0);
     for (mut sink, sfx) in &mut q_sink {
         let smoothed = hum.hums.get(&sfx.0).map(|l| l.smoothed).unwrap_or(0.0);
+        sink.set_volume(Volume::Linear(smoothed * master));
+    }
+}
+
+/// Marker for one looping RCS-hiss audio entity, keyed by the resolved
+/// [`Handle<AudioSource>`] it loops (one entity per DISTINCT authored
+/// controller `rcs_loop`, mirroring [`ThrusterLoopSfx`]). Persists for the
+/// session; an idle loop holds volume 0.
+#[derive(Component)]
+struct RcsLoopSfx(Handle<AudioSource>);
+
+/// The live RCS-loop volumes PER RESOLVED HANDLE, written by
+/// [`compute_rcs_loop_volume`] and read by [`apply_rcs_loop_volume`]. Split from
+/// the `AudioSink` write so the volume logic stays headless-testable, exactly
+/// like [`ThrusterHumVolume`]. Reuses [`HumLevels`] (target + smoothed).
+#[derive(Resource, Default, Debug)]
+struct RcsLoopVolume {
+    loops: HashMap<Handle<AudioSource>, HumLevels>,
+}
+
+/// Spawn a looping RCS-hiss entity for every handle the compute pass discovered
+/// without a loop yet. Each starts silent; [`apply_rcs_loop_volume`] raises it.
+fn ensure_rcs_loops(vol: Res<RcsLoopVolume>, existing: Query<&RcsLoopSfx>, mut commands: Commands) {
+    for handle in vol.loops.keys() {
+        if existing.iter().any(|sfx| sfx.0 == *handle) {
+            continue;
+        }
+        commands.spawn((
+            Name::new("RCS Loop Sfx"),
+            RcsLoopSfx(handle.clone()),
+            AudioPlayer(handle.clone()),
+            PlaybackSettings::LOOP.with_volume(Volume::Linear(0.0)),
+        ));
+    }
+}
+
+/// Drive the RCS-loop volume from how hard each ship is fine-adjusting - the
+/// `RcsIntent` magnitude on the ship root, resolved through each live controller
+/// section's authored `rcs_loop` handle. CONTROLLER-based and DRIVER-agnostic:
+/// the intent is written by the player's SHIFT modal OR the autopilot (ORBIT
+/// trim, STOP/GOTO settle), so both make the same sound. Gated on the controller
+/// granting [`FlightVerb::Rcs`], mirroring `rcs_burn_system` - a hull that cannot
+/// RCS makes no RCS hiss. Per-ship attribution, loudest-wins-per-handle,
+/// distance attenuation (player exempt) and exponential smoothing all match
+/// [`compute_thruster_hum_volume`].
+fn compute_rcs_loop_volume(
+    time: Res<Time>,
+    asset_server: Res<AssetServer>,
+    q_controllers: Query<
+        (&ChildOf, &ControllerSectionSounds, Option<&WithheldVerbs>),
+        (
+            With<ControllerSectionMarker>,
+            Without<SectionInactiveMarker>,
+        ),
+    >,
+    q_intent: Query<&RcsIntent>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    q_pose: Query<&GlobalTransform>,
+    q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
+    mut vol: ResMut<RcsLoopVolume>,
+) {
+    let listener = listener_position(&q_camera);
+
+    // Per handle: the loudest ship burning that authored rcs_loop wins.
+    let mut targets: HashMap<Handle<AudioSource>, f32> = HashMap::new();
+    for (&ChildOf(root), sounds, withheld) in &q_controllers {
+        // Same capability gate as rcs_burn_system: no Rcs verb, no hiss.
+        if !withheld.is_none_or(|w| w.granted(FlightVerb::Rcs)) {
+            continue;
+        }
+        // AUTHORED-OR-SILENT: a controller with no rcs_loop makes no sound.
+        let Some(handle) = sounds.rcs_loop.as_ref().map(|r| r.resolve(&asset_server)) else {
+            continue;
+        };
+        // The burn effort is the ship-root intent both drivers write.
+        let Ok(intent) = q_intent.get(root) else {
+            continue;
+        };
+        let effort = intent.0.length();
+        if effort <= 1e-4 {
+            continue;
+        }
+        let attenuation = if q_is_player.contains(root) {
+            1.0
+        } else {
+            match (listener, q_pose.get(root)) {
+                (Some(l), Ok(pose)) => distance_attenuation(l.distance(pose.translation())),
+                _ => 1.0,
+            }
+        };
+        let level = rcs_volume(effort) * attenuation;
+        let slot = targets.entry(handle).or_insert(0.0);
+        *slot = slot.max(level);
+    }
+
+    let alpha = (time.delta_secs() * 8.0).clamp(0.0, 1.0);
+    for levels in vol.loops.values_mut() {
+        levels.target = 0.0;
+    }
+    for (handle, target) in targets {
+        vol.loops.entry(handle).or_default().target = target;
+    }
+    for levels in vol.loops.values_mut() {
+        levels.smoothed += (levels.target - levels.smoothed) * alpha;
+    }
+}
+
+/// Copy the computed RCS-loop volume onto the loop's sink. Mirrors
+/// [`apply_thruster_loop_volume`] (no-ops until the sink appears; scales by
+/// [`MasterVolume`] because it sets its own sink volume every frame).
+fn apply_rcs_loop_volume(
+    vol: Res<RcsLoopVolume>,
+    master: Option<Res<crate::settings::MasterVolume>>,
+    mut q_sink: Query<(&mut AudioSink, &RcsLoopSfx)>,
+) {
+    let master = master.map(|m| m.factor()).unwrap_or(1.0);
+    for (mut sink, sfx) in &mut q_sink {
+        let smoothed = vol.loops.get(&sfx.0).map(|l| l.smoothed).unwrap_or(0.0);
         sink.set_volume(Volume::Linear(smoothed * master));
     }
 }
@@ -1909,18 +2055,128 @@ mod tests {
             "only the player's hot, empty, held, AUTHORED turret dry-fires"
         );
     }
+
+    #[test]
+    fn rcs_volume_is_silent_at_rest_and_saturates_at_full_deflection() {
+        assert_eq!(rcs_volume(0.0), 0.0);
+        assert_eq!(rcs_volume(1.0), RCS_MAX_VOLUME);
+        // A diagonal command can exceed 1; the clamp holds it at the ceiling.
+        assert_eq!(rcs_volume(1.7), RCS_MAX_VOLUME);
+        assert!((rcs_volume(0.5) - RCS_MAX_VOLUME * 0.5).abs() < f32::EPSILON);
+    }
+
+    /// The base RCS loop path.
+    const RIG_RCS: &str = "base/sounds/rcs_loop.wav";
+
+    fn rcs_loop_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.init_resource::<RcsLoopVolume>();
+        app.add_systems(Update, compute_rcs_loop_volume);
+        app
+    }
+
+    fn rig_rcs_target(app: &App) -> f32 {
+        let handle = app.world().resource::<AssetServer>().load(RIG_RCS);
+        app.world()
+            .resource::<RcsLoopVolume>()
+            .loops
+            .get(&handle)
+            .map(|l| l.target)
+            .unwrap_or(0.0)
+    }
+
+    /// A ship with an RCS-authoring controller child, carrying `intent` on the
+    /// root. `deny_rcs` withholds the verb; marked as the player so attenuation
+    /// is a deterministic 1.0 (no listener needed).
+    fn spawn_rcs_ship(app: &mut App, intent: Vec3, deny_rcs: bool) -> Entity {
+        let root = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                GlobalTransform::from(Transform::from_translation(Vec3::ZERO)),
+                RcsIntent(intent),
+            ))
+            .id();
+        let sounds = ControllerSectionSounds {
+            rcs_loop: Some(AssetRef::from(RIG_RCS)),
+            ..Default::default()
+        };
+        let mut ctrl = app
+            .world_mut()
+            .spawn((ControllerSectionMarker, sounds, ChildOf(root)));
+        if deny_rcs {
+            ctrl.insert(WithheldVerbs([FlightVerb::Rcs].into_iter().collect()));
+        }
+        root
+    }
+
+    #[test]
+    fn rcs_loop_plays_while_the_controller_burns_and_mutes_at_rest() {
+        let mut app = rcs_loop_app();
+        let ship = spawn_rcs_ship(&mut app, Vec3::new(1.0, 0.0, 0.0), false);
+        app.update();
+        assert!(
+            (rig_rcs_target(&app) - RCS_MAX_VOLUME).abs() < 1e-4,
+            "a full-deflection RCS burn drives the loop to its ceiling (got {})",
+            rig_rcs_target(&app)
+        );
+
+        // Intent falls to zero (the mouse stopped / the autopilot settled): the
+        // loop target must drop back to silence.
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(RcsIntent(Vec3::ZERO));
+        app.update();
+        assert_eq!(
+            rig_rcs_target(&app),
+            0.0,
+            "the loop mutes when the RCS stops burning"
+        );
+    }
+
+    #[test]
+    fn rcs_loop_is_silent_without_the_rcs_verb() {
+        // Same non-zero intent, but the controller withholds Rcs - no hiss, the
+        // same capability gate rcs_burn_system applies.
+        let mut app = rcs_loop_app();
+        spawn_rcs_ship(&mut app, Vec3::new(1.0, 0.0, 0.0), true);
+        app.update();
+        assert_eq!(
+            rig_rcs_target(&app),
+            0.0,
+            "a controller that does not grant Rcs makes no RCS sound"
+        );
+    }
 }
 
 /// Silence the engine loop while the pause overlay is up; one-shot SFX are
 /// naturally quiet then (no events fire in a frozen sim).
-fn pause_thruster_loops(q_sink: Query<&AudioSink, With<ThrusterLoopSfx>>) {
-    for sink in &q_sink {
+/// Pause every looping SFX sink (thruster hum + RCS hiss) behind the pause
+/// overlay - audio sinks do not follow `Time<Virtual>`, so without this a loop
+/// keeps roaring at its last volume while the game is frozen.
+fn pause_loops(
+    q_thruster: Query<&AudioSink, With<ThrusterLoopSfx>>,
+    q_rcs: Query<&AudioSink, With<RcsLoopSfx>>,
+) {
+    for sink in &q_thruster {
+        sink.pause();
+    }
+    for sink in &q_rcs {
         sink.pause();
     }
 }
 
-fn resume_thruster_loops(q_sink: Query<&AudioSink, With<ThrusterLoopSfx>>) {
-    for sink in &q_sink {
+fn resume_loops(
+    q_thruster: Query<&AudioSink, With<ThrusterLoopSfx>>,
+    q_rcs: Query<&AudioSink, With<RcsLoopSfx>>,
+) {
+    for sink in &q_thruster {
+        sink.play();
+    }
+    for sink in &q_rcs {
         sink.play();
     }
 }

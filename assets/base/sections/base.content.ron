@@ -47,6 +47,7 @@
             radar_deny_sound: Some("self://sounds/radar_deny.wav"),
             radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
             safety_on_sound: Some("self://sounds/safety_on.wav"),
+            rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
         )),
     )),
     Section((
@@ -374,6 +375,7 @@
             radar_deny_sound: Some("self://sounds/radar_deny.wav"),
             radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
             safety_on_sound: Some("self://sounds/safety_on.wav"),
+            rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
         )),
     )),
     Section((
@@ -1976,6 +1978,7 @@
             radar_deny_sound: Some("self://sounds/radar_deny.wav"),
             radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
             safety_on_sound: Some("self://sounds/safety_on.wav"),
+            rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
         )),
     )),
     Section((
@@ -2854,6 +2857,7 @@
             radar_deny_sound: Some("self://sounds/radar_deny.wav"),
             radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
             safety_on_sound: Some("self://sounds/safety_on.wav"),
+            rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
         )),
     )),
 ]

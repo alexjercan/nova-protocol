@@ -158,6 +158,7 @@
         "sounds/lock_on.wav",
         "sounds/radar_deny.wav",
         "sounds/radar_retarget.wav",
+        "sounds/rcs_loop.wav",
         "sounds/safety_on.wav",
         "sounds/salvage_pickup.wav",
         "sounds/thruster_loop.wav",
