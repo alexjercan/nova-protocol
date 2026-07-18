@@ -105,6 +105,10 @@ fn cube_base(
         impact_sound: Some(m.section_impact_sound.clone()),
         destroy_sound: Some(m.section_destroy_sound.clone()),
         collider,
+        // The racer/cargob/cargoa cut-cube prototypes are dozens of near-
+        // identical hull tiles that only make sense assembled into a ship - keep
+        // them out of the editor sandbox's section palette.
+        hide_in_editor: true,
     }
 }
 

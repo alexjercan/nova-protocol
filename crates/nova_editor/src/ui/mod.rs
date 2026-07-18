@@ -247,7 +247,10 @@ pub(crate) fn setup_editor_scene(
                         },
                     ))
                     .with_children(|list| {
-                        for section in sections.iter() {
+                        // Skip sections flagged `hide_in_editor` (the cut-cube
+                        // spaceship prototypes) - they only make sense assembled
+                        // into a ship, not placed one tile at a time.
+                        for section in sections.iter().filter(|s| !s.base.hide_in_editor) {
                             list.spawn(component_card(section));
                         }
                     });
