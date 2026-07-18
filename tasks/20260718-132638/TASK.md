@@ -1,8 +1,8 @@
 # Render-scale Low breaks UI clicks: HUD/menu unclickable because UI is on the image-targeted camera
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
-- TAGS: v0.7.0,performance,web,settings,bug
+- TAGS: v0.7.0, performance, web, settings, bug
 
 ## Goal
 

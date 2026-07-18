@@ -1123,6 +1123,15 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   hold on the browser-WebGPU path (overhead-bound, not fill-bound); kept the knob
   at a user-approved conservative value, documented as low-end-targeted not a
   measured general win. 20260718-004723.
+- `verify-interaction-not-just-rendering` (x1): a screenshot proves the frame
+  drew, NOT that the UI works - a bevy_ui camera pointed at an image renders its
+  nodes perfectly and is completely UNCLICKABLE (`ui_focus_system` feeds a cursor
+  only to Window-targeted cameras). The render-scale first cut baked the HUD into
+  the reduced image; every review (incl. a multi-agent code-review) checked
+  rendering via screenshots and shipped a preset whose menus could not be
+  clicked - the user hit it on the first click. For any change that retargets UI
+  or the camera a UI is on, verify a CLICK, and if it can't be automated
+  headlessly, say so and flag a human re-test. 20260718-132638.
 
 ## Pending promotions (3+ occurrences, user decides)
 
