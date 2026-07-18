@@ -1007,10 +1007,11 @@ fn on_autopilot_off_input(
     }
 }
 
-/// Mouse-motion -> `RcsIntent` gain: how far one unit of mouse delta walks the
-/// virtual joystick. Small, so a deliberate sweep crosses the range and a twitch
-/// barely moves it. Feel-tunable (task 20260718-122912).
-const RCS_AIM_SENSITIVITY: f32 = 0.02;
+/// Mouse-motion -> `RcsIntent` gain: how far one frame's mouse delta drives the
+/// (delta-driven) intent before the per-tick decay bleeds it off. Small, so a
+/// deliberate sweep crosses the range and a twitch barely moves it. Feel-tunable
+/// (task 20260718-122912; nudged up 0.02 -> 0.03 in 20260718-192708).
+const RCS_AIM_SENSITIVITY: f32 = 0.03;
 
 /// Enter RCS fine-adjust mode: while SHIFT is held on a ship whose controller
 /// grants the RCS verb, mark it [`RcsActive`] (the modal gate the helm, camera

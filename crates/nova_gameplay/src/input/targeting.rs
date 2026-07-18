@@ -1364,10 +1364,12 @@ fn step_component_lock(
 }
 
 /// One scroll notch's step on the RCS vertical (Y, up/down) axis while RCS
-/// fine-adjust is held. A discrete nudge to the held virtual-joystick offset;
-/// the pilot scrolls the opposite way to null it (feel-tunable, task
-/// 20260718-122912).
-const RCS_SCROLL_STEP: f32 = 0.25;
+/// fine-adjust is held. A discrete nudge that the per-tick decay
+/// (`decay_player_rcs_intent`, task 20260718-185826) then bleeds off, so each
+/// notch is a transient burst rather than a persistent offset. Feel-tunable
+/// (task 20260718-122912; raised 0.25 -> 0.75 in 20260718-192708 so scroll bites
+/// noticeably harder than the mouse).
+const RCS_SCROLL_STEP: f32 = 0.75;
 
 pub(crate) fn on_component_cycle_next(
     _: On<Start<ComponentCycleNextInput>>,
