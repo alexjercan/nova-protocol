@@ -22,4 +22,8 @@
         id: "craft_cargob",
         bundle: "mods/craft_cargob/craft_cargob.bundle.ron",
     ),
+    (
+        id: "craft_racer",
+        bundle: "mods/craft_racer/craft_racer.bundle.ron",
+    ),
 ])

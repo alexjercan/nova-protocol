@@ -1,0 +1,489 @@
+// Hand-authored example mod: the Kenney craft_racer reassembled from its cut
+// hull cubes. Regenerate the gltf/*.glb meshes (from the repo root) with:
+//
+//   python3 scripts/cut-obj-into-hulls.py art/kenney/craft_racer.obj \
+//       --out assets/mods/craft_racer/gltf --yaw 180 --center 0,0.5,0 --no-walls
+//
+// Most cut cubes are plain Hulls. Two front-bottom cubes (1,0,-1)/(-1,0,-1) are
+// mirrored Turrets (the cube .glb is the mount, the yaw/pitch/barrel come from
+// base, just like craft_cargob), the two rear cubes (1,0,2)/(-1,0,2) are
+// Thrusters (rectangular 0.3x0.5 exhaust), and the top-center cube (0,1,0) is the
+// ship's Controller (using its cube .glb as the model). Player-controlled: Space =
+// thrust, Mouse Left = fire turrets. Nose faces the game forward (-Z).
+[
+    Scenario((
+        id: "craft_racer_reconstruct",
+        name: "Craft Racer - Reconstructed",
+        description: "The Kenney craft_racer rebuilt from its cut hull cubes, with two front turrets and a core controller.",
+        cubemap: "dep://base/textures/cubemap.png",
+        events: [
+            (
+                name: OnStart,
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "craft_racer",
+                            name: "Craft Racer",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: Player((
+                                input_mapping: {
+                                    "cube_i1_j0_k2": [
+                                        Keyboard(Space),
+                                    ],
+                                    "cube_i1_j0_km1": [
+                                        Mouse(Left),
+                                    ],
+                                    "cube_im1_j0_k2": [
+                                        Keyboard(Space),
+                                    ],
+                                    "cube_im1_j0_km1": [
+                                        Mouse(Left),
+                                    ],
+                                },
+                                infinite_ammo: false,
+                            )),
+                            sections: [
+                                (
+                                    id: "cube_i0_j0_k0",
+                                    position: (0.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_i0_j0_k0",
+                                            name: "Racer Cube (0,0,0)",
+                                            description: "A cut hull cube of the Kenney craft_racer.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_i0_j0_k0.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k1",
+                                    position: (0.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_i0_j0_k1",
+                                            name: "Racer Cube (0,0,1)",
+                                            description: "A cut hull cube of the Kenney craft_racer.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_i0_j0_k1.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k2",
+                                    position: (0.0, 0.0, 2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_i0_j0_k2",
+                                            name: "Racer Cube (0,0,2)",
+                                            description: "A cut hull cube of the Kenney craft_racer.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_i0_j0_k2.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km1",
+                                    position: (0.0, 0.0, -1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_i0_j0_km1",
+                                            name: "Racer Cube (0,0,-1)",
+                                            description: "A cut hull cube of the Kenney craft_racer.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_i0_j0_km1.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km2",
+                                    position: (0.0, 0.0, -2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_i0_j0_km2",
+                                            name: "Racer Cube (0,0,-2)",
+                                            description: "A cut hull cube of the Kenney craft_racer.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_i0_j0_km2.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k0",
+                                    position: (0.0, 1.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_i0_j1_k0",
+                                            name: "Core Controller (0,1,0)",
+                                            description: "The ship's PD controller, using the cut cube as its model.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Controller((
+                                            frequency: 4.0,
+                                            damping_ratio: 4.0,
+                                            max_torque: 800.0,
+                                            render_mesh: Some("self://gltf/cube_i0_j1_k0.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k1",
+                                    position: (0.0, 1.0, 1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_i0_j1_k1",
+                                            name: "Racer Cube (0,1,1)",
+                                            description: "A cut hull cube of the Kenney craft_racer.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_i0_j1_k1.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k2",
+                                    position: (0.0, 1.0, 2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_i0_j1_k2",
+                                            name: "Racer Cube (0,1,2)",
+                                            description: "A cut hull cube of the Kenney craft_racer.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_i0_j1_k2.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km1",
+                                    position: (0.0, 1.0, -1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_i0_j1_km1",
+                                            name: "Racer Cube (0,1,-1)",
+                                            description: "A cut hull cube of the Kenney craft_racer.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_i0_j1_km1.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km2",
+                                    position: (0.0, 1.0, -2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_i0_j1_km2",
+                                            name: "Racer Cube (0,1,-2)",
+                                            description: "A cut hull cube of the Kenney craft_racer.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_i0_j1_km2.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k0",
+                                    position: (1.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_i1_j0_k0",
+                                            name: "Racer Cube (1,0,0)",
+                                            description: "A cut hull cube of the Kenney craft_racer.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_i1_j0_k0.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k1",
+                                    position: (1.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_i1_j0_k1",
+                                            name: "Racer Cube (1,0,1)",
+                                            description: "A cut hull cube of the Kenney craft_racer.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_i1_j0_k1.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k2",
+                                    position: (1.0, 0.0, 2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_i1_j0_k2",
+                                            name: "Racer Thruster (1,0,2)",
+                                            description: "A rear thruster tile (thrusts forward, -Z).",
+                                            mass: 1.0,
+                                            health: 70.0,
+                                        ),
+                                        kind: Thruster((
+                                            magnitude: 1.0,
+                                            loop_sound: Some("dep://base/sounds/thruster_loop.wav"),
+                                            render_mesh: Some("self://gltf/cube_i1_j0_k2.glb#Scene0"),
+                                            exhaust: Some((
+                                                offset: (-0.35, 0.0, -0.2),
+                                                rotation: (0.70710677, 0.0, 0.0, 0.70710677),
+                                                shape: (
+                                                    geometry: Rect,
+                                                    width: 0.3,
+                                                    height: 0.5,
+                                                ),
+                                            )),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_i1_j0_km1",
+                                    position: (1.0, 0.0, -1.0),
+                                    rotation: (0.0, 0.0, -0.70710677, 0.70710677),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_i1_j0_km1",
+                                            name: "Racer Turret (1,0,-1)",
+                                            description: "A better turret section for spaceships.",
+                                            mass: 1.0,
+                                            health: 130.0,
+                                            impact_sound: Some("dep://base/sounds/impact.wav"),
+                                            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+                                        ),
+                                        kind: Turret((
+                                            root: (
+                                                offset: (0.0, -0.5, 0.0),
+                                                render_mesh: Some("self://gltf/cube_i1_j0_km1.glb#Scene0"),
+                                                render_mesh_transform: Some((
+                                                    position: (0.0, 0.5, 0.0),
+                                                    rotation: (0.0, 0.0, 0.70710677, 0.70710677),
+                                                )),
+                                                children: [
+                                                    (
+                                                        offset: (0.0, 0.1, 0.0),
+                                                        axis: Some((0.0, 1.0, 0.0)),
+                                                        render_mesh: Some("dep://base/gltf/turret-yaw-01.glb#Scene0"),
+                                                        children: [
+                                                            (
+                                                                offset: (0.0, 0.332706, 0.303954),
+                                                                axis: Some((1.0, 0.0, 0.0)),
+                                                                min: Some(-0.5235988),
+                                                                max: Some(1.5707964),
+                                                                render_mesh: Some("dep://base/gltf/turret-pitch-01.glb#Scene0"),
+                                                                children: [
+                                                                    (
+                                                                        offset: (0.0, 0.128437, -0.110729),
+                                                                        render_mesh: Some("dep://base/gltf/turret-barrel-01.glb#Scene0"),
+                                                                        children: [
+                                                                            (
+                                                                                offset: (0.0, 0.0, -1.2),
+                                                                                muzzle: Some((
+                                                                                    fire_rate: 100.0,
+                                                                                )),
+                                                                            ),
+                                                                        ],
+                                                                    ),
+                                                                ],
+                                                            ),
+                                                        ],
+                                                    ),
+                                                ],
+                                            ),
+                                            muzzle_speed: 100.0,
+                                            projectile_lifetime: 5.0,
+                                            bullet_damage: 4.0,
+                                            bullet_kind: Kinetic,
+                                            fire_sound: Some("dep://base/sounds/turret_fire.wav"),
+                                            dry_fire_sound: Some("dep://base/sounds/dry_fire.wav"),
+                                            ammo_capacity: Some(500),
+                                            reload: Some((
+                                                reload_time: 3.0,
+                                                rounds_per_cycle: 500,
+                                                only_when_empty: true,
+                                            )),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k0",
+                                    position: (-1.0, 0.0, 0.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_im1_j0_k0",
+                                            name: "Racer Cube (-1,0,0)",
+                                            description: "A cut hull cube of the Kenney craft_racer.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_im1_j0_k0.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k1",
+                                    position: (-1.0, 0.0, 1.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_im1_j0_k1",
+                                            name: "Racer Cube (-1,0,1)",
+                                            description: "A cut hull cube of the Kenney craft_racer.",
+                                            mass: 1.0,
+                                            health: 100.0,
+                                        ),
+                                        kind: Hull((
+                                            render_mesh: Some("self://gltf/cube_im1_j0_k1.glb#Scene0"),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k2",
+                                    position: (-1.0, 0.0, 2.0),
+                                    rotation: (0.0, 0.0, 0.0, 1.0),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_im1_j0_k2",
+                                            name: "Racer Thruster (-1,0,2)",
+                                            description: "A rear thruster tile (thrusts forward, -Z).",
+                                            mass: 1.0,
+                                            health: 70.0,
+                                        ),
+                                        kind: Thruster((
+                                            magnitude: 1.0,
+                                            loop_sound: Some("dep://base/sounds/thruster_loop.wav"),
+                                            render_mesh: Some("self://gltf/cube_im1_j0_k2.glb#Scene0"),
+                                            exhaust: Some((
+                                                offset: (0.35, 0.0, -0.2),
+                                                rotation: (0.70710677, 0.0, 0.0, 0.70710677),
+                                                shape: (
+                                                    geometry: Rect,
+                                                    width: 0.3,
+                                                    height: 0.5,
+                                                ),
+                                            )),
+                                        )),
+                                    )),
+                                ),
+                                (
+                                    id: "cube_im1_j0_km1",
+                                    position: (-1.0, 0.0, -1.0),
+                                    rotation: (0.0, 0.0, 0.70710677, 0.70710677),
+                                    source: Inline((
+                                        base: (
+                                            id: "cube_im1_j0_km1",
+                                            name: "Racer Turret (-1,0,-1)",
+                                            description: "A better turret section for spaceships.",
+                                            mass: 1.0,
+                                            health: 130.0,
+                                            impact_sound: Some("dep://base/sounds/impact.wav"),
+                                            destroy_sound: Some("dep://base/sounds/explosion.wav"),
+                                        ),
+                                        kind: Turret((
+                                            root: (
+                                                offset: (0.0, -0.5, 0.0),
+                                                render_mesh: Some("self://gltf/cube_im1_j0_km1.glb#Scene0"),
+                                                render_mesh_transform: Some((
+                                                    position: (0.0, 0.5, 0.0),
+                                                    rotation: (0.0, 0.0, -0.70710677, 0.70710677),
+                                                )),
+                                                children: [
+                                                    (
+                                                        offset: (0.0, 0.1, 0.0),
+                                                        axis: Some((0.0, 1.0, 0.0)),
+                                                        render_mesh: Some("dep://base/gltf/turret-yaw-01.glb#Scene0"),
+                                                        children: [
+                                                            (
+                                                                offset: (0.0, 0.332706, 0.303954),
+                                                                axis: Some((1.0, 0.0, 0.0)),
+                                                                min: Some(-0.5235988),
+                                                                max: Some(1.5707964),
+                                                                render_mesh: Some("dep://base/gltf/turret-pitch-01.glb#Scene0"),
+                                                                children: [
+                                                                    (
+                                                                        offset: (0.0, 0.128437, -0.110729),
+                                                                        render_mesh: Some("dep://base/gltf/turret-barrel-01.glb#Scene0"),
+                                                                        children: [
+                                                                            (
+                                                                                offset: (0.0, 0.0, -1.2),
+                                                                                muzzle: Some((
+                                                                                    fire_rate: 100.0,
+                                                                                )),
+                                                                            ),
+                                                                        ],
+                                                                    ),
+                                                                ],
+                                                            ),
+                                                        ],
+                                                    ),
+                                                ],
+                                            ),
+                                            muzzle_speed: 100.0,
+                                            projectile_lifetime: 5.0,
+                                            bullet_damage: 4.0,
+                                            bullet_kind: Kinetic,
+                                            fire_sound: Some("dep://base/sounds/turret_fire.wav"),
+                                            dry_fire_sound: Some("dep://base/sounds/dry_fire.wav"),
+                                            ammo_capacity: Some(500),
+                                            reload: Some((
+                                                reload_time: 3.0,
+                                                rounds_per_cycle: 500,
+                                                only_when_empty: true,
+                                            )),
+                                        )),
+                                    )),
+                                ),
+                            ],
+                        )),
+                    )),
+                ],
+            ),
+        ],
+    )),
+]
