@@ -1,8 +1,23 @@
 # RCS cap ring on the velocity sphere (needs visual design + playtest)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 1
 - TAGS: v0.7.0,feature,hud,spike
+
+## Close-out (2026-07-18): WON'T-DO
+
+Closed without implementing, by user decision. The delta-driven control change
+(task 20260718-185826) plus the sensitivity retune (20260718-192708) made RCS
+feel self-limiting in the hand: the pilot feels the speed cap through the
+control response and does not need to read the ceiling magnitude off the HUD.
+The RCS-active PALETTE (violet velocity sphere, parent task 20260718-122923)
+already communicates the important bit - that RCS mode is engaged.
+
+Weighed against that marginal payoff, the cap ring is speculative geometry/
+shader work with an unresolved visual-design question (latitude ring vs. torus
+child vs. shell, each reading differently) that can only be judged by a live
+playtest. Not worth the cost now. Reopen only if a future playtest surfaces a
+concrete "I can't tell how fast RCS will let me go" need.
 
 ## Goal
 
