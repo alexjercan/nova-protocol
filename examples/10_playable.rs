@@ -3,7 +3,7 @@
 //! One armed player ship, one hostile rock dead ahead, one nav beacon
 //! beyond it. The script performs the exact gestures a player would, in
 //! order: raise (RMB) + radar hold (CTRL) to combat-lock the rock, gun it
-//! down (the turret holds the combat lock), lower and radar again to travel-lock the beacon, press G to engage
+//! down with LMB (the turret holds the combat lock), lower and radar again to travel-lock the beacon, press G to engage
 //! GOTO, and start the flight leg toward the beacon's trigger area. The
 //! SCENARIO watches the run through its own event handlers - a kill tally,
 //! a travel-lock echo, an arrival flag - so the assertions read "the
@@ -33,10 +33,14 @@ struct Cli;
 const SCENARIO_ID: &str = "playable_run";
 
 /// Total autopilot window, seconds. The run needs a kill, two radar
-/// gestures and a ~40 u GOTO leg; the stock 6 s preset is too tight, so
-/// this example holds its own longer window like 07_com_range/11_hud_range.
+/// gestures - each paying the acquisition dwell (~0.6 s+ of steady
+/// candidate, 20260708-165703) - and a ~40 u GOTO leg; the stock 6 s preset
+/// is far too tight, and the pre-dwell 18 s window left no margin under
+/// CI's llvmpipe throttle (frames hit Bevy's max-delta cap, so 18 wall
+/// seconds hold only ~6.5 sim seconds), so this example holds its own
+/// longer window like 07_com_range/11_hud_range.
 #[cfg(feature = "debug")]
-const WINDOW_SECS: f32 = 18.0;
+const WINDOW_SECS: f32 = 24.0;
 
 fn main() {
     let _ = Cli::parse();
@@ -89,9 +93,17 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     let ship = SpaceshipConfig {
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
+            // The shipped fire bindings (the base scenarios map turrets to
+            // LMB / RightTrigger2). NOT Space/RightTrigger: both also bind
+            // FlightBurnInput in the flight rig, so a held fire key would
+            // burn the main drive too and coast the ship past the beacon,
+            // out of the radar cone (task 20260718-235837).
             input_mapping: HashMap::from([(
                 "guns".to_string(),
-                vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
+                vec![
+                    MouseButton::Left.into(),
+                    GamepadButton::RightTrigger2.into(),
+                ],
             )]),
             speed_cap: None,
             infinite_ammo: true,
@@ -351,10 +363,12 @@ fn playable_script(world: &mut World, elapsed: f32) {
     }
     if world.resource::<PlayableScript>().fired && !world.resource::<PlayableScript>().lowered {
         // Hold fire through the kill window (the stance stays raised, so
-        // the safety cannot interrupt the burst).
+        // the safety cannot interrupt the burst). LMB, the shipped fire
+        // binding: the fire key must not overlap the flight rig, or the
+        // burst would also burn the ship off its mark (20260718-235837).
         world
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .press(KeyCode::Space);
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Left);
     }
     // Beat 3: lower once the SCENARIO confirms the kill, then sweep again -
     // with the prey gone the waypoint is the sweep's only candidate.
@@ -365,8 +379,8 @@ fn playable_script(world: &mut World, elapsed: f32) {
         world.resource_mut::<PlayableScript>().lowered = true;
         world.resource_mut::<PlayableScript>().lowered_at = Some(t);
         world
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .release(KeyCode::Space);
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .release(MouseButton::Left);
         world
             .resource_mut::<ButtonInput<MouseButton>>()
             .release(MouseButton::Right);
