@@ -41,7 +41,10 @@ impl Plugin for ScenarioAreaPlugin {
 /// Drop an area's occupancy rows when it leaves the world (e.g. a crate despawned
 /// on pickup), so its dangling collider contacts - avian fires no `CollisionEnd`
 /// for a despawned collider - do not leak.
-fn forget_area_occupancy(remove: On<Remove, ScenarioAreaMarker>, mut occupancy: ResMut<AreaOccupancy>) {
+fn forget_area_occupancy(
+    remove: On<Remove, ScenarioAreaMarker>,
+    mut occupancy: ResMut<AreaOccupancy>,
+) {
     occupancy.0.retain(|(area, _), _| *area != remove.entity);
 }
 

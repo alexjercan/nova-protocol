@@ -381,7 +381,10 @@ fn player_ship() -> ScenarioObjectConfig {
                     .map(|id| {
                         (
                             id.to_string(),
-                            vec![MouseButton::Left.into(), GamepadButton::RightTrigger2.into()],
+                            vec![
+                                MouseButton::Left.into(),
+                                GamepadButton::RightTrigger2.into(),
+                            ],
                         )
                     })
                     .collect(),

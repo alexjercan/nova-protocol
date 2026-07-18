@@ -31,10 +31,16 @@ use nova_scenario::prelude::*;
 /// Resolve a ship section's kind, following a `Prototype` ref into the base
 /// section catalog (the racer/cargob ships reference their cut-cube prototypes
 /// rather than inlining them).
-fn section_kind(section: &SpaceshipSectionConfig, catalog: &[SectionConfig]) -> Option<SectionKind> {
+fn section_kind(
+    section: &SpaceshipSectionConfig,
+    catalog: &[SectionConfig],
+) -> Option<SectionKind> {
     match &section.source {
         SectionSource::Inline(c) => Some(c.kind.clone()),
-        SectionSource::Prototype(id) => catalog.iter().find(|c| c.base.id == *id).map(|c| c.kind.clone()),
+        SectionSource::Prototype(id) => catalog
+            .iter()
+            .find(|c| c.base.id == *id)
+            .map(|c| c.kind.clone()),
     }
 }
 

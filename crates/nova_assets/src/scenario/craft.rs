@@ -18,30 +18,126 @@ use crate::sections::{turret_joint_tree, SectionMeshRefs};
 
 // Cube grid coordinates (i, j, k) of each ship, one per cut `.glb` mesh.
 const RACER_CUBES: &[(i32, i32, i32)] = &[
-    (0, 0, 0), (0, 0, 1), (0, 0, 2), (0, 0, -1), (0, 0, -2), (0, 1, 0), (0, 1, 1), (0, 1, 2),
-    (0, 1, -1), (0, 1, -2), (1, 0, 0), (1, 0, 1), (1, 0, 2), (1, 0, -1), (-1, 0, 0),
-    (-1, 0, 1), (-1, 0, 2), (-1, 0, -1),
+    (0, 0, 0),
+    (0, 0, 1),
+    (0, 0, 2),
+    (0, 0, -1),
+    (0, 0, -2),
+    (0, 1, 0),
+    (0, 1, 1),
+    (0, 1, 2),
+    (0, 1, -1),
+    (0, 1, -2),
+    (1, 0, 0),
+    (1, 0, 1),
+    (1, 0, 2),
+    (1, 0, -1),
+    (-1, 0, 0),
+    (-1, 0, 1),
+    (-1, 0, 2),
+    (-1, 0, -1),
 ];
 const CARGOB_CUBES: &[(i32, i32, i32)] = &[
-    (0, 0, 0), (0, 0, 1), (0, 0, 2), (0, 0, -1), (0, 1, 2), (0, 1, -1), (0, 1, -2), (0, 2, 0),
-    (0, 2, 1), (0, 2, 2), (0, 2, -1), (0, 2, -2), (1, 0, 0), (1, 0, 1), (1, 0, 2), (1, 0, -1),
-    (1, 0, -2), (1, 1, 0), (1, 1, 1), (1, 1, 2), (1, 1, -1), (1, 1, -2), (1, 2, 0), (1, 2, 1),
-    (1, 2, 2), (1, 2, -1), (1, 2, -2), (-1, 0, 0), (-1, 0, 1), (-1, 0, 2), (-1, 0, -1),
-    (-1, 0, -2), (-1, 1, 0), (-1, 1, 1), (-1, 1, 2), (-1, 1, -1), (-1, 1, -2), (-1, 2, 0),
-    (-1, 2, 1), (-1, 2, 2), (-1, 2, -1), (-1, 2, -2),
+    (0, 0, 0),
+    (0, 0, 1),
+    (0, 0, 2),
+    (0, 0, -1),
+    (0, 1, 2),
+    (0, 1, -1),
+    (0, 1, -2),
+    (0, 2, 0),
+    (0, 2, 1),
+    (0, 2, 2),
+    (0, 2, -1),
+    (0, 2, -2),
+    (1, 0, 0),
+    (1, 0, 1),
+    (1, 0, 2),
+    (1, 0, -1),
+    (1, 0, -2),
+    (1, 1, 0),
+    (1, 1, 1),
+    (1, 1, 2),
+    (1, 1, -1),
+    (1, 1, -2),
+    (1, 2, 0),
+    (1, 2, 1),
+    (1, 2, 2),
+    (1, 2, -1),
+    (1, 2, -2),
+    (-1, 0, 0),
+    (-1, 0, 1),
+    (-1, 0, 2),
+    (-1, 0, -1),
+    (-1, 0, -2),
+    (-1, 1, 0),
+    (-1, 1, 1),
+    (-1, 1, 2),
+    (-1, 1, -1),
+    (-1, 1, -2),
+    (-1, 2, 0),
+    (-1, 2, 1),
+    (-1, 2, 2),
+    (-1, 2, -1),
+    (-1, 2, -2),
 ];
 
 // The cargoa - a wider, unarmed cargo hauler (no turrets, no torpedoes): hull
 // cubes plus two rear thrusters and a hollow-core controller. Used for NEUTRAL
 // ships (the campaign hauler, the ledger scout/escort, the waystation haulers).
 const CARGOA_CUBES: &[(i32, i32, i32)] = &[
-    (0, 0, 0), (0, 0, 1), (0, 0, 2), (0, 0, -1), (0, 1, 1), (0, 1, 2), (0, 1, -1), (0, 1, -2),
-    (0, 2, 0), (0, 2, 1), (0, 2, -1), (0, 2, -2), (1, 0, 0), (1, 0, 1), (1, 0, 2), (1, 0, -1),
-    (1, 1, 0), (1, 1, 1), (1, 1, 2), (1, 1, -1), (1, 1, -2), (1, 2, 0), (1, 2, 1), (1, 2, -1),
-    (1, 2, -2), (2, 0, 0), (2, 0, 1), (2, 0, -1), (2, 1, 0), (2, 1, 1), (2, 1, 2), (2, 1, -1),
-    (-1, 0, 0), (-1, 0, 1), (-1, 0, 2), (-1, 0, -1), (-1, 1, 0), (-1, 1, 1), (-1, 1, 2),
-    (-1, 1, -1), (-1, 1, -2), (-1, 2, 0), (-1, 2, 1), (-1, 2, -1), (-1, 2, -2), (-2, 0, 0),
-    (-2, 0, 1), (-2, 0, -1), (-2, 1, 0), (-2, 1, 1), (-2, 1, 2), (-2, 1, -1),
+    (0, 0, 0),
+    (0, 0, 1),
+    (0, 0, 2),
+    (0, 0, -1),
+    (0, 1, 1),
+    (0, 1, 2),
+    (0, 1, -1),
+    (0, 1, -2),
+    (0, 2, 0),
+    (0, 2, 1),
+    (0, 2, -1),
+    (0, 2, -2),
+    (1, 0, 0),
+    (1, 0, 1),
+    (1, 0, 2),
+    (1, 0, -1),
+    (1, 1, 0),
+    (1, 1, 1),
+    (1, 1, 2),
+    (1, 1, -1),
+    (1, 1, -2),
+    (1, 2, 0),
+    (1, 2, 1),
+    (1, 2, -1),
+    (1, 2, -2),
+    (2, 0, 0),
+    (2, 0, 1),
+    (2, 0, -1),
+    (2, 1, 0),
+    (2, 1, 1),
+    (2, 1, 2),
+    (2, 1, -1),
+    (-1, 0, 0),
+    (-1, 0, 1),
+    (-1, 0, 2),
+    (-1, 0, -1),
+    (-1, 1, 0),
+    (-1, 1, 1),
+    (-1, 1, 2),
+    (-1, 1, -1),
+    (-1, 1, -2),
+    (-1, 2, 0),
+    (-1, 2, 1),
+    (-1, 2, -1),
+    (-1, 2, -2),
+    (-2, 0, 0),
+    (-2, 0, 1),
+    (-2, 0, -1),
+    (-2, 1, 0),
+    (-2, 1, 1),
+    (-2, 1, 2),
+    (-2, 1, -1),
 ];
 
 /// The two racer turret cubes, in section-id form - the player binds both to its
@@ -272,7 +368,15 @@ fn cargob_torpedo_kind(m: &SectionMeshRefs, cube: AssetRef<WorldAsset>) -> Secti
     })
 }
 
-fn proto(id: String, name: String, desc: &str, hp: f32, m: &SectionMeshRefs, kind: SectionKind, collider: Option<SectionCollider>) -> SectionConfig {
+fn proto(
+    id: String,
+    name: String,
+    desc: &str,
+    hp: f32,
+    m: &SectionMeshRefs,
+    kind: SectionKind,
+    collider: Option<SectionCollider>,
+) -> SectionConfig {
     SectionConfig {
         base: cube_base(id, name, desc, hp, m, collider),
         kind,
@@ -296,20 +400,66 @@ pub(crate) fn racer_prototypes(m: &SectionMeshRefs) -> Vec<SectionConfig> {
         match (i, j, k) {
             (1, 0, -1) | (-1, 0, -1) => {
                 let (_, mesh_rot) = turret_side(i);
-                let root = mounted_turret_root(m, mesh.clone(), mesh_rot, turret_fire_rate(ShipGrade::Player));
-                out.push(proto(id, format!("Racer Turret ({i},{j},{k})"), desc, RACER_TURRET_HP, m, turret_kind(m, root, ShipGrade::Player), None));
-                let lroot = mounted_turret_root(m, mesh, mesh_rot, turret_fire_rate(ShipGrade::Enemy));
-                out.push(proto(format!("racer_light_{s}"), format!("Racer Light Turret ({i},{j},{k})"), desc, RACER_LIGHT_TURRET_HP, m, turret_kind(m, lroot, ShipGrade::Enemy), None));
+                let root = mounted_turret_root(
+                    m,
+                    mesh.clone(),
+                    mesh_rot,
+                    turret_fire_rate(ShipGrade::Player),
+                );
+                out.push(proto(
+                    id,
+                    format!("Racer Turret ({i},{j},{k})"),
+                    desc,
+                    RACER_TURRET_HP,
+                    m,
+                    turret_kind(m, root, ShipGrade::Player),
+                    None,
+                ));
+                let lroot =
+                    mounted_turret_root(m, mesh, mesh_rot, turret_fire_rate(ShipGrade::Enemy));
+                out.push(proto(
+                    format!("racer_light_{s}"),
+                    format!("Racer Light Turret ({i},{j},{k})"),
+                    desc,
+                    RACER_LIGHT_TURRET_HP,
+                    m,
+                    turret_kind(m, lroot, ShipGrade::Enemy),
+                    None,
+                ));
             }
             (1, 0, 2) | (-1, 0, 2) => {
                 let off_x = if i > 0 { -0.35 } else { 0.35 };
-                out.push(proto(id, format!("Racer Thruster ({i},{j},{k})"), desc, RACER_THRUSTER_HP, m, rect_exhaust(m, mesh, Vec3::new(off_x, 0.0, -0.2), 0.3, 0.5), None));
+                out.push(proto(
+                    id,
+                    format!("Racer Thruster ({i},{j},{k})"),
+                    desc,
+                    RACER_THRUSTER_HP,
+                    m,
+                    rect_exhaust(m, mesh, Vec3::new(off_x, 0.0, -0.2), 0.3, 0.5),
+                    None,
+                ));
             }
             (0, 1, 0) => {
-                out.push(proto(id, "Racer Controller".to_string(), desc, RACER_CONTROLLER_HP, m, controller_kind(m, Some(mesh), 800.0), None));
+                out.push(proto(
+                    id,
+                    "Racer Controller".to_string(),
+                    desc,
+                    RACER_CONTROLLER_HP,
+                    m,
+                    controller_kind(m, Some(mesh), 800.0),
+                    None,
+                ));
             }
             _ => {
-                out.push(proto(id, format!("Racer Cube ({i},{j},{k})"), desc, RACER_HULL_HP, m, hull_kind(mesh), None));
+                out.push(proto(
+                    id,
+                    format!("Racer Cube ({i},{j},{k})"),
+                    desc,
+                    RACER_HULL_HP,
+                    m,
+                    hull_kind(mesh),
+                    None,
+                ));
             }
         }
     }
@@ -328,22 +478,65 @@ pub(crate) fn cargob_prototypes(m: &SectionMeshRefs) -> Vec<SectionConfig> {
         match (i, j, k) {
             (1, 2, 0) | (-1, 2, 0) => {
                 let (_, mesh_rot) = turret_side(i);
-                let root = mounted_turret_root(m, mesh, mesh_rot, turret_fire_rate(ShipGrade::Player));
-                out.push(proto(id, format!("Cargo Turret ({i},{j},{k})"), desc, RACER_TURRET_HP, m, turret_kind(m, root, ShipGrade::Player), None));
+                let root =
+                    mounted_turret_root(m, mesh, mesh_rot, turret_fire_rate(ShipGrade::Player));
+                out.push(proto(
+                    id,
+                    format!("Cargo Turret ({i},{j},{k})"),
+                    desc,
+                    RACER_TURRET_HP,
+                    m,
+                    turret_kind(m, root, ShipGrade::Player),
+                    None,
+                ));
             }
             (1, 1, 2) | (-1, 1, 2) => {
-                out.push(proto(id, format!("Cargo Thruster ({i},{j},{k})"), desc, RACER_THRUSTER_HP, m, rect_exhaust(m, mesh, Vec3::new(0.0, 0.0, 0.5), 0.4, 0.6), None));
+                out.push(proto(
+                    id,
+                    format!("Cargo Thruster ({i},{j},{k})"),
+                    desc,
+                    RACER_THRUSTER_HP,
+                    m,
+                    rect_exhaust(m, mesh, Vec3::new(0.0, 0.0, 0.5), 0.4, 0.6),
+                    None,
+                ));
             }
             (1, 1, -2) | (-1, 1, -2) => {
-                out.push(proto(id, format!("Cargo Torpedo Bay ({i},{j},{k})"), desc, 100.0, m, cargob_torpedo_kind(m, mesh), None));
+                out.push(proto(
+                    id,
+                    format!("Cargo Torpedo Bay ({i},{j},{k})"),
+                    desc,
+                    100.0,
+                    m,
+                    cargob_torpedo_kind(m, mesh),
+                    None,
+                ));
             }
             // Beveled top-front corners: the cut hull does not fill the cell, so
             // tighten the collider to the mesh (mass + hitbox only).
             (1, 2, -2) | (-1, 2, -2) => {
-                out.push(proto(id, format!("Cargo Cube ({i},{j},{k})"), desc, CARGOB_HULL_HP, m, hull_kind(mesh), Some(SectionCollider::Cuboid { size: Vec3::splat(0.8) })));
+                out.push(proto(
+                    id,
+                    format!("Cargo Cube ({i},{j},{k})"),
+                    desc,
+                    CARGOB_HULL_HP,
+                    m,
+                    hull_kind(mesh),
+                    Some(SectionCollider::Cuboid {
+                        size: Vec3::splat(0.8),
+                    }),
+                ));
             }
             _ => {
-                out.push(proto(id, format!("Cargo Cube ({i},{j},{k})"), desc, CARGOB_HULL_HP, m, hull_kind(mesh), None));
+                out.push(proto(
+                    id,
+                    format!("Cargo Cube ({i},{j},{k})"),
+                    desc,
+                    CARGOB_HULL_HP,
+                    m,
+                    hull_kind(mesh),
+                    None,
+                ));
             }
         }
     }
@@ -373,10 +566,26 @@ pub(crate) fn cargoa_prototypes(m: &SectionMeshRefs) -> Vec<SectionConfig> {
         match (i, j, k) {
             (1, 1, 2) | (-1, 1, 2) => {
                 let off_x = if i > 0 { 0.2 } else { -0.2 };
-                out.push(proto(id, format!("Cargo Thruster ({i},{j},{k})"), desc, RACER_THRUSTER_HP, m, rect_exhaust(m, mesh, Vec3::new(off_x, -0.1, 0.4), 0.56, 0.4), None));
+                out.push(proto(
+                    id,
+                    format!("Cargo Thruster ({i},{j},{k})"),
+                    desc,
+                    RACER_THRUSTER_HP,
+                    m,
+                    rect_exhaust(m, mesh, Vec3::new(off_x, -0.1, 0.4), 0.56, 0.4),
+                    None,
+                ));
             }
             _ => {
-                out.push(proto(id, format!("Cargo Cube ({i},{j},{k})"), desc, CARGOA_HULL_HP, m, hull_kind(mesh), None));
+                out.push(proto(
+                    id,
+                    format!("Cargo Cube ({i},{j},{k})"),
+                    desc,
+                    CARGOA_HULL_HP,
+                    m,
+                    hull_kind(mesh),
+                    None,
+                ));
             }
         }
     }
@@ -430,11 +639,23 @@ pub(crate) fn racer_sections(
                 let (sec_rot, _) = turret_side(i);
                 // Enemy turrets are the weak `racer_light_*` prototype (health
                 // baked in), so they take no SetHealth override.
-                let id = if enemy { format!("racer_light_{s}") } else { format!("racer_{s}") };
+                let id = if enemy {
+                    format!("racer_light_{s}")
+                } else {
+                    format!("racer_{s}")
+                };
                 (sec_rot, id, None)
             }
-            (1, 0, 2) | (-1, 0, 2) => (Quat::IDENTITY, format!("racer_{s}"), Some(ENEMY_THRUSTER_HP)),
-            (0, 1, 0) => (Quat::IDENTITY, format!("racer_{s}"), Some(ENEMY_CONTROLLER_HP)),
+            (1, 0, 2) | (-1, 0, 2) => (
+                Quat::IDENTITY,
+                format!("racer_{s}"),
+                Some(ENEMY_THRUSTER_HP),
+            ),
+            (0, 1, 0) => (
+                Quat::IDENTITY,
+                format!("racer_{s}"),
+                Some(ENEMY_CONTROLLER_HP),
+            ),
             _ => (Quat::IDENTITY, format!("racer_{s}"), Some(ENEMY_HULL_HP)),
         };
         let mut mods = Vec::new();
@@ -461,7 +682,13 @@ pub(crate) fn cargob_sections() -> Vec<SpaceshipSectionConfig> {
             (1, 2, 0) | (-1, 2, 0) => turret_side(i).0,
             _ => Quat::IDENTITY,
         };
-        out.push(ship_section(s.clone(), pos, rotation, format!("cargob_{s}"), vec![]));
+        out.push(ship_section(
+            s.clone(),
+            pos,
+            rotation,
+            format!("cargob_{s}"),
+            vec![],
+        ));
     }
     out.push(ship_section(
         "core_controller".to_string(),
@@ -481,7 +708,13 @@ pub(crate) fn cargoa_sections() -> Vec<SpaceshipSectionConfig> {
     for &(i, j, k) in CARGOA_CUBES {
         let s = stem(i, j, k);
         let pos = Vec3::new(i as f32, j as f32, k as f32);
-        out.push(ship_section(s.clone(), pos, Quat::IDENTITY, format!("cargoa_{s}"), vec![]));
+        out.push(ship_section(
+            s.clone(),
+            pos,
+            Quat::IDENTITY,
+            format!("cargoa_{s}"),
+            vec![],
+        ));
     }
     out.push(ship_section(
         "core_controller".to_string(),
