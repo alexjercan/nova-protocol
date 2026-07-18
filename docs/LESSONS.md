@@ -1042,12 +1042,22 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   which bevy_enhanced_input reads, so one message + `update()` fires the action.
   `MouseWheel` needs unit+x+y+window+PHASE (the `phase: TouchPhase::Moved` field
   is easy to miss). 20260718-122912.
-- `changed-shared-observer-run-the-module-suites` (x2): when a change alters a
-  SHARED observer/system (a signature, or a core loop like autopilot_system),
-  run the whole affected MODULE suite (`cargo test -p crate --lib "mod::"`), not
-  just the new tests - the risk is silently breaking existing consumers, which
-  only the existing tests catch. The autopilot RCS change regressed 11 flight
-  tests; the full `flight::` run caught them all. 20260718-122912, 20260718-122932.
+- `changed-shared-observer-run-the-module-suites` (x3, -> Pending promotions):
+  when a change alters a SHARED observer/system (a signature, or a core loop
+  like autopilot_system), run the whole affected MODULE suite (`cargo test -p
+  crate --lib "mod::"`), not just the new tests - the risk is silently breaking
+  existing consumers, which only the existing tests catch. The autopilot RCS
+  change regressed 11 flight tests; the full `flight::` run caught them all. The
+  delta-control decay added a system to the same FixedUpdate chain; the full
+  `flight::` run (77) confirmed no autopilot regression.
+  20260718-122912, 20260718-122932, 20260718-185826.
+- `playtest-can-reverse-a-spike-feel-call` (x1): a spike decision that rests on
+  "which feels better" is a hypothesis, not a verdict - the on-paper primary can
+  lose to its runner-up once it is in the hand. The RCS held-direction joystick
+  (spike Q1 primary) playtested as "way too hard to control" and was reversed to
+  the delta-driven runner-up. Keep the deciding parameter a single tunable
+  constant so the reversal is a one-line change, and treat the reversal as a
+  normal cycle (not a spike failure). 20260718-185826.
 - `new-default-on-capability-changes-tested-behavior` (x1): a capability that is
   granted BY DEFAULT (a verb, a flag) silently changes the behavior of EVERY
   existing entity when a code path starts honoring it - regressing every test
@@ -1203,6 +1213,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   swap forces the re-derive. 20260718-140903.
 
 ## Pending promotions (3+ occurrences, user decides)
+
+- `changed-shared-observer-run-the-module-suites` (x3) -> work/review skill: when
+  a change alters a SHARED observer/system or adds to a shared FixedUpdate chain,
+  run the whole affected MODULE suite, not just the new tests - only the existing
+  tests catch a silently broken consumer. See the main-list entry.
+  20260718-122912, 20260718-122932, 20260718-185826.
 
 - `bg-isolation-guard-allows-sprout-not-main` (x3) -> work/compound skill or
   AGENTS.md: in a background job the Write/Edit guard blocks the main checkout
