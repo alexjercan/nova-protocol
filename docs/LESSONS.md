@@ -593,44 +593,15 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 (Empty - the 2026-07-19 pass promoted everything that was pending. New 3+
 lessons land here as they occur.)
 
-## Promoted (kept for history)
+## Promoted
 
-- 2026-07-19: full promotion + condense pass alongside the tatr 0.2.0 tool
-  fix. To the work skill: `check-all-targets-for-struct-field`,
-  `piped-cargo-masks-exit-code` (also ~/AGENTS.md),
-  `changed-shared-observer-run-the-module-suites`,
-  `truncated-sweep-is-not-a-sweep`, `sibling-change-leaves-stale-fixture`,
-  `reuse-production-helpers-in-tests`, `validate-in-every-domain`,
-  `half-ticked-compound-steps`, reproduce-first bug flow. To the review
-  skill: `pin-the-fix-at-its-boundary`. To the plan skill:
-  `audit-state-gates-on-new-entry-path`, `verify-engine-guarantees-in-source`,
-  Story + Definition of Done task format. To ~/AGENTS.md:
-  `verify-scripted-edits-applied`, `pkill-pattern-matches-own-shell`. To the
-  flow skill: `diagnostic-first` (bug playbook), atomic one-command landing
-  (`shared-checkout-write-leak`), `flow-land-scope-when-user-says-branch`,
-  `merge-red-check-preexisting`, `inseparable-seeded-tasks-remerge`,
-  `mid-flow-lesson-reaudits-the-queue`, feature playbook with harness-level
-  verification. To the tatr skill (+ tool): `tatr-same-second-collision`
-  (tatr 0.2.0 now fails on collision; `--body-file` added),
-  `tatr-new-then-sprout-strands-the-task-file` (also flow). To the sprout
-  skill: `worktree-shares-main-target`, `relocation-leaves-ignored-siblings`,
-  `isolate-off-head-for-unpushed-deps`. To repo AGENTS.md:
-  `shared-checkout-write-leak`, `shared-checkout-reads-race`,
-  `landing-checkout-not-yours`, `bg-isolation-guard-allows-sprout-not-main`,
-  `generate-data-from-code`, `edit-the-builder-not-the-generated-ron`,
-  `crate-solo-tests-miss-unified-features`, harness-first testing. To the
-  spike skill: `playtest-can-reverse-a-spike-feel-call`.
-- 2026-07-13: `sweep-then-delete` + `would-it-fail-without-it` +
-  `record-the-exact-rig` + `landing-checkout-not-yours` -> work skill (the
-  last also in flow's landing and compound's commit steps);
-  `would-it-fail-without-it` also -> review skill;
-  `tatr-same-second-collision` -> sharpened "never chain tatr new" in the
-  tatr/plan/spike skills; `one-cargo-test-filter` -> docs/development.md.
-  Same date: skills now write task-folder records (SPIKE.md, RETRO.md,
-  NOTES.md next to TASK.md) and the ledger moved to docs/LESSONS.md.
-- 2026-07-11: `verify-first-plan-steps` -> plan skill; `fail-first-regression-ab`,
-  `commit-before-sabotage`, `production-faithful-rigs` -> work skill;
-  `delivery-guards-on-null-assertions` -> review skill; `landing-no-cd` -> flow
-  skill; `spike-fix-record` -> spike skill; `tatr-same-second-collision` ->
-  tatr skill gotchas; lessons-ledger step -> compound skill. (All in
-  nix.dotfiles/home/modules/agents/skills.)
+Per-entry markers above carry each promoted lesson's date and target; the
+detail of each pass lives in the commits. Passes:
+
+- 2026-07-19: promotion + condense pass; tatr collision fixed in the tool
+  itself (0.2.0, plus --body-file), bug/feature playbooks -> flow skill,
+  Story + Definition of Done format -> plan/tatr skills, harness-first
+  testing -> repo AGENTS.md. (nova 66c56e2b; nix.dotfiles 4e7fdc1)
+- 2026-07-13: task-folder records (SPIKE/RETRO/NOTES next to TASK.md); the
+  ledger moved to docs/LESSONS.md.
+- 2026-07-11: first promotion pass, ledger seeded from 104 retros.
