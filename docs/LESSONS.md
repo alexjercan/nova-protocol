@@ -242,14 +242,26 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   stayed empty through all four landings and was back-filled at flow finish;
   the append belongs next to the TASK.md close in each cycle's landing, not
   at the end. 20260717-163058 (flow-level).
-- `diagnostic-first` (x10): trace the exact reported scenario, with real
+- `diagnostic-first` (x11): trace the exact reported scenario, with real
   numbers, before theorizing a mechanism (the wasm CORS "bug" was a
   cross-origin `?portal=` override, not a client fetch bug - reading the deploy
-  topology dissolved it). 20260711-140241, 20260712-172035, 20260715-214540.
-- `fail-first-regression-ab` (x11, PROMOTED 2026-07-11 -> work skill): prove a
+  topology dissolved it; the menu orbit-crash turned on the well deriving `mu`
+  from the ~85u GEOMETRIC asteroid radius, not the nominal 20u, so gravity at
+  the orbit exceeded RCS authority). 20260711-140241, 20260712-172035,
+  20260715-214540, 20260718-204640.
+- `fail-first-regression-ab` (x12, PROMOTED 2026-07-11 -> work skill): prove a
   bug fix by failing its test against the pre-fix behavior; record the numbers.
   CI history counts as the failing run when master is already red on the exact
-  assertion (no local sabotage needed). 20260711-180426, 20260715-142844.
+  assertion (no local sabotage needed). 20260711-180426, 20260715-142844,
+  20260718-204640 (strong-gravity orbit REPROEXIT=101 on `saw_rcs` pre-fix).
+- `test-across-the-ratio-boundary` (x1): when a behavior turns on a PHYSICAL
+  RATIO (local gravity vs RCS accel, speed vs a cap, load vs capacity), the
+  headless test must span the point where the ratio crosses 1 - a single
+  convenient operating point proves nothing about the other regime, which is
+  where the user hits the bug. The ORBIT-RCS trim (20260718-151102) was tested
+  only in a WEAK well (g=0.48 < rcs_accel=1.5) and shipped a crash in STRONG
+  wells (g=2.2 > 1.5); the fix added a strong-well test and a
+  gravity-authority gate. 20260718-204640.
 - `delivery-guards-on-null-assertions` (x6, PROMOTED 2026-07-11 -> review
   skill): "nothing happens" tests need proof the stimulus fired, IN the same
   test - a cross-test guard through a shared helper does not count.
