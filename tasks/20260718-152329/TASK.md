@@ -1,8 +1,8 @@
 # v0.7.0 pre-release: clear docs/ root junk into its correct homes (task folders / wiki) per docs/README rules before tagging
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 55
-- TAGS: v0.7.0,docs,release
+- TAGS: v0.7.0, docs, release
 
 ## Goal
 
