@@ -1074,11 +1074,16 @@ fn on_rcs_aim(
     if !active {
         return;
     }
-    let delta = fire.value * RCS_AIM_SENSITIVITY;
-    intent.x = crate::flight::accumulate_rcs_axis(intent.x, delta.x);
+    // DELTA-driven (playtest 2026-07-18): SET the intent from THIS frame's mouse
+    // motion rather than accumulating a persistent offset - the held-direction
+    // joystick was too hard to control because it kept pushing after the mouse
+    // stopped. `decay_player_rcs_intent` fades this to zero when the mouse stops,
+    // so force follows motion.
+    let delta = (fire.value * RCS_AIM_SENSITIVITY).clamp(Vec2::splat(-1.0), Vec2::splat(1.0));
+    intent.x = delta.x;
     // Bevy mouse-motion Y is +down; pushing the mouse forward (up, -y) drives
     // the ship forward (ship-local -Z), pulling back drives it aft.
-    intent.z = crate::flight::accumulate_rcs_axis(intent.z, delta.y);
+    intent.z = delta.y;
 }
 
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
@@ -1969,11 +1974,12 @@ mod tests {
         );
     }
 
-    /// While RCS is active, mouse motion accumulates into the ship-local
-    /// `RcsIntent` XZ plane (strafe + forward/back) and leaves Y to the scroll;
-    /// outside RCS the same motion is ignored.
+    /// While RCS is active, mouse motion drives the ship-local `RcsIntent` XZ
+    /// plane (strafe + forward/back) from THIS frame's delta - SET, not a running
+    /// accumulate (playtest 2026-07-18: delta-driven, not a joystick). Outside RCS
+    /// the same motion is ignored.
     #[test]
-    fn rcs_mouse_motion_accumulates_intent_only_while_active() {
+    fn rcs_mouse_motion_sets_intent_from_the_delta_only_while_active() {
         use bevy::input::{mouse::MouseMotion, InputPlugin};
 
         let mut app = App::new();
@@ -2023,6 +2029,25 @@ mod tests {
             "mouse-forward (up) drives the ship forward, -Z (got {intent:?})"
         );
         assert_eq!(intent.y, 0.0, "mouse does not touch the vertical axis");
+
+        // A SECOND, smaller motion REPLACES the intent (delta-driven) - it does
+        // NOT accumulate on top of the first. (No decay runs in this harness, so
+        // the only reason x shrinks is the SET.)
+        app.world_mut().write_message(MouseMotion {
+            delta: Vec2::new(10.0, 0.0),
+        });
+        app.update();
+        let intent = app.world().get::<RcsIntent>(ship).unwrap().0;
+        assert!(
+            (intent.x - 10.0 * RCS_AIM_SENSITIVITY).abs() < 1e-4,
+            "x is the LAST delta (0.2), not the sum of both motions (got {})",
+            intent.x
+        );
+        assert_eq!(
+            intent.z, 0.0,
+            "the second motion had no forward component, so z is set back to 0 (got {})",
+            intent.z
+        );
     }
 
     /// While RCS is active a scroll notch nudges the ship-local Y (up/down) axis

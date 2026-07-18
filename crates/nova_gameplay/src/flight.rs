@@ -146,6 +146,12 @@ pub(crate) fn accumulate_rcs_axis(current: f32, delta: f32) -> f32 {
     (current + delta).clamp(-1.0, 1.0)
 }
 
+/// Per-tick multiplier that fades the PLAYER's `RcsIntent` toward zero when no
+/// fresh mouse/scroll motion arrives ([`decay_player_rcs_intent`]), so RCS is
+/// delta-driven, not a persistent joystick. ~0.4 leaves a ~3-tick (~50 ms) tail
+/// that smooths the per-frame input without feeling like a held stick. Feel-tune.
+const RCS_PLAYER_INTENT_DECAY: f32 = 0.4;
+
 /// Per-ship override of the RCS fine-adjust speed cap (u/s), on the ship root.
 /// Unlike [`FlightSpeedCap`], RCS is ALWAYS capped - that is the whole point of
 /// a fine-adjust mode - so a ship without this component still gets the default
@@ -518,7 +524,12 @@ impl Plugin for NovaFlightPlugin {
         );
         app.add_systems(
             FixedUpdate,
-            (autopilot_system, manual_burn_system, rcs_burn_system)
+            (
+                autopilot_system,
+                manual_burn_system,
+                rcs_burn_system,
+                decay_player_rcs_intent,
+            )
                 .chain()
                 .in_set(NovaFlightSystems),
         );
@@ -2221,6 +2232,28 @@ fn rcs_burn_system(
     }
 }
 
+/// Per-tick decay of the PLAYER's `RcsIntent`, so RCS fine-adjust is DELTA-driven
+/// (force follows the mouse/scroll motion and stops when the input stops) instead
+/// of a persistent virtual joystick that keeps pushing after you let go - which
+/// playtested as "way too hard to control" (task 20260718-185826). The input
+/// layer SETS the intent from each frame's motion; this fades it back to zero
+/// when no fresh input arrives. Gated on [`RcsActive`] - the player's SHIFT modal
+/// - so the AUTOPILOT's own `RcsIntent` (which it rewrites every tick, and which
+/// never carries `RcsActive`) is untouched. Runs after [`rcs_burn_system`] in the
+/// chain, so the intent this tick is spent before it decays.
+fn decay_player_rcs_intent(mut q_intent: Query<&mut RcsIntent, With<RcsActive>>) {
+    for mut intent in &mut q_intent {
+        if intent.0 == Vec3::ZERO {
+            continue;
+        }
+        intent.0 *= RCS_PLAYER_INTENT_DECAY;
+        // Snap tiny residue to zero so the ship truly coasts, not creeps.
+        if intent.0.length_squared() < 1e-4 {
+            intent.0 = Vec3::ZERO;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2956,6 +2989,7 @@ mod tests {
                 autopilot_system,
                 manual_burn_system,
                 rcs_burn_system,
+                decay_player_rcs_intent,
                 update_controller_section_rotation_input,
             )
                 .chain()
@@ -3108,6 +3142,42 @@ mod tests {
         assert_eq!(accumulate_rcs_axis(-0.9, -0.5), -1.0);
         // Pulling back from a rail walks toward the other one.
         assert!((accumulate_rcs_axis(1.0, -0.4) - 0.6).abs() < 1e-6);
+    }
+
+    /// The player's `RcsIntent` is delta-driven: with `RcsActive` and no fresh
+    /// input, it fades to zero over ticks (task 20260718-185826), so the ship
+    /// stops nudging when the mouse stops instead of coasting a held joystick.
+    /// An autopilot ship (no `RcsActive`) is NOT decayed - it rewrites its own
+    /// intent each tick.
+    #[test]
+    fn player_rcs_intent_decays_when_input_stops_but_autopilot_intent_does_not() {
+        let mut app = flight_app();
+        let (player, _, _) = spawn_ship(&mut app);
+        let (auto, _, _) = spawn_ship(&mut app);
+        settle(&mut app);
+        // Player: RcsActive + a held intent from a mouse frame that then stops.
+        app.world_mut()
+            .entity_mut(player)
+            .insert((RcsIntent(Vec3::new(0.8, 0.0, 0.0)), RcsActive));
+        // Autopilot-style: an intent WITHOUT RcsActive (nothing rewrites it here).
+        app.world_mut()
+            .entity_mut(auto)
+            .insert(RcsIntent(Vec3::new(0.8, 0.0, 0.0)));
+
+        for _ in 0..30 {
+            app.update();
+        }
+
+        assert!(
+            app.world().get::<RcsIntent>(player).unwrap().0.length() < 1e-3,
+            "the player's held intent decays to ~zero without fresh input (got {:?})",
+            app.world().get::<RcsIntent>(player).unwrap().0
+        );
+        assert!(
+            app.world().get::<RcsIntent>(auto).unwrap().0.length() > 0.5,
+            "a non-RcsActive (autopilot) intent is NOT decayed (got {:?})",
+            app.world().get::<RcsIntent>(auto).unwrap().0
+        );
     }
 
     /// A held RCS nudge builds the along-axis speed up toward the cap and then
