@@ -4,24 +4,48 @@
 - PRIORITY: 25
 - TAGS: spike,docs,tooling,v0.8.0
 
-## Goal
+## Story
 
-Adopt the Bevy/Wesnoth news-fragment authoring pattern so changelog entries are
-written per-change while context is fresh, instead of hand-edited into a single
-file at release time. Each change drops a small markdown fragment (with
-frontmatter: title, PR/commit refs, subsystem section, optional
-breaking-changes body) into a `changelog_entries/` directory; a release-time
-step compiles the fragments into both `CHANGELOG.md` and the web changelog
-page; a CI check nags when a change lands without a fragment.
+As the maintainer of two changelog artifacts (CHANGELOG.md and the /news/
+posts), I want changelog entries authored per-change while context is fresh -
+IF the hand-maintained flow ever starts drifting - so that release-time
+writing is compilation, not archaeology.
 
-Deferrable: only worth doing once the two artifacts (20260716-102950 and
-20260716-102954) exist and start drifting. Lowest priority; may be dropped if
-the two-artifact maintenance stays cheap by hand.
+Adopt the Bevy/Wesnoth news-fragment authoring pattern: each change drops a
+small markdown fragment (with frontmatter: title, PR/commit refs, subsystem
+section, optional breaking-changes body) into a `changelog_entries/`
+directory; a release-time step compiles the fragments into both
+`CHANGELOG.md` and the web news/changelog page; a CI check nags when a change
+lands without a fragment.
 
-Done = a fragment format + compile step + CI nag exist, or a documented
-decision not to build it.
+## Steps
+
+- [ ] Re-check the trigger condition first: the v0.7.0 docs review
+      (2026-07-18) found CHANGELOG.md fully consistent with git history - the
+      drift was one-directional editorial compression in the NEWS page (~20
+      shipped items uncovered), which fragments would NOT have fixed, since
+      news prose is deliberately curated. If the hand flow is still holding,
+      write the documented decision not to build it and close.
+- [ ] If building: define the fragment format (frontmatter keys, section
+      mapping to the CHANGELOG's subsystem headers) and the directory
+      convention.
+- [ ] Build the release compile step (fragments -> CHANGELOG [version]
+      section; the news post stays hand-written prose per the exemplar-first
+      lesson) and the CI nag for changes without a fragment.
+- [ ] Update keeping-docs-in-sync.md: fragment-on-change replaces
+      line-in-CHANGELOG-on-change.
+
+## Definition of Done
+
+- Either: a fragment format + compile step + CI nag exist and one release has
+  been cut through them, OR a documented decision not to build it (with the
+  evidence) is recorded here and the task closed.
 
 ## Notes
 
-Spike: tasks/20260716-102940/SPIKE.md
-Depends on 20260716-102950 and 20260716-102954.
+- Spike: tasks/20260716-102940/SPIKE.md
+- Depends on 20260716-102950 and 20260716-102954 (the two artifacts).
+- Evidence for "not yet": the v0.7.0 cycle kept CHANGELOG.md complete by hand
+  under the AGENTS.md same-task rule; the ephemeral-docs compile step
+  (20260718-175424) is adopting the compile-then-clear pattern for lessons
+  anyway, so revisit only if a release ships with a CHANGELOG hole.
