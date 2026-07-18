@@ -83,9 +83,9 @@ pub mod scenario_generation {
         vec![
             crate::scenario::asteroid_next(cubemap()),
             crate::scenario::asteroid_field(cubemap(), texture()),
-            crate::scenario::menu_ambience(cubemap(), texture()),
-            crate::scenario::menu_waystation(cubemap(), texture()),
-            crate::scenario::menu_scrapyard(cubemap(), texture()),
+            crate::scenario::menu::menu_ambience(cubemap(), texture()),
+            crate::scenario::menu::menu_waystation(cubemap(), texture()),
+            crate::scenario::menu::menu_scrapyard(cubemap(), texture()),
             crate::scenario::shakedown::shakedown_run(cubemap(), texture()),
             crate::scenario::broadside::broadside(
                 AssetRef::from(CUBEMAP_ALT_PATH.to_string()),
