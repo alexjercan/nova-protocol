@@ -286,9 +286,18 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   ignored siblings behind on disk in the main checkout, which a copy-dir build
   still ships. After landing a "stop shipping dir X" move, `rm -rf` X's leftover
   ignored files from the main checkout. 20260714-154958.
-- `verify-stale-brief-against-tree` (x1): a task brief can be partly stale
-  (e.g. "three credits copies exist"); check the live tree before planning or
-  you chase a non-problem. 20260714-154958.
+- `verify-stale-brief-against-tree` (x2): a task brief - even a data-backed
+  one - can be partly stale; check the live tree before acting. A "three credits
+  copies exist" claim, and a baseline's "scatter_density never fires for the
+  shipped scenes" claim that was only true for one of the three named scenes (the
+  other two had real `ScatterObjects` blocks the lever thinned) - read the actual
+  scene/source before you trust the premise, and fix the rationale when it is
+  wrong. 20260714-154958, 20260718-004834.
+- `match-ci-feature-set-in-targeted-tests` (x1): a bare `cargo test -p <crate>
+  --lib` can fail to COMPILE on feature-gated test code (nova_scenario's loader
+  round-trips need `serde`, on only through the workspace) and look like a
+  regression; run targeted tests with CI's feature set (`--features serde`, or via
+  the workspace `cargo test --workspace --features debug`). 20260718-004834.
 - `landing-no-cd` (x3, PROMOTED 2026-07-11 -> flow skill): squash-merge from
   the main checkout, its own command, no cd, `pwd` first. 20260709-160753.
 - `record-the-exact-rig` (x3): evidence notes record the rig (systems run,
