@@ -947,7 +947,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   to an observer many headless section rigs run); the sibling `muzzle_effect`
   snapshots the ref UNRESOLVED at build and resolves in a render-time observer.
   Caught in self-review by comparing to the sibling, not by a test. 20260717-002228.
-- `piped-cargo-masks-exit-code` (x5, -> Pending promotions): `cargo ... | tail`/`| grep` reports the
+- `piped-cargo-masks-exit-code` (x6, -> Pending promotions): `cargo ... | tail`/`| grep` reports the
   PIPELINE's exit (tail/grep = 0), so a compile FAILURE reads as "exit 0" in the
   harness notification; read the OUTPUT text for `error[`/`could not compile` vs
   `Finished`, or `set -o pipefail`. Bit twice in one task - a masked E0593 in a
@@ -961,7 +961,9 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   grep "test result", never tail. 20260717-002228, 20260717-013440,
   20260717-162121, 20260718-122912 (a `| grep -E "test result|..."` on a
   two-suite run returned EMPTY - matched nothing/buffered - so pass/fail was
-  invisible; re-ran with `| tail -3` per suite to see the counts).
+  invisible; re-ran with `| tail -3` per suite to see the counts), 20260718-122932
+  (did it AGAIN, twice - grep-piped test runs returned empty; switched to writing
+  cargo output to a temp file with `> f.txt` then grepping the FILE, which works).
 
 ## Domain lessons (nova-protocol specific)
 
@@ -1021,12 +1023,27 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   which bevy_enhanced_input reads, so one message + `update()` fires the action.
   `MouseWheel` needs unit+x+y+window+PHASE (the `phase: TouchPhase::Moved` field
   is easy to miss). 20260718-122912.
-- `changed-shared-observer-run-the-module-suites` (x1): when a change alters a
-  SHARED observer/system's signature (here on_component_cycle_next/prev,
-  on_rotation_input across three modules), run the whole affected MODULE suites
-  (`cargo test -p crate --lib "mod::"`), not just the new tests - the risk is
-  silently breaking existing consumers, which only the existing tests catch.
-  20260718-122912.
+- `changed-shared-observer-run-the-module-suites` (x2): when a change alters a
+  SHARED observer/system (a signature, or a core loop like autopilot_system),
+  run the whole affected MODULE suite (`cargo test -p crate --lib "mod::"`), not
+  just the new tests - the risk is silently breaking existing consumers, which
+  only the existing tests catch. The autopilot RCS change regressed 11 flight
+  tests; the full `flight::` run caught them all. 20260718-122912, 20260718-122932.
+- `new-default-on-capability-changes-tested-behavior` (x1): a capability that is
+  granted BY DEFAULT (a verb, a flag) silently changes the behavior of EVERY
+  existing entity when a code path starts honoring it - regressing every test
+  that asserts the old path. The autopilot RCS terminal-settle, gated on the
+  default-granted `Rcs` verb, hijacked all STOP/GOTO arrivals and broke 11 tests.
+  Fix: the legacy tests opt OUT (withhold the verb) to keep asserting the old
+  behavior, OR make the capability opt-in. Expect this whenever a new default-on
+  capability meets an established, tested path. 20260718-122932.
+- `shared-primitive-clear-on-handoff` (x1): a side-effecting component that ANY
+  system acts on (here `RcsIntent`, consumed by `rcs_burn_system` regardless of
+  who wrote it) must be CLEARED by each driver when it STOPS driving, or a
+  residual keeps acting. The autopilot left a non-zero `RcsIntent` at disengage
+  and the ship drifted to the RCS cap after arrival; fixed by zeroing it in the
+  On<Remove, Autopilot> cleanup. Test the OFF-ramp (run past the handoff), not
+  just the on-ramp. 20260718-122932.
 - `verify-ci-triggers-before-claiming-coverage` (x2): before writing "CI builds
   this", read the workflow triggers - a `workflow_dispatch`/deploy job is NOT
   automated PR/master coverage. An uncompiled cfg branch (e.g. the wasm
