@@ -18,4 +18,8 @@
         id: "example",
         bundle: "mods/example/example.bundle.ron",
     ),
+    (
+        id: "craft_cargoa",
+        bundle: "mods/craft_cargoa/craft_cargoa.bundle.ron",
+    ),
 ])
