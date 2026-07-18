@@ -89,6 +89,21 @@ adds that lever.
 
 ## Difficulties / bugs hit along the way
 
+- **Live quality switching rendered at the stale resolution** (task 20260718-140903,
+  found by the user). Switching to Low did nothing; switching back to High then
+  rendered the window at the reduced size. Root cause is a bevy gotcha: its
+  `camera_system` (bevy_render `camera.rs`) re-derives a camera's `target_info`
+  (physical size + scale factor) only when the target CONTENT changes (window
+  resize / image asset event), the camera `is_added()`, or its `Projection`
+  `is_changed()` - NOT when the `RenderTarget` component is swapped in place. So
+  mutating the scenario camera's target at runtime left `target_info` stale, and
+  the camera rendered with the previous target's dimensions. Fresh-start worked
+  only because the change coincided with `is_added()`. Fix: mark the camera's
+  `Projection` changed (`set_changed()`) on every target switch to force the
+  re-derive. Screenshots of the live High<->Low switch now show the correct
+  resolution both ways; a unit test asserts the projection is marked changed on a
+  switch and left alone on a steady frame.
+
 - **`Camera.target` does not exist on 0.19.** First cut compiled against a
   `Camera.target` field; the error (`no field target on Mut<Camera>`) pointed to
   `RenderTarget` having become a standalone required component. Switched the query

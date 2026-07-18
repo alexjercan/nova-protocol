@@ -103,7 +103,10 @@ fn reconcile_render_scale(
     windows: Query<&Window, With<PrimaryWindow>>,
     mut images: ResMut<Assets<Image>>,
     mut state: ResMut<RenderScaleState>,
-    mut q_scenario_cam: Query<(Entity, &mut RenderTarget), With<ScenarioCameraMarker>>,
+    mut q_scenario_cam: Query<
+        (Entity, &mut RenderTarget, &mut Projection),
+        With<ScenarioCameraMarker>,
+    >,
     mut q_sprite: Query<&mut Sprite, With<RenderScaleUpscaleSprite>>,
     q_sprite_entity: Query<Entity, With<RenderScaleUpscaleSprite>>,
 ) {
@@ -167,9 +170,18 @@ fn reconcile_render_scale(
         handle: image.clone(),
         scale_factor,
     };
-    for (_entity, mut target) in q_scenario_cam.iter_mut() {
+    for (_entity, mut target, mut projection) in q_scenario_cam.iter_mut() {
         if !matches!(&*target, RenderTarget::Image(current) if *current == wanted) {
             *target = RenderTarget::Image(wanted.clone());
+            // bevy's `camera_system` only re-derives a camera's target info when
+            // the target CONTENT changes (window resize / image asset event), the
+            // camera is added, or its Projection changed - NOT when the
+            // `RenderTarget` component is swapped at runtime. Without this the
+            // camera keeps the old target's size/scale after a live quality
+            // switch (the switch appears to do nothing, then the stale reduced
+            // size "sticks" onto the window on the way back). Marking the
+            // projection changed forces the re-derive.
+            projection.set_changed();
         }
     }
 
@@ -229,20 +241,27 @@ fn reconcile_render_scale(
 fn teardown_render_scale(
     commands: &mut Commands,
     state: &mut RenderScaleState,
-    q_scenario_cam: &mut Query<(Entity, &mut RenderTarget), With<ScenarioCameraMarker>>,
+    q_scenario_cam: &mut Query<
+        (Entity, &mut RenderTarget, &mut Projection),
+        With<ScenarioCameraMarker>,
+    >,
     q_sprite_entity: &Query<Entity, With<RenderScaleUpscaleSprite>>,
 ) {
     if state.image.is_none() && state.upscale_camera.is_none() {
         return;
     }
 
-    // Reset the target via Commands (not the immediate `&mut`) so it lands with
-    // the blit despawn in one apply - otherwise this frame would render the
-    // scenario straight to the window while the not-yet-despawned blit draws its
-    // stale image on top (a 1-frame glitch on a live Low->High switch).
-    for (entity, target) in q_scenario_cam.iter() {
+    // Reset the target to the window and mark the projection changed so bevy's
+    // `camera_system` re-derives the camera's target info - without that the
+    // camera keeps the reduced image's size after switching back to High and
+    // renders the window at the stale low resolution (the "High drops a lot"
+    // half of the switch bug). Immediate (`&mut`) rather than deferred so the
+    // reset and the projection touch land in the same frame; the blit despawns a
+    // frame later, so at worst its stale sprite shows for one frame.
+    for (_entity, mut target, mut projection) in q_scenario_cam.iter_mut() {
         if !matches!(*target, RenderTarget::Window(_)) {
-            commands.entity(entity).insert(RenderTarget::default());
+            *target = RenderTarget::default();
+            projection.set_changed();
         }
     }
     if let Some(camera) = state.upscale_camera.take() {
@@ -417,6 +436,57 @@ mod tests {
             sprites.iter(app.world()).count(),
             0,
             "blit sprite despawned"
+        );
+    }
+
+    #[test]
+    fn every_target_switch_marks_the_camera_projection_changed() {
+        // The load-bearing fix for live quality switching: bevy's `camera_system`
+        // re-derives a camera's target info only when the target content changes,
+        // the camera is added, or its Projection changed - NOT when `RenderTarget`
+        // is swapped in place. So each switch must touch the Projection, or a live
+        // High<->Low change renders at the stale resolution. Spy on the scenario
+        // camera's Projection change tick right after the reconcile runs.
+        #[derive(Resource, Default)]
+        struct ProjChanged(bool);
+        fn spy(
+            q: Query<Ref<Projection>, With<ScenarioCameraMarker>>,
+            mut out: ResMut<ProjChanged>,
+        ) {
+            out.0 = q.iter().any(|p| p.is_changed());
+        }
+
+        let mut app = test_app(GraphicsQuality::High);
+        app.init_resource::<ProjChanged>();
+        app.add_systems(Update, spy.after(reconcile_render_scale));
+        spawn_scenario_camera(&mut app);
+        // Frame 1: camera just spawned (Projection is trivially "added"); ignore.
+        app.update();
+
+        // High -> Low: reconcile points the camera at the image and must mark the
+        // projection changed (the camera was added a frame ago, so a true here is
+        // the reconcile's doing, not is_added).
+        app.insert_resource(GraphicsBudget::for_quality(GraphicsQuality::Low));
+        app.update();
+        assert!(
+            app.world().resource::<ProjChanged>().0,
+            "switching to Low must mark the scenario camera's projection changed"
+        );
+
+        // Low -> High: teardown resets the target and must also mark it changed,
+        // else the window keeps rendering at the reduced resolution.
+        app.insert_resource(GraphicsBudget::for_quality(GraphicsQuality::High));
+        app.update();
+        assert!(
+            app.world().resource::<ProjChanged>().0,
+            "switching back to High must mark the scenario camera's projection changed"
+        );
+
+        // A steady frame at High (no switch) must NOT keep marking it changed.
+        app.update();
+        assert!(
+            !app.world().resource::<ProjChanged>().0,
+            "a steady frame must not churn the projection change tick"
         );
     }
 

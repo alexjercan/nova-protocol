@@ -83,6 +83,21 @@ fn main() {
     // No `assert_scenario_loaded` here: it checks the load happened by the time
     // `Playing` is entered, which the forced-early transition guarantees to
     // violate - the loaded-scene proof is the captured PNG itself.
+    // Reproduce a LIVE quality switch: NOVA_SWITCH_QUALITY sets the preset the
+    // app STARTS at, then partway through the settle window we switch to
+    // NOVA_PERF_QUALITY - so the captured frame shows the post-switch state, not
+    // a fresh start. This is what the settings menu does at runtime.
+    if let Some(target) = std::env::var("NOVA_SWITCH_QUALITY")
+        .ok()
+        .and_then(parse_quality)
+    {
+        // Start at the OTHER preset (the env-set NOVA_PERF_QUALITY above was the
+        // start; here NOVA_SWITCH_QUALITY is where we end up). Insert a counter
+        // and flip at frame 120 (well inside the 240-frame settle).
+        app.insert_resource(SwitchTo(target));
+        app.add_systems(Update, switch_quality_midway);
+    }
+
     #[cfg(feature = "debug")]
     {
         const SETTLE_FRAMES: u32 = 240;
@@ -92,6 +107,29 @@ fn main() {
     }
 
     app.run();
+}
+
+/// The preset to switch to partway through, and a frame counter.
+#[derive(Resource)]
+struct SwitchTo(GraphicsQuality);
+
+/// Flip `GraphicsQuality` to the target once the scene is up (frame 150), so the
+/// capture at frame ~240 shows the result of a live switch.
+fn switch_quality_midway(
+    mut frames: Local<u32>,
+    switch: Res<SwitchTo>,
+    mut done: Local<bool>,
+    mut commands: Commands,
+) {
+    *frames += 1;
+    if !*done && *frames == 150 {
+        commands.insert_resource(switch.0);
+        *done = true;
+        info!(
+            "21_render_scale_shot: switched quality to {:?} at frame 150",
+            switch.0
+        );
+    }
 }
 
 /// Map a `low|medium|high` env value onto the preset. Unknown values are
