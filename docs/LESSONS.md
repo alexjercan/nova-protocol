@@ -590,18 +590,6 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 
 ## Pending promotions (3+ occurrences, user decides)
 
-(Empty - the 2026-07-19 pass promoted everything that was pending. New 3+
-lessons land here as they occur.)
-
-## Promoted
-
-Per-entry markers above carry each promoted lesson's date and target; the
-detail of each pass lives in the commits. Passes:
-
-- 2026-07-19: promotion + condense pass; tatr collision fixed in the tool
-  itself (0.2.0, plus --body-file), bug/feature playbooks -> flow skill,
-  Story + Definition of Done format -> plan/tatr skills, harness-first
-  testing -> repo AGENTS.md. (nova 66c56e2b; nix.dotfiles 4e7fdc1)
-- 2026-07-13: task-folder records (SPIKE/RETRO/NOTES next to TASK.md); the
-  ledger moved to docs/LESSONS.md.
-- 2026-07-11: first promotion pass, ledger seeded from 104 retros.
+(Empty. New 3+ lessons land here as they occur; once folded into AGENTS.md,
+a skill, or the tool itself, they get a PROMOTED date + target marker on
+their entry above.)
