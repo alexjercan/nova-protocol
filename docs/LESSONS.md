@@ -114,14 +114,26 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   base.bundle.ron undercounted the scenarios); read repo facts via
   `git show HEAD:<path>` when outside a worktree. Read-side sibling of
   `landing-checkout-not-yours`. 20260716-155816.
-- `shared-checkout-write-leak` (x1): never leave the index staged-but-uncommitted
+- `shared-checkout-write-leak` (x2): never leave the index staged-but-uncommitted
   in the shared main checkout across tool calls - a parallel job's `git commit -a`/
   `git add -A` sweeps YOUR staged changes into ITS commit. A squash-land split into
   `merge --squash`, then an inspect call, then commit let a parallel `/compound`
   swallow the whole feature into an unrelated commit (work landed, but tangled).
   Land atomically: `git merge --squash <b> && git commit` in ONE command, inspect
   the diff on the BRANCH beforehand. Write-side sibling of
-  `shared-checkout-reads-race`. 20260708-165703.
+  `shared-checkout-reads-race`. 20260708-165703, 20260718-122906 (split the land
+  into merge/inspect/commit again - got lucky, no parallel clobber, but a
+  concurrent craft_racer job DID land on master mid-cycle, proving the race is live).
+- `per-crate-test-needs-gated-features` (x1): `cargo test -p <crate>` in isolation
+  can fail to COMPILE when serde (or other) derives are `#[cfg_attr(feature=...)]`
+  and only get enabled by workspace feature unification - the standalone build
+  drops the feature. Pass the crate's own `--features serde` (or run within the
+  `--workspace` build CI uses). nova_scenario loader tests needed
+  `-p nova_scenario --features serde`. 20260718-122906.
+- `grep-test-module-before-adding-a-helper` (x1): before adding a test helper,
+  grep the target test module for the name - flight.rs already had a `velocity_of`
+  helper, so the copy broke the build with a duplicate-definition error. Reuse the
+  existing one. 20260718-122906.
 - `verbosity-invites-fabrication` (x1): telling a drafter (esp. a subagent) to
   be MORE verbose / "cover everything" pushes it to fill gaps with plausible
   invention - a 0.5.0 news post given the four damage-type names invented each
