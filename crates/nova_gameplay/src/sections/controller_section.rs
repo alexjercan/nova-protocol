@@ -169,6 +169,12 @@ pub fn preview_controller_section(config: ControllerSectionConfig) -> impl Bundl
     (
         ControllerSectionMarker,
         ControllerSectionRenderMesh(config.render_mesh),
+        // The shared render observer (`insert_controller_section_render`) queries
+        // for this too, so without it the preview controller matches no query and
+        // renders nothing - a meshless controller in the editor even though the
+        // live one shows the default cuboid. Preview carries it like the live
+        // `controller_section` bundle does.
+        SectionRenderMeshTransform(config.render_mesh_transform),
     )
 }
 
@@ -482,6 +488,28 @@ mod tests {
         assert!(
             app.world().get::<PDController>(id).is_none(),
             "a preview controller must not carry a live PDController"
+        );
+    }
+
+    #[test]
+    fn preview_controller_carries_the_render_mesh_transform() {
+        // Regression: the shared render observer queries `SectionRenderMeshTransform`,
+        // so the preview bundle must carry it or the observer skips the preview
+        // controller entirely - a meshless controller in the editor while the live
+        // one shows the default cuboid.
+        let mut app = App::new();
+        let id = app
+            .world_mut()
+            .spawn(preview_controller_section(
+                ControllerSectionConfig::default(),
+            ))
+            .id();
+        app.update();
+
+        assert!(
+            app.world().get::<SectionRenderMeshTransform>(id).is_some(),
+            "the preview controller must carry SectionRenderMeshTransform so the \
+             render observer renders it"
         );
     }
 
