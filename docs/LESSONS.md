@@ -57,12 +57,22 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   filesystem-walking tool trips on it - a leftover `variety/textures/` crashed
   content_lint's bundle walk ("no *.bundle.ron at its root"). `rm -rf` the old
   dir explicitly after a relocation. 20260716-215513.
-- `tatr-new-then-sprout-strands-the-task-file` (x1): running `tatr new` in the
+- `tatr-new-then-sprout-strands-the-task-file` (x2): running `tatr new` in the
   shared main checkout and THEN sprouting a fresh worktree leaves the new
   TASK.md uncommitted in the main checkout - the worktree (cut from a commit)
   never sees it, and the dirty file risks a parallel job's `git add -A` sweeping
   it into their commit. Sprout FIRST, run `tatr new` inside the worktree so the
-  task is born on the branch. 20260717-101414.
+  task is born on the branch. When the file is UNAVOIDABLY born in the main
+  checkout (the sprout skill's "create task, report, wait" pattern creates it a
+  turn before flow sprouts), the fix is carry-and-clean: as the first step after
+  sprouting, copy the TASK.md into the worktree and `rm` it from the main
+  checkout so it lands on the branch. 20260717-101414, 20260718-181305.
+- `flow-land-scope-when-user-says-branch` (x1): when the user scopes work to "a
+  separate /sprout branch" AND asks for `/flow`, the flow-final squash-land to
+  master is (correctly) denied by the auto-mode classifier as an unrequested
+  autonomous escalation. Confirm at the START whether flow should land to master
+  or stop at the branch, rather than driving through the whole cycle and hitting
+  the denial at the land step. 20260718-181305.
 - `warnings-clean-before-land` (x2): run a warnings-SURFACED build and READ the
   warnings (`cargo build`/`clippy`; never `cargo ... | grep -E 'error|test
   result'`, which discards them) on new/changed modules BEFORE the squash-land -
@@ -879,12 +889,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   green; every gate filter fails closed on an undefined var). Sibling of
   `production-faithful-rigs`. Applied PREVENTIVELY on 224812 (arena OnStart
   structural test shipped with the behavior test). 20260715-224803, 20260715-224812.
-- `bg-isolation-guard-allows-sprout-not-main` (x2): the background-job Write/Edit
-  guard blocks the main checkout but NOT a sprout worktree; author master-side
-  artifacts (plan stubs, RETRO.md, LESSONS.md) via Bash heredoc and do all code
-  in the sprout worktree where Write works. The settings escape
-  (`worktree.bgIsolation: none`) is denied by the self-modification classifier.
-  20260715-224803, 20260715-140049.
+- `bg-isolation-guard-allows-sprout-not-main` (x3, -> Pending promotions): the
+  background-job Write/Edit guard blocks the main checkout but NOT a sprout
+  worktree; author master-side artifacts (plan stubs, TASK.md bodies, RETRO.md,
+  LESSONS.md) via Bash heredoc and do all code in the sprout worktree where
+  Write works. The settings escape (`worktree.bgIsolation: none`) is denied by
+  the self-modification classifier. 20260715-224803, 20260715-140049,
+  20260718-181305.
 - `isolate-off-head-for-unpushed-deps` (x1): when a task's work depends on
   commits that exist only on LOCAL master (unpushed - e.g. a just-added asset),
   isolate off local HEAD (`sprout new`, which branches off HEAD) not a
@@ -1192,6 +1203,13 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   swap forces the re-derive. 20260718-140903.
 
 ## Pending promotions (3+ occurrences, user decides)
+
+- `bg-isolation-guard-allows-sprout-not-main` (x3) -> work/compound skill or
+  AGENTS.md: in a background job the Write/Edit guard blocks the main checkout
+  but not a sprout worktree; write master-side artifacts (TASK.md bodies,
+  RETRO.md, LESSONS.md) via Bash heredoc and keep all code edits in the sprout
+  worktree. See the main-list entry. 20260715-224803, 20260715-140049,
+  20260718-181305.
 
 - `verify-scripted-edits-applied` (x3) -> work skill: an edit you believe you
   made is a hypothesis until the artifact shows it - assert replace counts,
