@@ -24,27 +24,15 @@ pub struct NovaEventWorld {
     /// runs every frame, so it logs the variables only when they DIFFER from this, to
     /// avoid per-frame spam.
     last_logged_variables: HashMap<String, VariableLiteral>,
-    /// The applied graphics budget (task 20260525-133013), pulled from the bevy
-    /// world's [`GraphicsBudget`] resource by `world_to_state_system` before events
-    /// process each tick. Scatter actions read it (`self.graphics_budget()`) to thin
-    /// dense asteroid/debris fields on the lower graphics tiers - the event actions
-    /// run against this resource, not the real `World`, so the value has to be
-    /// carried in rather than read live. Defaults to full quality.
-    graphics_budget: GraphicsBudget,
 }
 
 impl EventWorld for NovaEventWorld {
-    fn world_to_state_system(world: &mut World) {
-        // Carry the applied graphics budget into the event world before the queue
-        // processes (this system is chained ahead of queue_system), so scatter
-        // actions can thin dense fields on the lower tiers (task 20260525-133013).
-        // Missing resource (event-world rigs without the settings plugin) falls
-        // back to full quality.
-        let budget = world
-            .get_resource::<GraphicsBudget>()
-            .copied()
-            .unwrap_or_default();
-        world.resource_mut::<Self>().graphics_budget = budget;
+    fn world_to_state_system(_world: &mut World) {
+        // Nothing to carry from the bevy world into the event world right now. The
+        // graphics-budget carry lived here (to thin scatter on the lower tiers) but
+        // scatter is no longer a preset lever (task 20260718-004834). Kept as a
+        // required `EventWorld` method so the plumbing exists if a future action
+        // needs live world state pulled in before the queue processes.
     }
 
     fn state_to_world_system(world: &mut World) {
@@ -183,13 +171,6 @@ impl EventWorld for NovaEventWorld {
 }
 
 impl NovaEventWorld {
-    /// The applied graphics budget carried in from the bevy world (task
-    /// 20260525-133013). Scatter actions read it to thin dense fields on the
-    /// lower graphics tiers.
-    pub fn graphics_budget(&self) -> GraphicsBudget {
-        self.graphics_budget
-    }
-
     pub fn clear(&mut self) {
         // Undrained commands die with the scenario. Legitimate on teardown,
         // but it is also how an `Outcome` composed with an INSTANT switch

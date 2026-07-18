@@ -1763,13 +1763,14 @@ mod tests {
         assert_eq!(ids.len(), 8, "scattered ids are unique (no collision)");
     }
 
-    /// On the Low graphics tier the scatter is thinned (task 20260525-133013):
-    /// `world_to_state_system` carries the [`GraphicsBudget`] into the event world,
-    /// so the action spawns `budget.scaled_count(count)` objects, not the full
-    /// authored count. Mirrors the full-count harness above with a Low budget
-    /// inserted first.
+    /// Scatter is gameplay content, so it spawns the full authored count on EVERY
+    /// graphics tier - the density lever was removed in task 20260718-004834.
+    /// Regression: even with the cheapest (Low) [`GraphicsBudget`] inserted and
+    /// carried into the event world, the field is not thinned. Mirrors the
+    /// full-count harness above with a Low budget inserted first, to prove the
+    /// budget has no effect on scatter counts.
     #[test]
-    fn scatter_action_thins_the_field_on_low_graphics() {
+    fn scatter_action_ignores_graphics_budget() {
         use nova_gameplay::prelude::{GraphicsBudget, GraphicsQuality};
 
         let authored_count = 20u32;
@@ -1802,19 +1803,18 @@ mod tests {
             asteroid_radius: Some((1.0, 3.0)),
         };
 
+        // The cheapest tier: if any preset were going to thin scatter, this is the
+        // one that would. It must not.
         let low_budget = GraphicsBudget::for_quality(GraphicsQuality::Low);
-        let expected = low_budget.scaled_count(authored_count);
-        assert!(
-            expected > 0 && expected < authored_count,
-            "precondition: Low thins but does not empty (expected {expected})"
-        );
 
         let mut world = World::new();
         world.init_resource::<NovaEventWorld>();
         world.init_resource::<GameObjectives>();
         world.insert_resource(low_budget);
         // Pulls the budget into the event world, exactly as the PostUpdate chain
-        // does before the queue processes.
+        // does before the queue processes. This is a no-op now that scatter
+        // ignores the budget - kept to prove that even a Low budget present in the
+        // world does not thin the field.
         NovaEventWorld::world_to_state_system(&mut world);
         {
             let mut event_world = world.resource_mut::<NovaEventWorld>();
@@ -1825,8 +1825,8 @@ mod tests {
         let mut query = world.query_filtered::<&EntityId, With<AsteroidMarker>>();
         let spawned = query.iter(&world).count();
         assert_eq!(
-            spawned as u32, expected,
-            "Low spawns the thinned count ({expected}), not the authored {authored_count}"
+            spawned as u32, authored_count,
+            "scatter spawns the full authored count ({authored_count}) even on Low - it is never thinned"
         );
     }
 
@@ -2365,14 +2365,13 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
     fn action(&self, world: &mut NovaEventWorld, info: &GameEventInfo) {
         use rand::{RngExt, SeedableRng};
         let mut rng = rand::rngs::StdRng::seed_from_u64(self.seed);
-        // Thin the field on the lower graphics tiers (task 20260525-133013): the
-        // scatter count is the densest static per-object cost the frame-time
-        // baseline flags. The budget is carried in from the world by
-        // `world_to_state_system`; a settings-less rig defaults to full density.
-        let count = world.graphics_budget().scaled_count(self.count);
+        // Always spawn the authored count. Scatter is gameplay content (asteroid /
+        // debris fields), so no graphics-quality tier thins it - the density lever
+        // was removed in task 20260718-004834.
+        let count = self.count;
         debug!(
-            "ScatterObjects: scattering {} of {} '{}' objects (seed {})",
-            count, self.count, self.id_prefix, self.seed
+            "ScatterObjects: scattering {} '{}' objects (seed {})",
+            count, self.id_prefix, self.seed
         );
 
         for i in 0..count {
