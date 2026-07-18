@@ -27,3 +27,11 @@ Spike: tasks/20260718-122508/SPIKE.md (Q1 held-direction, Q4 freeze-heading).
 Depends on the RCS core primitive (task 20260718-122906). Input via
 bevy_enhanced_input; flight rig at input/player.rs:574; scroll already bound for
 lock stepping. Needs a /plan pass to break into steps.
+
+Feel decision inherited from the core primitive (review R1.1 on -122906): in
+`rcs_burn_system`, the `RcsIntent` magnitude sets the ACCELERATION, so ANY held
+deflection asymptotes to the full per-axis `cap` - deflection controls how fast
+you reach the cap, not the terminal speed. Decide here whether a partial mouse
+deflection should instead target a proportionally lower speed (which would mean
+scaling the per-axis cap by `|cmd|` in the primitive), or whether full-cap-on-
+any-hold is the intended docking feel. Choose deliberately.

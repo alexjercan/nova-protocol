@@ -176,6 +176,44 @@ mod tests {
         );
     }
 
+    /// The RCS fine-adjust verb (task 20260718-122906) threads through the same
+    /// DisableVerb plumbing: withholding it leaves the maneuver verbs granted,
+    /// so a scenario can ship a hull that flies the autopilot but cannot
+    /// fine-adjust.
+    #[test]
+    fn disable_verb_clears_rcs_on_a_controller() {
+        let mut app = app_with_observers();
+        let controller = app
+            .world_mut()
+            .spawn((
+                base_section(BaseSectionConfig {
+                    id: "controller".to_string(),
+                    health: 100.0,
+                    ..default()
+                }),
+                controller_section(ControllerSectionConfig::default()),
+            ))
+            .id();
+        SectionModification::insert_all(
+            &[SectionModification::DisableVerb(FlightVerb::Rcs)],
+            &mut app.world_mut().commands().entity(controller),
+        );
+        app.world_mut().flush();
+
+        let withheld = app.world().get::<WithheldVerbs>(controller).unwrap();
+        assert!(
+            !withheld.granted(FlightVerb::Rcs),
+            "RCS is withheld on the controller"
+        );
+        assert!(
+            withheld.granted(FlightVerb::Stop)
+                && withheld.granted(FlightVerb::Goto)
+                && withheld.granted(FlightVerb::Orbit)
+                && withheld.granted(FlightVerb::Lock),
+            "the other verbs stay granted"
+        );
+    }
+
     /// Multiple DisableVerb modifications on one section ALL take effect. This
     /// pins the accumulation directly (a component is unique per entity, so
     /// writing one `WithheldVerbs` per verb would let the last win and drop the

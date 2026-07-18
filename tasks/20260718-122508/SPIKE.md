@@ -243,4 +243,11 @@ Parent request: tasks/20260717-105406.
 
 ## Fix record
 
-(Populated by the implementing tasks as they land.)
+- 20260718 tatr 20260718-122906 (core primitive): landed `FlightVerb::Rcs`,
+  `RcsIntent`/`RcsSpeedCap` components, `FlightSettings::rcs_speed_cap` (2.0
+  u/s) + `rcs_accel` (1.5 u/s^2), and `rcs_burn_system` - the manual-burn taper
+  generalized to three signed ship-local axes, applied as one mass-scaled
+  `apply_linear_impulse` at the COM (no torque, geometry-independent, verb-gated,
+  not autopilot-gated). Newtonian residual (Q2). 5 tests green (4 flight, 1
+  scenario). Detail: tasks/20260718-122906/NOTES.md. Remaining: player input
+  (-122912), HUD (-122923), autopilot integration (-122932).

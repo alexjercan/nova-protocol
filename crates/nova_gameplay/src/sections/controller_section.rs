@@ -195,6 +195,12 @@ pub enum FlightVerb {
     /// (deliberate-radar spike 20260713-082207). Not a maneuver, but the same
     /// computer-provided capability model: a ship without it cannot lock.
     Lock,
+    /// RCS: reaction-control fine translation - the hold-to-nudge docking mode
+    /// that pushes the hull along its local axes without exceeding a small
+    /// speed cap (spike 20260718-122508). Not a planned maneuver but the same
+    /// capability model: a ship without it cannot fine-adjust. Drives the
+    /// shared `RcsIntent` / `rcs_burn_system` primitive in `crate::flight`.
+    Rcs,
 }
 
 /// The set of flight verbs WITHHELD on a controller section: computer-provided

@@ -113,6 +113,27 @@ pub struct FlightIntent {
 #[reflect(Component)]
 pub struct FlightSpeedCap(pub f32);
 
+/// The pilot's (or autopilot's) RCS fine-adjustment command, on the ship root:
+/// a desired translation direction in the ship's LOCAL frame, each component
+/// roughly `-1..1` (the magnitude is how hard the nudge). Written by the player
+/// input layer while RCS is held (task 20260718-122912) or by the autopilot
+/// (task 20260718-122932); consumed by [`rcs_burn_system`]. Zero (or absent) =
+/// no RCS. This is the shared primitive both drivers write, so RCS never grew
+/// its own force path (spike 20260718-122508, fork 4).
+#[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
+#[reflect(Component)]
+pub struct RcsIntent(pub Vec3);
+
+/// Per-ship override of the RCS fine-adjust speed cap (u/s), on the ship root.
+/// Unlike [`FlightSpeedCap`], RCS is ALWAYS capped - that is the whole point of
+/// a fine-adjust mode - so a ship without this component still gets the default
+/// [`FlightSettings::rcs_speed_cap`]; the component only lets a scenario tune
+/// the ceiling per hull. [`rcs_burn_system`] gates each ship-local axis on the
+/// along-axis velocity component just like the main-burn taper.
+#[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
+#[reflect(Component)]
+pub struct RcsSpeedCap(pub f32);
+
 /// Fraction of the cap over which the manual burn tapers to zero (the
 /// last stretch below the cap). Wide enough to feel like drag, not a wall.
 const SPEED_CAP_TAPER_FRACTION: f32 = 0.2;
@@ -371,6 +392,15 @@ pub struct FlightSettings {
     /// orbits are only trusted in the unfaded core (spike decision 3), and
     /// the safety margin keeps station-keeping off the fade band's edge.
     pub orbit_band_safety: f32,
+    /// Default RCS fine-adjust speed cap (u/s): the terminal speed a held RCS
+    /// nudge builds to on each ship-local axis before [`rcs_burn_system`]
+    /// tapers the push to zero. Small by design - the last few meters of a
+    /// docking approach. Overridable per hull with [`RcsSpeedCap`].
+    pub rcs_speed_cap: f32,
+    /// RCS thrust as an acceleration (u/s^2): how hard a full-deflection RCS
+    /// command pushes. Sized so the cap is reached in a second or two of held
+    /// input, not instantly - fine adjust, not a second main drive.
+    pub rcs_accel: f32,
 }
 
 impl Default for FlightSettings {
@@ -411,6 +441,12 @@ impl Default for FlightSettings {
             orbit_hold_exit: 1.2,
             orbit_clearance_factor: 1.5,
             orbit_band_safety: 0.9,
+            // A 2 u/s ceiling: brisk enough to close a docking gap, slow
+            // enough that a held nudge never becomes free propulsion.
+            rcs_speed_cap: 2.0,
+            // ~1.5 u/s^2 reaches the 2 u/s cap in a bit over a second of held
+            // input - a gentle station-keeping push, not a main burn.
+            rcs_accel: 1.5,
         }
     }
 }
@@ -445,7 +481,9 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<OrbitPlan>()
             .register_type::<ManeuverTelemetry>()
             .register_type::<BodyRadius>()
-            .register_type::<FlightSpeedCap>();
+            .register_type::<FlightSpeedCap>()
+            .register_type::<RcsIntent>()
+            .register_type::<RcsSpeedCap>();
 
         app.add_observer(insert_flight_control);
         app.add_observer(on_autopilot_removed_cool_engines);
@@ -457,7 +495,7 @@ impl Plugin for NovaFlightPlugin {
         );
         app.add_systems(
             FixedUpdate,
-            (autopilot_system, manual_burn_system)
+            (autopilot_system, manual_burn_system, rcs_burn_system)
                 .chain()
                 .in_set(NovaFlightSystems),
         );
@@ -470,7 +508,9 @@ fn insert_flight_control(add: On<Add, PlayerSpaceshipMarker>, mut commands: Comm
     let entity = add.entity;
     trace!("insert_flight_control: entity {:?}", entity);
 
-    commands.entity(entity).insert(FlightIntent::default());
+    commands
+        .entity(entity)
+        .insert((FlightIntent::default(), RcsIntent::default()));
 }
 
 /// The fastest speed the ship may still carry `distance` short of its goal
@@ -1983,6 +2023,114 @@ fn manual_burn_system(
     }
 }
 
+/// Reaction-control fine translation: the shared RCS primitive. For a ship
+/// carrying a non-zero [`RcsIntent`] (a ship-local desired direction), apply a
+/// small, per-axis speed-capped acceleration at the center of mass in that
+/// direction, so the pilot - or the autopilot (task 20260718-122932) - can
+/// nudge the hull the last few meters of a docking approach.
+///
+/// Two properties define it (spike 20260718-122508):
+/// - **No torque, geometry-independent.** The push is one linear impulse at the
+///   COM ([`Forces::apply_linear_impulse`]), so RCS never rotates the hull and
+///   needs no physical side/vertical thrusters - the `Rcs` verb is the fiction
+///   that the flight computer has cold-gas quads. The impulse is scaled by mass
+///   so `rcs_accel` is a true acceleration and the feel is mass-independent.
+/// - **Capped, never free propulsion.** The cap is [`manual_burn_system`]'s
+///   speed-cap taper generalized to three signed ship-local axes: a push in a
+///   direction the hull already travels at the cap yields nothing, while the
+///   opposite direction still accelerates. So RCS can only reshuffle velocity
+///   within `+/-cap` per axis, never accumulate speed by spamming it.
+///
+/// Gated on the ship granting the `Rcs` verb (same rule as `ship_grants_verb`
+/// in the input layer). Deliberately NOT gated on `Without<Autopilot>`: the
+/// autopilot follow-up drives this very primitive while engaged.
+fn rcs_burn_system(
+    time: Res<Time>,
+    settings: Res<FlightSettings>,
+    mut q_ship: Query<
+        (
+            Entity,
+            &RcsIntent,
+            Option<&RcsSpeedCap>,
+            &ComputedMass,
+            Forces,
+        ),
+        With<SpaceshipRootMarker>,
+    >,
+    q_controllers: Query<
+        (&ChildOf, Option<&WithheldVerbs>),
+        (
+            With<ControllerSectionMarker>,
+            With<PDController>,
+            Without<SectionInactiveMarker>,
+        ),
+    >,
+) {
+    let dt = time.delta_secs();
+    if dt <= 0.0 {
+        return;
+    }
+
+    for (ship, intent, cap, mass, mut force) in &mut q_ship {
+        // Idle ships cost nothing.
+        if intent.0 == Vec3::ZERO {
+            continue;
+        }
+        // Capability gate: only a ship with a live controller section that
+        // grants RCS fine-adjusts, even if something wrote an intent. Mirrors
+        // `ship_grants_verb` (input/player.rs) so the verb stays authoritative
+        // no matter who drives the primitive.
+        let granted = q_controllers.iter().any(|(&ChildOf(parent), withheld)| {
+            parent == ship && withheld.is_none_or(|w| w.granted(FlightVerb::Rcs))
+        });
+        if !granted {
+            continue;
+        }
+
+        let cap = cap.map(|c| c.0).unwrap_or(settings.rcs_speed_cap);
+        if cap <= 0.0 {
+            continue;
+        }
+        // Small cap by design, so the manual-burn `.max(1.0)` floor (sized for
+        // the main drive's tens-of-u/s caps) would swamp it; floor only against
+        // division blow-up.
+        let taper_band = (cap * SPEED_CAP_TAPER_FRACTION).max(1e-3);
+        let mass = mass.value();
+        if !mass.is_finite() || mass <= 0.0 {
+            continue;
+        }
+        let rotation = *force.rotation();
+        let velocity = force.linear_velocity();
+
+        // Accumulate the per-axis capped push, then apply once at the COM so
+        // the summed impulse still produces zero torque. The cap is per
+        // ship-local axis, NOT a speed-magnitude limit: a diagonal command can
+        // reach up to `sqrt(2..3) * cap` combined (each axis caps independently
+        // - the spike's per-axis design), which is fine for docking nudges.
+        let mut impulse = Vec3::ZERO;
+        for axis in [Vec3::X, Vec3::Y, Vec3::Z] {
+            let cmd = intent.0.dot(axis);
+            if cmd.abs() < 1e-4 {
+                continue;
+            }
+            let world_axis = rotation.mul_vec3(axis);
+            let along = velocity.dot(world_axis);
+            // Headroom toward the commanded sign: full push while far from the
+            // cap, tapering to zero as the along-axis speed nears the cap in
+            // the pushed direction; the opposite direction always has headroom.
+            let gate = ((cap - cmd.signum() * along) / taper_band).clamp(0.0, 1.0);
+            // Desired acceleration this tick; * mass so the 1/mass inside
+            // apply_linear_impulse yields exactly `accel * dt` (mass-independent
+            // feel).
+            let accel = cmd.clamp(-1.0, 1.0) * settings.rcs_accel * gate;
+            impulse += world_axis * (accel * dt * mass);
+        }
+        if impulse != Vec3::ZERO {
+            force.apply_linear_impulse(impulse);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2717,6 +2865,7 @@ mod tests {
             (
                 autopilot_system,
                 manual_burn_system,
+                rcs_burn_system,
                 update_controller_section_rotation_input,
             )
                 .chain()
@@ -2810,6 +2959,164 @@ mod tests {
                 ColliderDensity(1.0),
             ))
             .id()
+    }
+
+    // --- RCS fine-adjustment (task 20260718-122906) ----------------------
+
+    /// A ship that grants RCS, carrying a (zero) intent and a per-hull cap,
+    /// with its mass finalized. Returns (ship, controller).
+    fn spawn_rcs_ship(app: &mut App, cap: f32) -> (Entity, Entity) {
+        let (ship, _thruster, controller) = spawn_ship(app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert((RcsIntent::default(), RcsSpeedCap(cap)));
+        settle(app);
+        (ship, controller)
+    }
+
+    fn set_rcs(app: &mut App, ship: Entity, intent: Vec3) {
+        app.world_mut().get_mut::<RcsIntent>(ship).unwrap().0 = intent;
+    }
+
+    fn angular_speed_of(app: &App, ship: Entity) -> f32 {
+        app.world().get::<AngularVelocity>(ship).unwrap().0.length()
+    }
+
+    /// A held RCS nudge builds the along-axis speed up toward the cap and then
+    /// levels off - never past it - and, applied at the COM, never spins the
+    /// hull or drifts off-axis. Identity frame, so ship-local +X is world +X.
+    #[test]
+    fn rcs_builds_to_the_cap_then_levels_off_without_torque() {
+        let mut app = flight_app();
+        let cap = 2.0;
+        let (ship, _controller) = spawn_rcs_ship(&mut app, cap);
+        set_rcs(&mut app, ship, Vec3::X);
+        for _ in 0..600 {
+            app.update();
+            let vx = velocity_of(&app, ship).x;
+            assert!(
+                vx <= cap + 1e-2,
+                "RCS must never push past the cap (vx={vx})"
+            );
+        }
+        let v = velocity_of(&app, ship);
+        assert!(
+            v.x > cap - 0.1,
+            "a held nudge should reach the cap (vx={})",
+            v.x
+        );
+        assert!(
+            v.y.abs() < 1e-2 && v.z.abs() < 1e-2,
+            "no off-axis drift ({v:?})"
+        );
+        assert!(
+            angular_speed_of(&app, ship) < 1e-3,
+            "an impulse at the COM must not spin the hull"
+        );
+    }
+
+    /// The cap is directional: at `+cap` a forward command adds nothing, but the
+    /// opposite command still accelerates the ship down to `-cap` - the user's
+    /// "moving forward, RCS forward does nothing, backward still works" rule.
+    #[test]
+    fn rcs_holds_the_cap_forward_but_reverses_freely() {
+        let mut app = flight_app();
+        let cap = 2.0;
+        let (ship, _controller) = spawn_rcs_ship(&mut app, cap);
+        set_rcs(&mut app, ship, Vec3::X);
+        for _ in 0..600 {
+            app.update();
+        }
+        let at_cap = velocity_of(&app, ship).x;
+        assert!(at_cap > cap - 0.1, "should be at the cap (vx={at_cap})");
+        // Holding +X longer adds no further speed.
+        for _ in 0..200 {
+            app.update();
+        }
+        let still = velocity_of(&app, ship).x;
+        assert!(
+            (still - at_cap).abs() < 1e-2,
+            "at the cap, more +X buys nothing ({at_cap} -> {still})"
+        );
+        // The opposite command decelerates through zero toward -cap.
+        set_rcs(&mut app, ship, -Vec3::X);
+        for _ in 0..900 {
+            app.update();
+        }
+        let reversed = velocity_of(&app, ship).x;
+        assert!(
+            reversed < -(cap - 0.1),
+            "reverse RCS still works down to -cap (vx={reversed})"
+        );
+    }
+
+    /// RCS is a controller verb: a ship whose controller withholds `Rcs` does
+    /// not move, even with an intent written on it.
+    #[test]
+    fn rcs_does_nothing_without_the_verb() {
+        let mut app = flight_app();
+        let (ship, controller) = spawn_rcs_ship(&mut app, 2.0);
+        app.world_mut()
+            .entity_mut(controller)
+            .insert(WithheldVerbs([FlightVerb::Rcs].into_iter().collect()));
+        set_rcs(&mut app, ship, Vec3::X);
+        for _ in 0..300 {
+            app.update();
+        }
+        assert!(
+            velocity_of(&app, ship).length() < 1e-3,
+            "no RCS verb, no fine-adjust"
+        );
+    }
+
+    /// The push is in the ship's LOCAL frame: with the hull yawed 90 degrees, a
+    /// local +X command drives the ship along the rotated world axis, not world
+    /// +X, with no off-axis drift and no spin (the `degenerate-inertia-frames`
+    /// lesson - exercise a non-identity frame).
+    #[test]
+    fn rcs_pushes_along_the_ship_local_axis_in_a_rotated_frame() {
+        let mut app = flight_app();
+        let cap = 2.0;
+        let (ship, _thruster, controller) = spawn_ship(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert((RcsIntent::default(), RcsSpeedCap(cap)));
+        let yaw = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
+        app.world_mut()
+            .get_mut::<ControllerSectionRotationInput>(controller)
+            .unwrap()
+            .0 = yaw;
+        // Let the PD swing the hull to the yaw and come to rest there.
+        for _ in 0..400 {
+            app.update();
+        }
+        assert!(
+            angular_speed_of(&app, ship) < 1e-2,
+            "hull should be settled before the RCS push"
+        );
+        // Command local +X; capture the ACTUAL hull frame so the test tolerates
+        // any residual PD error.
+        let world_axis = app.world().get::<Rotation>(ship).unwrap().mul_vec3(Vec3::X);
+        assert!(
+            world_axis.dot(Vec3::X).abs() < 0.05,
+            "the hull really is yawed away from world +X ({world_axis:?})"
+        );
+        set_rcs(&mut app, ship, Vec3::X);
+        for _ in 0..600 {
+            app.update();
+        }
+        let v = velocity_of(&app, ship);
+        let along = v.dot(world_axis);
+        let off = (v - world_axis * along).length();
+        assert!(
+            along > cap - 0.15,
+            "reaches the cap along the rotated local +X (along={along})"
+        );
+        assert!(off < 0.05, "no world off-axis drift (off={off})");
+        assert!(
+            angular_speed_of(&app, ship) < 5e-2,
+            "still no meaningful spin from the COM push"
+        );
     }
 
     fn forward_of(app: &App, ship: Entity) -> Vec3 {
