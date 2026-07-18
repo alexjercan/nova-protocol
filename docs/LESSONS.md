@@ -427,7 +427,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `one-cargo-test-filter` (x5): `cargo test` takes one filter and one `-p` per
   invocation; separate runs otherwise (recurred under flow momentum: a chained
   two-filter run silently tested nothing). 20260713-082324, 20260716-162701.
-- `check-all-targets-for-struct-field` (x4 -> Pending promotions): a new
+- `check-all-targets-for-struct-field` (x5 -> Pending promotions): a new
   non-Default field breaks every exhaustive initializer - builders, TESTS
   (`#[cfg(test)]`), and EXAMPLES - but `cargo check`/`check -p <crate>` compiles
   none of those; only `cargo check --all-targets` does. Grep the WHOLE repo for
@@ -438,7 +438,17 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   20260718-102022: adding `collider` to `BaseSectionConfig` broke 7 explicit
   literals in a DIFFERENT crate (nova_assets) than the two the first scoped check
   covered - the workspace `--all-targets` pass found them all at once.
+  20260718-113307: adding `render_mesh_transform` to `TurretJoint` - the field
+  name `render_mesh` ALSO exists on 4 other config structs, so a clean
+  `--all-targets` doubled as proof the scoped sweep hit only TurretJoint
+  literals (wrong-struct = "unknown field", missed = "missing field").
   20260712-140250, 20260716-155849, 20260717-165031.
+- `register-assets-for-new-test-path` (x1): a Bevy test copied from a neighbor
+  can omit resources the NEW path needs. A render test reused from unmeshed
+  joints panicked because the meshed path calls `asset_server.load::<WorldAsset>`
+  and the app only `init_asset`'d Mesh/StandardMaterial; also use schemeless
+  asset paths (a `dep://` source is unregistered in tests) and `Quat::abs_diff_eq`
+  (not `angle_between`) for orientation equality. 20260718-113307.
 - `mod-facing-surface-plans-failure-paths` (x1): a task exposing a surface to
   MOD DATA must plan its failure paths up front - enumerate "what breaks when a
   mod does this badly" (missing entity contracts, empty sets, unregistered ids)

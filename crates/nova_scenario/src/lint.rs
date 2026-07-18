@@ -1787,6 +1787,7 @@ mod tests {
                 min,
                 max,
                 render_mesh: None,
+                render_mesh_transform: None,
                 muzzle: muzzle.then(|| MuzzleConfig {
                     fire_rate: 10.0,
                     muzzle_effect: None,

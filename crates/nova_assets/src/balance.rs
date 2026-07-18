@@ -551,6 +551,7 @@ mod tests {
             min: None,
             max: None,
             render_mesh: None,
+            render_mesh_transform: None,
             muzzle: Some(MuzzleConfig {
                 fire_rate,
                 muzzle_effect: None,

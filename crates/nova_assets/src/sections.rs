@@ -49,6 +49,7 @@ fn turret_joint_tree(
         min: None,
         max: None,
         render_mesh: None,
+        render_mesh_transform: None,
         muzzle: None,
         children: vec![TurretJoint {
             offset: Vec3::new(0.0, 0.1, 0.0),
@@ -57,6 +58,7 @@ fn turret_joint_tree(
             min: None,
             max: None,
             render_mesh: Some(yaw_mesh.clone()),
+            render_mesh_transform: None,
             muzzle: None,
             children: vec![TurretJoint {
                 offset: Vec3::new(0.0, 0.332706, 0.303954),
@@ -65,6 +67,7 @@ fn turret_joint_tree(
                 min: Some(-std::f32::consts::FRAC_PI_6),
                 max: Some(std::f32::consts::FRAC_PI_2),
                 render_mesh: Some(pitch_mesh.clone()),
+                render_mesh_transform: None,
                 muzzle: None,
                 children: vec![TurretJoint {
                     offset: Vec3::new(0.0, 0.128437, -0.110729),
@@ -73,6 +76,7 @@ fn turret_joint_tree(
                     min: None,
                     max: None,
                     render_mesh: Some(barrel_mesh.clone()),
+                    render_mesh_transform: None,
                     muzzle: None,
                     children: vec![TurretJoint {
                         offset: Vec3::new(0.0, 0.0, -1.2),
@@ -81,6 +85,7 @@ fn turret_joint_tree(
                         min: None,
                         max: None,
                         render_mesh: None,
+                        render_mesh_transform: None,
                         muzzle: Some(MuzzleConfig {
                             fire_rate,
                             muzzle_effect: None,

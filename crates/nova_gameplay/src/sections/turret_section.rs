@@ -14,11 +14,11 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        turret_section, LoadedBullet, MuzzleConfig, TurretBulletProjectileMarker, TurretJoint,
-        TurretSectionAimPoint, TurretSectionAimSystems, TurretSectionBarrelMuzzleMarker,
-        TurretSectionConfig, TurretSectionConfigHelper, TurretSectionInput, TurretSectionMarker,
-        TurretSectionMuzzleEntity, TurretSectionPlugin, TurretSectionTargetInput,
-        TurretSectionTargetVelocity,
+        turret_section, LoadedBullet, MuzzleConfig, RenderMeshTransform,
+        TurretBulletProjectileMarker, TurretJoint, TurretSectionAimPoint, TurretSectionAimSystems,
+        TurretSectionBarrelMuzzleMarker, TurretSectionConfig, TurretSectionConfigHelper,
+        TurretSectionInput, TurretSectionMarker, TurretSectionMuzzleEntity, TurretSectionPlugin,
+        TurretSectionTargetInput, TurretSectionTargetVelocity,
     };
 }
 
@@ -57,6 +57,52 @@ fn default_joint_speed() -> f32 {
 #[cfg(feature = "serde")]
 fn is_default_joint_speed(speed: &f32) -> bool {
     *speed == default_joint_speed()
+}
+
+/// Skip serializing a zero translation - the common case for a render-mesh
+/// transform that only reorients (or that is authored purely for symmetry with
+/// a sibling). Keeps `render_mesh_transform` blocks minimal.
+#[cfg(feature = "serde")]
+fn is_zero_translation(v: &Vec3) -> bool {
+    *v == Vec3::ZERO
+}
+
+/// Skip serializing an identity rotation - the common case for a render-mesh
+/// transform that only translates.
+#[cfg(feature = "serde")]
+fn is_identity_rotation(q: &Quat) -> bool {
+    *q == Quat::IDENTITY
+}
+
+/// An authored transform applied to a turret joint's RENDER MESH only, relative
+/// to the joint's own frame. It never touches the joint's kinematic transform
+/// (`TurretJoint::offset` / `axis` / children), so art can be nudged or
+/// reoriented without disturbing aim or the joint tree. Position and rotation
+/// are authored independently (each defaults out), so a mesh that only needs a
+/// small rotation writes just `rotation`, and a nudge writes just `position`.
+#[derive(Clone, Copy, Debug, PartialEq, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct RenderMeshTransform {
+    /// Local translation of the render mesh, relative to the joint origin.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "is_zero_translation")
+    )]
+    pub position: Vec3,
+    /// Local rotation of the render mesh, relative to the joint frame.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "is_identity_rotation")
+    )]
+    pub rotation: Quat,
+}
+
+impl RenderMeshTransform {
+    /// The bevy [`Transform`] this describes (scale left at 1). Used as the
+    /// render-mesh child entity's local transform.
+    pub fn to_transform(self) -> Transform {
+        Transform::from_translation(self.position).with_rotation(self.rotation)
+    }
 }
 
 /// One node of a turret's kinematic joint tree. Recursive. Today's turret is
@@ -103,6 +149,14 @@ pub struct TurretJoint {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub render_mesh: Option<AssetRef<WorldAsset>>,
+    /// Optional transform applied to THIS joint's render mesh only (position +
+    /// rotation), relative to the joint frame. None = the mesh sits at the joint
+    /// origin (unchanged behavior). Does not affect the joint's kinematics.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub render_mesh_transform: Option<RenderMeshTransform>,
     /// Present iff this joint is a fire point.
     #[cfg_attr(
         feature = "serde",
@@ -209,6 +263,7 @@ impl Default for TurretSectionConfig {
                 min: None,
                 max: None,
                 render_mesh: None,
+                render_mesh_transform: None,
                 muzzle: None,
                 children: vec![TurretJoint {
                     offset: Vec3::new(0.0, 0.1, 0.0),
@@ -217,6 +272,7 @@ impl Default for TurretSectionConfig {
                     min: None,
                     max: None,
                     render_mesh: None,
+                    render_mesh_transform: None,
                     muzzle: None,
                     children: vec![TurretJoint {
                         offset: Vec3::new(0.0, 0.2, 0.0),
@@ -225,6 +281,7 @@ impl Default for TurretSectionConfig {
                         min: Some(-std::f32::consts::FRAC_PI_6),
                         max: Some(std::f32::consts::FRAC_PI_2),
                         render_mesh: None,
+                        render_mesh_transform: None,
                         muzzle: None,
                         children: vec![TurretJoint {
                             offset: Vec3::new(0.1, 0.2, 0.0),
@@ -233,6 +290,7 @@ impl Default for TurretSectionConfig {
                             min: None,
                             max: None,
                             render_mesh: None,
+                            render_mesh_transform: None,
                             muzzle: None,
                             children: vec![TurretJoint {
                                 offset: Vec3::new(0.0, 0.0, -0.5),
@@ -241,6 +299,7 @@ impl Default for TurretSectionConfig {
                                 min: None,
                                 max: None,
                                 render_mesh: None,
+                                render_mesh_transform: None,
                                 muzzle: Some(MuzzleConfig {
                                     fire_rate: 100.0,
                                     muzzle_effect: None,
@@ -361,6 +420,12 @@ struct TurretJointMarker {
 /// This joint's render mesh (generic; was the per-type `*RenderMesh` zoo).
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct TurretJointRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
+
+/// The authored transform for this joint's render mesh, snapshotted from
+/// [`TurretJoint::render_mesh_transform`] so the render observer can apply it to
+/// the mesh child without re-reading the joint tree.
+#[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
+struct TurretJointRenderMeshTransform(Option<RenderMeshTransform>);
 
 /// The live tuning config carried by a turret section entity. The aim/shoot systems read
 /// `muzzle_speed` from it directly every frame; the rotator speeds, pitch limits and fire rate
@@ -562,6 +627,7 @@ fn spawn_turret_joint(
         Name::new("Turret Joint"),
         TurretSectionPartOf(turret),
         TurretJointRenderMesh(joint.render_mesh.clone()),
+        TurretJointRenderMeshTransform(joint.render_mesh_transform),
         Transform::from_translation(joint.offset),
         Visibility::Inherited,
     ));
@@ -1430,6 +1496,7 @@ fn insert_turret_joint_render(
         (
             &TurretSectionPartOf,
             &TurretJointRenderMesh,
+            &TurretJointRenderMeshTransform,
             Has<TurretSectionBarrelMuzzleMarker>,
         ),
         With<TurretJointMarker>,
@@ -1438,7 +1505,7 @@ fn insert_turret_joint_render(
     let entity = add.entity;
     trace!("insert_turret_joint_render: entity {:?}", entity);
 
-    let Ok((turret, render_mesh, is_muzzle)) = q_joint.get(entity) else {
+    let Ok((turret, render_mesh, render_mesh_transform, is_muzzle)) = q_joint.get(entity) else {
         error!(
             "insert_turret_joint_render: entity {:?} not found in q_joint",
             entity
@@ -1449,8 +1516,15 @@ fn insert_turret_joint_render(
     match &**render_mesh {
         Some(asset_ref) => {
             let scene = asset_ref.resolve(&asset_server);
+            // Authored render-mesh transform, or identity (mesh at the joint
+            // origin) when unset. It lives on the mesh CHILD, so it moves only
+            // the art, never the joint's kinematic frame.
+            let transform = render_mesh_transform
+                .map(RenderMeshTransform::to_transform)
+                .unwrap_or_default();
             commands.entity(entity).insert((children![(
                 Name::new("Render Turret Joint"),
+                transform,
                 SectionRenderOf(**turret),
                 WorldAssetRoot(scene),
             ),],));
@@ -1732,6 +1806,7 @@ mod tests {
             min: None,
             max: None,
             render_mesh: None,
+            render_mesh_transform: None,
             muzzle: Some(MuzzleConfig {
                 fire_rate: 10.0,
                 muzzle_effect: None,
@@ -1745,6 +1820,7 @@ mod tests {
             min: None,
             max: None,
             render_mesh: None,
+            render_mesh_transform: None,
             muzzle: None,
             children: vec![muzzle(0.1), muzzle(-0.1)],
         };
@@ -3076,6 +3152,152 @@ mod tests {
         }
     }
 
+    /// A meshed joint's render child carries the authored
+    /// `render_mesh_transform` (task 20260718-113307), and a meshed joint that
+    /// omits it gets an identity transform - the pre-feature behavior. This is
+    /// the load-bearing wiring: the transform must land on the mesh CHILD, not
+    /// the joint entity (whose transform is the kinematic frame).
+    #[test]
+    fn render_mesh_transform_positions_the_meshed_render_child() {
+        use bevy::asset::AssetPlugin;
+
+        // A one-joint turret (fixed root + a muzzle leaf so it is a valid
+        // turret) whose root carries a mesh and the given transform.
+        let turret_with = |xf: Option<RenderMeshTransform>| TurretSectionConfig {
+            root: TurretJoint {
+                offset: Vec3::ZERO,
+                axis: None,
+                speed: default_joint_speed(),
+                min: None,
+                max: None,
+                render_mesh: Some(AssetRef::from("gltf/turret-yaw-01.glb#Scene0".to_string())),
+                render_mesh_transform: xf,
+                muzzle: None,
+                children: vec![TurretJoint {
+                    offset: Vec3::new(0.0, 0.0, -0.5),
+                    axis: None,
+                    speed: default_joint_speed(),
+                    min: None,
+                    max: None,
+                    render_mesh: None,
+                    render_mesh_transform: None,
+                    muzzle: Some(MuzzleConfig {
+                        fire_rate: 100.0,
+                        muzzle_effect: None,
+                    }),
+                    children: vec![],
+                }],
+            },
+            ..Default::default()
+        };
+
+        // The single WorldAssetRoot (meshed) render child's local Transform.
+        let meshed_child_transform = |xf: Option<RenderMeshTransform>| {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, AssetPlugin::default(), TransformPlugin));
+            app.init_asset::<Mesh>();
+            app.init_asset::<StandardMaterial>();
+            app.init_asset::<WorldAsset>();
+            app.add_observer(insert_turret_section);
+            app.add_observer(insert_turret_joint_render);
+            app.world_mut().spawn((turret_section(turret_with(xf)),));
+            app.world_mut().flush();
+            app.update();
+
+            let world = app.world_mut();
+            let mut q =
+                world.query_filtered::<&Transform, (With<SectionRenderOf>, With<WorldAssetRoot>)>();
+            let found: Vec<Transform> = q.iter(world).copied().collect();
+            assert_eq!(found.len(), 1, "exactly one meshed render child expected");
+            found[0]
+        };
+
+        // Authored transform lands verbatim on the mesh child.
+        let authored = RenderMeshTransform {
+            position: Vec3::new(0.1, 0.2, 0.3),
+            rotation: Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),
+        };
+        let got = meshed_child_transform(Some(authored));
+        assert_eq!(got.translation, authored.position);
+        assert!(
+            got.rotation.abs_diff_eq(authored.rotation, 1e-5),
+            "render child rotation {:?} != authored {:?}",
+            got.rotation,
+            authored.rotation
+        );
+        assert_eq!(
+            got.scale,
+            Vec3::ONE,
+            "render transform must not touch scale"
+        );
+
+        // No authored transform => identity child (unchanged pre-feature look).
+        let got = meshed_child_transform(None);
+        assert_eq!(got, Transform::IDENTITY);
+    }
+
+    #[test]
+    fn render_mesh_transform_type_defaults_and_round_trips() {
+        // Default is identity: an omitted field must reproduce the old look.
+        assert_eq!(
+            RenderMeshTransform::default().to_transform(),
+            Transform::IDENTITY
+        );
+        let xf = RenderMeshTransform {
+            position: Vec3::new(1.0, -2.0, 0.5),
+            rotation: Quat::from_rotation_x(0.5),
+        };
+        let t = xf.to_transform();
+        assert_eq!(t.translation, xf.position);
+        assert!(t.rotation.angle_between(xf.rotation) < 1e-6);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn render_mesh_transform_serde_round_trips_and_omits_defaults() {
+        // Full round-trip.
+        let xf = RenderMeshTransform {
+            position: Vec3::new(0.1, 0.2, 0.3),
+            rotation: Quat::from_rotation_z(0.25),
+        };
+        let ron = ron::ser::to_string(&xf).expect("serialize");
+        let back: RenderMeshTransform = ron::from_str(&ron).expect("deserialize");
+        assert_eq!(back, xf);
+
+        // Rotation-only authoring: the zero position is not serialized, and a
+        // string with only `rotation` still deserializes (position defaults).
+        let rot_only = RenderMeshTransform {
+            position: Vec3::ZERO,
+            rotation: Quat::from_rotation_y(0.3),
+        };
+        let ron = ron::ser::to_string(&rot_only).expect("serialize");
+        assert!(
+            !ron.contains("position"),
+            "zero position must be omitted: {ron}"
+        );
+        let back: RenderMeshTransform = ron::from_str(&ron).expect("deserialize");
+        assert_eq!(back, rot_only);
+
+        // A joint that omits render_mesh_transform entirely does not serialize
+        // the field (keeps authored turrets and RON parity unchanged).
+        let joint = TurretJoint {
+            offset: Vec3::ZERO,
+            axis: None,
+            speed: default_joint_speed(),
+            min: None,
+            max: None,
+            render_mesh: None,
+            render_mesh_transform: None,
+            muzzle: None,
+            children: vec![],
+        };
+        let ron = ron::ser::to_string(&joint).expect("serialize");
+        assert!(
+            !ron.contains("render_mesh_transform"),
+            "unset render_mesh_transform must not serialize: {ron}"
+        );
+    }
+
     #[test]
     fn default_turret_builds_the_base_yaw_pitch_barrel_muzzle_chain() {
         // GOLDEN CHAIN: the migrated default turret must produce the SAME
@@ -3332,6 +3554,7 @@ mod tests {
             min: Some(-std::f32::consts::PI),
             max: Some(std::f32::consts::PI),
             render_mesh: None,
+            render_mesh_transform: None,
             muzzle: None,
             children,
         };
@@ -3351,6 +3574,7 @@ mod tests {
                         min: None,
                         max: None,
                         render_mesh: None,
+                        render_mesh_transform: None,
                         muzzle: Some(MuzzleConfig {
                             fire_rate: 10.0,
                             muzzle_effect: None,
@@ -3409,6 +3633,7 @@ mod tests {
             min: None,
             max: None,
             render_mesh: None,
+            render_mesh_transform: None,
             muzzle: Some(MuzzleConfig {
                 fire_rate: 10.0,
                 muzzle_effect: None,
@@ -3422,6 +3647,7 @@ mod tests {
             min: Some(-std::f32::consts::PI),
             max: Some(std::f32::consts::PI),
             render_mesh: None,
+            render_mesh_transform: None,
             muzzle: None,
             children: vec![TurretJoint {
                 offset: Vec3::ZERO,
@@ -3430,6 +3656,7 @@ mod tests {
                 min: Some(-std::f32::consts::PI),
                 max: Some(std::f32::consts::PI),
                 render_mesh: None,
+                render_mesh_transform: None,
                 muzzle: None,
                 children: vec![muzzle(0.1), muzzle(-0.1)],
             }],
