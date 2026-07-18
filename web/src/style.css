@@ -1128,9 +1128,13 @@ main {
     font-size: 0.8rem;
 }
 /* The article column: reuse .prose typography but drop its centering/width so
-   it fills the grid column. */
+   it fills the grid column. min-width: 0 lets the 1fr grid track shrink below
+   its intrinsic content width (grid items default to min-width: auto), so a
+   long unbreakable line in a `pre` scrolls locally via `overflow-x: auto`
+   instead of blowing the column past the viewport and forcing page scroll-X. */
 .wiki__body.prose {
     max-width: none;
+    min-width: 0;
     margin: 0;
     padding: 0;
 }
