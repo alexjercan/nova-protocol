@@ -1,9 +1,8 @@
 # Web render-scale / resolution lever for the graphics preset (aim the over-budget web target)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 42
-- TAGS: v0.7.0,performance,web,settings
-
+- TAGS: v0.7.0, performance, web, settings
 
 ## Goal
 

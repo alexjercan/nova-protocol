@@ -27,8 +27,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   wiki is the surface that falls between siblings: the ammo-reload mechanic task
   did CHANGELOG + dev wiki but never the player wiki, and the readout sibling had
   to backfill it - so the last task of a multi-task feature should sweep the
-  whole feature's player-facing surfaces, not just its own diff.
-  20260716-115938, 20260716-155816, 20260716-215513, 20260716-123556.
+  whole feature's player-facing surfaces, not just its own diff. Recurred in the
+  v0.7.0 graphics-preset family: the scatter-removal task (20260718-004834) pulled
+  `scatter_density` from the code but left two CHANGELOG entries still telling
+  players Low/Medium thin scatter - caught only when the render-scale sibling
+  landed on top (filed as 20260718-130911).
+  20260716-115938, 20260716-155816, 20260716-215513, 20260716-123556, 20260718-004723.
 - `inseparable-seeded-tasks-remerge` (x1): a spike seeds COARSE direction-level
   tasks; some turn out architecturally inseparable (the turret data-model / ECS /
   aim tasks each needed the others to compile - splitting them means throwaway
@@ -1070,6 +1074,43 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   `.wiki-child__body { min-width: 0 }` guard. When a page scrolls sideways,
   suspect the flex/grid item's min-width before the child's wrapping.
   20260718-114128.
+- `isolate-the-lever-before-measuring` (x1): when a preset/tier bundles several
+  cost levers, a tier-vs-tier A/B cannot attribute the win to any one of them -
+  add an override to vary ONE in isolation (same tier, one knob). The Low preset
+  bundled render-scale with the particle cut; a `NOVA_PERF_RENDER_SCALE` override
+  measuring Low@1.0 vs Low@0.7 isolated render-scale and showed it was ~0% on the
+  test GPU, where the bundled Low-vs-High delta had looked large. 20260718-004723.
+- `screenshot-disambiguates-a-perf-win` (x1): a frame-time drop is ambiguous
+  between "rendered fewer pixels" and "rendered nothing" (a black/broken frame) -
+  capture the actual frame to tell them apart; a frame-time-only harness cannot.
+  The render-scale Low screenshot proved the world + HUD render correctly (just
+  softer), not that the win was a blank screen. 20260718-004723.
+- `quiet-host-before-measuring` (x1): a perf measurement is only as good as a
+  quiet host - a contended shared box (parallel agent jobs, load 50) makes
+  numbers worthless, worst of all on CPU-bound software raster. Check load /
+  serialize against parallel jobs, and reach for the least-CPU-sensitive rig
+  (GPU/web) first; the first sw sweep here was contaminated and had to be redone.
+  Kin of `shared-checkout-reads-race` (contention), for measurement not files.
+  20260718-004723.
+- `read-harness-contract-before-wiring` (x1): read a harness/plugin's lifecycle
+  contract (does it FORCE a state? is it mutually exclusive with another arm?)
+  before composing it into a new example - `BCS_SHOT` force-advances to Playing
+  before assets load AND stands down when `BCS_AUTOPILOT` is set, so
+  `nova_screenshot` + `assert_scenario_loaded` crash a scenario-loading example.
+  Fixed by dropping the assert + a generous settle. 20260718-004723.
+- `shell-bg-vs-and-chain` (x1): `A && B & C` backgrounds `A && B` (the `&` binds
+  looser than `&&`), so a `cd ... && export ... & rest` runs `rest` in the wrong
+  dir with unset vars; and a `kill`/`pkill` at the head of a backgrounded command
+  can disrupt the job wrapper (exit 144). Put a backgrounded process (Xvfb) on its
+  own statement; keep kill/pkill out of commands that also launch bg work.
+  20260718-004723.
+- `measure-first-can-falsify-the-premise` (x1): the honest gate can come back
+  saying the lever barely helps - report that straight and surface the fork to
+  the user rather than shipping the plausible story the task warned against. The
+  render-scale "biggest web lever" premise (from a software-raster floor) did not
+  hold on the browser-WebGPU path (overhead-bound, not fill-bound); kept the knob
+  at a user-approved conservative value, documented as low-end-targeted not a
+  measured general win. 20260718-004723.
 
 ## Pending promotions (3+ occurrences, user decides)
 
