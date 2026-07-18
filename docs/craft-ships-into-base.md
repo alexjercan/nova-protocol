@@ -76,6 +76,24 @@ loop and torpedo launch/detonation sounds reuse the shared base refs.
   by catalog prototype id, and to assert the scavenger is weaker (lower turret
   damage + hull HP) than the player. Full `cargo test -p nova_assets` is green.
 
+## Bug found in playtest: multi-section ships over-triggered area events
+
+Playtesting the racer surfaced a latent bug: salvage crates were despawned 2-3x
+and `crates_recovered` jumped by 3 per pickup. A salvage crate is its own
+`ScenarioAreaMarker` trigger, and a ship is ONE rigid body wearing many section
+colliders, so avian fires a `CollisionStart` per section collider that enters the
+sensor. `on_collision_start_event` emitted one `OnEnter` per collider (~18 for the
+racer), so the non-idempotent `despawn + crates_recovered += 1` handler ran many
+times. The old 4-section trainer mostly hid it; other area handlers were
+idempotent (beat-gated), so only the crate counter exposed it.
+
+Fixed in `crates/nova_scenario/src/objects/area.rs` by counting occupancy per
+`(area, body)` pair: `OnEnter` fires only on the 0 -> 1 transition and `OnExit` on
+1 -> 0, so one ship entering an area is one event regardless of collider count.
+Body resolution is order-independent (avian does not guarantee body1/body2), and
+the occupancy rows are pruned when an area despawns (a picked-up crate fires no
+`CollisionEnd`). Regression test: `a_compound_body_fires_one_on_enter`.
+
 ## Follow-ups / things to playtest
 
 - Racer controller `max_torque` is 800 (from the mod); with ~18 sections it may
