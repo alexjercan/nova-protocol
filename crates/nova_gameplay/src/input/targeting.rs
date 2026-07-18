@@ -1363,12 +1363,24 @@ fn step_component_lock(
     };
 }
 
-fn on_component_cycle_next(
+/// One scroll notch's step on the RCS vertical (Y, up/down) axis while RCS
+/// fine-adjust is held. A discrete nudge to the held virtual-joystick offset;
+/// the pilot scrolls the opposite way to null it (feel-tunable, task
+/// 20260718-122912).
+const RCS_SCROLL_STEP: f32 = 0.25;
+
+pub(crate) fn on_component_cycle_next(
     _: On<Start<ComponentCycleNextInput>>,
     time: Res<Time>,
     q_sections: Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>,
     mut q_ship: Query<
-        (&CombatLock, &LockFocus, &mut ComponentLock),
+        (
+            &CombatLock,
+            &LockFocus,
+            &mut ComponentLock,
+            Has<RcsActive>,
+            Option<&mut RcsIntent>,
+        ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
     pause: Res<State<crate::PauseStates>>,
@@ -1379,7 +1391,16 @@ fn on_component_cycle_next(
     if *pause.get() == crate::PauseStates::Paused {
         return;
     }
-    for (lock, focus, mut component) in &mut q_ship {
+    for (lock, focus, mut component, rcs_active, rcs_intent) in &mut q_ship {
+        // While RCS is held the wheel drives the RCS vertical axis (up = +Y)
+        // instead of stepping the component lock - the same "modifier decides"
+        // rule the CTRL layer uses for the ship lock (player.rs).
+        if rcs_active {
+            if let Some(mut intent) = rcs_intent {
+                intent.y = crate::flight::accumulate_rcs_axis(intent.y, RCS_SCROLL_STEP);
+            }
+            continue;
+        }
         step_component_lock(1, &time, lock, focus, &mut component, &q_sections);
     }
 }
@@ -1389,7 +1410,13 @@ fn on_component_cycle_prev(
     time: Res<Time>,
     q_sections: Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>,
     mut q_ship: Query<
-        (&CombatLock, &LockFocus, &mut ComponentLock),
+        (
+            &CombatLock,
+            &LockFocus,
+            &mut ComponentLock,
+            Has<RcsActive>,
+            Option<&mut RcsIntent>,
+        ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
     pause: Res<State<crate::PauseStates>>,
@@ -1400,7 +1427,13 @@ fn on_component_cycle_prev(
     if *pause.get() == crate::PauseStates::Paused {
         return;
     }
-    for (lock, focus, mut component) in &mut q_ship {
+    for (lock, focus, mut component, rcs_active, rcs_intent) in &mut q_ship {
+        if rcs_active {
+            if let Some(mut intent) = rcs_intent {
+                intent.y = crate::flight::accumulate_rcs_axis(intent.y, -RCS_SCROLL_STEP);
+            }
+            continue;
+        }
         step_component_lock(-1, &time, lock, focus, &mut component, &q_sections);
     }
 }

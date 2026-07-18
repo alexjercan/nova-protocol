@@ -43,6 +43,7 @@ pub mod prelude {
     pub use super::{
         Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, FlightIntent, FlightSettings,
         FlightSpeedCap, ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
+        RcsActive, RcsIntent, RcsSpeedCap,
     };
 }
 
@@ -123,6 +124,27 @@ pub struct FlightSpeedCap(pub f32);
 #[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
 #[reflect(Component)]
 pub struct RcsIntent(pub Vec3);
+
+/// Present on the player ship while the pilot is HOLDING the RCS fine-adjust
+/// modifier (SHIFT), inserted/removed by the input layer (task 20260718-122912).
+/// It is the modal gate the rest of the flight/camera/input stack reads, exactly
+/// as [`Autopilot`] presence gates manual rotation: while it is present the mouse
+/// is repurposed from aiming to translation (`RcsIntent` accumulation), and both
+/// the helm and the camera rig stop consuming the mouse so the heading and view
+/// hold steady (spike 20260718-122508, Q4). Not written by the autopilot - the
+/// autopilot drives `RcsIntent` directly (task 20260718-122932), no modal state.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct RcsActive;
+
+/// Integrate one RCS virtual-joystick axis by `delta` and clamp to the unit
+/// range the primitive expects (`RcsIntent` components are ~`[-1, 1]`). The
+/// held-direction offset PERSISTS across frames: the pilot pushes to build it
+/// and pulls back to zero it (spike 20260718-122508, Q1). Shared by the mouse
+/// (XZ) and scroll (Y) input paths in the player-input layer.
+pub(crate) fn accumulate_rcs_axis(current: f32, delta: f32) -> f32 {
+    (current + delta).clamp(-1.0, 1.0)
+}
 
 /// Per-ship override of the RCS fine-adjust speed cap (u/s), on the ship root.
 /// Unlike [`FlightSpeedCap`], RCS is ALWAYS capped - that is the whole point of
@@ -483,7 +505,8 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<BodyRadius>()
             .register_type::<FlightSpeedCap>()
             .register_type::<RcsIntent>()
-            .register_type::<RcsSpeedCap>();
+            .register_type::<RcsSpeedCap>()
+            .register_type::<RcsActive>();
 
         app.add_observer(insert_flight_control);
         app.add_observer(on_autopilot_removed_cool_engines);
@@ -2980,6 +3003,23 @@ mod tests {
 
     fn angular_speed_of(app: &App, ship: Entity) -> f32 {
         app.world().get::<AngularVelocity>(ship).unwrap().0.length()
+    }
+
+    /// The virtual-joystick accumulator (task 20260718-122912) integrates the
+    /// held offset and clamps it to the unit range the primitive expects, so a
+    /// sustained push saturates at 1 and pulling back walks it toward the other
+    /// rail rather than running away.
+    #[test]
+    fn accumulate_rcs_axis_integrates_and_clamps_to_the_unit_range() {
+        // Integration accumulates across calls (held-direction persistence).
+        let a = accumulate_rcs_axis(0.0, 0.3);
+        let b = accumulate_rcs_axis(a, 0.3);
+        assert!((b - 0.6).abs() < 1e-6, "offsets add up: {b}");
+        // Saturates at the rails, never past.
+        assert_eq!(accumulate_rcs_axis(0.9, 0.5), 1.0);
+        assert_eq!(accumulate_rcs_axis(-0.9, -0.5), -1.0);
+        // Pulling back from a rail walks toward the other one.
+        assert!((accumulate_rcs_axis(1.0, -0.4) - 0.6).abs() < 1e-6);
     }
 
     /// A held RCS nudge builds the along-axis speed up toward the cap and then

@@ -733,12 +733,27 @@ fn on_rotation_input(
             With<SpaceshipRotationInputActiveMarker>,
         ),
     >,
+    q_rcs: Query<(), (With<PlayerSpaceshipMarker>, With<RcsActive>)>,
     pause: Res<State<crate::PauseStates>>,
 ) {
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up (review R1.1). Releases stay ungated so held keys
     // clear cleanly during a pause.
     if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+
+    // While RCS fine-adjust is held the mouse is repurposed to translation
+    // (spike Q4), so it must not orbit the camera either. ZERO the rig rate
+    // rather than merely skipping the write: `point_rotation_update_system`
+    // integrates the rate every frame, so a stale nonzero value left over from a
+    // mouse that was moving at the moment SHIFT was pressed would keep drifting
+    // the view. Held at zero, the rig quat stays at the frozen heading, so the
+    // helm resumes on exit without a snap (no re-seed, unlike the autopilot).
+    if !q_rcs.is_empty() {
+        for mut input in &mut q_input {
+            **input = Vec2::ZERO;
+        }
         return;
     }
 
@@ -1644,6 +1659,68 @@ mod tests {
         assert!(
             raised(&app, ship),
             "a hold surviving the pause reflects real current intent"
+        );
+    }
+
+    /// While RCS fine-adjust is held, the mouse is repurposed to translation, so
+    /// `on_rotation_input` must ZERO the rig rate - not merely skip - because the
+    /// bcs integrator applies the rate every frame and a stale value (mouse
+    /// moving at the instant SHIFT was pressed) would drift the view. Revert the
+    /// fix (write `fire.value`, or early-return leaving the stale rate) and the
+    /// rate stays non-zero and this fails.
+    #[test]
+    fn rcs_zeroes_the_rig_rate_so_the_view_does_not_drift() {
+        use bevy::input::mouse::MouseMotion;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<crate::PauseStates>();
+        app.add_input_context::<PlayerInputMarker>();
+        app.add_observer(on_rotation_input);
+
+        // The active normal rig, seeded with a NON-ZERO rate - as if the mouse
+        // were moving at the moment RCS was entered.
+        let rig = app
+            .world_mut()
+            .spawn((
+                SpaceshipCameraInputMarker,
+                SpaceshipCameraNormalInputMarker,
+                SpaceshipRotationInputActiveMarker,
+                PointRotation::default(),
+                PointRotationInput(Vec2::new(0.3, -0.2)),
+                PointRotationOutput(rot(0.0)),
+            ))
+            .id();
+        // A player ship already holding RCS.
+        app.world_mut()
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker, RcsActive));
+
+        app.finish();
+        app.cleanup();
+        app.update();
+        // The camera rotate action, bound to mouse motion like production.
+        app.world_mut().spawn((
+            PlayerInputMarker,
+            actions!(PlayerInputMarker[
+                (
+                    Action::<CameraInputRotate>::new(),
+                    Bindings::spawn(Spawn((Binding::mouse_motion(), Scale::splat(1.0)))),
+                ),
+            ]),
+        ));
+        app.update();
+
+        // Mouse moves while RCS is held.
+        app.world_mut().write_message(MouseMotion {
+            delta: Vec2::new(15.0, 8.0),
+        });
+        app.update();
+
+        assert_eq!(
+            app.world().get::<PointRotationInput>(rig).unwrap().0,
+            Vec2::ZERO,
+            "RCS holds the rig rate at zero so the view does not drift"
         );
     }
 }

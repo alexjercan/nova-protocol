@@ -31,6 +31,9 @@ impl Plugin for SpaceshipPlayerInputPlugin {
         app.add_observer(on_autopilot_goto_input);
         app.add_observer(on_autopilot_orbit_input);
         app.add_observer(on_autopilot_off_input);
+        app.add_observer(on_rcs_modifier_start);
+        app.add_observer(on_rcs_modifier_released);
+        app.add_observer(on_rcs_aim);
 
         app.add_input_context::<ThrusterInputMarker>();
         app.add_observer(on_thruster_input_binding);
@@ -328,6 +331,9 @@ fn update_controller_target_rotation_torque(
             With<SpaceshipRootMarker>,
             With<PlayerSpaceshipMarker>,
             Without<Autopilot>,
+            // RCS fine-adjust repurposes the mouse to translation and freezes
+            // the heading, exactly as an engaged maneuver does (spike Q4).
+            Without<RcsActive>,
         ),
     >,
     q_computer: Query<
@@ -542,6 +548,22 @@ struct AutopilotOrbitInput;
 #[action_output(bool)]
 struct AutopilotOffInput;
 
+/// The RCS fine-adjust modifier: held (SHIFT) to enter the docking translation
+/// mode. A plain Down action read as a held modifier (the `action_held` pattern,
+/// not a binding Chord - see `modal-input-observer-dispatch`), whose Start/Stop
+/// the observers turn into [`RcsActive`] on the player ship.
+#[derive(InputAction)]
+#[action_output(bool)]
+struct RcsModifierInput;
+
+/// The RCS aim: raw mouse motion (a per-frame `Vec2` delta), accumulated into
+/// the ship-local `RcsIntent` XZ plane while [`RcsActive`] is held. Bound to the
+/// same `mouse_motion` source as the camera rig (`consume_input: false`); the
+/// camera's own consumer is frozen during RCS so the view holds.
+#[derive(InputAction)]
+#[action_output(Vec2)]
+struct RcsAimInput;
+
 fn on_player_added_spawn_flight_input(
     add: On<Add, PlayerSpaceshipMarker>,
     mut commands: Commands,
@@ -701,6 +723,36 @@ pub(crate) fn flight_input_rig() -> impl Bundle {
                             Clamp::pos()
                         ),
                     ],
+                ),
+                (
+                    // The RCS fine-adjust modifier (SHIFT). Plain Down: Start on
+                    // press, Complete on release; the observers read those into
+                    // RcsActive. SHIFT is otherwise free (only CTRL is taken, by
+                    // the radar). Pad: LeftTrigger2 (a free analog-as-button).
+                    Name::new("Input: RCS Modifier"),
+                    Action::<RcsModifierInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings![
+                        KeyCode::ShiftLeft,
+                        KeyCode::ShiftRight,
+                        GamepadButton::LeftTrigger2
+                    ],
+                ),
+                (
+                    // The RCS aim: raw mouse motion, accumulated into RcsIntent's
+                    // XZ plane while RCS is held. Shares mouse_motion with the
+                    // camera rig (consume_input: false); the camera's consumer is
+                    // frozen during RCS so this is the only reader that acts.
+                    Name::new("Input: RCS Aim"),
+                    Action::<RcsAimInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    Bindings::spawn(Spawn((Binding::mouse_motion(), Scale::splat(1.0)))),
                 ),
             ]
         ),
@@ -940,6 +992,80 @@ fn on_autopilot_off_input(
         debug!("on_autopilot_off_input: disengaging");
         commands.entity(entity).remove::<Autopilot>();
     }
+}
+
+/// Mouse-motion -> `RcsIntent` gain: how far one unit of mouse delta walks the
+/// virtual joystick. Small, so a deliberate sweep crosses the range and a twitch
+/// barely moves it. Feel-tunable (task 20260718-122912).
+const RCS_AIM_SENSITIVITY: f32 = 0.02;
+
+/// Enter RCS fine-adjust mode: while SHIFT is held on a ship whose controller
+/// grants the RCS verb, mark it [`RcsActive`] (the modal gate the helm, camera
+/// and scroll all read) and disengage any autopilot - entering RCS is a flight
+/// input, exactly like grabbing the throttle (`on_flight_burn_input`).
+fn on_rcs_modifier_start(
+    _: On<Start<RcsModifierInput>>,
+    mut commands: Commands,
+    ship: Single<Entity, With<PlayerSpaceshipMarker>>,
+    q_verbs: ControllerVerbQuery,
+    pause: Res<State<crate::PauseStates>>,
+) {
+    if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+    let entity = *ship;
+    if !ship_grants_verb(entity, FlightVerb::Rcs, &q_verbs) {
+        debug!("on_rcs_modifier_start: RCS not granted by a controller");
+        return;
+    }
+    debug!("on_rcs_modifier_start: entering RCS fine-adjust");
+    commands
+        .entity(entity)
+        .insert(RcsActive)
+        .remove::<Autopilot>();
+}
+
+/// Leave RCS mode on SHIFT release: drop [`RcsActive`] and zero the held
+/// virtual-joystick offset so the ship stops adding RCS force (its residual
+/// velocity persists - Newtonian - per spike Q2). NOT pause-gated: a release
+/// must always clean up, like the other input releases.
+fn on_rcs_modifier_released(
+    _: On<Complete<RcsModifierInput>>,
+    mut commands: Commands,
+    // `RcsIntent` is optional so a ship that somehow lacks it can still LEAVE
+    // RCS: the modal `RcsActive` (which freezes the helm and view) must always
+    // clear on release, never get stranded behind a missing component.
+    ship: Single<(Entity, Option<&mut RcsIntent>), With<PlayerSpaceshipMarker>>,
+) {
+    let (entity, intent) = ship.into_inner();
+    if let Some(mut intent) = intent {
+        intent.0 = Vec3::ZERO;
+    }
+    commands.entity(entity).remove::<RcsActive>();
+}
+
+/// Accumulate mouse motion into the ship-local `RcsIntent` XZ plane while RCS is
+/// active: mouse X -> strafe (+X), mouse Y -> forward/back (Z). Held-direction,
+/// so the offset persists when the mouse stops; the pilot pulls back to null it.
+/// A no-op unless the ship is [`RcsActive`], so the shared mouse_motion binding
+/// does nothing outside RCS mode.
+fn on_rcs_aim(
+    fire: On<Fire<RcsAimInput>>,
+    ship: Single<(&mut RcsIntent, Has<RcsActive>), With<PlayerSpaceshipMarker>>,
+    pause: Res<State<crate::PauseStates>>,
+) {
+    if *pause.get() == crate::PauseStates::Paused {
+        return;
+    }
+    let (mut intent, active) = ship.into_inner();
+    if !active {
+        return;
+    }
+    let delta = fire.value * RCS_AIM_SENSITIVITY;
+    intent.x = crate::flight::accumulate_rcs_axis(intent.x, delta.x);
+    // Bevy mouse-motion Y is +down; pushing the mouse forward (up, -y) drives
+    // the ship forward (ship-local -Z), pulling back drives it aft.
+    intent.z = crate::flight::accumulate_rcs_axis(intent.z, delta.y);
 }
 
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
@@ -1693,6 +1819,233 @@ mod tests {
                 Some(AutopilotAction::Goto { target: t }) if t == target
             ),
             "GOTO granted: the keypress engages GOTO on the lock"
+        );
+    }
+
+    /// The full SHIFT gesture through the real rig: press enters RCS (marks the
+    /// ship `RcsActive`, which is what freezes the helm, and disengages any
+    /// autopilot); release exits and zeroes the held offset. Asserts after each
+    /// step (`assert-each-gesture-step`).
+    #[test]
+    fn rcs_shift_gesture_enters_exits_and_disengages_autopilot() {
+        use bevy::input::InputPlugin;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<crate::PauseStates>();
+        app.add_input_context::<FlightInputMarker>();
+        app.add_observer(on_rcs_modifier_start);
+        app.add_observer(on_rcs_modifier_released);
+
+        let (ship, _controller) = spawn_flyable_ship(app.world_mut());
+        // Production inserts a default RcsIntent on player ships; add one plus an
+        // engaged autopilot to prove entering RCS both zeroes on exit and
+        // disengages the maneuver.
+        app.world_mut().entity_mut(ship).insert((
+            RcsIntent(Vec3::new(0.2, 0.1, -0.3)),
+            Autopilot::engage(AutopilotAction::Stop),
+        ));
+
+        app.finish();
+        app.cleanup();
+        app.update();
+        app.world_mut().spawn(flight_input_rig());
+        app.update();
+
+        // Press SHIFT: RCS entered, autopilot gone.
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::ShiftLeft);
+        app.update();
+        app.update();
+        assert!(
+            app.world().get::<RcsActive>(ship).is_some(),
+            "SHIFT on an RCS-granting ship enters fine-adjust"
+        );
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "entering RCS disengages the autopilot (a flight input)"
+        );
+        // The helm's authority query is `Without<RcsActive>`; prove the ship is
+        // now excluded from it, i.e. the heading is frozen.
+        let mut helm_q = app
+            .world_mut()
+            .query_filtered::<Entity, (With<PlayerSpaceshipMarker>, Without<RcsActive>)>();
+        assert_eq!(
+            helm_q.iter(app.world()).count(),
+            0,
+            "RcsActive excludes the ship from manual rotation authority"
+        );
+
+        // Release SHIFT: RCS exited, held offset zeroed.
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(KeyCode::ShiftLeft);
+        app.update();
+        app.update();
+        assert!(
+            app.world().get::<RcsActive>(ship).is_none(),
+            "releasing SHIFT exits RCS"
+        );
+        assert_eq!(
+            app.world().get::<RcsIntent>(ship).unwrap().0,
+            Vec3::ZERO,
+            "releasing SHIFT zeroes the held virtual-joystick offset"
+        );
+    }
+
+    /// RCS is a controller verb: SHIFT on a ship whose controller withholds
+    /// `Rcs` does not enter the mode. Deleting the `ship_grants_verb` gate would
+    /// engage it here and fail the test.
+    #[test]
+    fn rcs_shift_is_gated_by_the_controller_verb() {
+        use bevy::input::InputPlugin;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<crate::PauseStates>();
+        app.add_input_context::<FlightInputMarker>();
+        app.add_observer(on_rcs_modifier_start);
+
+        let (ship, controller) = spawn_flyable_ship(app.world_mut());
+        app.world_mut()
+            .entity_mut(controller)
+            .insert(WithheldVerbs([FlightVerb::Rcs].into_iter().collect()));
+
+        app.finish();
+        app.cleanup();
+        app.update();
+        app.world_mut().spawn(flight_input_rig());
+        app.update();
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::ShiftLeft);
+        app.update();
+        app.update();
+        assert!(
+            app.world().get::<RcsActive>(ship).is_none(),
+            "RCS withheld: SHIFT must not enter fine-adjust"
+        );
+    }
+
+    /// While RCS is active, mouse motion accumulates into the ship-local
+    /// `RcsIntent` XZ plane (strafe + forward/back) and leaves Y to the scroll;
+    /// outside RCS the same motion is ignored.
+    #[test]
+    fn rcs_mouse_motion_accumulates_intent_only_while_active() {
+        use bevy::input::{mouse::MouseMotion, InputPlugin};
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<crate::PauseStates>();
+        app.add_input_context::<FlightInputMarker>();
+        app.add_observer(on_rcs_modifier_start);
+        app.add_observer(on_rcs_modifier_released);
+        app.add_observer(on_rcs_aim);
+
+        let (ship, _controller) = spawn_flyable_ship(app.world_mut());
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(RcsIntent::default());
+
+        app.finish();
+        app.cleanup();
+        app.update();
+        app.world_mut().spawn(flight_input_rig());
+        app.update();
+
+        // Not in RCS yet: mouse motion must not move the intent.
+        app.world_mut().write_message(MouseMotion {
+            delta: Vec2::new(20.0, 0.0),
+        });
+        app.update();
+        assert_eq!(
+            app.world().get::<RcsIntent>(ship).unwrap().0,
+            Vec3::ZERO,
+            "mouse motion is ignored outside RCS mode"
+        );
+
+        // Enter RCS, then sweep the mouse right + forward (up = -y).
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::ShiftLeft);
+        app.update();
+        app.world_mut().write_message(MouseMotion {
+            delta: Vec2::new(20.0, -20.0),
+        });
+        app.update();
+        let intent = app.world().get::<RcsIntent>(ship).unwrap().0;
+        assert!(intent.x > 0.0, "mouse-right strafes +X (got {intent:?})");
+        assert!(
+            intent.z < 0.0,
+            "mouse-forward (up) drives the ship forward, -Z (got {intent:?})"
+        );
+        assert_eq!(intent.y, 0.0, "mouse does not touch the vertical axis");
+    }
+
+    /// While RCS is active a scroll notch nudges the ship-local Y (up/down) axis
+    /// of `RcsIntent` instead of stepping the component lock; the same scroll
+    /// outside RCS leaves `RcsIntent` untouched (it cycles a component as
+    /// before). Reverting the `RcsActive` branch in `on_component_cycle_next`
+    /// leaves Y at zero in RCS and fails this.
+    #[test]
+    fn rcs_scroll_drives_the_vertical_axis_only_while_active() {
+        use bevy::input::{
+            mouse::{MouseScrollUnit, MouseWheel},
+            InputPlugin,
+        };
+
+        use crate::input::targeting::on_component_cycle_next;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<crate::PauseStates>();
+        app.add_input_context::<FlightInputMarker>();
+        app.add_observer(on_component_cycle_next);
+
+        let (ship, _controller) = spawn_flyable_ship(app.world_mut());
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(RcsIntent::default());
+
+        app.finish();
+        app.cleanup();
+        app.update();
+        app.world_mut().spawn(flight_input_rig());
+        app.update();
+
+        let scroll_up = |app: &mut App| {
+            app.world_mut().write_message(MouseWheel {
+                unit: MouseScrollUnit::Line,
+                x: 0.0,
+                y: 1.0,
+                window: Entity::PLACEHOLDER,
+                phase: bevy::input::touch::TouchPhase::Moved,
+            });
+            app.update();
+            app.update();
+        };
+
+        // Scroll outside RCS: the vertical axis stays zero (it cycles instead).
+        scroll_up(&mut app);
+        assert_eq!(
+            app.world().get::<RcsIntent>(ship).unwrap().0.y,
+            0.0,
+            "scroll outside RCS must not touch the vertical axis"
+        );
+
+        // Enter RCS, scroll up: the vertical axis rises.
+        app.world_mut().entity_mut(ship).insert(RcsActive);
+        scroll_up(&mut app);
+        assert!(
+            app.world().get::<RcsIntent>(ship).unwrap().0.y > 0.0,
+            "scroll up in RCS raises the vertical axis (got {})",
+            app.world().get::<RcsIntent>(ship).unwrap().0.y
         );
     }
 
