@@ -13,13 +13,15 @@
 //!   ([`crate::juice::JuiceSettings`]) and the derived [`GraphicsBudget`] gate
 //!   (task 20260525-133013, the low-end spawn-less mode). `GraphicsBudget` is
 //!   what the expensive effect systems actually read - whether hanabi particles
-//!   spawn (torpedo blast/launch, turret muzzle) - so the tier->cost policy lives
-//!   in one place instead of being re-derived at every spawn site. Each tier
-//!   stays genuinely distinct and observable across juice and particles. The
-//!   particle cut point is the one the frame-time baseline (20260716-123551)
-//!   validates as a real combat cost. Scatter/object counts are deliberately NOT
-//!   a preset lever: asteroids, rocks and debris are gameplay content, so no
-//!   quality tier thins them (task 20260718-004834).
+//!   spawn (torpedo blast/launch, turret muzzle) and the render-scale fraction
+//!   the scenario view is drawn at before upscaling (task 20260718-004723, the
+//!   fill lever for the web target; applied by `nova_scenario::render_scale`) -
+//!   so the tier->cost policy lives in one place instead of being re-derived at
+//!   every spawn site. Each tier stays genuinely distinct and observable across
+//!   juice, particles and resolution. The particle cut is the one the frame-time
+//!   baseline (20260716-123551) validates as a real combat cost. Scatter/object
+//!   counts are deliberately NOT a preset lever: asteroids, rocks and debris are
+//!   gameplay content, so no quality tier thins them (task 20260718-004834).
 //!
 //! Persistence (native RON + web localStorage) lives in `nova_menu`, which owns
 //! the load-at-startup and save-on-change wiring; this module only defines the
@@ -110,19 +112,72 @@ pub struct GraphicsBudget {
     /// in the task name; particle spawns are the biggest per-event cost the
     /// baseline flags.
     pub particles: bool,
+    /// Internal render-resolution fraction (`0.0..=1.0`) the scenario view is
+    /// drawn at before being upscaled to the window for presentation (task
+    /// 20260718-004723). `1.0` is native window resolution (no intermediate
+    /// image, the default direct-to-window path). Below `1.0` the 3D scene +
+    /// HUD render into a smaller offscreen target and a blit camera scales it
+    /// up - the one lever that bites on the fill/overhead-bound web target the
+    /// frame-time baseline (20260716-123551) flagged, where dropping pixels
+    /// shaded buys more than the particle toggle. Only `Low` drops it;
+    /// `Medium`/`High` stay at native resolution.
+    pub render_scale: f32,
 }
 
 impl GraphicsBudget {
-    /// The one place the tier->cost policy lives. High and Medium keep particles;
-    /// Low drops them entirely (the "spawn-less" low-end mode). Particles are the
-    /// only per-frame cost the preset gates - scatter/object counts are gameplay
+    /// The one place the tier->cost policy lives. High and Medium keep particles
+    /// and native resolution; Low drops particles (the "spawn-less" low-end mode)
+    /// and renders at a reduced `render_scale`. Particles and render-scale are the
+    /// per-frame costs the preset gates - scatter/object counts are gameplay
     /// content and are never thinned by a quality tier (task 20260718-004834).
     pub fn for_quality(quality: GraphicsQuality) -> Self {
         match quality {
-            GraphicsQuality::High => Self { particles: true },
-            GraphicsQuality::Medium => Self { particles: true },
-            GraphicsQuality::Low => Self { particles: false },
+            GraphicsQuality::High => Self {
+                particles: true,
+                render_scale: 1.0,
+            },
+            GraphicsQuality::Medium => Self {
+                particles: true,
+                render_scale: 1.0,
+            },
+            GraphicsQuality::Low => Self {
+                particles: false,
+                // 0.7 draws ~49% of the pixels (0.7^2). Measured (task
+                // 20260718-004723, report in that folder): on the RTX 3060 Ti
+                // web/WebGPU rig the win at 0.7 is ~neutral - that GPU is
+                // overhead-bound, not fill-bound, so the upscale pass roughly
+                // cancels the fill saved. Kept at 0.7 (user decision) as a
+                // conservative, still-readable drop aimed at the weaker
+                // fill-bound web hardware the Low preset exists for (iGPUs,
+                // phones) that the available rig cannot stand in for. Retune
+                // with the `render_scale` perf override if such a rig appears.
+                render_scale: 0.7,
+            },
         }
+    }
+
+    /// The lowest render-scale a persisted or authored value may take, so a
+    /// corrupt setting can never collapse the target to a zero-area texture
+    /// (which is a fatal wgpu allocation) or an absurdly tiny, unreadable frame.
+    pub const MIN_RENDER_SCALE: f32 = 0.25;
+
+    /// Whether the scenario view renders at full native window resolution - the
+    /// direct-to-window path with no intermediate target or blit camera. True
+    /// for `Medium`/`High`; the render-scale reconcile only restructures the
+    /// camera stack when this is false.
+    pub fn is_native_resolution(self) -> bool {
+        self.render_scale >= 1.0
+    }
+
+    /// The offscreen render-target size for a given window physical size, with
+    /// the fraction clamped into `[MIN_RENDER_SCALE, 1.0]` and each axis kept at
+    /// least one pixel, so the texture is always a valid, non-empty allocation.
+    pub fn render_target_size(self, window_physical: UVec2) -> UVec2 {
+        let scale = self.render_scale.clamp(Self::MIN_RENDER_SCALE, 1.0);
+        UVec2::new(
+            ((window_physical.x as f32 * scale).round() as u32).max(1),
+            ((window_physical.y as f32 * scale).round() as u32).max(1),
+        )
     }
 }
 
@@ -291,15 +346,77 @@ mod tests {
         let medium = GraphicsBudget::for_quality(GraphicsQuality::Medium);
         let low = GraphicsBudget::for_quality(GraphicsQuality::Low);
 
-        assert!(high.particles, "High: particles on");
-        assert!(medium.particles, "Medium: particles on");
-        assert!(!low.particles, "Low: spawn-less (no particles)");
+        assert!(
+            high.particles && high.render_scale == 1.0,
+            "High: particles on, native resolution"
+        );
+        assert!(
+            medium.particles && medium.render_scale == 1.0,
+            "Medium: particles on, native resolution"
+        );
+        assert!(
+            !low.particles && low.render_scale < 1.0,
+            "Low: spawn-less (no particles) and sub-native resolution"
+        );
+
+        // Only Low leaves native resolution - the render-scale lever is aimed at
+        // the over-budget web target and Medium/High keep the crisp look.
+        assert!(high.is_native_resolution() && medium.is_native_resolution());
+        assert!(!low.is_native_resolution());
 
         // The default matches the default preset (full quality), so a
         // settings-less app renders everything.
         assert_eq!(
             GraphicsBudget::default(),
             GraphicsBudget::for_quality(GraphicsQuality::default())
+        );
+    }
+
+    #[test]
+    fn render_target_size_scales_clamps_and_never_zeroes() {
+        // High renders at the native window size (no downscale).
+        let high = GraphicsBudget::for_quality(GraphicsQuality::High);
+        assert_eq!(
+            high.render_target_size(UVec2::new(1280, 720)),
+            UVec2::new(1280, 720),
+            "native resolution keeps the window size exactly"
+        );
+
+        // Low draws fewer pixels per axis, rounded to whole pixels.
+        let low = GraphicsBudget::for_quality(GraphicsQuality::Low);
+        let target = low.render_target_size(UVec2::new(1280, 720));
+        assert!(
+            target.x < 1280 && target.y < 720,
+            "Low shrinks the render target (got {target:?})"
+        );
+        assert_eq!(
+            target,
+            UVec2::new(
+                (1280.0 * low.render_scale).round() as u32,
+                (720.0 * low.render_scale).round() as u32
+            )
+        );
+
+        // A corrupt sub-minimum fraction is clamped, never producing a
+        // zero-area (fatal wgpu) or absurdly tiny target.
+        let corrupt = GraphicsBudget {
+            render_scale: 0.0,
+            ..high
+        };
+        let clamped = corrupt.render_target_size(UVec2::new(1280, 720));
+        assert_eq!(
+            clamped,
+            UVec2::new(
+                (1280.0 * GraphicsBudget::MIN_RENDER_SCALE).round() as u32,
+                (720.0 * GraphicsBudget::MIN_RENDER_SCALE).round() as u32
+            ),
+            "an out-of-range fraction clamps to MIN_RENDER_SCALE"
+        );
+        // Even a 1px window survives (both axes stay >= 1).
+        assert_eq!(
+            low.render_target_size(UVec2::new(1, 1)),
+            UVec2::new(1, 1),
+            "a tiny window never rounds an axis to zero"
         );
     }
 

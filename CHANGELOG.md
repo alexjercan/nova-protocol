@@ -69,6 +69,7 @@ tagged **(breaking)**.
 ### Performance
 
 - The Low/Medium graphics-quality presets now skip expensive visuals for low-end machines, not just the combat juice: Low is spawn-less (torpedo blast/launch and turret muzzle particle bursts are not spawned at all) and thins dense scatter fields to half, and Medium keeps particles but still thins the fields a quarter. High is unchanged. The exact thinning fractions are provisional pending the gameplay frame-time baseline; the tiers stay observably distinct today.
+- The Low graphics preset now also renders at a reduced internal resolution (~70%, roughly half the pixels) and upscales to the window, a lever aimed at weak fill-bound hardware (laptop iGPUs, phones), at the cost of a slightly softer picture. Medium and High are untouched - they render at full native resolution as before. Native and web both honor the setting. (On a strong discrete GPU the win is small - that hardware is not fill-bound - so this is a knob for the low end, not a general speed-up.)
 
 ### Internals & Tooling
 

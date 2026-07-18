@@ -10,6 +10,9 @@
 # Env:
 #   QUALITY  low|medium|high (default high)
 #   COMBAT   set to 1 to drive a combat burst (use a combat scenario)
+#   RENDER_SCALE  force GraphicsBudget::render_scale (e.g. 1.0 or 0.7), holding the
+#            rest of the tier fixed - isolates the render-scale lever (measure the
+#            same tier at 1.0 vs a fraction; task 20260718-004723)
 #   FRAMES   captured frames (default 600)
 #   WARMUP   warm-up frames (default 180)
 #   PORT     static server port (default 8099)
@@ -27,7 +30,11 @@ FRAMES="${FRAMES:-600}"
 WARMUP="${WARMUP:-180}"
 PORT="${PORT:-8099}"
 DIST="dist-perf"
-LABEL="${SCENARIO}-${QUALITY}${COMBAT:+-combat}-web"
+# RENDER_SCALE isolates the render-scale lever: it forces GraphicsBudget::render_scale
+# for the run (holding the rest of the tier fixed), so a tier can be measured at
+# 1.0 vs a fraction (task 20260718-004723). Folded into the label so the two
+# runs land in distinct rows.
+LABEL="${SCENARIO}-${QUALITY}${COMBAT:+-combat}${RENDER_SCALE:+-rs${RENDER_SCALE}}-web"
 
 echo ">> trunk build (release) perf.html -> $DIST"
 trunk build --release -d "$DIST" perf.html
@@ -42,7 +49,7 @@ trap cleanup EXIT
 sleep 1
 
 # Trunk emits the entry as index.html (even from perf.html), served at /.
-URL="http://localhost:${PORT}/?perf=1&scenario=${SCENARIO}&quality=${QUALITY}&frames=${FRAMES}&warmup=${WARMUP}&label=${LABEL}${COMBAT:+&combat=1}"
+URL="http://localhost:${PORT}/?perf=1&scenario=${SCENARIO}&quality=${QUALITY}&frames=${FRAMES}&warmup=${WARMUP}&label=${LABEL}${COMBAT:+&combat=1}${RENDER_SCALE:+&render_scale=${RENDER_SCALE}}"
 echo ">> $URL"
 
 LOG="$(mktemp)"

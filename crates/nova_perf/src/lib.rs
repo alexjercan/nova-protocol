@@ -62,6 +62,7 @@
 //! | `NOVA_PERF_LABEL` / `label`   | `scene` | Label recorded in the row. |
 //! | `NOVA_PERF_OUT` / (n/a)       | (none)  | Native only: dir for `<label>.json` + a `frametime.csv` row. Web has no fs, so it logs the summary line only. |
 //! | `NOVA_PERF_RES` / `res`       | `1280x720` | Forced primary-window resolution `WxH`. |
+//! | `NOVA_PERF_RENDER_SCALE` / `render_scale` | (tier default) | Forces `GraphicsBudget::render_scale`, holding the rest of the preset fixed - isolates the render-scale lever (measure a tier at `1.0` vs a fraction; task 20260718-004723). |
 
 use std::{path::PathBuf, sync::Arc};
 
@@ -74,7 +75,7 @@ use bevy::{
 // bevy_common_systems version the game uses (no direct bcs dep, no version skew).
 use nova_gameplay::{
     bevy_common_systems::health::Health,
-    prelude::{PlayerSpaceshipMarker, WeaponsHot},
+    prelude::{GraphicsBudget, PlayerSpaceshipMarker, WeaponsHot},
     GameStates,
 };
 
@@ -175,6 +176,12 @@ struct PerfConfig {
     label: String,
     out_dir: Option<PathBuf>,
     resolution: (f32, f32),
+    /// Optional forced `GraphicsBudget::render_scale`, holding the rest of the
+    /// preset fixed. Set (`NOVA_PERF_RENDER_SCALE` / `render_scale=`) to isolate
+    /// the render-scale lever from the tier's particle/scatter cuts - measure
+    /// the SAME tier at `1.0` vs a fraction so the delta is pure resolution
+    /// (task 20260718-004723). Unset leaves the tier's own default.
+    render_scale_override: Option<f32>,
 }
 
 impl PerfConfig {
@@ -195,6 +202,7 @@ impl PerfConfig {
             resolution: perf_param("res")
                 .and_then(|v| parse_resolution(&v))
                 .unwrap_or(DEFAULT_RESOLUTION),
+            render_scale_override: perf_param("render_scale").and_then(|v| v.trim().parse().ok()),
         }
     }
 }
@@ -236,12 +244,13 @@ impl Plugin for FrameTimePlugin {
         }
         let config = PerfConfig::resolve();
         info!(
-            "nova perf: armed (label={}, warmup={}, frames={}, res={}x{}, out={:?}, driven={})",
+            "nova perf: armed (label={}, warmup={}, frames={}, res={}x{}, render_scale={:?}, out={:?}, driven={})",
             config.label,
             config.warmup_frames,
             config.capture_frames,
             config.resolution.0,
             config.resolution.1,
+            config.render_scale_override,
             config.out_dir,
             self.driver.is_some(),
         );
@@ -251,10 +260,16 @@ impl Plugin for FrameTimePlugin {
             driven: 0,
             samples: Vec::with_capacity(config.capture_frames as usize),
         });
+        let force_render_scale = config.render_scale_override.is_some();
         app.insert_resource(config);
         // Continuous updates so an unfocused/headless window still runs flat out.
         app.insert_resource(WinitSettings::game());
         app.add_systems(Startup, perf_force_window);
+        // Isolation knob: pin render_scale to the override every frame (it wins
+        // over the tier's apply, which only runs on a quality change).
+        if force_render_scale {
+            app.add_systems(Update, perf_force_render_scale);
+        }
         // The driver runs before the capture read so its work is inside the
         // measured frame.
         if let Some(driver) = &self.driver {
@@ -297,6 +312,19 @@ fn perf_force_window(
         .set(config.resolution.0, config.resolution.1);
     window.present_mode = PresentMode::AutoNoVsync;
     window.resizable = false;
+}
+
+/// Pin [`GraphicsBudget::render_scale`] to the configured override, holding the
+/// rest of the preset fixed - the isolation knob for measuring the render-scale
+/// lever on its own (task 20260718-004723). Only added when the override is set;
+/// the `!=` guard avoids marking the budget changed every frame.
+fn perf_force_render_scale(config: Res<PerfConfig>, budget: Option<ResMut<GraphicsBudget>>) {
+    let (Some(scale), Some(mut budget)) = (config.render_scale_override, budget) else {
+        return;
+    };
+    if budget.render_scale != scale {
+        budget.render_scale = scale;
+    }
 }
 
 /// Advance the capture state machine one frame: wait for `Playing`, discard
