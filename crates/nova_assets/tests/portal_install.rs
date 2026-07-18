@@ -10,10 +10,10 @@
 //! - THE REAL WIRE: `nova_portal_gen::generate` builds a portal tree from a
 //!   synthetic fixture source (no real mod named - task 20260716-155839),
 //!   `tiny_http` serves it on localhost, and the REAL `EhttpTransport`
-//!   fetches it - catalog to `RemoteCatalog::Ready`, install to cached files
-//!   + a `DownloadedMods` record, enable to the fixture's scenario in
-//!   `GameScenarios`, uninstall all the way back out
-//!   (including the `EnabledMods` strip that resolves 142906's R1.7).
+//!   fetches it - catalog to `RemoteCatalog::Ready`, install to cached
+//!   files + a `DownloadedMods` record, enable to the fixture's scenario
+//!   in `GameScenarios`, uninstall all the way back out (including the
+//!   `EnabledMods` strip that resolves 142906's R1.7).
 //! - FAILURE INJECTION: a mock `PortalTransport` serves corrupted/truncated
 //!   bodies, unknown schema versions and mid-install transport errors; every
 //!   failure asserts the ABSENCE evidence through the cache API (no files, no

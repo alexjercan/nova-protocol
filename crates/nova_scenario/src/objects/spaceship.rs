@@ -146,6 +146,12 @@ pub type SectionId = String;
 /// reference a shared prototype instead of inlining its whole config.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+// Inline carries the full SectionConfig - hundreds of bytes (528 at the time
+// of clippy's report) - next to Prototype's small id; boxing it (clippy's
+// suggestion) cannot compile here because the enum derives Reflect and
+// bevy_reflect 0.19 has no Reflect impl for Box<T>. This is spawn-time
+// config data, not per-frame state, so the size stays.
+#[allow(clippy::large_enum_variant)]
 pub enum SectionSource {
     /// The full config, authored inline.
     Inline(SectionConfig),

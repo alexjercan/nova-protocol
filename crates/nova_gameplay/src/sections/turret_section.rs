@@ -972,10 +972,7 @@ fn update_turret_target_joints_system(
             // the articulated joints along the chain. A single Jacobi pass: every
             // joint steps from the CURRENT pose this frame.
             let mut chain = muzzle;
-            loop {
-                let Ok(&ChildOf(parent)) = q_child_of.get(chain) else {
-                    break;
-                };
+            while let Ok(&ChildOf(parent)) = q_child_of.get(chain) {
                 // Only walk while the current node is a turret joint; the parent
                 // of the root joint is the turret section entity (not a joint),
                 // which stops the walk.
@@ -1327,7 +1324,7 @@ fn on_projectile_marker_effect(
     // On the Low tier `insert_turret_barrel_muzzle_effect` never spawned the muzzle
     // effect, so there is nothing to reset - skip before the lookup, otherwise the
     // missing-effect branch below would `error!` on every shot (task 20260525-133013).
-    if !budget.as_deref().map_or(true, |b| b.particles) {
+    if !budget.as_deref().is_none_or(|b| b.particles) {
         return;
     }
 
@@ -1514,7 +1511,7 @@ fn insert_turret_barrel_muzzle_effect(
 
     // Low graphics tier is spawn-less: skip the muzzle-flash hanabi (task
     // 20260525-133013). Absent budget (settings-less app) means full quality.
-    if !budget.as_deref().map_or(true, |b| b.particles) {
+    if !budget.as_deref().is_none_or(|b| b.particles) {
         return;
     }
 
@@ -3367,10 +3364,9 @@ mod tests {
                 .id();
             let turret = app
                 .world_mut()
-                .spawn(turret_section({
-                    let mut c = TurretSectionConfig::default();
-                    c.muzzle_speed = 1000.0; // near-straight lead so aim ~= target dir
-                    c
+                .spawn(turret_section(TurretSectionConfig {
+                    muzzle_speed: 1000.0, // near-straight lead so aim ~= target dir
+                    ..Default::default()
                 }))
                 .id();
             app.world_mut()
@@ -3406,10 +3402,9 @@ mod tests {
             .id();
         let turret = app
             .world_mut()
-            .spawn(turret_section({
-                let mut c = TurretSectionConfig::default();
-                c.muzzle_speed = 1000.0;
-                c
+            .spawn(turret_section(TurretSectionConfig {
+                muzzle_speed: 1000.0,
+                ..Default::default()
             }))
             .id();
         app.world_mut()
@@ -3451,10 +3446,9 @@ mod tests {
             .id();
         let turret = app
             .world_mut()
-            .spawn(turret_section({
-                let mut c = TurretSectionConfig::default();
-                c.muzzle_speed = 1000.0;
-                c
+            .spawn(turret_section(TurretSectionConfig {
+                muzzle_speed: 1000.0,
+                ..Default::default()
             }))
             .id();
         app.world_mut()

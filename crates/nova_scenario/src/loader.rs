@@ -521,8 +521,8 @@ fn track_orbit_holds(
 }
 
 /// Re-fire period (seconds) for a HELD lock. Acquisition fires immediately;
-/// while the lock stays on the same target the event RECURS on this period
-/// - the orbit-hold rationale (review R1.1 of 20260712-110730): a one-shot
+/// while the lock stays on the same target the event RECURS on this period -
+/// the orbit-hold rationale (review R1.1 of 20260712-110730): a one-shot
 /// event consumed under a rejecting beat guard is gone for good, and a
 /// scenario whose beat advances while the lock is already held would
 /// soft-lock. Beat-gated handlers make the repeats no-ops.

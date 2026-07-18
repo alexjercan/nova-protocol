@@ -250,7 +250,7 @@ pub(super) fn insert_particle_effect(
 
     // Low graphics tier is spawn-less: skip the hanabi blast entirely (task
     // 20260525-133013). Absent budget (settings-less app) means full quality.
-    if !budget.as_deref().map_or(true, |b| b.particles) {
+    if !budget.as_deref().is_none_or(|b| b.particles) {
         return;
     }
 
@@ -376,7 +376,7 @@ pub(super) fn insert_torpedo_spawner_effect(
 
     // Low graphics tier is spawn-less: skip the launch-burst hanabi (task
     // 20260525-133013). Absent budget (settings-less app) means full quality.
-    if !budget.as_deref().map_or(true, |b| b.particles) {
+    if !budget.as_deref().is_none_or(|b| b.particles) {
         return;
     }
 
@@ -498,7 +498,7 @@ pub(super) fn on_torpedo_launch_effect(
     // On the Low tier `insert_torpedo_spawner_effect` never spawned the launch
     // effect, so there is nothing to reset - skip before the lookup, otherwise the
     // missing-effect branch below would `error!` on every launch (task 20260525-133013).
-    if !budget.as_deref().map_or(true, |b| b.particles) {
+    if !budget.as_deref().is_none_or(|b| b.particles) {
         return;
     }
 

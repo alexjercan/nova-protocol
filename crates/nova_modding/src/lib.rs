@@ -64,8 +64,10 @@ pub mod prelude {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Content {
     /// A section-prototype ([`SectionConfig`]) the ships reference by id -
-    /// registers into `GameSections`.
-    Section(SectionConfig),
+    /// registers into `GameSections`. Boxed so the enum is not sized by its
+    /// largest payload (`Box<T>` serializes exactly like `T`, so the RON
+    /// wire shape is unchanged - the content parity tests pin that).
+    Section(Box<SectionConfig>),
     /// A [`ScenarioConfig`] - registers into `GameScenarios` keyed by its id.
     Scenario(ScenarioConfig),
 }

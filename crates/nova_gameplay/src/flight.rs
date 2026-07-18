@@ -966,15 +966,15 @@ fn group_time_score(
 }
 
 /// The fastest group for a burn, per [`group_time_score`].
-fn choose_group<'a>(
-    groups: &'a [ThrusterGroup],
+fn choose_group(
+    groups: &[ThrusterGroup],
     burn_dir: Vec3,
     delta_v: f32,
     mass: f32,
     dt: f32,
     turn_rate: f32,
     bias: f32,
-) -> Option<&'a ThrusterGroup> {
+) -> Option<&ThrusterGroup> {
     groups.iter().min_by(|a, b| {
         group_time_score(a, burn_dir, delta_v, mass, dt, turn_rate, bias).total_cmp(
             &group_time_score(b, burn_dir, delta_v, mass, dt, turn_rate, bias),
@@ -2325,10 +2325,11 @@ fn rcs_burn_system(
 /// of a persistent virtual joystick that keeps pushing after you let go - which
 /// playtested as "way too hard to control" (task 20260718-185826). The input
 /// layer SETS the intent from each frame's motion; this fades it back to zero
-/// when no fresh input arrives. Gated on [`RcsActive`] - the player's SHIFT modal
-/// - so the AUTOPILOT's own `RcsIntent` (which it rewrites every tick, and which
-/// never carries `RcsActive`) is untouched. Runs after [`rcs_burn_system`] in the
-/// chain, so the intent this tick is spent before it decays.
+/// when no fresh input arrives. Gated on [`RcsActive`] - the player's SHIFT
+/// modal - so the AUTOPILOT's own `RcsIntent` (which it rewrites every tick,
+/// and which never carries `RcsActive`) is untouched. Runs after
+/// [`rcs_burn_system`] in the chain, so the intent this tick is spent before
+/// it decays.
 fn decay_player_rcs_intent(mut q_intent: Query<&mut RcsIntent, With<RcsActive>>) {
     for mut intent in &mut q_intent {
         if intent.0 == Vec3::ZERO {

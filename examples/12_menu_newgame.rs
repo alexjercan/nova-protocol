@@ -19,9 +19,9 @@
 //! handler - the smoke suite's stderr grep for "Encountered an error in
 //! command" is what gates that flavor. Together they pin the investigation
 //! of task 20260713-175352 (an "Entity despawned" command error on this
-//! transition in the v0.5.0 web build, not reproduced natively in 6 newgame
-//! + 3 editorplay runs): if the race exists natively and ever fires, CI
-//! catches it.
+//! transition in the v0.5.0 web build, not reproduced natively in 6 newgame +
+//! 3 editorplay runs): if the race exists natively and ever fires, CI catches
+//! it.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text

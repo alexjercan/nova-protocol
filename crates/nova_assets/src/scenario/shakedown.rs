@@ -52,11 +52,12 @@ const DEBRIS_CENTER: Vec3 = Vec3::new(350.0, 20.0, -160.0);
 /// The three salvage crates, strung ALONG the cluster rather than bunched
 /// (task 20260714-090002). The old scatter sat ~29-37u apart, so with the 8u
 /// pickup radius (16u sensor diameter) a fast pass could sweep two sensors
-/// almost at once and they read as a single pickup. These are spread to
-/// >=53u center-to-center (a ~37u gap between sensor surfaces), so each pickup
-/// registers as its own moment - reinforced by the per-crate pickup cue. The
-/// spread is pinned by `crates_are_spaced_for_distinct_pickups` and stays clear
-/// of beacon 2's trigger and the planetoid SOI (the geometry tests below).
+/// almost at once and they read as a single pickup. These are spread to at
+/// least 53u center-to-center (a ~37u gap between sensor surfaces), so each
+/// pickup registers as its own moment - reinforced by the per-crate pickup
+/// cue. The spread is pinned by `crates_are_spaced_for_distinct_pickups` and
+/// stays clear of beacon 2's trigger and the planetoid SOI (the geometry
+/// tests below).
 const CRATE_POSITIONS: [Vec3; 3] = [
     Vec3::new(345.0, 30.0, -190.0),
     Vec3::new(360.0, 5.0, -145.0),
@@ -1420,9 +1421,9 @@ mod tests {
     #[test]
     fn crates_are_spaced_for_distinct_pickups() {
         let min_separation = 5.0 * CRATE_AREA_RADIUS;
-        for i in 0..CRATE_POSITIONS.len() {
-            for j in (i + 1)..CRATE_POSITIONS.len() {
-                let separation = CRATE_POSITIONS[i].distance(CRATE_POSITIONS[j]);
+        for (i, a) in CRATE_POSITIONS.iter().enumerate() {
+            for (j, b) in CRATE_POSITIONS.iter().enumerate().skip(i + 1) {
+                let separation = a.distance(*b);
                 assert!(
                     separation >= min_separation,
                     "crate_{} and crate_{} are {separation:.0}u apart - too close for \

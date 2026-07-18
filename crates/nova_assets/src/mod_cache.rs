@@ -333,8 +333,8 @@ pub fn register_mods_source(app: &mut bevy::app::App) {
 /// source-relative path that still starts with `..` - record validation alone
 /// cannot stop a malicious MANIFEST. The FIRST guard against such a path is
 /// bevy itself: `AssetPlugin::unapproved_path_mode` defaults to `Forbid` and
-/// the server rejects `is_unapproved()` paths at load time (server/mod.rs:544)
-/// - the raw `FileAssetReader`, which would happily raw-join `..` onto its
+/// the server rejects `is_unapproved()` paths at load time (server/mod.rs:544);
+/// the raw `FileAssetReader`, which would happily raw-join `..` onto its
 /// root, never sees them. This sandbox is the READER-layer backstop so the
 /// cache's containment does not hinge on that config staying at its default
 /// (an `unapproved_path_mode: Allow` app, a `load_override` caller, or any

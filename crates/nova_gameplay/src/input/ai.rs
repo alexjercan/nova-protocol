@@ -1171,7 +1171,7 @@ fn ai_evade_direction(to_target: Vec3, leg: u32) -> Vec3 {
         2 => -tangent,
         _ => -bitangent,
     };
-    let along = if leg % 2 == 0 { 0.25 } else { -0.25 };
+    let along = if leg.is_multiple_of(2) { 0.25 } else { -0.25 };
     (lateral + los * along).normalize()
 }
 

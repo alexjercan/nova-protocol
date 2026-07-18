@@ -262,13 +262,13 @@ pub fn shipped_acks() -> Vec<BalanceAck> {
 /// return the stale acks (matched nothing). Only WARN-grade findings can
 /// match an ack; every stale ack must be surfaced by the caller.
 #[allow(clippy::type_complexity)]
-pub fn partition_findings<'a>(
+pub fn partition_findings(
     findings: Vec<(String, BalanceFinding)>,
-    acks: &'a [BalanceAck],
+    acks: &[BalanceAck],
 ) -> (
     Vec<(String, BalanceFinding)>,
-    Vec<(String, BalanceFinding, &'a BalanceAck)>,
-    Vec<&'a BalanceAck>,
+    Vec<(String, BalanceFinding, &BalanceAck)>,
+    Vec<&BalanceAck>,
 ) {
     let matches = |ack: &BalanceAck, bundle: &str, finding: &BalanceFinding| {
         finding.severity == BalanceSeverity::Warn

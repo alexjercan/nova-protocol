@@ -1048,6 +1048,35 @@ fn apply_rcs_loop_volume(
     }
 }
 
+/// Silence the engine loop while the pause overlay is up; one-shot SFX are
+/// naturally quiet then (no events fire in a frozen sim).
+/// Pause every looping SFX sink (thruster hum + RCS hiss) behind the pause
+/// overlay - audio sinks do not follow `Time<Virtual>`, so without this a loop
+/// keeps roaring at its last volume while the game is frozen.
+fn pause_loops(
+    q_thruster: Query<&AudioSink, With<ThrusterLoopSfx>>,
+    q_rcs: Query<&AudioSink, With<RcsLoopSfx>>,
+) {
+    for sink in &q_thruster {
+        sink.pause();
+    }
+    for sink in &q_rcs {
+        sink.pause();
+    }
+}
+
+fn resume_loops(
+    q_thruster: Query<&AudioSink, With<ThrusterLoopSfx>>,
+    q_rcs: Query<&AudioSink, With<RcsLoopSfx>>,
+) {
+    for sink in &q_thruster {
+        sink.play();
+    }
+    for sink in &q_rcs {
+        sink.play();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2149,34 +2178,5 @@ mod tests {
             0.0,
             "a controller that does not grant Rcs makes no RCS sound"
         );
-    }
-}
-
-/// Silence the engine loop while the pause overlay is up; one-shot SFX are
-/// naturally quiet then (no events fire in a frozen sim).
-/// Pause every looping SFX sink (thruster hum + RCS hiss) behind the pause
-/// overlay - audio sinks do not follow `Time<Virtual>`, so without this a loop
-/// keeps roaring at its last volume while the game is frozen.
-fn pause_loops(
-    q_thruster: Query<&AudioSink, With<ThrusterLoopSfx>>,
-    q_rcs: Query<&AudioSink, With<RcsLoopSfx>>,
-) {
-    for sink in &q_thruster {
-        sink.pause();
-    }
-    for sink in &q_rcs {
-        sink.pause();
-    }
-}
-
-fn resume_loops(
-    q_thruster: Query<&AudioSink, With<ThrusterLoopSfx>>,
-    q_rcs: Query<&AudioSink, With<RcsLoopSfx>>,
-) {
-    for sink in &q_thruster {
-        sink.play();
-    }
-    for sink in &q_rcs {
-        sink.play();
     }
 }

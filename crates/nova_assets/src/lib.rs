@@ -104,7 +104,7 @@ pub mod scenario_generation {
     pub fn build_section_content() -> Vec<Content> {
         build_section_catalog()
             .into_iter()
-            .map(Content::Section)
+            .map(|section| Content::Section(Box::new(section)))
             .collect()
     }
 
@@ -878,8 +878,8 @@ fn merge_content_item(
 ) {
     match item {
         Content::Section(cfg) => match sections.iter_mut().find(|s| s.base.id == cfg.base.id) {
-            Some(existing) => *existing = cfg.clone(),
-            None => sections.push(cfg.clone()),
+            Some(existing) => *existing = cfg.as_ref().clone(),
+            None => sections.push(cfg.as_ref().clone()),
         },
         Content::Scenario(cfg) => {
             scenarios.insert(cfg.id.clone(), cfg.clone());
@@ -1214,19 +1214,19 @@ mod tests {
 
         // Base bundle: two sections in palette order.
         merge_content_item(
-            &Content::Section(section("hull", 100.0)),
+            &Content::Section(Box::new(section("hull", 100.0))),
             &mut sections,
             &mut scenarios,
         );
         merge_content_item(
-            &Content::Section(section("thruster", 50.0)),
+            &Content::Section(Box::new(section("thruster", 50.0))),
             &mut sections,
             &mut scenarios,
         );
 
         // Mod bundle: overlays "hull" with a new health, leaves "thruster".
         merge_content_item(
-            &Content::Section(section("hull", 999.0)),
+            &Content::Section(Box::new(section("hull", 999.0))),
             &mut sections,
             &mut scenarios,
         );
@@ -1273,15 +1273,15 @@ mod tests {
     /// same id in DIFFERENT bundles is the intended overlay, not an error.
     #[test]
     fn merge_bundles_overlays_later_bundle_by_id() {
-        let base = vec![
-            Content::Section(section("hull", 100.0)),
-            Content::Section(section("thruster", 50.0)),
+        let base = [
+            Content::Section(Box::new(section("hull", 100.0))),
+            Content::Section(Box::new(section("thruster", 50.0))),
         ];
-        let modded = vec![
+        let modded = [
             // Overrides the base hull by id.
-            Content::Section(section("hull", 999.0)),
+            Content::Section(Box::new(section("hull", 999.0))),
             // Adds a brand-new section.
-            Content::Section(section("shield", 25.0)),
+            Content::Section(Box::new(section("shield", 25.0))),
         ];
 
         let outcome = merge_bundles([base.iter(), modded.iter()]);
@@ -1319,8 +1319,8 @@ mod tests {
 
         // `dependent` (id "mod") overrides the `hull` section that `dependency`
         // (id "dep") defines. Catalog/input order lists the dependent FIRST.
-        let dependency = vec![Content::Section(section("hull", 100.0))];
-        let dependent = vec![Content::Section(section("hull", 999.0))];
+        let dependency = vec![Content::Section(Box::new(section("hull", 100.0)))];
+        let dependent = vec![Content::Section(Box::new(section("hull", 999.0)))];
         let bundles: HashMap<&str, &Vec<Content>> =
             HashMap::from([("dep", &dependency), ("mod", &dependent)]);
         let ids = vec!["mod".to_string(), "dep".to_string()];
@@ -1344,10 +1344,10 @@ mod tests {
     /// overlay.
     #[test]
     fn merge_bundles_intra_bundle_duplicate_is_a_conflict() {
-        let bundle = vec![
-            Content::Section(section("hull", 100.0)),
+        let bundle = [
+            Content::Section(Box::new(section("hull", 100.0))),
             // Duplicate id in the SAME bundle - a conflict, not an overlay.
-            Content::Section(section("hull", 999.0)),
+            Content::Section(Box::new(section("hull", 999.0))),
         ];
 
         let outcome = merge_bundles([bundle.iter()]);
@@ -1441,7 +1441,7 @@ pub mod lint_walk {
         let mut scenarios = Vec::new();
         for item in &content {
             match item {
-                Content::Section(section) => sections.push(section.clone()),
+                Content::Section(section) => sections.push(section.as_ref().clone()),
                 Content::Scenario(scenario) => scenarios.push(scenario.clone()),
             }
         }
@@ -1734,7 +1734,7 @@ pub mod lint_walk {
             let sections = content
                 .iter()
                 .filter_map(|c| match c {
-                    Content::Section(s) => Some(s.clone()),
+                    Content::Section(s) => Some(s.as_ref().clone()),
                     _ => None,
                 })
                 .collect();

@@ -242,12 +242,13 @@ fn log_filter_str<'a>() -> &'a str {
 /// bookkeeping and closes that class for good.
 ///
 /// The cost is web-only and non-fatal: on wasm the asset reader `fetch()`es
-/// `<path>.meta` for every asset, and the ones without a sidecar (most of them)
-/// come back HTTP 404, which bevy handles by falling back to the loader's
-/// default meta (bevy_asset 0.19 `server/mod.rs:1564-1644`, `io/wasm.rs:100-124`
-/// - verified at the pinned rev). So the price is one extra request per asset
-/// and some 404 console noise on web; native pays only a filesystem stat. We
-/// take that over shipping a class of skybox that crashes on WebGL2-class GPUs.
+/// `<path>.meta` for every asset, and the ones without a sidecar (most of
+/// them) come back HTTP 404, which bevy handles by falling back to the
+/// loader's default meta (bevy_asset 0.19 `server/mod.rs:1564-1644` and
+/// `io/wasm.rs:100-124`, verified at the pinned rev). So the price is one
+/// extra request per asset and some 404 console noise on web; native pays
+/// only a filesystem stat. We take that over shipping a class of skybox that
+/// crashes on WebGL2-class GPUs.
 ///
 /// A cubemap whose `.meta` `array_layout` applied arrives already 6-layer, which
 /// SKIPS the bcs SkyboxPlugin fallback branch that also set the Cube texture

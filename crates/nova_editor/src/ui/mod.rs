@@ -115,7 +115,7 @@ pub(crate) fn setup_editor_scene(
         // Skybox. Pinned by prepare_cubemap_view_sets_cube_view_on_the_game_assets_cubemap
         // (task 20260717-133332, which confirmed there is no missing-view bug here).
         SkyboxConfig {
-            cubemap: game_assets.cubemap.clone().into(),
+            cubemap: game_assets.cubemap.clone(),
             brightness: 1000.0,
         },
     ));

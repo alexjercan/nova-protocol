@@ -444,15 +444,23 @@ mod tests {
     #[test]
     fn section_type_durability_ordering_holds() {
         // Thrusters take MORE damage than the baseline (fragile); turrets take
-        // LESS (armored). The strict inequalities are the feature.
-        assert!(
-            THRUSTER_BASE_HEALTH < CONTROLLER_BASE_HEALTH,
-            "a thruster must be more fragile than the mid baseline: {THRUSTER_BASE_HEALTH} vs {CONTROLLER_BASE_HEALTH}"
-        );
-        assert!(
-            CONTROLLER_BASE_HEALTH < TURRET_BASE_HEALTH,
-            "a turret must be tougher than the mid baseline: {CONTROLLER_BASE_HEALTH} vs {TURRET_BASE_HEALTH}"
-        );
+        // LESS (armored). The strict inequalities are the feature. Const
+        // blocks so a flattening regression fails at COMPILE time; a const
+        // panic cannot format values, so the messages name the constants.
+        const {
+            assert!(
+                THRUSTER_BASE_HEALTH < CONTROLLER_BASE_HEALTH,
+                "a thruster must be more fragile than the mid baseline \
+                 (THRUSTER_BASE_HEALTH vs CONTROLLER_BASE_HEALTH)"
+            );
+        }
+        const {
+            assert!(
+                CONTROLLER_BASE_HEALTH < TURRET_BASE_HEALTH,
+                "a turret must be tougher than the mid baseline \
+                 (CONTROLLER_BASE_HEALTH vs TURRET_BASE_HEALTH)"
+            );
+        }
         // The controller core and the torpedo bay share the mid baseline.
         assert_eq!(CONTROLLER_BASE_HEALTH, TORPEDO_BASE_HEALTH);
     }
@@ -468,10 +476,13 @@ mod tests {
         // A representative environment object (field asteroid) is 100 HP.
         const ASTEROID_HP: f32 = 100.0;
         const MIN_ROUNDS_TO_KILL: f32 = 12.0;
-        assert!(
-            BETTER_TURRET_BULLET_DAMAGE <= ASTEROID_HP / MIN_ROUNDS_TO_KILL,
-            "PDC per-hit {BETTER_TURRET_BULLET_DAMAGE} would kill a {ASTEROID_HP}-HP \
-             object in under {MIN_ROUNDS_TO_KILL} rounds - too close to a one-shot pop"
-        );
+        const {
+            assert!(
+                BETTER_TURRET_BULLET_DAMAGE <= ASTEROID_HP / MIN_ROUNDS_TO_KILL,
+                "PDC per-hit BETTER_TURRET_BULLET_DAMAGE would kill an \
+                 ASTEROID_HP-HP object in under MIN_ROUNDS_TO_KILL rounds - \
+                 too close to a one-shot pop"
+            );
+        }
     }
 }

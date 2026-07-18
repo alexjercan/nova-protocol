@@ -659,7 +659,7 @@ fn sync_outcome_overlay(
         ScenarioOutcomeKind::Victory => ("VICTORY", theme::semantic::OBJECTIVE),
         ScenarioOutcomeKind::Defeat => ("DEFEAT", theme::semantic::THREAT),
     };
-    let primary = queued.then(|| match config.outcome {
+    let primary = queued.then_some(match config.outcome {
         ScenarioOutcomeKind::Victory => "Continue",
         ScenarioOutcomeKind::Defeat => "Retry",
     });

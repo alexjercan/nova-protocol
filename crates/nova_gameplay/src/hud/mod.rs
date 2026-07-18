@@ -64,11 +64,10 @@ impl HudVisibility {
 
     /// Whether a widget of `tier` is visible at this level.
     pub fn shows(self, tier: HudTier) -> bool {
-        match (self, tier) {
-            (HudVisibility::All, _) => true,
-            (HudVisibility::Minimal, HudTier::Instrument) => true,
-            _ => false,
-        }
+        matches!(
+            (self, tier),
+            (HudVisibility::All, _) | (HudVisibility::Minimal, HudTier::Instrument)
+        )
     }
 }
 
