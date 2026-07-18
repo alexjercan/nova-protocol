@@ -106,9 +106,14 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   pins all N - count gates in the diff, count pins. 20260717-112639.
 - `prose-invariant-becomes-pin` (x1): a design invariant stated in prose
   becomes a computed assertion in the same sitting. 20260717-112630.
-- `prose-from-diff-not-intent` (x2): write CHANGELOG/wiki/NOTES from the
-  final diff, then re-read asking "does the prose claim anything the diff
-  does not do?". 20260717-112622, 20260717-163058.
+- `prose-from-diff-not-intent` (x3, PENDING): write CHANGELOG/wiki/NOTES
+  from the final diff (count sites by counting the diff), then re-read
+  asking "does the prose claim anything the diff does not do?".
+  20260717-112622, 20260717-163058, 20260719-001600.
+- `doc-lint-autofix-misreads-prose` (x1): clippy --fix on doc lints
+  silences the marker misparse instead of fixing it - rewrap the prose so
+  no line starts with `-`/`+`/`>=`; re-read every --fix doc hunk.
+  20260719-001600.
 - `lint-arm-sweeps-own-fixtures` (x2): a new lint arm fires on the test
   module's own fixtures; grep for matching shapes and isolate each fixture to
   its arm before the first run. 20260717-163050, 20260717-163058.
@@ -590,6 +595,6 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 
 ## Pending promotions (3+ occurrences, user decides)
 
-(Empty. New 3+ lessons land here as they occur; once folded into AGENTS.md,
-a skill, or the tool itself, they get a PROMOTED date + target marker on
-their entry above.)
+- `prose-from-diff-not-intent` (x3) -> work skill's close-out/NOTES step
+  (or compound): derive record prose and counts from the final diff, never
+  from the memory of making the edits.
