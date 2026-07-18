@@ -364,16 +364,21 @@ fn on_start_stages_the_course() {
         .collect();
     assert!(seeds.contains(&"gate"), "OnStart seeds the gate counter");
 
-    // The racer carries the crash-tolerant reinforced hull.
+    // The player flies the racer (base craft-ships-into-base prototypes): its
+    // many hull cubes give the crash tolerance the course needs (run-and-fail,
+    // not one-touch death).
     let player = spawn_by_id(start, "player_spaceship");
     let ScenarioObjectKind::Spaceship(ship) = &player.kind else {
         panic!("player is a spaceship");
     };
+    let racer_cubes = ship
+        .sections
+        .iter()
+        .filter(|s| matches!(&s.source, SectionSource::Prototype(p) if p.starts_with("racer_")))
+        .count();
     assert!(
-        ship.sections.iter().any(
-            |s| matches!(&s.source, SectionSource::Prototype(p) if p == "reinforced_hull_section")
-        ),
-        "the racer has the reinforced hull (crash tolerance -> run-and-fail, not one-touch death)"
+        racer_cubes >= 10,
+        "the player flies the racer (got {racer_cubes} racer cubes)"
     );
 
     // The gravity well is an authored well (surface_gravity), invulnerable so it

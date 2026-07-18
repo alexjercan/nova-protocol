@@ -115,29 +115,10 @@ pub(crate) fn menu_ambience(
                 orbit: Some("menu_planetoid".to_string()),
                 ..Default::default()
             }),
-            sections: vec![
-                SpaceshipSectionConfig {
-                    id: "controller".to_string(),
-                    position: Vec3::ZERO,
-                    rotation: Quat::IDENTITY,
-                    source: SectionSource::Prototype("basic_controller_section".to_string()),
-                    modifications: vec![],
-                },
-                SpaceshipSectionConfig {
-                    id: "hull_front".to_string(),
-                    position: Vec3::new(0.0, 0.0, 1.0),
-                    rotation: Quat::IDENTITY,
-                    source: SectionSource::Prototype("reinforced_hull_section".to_string()),
-                    modifications: vec![],
-                },
-                SpaceshipSectionConfig {
-                    id: "thruster".to_string(),
-                    position: Vec3::new(0.0, 0.0, 2.0),
-                    rotation: Quat::IDENTITY,
-                    source: SectionSource::Prototype("basic_thruster_section".to_string()),
-                    modifications: vec![],
-                },
-            ],
+            // The menu orbiter flies the racer (craft-ships-into-base) - a
+            // detailed silhouette drifting the backdrop reads far cooler than the
+            // old trainer cube.
+            sections: craft::racer_sections(craft::ShipGrade::Player, vec![]),
         }),
     });
 
@@ -202,41 +183,12 @@ fn backdrop_orbiter(
     id: &str,
     name: &str,
     position: Vec3,
-    extra_hull: bool,
+    // Kept for call-site intent; every backdrop orbiter is now the same full
+    // racer (craft-ships-into-base), so the old extra-hull silhouette knob is a
+    // no-op.
+    _extra_hull: bool,
 ) -> ScenarioObjectConfig {
-    let mut sections = vec![SpaceshipSectionConfig {
-        id: "controller".to_string(),
-        position: Vec3::ZERO,
-        rotation: Quat::IDENTITY,
-        source: SectionSource::Prototype("basic_controller_section".to_string()),
-        modifications: vec![],
-    }];
-    let mut z = 1.0;
-    sections.push(SpaceshipSectionConfig {
-        id: "hull_front".to_string(),
-        position: Vec3::new(0.0, 0.0, z),
-        rotation: Quat::IDENTITY,
-        source: SectionSource::Prototype("reinforced_hull_section".to_string()),
-        modifications: vec![],
-    });
-    if extra_hull {
-        z += 1.0;
-        sections.push(SpaceshipSectionConfig {
-            id: "hull_mid".to_string(),
-            position: Vec3::new(0.0, 0.0, z),
-            rotation: Quat::IDENTITY,
-            source: SectionSource::Prototype("reinforced_hull_section".to_string()),
-            modifications: vec![],
-        });
-    }
-    z += 1.0;
-    sections.push(SpaceshipSectionConfig {
-        id: "thruster".to_string(),
-        position: Vec3::new(0.0, 0.0, z),
-        rotation: Quat::IDENTITY,
-        source: SectionSource::Prototype("basic_thruster_section".to_string()),
-        modifications: vec![],
-    });
+    let sections = craft::racer_sections(craft::ShipGrade::Player, vec![]);
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
@@ -943,18 +895,25 @@ pub(crate) mod tests {
             Some("menu_planetoid"),
             "the directive targets the planetoid"
         );
-        // Sections now reference the catalog by prototype id; match on the id.
-        let references = |needle: &str| {
-            ship.sections.iter().any(|section| {
-                matches!(&section.source, SectionSource::Prototype(id) if id.contains(needle))
+        // The orbiter flies the racer now, whose section prototypes are named by
+        // cut-cube id, so resolve each ref's KIND against the base catalog.
+        let catalog =
+            crate::sections::build_sections(&crate::sections::SectionMeshRefs::from_paths());
+        let has_kind = |want: fn(&SectionKind) -> bool| {
+            ship.sections.iter().any(|section| match &section.source {
+                SectionSource::Prototype(id) => catalog
+                    .iter()
+                    .find(|c| c.base.id == *id)
+                    .is_some_and(|c| want(&c.kind)),
+                SectionSource::Inline(c) => want(&c.kind),
             })
         };
         assert!(
-            references("controller"),
+            has_kind(|k| matches!(k, SectionKind::Controller(_))),
             "a controller section flies the autopilot's attitude commands"
         );
         assert!(
-            references("thruster"),
+            has_kind(|k| matches!(k, SectionKind::Thruster(_))),
             "a thruster section provides the burn"
         );
 

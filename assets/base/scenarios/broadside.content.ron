@@ -65,20 +65,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j0_k0",
-                                            name: "Racer Cube (0,0,0)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 60.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j0_k0.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j0_k0"),
                                 ),
                                 (
                                     id: "cube_i0_j0_k1",
@@ -93,20 +80,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j0_k1",
-                                            name: "Racer Cube (0,0,1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 60.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j0_k1.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j0_k1"),
                                 ),
                                 (
                                     id: "cube_i0_j0_k2",
@@ -121,20 +95,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j0_k2",
-                                            name: "Racer Cube (0,0,2)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 60.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j0_k2.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j0_k2"),
                                 ),
                                 (
                                     id: "cube_i0_j0_km1",
@@ -149,20 +110,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j0_km1",
-                                            name: "Racer Cube (0,0,-1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 60.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j0_km1.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j0_km1"),
                                 ),
                                 (
                                     id: "cube_i0_j0_km2",
@@ -177,20 +125,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j0_km2",
-                                            name: "Racer Cube (0,0,-2)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 60.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j0_km2.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j0_km2"),
                                 ),
                                 (
                                     id: "cube_i0_j1_k0",
@@ -205,28 +140,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j1_k0",
-                                            name: "Racer Controller",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 100.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Controller((
-                                            frequency: 4.0,
-                                            damping_ratio: 4.0,
-                                            max_torque: 800.0,
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j1_k0.glb#Scene0"),
-                                            lock_on_sound: Some("self://sounds/lock_on.wav"),
-                                            lock_off_sound: Some("self://sounds/lock_off.wav"),
-                                            radar_deny_sound: Some("self://sounds/radar_deny.wav"),
-                                            radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
-                                            safety_on_sound: Some("self://sounds/safety_on.wav"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j1_k0"),
                                 ),
                                 (
                                     id: "cube_i0_j1_k1",
@@ -241,20 +155,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j1_k1",
-                                            name: "Racer Cube (0,1,1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 60.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j1_k1.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j1_k1"),
                                 ),
                                 (
                                     id: "cube_i0_j1_k2",
@@ -269,20 +170,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j1_k2",
-                                            name: "Racer Cube (0,1,2)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 60.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j1_k2.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j1_k2"),
                                 ),
                                 (
                                     id: "cube_i0_j1_km1",
@@ -297,20 +185,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j1_km1",
-                                            name: "Racer Cube (0,1,-1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 60.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j1_km1.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j1_km1"),
                                 ),
                                 (
                                     id: "cube_i0_j1_km2",
@@ -325,20 +200,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j1_km2",
-                                            name: "Racer Cube (0,1,-2)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 60.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j1_km2.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j1_km2"),
                                 ),
                                 (
                                     id: "cube_i1_j0_k0",
@@ -353,20 +215,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i1_j0_k0",
-                                            name: "Racer Cube (1,0,0)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 60.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i1_j0_k0.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i1_j0_k0"),
                                 ),
                                 (
                                     id: "cube_i1_j0_k1",
@@ -381,20 +230,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i1_j0_k1",
-                                            name: "Racer Cube (1,0,1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 60.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i1_j0_k1.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i1_j0_k1"),
                                 ),
                                 (
                                     id: "cube_i1_j0_k2",
@@ -409,58 +245,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i1_j0_k2",
-                                            name: "Racer Thruster (1,0,2)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 70.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Thruster((
-                                            magnitude: 1.0,
-                                            render_mesh: Some("self://gltf/racer/cube_i1_j0_k2.glb#Scene0"),
-                                            loop_sound: Some("self://sounds/thruster_loop.wav"),
-                                            exhaust: Some((
-                                                offset: (
-                                                    -0.35,
-                                                    0.0,
-                                                    -0.2,
-                                                ),
-                                                rotation: (
-                                                    0.70710677,
-                                                    0.0,
-                                                    0.0,
-                                                    0.70710677,
-                                                ),
-                                                shape: (
-                                                    geometry: Rect,
-                                                    width: 0.3,
-                                                    height: 0.5,
-                                                    exhaust_height: 0.1,
-                                                    exhaust_radius: 0.4,
-                                                    exhaust_max: 1.0,
-                                                    exhaust_inner_height: 0.05,
-                                                    exhaust_inner_radius: 0.1,
-                                                    exhaust_inner_max: 0.5,
-                                                    emissive_color: (
-                                                        red: 0.0,
-                                                        green: 10.0,
-                                                        blue: 10.0,
-                                                        alpha: 1.0,
-                                                    ),
-                                                    emissive_inner_color: (
-                                                        red: 0.0,
-                                                        green: 0.0,
-                                                        blue: 10.0,
-                                                        alpha: 1.0,
-                                                    ),
-                                                ),
-                                            )),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i1_j0_k2"),
                                 ),
                                 (
                                     id: "cube_i1_j0_km1",
@@ -475,106 +260,7 @@
                                         -0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i1_j0_km1",
-                                            name: "Racer Turret (1,0,-1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 130.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Turret((
-                                            root: (
-                                                offset: (
-                                                    0.0,
-                                                    -0.5,
-                                                    0.0,
-                                                ),
-                                                render_mesh: Some("self://gltf/racer/cube_i1_j0_km1.glb#Scene0"),
-                                                render_mesh_transform: Some((
-                                                    position: (
-                                                        0.0,
-                                                        0.5,
-                                                        0.0,
-                                                    ),
-                                                    rotation: (
-                                                        0.0,
-                                                        0.0,
-                                                        0.70710677,
-                                                        0.70710677,
-                                                    ),
-                                                )),
-                                                children: [
-                                                    (
-                                                        offset: (
-                                                            0.0,
-                                                            0.1,
-                                                            0.0,
-                                                        ),
-                                                        axis: Some((
-                                                            0.0,
-                                                            1.0,
-                                                            0.0,
-                                                        )),
-                                                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                                                        children: [
-                                                            (
-                                                                offset: (
-                                                                    0.0,
-                                                                    0.332706,
-                                                                    0.303954,
-                                                                ),
-                                                                axis: Some((
-                                                                    1.0,
-                                                                    0.0,
-                                                                    0.0,
-                                                                )),
-                                                                min: Some(-0.5235988),
-                                                                max: Some(1.5707964),
-                                                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                                                children: [
-                                                                    (
-                                                                        offset: (
-                                                                            0.0,
-                                                                            0.128437,
-                                                                            -0.110729,
-                                                                        ),
-                                                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                                                        children: [
-                                                                            (
-                                                                                offset: (
-                                                                                    0.0,
-                                                                                    0.0,
-                                                                                    -1.2,
-                                                                                ),
-                                                                                muzzle: Some((
-                                                                                    fire_rate: 100.0,
-                                                                                )),
-                                                                            ),
-                                                                        ],
-                                                                    ),
-                                                                ],
-                                                            ),
-                                                        ],
-                                                    ),
-                                                ],
-                                            ),
-                                            muzzle_speed: 100.0,
-                                            projectile_lifetime: 5.0,
-                                            bullet_damage: 4.0,
-                                            bullet_kind: Kinetic,
-                                            fire_sound: Some("self://sounds/turret_fire.wav"),
-                                            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-                                            ammo_capacity: Some(500),
-                                            reload: Some((
-                                                reload_time: 3.0,
-                                                rounds_per_cycle: 500,
-                                                only_when_empty: true,
-                                            )),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i1_j0_km1"),
                                 ),
                                 (
                                     id: "cube_im1_j0_k0",
@@ -589,20 +275,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_im1_j0_k0",
-                                            name: "Racer Cube (-1,0,0)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 60.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_im1_j0_k0.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_im1_j0_k0"),
                                 ),
                                 (
                                     id: "cube_im1_j0_k1",
@@ -617,20 +290,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_im1_j0_k1",
-                                            name: "Racer Cube (-1,0,1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 60.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_im1_j0_k1.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_im1_j0_k1"),
                                 ),
                                 (
                                     id: "cube_im1_j0_k2",
@@ -645,58 +305,7 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_im1_j0_k2",
-                                            name: "Racer Thruster (-1,0,2)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 70.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Thruster((
-                                            magnitude: 1.0,
-                                            render_mesh: Some("self://gltf/racer/cube_im1_j0_k2.glb#Scene0"),
-                                            loop_sound: Some("self://sounds/thruster_loop.wav"),
-                                            exhaust: Some((
-                                                offset: (
-                                                    0.35,
-                                                    0.0,
-                                                    -0.2,
-                                                ),
-                                                rotation: (
-                                                    0.70710677,
-                                                    0.0,
-                                                    0.0,
-                                                    0.70710677,
-                                                ),
-                                                shape: (
-                                                    geometry: Rect,
-                                                    width: 0.3,
-                                                    height: 0.5,
-                                                    exhaust_height: 0.1,
-                                                    exhaust_radius: 0.4,
-                                                    exhaust_max: 1.0,
-                                                    exhaust_inner_height: 0.05,
-                                                    exhaust_inner_radius: 0.1,
-                                                    exhaust_inner_max: 0.5,
-                                                    emissive_color: (
-                                                        red: 0.0,
-                                                        green: 10.0,
-                                                        blue: 10.0,
-                                                        alpha: 1.0,
-                                                    ),
-                                                    emissive_inner_color: (
-                                                        red: 0.0,
-                                                        green: 0.0,
-                                                        blue: 10.0,
-                                                        alpha: 1.0,
-                                                    ),
-                                                ),
-                                            )),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_im1_j0_k2"),
                                 ),
                                 (
                                     id: "cube_im1_j0_km1",
@@ -711,106 +320,7 @@
                                         0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_im1_j0_km1",
-                                            name: "Racer Turret (-1,0,-1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 130.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Turret((
-                                            root: (
-                                                offset: (
-                                                    0.0,
-                                                    -0.5,
-                                                    0.0,
-                                                ),
-                                                render_mesh: Some("self://gltf/racer/cube_im1_j0_km1.glb#Scene0"),
-                                                render_mesh_transform: Some((
-                                                    position: (
-                                                        0.0,
-                                                        0.5,
-                                                        0.0,
-                                                    ),
-                                                    rotation: (
-                                                        0.0,
-                                                        0.0,
-                                                        -0.70710677,
-                                                        0.70710677,
-                                                    ),
-                                                )),
-                                                children: [
-                                                    (
-                                                        offset: (
-                                                            0.0,
-                                                            0.1,
-                                                            0.0,
-                                                        ),
-                                                        axis: Some((
-                                                            0.0,
-                                                            1.0,
-                                                            0.0,
-                                                        )),
-                                                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                                                        children: [
-                                                            (
-                                                                offset: (
-                                                                    0.0,
-                                                                    0.332706,
-                                                                    0.303954,
-                                                                ),
-                                                                axis: Some((
-                                                                    1.0,
-                                                                    0.0,
-                                                                    0.0,
-                                                                )),
-                                                                min: Some(-0.5235988),
-                                                                max: Some(1.5707964),
-                                                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                                                children: [
-                                                                    (
-                                                                        offset: (
-                                                                            0.0,
-                                                                            0.128437,
-                                                                            -0.110729,
-                                                                        ),
-                                                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                                                        children: [
-                                                                            (
-                                                                                offset: (
-                                                                                    0.0,
-                                                                                    0.0,
-                                                                                    -1.2,
-                                                                                ),
-                                                                                muzzle: Some((
-                                                                                    fire_rate: 100.0,
-                                                                                )),
-                                                                            ),
-                                                                        ],
-                                                                    ),
-                                                                ],
-                                                            ),
-                                                        ],
-                                                    ),
-                                                ],
-                                            ),
-                                            muzzle_speed: 100.0,
-                                            projectile_lifetime: 5.0,
-                                            bullet_damage: 4.0,
-                                            bullet_kind: Kinetic,
-                                            fire_sound: Some("self://sounds/turret_fire.wav"),
-                                            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-                                            ammo_capacity: Some(500),
-                                            reload: Some((
-                                                reload_time: 3.0,
-                                                rounds_per_cycle: 500,
-                                                only_when_empty: true,
-                                            )),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_im1_j0_km1"),
                                 ),
                             ],
                         )),
@@ -1142,20 +652,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j0_k0",
-                                            name: "Racer Cube (0,0,0)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j0_k0.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j0_k0"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j0_k1",
@@ -1170,20 +670,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j0_k1",
-                                            name: "Racer Cube (0,0,1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j0_k1.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j0_k1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j0_k2",
@@ -1198,20 +688,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j0_k2",
-                                            name: "Racer Cube (0,0,2)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j0_k2.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j0_k2"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j0_km1",
@@ -1226,20 +706,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j0_km1",
-                                            name: "Racer Cube (0,0,-1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j0_km1.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j0_km1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j0_km2",
@@ -1254,20 +724,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j0_km2",
-                                            name: "Racer Cube (0,0,-2)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j0_km2.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j0_km2"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j1_k0",
@@ -1282,28 +742,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j1_k0",
-                                            name: "Racer Controller",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 45.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Controller((
-                                            frequency: 4.0,
-                                            damping_ratio: 4.0,
-                                            max_torque: 800.0,
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j1_k0.glb#Scene0"),
-                                            lock_on_sound: Some("self://sounds/lock_on.wav"),
-                                            lock_off_sound: Some("self://sounds/lock_off.wav"),
-                                            radar_deny_sound: Some("self://sounds/radar_deny.wav"),
-                                            radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
-                                            safety_on_sound: Some("self://sounds/safety_on.wav"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j1_k0"),
+                                    modifications: [
+                                        SetHealth(45.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j1_k1",
@@ -1318,20 +760,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j1_k1",
-                                            name: "Racer Cube (0,1,1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j1_k1.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j1_k1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j1_k2",
@@ -1346,20 +778,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j1_k2",
-                                            name: "Racer Cube (0,1,2)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j1_k2.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j1_k2"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j1_km1",
@@ -1374,20 +796,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j1_km1",
-                                            name: "Racer Cube (0,1,-1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j1_km1.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j1_km1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j1_km2",
@@ -1402,20 +814,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j1_km2",
-                                            name: "Racer Cube (0,1,-2)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j1_km2.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j1_km2"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i1_j0_k0",
@@ -1430,20 +832,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i1_j0_k0",
-                                            name: "Racer Cube (1,0,0)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i1_j0_k0.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i1_j0_k0"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i1_j0_k1",
@@ -1458,20 +850,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i1_j0_k1",
-                                            name: "Racer Cube (1,0,1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i1_j0_k1.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i1_j0_k1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i1_j0_k2",
@@ -1486,58 +868,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i1_j0_k2",
-                                            name: "Racer Thruster (1,0,2)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 25.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Thruster((
-                                            magnitude: 1.0,
-                                            render_mesh: Some("self://gltf/racer/cube_i1_j0_k2.glb#Scene0"),
-                                            loop_sound: Some("self://sounds/thruster_loop.wav"),
-                                            exhaust: Some((
-                                                offset: (
-                                                    -0.35,
-                                                    0.0,
-                                                    -0.2,
-                                                ),
-                                                rotation: (
-                                                    0.70710677,
-                                                    0.0,
-                                                    0.0,
-                                                    0.70710677,
-                                                ),
-                                                shape: (
-                                                    geometry: Rect,
-                                                    width: 0.3,
-                                                    height: 0.5,
-                                                    exhaust_height: 0.1,
-                                                    exhaust_radius: 0.4,
-                                                    exhaust_max: 1.0,
-                                                    exhaust_inner_height: 0.05,
-                                                    exhaust_inner_radius: 0.1,
-                                                    exhaust_inner_max: 0.5,
-                                                    emissive_color: (
-                                                        red: 0.0,
-                                                        green: 10.0,
-                                                        blue: 10.0,
-                                                        alpha: 1.0,
-                                                    ),
-                                                    emissive_inner_color: (
-                                                        red: 0.0,
-                                                        green: 0.0,
-                                                        blue: 10.0,
-                                                        alpha: 1.0,
-                                                    ),
-                                                ),
-                                            )),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i1_j0_k2"),
+                                    modifications: [
+                                        SetHealth(25.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i1_j0_km1",
@@ -1552,106 +886,7 @@
                                         -0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i1_j0_km1",
-                                            name: "Racer Turret (1,0,-1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 60.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Turret((
-                                            root: (
-                                                offset: (
-                                                    0.0,
-                                                    -0.5,
-                                                    0.0,
-                                                ),
-                                                render_mesh: Some("self://gltf/racer/cube_i1_j0_km1.glb#Scene0"),
-                                                render_mesh_transform: Some((
-                                                    position: (
-                                                        0.0,
-                                                        0.5,
-                                                        0.0,
-                                                    ),
-                                                    rotation: (
-                                                        0.0,
-                                                        0.0,
-                                                        0.70710677,
-                                                        0.70710677,
-                                                    ),
-                                                )),
-                                                children: [
-                                                    (
-                                                        offset: (
-                                                            0.0,
-                                                            0.1,
-                                                            0.0,
-                                                        ),
-                                                        axis: Some((
-                                                            0.0,
-                                                            1.0,
-                                                            0.0,
-                                                        )),
-                                                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                                                        children: [
-                                                            (
-                                                                offset: (
-                                                                    0.0,
-                                                                    0.332706,
-                                                                    0.303954,
-                                                                ),
-                                                                axis: Some((
-                                                                    1.0,
-                                                                    0.0,
-                                                                    0.0,
-                                                                )),
-                                                                min: Some(-0.5235988),
-                                                                max: Some(1.5707964),
-                                                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                                                children: [
-                                                                    (
-                                                                        offset: (
-                                                                            0.0,
-                                                                            0.128437,
-                                                                            -0.110729,
-                                                                        ),
-                                                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                                                        children: [
-                                                                            (
-                                                                                offset: (
-                                                                                    0.0,
-                                                                                    0.0,
-                                                                                    -1.2,
-                                                                                ),
-                                                                                muzzle: Some((
-                                                                                    fire_rate: 25.0,
-                                                                                )),
-                                                                            ),
-                                                                        ],
-                                                                    ),
-                                                                ],
-                                                            ),
-                                                        ],
-                                                    ),
-                                                ],
-                                            ),
-                                            muzzle_speed: 60.0,
-                                            projectile_lifetime: 5.0,
-                                            bullet_damage: 3.825,
-                                            bullet_kind: Kinetic,
-                                            fire_sound: Some("self://sounds/turret_fire.wav"),
-                                            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-                                            ammo_capacity: Some(150),
-                                            reload: Some((
-                                                reload_time: 2.5,
-                                                rounds_per_cycle: 150,
-                                                only_when_empty: true,
-                                            )),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_light_cube_i1_j0_km1"),
                                 ),
                                 (
                                     id: "cube_im1_j0_k0",
@@ -1666,20 +901,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_im1_j0_k0",
-                                            name: "Racer Cube (-1,0,0)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_im1_j0_k0.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_im1_j0_k0"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_im1_j0_k1",
@@ -1694,20 +919,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_im1_j0_k1",
-                                            name: "Racer Cube (-1,0,1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_im1_j0_k1.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_im1_j0_k1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_im1_j0_k2",
@@ -1722,58 +937,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_im1_j0_k2",
-                                            name: "Racer Thruster (-1,0,2)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 25.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Thruster((
-                                            magnitude: 1.0,
-                                            render_mesh: Some("self://gltf/racer/cube_im1_j0_k2.glb#Scene0"),
-                                            loop_sound: Some("self://sounds/thruster_loop.wav"),
-                                            exhaust: Some((
-                                                offset: (
-                                                    0.35,
-                                                    0.0,
-                                                    -0.2,
-                                                ),
-                                                rotation: (
-                                                    0.70710677,
-                                                    0.0,
-                                                    0.0,
-                                                    0.70710677,
-                                                ),
-                                                shape: (
-                                                    geometry: Rect,
-                                                    width: 0.3,
-                                                    height: 0.5,
-                                                    exhaust_height: 0.1,
-                                                    exhaust_radius: 0.4,
-                                                    exhaust_max: 1.0,
-                                                    exhaust_inner_height: 0.05,
-                                                    exhaust_inner_radius: 0.1,
-                                                    exhaust_inner_max: 0.5,
-                                                    emissive_color: (
-                                                        red: 0.0,
-                                                        green: 10.0,
-                                                        blue: 10.0,
-                                                        alpha: 1.0,
-                                                    ),
-                                                    emissive_inner_color: (
-                                                        red: 0.0,
-                                                        green: 0.0,
-                                                        blue: 10.0,
-                                                        alpha: 1.0,
-                                                    ),
-                                                ),
-                                            )),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_im1_j0_k2"),
+                                    modifications: [
+                                        SetHealth(25.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_im1_j0_km1",
@@ -1788,106 +955,7 @@
                                         0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_im1_j0_km1",
-                                            name: "Racer Turret (-1,0,-1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 60.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Turret((
-                                            root: (
-                                                offset: (
-                                                    0.0,
-                                                    -0.5,
-                                                    0.0,
-                                                ),
-                                                render_mesh: Some("self://gltf/racer/cube_im1_j0_km1.glb#Scene0"),
-                                                render_mesh_transform: Some((
-                                                    position: (
-                                                        0.0,
-                                                        0.5,
-                                                        0.0,
-                                                    ),
-                                                    rotation: (
-                                                        0.0,
-                                                        0.0,
-                                                        -0.70710677,
-                                                        0.70710677,
-                                                    ),
-                                                )),
-                                                children: [
-                                                    (
-                                                        offset: (
-                                                            0.0,
-                                                            0.1,
-                                                            0.0,
-                                                        ),
-                                                        axis: Some((
-                                                            0.0,
-                                                            1.0,
-                                                            0.0,
-                                                        )),
-                                                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                                                        children: [
-                                                            (
-                                                                offset: (
-                                                                    0.0,
-                                                                    0.332706,
-                                                                    0.303954,
-                                                                ),
-                                                                axis: Some((
-                                                                    1.0,
-                                                                    0.0,
-                                                                    0.0,
-                                                                )),
-                                                                min: Some(-0.5235988),
-                                                                max: Some(1.5707964),
-                                                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                                                children: [
-                                                                    (
-                                                                        offset: (
-                                                                            0.0,
-                                                                            0.128437,
-                                                                            -0.110729,
-                                                                        ),
-                                                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                                                        children: [
-                                                                            (
-                                                                                offset: (
-                                                                                    0.0,
-                                                                                    0.0,
-                                                                                    -1.2,
-                                                                                ),
-                                                                                muzzle: Some((
-                                                                                    fire_rate: 25.0,
-                                                                                )),
-                                                                            ),
-                                                                        ],
-                                                                    ),
-                                                                ],
-                                                            ),
-                                                        ],
-                                                    ),
-                                                ],
-                                            ),
-                                            muzzle_speed: 60.0,
-                                            projectile_lifetime: 5.0,
-                                            bullet_damage: 3.825,
-                                            bullet_kind: Kinetic,
-                                            fire_sound: Some("self://sounds/turret_fire.wav"),
-                                            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-                                            ammo_capacity: Some(150),
-                                            reload: Some((
-                                                reload_time: 2.5,
-                                                rounds_per_cycle: 150,
-                                                only_when_empty: true,
-                                            )),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_light_cube_im1_j0_km1"),
                                 ),
                             ],
                         )),
@@ -1939,20 +1007,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j0_k0",
-                                            name: "Racer Cube (0,0,0)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j0_k0.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j0_k0"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j0_k1",
@@ -1967,20 +1025,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j0_k1",
-                                            name: "Racer Cube (0,0,1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j0_k1.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j0_k1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j0_k2",
@@ -1995,20 +1043,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j0_k2",
-                                            name: "Racer Cube (0,0,2)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j0_k2.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j0_k2"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j0_km1",
@@ -2023,20 +1061,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j0_km1",
-                                            name: "Racer Cube (0,0,-1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j0_km1.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j0_km1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j0_km2",
@@ -2051,20 +1079,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j0_km2",
-                                            name: "Racer Cube (0,0,-2)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j0_km2.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j0_km2"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j1_k0",
@@ -2079,28 +1097,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j1_k0",
-                                            name: "Racer Controller",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 45.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Controller((
-                                            frequency: 4.0,
-                                            damping_ratio: 4.0,
-                                            max_torque: 800.0,
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j1_k0.glb#Scene0"),
-                                            lock_on_sound: Some("self://sounds/lock_on.wav"),
-                                            lock_off_sound: Some("self://sounds/lock_off.wav"),
-                                            radar_deny_sound: Some("self://sounds/radar_deny.wav"),
-                                            radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
-                                            safety_on_sound: Some("self://sounds/safety_on.wav"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j1_k0"),
+                                    modifications: [
+                                        SetHealth(45.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j1_k1",
@@ -2115,20 +1115,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j1_k1",
-                                            name: "Racer Cube (0,1,1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j1_k1.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j1_k1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j1_k2",
@@ -2143,20 +1133,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j1_k2",
-                                            name: "Racer Cube (0,1,2)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j1_k2.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j1_k2"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j1_km1",
@@ -2171,20 +1151,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j1_km1",
-                                            name: "Racer Cube (0,1,-1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j1_km1.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j1_km1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i0_j1_km2",
@@ -2199,20 +1169,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i0_j1_km2",
-                                            name: "Racer Cube (0,1,-2)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i0_j1_km2.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i0_j1_km2"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i1_j0_k0",
@@ -2227,20 +1187,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i1_j0_k0",
-                                            name: "Racer Cube (1,0,0)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i1_j0_k0.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i1_j0_k0"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i1_j0_k1",
@@ -2255,20 +1205,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i1_j0_k1",
-                                            name: "Racer Cube (1,0,1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_i1_j0_k1.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i1_j0_k1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i1_j0_k2",
@@ -2283,58 +1223,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i1_j0_k2",
-                                            name: "Racer Thruster (1,0,2)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 25.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Thruster((
-                                            magnitude: 1.0,
-                                            render_mesh: Some("self://gltf/racer/cube_i1_j0_k2.glb#Scene0"),
-                                            loop_sound: Some("self://sounds/thruster_loop.wav"),
-                                            exhaust: Some((
-                                                offset: (
-                                                    -0.35,
-                                                    0.0,
-                                                    -0.2,
-                                                ),
-                                                rotation: (
-                                                    0.70710677,
-                                                    0.0,
-                                                    0.0,
-                                                    0.70710677,
-                                                ),
-                                                shape: (
-                                                    geometry: Rect,
-                                                    width: 0.3,
-                                                    height: 0.5,
-                                                    exhaust_height: 0.1,
-                                                    exhaust_radius: 0.4,
-                                                    exhaust_max: 1.0,
-                                                    exhaust_inner_height: 0.05,
-                                                    exhaust_inner_radius: 0.1,
-                                                    exhaust_inner_max: 0.5,
-                                                    emissive_color: (
-                                                        red: 0.0,
-                                                        green: 10.0,
-                                                        blue: 10.0,
-                                                        alpha: 1.0,
-                                                    ),
-                                                    emissive_inner_color: (
-                                                        red: 0.0,
-                                                        green: 0.0,
-                                                        blue: 10.0,
-                                                        alpha: 1.0,
-                                                    ),
-                                                ),
-                                            )),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_i1_j0_k2"),
+                                    modifications: [
+                                        SetHealth(25.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_i1_j0_km1",
@@ -2349,106 +1241,7 @@
                                         -0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_i1_j0_km1",
-                                            name: "Racer Turret (1,0,-1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 60.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Turret((
-                                            root: (
-                                                offset: (
-                                                    0.0,
-                                                    -0.5,
-                                                    0.0,
-                                                ),
-                                                render_mesh: Some("self://gltf/racer/cube_i1_j0_km1.glb#Scene0"),
-                                                render_mesh_transform: Some((
-                                                    position: (
-                                                        0.0,
-                                                        0.5,
-                                                        0.0,
-                                                    ),
-                                                    rotation: (
-                                                        0.0,
-                                                        0.0,
-                                                        0.70710677,
-                                                        0.70710677,
-                                                    ),
-                                                )),
-                                                children: [
-                                                    (
-                                                        offset: (
-                                                            0.0,
-                                                            0.1,
-                                                            0.0,
-                                                        ),
-                                                        axis: Some((
-                                                            0.0,
-                                                            1.0,
-                                                            0.0,
-                                                        )),
-                                                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                                                        children: [
-                                                            (
-                                                                offset: (
-                                                                    0.0,
-                                                                    0.332706,
-                                                                    0.303954,
-                                                                ),
-                                                                axis: Some((
-                                                                    1.0,
-                                                                    0.0,
-                                                                    0.0,
-                                                                )),
-                                                                min: Some(-0.5235988),
-                                                                max: Some(1.5707964),
-                                                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                                                children: [
-                                                                    (
-                                                                        offset: (
-                                                                            0.0,
-                                                                            0.128437,
-                                                                            -0.110729,
-                                                                        ),
-                                                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                                                        children: [
-                                                                            (
-                                                                                offset: (
-                                                                                    0.0,
-                                                                                    0.0,
-                                                                                    -1.2,
-                                                                                ),
-                                                                                muzzle: Some((
-                                                                                    fire_rate: 25.0,
-                                                                                )),
-                                                                            ),
-                                                                        ],
-                                                                    ),
-                                                                ],
-                                                            ),
-                                                        ],
-                                                    ),
-                                                ],
-                                            ),
-                                            muzzle_speed: 60.0,
-                                            projectile_lifetime: 5.0,
-                                            bullet_damage: 3.825,
-                                            bullet_kind: Kinetic,
-                                            fire_sound: Some("self://sounds/turret_fire.wav"),
-                                            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-                                            ammo_capacity: Some(150),
-                                            reload: Some((
-                                                reload_time: 2.5,
-                                                rounds_per_cycle: 150,
-                                                only_when_empty: true,
-                                            )),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_light_cube_i1_j0_km1"),
                                 ),
                                 (
                                     id: "cube_im1_j0_k0",
@@ -2463,20 +1256,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_im1_j0_k0",
-                                            name: "Racer Cube (-1,0,0)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_im1_j0_k0.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_im1_j0_k0"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_im1_j0_k1",
@@ -2491,20 +1274,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_im1_j0_k1",
-                                            name: "Racer Cube (-1,0,1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 35.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Hull((
-                                            render_mesh: Some("self://gltf/racer/cube_im1_j0_k1.glb#Scene0"),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_im1_j0_k1"),
+                                    modifications: [
+                                        SetHealth(35.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_im1_j0_k2",
@@ -2519,58 +1292,10 @@
                                         0.0,
                                         1.0,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_im1_j0_k2",
-                                            name: "Racer Thruster (-1,0,2)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 25.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Thruster((
-                                            magnitude: 1.0,
-                                            render_mesh: Some("self://gltf/racer/cube_im1_j0_k2.glb#Scene0"),
-                                            loop_sound: Some("self://sounds/thruster_loop.wav"),
-                                            exhaust: Some((
-                                                offset: (
-                                                    0.35,
-                                                    0.0,
-                                                    -0.2,
-                                                ),
-                                                rotation: (
-                                                    0.70710677,
-                                                    0.0,
-                                                    0.0,
-                                                    0.70710677,
-                                                ),
-                                                shape: (
-                                                    geometry: Rect,
-                                                    width: 0.3,
-                                                    height: 0.5,
-                                                    exhaust_height: 0.1,
-                                                    exhaust_radius: 0.4,
-                                                    exhaust_max: 1.0,
-                                                    exhaust_inner_height: 0.05,
-                                                    exhaust_inner_radius: 0.1,
-                                                    exhaust_inner_max: 0.5,
-                                                    emissive_color: (
-                                                        red: 0.0,
-                                                        green: 10.0,
-                                                        blue: 10.0,
-                                                        alpha: 1.0,
-                                                    ),
-                                                    emissive_inner_color: (
-                                                        red: 0.0,
-                                                        green: 0.0,
-                                                        blue: 10.0,
-                                                        alpha: 1.0,
-                                                    ),
-                                                ),
-                                            )),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_cube_im1_j0_k2"),
+                                    modifications: [
+                                        SetHealth(25.0),
+                                    ],
                                 ),
                                 (
                                     id: "cube_im1_j0_km1",
@@ -2585,106 +1310,7 @@
                                         0.70710677,
                                         0.70710677,
                                     ),
-                                    source: Inline((
-                                        base: (
-                                            id: "cube_im1_j0_km1",
-                                            name: "Racer Turret (-1,0,-1)",
-                                            description: "A cut hull cube of the Kenney craft_racer.",
-                                            mass: 1.0,
-                                            health: 60.0,
-                                            impact_sound: Some("self://sounds/impact.wav"),
-                                            destroy_sound: Some("self://sounds/explosion.wav"),
-                                        ),
-                                        kind: Turret((
-                                            root: (
-                                                offset: (
-                                                    0.0,
-                                                    -0.5,
-                                                    0.0,
-                                                ),
-                                                render_mesh: Some("self://gltf/racer/cube_im1_j0_km1.glb#Scene0"),
-                                                render_mesh_transform: Some((
-                                                    position: (
-                                                        0.0,
-                                                        0.5,
-                                                        0.0,
-                                                    ),
-                                                    rotation: (
-                                                        0.0,
-                                                        0.0,
-                                                        -0.70710677,
-                                                        0.70710677,
-                                                    ),
-                                                )),
-                                                children: [
-                                                    (
-                                                        offset: (
-                                                            0.0,
-                                                            0.1,
-                                                            0.0,
-                                                        ),
-                                                        axis: Some((
-                                                            0.0,
-                                                            1.0,
-                                                            0.0,
-                                                        )),
-                                                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
-                                                        children: [
-                                                            (
-                                                                offset: (
-                                                                    0.0,
-                                                                    0.332706,
-                                                                    0.303954,
-                                                                ),
-                                                                axis: Some((
-                                                                    1.0,
-                                                                    0.0,
-                                                                    0.0,
-                                                                )),
-                                                                min: Some(-0.5235988),
-                                                                max: Some(1.5707964),
-                                                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
-                                                                children: [
-                                                                    (
-                                                                        offset: (
-                                                                            0.0,
-                                                                            0.128437,
-                                                                            -0.110729,
-                                                                        ),
-                                                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
-                                                                        children: [
-                                                                            (
-                                                                                offset: (
-                                                                                    0.0,
-                                                                                    0.0,
-                                                                                    -1.2,
-                                                                                ),
-                                                                                muzzle: Some((
-                                                                                    fire_rate: 25.0,
-                                                                                )),
-                                                                            ),
-                                                                        ],
-                                                                    ),
-                                                                ],
-                                                            ),
-                                                        ],
-                                                    ),
-                                                ],
-                                            ),
-                                            muzzle_speed: 60.0,
-                                            projectile_lifetime: 5.0,
-                                            bullet_damage: 3.825,
-                                            bullet_kind: Kinetic,
-                                            fire_sound: Some("self://sounds/turret_fire.wav"),
-                                            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
-                                            ammo_capacity: Some(150),
-                                            reload: Some((
-                                                reload_time: 2.5,
-                                                rounds_per_cycle: 150,
-                                                only_when_empty: true,
-                                            )),
-                                        )),
-                                    )),
+                                    source: Prototype("racer_light_cube_im1_j0_km1"),
                                 ),
                             ],
                         )),

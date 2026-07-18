@@ -1146,11 +1146,10 @@ mod tests {
         }
     }
 
-    /// Both the player and the scavenger fly the racer (moved into base from
-    /// the craft_racer mod); the scavenger is scavenger-grade - weaker turrets
-    /// and a squishier hull. "Gentle" is data (user direction 2026-07-12), now
-    /// expressed as `ShipGrade` in the inline racer builder rather than by
-    /// swapping catalog prototypes.
+    /// Both the player and the scavenger fly the racer (base craft-ships-into-base
+    /// prototypes); the scavenger is scavenger-grade - the weak `racer_light_*`
+    /// turret and a SetHealth-nerfed hull. Resolves each section's prototype ref
+    /// against the base catalog to read its kind, and honors SetHealth overrides.
     #[test]
     fn ships_are_racers_and_the_pirate_is_scavenger_grade() {
         let config = scenario();
@@ -1166,18 +1165,35 @@ mod tests {
             .collect();
         assert_eq!(ships.len(), 2, "player and pirate only");
 
-        // The racer's sections are authored inline (the ship geometry lives in
-        // the `craft` builder, not the shared catalog).
-        let inline = |section: &SpaceshipSectionConfig| -> SectionConfig {
+        // The racer's sections reference base catalog prototypes; resolve them.
+        let catalog =
+            crate::sections::build_sections(&crate::sections::SectionMeshRefs::from_paths());
+        let resolve = |section: &SpaceshipSectionConfig| -> SectionConfig {
             match &section.source {
                 SectionSource::Inline(config) => config.clone(),
-                SectionSource::Prototype(id) => panic!("racer section '{id}' should be inline"),
+                SectionSource::Prototype(id) => catalog
+                    .iter()
+                    .find(|c| c.base.id == *id)
+                    .unwrap_or_else(|| panic!("unknown prototype '{id}'"))
+                    .clone(),
             }
+        };
+        // Effective health = a SetHealth modification if present, else the
+        // prototype's own (an AI racer nerfs its hull this way).
+        let effective_hp = |s: &SpaceshipSectionConfig| -> f32 {
+            s.modifications
+                .iter()
+                .rev()
+                .find_map(|m| match m {
+                    SectionModification::SetHealth(h) => Some(*h),
+                    _ => None,
+                })
+                .unwrap_or_else(|| resolve(s).base.health)
         };
         let max_turret_damage = |ship: &SpaceshipConfig| -> f32 {
             ship.sections
                 .iter()
-                .filter_map(|s| match inline(s).kind {
+                .filter_map(|s| match resolve(s).kind {
                     SectionKind::Turret(t) => Some(t.bullet_damage),
                     _ => None,
                 })
@@ -1186,8 +1202,8 @@ mod tests {
         let max_hull_hp = |ship: &SpaceshipConfig| -> f32 {
             ship.sections
                 .iter()
-                .filter(|s| matches!(inline(s).kind, SectionKind::Hull(_)))
-                .map(|s| inline(s).base.health)
+                .filter(|s| matches!(resolve(s).kind, SectionKind::Hull(_)))
+                .map(effective_hp)
                 .fold(0.0_f32, f32::max)
         };
 
@@ -1196,14 +1212,14 @@ mod tests {
             let turrets = ship
                 .sections
                 .iter()
-                .filter(|s| matches!(inline(s).kind, SectionKind::Turret(_)))
+                .filter(|s| matches!(resolve(s).kind, SectionKind::Turret(_)))
                 .count();
             assert_eq!(turrets, 2, "'{}' is a racer with two turret cubes", id);
             assert!(
                 !ship
                     .sections
                     .iter()
-                    .any(|s| matches!(inline(s).kind, SectionKind::Torpedo(_))),
+                    .any(|s| matches!(resolve(s).kind, SectionKind::Torpedo(_))),
                 "'{}' has no torpedo bay",
                 id
             );
@@ -2073,13 +2089,20 @@ mod tests {
         let ScenarioObjectKind::Spaceship(config) = player.kind else {
             panic!("the player object must be a spaceship");
         };
+        let catalog =
+            crate::sections::build_sections(&crate::sections::SectionMeshRefs::from_paths());
+        let is_controller = |section: &SpaceshipSectionConfig| match &section.source {
+            SectionSource::Inline(c) => matches!(c.kind, SectionKind::Controller(_)),
+            SectionSource::Prototype(id) => catalog
+                .iter()
+                .find(|c| c.base.id == *id)
+                .is_some_and(|c| matches!(c.kind, SectionKind::Controller(_))),
+        };
         let controller = config
             .sections
             .iter()
-            .find(|section| {
-                matches!(&section.source, SectionSource::Inline(c) if matches!(c.kind, SectionKind::Controller(_)))
-            })
-            .expect("the player ship has an inline controller cube");
+            .find(|section| is_controller(section))
+            .expect("the player ship has a controller cube");
 
         let disables_verb = |verb: FlightVerb| {
             controller

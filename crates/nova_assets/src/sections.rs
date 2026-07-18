@@ -169,7 +169,7 @@ impl SectionMeshRefs {
 /// single source of truth for the built-in sections; both the production
 /// registry and the RON generator go through here.
 pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
-    vec![
+    let mut sections = vec![
         SectionConfig {
             base: BaseSectionConfig {
                 id: "reinforced_hull_section".to_string(),
@@ -412,7 +412,12 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 }),
             }),
         },
-    ]
+    ];
+    // The racer + cargob cut-cube ships: one prototype per cube, shared by the
+    // base campaign AND downloaded mods (task craft-ships-into-base).
+    sections.extend(crate::scenario::craft::racer_prototypes(meshes));
+    sections.extend(crate::scenario::craft::cargob_prototypes(meshes));
+    sections
 }
 
 #[cfg(test)]

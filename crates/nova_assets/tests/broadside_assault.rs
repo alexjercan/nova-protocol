@@ -24,9 +24,19 @@ use bevy_common_systems::prelude::{
 use nova_events::prelude::{
     EntityId, OnDestroyedEvent, OnDestroyedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
-use nova_gameplay::prelude::{Allegiance, SectionKind};
+use nova_gameplay::prelude::{Allegiance, SectionConfig, SectionKind};
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::*;
+
+/// Resolve a ship section's kind, following a `Prototype` ref into the base
+/// section catalog (the racer/cargob ships reference their cut-cube prototypes
+/// rather than inlining them).
+fn section_kind(section: &SpaceshipSectionConfig, catalog: &[SectionConfig]) -> Option<SectionKind> {
+    match &section.source {
+        SectionSource::Inline(c) => Some(c.kind.clone()),
+        SectionSource::Prototype(id) => catalog.iter().find(|c| c.base.id == *id).map(|c| c.kind.clone()),
+    }
+}
 
 const BROADSIDE_RON: &str = include_str!("../../../assets/base/scenarios/broadside.content.ron");
 const BROADSIDE_GUNSHIP_RON: &str =
@@ -348,18 +358,19 @@ fn on_start_stages_the_slice() {
     // Playtest tuning (task 20260716-160159): torpedoes are the ENEMY's
     // weapon this chapter - the player screens them, not trades them - and
     // the magazine is finite with auto-reload (task 20260717-085640).
+    let catalog = nova_assets::scenario_generation::build_section_catalog();
     assert!(
-        !player_ship.sections.iter().any(|s| matches!(
-            &s.source,
-            SectionSource::Inline(c) if matches!(c.kind, SectionKind::Torpedo(_))
-        )),
+        !player_ship
+            .sections
+            .iter()
+            .any(|s| matches!(section_kind(s, &catalog), Some(SectionKind::Torpedo(_)))),
         "the player carries NO torpedo bay in chapter two"
     );
     assert!(
-        player_ship.sections.iter().any(|s| matches!(
-            &s.source,
-            SectionSource::Inline(c) if matches!(c.kind, SectionKind::Turret(_))
-        )),
+        player_ship
+            .sections
+            .iter()
+            .any(|s| matches!(section_kind(s, &catalog), Some(SectionKind::Turret(_)))),
         "the PDC turret is the player's weapon"
     );
     assert!(
@@ -412,13 +423,11 @@ fn the_gunship_keeps_its_torpedo_tubes() {
     let ScenarioObjectKind::Spaceship(ship) = &gunship.kind else {
         panic!("gunship is a spaceship");
     };
+    let catalog = nova_assets::scenario_generation::build_section_catalog();
     let tubes = ship
         .sections
         .iter()
-        .filter(|s| matches!(
-            &s.source,
-            SectionSource::Inline(c) if matches!(c.kind, SectionKind::Torpedo(_))
-        ))
+        .filter(|s| matches!(section_kind(s, &catalog), Some(SectionKind::Torpedo(_))))
         .count();
     assert!(
         tubes >= 2,

@@ -116,10 +116,14 @@ fn rocks(event: &ScenarioEventConfig) -> Vec<(&str, Vec3, &AsteroidConfig)> {
         .collect()
 }
 
-fn prototype_count(ship: &SpaceshipConfig, prototype: &str) -> usize {
+/// Count sections whose prototype id starts with `prefix`. The racer/cargob
+/// ships name their prototypes by cut-cube id (`racer_cube_*`, `racer_light_*`,
+/// `cargob_cube_*`), so grade is read from the prefix: `racer_light_` is the weak
+/// scavenger turret, and any `racer_` cube marks a racer.
+fn prototype_prefix_count(ship: &SpaceshipConfig, prefix: &str) -> usize {
     ship.sections
         .iter()
-        .filter(|s| matches!(&s.source, SectionSource::Prototype(p) if p == prototype))
+        .filter(|s| matches!(&s.source, SectionSource::Prototype(p) if p.starts_with(prefix)))
         .count()
 }
 
@@ -264,14 +268,10 @@ fn wave_one_spawns_far_light_and_on_one_bearing() {
             "'{id}' spawns {range:.0}u out (< {WAVE_ONE_MIN_RANGE}u): no approach phase"
         );
         assert_eq!(
-            prototype_count(ship, "better_turret_section"),
-            0,
-            "'{id}': wave-one mooks never carry the better turret (spike F1)"
-        );
-        assert_eq!(
-            prototype_count(ship, "light_turret_section"),
-            1,
-            "'{id}' carries the light mook gun"
+            prototype_prefix_count(ship, "racer_light_"),
+            2,
+            "'{id}': a wave-one mook flies the WEAK scavenger racer - both turret \
+             cubes are the light `racer_light_*` gun (spike F1)"
         );
         let SpaceshipController::AI(ai) = &ship.controller else {
             unreachable!("hostiles() filters on AI");
@@ -314,7 +314,6 @@ fn the_heavies_spawn_farther_with_exactly_one_better_gun() {
     let wave = hostiles(start);
     assert_eq!(wave.len(), 2, "wave two is a pair");
 
-    let mut better_total = 0;
     for (id, pos, ship) in &wave {
         let range = pos.distance(player);
         assert!(
@@ -322,12 +321,18 @@ fn the_heavies_spawn_farther_with_exactly_one_better_gun() {
             "'{id}' spawns {range:.0}u out (< {WAVE_TWO_MIN_RANGE}u): the heavies' long \
              approach is the post-checkpoint breather"
         );
+        // The heavies fly the FULL-power racer (sturdier hull + strong turrets),
+        // not the weak `racer_light_*` scavenger the wave-one mooks carry - the
+        // post-checkpoint difficulty step (spike F1).
         assert_eq!(
-            prototype_count(ship, "reinforced_hull_section"),
-            1,
-            "'{id}' is a reinforced heavy"
+            prototype_prefix_count(ship, "racer_light_"),
+            0,
+            "'{id}' is a full-power racer heavy, not a weak mook"
         );
-        better_total += prototype_count(ship, "better_turret_section");
+        assert!(
+            prototype_prefix_count(ship, "racer_") >= 10,
+            "'{id}' flies the racer"
+        );
         let SpaceshipController::AI(ai) = &ship.controller else {
             unreachable!("hostiles() filters on AI");
         };
@@ -337,10 +342,6 @@ fn the_heavies_spawn_farther_with_exactly_one_better_gun() {
         );
         assert_leash_covers_spawn(id, ai, player);
     }
-    assert_eq!(
-        better_total, 1,
-        "exactly one better turret in the whole second wave (spike F1)"
-    );
 
     let spread = bearing_spread_deg(player, wave[0].1, wave[1].1);
     assert!(
