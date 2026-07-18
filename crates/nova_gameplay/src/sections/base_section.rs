@@ -12,8 +12,66 @@ use crate::{
 pub mod prelude {
     pub use super::{
         base_section, preview_section, BaseSectionConfig, GameSections, ImpactDestroySounds,
-        SectionConfig, SectionInactiveMarker, SectionKind, SectionMarker, SectionRenderOf,
+        SectionCollider, SectionConfig, SectionInactiveMarker, SectionKind, SectionMarker,
+        SectionRenderOf,
     };
+}
+
+/// Authorable physics collider for a section. Content omits it and gets the unit
+/// cube every section carried before this was configurable, so existing files
+/// stay byte-for-byte unchanged (see [`BaseSectionConfig::collider`]).
+///
+/// The scalar fields use the exact units avian's constructors take, so what is
+/// authored is what avian builds: `Cuboid.size` is the FULL side length on each
+/// axis (not half-extents), and `Capsule`/`Cylinder` extend along local Y.
+///
+/// Physical note: [`base_section`] feeds the section's `mass` field to avian as
+/// DENSITY (`destructible_body(health, density)`), and avian derives real mass
+/// from `density * collider_volume`. A larger collider therefore makes a heavier
+/// section - intended, but worth knowing when tuning handling.
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum SectionCollider {
+    /// Axis-aligned box; `size` is the full side length on each axis.
+    Cuboid { size: Vec3 },
+    /// Sphere of the given radius.
+    Sphere { radius: f32 },
+    /// Capsule (radius + a cylindrical segment of `length`) along local Y.
+    Capsule { radius: f32, length: f32 },
+    /// Cylinder of the given radius and height along local Y.
+    Cylinder { radius: f32, height: f32 },
+}
+
+impl Default for SectionCollider {
+    /// The unit cube - the shape every section had before colliders were
+    /// authorable, so a `None` collider field resolves to exactly this.
+    fn default() -> Self {
+        Self::Cuboid { size: Vec3::ONE }
+    }
+}
+
+impl SectionCollider {
+    /// Build the avian [`Collider`] this describes.
+    pub fn to_collider(self) -> Collider {
+        match self {
+            Self::Cuboid { size } => Collider::cuboid(size.x, size.y, size.z),
+            Self::Sphere { radius } => Collider::sphere(radius),
+            Self::Capsule { radius, length } => Collider::capsule(radius, length),
+            Self::Cylinder { radius, height } => Collider::cylinder(radius, height),
+        }
+    }
+
+    /// Half-extents of the axis-aligned bounding box, ignoring rotation. The
+    /// section-overlap lint is rotation-agnostic by design (all shipped content
+    /// uses quarter-turns), so an AABB is the right, conservative primitive.
+    pub fn aabb_half_extents(self) -> Vec3 {
+        match self {
+            Self::Cuboid { size } => size * 0.5,
+            Self::Sphere { radius } => Vec3::splat(radius),
+            Self::Capsule { radius, length } => Vec3::new(radius, radius + length * 0.5, radius),
+            Self::Cylinder { radius, height } => Vec3::new(radius, height * 0.5, radius),
+        }
+    }
 }
 
 #[derive(Component, Clone, Debug, Reflect)]
@@ -52,6 +110,16 @@ pub struct BaseSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub destroy_sound: Option<AssetRef<AudioSource>>,
+    /// Authored physics collider shape/size. Omitted (`None`) means the unit
+    /// cube that every section carried before this was configurable, so content
+    /// that does not set it stays byte-for-byte unchanged. See
+    /// [`SectionCollider`] for the shapes and units. Snapshotted into a real
+    /// avian collider by [`base_section`] / [`preview_section`].
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub collider: Option<SectionCollider>,
 }
 
 /// A damage target's authored impact/destroy sounds, snapshotted UNRESOLVED
@@ -101,7 +169,7 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
     (
         Name::new(config.name.clone()),
         SectionMarker,
-        Collider::cuboid(1.0, 1.0, 1.0),
+        config.collider.unwrap_or_default().to_collider(),
         destructible_body(config.health, config.mass),
         // bevy_common_systems' destructible_body is the generic Health + density + visibility
         // bundle; nova adds ExplodableEntity so the section enters the explode pipeline.
@@ -129,7 +197,112 @@ pub fn preview_section(config: BaseSectionConfig) -> impl Bundle {
     (
         Name::new(config.name.clone()),
         SectionMarker,
-        Collider::cuboid(1.0, 1.0, 1.0),
+        config.collider.unwrap_or_default().to_collider(),
         Visibility::Inherited,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_collider_is_the_unit_cube() {
+        // A section that omits `collider` must resolve to exactly the shape
+        // every section had before the field existed, so old content is
+        // physically unchanged.
+        assert_eq!(
+            SectionCollider::default(),
+            SectionCollider::Cuboid { size: Vec3::ONE }
+        );
+        assert_eq!(
+            SectionCollider::default().aabb_half_extents(),
+            Vec3::splat(0.5)
+        );
+    }
+
+    #[test]
+    fn aabb_half_extents_match_each_shape() {
+        assert_eq!(
+            SectionCollider::Cuboid {
+                size: Vec3::new(2.0, 1.0, 0.5)
+            }
+            .aabb_half_extents(),
+            Vec3::new(1.0, 0.5, 0.25)
+        );
+        assert_eq!(
+            SectionCollider::Sphere { radius: 0.75 }.aabb_half_extents(),
+            Vec3::splat(0.75)
+        );
+        // Capsule/Cylinder extend along local Y; radius bounds X and Z.
+        assert_eq!(
+            SectionCollider::Capsule {
+                radius: 0.5,
+                length: 2.0
+            }
+            .aabb_half_extents(),
+            Vec3::new(0.5, 1.5, 0.5)
+        );
+        assert_eq!(
+            SectionCollider::Cylinder {
+                radius: 0.5,
+                height: 3.0
+            }
+            .aabb_half_extents(),
+            Vec3::new(0.5, 1.5, 0.5)
+        );
+    }
+
+    #[test]
+    fn to_collider_builds_every_shape_without_panicking() {
+        // avian's constructors are pure; this pins that every variant maps to a
+        // real collider (a bad radius/length would panic here).
+        let _ = SectionCollider::default().to_collider();
+        let _ = SectionCollider::Sphere { radius: 0.5 }.to_collider();
+        let _ = SectionCollider::Capsule {
+            radius: 0.3,
+            length: 1.0,
+        }
+        .to_collider();
+        let _ = SectionCollider::Cylinder {
+            radius: 0.3,
+            height: 1.0,
+        }
+        .to_collider();
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn collider_field_round_trips_and_is_omitted_when_unset() {
+        // Authored collider survives a RON round-trip.
+        let authored = BaseSectionConfig {
+            id: "s".to_string(),
+            name: "s".to_string(),
+            description: String::new(),
+            mass: 1.0,
+            health: 100.0,
+            impact_sound: None,
+            destroy_sound: None,
+            collider: Some(SectionCollider::Cuboid {
+                size: Vec3::new(0.8, 0.8, 0.8),
+            }),
+        };
+        let ron = ron::ser::to_string(&authored).expect("serialize");
+        let back: BaseSectionConfig = ron::from_str(&ron).expect("deserialize");
+        assert_eq!(back.collider, authored.collider);
+
+        // Omitting it keeps existing content byte-identical: the field is not
+        // emitted, and it reads back as the unit-cube-resolving `None`.
+        let plain = BaseSectionConfig {
+            collider: None,
+            ..authored.clone()
+        };
+        let ron = ron::ser::to_string(&plain).expect("serialize");
+        assert!(
+            !ron.contains("collider"),
+            "unset collider must not serialize: {ron}"
+        );
+        let back: BaseSectionConfig = ron::from_str(&ron).expect("deserialize");
+        assert_eq!(back.collider, None);
+    }
 }

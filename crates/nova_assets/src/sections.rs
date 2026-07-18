@@ -174,6 +174,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 health: 200.0,
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
+                collider: None,
             },
             kind: SectionKind::Hull(HullSectionConfig {
                 render_mesh: Some(meshes.hull.clone()),
@@ -190,6 +191,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 health: THRUSTER_BASE_HEALTH,
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
+                collider: None,
             },
             kind: SectionKind::Thruster(ThrusterSectionConfig {
                 magnitude: 1.0,
@@ -208,6 +210,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 health: CONTROLLER_BASE_HEALTH,
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
+                collider: None,
             },
             kind: SectionKind::Controller(ControllerSectionConfig {
                 frequency: 4.0,
@@ -246,6 +249,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 health: TURRET_BASE_HEALTH,
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
+                collider: None,
             },
             kind: SectionKind::Turret(TurretSectionConfig {
                 // base(fixed) -> yaw(Y) -> pitch(X) -> barrel(fixed) -> muzzle,
@@ -295,6 +299,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 health: 60.0,
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
+                collider: None,
             },
             kind: SectionKind::Hull(HullSectionConfig {
                 render_mesh: Some(meshes.hull.clone()),
@@ -313,6 +318,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 health: 60.0,
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
+                collider: None,
             },
             kind: SectionKind::Turret(TurretSectionConfig {
                 // Same joint tree as the better turret; scavenger grade differs
@@ -360,6 +366,7 @@ pub fn build_sections(meshes: &SectionMeshRefs) -> Vec<SectionConfig> {
                 health: TORPEDO_BASE_HEALTH,
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
+                collider: None,
             },
             kind: SectionKind::Torpedo(TorpedoSectionConfig {
                 render_mesh: Some(meshes.torpedo_bay.clone()),

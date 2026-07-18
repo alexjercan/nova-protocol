@@ -293,11 +293,12 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   other two had real `ScatterObjects` blocks the lever thinned) - read the actual
   scene/source before you trust the premise, and fix the rationale when it is
   wrong. 20260714-154958, 20260718-004834.
-- `match-ci-feature-set-in-targeted-tests` (x1): a bare `cargo test -p <crate>
-  --lib` can fail to COMPILE on feature-gated test code (nova_scenario's loader
-  round-trips need `serde`, on only through the workspace) and look like a
-  regression; run targeted tests with CI's feature set (`--features serde`, or via
-  the workspace `cargo test --workspace --features debug`). 20260718-004834.
+- `match-ci-feature-set-in-targeted-tests` (x2): a bare `cargo test -p <crate>
+  --lib` can fail to COMPILE on feature-gated test code (nova_scenario/nova_assets
+  serde derives are on only through the workspace) and look like a regression;
+  run targeted tests with CI's feature set (`--features serde`, or via the
+  workspace `cargo test --workspace --features debug`). 20260718-004834,
+  20260718-102022.
 - `landing-no-cd` (x3, PROMOTED 2026-07-11 -> flow skill): squash-merge from
   the main checkout, its own command, no cd, `pwd` first. 20260709-160753.
 - `record-the-exact-rig` (x3): evidence notes record the rig (systems run,
@@ -426,7 +427,7 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
 - `one-cargo-test-filter` (x5): `cargo test` takes one filter and one `-p` per
   invocation; separate runs otherwise (recurred under flow momentum: a chained
   two-filter run silently tested nothing). 20260713-082324, 20260716-162701.
-- `check-all-targets-for-struct-field` (x3 -> Pending promotions): a new
+- `check-all-targets-for-struct-field` (x4 -> Pending promotions): a new
   non-Default field breaks every exhaustive initializer - builders, TESTS
   (`#[cfg(test)]`), and EXAMPLES - but `cargo check`/`check -p <crate>` compiles
   none of those; only `cargo check --all-targets` does. Grep the WHOLE repo for
@@ -434,6 +435,9 @@ paragraph. Seeded 2026-07-11 from 104 retros; heavily condensed 2026-07-13.
   20260717-165031 hit it twice in one task: a `#[cfg(test)]` literal `cargo check`
   missed (caught by `cargo test`), then 8 `examples/*.rs` literals that escaped to
   master because the pre-land checks were crate-scoped, not `--all-targets`.
+  20260718-102022: adding `collider` to `BaseSectionConfig` broke 7 explicit
+  literals in a DIFFERENT crate (nova_assets) than the two the first scoped check
+  covered - the workspace `--all-targets` pass found them all at once.
   20260712-140250, 20260716-155849, 20260717-165031.
 - `mod-facing-surface-plans-failure-paths` (x1): a task exposing a surface to
   MOD DATA must plan its failure paths up front - enumerate "what breaks when a

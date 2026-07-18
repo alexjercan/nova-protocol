@@ -16,7 +16,9 @@
 use std::collections::HashSet;
 
 use bevy::prelude::Vec3;
-use nova_gameplay::prelude::{SectionConfig, SectionKind, TurretJoint, TurretSectionConfig};
+use nova_gameplay::prelude::{
+    SectionCollider, SectionConfig, SectionKind, TurretJoint, TurretSectionConfig,
+};
 
 use crate::prelude::*;
 
@@ -657,32 +659,51 @@ fn check_turret_tree(
     }
 }
 
-/// Sections are unit cubes centered on their authored grid position
-/// (base_section's `Collider::cuboid(1.0, 1.0, 1.0)`), so two sections of
-/// one ship OVERLAP - clip visually and double up their colliders in the
-/// same space - iff their centers are strictly closer than 1.0 on EVERY
-/// axis. Flush contact (distance exactly 1.0 on some axis) is the normal
+/// Two sections of one ship OVERLAP - clip visually and double up their
+/// colliders in the same space - iff their axis-aligned collider boxes
+/// interpenetrate: centers strictly closer than the sum of their half-extents
+/// on EVERY axis. For the default unit-cube sections (half-extent 0.5 each)
+/// that is the classic "closer than 1.0 on every axis"; authorable colliders
+/// ([`SectionCollider`]) widen or narrow the threshold per section. Flush
+/// contact (distance exactly the half-extent sum on some axis) is the normal
 /// spine/side-mount layout and passes. The check ignores section ROTATION:
-/// exact for the quarter-turn rotations all shipped content uses (a unit
-/// cube is symmetric under them), conservative-only for exotic angles.
-/// Caught in the wild by the Auditor's torpedo bay authored at z 0.5,
-/// embedded between two spine sections (task 20260717-151208).
+/// exact for the quarter-turn rotations all shipped content uses (a unit cube
+/// is symmetric under them; a non-cube box's AABB is a conservative
+/// over-approximation), conservative-only for exotic angles. Only INLINE
+/// colliders are resolved; a `Prototype` section falls back to the unit cube
+/// (the catalog is not in scope here), matching pre-config behavior. Caught in
+/// the wild by the Auditor's torpedo bay authored at z 0.5, embedded between
+/// two spine sections (task 20260717-151208).
 fn check_section_overlaps(
     ship_id: &str,
     ship: &SpaceshipConfig,
     scenario: &str,
     issues: &mut Vec<LintIssue>,
 ) {
+    /// AABB half-extents of a section's collider, ignoring rotation. Inline
+    /// sources use their authored collider (unit cube when unset); Prototype
+    /// sources fall back to the unit cube since the catalog is not resolvable
+    /// here.
+    fn half_extents(section: &SpaceshipSectionConfig) -> Vec3 {
+        match &section.source {
+            SectionSource::Inline(config) => {
+                config.base.collider.unwrap_or_default().aabb_half_extents()
+            }
+            SectionSource::Prototype(_) => SectionCollider::default().aabb_half_extents(),
+        }
+    }
+
     for i in 0..ship.sections.len() {
         for j in (i + 1)..ship.sections.len() {
             let (a, b) = (&ship.sections[i], &ship.sections[j]);
             let d = a.position - b.position;
-            if d.x.abs() < 1.0 && d.y.abs() < 1.0 && d.z.abs() < 1.0 {
+            let sum = half_extents(a) + half_extents(b);
+            if d.x.abs() < sum.x && d.y.abs() < sum.y && d.z.abs() < sum.z {
                 issues.push(LintIssue::error(
                     scenario,
                     format!(
-                        "ship '{ship_id}': sections '{}' at {:?} and '{}' at {:?} overlap (unit-cube grid: centers must be >= 1.0 apart on some axis)",
-                        a.id, a.position, b.id, b.position
+                        "ship '{ship_id}': sections '{}' at {:?} and '{}' at {:?} overlap (collider boxes interpenetrate: centers must be >= {:?} apart on some axis)",
+                        a.id, a.position, b.id, b.position, sum
                     ),
                 ));
             }
@@ -1430,6 +1451,94 @@ mod tests {
         let s = scenario(vec![ship_with(Vec3::new(1.0, 0.0, 0.0))], vec![]);
         let issues = lint_scenario(&s, &sections(&["known"]), &known(&["test_scenario"]));
         assert!(issues.is_empty(), "{issues:?}");
+    }
+
+    /// Authorable colliders (task 20260718-102022) move the overlap threshold:
+    /// two sections 0.8 apart clip as default unit cubes but sit flush once both
+    /// tighten to a 0.8 cube, and oversized colliders clip where unit cubes
+    /// would not. Only INLINE colliders are resolved; prototypes fall back to
+    /// the unit cube.
+    #[test]
+    fn overlap_uses_authored_collider_half_extents() {
+        use nova_gameplay::prelude::{BaseSectionConfig, HullSectionConfig};
+
+        // An inline hull section at `pos` with the given collider.
+        let inline =
+            |id: &str, pos: Vec3, collider: Option<SectionCollider>| SpaceshipSectionConfig {
+                id: id.to_string(),
+                position: pos,
+                rotation: Quat::IDENTITY,
+                source: SectionSource::Inline(SectionConfig {
+                    base: BaseSectionConfig {
+                        collider,
+                        ..Default::default()
+                    },
+                    kind: SectionKind::Hull(HullSectionConfig { render_mesh: None }),
+                }),
+                modifications: vec![],
+            };
+
+        let ship = |a: SpaceshipSectionConfig, b: SpaceshipSectionConfig| {
+            EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: "ship".to_string(),
+                    name: "ship".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                    controller: SpaceshipController::None,
+                    allegiance: None,
+                    sections: vec![a, b],
+                }),
+            })
+        };
+
+        let cube = |n: f32| {
+            Some(SectionCollider::Cuboid {
+                size: Vec3::splat(n),
+            })
+        };
+        let x = |n: f32| Vec3::new(n, 0.0, 0.0);
+
+        // 0.8 apart, default unit cubes: half-extents sum to 1.0 > 0.8 -> overlap.
+        let s = scenario(
+            vec![ship(
+                inline("a", Vec3::ZERO, None),
+                inline("b", x(0.8), None),
+            )],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        assert_eq!(
+            errors(&issues).len(),
+            1,
+            "unit cubes should clip: {issues:?}"
+        );
+        assert!(issues[0].message.contains("overlap"));
+
+        // Same spacing, both tightened to 0.8 cubes: sum 0.8 == distance -> flush.
+        let s = scenario(
+            vec![ship(
+                inline("a", Vec3::ZERO, cube(0.8)),
+                inline("b", x(0.8), cube(0.8)),
+            )],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        assert!(issues.is_empty(), "tightened cubes are flush: {issues:?}");
+
+        // 1.5 apart, oversized 2.0 cubes: sum 2.0 > 1.5 -> overlap where unit
+        // cubes (sum 1.0) would pass.
+        let s = scenario(
+            vec![ship(
+                inline("a", Vec3::ZERO, cube(2.0)),
+                inline("b", x(1.5), cube(2.0)),
+            )],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &known(&["test_scenario"]));
+        assert_eq!(errors(&issues).len(), 1, "oversized cubes clip: {issues:?}");
     }
 
     /// The reserved scenario clock (task 20260717-112647): reading it needs

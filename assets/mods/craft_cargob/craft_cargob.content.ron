@@ -528,6 +528,12 @@
                                             description: "A cut hull cube of the Kenney craft_cargoB.",
                                             mass: 1.0,
                                             health: 100.0,
+                                            // Beveled top-front corner piece: its mesh does not
+                                            // fill the whole cell, so tighten the collider to the
+                                            // cut hull instead of the default unit cube. (Structural
+                                            // glue keys off the section grid, not collider contact,
+                                            // so this only reshapes the hitbox and mass.)
+                                            collider: Some(Cuboid(size: (0.8, 0.8, 0.8))),
                                         ),
                                         kind: Hull((
                                             render_mesh: Some("self://gltf/cube_i1_j2_km2.glb#Scene0"),
@@ -814,6 +820,9 @@
                                             description: "A cut hull cube of the Kenney craft_cargoB.",
                                             mass: 1.0,
                                             health: 100.0,
+                                            // Symmetric partner of cube_i1_j2_km2: same beveled
+                                            // top-front corner, same tightened collider.
+                                            collider: Some(Cuboid(size: (0.8, 0.8, 0.8))),
                                         ),
                                         kind: Hull((
                                             render_mesh: Some("self://gltf/cube_im1_j2_km2.glb#Scene0"),
