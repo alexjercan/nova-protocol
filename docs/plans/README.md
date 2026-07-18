@@ -12,3 +12,4 @@ Add an index line here when adding a file.
 - [20260713-v0.5.2-plan.md](20260713-v0.5.2-plan.md) - v0.5.2 plan: playtest bugfixes + example testability
 - [20260714-v0.6.0-plan.md](20260714-v0.6.0-plan.md) - v0.6.0 plan: modding & authoring
 - [20260716-v0.7.0-plan.md](20260716-v0.7.0-plan.md) - v0.7.0 plan: content & polish
+- [20260718-v0.8.0-plan.md](20260718-v0.8.0-plan.md) - v0.8.0 plan: docs, tooling & content polish
