@@ -71,6 +71,7 @@ const WIKI_DOC_PAGES = [
     { slug: "sections", md: "sections.md", title: "Ship sections" },
     { slug: "keybinds", md: "keybinds.md", title: "Keybinds" },
     { slug: "hud", md: "hud.md", title: "HUD" },
+    { slug: "settings", md: "settings.md", title: "Settings" },
     {
         slug: "flight-autopilot",
         md: "flight-autopilot.md",
@@ -173,6 +174,13 @@ const docPage = ({ slug, md, title, crumbParent }) =>
 // first). `slug` is the version and doubles as the URL segment; date/version
 // fill the meta line; description is the head meta; the title comes from the H1.
 const NEWS_POSTS = [
+    {
+        slug: "0.7.0",
+        version: "v0.7.0",
+        date: "2026-07-18",
+        description:
+            "Nova Protocol v0.7.0: scenarios can declare victory or defeat with a real outcome frame, a second base-campaign chapter (Broadside) and a four-chapter campaign mod (The Ledger) on the portal, smarter fights (cover, auto-reload ammo, earned locks, multi-barrel turrets), RCS docking thrusters, a real Settings menu, and arbitrary joint-tree turrets plus self:// / dep:// asset schemes for modders.",
+    },
     {
         slug: "0.6.0",
         version: "v0.6.0",

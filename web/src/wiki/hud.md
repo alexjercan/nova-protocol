@@ -47,6 +47,10 @@ Locks are slot-coloured: a **white crosshair** is your travel (nav) lock, a **re
 
 The corner inset renders a live, magnified 3D view of your combat lock through a second (offscreen) camera. Its frame glows hot-red while your weapons are hot and steel while safe, with corner ticks that appear only when hot; a caption names the target and its relation. Bodies that cannot be scoped (nav beacons) show a **NO-SIGNAL** panel instead. When the framed target dies the inset freezes the final pose for about two seconds - a **kill cam** - then closes. The fine-locked section glows in both the inset and the main view.
 
+## Comms and objectives
+
+Scenarios talk to you through a **comms panel**: speaker-attributed story lines (`OKONO > Strip it clean.`) that queue and display in arrival order, so a burst of chatter no longer overwrites its own first line. Each line fades in with a soft blip, holds for a readable dwell (the author can set how long), and yields when the next line is waiting. Alongside it, a newly posted or changed **objective flashes gold** in the ghost column beside the objectives panel, so a mid-fight objective change registers at a glance; the ghost lines clear with the scenario rather than lingering over the menu.
+
 ## The screen substrate
 
 Every projected element - lock brackets, edge arrows, turret lead pips, objective markers - rides one shared system that anchors a UI node to a world point or entity, sizes it by fixed pixels or apparent (on-screen) size, and either hides off-screen targets or clamps them to the viewport edge with an arrow pointing back to them. Turret **lead pips** are small amber squares at each turret's computed intercept point, turning red when your weapons are hot.

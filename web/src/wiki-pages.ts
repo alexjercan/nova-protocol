@@ -186,14 +186,25 @@ export const WIKI_PAGES: WikiPage[] = [
         category: "Interface",
         tags: ["ui"],
         summary:
-            "What the heads-up display shows: visibility tiers, the diegetic flight readouts, lock brackets and reticles, and the target viewfinder.",
+            "What the heads-up display shows: visibility tiers, the diegetic flight readouts, lock brackets and reticles, the target viewfinder, and the story comms panel.",
         related: ["targeting-radar", "flight-autopilot", "keybinds"],
         headings: [
             "Visibility tiers",
             "Flight readouts",
             "Locks and reticles",
             "Target viewfinder",
+            "Comms and objectives",
         ],
+    },
+    {
+        slug: "settings",
+        title: "Settings",
+        category: "Interface",
+        tags: ["ui"],
+        summary:
+            "The Settings menu: a master audio volume slider, the Low/Medium/High graphics-quality preset (juice plus low-end visual gating and render scale), and the read-only keybind reference - reachable from the main menu and the pause menu, remembered across restarts.",
+        related: ["keybinds", "hud", "flight-autopilot"],
+        headings: ["Audio", "Graphics quality", "Controls reference"],
     },
     {
         slug: "flight-autopilot",
@@ -201,8 +212,8 @@ export const WIKI_PAGES: WikiPage[] = [
         category: "Flying",
         tags: ["flight"],
         summary:
-            "How ships move: Newtonian manual flight, center-of-mass thrust balancing, mass-legible handling, and the GOTO / ORBIT / STOP autopilot verbs that fly the real hull.",
-        related: ["gravity-wells", "sections", "keybinds"],
+            "How ships move: Newtonian manual flight, center-of-mass thrust balancing, mass-legible handling, the GOTO / ORBIT / STOP autopilot verbs that fly the real hull, and RCS fine docking thrusters.",
+        related: ["gravity-wells", "sections", "keybinds", "settings"],
         headings: [
             "Flight assist",
             "Newtonian mode",
@@ -210,6 +221,7 @@ export const WIKI_PAGES: WikiPage[] = [
             "GOTO",
             "ORBIT",
             "STOP",
+            "RCS",
         ],
     },
     {
@@ -408,7 +420,11 @@ export const WIKI_PAGES: WikiPage[] = [
         tags: ["dev", "build"],
         summary:
             "The developer's getting-started: toolchain, everyday cargo commands, features, examples, the web build, and the versioning/release checklist.",
-        related: ["dev/architecture", "dev/mod-portal", "dev/keeping-docs-in-sync"],
+        related: [
+            "dev/architecture",
+            "dev/mod-portal",
+            "dev/keeping-docs-in-sync",
+        ],
         headings: [
             "Toolchain",
             "Everyday commands",

@@ -221,7 +221,9 @@ function newsPostShell(title, basePath, opts = {}) {
                         .map(
                             (h) =>
                                 `<a href="#${escapeAttr(h.id)}" class="news__toc-link${
-                                    h.level === "h3" ? " news__toc-link--sub" : ""
+                                    h.level === "h3"
+                                        ? " news__toc-link--sub"
+                                        : ""
                                 }">${escapeAttr(h.text)}</a>`
                         )
                         .join("\n                    ")}
@@ -232,8 +234,10 @@ function newsPostShell(title, basePath, opts = {}) {
                 ${toc}
                 <article class="prose news__body">`
         : `<article class="prose">`;
-    const layoutClose = headings.length ? `</article>
-            </div>` : `</article>`;
+    const layoutClose = headings.length
+        ? `</article>
+            </div>`
+        : `</article>`;
     return `<!doctype html>
 <html lang="en">
     <head>

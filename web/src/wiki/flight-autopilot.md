@@ -1,6 +1,6 @@
 # Flight & autopilot
 
-Manual flight in Nova Protocol is fully **Newtonian**: momentum persists, nothing dampens you, and the only assist is the autopilot itself - which flies the same real controller and thrusters you do. There is no flight-assist toggle and no separate RCS budget; how a ship handles falls out of its mass and the thrusters bolted to it.
+Manual flight in Nova Protocol is fully **Newtonian**: momentum persists, nothing dampens you, and the only assist is the autopilot itself - which flies the same real controller and thrusters you do. There is no flight-assist toggle; how a ship handles falls out of its mass and the thrusters bolted to it. The one exception is **RCS**, an optional fine-translation mode a scenario can grant for close-in docking (see [RCS](#rcs-fine-docking-thrusters) below).
 
 <figure class="figure">
     <!-- Capture: assets/wiki-flight.png -->
@@ -40,3 +40,11 @@ The autopilot verbs are the assist. Each writes to the _same_ actuators you use 
 - **STOP** - flips to retrograde and burns until you are at rest, budgeting for the local gravity pull along your velocity.
 
 Because the autopilot flies through the real actuators, it is honest about the ship's limits - an under-thrustered build takes longer to come around than a nimble one - and it will refuse a maneuver it cannot physically achieve (for example, ORBIT will not engage a well with no stable band). See [Keybinds](../keybinds/) for the verb keys.
+
+## RCS: fine docking thrusters
+
+For the last few meters of an approach - where a main-drive burn is too coarse - a ship can carry **RCS** (a reaction-control system): hold <kbd>Shift</kbd> and steer with the mouse (lateral and fore/aft) and the scroll wheel (up and down) to nudge the ship straight along its own axes, with **no rotation**. While you hold it the helm and camera hold still so you can concentrate on the translation, the [velocity sphere](../hud/) turns violet, and a soft burn loop plays.
+
+RCS is a **trim, not free thrust**: each ship-local axis caps at a gentle speed (about 2 u/s), so it eases you into position rather than replacing the main drive. Push an axis you are already coasting at the cap and nothing happens; the opposite direction still slows you. The autopilot uses the same thrusters under the hood - **GOTO** and **STOP** settle their arrival on RCS, braking with the fine jets in the last stretch so a ship eases to a stop instead of pulsing on the spot.
+
+RCS is a controller verb granted per ship, like the autopilot verbs, and the mainline campaign flies with it **withheld** - the `[Shift] RCS` hint only appears when a scenario grants it, so you know when it is available.

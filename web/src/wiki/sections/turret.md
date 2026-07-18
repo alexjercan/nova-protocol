@@ -16,6 +16,6 @@
     </div>
 </figure>
 
-A turret is an **articulated mount** - base, yaw, pitch and barrel - that aims at the current combat lock with true intercept lead and fires bullet projectiles. Its coverage is bounded by its yaw and pitch limits, and its output by its fire rate.
+A turret is an **articulated mount** - a base, the joints that swivel and elevate it, and one or more barrels - that aims at the current combat lock with true intercept lead and fires bullet projectiles. Its coverage is bounded by its yaw and pitch limits, and its output by its fire rate; a mount with several muzzles aims and fires all of them at once.
 
 Turrets draw their aim from the combat lock and prefer a fine-locked section if you have one, falling back to live structure and then the camera ray.

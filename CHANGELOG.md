@@ -12,6 +12,13 @@ tagged **(breaking)**.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-18
+
+### Gameplay & Flight
+
+- A reaction-control system (RCS) for fine docking translation: hold SHIFT and steer with the mouse (lateral and fore/aft) and the scroll wheel (up/down) to nudge the ship along its own axes under a gentle speed cap, with no rotation - the helm and camera hold still while you translate, the velocity sphere turns violet, and a soft RCS burn loop tells you it is live. It is a computer-assisted trim, not free thrust: each ship-local axis caps around 2 u/s, so RCS settles the last few meters of an approach rather than replacing the main drive. RCS is a controller verb like the autopilot ones, granted per ship - the mainline campaign flies with it withheld (the `[SHIFT] RCS` hint only appears when a scenario grants the verb), so a ship opts in per scenario.
+- The GOTO and STOP autopilot verbs now settle their arrival on RCS: in the last stretch, once the desired velocity is near zero, the autopilot brakes with the fine thrusters instead of coarse main-drive pulses, so a ship eases to a stop instead of pulsing on the spot (the same RCS burn loop plays while it does).
+
 ### Combat & Weapons
 
 - Turrets can now carry more than one barrel: a mount fires and aims every muzzle it has, so twin-barrel PDCs (and stranger multi-gun mounts) throw two streams at once, each at its own fire rate. All the barrels share the turret's one magazine, so a twin barrel empties it twice as fast.
@@ -309,7 +316,8 @@ tagged **(breaking)**.
 
 - Editor and simulation scenes.
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.6.0...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/alexjercan/nova-protocol/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/alexjercan/nova-protocol/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/alexjercan/nova-protocol/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/alexjercan/nova-protocol/compare/v0.5.0...v0.5.1

@@ -62,7 +62,26 @@ The full control reference. Thrust is analog on the gamepad and on/off on the ke
             ></span>
         </td>
     </tr>
+    <tr>
+        <td>RCS fine translation (when a scenario grants it)</td>
+        <td>
+            <kbd>Shift</kbd> (hold) +
+            <span
+                class="pf pf-mouse-device"
+                role="img"
+                aria-label="Mouse motion"
+            ></span>
+            /
+            <span
+                class="pf pf-mouse-scroll"
+                role="img"
+                aria-label="Scroll wheel"
+            ></span>
+        </td>
+    </tr>
 </table>
+
+RCS is a docking aid, not standard flight: it appears only when a scenario grants it (a `[Shift] RCS` hint shows when it is available), and the mainline campaign flies without it. See [Flight & autopilot](../flight-autopilot/#rcs-fine-docking-thrusters).
 
 ## Targeting and camera
 
