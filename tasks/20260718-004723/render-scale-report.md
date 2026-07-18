@@ -2,7 +2,7 @@
 
 Sprint v0.7.0, task `20260718-004723` (p42), descends from the frame-time
 baseline `20260716-123551`. This is the user-facing report; the implementation
-/ reflection log is `docs/2026-07-18-render-scale-lever.md`.
+/ reflection log is `NOTES.md`.
 
 ## What shipped
 

@@ -32,6 +32,6 @@ Bevy changes it. So this is a spike: decide port-vs-keep, don't blindly port.
 
 - Tool: `crates/nova_meta_gen/{src/lib.rs,src/main.rs}`; invoked as a Trunk
   post_build hook (`TRUNK_STAGING_DIR/assets`).
-- Background: `docs/wasm-asset-meta-always-investigation.md` (itself a docs-junk
+- Background: `docs/design/wasm-asset-meta-always.md` (itself a docs-junk
   file the cleanup task 20260718-152329 should relocate).
 

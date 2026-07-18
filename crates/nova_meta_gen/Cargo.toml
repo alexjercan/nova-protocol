@@ -4,7 +4,7 @@ version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 publish = false
-description = "Default `.meta` sidecar generator. Boots a headless, GPU-free Bevy app with the game's exact asset loaders and writes a default `.meta` next to every asset that lacks one, so `AssetMetaCheck::Always` never has to fetch a missing meta on the web. Run as a Trunk post_build hook against the staging dir. See docs/wasm-asset-meta-always-investigation.md."
+description = "Default `.meta` sidecar generator. Boots a headless, GPU-free Bevy app with the game's exact asset loaders and writes a default `.meta` next to every asset that lacks one, so `AssetMetaCheck::Always` never has to fetch a missing meta on the web. Run as a Trunk post_build hook against the staging dir. See docs/design/wasm-asset-meta-always.md."
 
 [dependencies]
 clap = { version = "4.5.48", features = ["derive"] }

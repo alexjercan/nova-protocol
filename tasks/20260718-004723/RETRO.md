@@ -5,7 +5,7 @@
 - REVIEW ROUNDS: 1 (APPROVE)
 
 See `render-scale-report.md` for the numbers/decision and
-`docs/2026-07-18-render-scale-lever.md` for the design log; this is process only.
+`NOTES.md` for the design log; this is process only.
 
 ## What went well
 

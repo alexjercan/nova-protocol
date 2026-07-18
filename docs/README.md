@@ -28,12 +28,21 @@ the code they describe changes:
   (CHANGELOG, News, wiki, tutorial) to update when you change code or cut a
   release, so nothing drifts.
 
-## What lives here (transient)
+## What lives here
+
+The only files that belong under `docs/` are this README, the LESSONS.md
+ledger, and the `design/` and `plans/` folders:
 
 - [LESSONS.md](LESSONS.md) - the distilled lessons ledger. Read it before
   starting work; /compound appends to it.
+- [design/](design/README.md) - durable design and implementation-reflection
+  records for changes not owned by a single tatr task (or that landed outside
+  one). Per-task records still live in the task folder.
 - [plans/](plans/README.md) - long-form plans spanning multiple tasks (release
   scopes, roadmaps, process proposals).
+
+Nothing else belongs in `docs/` root - no dated or per-task record files. Those
+go in their task folder (below) or, if durable and cross-cutting, `design/`.
 
 ## Where records go
 
@@ -46,8 +55,10 @@ of `tasks/<id>/` shows the whole story:
 - `tasks/<id>/RETRO.md` - the retrospective (/compound).
 - `tasks/<id>/NOTES.md` - design/fix record for the shipped change.
 
-Do not create per-task record files under `docs/`. The only record kept here
-is the [LESSONS.md](LESSONS.md) ledger.
+Do not create per-task record files under `docs/` root. A record tied to one
+task lives in that task's folder as `NOTES.md`. The records kept under `docs/`
+are the [LESSONS.md](LESSONS.md) ledger and the cross-cutting
+[design/](design/README.md) records.
 
 ## After a meaningful change
 
