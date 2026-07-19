@@ -28,8 +28,12 @@ cargo run -p nova_probe -- run perf_baseline --fps --release \
   --render gpu --scenario asteroid_field --preset high --preset low  # perf sweep (matrix)
 cargo run -p nova_probe -- run <scenario> --platform web  # web/WebGPU frame capture
 cargo run -p nova_probe -- report <run-dir> [--baseline <dir>]  # re-render (manifest-gated)
-cargo run -p nova_probe -- trace <trace.json> [--top N]         # top-N systems table
 ```
+
+Two verbs is the whole surface: `run` and `report`. (The `sweep|web|profile`
+aliases and the `trace` verb retired at the v0.8.0 cut - retired commands
+error with a pointer to the `run` form; the top-N systems table renders
+inside the report on `--profile` runs and re-renders via `probe report`.)
 
 Multi specs (list, category, `--all`) resolve against the `[[example]]`
 catalog in the root Cargo.toml, run SEQUENTIALLY with continue-on-failure
@@ -48,10 +52,9 @@ the pre-release/nightly sweep.
 `report` REFUSES dirs without `probe-run.json` (or `probe-all.json` for an
 aggregate dir - its rows are re-read fresh from each run's checks.json) -
 a report can only be built from dirs probe itself produced, so stale
-hand-assembled folders cannot impersonate a run. The old
-`sweep|web|profile` subcommands are deprecated aliases that map onto
-`run` flags (the perf .sh scripts are gone); sweeps run with `--release`
-(dev-profile frame numbers are not baselines) and `--render sw` gives the
+hand-assembled folders cannot impersonate a run. Sweeps run with
+`--release` (dev-profile frame numbers are not baselines - the report
+badges each frame row's build profile) and `--render sw` gives the
 lavapipe software floor.
 
 `run` writes to `probe-runs/<example>/` (gitignored), SURGICALLY CLEANED of

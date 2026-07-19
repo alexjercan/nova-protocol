@@ -1,6 +1,6 @@
 # Probe surface close-out: remove deprecated sweep|web|profile aliases + trace verb; keep perf_web (the wasm web-capture app) with sharpened docs; AGENTS/skill/wiki sweep
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.8.0,tooling,refactor
 
@@ -29,15 +29,15 @@ probe-all T1/T2/T3 family):
 
 ## Steps
 
-- [ ] Delete the three alias arms + `Cmd::Trace` + trace_table from
+- [x] Delete the three alias arms + `Cmd::Trace` + trace_table from
       probe.rs; USAGE text + doc header updated; parse pins for the
       removals (unknown subcommand error now names run|report only).
-- [ ] perf_web doc header: state its role (the wasm capture app
+- [x] perf_web doc header: state its role (the wasm capture app
       perf.html builds for `--platform web`) and why it is a [[bin]].
-- [ ] Docs sweep (skill, AGENTS.md, wiki, CHANGELOG); re-grep
+- [x] Docs sweep (skill, AGENTS.md, wiki, CHANGELOG); re-grep
       `probe sweep|probe web|probe profile|probe trace` - only history
       remains.
-- [ ] Verify: fmt; cargo test -p nova_probe; wasm check (perf_web still
+- [x] Verify: fmt; cargo test -p nova_probe; wasm check (perf_web still
       builds).
 
 ## Notes
@@ -48,3 +48,29 @@ probe-all T1/T2/T3 family):
 - If the user still wants perf_web GONE knowing it kills
   `--platform web`, that is a scope decision to re-ask - not assumed
   here.
+
+## Close-out (2026-07-19, branch feature/probe-closeout, stacked on T3)
+
+Two verbs is the whole surface. Beyond the plan, retired verbs get POINTED
+errors (not a generic unknown-subcommand): sweep/web/profile/trace each
+name their `run` form - muscle memory deserves a signpost. `Cmd::Run` was
+removed along with the aliases (they were its only producer), simplifying
+the enum to RunSpec | Report.
+
+Evidence:
+- cargo test -p nova_probe: 80/80 (retired-verb error pins replace the
+  alias-mapping tests; the trace parse pin removed).
+- Live e2e: all four retired verbs print their pointers; bare `probe run`
+  still lists the catalog post-merge.
+- Wasm check green: perf_web still builds (it IS the web capture's wasm
+  app - perf.html declares data-bin="perf_web"; its doc header now says
+  so in terms nobody can mistake for dead code, after two near-misses).
+- Re-grep: no live alias/trace mention outside "retired" phrasing and
+  history; CHANGELOG Unreleased rewritten so v0.8.0's notes never
+  advertise verbs the release does not ship.
+
+Stacked-flow note: third layer of the stack (T2 -> T3 -> this); the sync
+after T3's squash-landing produced the expected stacked-squash conflict
+on T3's TASK.md (both sides differ from the pre-squash merge-base) -
+resolved to the landed version; the auto-merged skill/CHANGELOG re-read
+coherent.

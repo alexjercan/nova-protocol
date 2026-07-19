@@ -1,14 +1,21 @@
-//! perf_web: frame-time capture binary for the web/WebGPU build (and native).
+//! perf_web: THE WASM APP `probe run --platform web` measures - not a CLI.
 //!
-//! Same measurement as `examples/perf/perf_baseline`, but its config comes from
-//! the cross-platform perf-param source ([`perf_param`]: the URL query string on
-//! wasm, `NOVA_PERF_*` env vars on native), so Trunk can build it into the wasm
-//! bundle and a headless browser can drive it by URL. The capture summary is
-//! logged to the console (`nova perf: label=...`) - on web there is no
-//! filesystem, so a browser driver scrapes that console line.
+//! This bin is the browser-side half of the web capture: `perf.html`
+//! declares `data-bin="perf_web"`, `probe run <scenario> --platform web`
+//! trunk-builds that page (always `--release`), serves it, drives headless
+//! Chromium at it, and scrapes the capture summary from the console
+//! (`nova perf: label=...` - the browser has no filesystem to write a CSV).
+//! DELETING THIS BIN DELETES THE WEB CAPTURE; it has twice been mistaken
+//! for a retired CLI (it is neither retired nor a CLI - the retired
+//! `run_report`/`perf_report`/`perf_trace` bins and the `sweep|web|profile`
+//! aliases were, tasks 20260719-174603 + 20260719-211500).
 //!
-//! Built for web via `probe run --platform web` / `perf.html`; no `debug` feature
-//! needed (the harness lives in this crate, `nova_probe`, not `nova_debug`).
+//! Same measurement as `examples/perf/perf_baseline`, but its config comes
+//! from the cross-platform perf-param source ([`perf_param`]: the URL query
+//! string on wasm, `NOVA_PERF_*` env vars on native), so Trunk can build it
+//! into the wasm bundle and a headless browser can drive it by URL. No
+//! `debug` feature needed (the harness lives in this crate, `nova_probe`,
+//! not `nova_debug`).
 //!
 //! Query/env params (all optional): `scenario`, `quality` (low|medium|high),
 //! `combat` (present = drive a combat burst), plus the capture knobs the plugin

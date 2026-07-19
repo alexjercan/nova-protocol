@@ -11,7 +11,6 @@
 //! cargo run -p nova_probe -- run ui                  # a category dir's examples
 //! cargo run -p nova_probe -- run --all               # the whole catalog (minus NOT_PROBED)
 //! cargo run -p nova_probe -- report <run-dir>           # re-render (manifest-gated)
-//! cargo run -p nova_probe -- trace <trace.json>          # top-N systems table
 //! ```
 //!
 //! `run` orchestrates natively: pass 1 CLEAN (timeline + invariants + log,
@@ -63,10 +62,7 @@ usage: probe <subcommand>
       single-example concerns. Artifacts + report land in the run dir.
   report <run-dir> [--baseline <run-dir>]
       re-render the report (probe-run.json dirs) or the aggregate index
-      (probe-all.json dirs); refuses dirs probe did not produce
-  trace <trace.json> [--top N] [-o <table.md>]
-      top-N costliest-systems table from a chrome trace
-  sweep|web|profile   DEPRECATED aliases that map onto `run` flags";
+      (probe-all.json dirs); refuses dirs probe did not produce";
 
     /// Parsed `probe run` options.
     #[derive(Debug, Clone, PartialEq)]
@@ -106,8 +102,6 @@ usage: probe <subcommand>
     /// Parsed command line.
     #[derive(Debug, PartialEq)]
     pub enum Cmd {
-        /// A single fully-resolved run (the deprecated aliases build this).
-        Run(RunOptions),
         /// A `probe run` spec, resolved against the example catalog at
         /// dispatch (parse stays pure/fs-free): `tokens` is the comma-split
         /// positional (possibly empty - resolution errors with the catalog
@@ -120,11 +114,6 @@ usage: probe <subcommand>
         Report {
             dir: PathBuf,
             baseline: Option<PathBuf>,
-        },
-        Trace {
-            file: PathBuf,
-            top: usize,
-            out: Option<PathBuf>,
         },
     }
 
@@ -146,8 +135,10 @@ usage: probe <subcommand>
         }
     }
 
-    /// Parse the CLI. The deprecated aliases map onto `run` invocations and
-    /// say so on stderr.
+    /// Parse the CLI: `run` and `report`. (The deprecated `sweep|web|profile`
+    /// aliases and the `trace` verb retired at the v0.8.0 cut, task
+    /// 20260719-211500 - `--profile` renders the top-N table in-report, and
+    /// `probe report` re-renders it from the run dir.)
     pub fn parse(args: &[String]) -> Result<Cmd, String> {
         let mut iter = args.iter();
         match iter.next().map(String::as_str) {
@@ -177,85 +168,20 @@ usage: probe <subcommand>
                     baseline,
                 })
             }
-            Some("trace") => {
-                let mut file: Option<PathBuf> = None;
-                let mut top = 20usize;
-                let mut out: Option<PathBuf> = None;
-                while let Some(arg) = iter.next() {
-                    match arg.as_str() {
-                        "--top" => {
-                            top = iter
-                                .next()
-                                .and_then(|v| v.parse().ok())
-                                .ok_or("--top needs a number")?;
-                        }
-                        "-o" | "--output" => {
-                            out = Some(PathBuf::from(iter.next().ok_or("-o needs a path")?));
-                        }
-                        other if other.starts_with('-') => {
-                            return Err(format!("unknown flag {other}"));
-                        }
-                        other => {
-                            if file.replace(PathBuf::from(other)).is_some() {
-                                return Err("only one trace file may be given".into());
-                            }
-                        }
-                    }
-                }
-                Ok(Cmd::Trace {
-                    file: file.ok_or("trace needs a chrome-trace file")?,
-                    top,
-                    out,
-                })
-            }
-            // Deprecated aliases: map onto run flags (perf-baseline.sh /
-            // perf-web.sh / perf-profile.sh are gone; the mapping preserves
-            // their defaults).
-            Some("sweep") => {
-                let rest: Vec<String> = iter.cloned().collect();
-                let render = match rest.first().map(String::as_str) {
-                    Some("sw") => Render::Sw,
-                    _ => Render::Gpu,
-                };
-                eprintln!(
-                    "probe: `sweep` is deprecated; use: probe run perf_baseline --fps \
-                     --release --render {} --scenario asteroid_field --scenario broadside \
-                     --scenario shakedown_run --preset high --preset low",
-                    if render == Render::Sw { "sw" } else { "gpu" }
-                );
-                let mut opts = default_run("perf_baseline".into());
-                opts.fps = true;
-                opts.release = true;
-                opts.render = render;
-                opts.scenarios = ["asteroid_field", "broadside", "shakedown_run"]
-                    .map(String::from)
-                    .to_vec();
-                opts.presets = ["high", "low"].map(String::from).to_vec();
-                if let Some(out) = rest.get(1) {
-                    opts.out = Some(PathBuf::from(out));
-                }
-                Ok(Cmd::Run(opts))
-            }
-            Some("web") => {
-                let scenario = iter
-                    .next()
-                    .cloned()
-                    .unwrap_or_else(|| "asteroid_field".into());
-                eprintln!("probe: `web` is deprecated; use: probe run {scenario} --platform web");
-                let mut opts = default_run(scenario);
-                opts.platform = Platform::Web;
-                Ok(Cmd::Run(opts))
-            }
-            Some("profile") => {
-                let example = iter.next().cloned().unwrap_or_else(|| "scenario".into());
-                eprintln!(
-                    "probe: `profile` is deprecated; use: probe run {example} --profile \
-                     (add --samply for the flamegraph)"
-                );
-                let mut opts = default_run(example);
-                opts.profile = true;
-                Ok(Cmd::Run(opts))
-            }
+            // Retired verbs get a pointed error, not a generic one: the
+            // muscle-memory commands should say where they went.
+            Some("trace") => Err(
+                "`trace` retired (task 20260719-211500): `--profile` renders the \
+                 top-N table into the run report, and `probe report <run-dir>` \
+                 re-renders it from the dir's trace.json"
+                    .into(),
+            ),
+            Some(alias @ ("sweep" | "web" | "profile")) => Err(format!(
+                "`{alias}` retired (deprecated for one cycle, removed at v0.8.0): \
+                 use `probe run` - the sweep is `run perf_baseline --fps --release \
+                 --scenario ... --preset ...`, web is `run <scenario> --platform web`, \
+                 profiling is `run <example> --profile [--samply]`"
+            )),
             Some(other) => Err(format!("unknown subcommand {other}")),
             None => Err("a subcommand is required".into()),
         }
@@ -1493,13 +1419,6 @@ usage: probe <subcommand>
                 eprintln!("probe: {message}\n\n{USAGE}");
                 ExitCode::FAILURE
             }
-            Ok(Cmd::Run(opts)) => match run(&opts) {
-                Ok(code) => code,
-                Err(message) => {
-                    eprintln!("probe: {message}");
-                    ExitCode::FAILURE
-                }
-            },
             Ok(Cmd::RunSpec { tokens, all, base }) => match run_spec(&tokens, all, base) {
                 Ok(code) => code,
                 Err(message) => {
@@ -1509,13 +1428,6 @@ usage: probe <subcommand>
             },
             Ok(Cmd::Report { dir, baseline }) => match report(&dir, baseline.as_deref()) {
                 Ok(code) => code,
-                Err(message) => {
-                    eprintln!("probe: {message}");
-                    ExitCode::FAILURE
-                }
-            },
-            Ok(Cmd::Trace { file, top, out }) => match trace_table(&file, top, out.as_deref()) {
-                Ok(()) => ExitCode::SUCCESS,
                 Err(message) => {
                     eprintln!("probe: {message}");
                     ExitCode::FAILURE
@@ -1602,28 +1514,6 @@ usage: probe <subcommand>
         write_aggregate(dir, &manifest)?;
         print_aggregate(dir, &manifest);
         Ok(aggregate_exit(&manifest))
-    }
-
-    /// `probe trace`: the standalone top-N table (absorbed perf_trace).
-    fn trace_table(file: &Path, top: usize, out: Option<&Path>) -> Result<(), String> {
-        let contents = std::fs::read_to_string(file)
-            .map_err(|e| format!("could not read {}: {e}", file.display()))?;
-        let costs = nova_probe::profile::aggregate_system_costs(&contents)
-            .map_err(|e| format!("{}: {e}", file.display()))?;
-        let table = nova_probe::profile::render_top_table(&costs, top);
-        match out {
-            Some(path) => {
-                std::fs::write(path, &table)
-                    .map_err(|e| format!("could not write {}: {e}", path.display()))?;
-                println!(
-                    "probe: wrote {} ({} systems aggregated)",
-                    path.display(),
-                    costs.len()
-                );
-            }
-            None => print!("{table}"),
-        }
-        Ok(())
     }
 
     #[cfg(test)]
@@ -1805,15 +1695,6 @@ usage: probe <subcommand>
             assert_eq!(dir, PathBuf::from("runs/x"));
             assert_eq!(baseline, Some(PathBuf::from("runs/old")));
 
-            let Ok(Cmd::Trace { file, top, out }) =
-                parse(&s(&["trace", "t.json", "--top", "7", "-o", "t.md"]))
-            else {
-                panic!("trace parses");
-            };
-            assert_eq!(file, PathBuf::from("t.json"));
-            assert_eq!(top, 7);
-            assert_eq!(out, Some(PathBuf::from("t.md")));
-
             let Ok(Cmd::RunSpec { tokens, base, .. }) = parse(&s(&[
                 "run",
                 "perf_baseline",
@@ -1856,28 +1737,22 @@ usage: probe <subcommand>
         }
 
         #[test]
-        fn deprecated_aliases_map_onto_run_flags() {
-            let Ok(Cmd::Run(opts)) = parse(&s(&["sweep", "sw", "out/dir"])) else {
-                panic!("sweep alias maps");
-            };
-            assert_eq!(opts.example, "perf_baseline");
-            assert!(opts.fps && opts.release);
-            assert_eq!(opts.render, Render::Sw);
-            assert_eq!(opts.scenarios.len(), 3);
-            assert_eq!(opts.presets, s(&["high", "low"]));
-            assert_eq!(opts.out, Some(PathBuf::from("out/dir")));
-
-            let Ok(Cmd::Run(opts)) = parse(&s(&["web", "broadside"])) else {
-                panic!("web alias maps");
-            };
-            assert_eq!(opts.example, "broadside");
-            assert_eq!(opts.platform, Platform::Web);
-
-            let Ok(Cmd::Run(opts)) = parse(&s(&["profile"])) else {
-                panic!("profile alias maps");
-            };
-            assert_eq!(opts.example, "scenario");
-            assert!(opts.profile);
+        fn retired_verbs_error_with_pointers() {
+            // The v0.8.0 cut removed the deprecated aliases and the trace
+            // verb (task 20260719-211500): muscle-memory commands must say
+            // where they went, not just "unknown subcommand".
+            for alias in ["sweep", "web", "profile"] {
+                let err = parse(&s(&[alias])).unwrap_err();
+                assert!(err.contains("retired"), "{alias}: {err}");
+                assert!(err.contains("probe run"), "{alias}: {err}");
+            }
+            let err = parse(&s(&["trace", "t.json"])).unwrap_err();
+            assert!(err.contains("retired"), "{err}");
+            assert!(err.contains("--profile"), "{err}");
+            // Genuinely unknown verbs keep the generic error.
+            assert!(parse(&s(&["frobnicate"]))
+                .unwrap_err()
+                .contains("unknown subcommand"));
         }
 
         #[test]

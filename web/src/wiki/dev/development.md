@@ -227,9 +227,10 @@ captures the run timeline + continuous invariants + the log into
 renders `report.html` + `checks.json` with a provisional
 OK/WARN/FAIL/NO_DATA the reviewer confirms. Every run dir carries a
 `probe-run.json` manifest (identity, passes, outcomes); `probe report` only
-re-renders dirs that have one. (`probe sweep|web|profile` are deprecated
-aliases from the retired perf scripts - they map onto the `run` flags
-below.)
+re-renders dirs that have one. Two verbs is the whole surface - `run` and
+`report`; the transitional `sweep|web|profile` aliases and the `trace`
+verb retired at the v0.8.0 cut (retired commands error with a pointer to
+the `run` form).
 
 Multi specs (comma list, category dir name, `--all`) resolve against the
 `[[example]]` catalog, run each example sequentially with
@@ -335,7 +336,7 @@ The profiled pass builds with `--features debug,trace` (bevy's per-system
 spans are compiled in only under `bevy/trace`), runs headless with
 `TRACE_CHROME` into the run dir (plus the `RUST_LOG=bevy_ecs=info` override
 that un-hides the spans from the game's log filter), and the report renders
-the top-N table (`probe trace <trace.json>` for a standalone one). Open the raw
+the top-N table (`probe report <run-dir>` re-renders it). Open the raw
 `trace.json` in https://ui.perfetto.dev for the full picture; `samply load`
 opens the flamegraph in the Firefox Profiler (the samply run is skipped with
 a note when samply is missing or blocked - sampling needs
