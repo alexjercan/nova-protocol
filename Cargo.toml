@@ -237,4 +237,3 @@ members = [
   "crates/nova_ui",
 ]
 resolver = "2"
-
