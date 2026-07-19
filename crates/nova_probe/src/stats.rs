@@ -1,6 +1,6 @@
 //! Frame-time statistics and the run schema: [`FrameStats`], the per-run
 //! metadata ([`RunMeta`]), and the CSV/JSON writers + parsers both the capture
-//! harness and the `perf_report` bin share, so the schema is defined once.
+//! harness and the report/probe consumers share, so the schema is defined once.
 //!
 //! Two CSV schema versions exist:
 //!
@@ -101,8 +101,8 @@ pub(crate) fn csv_safe(value: &str) -> String {
 }
 
 /// One captured run: its label, percentile stats, and run metadata. The unit
-/// the aggregated `frametime.csv` stores one per row and the `perf_report`
-/// bin renders one per table row.
+/// the aggregated `frametime.csv` stores one per row and the run report
+/// renders one per table row.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PerfRun {
     /// The run's label (e.g. `broadside-high`), as written by the capture.
@@ -165,7 +165,7 @@ impl FrameStats {
     }
 
     /// A compact, greppable one-line summary. The `nova perf:` prefix is a
-    /// scrape contract (`scripts/perf-web.sh` greps it out of the browser
+    /// scrape contract (`probe run --platform web` greps it out of the browser
     /// console log) - do not rename it without updating the scrapers.
     pub(crate) fn summary_line(&self, label: &str) -> String {
         format!(
@@ -309,14 +309,86 @@ impl PerfRun {
     }
 }
 
+/// Parse the capture's greppable summary line (`nova perf: label=...`) back
+/// into stats - the WEB capture's only output channel (no filesystem in the
+/// browser; the runner scrapes this from the chromium console log).
+/// Returns `(label, FrameStats)`; `None` when the line is not a summary.
+pub fn parse_summary_line(line: &str) -> Option<(String, FrameStats)> {
+    let rest = line.split("nova perf: label=").nth(1)?;
+    let mut label = None;
+    let mut fields: std::collections::HashMap<&str, f64> = std::collections::HashMap::new();
+    for (i, token) in rest.split_whitespace().enumerate() {
+        if i == 0 {
+            label = Some(token.to_string());
+            continue;
+        }
+        // The line may be embedded in a wrapper that APPENDS text (chromium
+        // CONSOLE lines carry %c style arguments after the message): the
+        // summary fields are contiguous, so the first non-key=value token
+        // ends the record instead of failing the parse.
+        let Some((key, value)) = token.split_once('=') else {
+            break;
+        };
+        let value = value.trim_end_matches("ms").trim_end_matches('"');
+        match value.parse() {
+            Ok(parsed) => fields.insert(key, parsed),
+            Err(_) => break,
+        };
+    }
+    let get = |k: &str| fields.get(k).copied();
+    let frames = get("frames")? as usize;
+    let mean_ms = get("mean")?;
+    Some((
+        label?,
+        FrameStats {
+            frames,
+            total_ms: mean_ms * frames as f64,
+            mean_ms,
+            min_ms: get("min")?,
+            max_ms: get("max")?,
+            p50_ms: get("p50")?,
+            p95_ms: get("p95")?,
+            p99_ms: get("p99")?,
+            p999_ms: get("p999")?,
+            mean_fps: get("mean_fps")?,
+            one_pct_low_fps: get("1%low_fps")?,
+        },
+    ))
+}
+
+/// Append one labeled row (creating the file + v2 header when absent) - the
+/// public writer for runners that assemble a frametime.csv from scraped
+/// output (the web capture) rather than through the in-app plugin.
+pub fn append_frametime_row(
+    path: &std::path::Path,
+    label: &str,
+    stats: &FrameStats,
+    meta: &RunMeta,
+) -> Result<(), String> {
+    use std::io::Write;
+    let need_header = !path.exists();
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .map_err(|e| format!("could not open {}: {e}", path.display()))?;
+    let mut buf = String::new();
+    if need_header {
+        buf.push_str(CSV_HEADER);
+    }
+    buf.push_str(&stats.to_csv_row(label, meta));
+    file.write_all(buf.as_bytes())
+        .map_err(|e| format!("could not append {}: {e}", path.display()))
+}
+
 /// Parse a whole aggregated `frametime.csv` (header + one row per run) into a
 /// list of runs, preserving file order. The first line must match
 /// [`CSV_HEADER`] (v2) or [`CSV_HEADER_V1`] (trimmed) or the file is rejected
 /// as not-a-frametime-CSV; every data row must then carry that version's
 /// column count. Blank lines are skipped and any row that fails to parse is
 /// an error naming its line, so a corrupt sweep is caught instead of silently
-/// dropping runs. Shared by the `perf_report` bin and its tests so the schema
-/// lives in one place.
+/// dropping runs. Shared by every frametime consumer so the schema lives in
+/// one place.
 pub fn parse_frametime_csv(contents: &str) -> Result<Vec<PerfRun>, String> {
     let mut lines = contents.lines();
     let header = lines.next().ok_or("empty CSV (no header)")?;
@@ -518,6 +590,50 @@ mod tests {
         let csv = format!("{}broadside-high,120,115.05\n", CSV_HEADER_V1);
         let err = parse_frametime_csv(&csv).expect_err("short row rejected");
         assert!(err.contains("header promises"), "{err}");
+    }
+
+    #[test]
+    fn summary_line_round_trips_through_the_real_writer() {
+        // The web capture's contract: whatever summary_line prints,
+        // parse_summary_line reads back (the scrape is the only channel).
+        let stats = FrameStats::from_samples(&[30.0, 35.0, 40.0, 33.0, 31.0]);
+        let line = stats.summary_line("asteroid_field-high-web");
+        let (label, parsed) = parse_summary_line(&line).expect("summary parses");
+        assert_eq!(label, "asteroid_field-high-web");
+        assert_eq!(parsed.frames, stats.frames);
+        // The line prints 3 decimals; compare at that precision.
+        assert!((parsed.mean_ms - stats.mean_ms).abs() < 5e-3);
+        assert!((parsed.p99_ms - stats.p99_ms).abs() < 5e-3);
+        assert!((parsed.one_pct_low_fps - stats.one_pct_low_fps).abs() < 5e-2);
+        // Embedded in a chromium console line with a prefix: still parses.
+        let wrapped = format!("[1234:5678:INFO:CONSOLE(1)] {line}");
+        assert!(parse_summary_line(&wrapped).is_some());
+        assert!(parse_summary_line("unrelated log line").is_none());
+        // The REAL chromium CONSOLE format (captured live 2026-07-19):
+        // style markers before and TRAILING style arguments after the
+        // message - the parser must stop at the junk, not fail.
+        let real = r#"[997943:997943:0719/185025.216734:INFO:CONSOLE:1486] "%cINFO%c crates/nova_probe/src/capture.rs:398%c nova perf: label=asteroid_field-high-web frames=600 mean=31.607ms p50=31.300ms p95=44.300ms p99=48.900ms p999=60.800ms min=16.600ms max=60.800ms mean_fps=31.6 1%low_fps=20.4 color: whitesmoke; background: #444 color: gray; font-style: italic color: inherit", source: http://127.0.0.1:42609/perf_web-cd5e76059d930d0f.js (1486)"#;
+        let (label, stats) = parse_summary_line(real).expect("real chromium line parses");
+        assert_eq!(label, "asteroid_field-high-web");
+        assert_eq!(stats.frames, 600);
+        assert!((stats.mean_ms - 31.607).abs() < 1e-9);
+        assert!((stats.one_pct_low_fps - 20.4).abs() < 1e-9);
+    }
+
+    #[test]
+    fn append_frametime_row_creates_header_then_appends() {
+        let dir = std::env::temp_dir().join(format!("nova_probe_append_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("frametime.csv");
+        let stats = FrameStats::from_samples(&[10.0; 4]);
+        append_frametime_row(&path, "a-high", &stats, &some_meta()).unwrap();
+        append_frametime_row(&path, "a-low", &stats, &some_meta()).unwrap();
+        let runs = parse_frametime_csv(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(runs.len(), 2);
+        assert_eq!(runs[0].label, "a-high");
+        assert_eq!(runs[1].label, "a-low");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

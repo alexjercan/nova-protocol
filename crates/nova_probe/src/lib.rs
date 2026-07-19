@@ -11,8 +11,8 @@
 //!   every frame for a fixed window, then writes percentile stats and exits.
 //! - [`stats`] - [`FrameStats`], the per-run [`RunMeta`], and the CSV/JSON
 //!   schema (writers + parsers) shared by the capture and the report.
-//! - [`report`] - renders parsed runs into one self-contained HTML report
-//!   (the `perf_report` bin is a thin CLI over it).
+//! - [`report`] - the shared HTML pieces (styles, frame-time chart and
+//!   table) the run report composes.
 //!
 //! ## Why measure this way
 //!
@@ -45,7 +45,7 @@
 //! ```
 //!
 //! Run it (needs a display; use the real GPU headless via `Xvfb`, or force the
-//! lavapipe software-raster floor - see `scripts/perf-baseline.sh`):
+//! lavapipe software-raster floor - see `probe run --render sw`):
 //!
 //! ```text
 //! Xvfb :95 -screen 0 1280x720x24 &
@@ -59,7 +59,7 @@
 //!
 //! Parameters come from [`perf_param`]: **native** reads env vars
 //! `NOVA_PERF_<UPPER>`; **wasm** reads the URL query `<name>` (so a browser drives
-//! it by URL - see `scripts/perf-web.sh`). The `NOVA_PERF_*` prefix predates the
+//! it by URL - see `probe run --platform web`). The `NOVA_PERF_*` prefix predates the
 //! crate rename and stays until the runner-CLI task redesigns the surface. The
 //! knobs:
 //!
@@ -90,7 +90,7 @@ pub mod invariants;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod recorder;
 // The unified run report reads the recorder's timeline, so it is native-only
-// with it (the run_report bin never builds for wasm).
+// with it (the probe bin's wasm build is a stub main).
 #[cfg(not(target_arch = "wasm32"))]
 pub mod run_report;
 #[cfg(target_arch = "wasm32")]
@@ -135,4 +135,7 @@ pub use recorder::{nova_timeline, probe_marker, RunRecorderPlugin};
 pub use recorder::{parse_timeline, ProbeTimeline, TimelineEvent};
 #[cfg(not(target_arch = "wasm32"))]
 pub use run_report::{evaluate_checks, Check, CheckStatus, RunArtifacts};
-pub use stats::{parse_frametime_csv, FrameStats, PerfRun, RunMeta, CSV_HEADER, CSV_HEADER_V1};
+pub use stats::{
+    append_frametime_row, parse_frametime_csv, parse_summary_line, FrameStats, PerfRun, RunMeta,
+    CSV_HEADER, CSV_HEADER_V1,
+};

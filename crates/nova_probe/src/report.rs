@@ -1,39 +1,18 @@
 //! HTML report rendering over a results directory: turns parsed [`PerfRun`]s
 //! into one self-contained `report.html` (inline CSS + inline SVG, no external
-//! assets, so it opens offline and attaches to a task or PR). The `perf_report`
-//! bin is a thin CLI over this module; it lives in the lib so the unified run
-//! report (task 20260719-112304) can grow around it.
+//! assets, so it opens offline). These are the SHARED pieces (styles, the
+//! frame-time chart and table) the unified run report composes; the
+//! standalone FPS renderer they once served retired with the perf_report
+//! bin (consolidation task 20260719-174603).
 //!
 //! Renderer identity: schema-v2 rows carry their own metadata (backend,
 //! adapter, git SHA - see [`crate::stats::RunMeta`]), which this renderer
 //! prefers; v1 rows (the v0.7.0 baseline) fall back to the results
 //! directory's name, the old convention (`gpu` / `sw` / `xgpu` / `web`).
 
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-};
+use std::collections::HashMap;
 
-use crate::stats::{parse_frametime_csv, PerfRun};
-
-/// Read and parse `<dir>/frametime.csv` into runs, mapping every failure to a
-/// message that names the file.
-pub fn read_runs(dir: &Path) -> Result<Vec<PerfRun>, String> {
-    let csv_path = dir.join("frametime.csv");
-    let contents = std::fs::read_to_string(&csv_path)
-        .map_err(|error| format!("could not read {}: {error}", csv_path.display()))?;
-    parse_frametime_csv(&contents).map_err(|error| format!("{}: {error}", csv_path.display()))
-}
-
-/// The fallback renderer label for v1 data: the results dir's own name (the
-/// sweep script names its out dirs `gpu` / `sw` / `xgpu` / `web`). Falls back
-/// to the full path when the dir has no file name (e.g. `.`).
-fn renderer_label(dir: &Path) -> String {
-    dir.file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .filter(|name| !name.is_empty() && name != ".")
-        .unwrap_or_else(|| dir.display().to_string())
-}
+use crate::stats::PerfRun;
 
 /// The renderer string shown for one run: its own metadata when known
 /// (schema v2), else the dir-derived fallback (v1 rows).
@@ -43,14 +22,6 @@ fn run_renderer(run: &PerfRun, fallback: &str) -> String {
     } else {
         fallback.to_string()
     }
-}
-
-/// The single value of `pick` across all runs when they agree and it is
-/// known, else `None`. Drives the header line: showing one backend/SHA is
-/// only honest when the whole sweep shares it.
-fn unanimous(runs: &[PerfRun], pick: impl Fn(&PerfRun) -> &str) -> Option<String> {
-    let first = pick(runs.first()?);
-    (first != "unknown" && runs.iter().all(|run| pick(run) == first)).then(|| first.to_string())
 }
 
 /// Split a run label into `(scene, preset)`. The sweep names runs
@@ -73,80 +44,6 @@ pub(crate) fn escape(text: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&#39;")
-}
-
-/// Render the whole self-contained HTML document.
-pub fn render_report(
-    results_dir: &Path,
-    runs: &[PerfRun],
-    baseline: Option<&(PathBuf, Vec<PerfRun>)>,
-) -> String {
-    let fallback = renderer_label(results_dir);
-    // Header renderer: the sweep's own metadata when unanimous (v2), else the
-    // dir-name convention (v1). The adapter and SHA join it when unanimous.
-    let renderer = match unanimous(runs, |run| &run.meta.backend) {
-        Some(backend) => match unanimous(runs, |run| &run.meta.adapter) {
-            Some(adapter) => format!("{backend} ({adapter})"),
-            None => backend,
-        },
-        None => fallback.clone(),
-    };
-    let sha = unanimous(runs, |run| &run.meta.git_sha);
-    let baseline_map: HashMap<&str, &PerfRun> = baseline
-        .map(|(_, base)| base.iter().map(|run| (run.label.as_str(), run)).collect())
-        .unwrap_or_default();
-
-    let mut html = String::new();
-    html.push_str("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n");
-    html.push_str("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
-    html.push_str(&format!(
-        "<title>nova perf report - {}</title>\n",
-        escape(&renderer)
-    ));
-    html.push_str(STYLE);
-    html.push_str("</head>\n<body>\n");
-
-    html.push_str("<h1>Frame-time report</h1>\n");
-    html.push_str("<p class=\"meta\">Source <code>");
-    html.push_str(&escape(&results_dir.display().to_string()));
-    html.push_str(&format!(
-        "</code> &middot; renderer <strong>{}</strong> &middot; {} run{}",
-        escape(&renderer),
-        runs.len(),
-        if runs.len() == 1 { "" } else { "s" }
-    ));
-    if let Some(sha) = &sha {
-        html.push_str(&format!(" &middot; git <code>{}</code>", escape(sha)));
-    }
-    if let Some((dir, _)) = baseline {
-        html.push_str(&format!(
-            " &middot; baseline <code>{}</code>",
-            escape(&dir.display().to_string())
-        ));
-    }
-    html.push_str("</p>\n");
-    html.push_str(
-        "<p class=\"note\">Frame times in milliseconds; lower is better. \
-         The budget line marks 16.6&nbsp;ms (60&nbsp;fps).</p>\n",
-    );
-
-    html.push_str("<h2>Mean frame time per run</h2>\n");
-    html.push_str(&render_chart(runs));
-
-    html.push_str("<h2>Runs</h2>\n");
-    html.push_str(&render_table(
-        runs,
-        &fallback,
-        &baseline_map,
-        baseline.is_some(),
-    ));
-
-    html.push_str(
-        "<footer>Generated by <code>nova_probe perf_report</code> \
-         over the capture harness's <code>frametime.csv</code>.</footer>\n",
-    );
-    html.push_str("</body>\n</html>\n");
-    html
 }
 
 /// Horizontal bar chart: one row per run, bar length = mean frame time, a tick
@@ -366,12 +263,6 @@ details summary { cursor: pointer; color: #555; }
 mod tests {
     use super::*;
 
-    fn fixture(name: &str) -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures")
-            .join(name)
-    }
-
     #[test]
     fn split_label_extracts_scene_and_preset() {
         assert_eq!(
@@ -406,88 +297,5 @@ mod tests {
         // No baseline (or zero baseline) is an em dash, not a divide-by-zero.
         assert!(delta_cell(None, 90.0).contains("&mdash;"));
         assert!(delta_cell(Some(0.0), 90.0).contains("&mdash;"));
-    }
-
-    #[test]
-    fn read_runs_parses_the_v1_fixture_dir() {
-        let runs = read_runs(&fixture("mini")).expect("fixture parses");
-        assert_eq!(runs.len(), 3);
-        assert_eq!(runs[0].label, "asteroid_field-high");
-        assert!((runs[0].stats.mean_ms - 126.5503).abs() < 1e-9);
-        assert!(runs.iter().all(|run| run.meta.is_unknown()));
-    }
-
-    #[test]
-    fn render_report_is_self_contained_and_shows_every_run() {
-        let dir = fixture("mini");
-        let runs = read_runs(&dir).expect("fixture parses");
-        let html = render_report(&dir, &runs, None);
-
-        // Self-contained: a real HTML doc with inlined CSS and inline SVG, no
-        // external stylesheet/script references.
-        assert!(html.starts_with("<!DOCTYPE html>"));
-        assert!(html.contains("<style>"));
-        assert!(html.contains("<svg"));
-        assert!(!html.contains("<link"));
-        assert!(!html.contains("src=\"http"));
-        assert!(!html.contains("<script"));
-
-        // Every run's label and a signature number appears.
-        for run in &runs {
-            assert!(html.contains(&run.label), "missing {}", run.label);
-        }
-        assert!(html.contains("126.55")); // asteroid_field-high mean
-        assert!(html.contains("166.71")); // broadside-high p99 (rounded)
-
-        // All fixture runs are well over the 16.6 ms budget -> flagged bars.
-        assert!(html.contains("bar over"));
-        // No baseline -> no delta columns.
-        assert!(!html.contains("&Delta;"));
-    }
-
-    #[test]
-    fn v1_report_falls_back_to_the_dir_name_renderer() {
-        // The v1 fixture has no metadata; renderer identity comes from the
-        // results dir's name ("mini"), the pre-metadata convention.
-        let dir = fixture("mini");
-        let runs = read_runs(&dir).expect("fixture parses");
-        let html = render_report(&dir, &runs, None);
-        assert!(html.contains("renderer <strong>mini</strong>"), "{html}");
-    }
-
-    #[test]
-    fn v2_report_prefers_the_rows_own_metadata() {
-        // The v2 fixture carries backend/adapter/sha metadata; the report must
-        // surface THAT, not the directory name.
-        let dir = fixture("mini-v2");
-        let runs = read_runs(&dir).expect("v2 fixture parses");
-        let html = render_report(&dir, &runs, None);
-        assert!(
-            html.contains("renderer <strong>vulkan (llvmpipe (LLVM 17.0.6  256 bits))</strong>"),
-            "{html}"
-        );
-        assert!(html.contains("git <code>f4bfb3af</code>"), "{html}");
-        // The per-run Renderer column shows the backend.
-        assert!(html.contains("<td title=\"llvmpipe (LLVM 17.0.6  256 bits)\">vulkan</td>"));
-        // The dir name must NOT be presented as the renderer.
-        assert!(!html.contains("renderer <strong>mini-v2</strong>"));
-    }
-
-    #[test]
-    fn render_report_with_baseline_shows_signed_deltas() {
-        let dir = fixture("mini");
-        let base_dir = fixture("mini-baseline");
-        let runs = read_runs(&dir).expect("fixture parses");
-        let base = read_runs(&base_dir).expect("baseline parses");
-        let html = render_report(&dir, &runs, Some(&(base_dir.clone(), base)));
-
-        // Delta columns exist.
-        assert!(html.contains("&Delta; mean"));
-        // asteroid_field-high: 126.55 vs 120.0 baseline -> slower -> worse.
-        assert!(html.contains("worse"));
-        // asteroid_field-low: 117.87 vs 130.0 baseline -> faster -> better.
-        assert!(html.contains("better"));
-        // broadside-high has no baseline row -> an em-dash delta cell.
-        assert!(html.contains("delta none"));
     }
 }

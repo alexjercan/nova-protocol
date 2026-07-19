@@ -338,6 +338,15 @@ single source of current state.)
   provisional OK/WARN/FAIL + reviewer checklist owning the final call.
   Absorbed 20260718-152230 closed. Real 10_playable e2e: OK, 0/1372
   violation frames. 48 tests.
+- 2026-07-19 consolidation (20260719-174603, CLOSED): the front door became
+  the WHOLE surface - probe run absorbed the sweep (matrix flags, --release,
+  --render sw) and the web capture (--platform web: trunk + embedded server
+  + calibrated chromium + scrape); probe report (manifest-gated) and probe
+  trace absorbed the run_report/perf_report/perf_trace bins; the three
+  perf .sh scripts deleted after live validation (sweep rows labeled
+  correctly at release opt; web 29.4 ms consistent with the v0.7.0
+  baseline). Hardening (20260719-174541) preceded it: manifest, fresh dirs,
+  timeout reports, NO_DATA/coverage verdicts.
 - 2026-07-19 T6 (20260719-112317, CLOSED): the front door shipped -
   `cargo run -p nova_probe -- run <example>` (default-run) orchestrates
   clean pass + optional --profile/--samply + the report in-process;

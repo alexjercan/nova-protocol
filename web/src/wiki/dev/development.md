@@ -203,9 +203,12 @@ It runs the example headless (throwaway Xvfb; `--display :0` to reuse yours),
 captures the run timeline + continuous invariants + the log into
 `probe-runs/<example>/`, optionally adds the profiled and samply passes
 (separate builds - tracing overhead never touches the clean numbers), and
-renders `report.html` + `checks.json` with a provisional OK/WARN/FAIL the
-reviewer confirms. `probe sweep|web|profile` are the same front door for the
-frame-time sweep and deep-profile scripts below.
+renders `report.html` + `checks.json` with a provisional
+OK/WARN/FAIL/NO_DATA the reviewer confirms. Every run dir carries a
+`probe-run.json` manifest (identity, passes, outcomes); `probe report` only
+re-renders dirs that have one. (`probe sweep|web|profile` are deprecated
+aliases from the retired perf scripts - they map onto the `run` flags
+below.)
 
 Under the hood: an env-gated capture plugin drives the real gameplay app to
 `Playing`, warms up, records the wall-clock delta of every frame for a fixed
@@ -213,40 +216,26 @@ window, and writes percentile stats. It is inert unless `NOVA_PERF` is set, so
 `20_perf_baseline` can carry it permanently. See the crate docs for the full
 knob list (`NOVA_PERF_*`).
 
-The sweep script builds the example once and runs it across the heavy scenes x
-graphics presets, writing one `<label>.json` per run plus an aggregated
-`frametime.csv` into a results dir:
+The perf sweep is the same front door: a scenario x preset matrix of the
+frame-time capture, one labeled `frametime.csv` row per cell, release-built
+(dev-profile frame numbers are not baselines):
 
 ```sh
-scripts/perf-baseline.sh gpu               # real GPU, headless Xvfb (default)
-scripts/perf-baseline.sh sw                # lavapipe software-raster floor
-REPORT=1 scripts/perf-baseline.sh gpu      # + render an HTML report at the end
+cargo run -p nova_probe -- run 20_perf_baseline --fps --release \
+  --scenario asteroid_field --scenario broadside --preset high --preset low
+cargo run -p nova_probe -- run 20_perf_baseline --fps --release --render sw ...  # lavapipe floor
+cargo run -p nova_probe -- run <scenario> --platform web   # web/WebGPU capture (scraped)
 ```
 
-`perf_report` turns a results dir into one self-contained HTML report (inline
-CSS + inline SVG, opens offline, attachable to a task/PR): per scene x preset it
-shows frame count and window, mean and p50/p95/p99/p999/max frame times, the
-derived mean / 1%-low FPS, a bar chart (mean bar + p99 marker, one common scale,
-a 60 fps budget line), and - against a baseline dir - per-run deltas so a
-regression is obvious:
-
-```sh
-cargo run -p nova_probe --bin perf_report -- <results-dir>            # -> <results-dir>/report.html
-cargo run -p nova_probe --bin perf_report -- <new-dir> --baseline <old-dir> -o report.html
-```
-
-Every capture also records run metadata - wgpu backend + GPU adapter,
-resolution, graphics preset, git SHA and host - so a results file names its own
-renderer and the report shows it (pre-metadata result files, like the v0.7.0
-baseline, still load; their renderer falls back to the results dir's name).
-
-The report reads only the aggregated `frametime.csv` (schema
-`nova_probe::CSV_HEADER`), so the reader and the capture writer share one column
-contract; a fixture-rendered test (`crates/nova_probe/tests/fixtures/`) pins it.
-
-The web target captures the same way through Trunk; `scripts/perf-web.sh` drives
-the wasm build under headless Chromium and scrapes the summary line (no fs in the
-browser).
+Every capture records run metadata (wgpu backend + GPU adapter, resolution,
+graphics preset, git SHA and host) so a results file names its own renderer
+(pre-metadata files, like the v0.7.0 baseline, still load). The web platform
+builds the perf_web wasm app through Trunk, serves it from an embedded static
+server, drives headless Chromium with the calibrated WebGPU flags, and
+scrapes the summary line into a labeled CSV row (no fs in the browser).
+Compare runs with `probe report <after> --baseline <before>` - signed deltas
+per label - and `report` only accepts dirs probe itself produced
+(`probe-run.json` is the gate).
 
 ### Run timeline (correctness recording)
 
@@ -278,7 +267,7 @@ optional) - into a self-contained `report.html` plus a machine-readable
 `checks.json`:
 
 ```sh
-cargo run -p nova_probe --bin run_report -- <run-dir> [--baseline <old-run-dir>]
+cargo run -p nova_probe -- report <run-dir> [--baseline <old-run-dir>]
 ```
 
 Auto checks produce a provisional OK/WARN/FAIL/NO_DATA (process exit from
@@ -299,14 +288,15 @@ frame times, so a profiled run RANKS systems while the clean capture owns the
 FPS truth (never mix the two):
 
 ```sh
-scripts/perf-profile.sh 08_scenario          # trace.json + top-systems.md
-SAMPLY=1 scripts/perf-profile.sh 08_scenario # + a samply flamegraph profile
+cargo run -p nova_probe -- run 08_scenario --profile          # trace + report table
+cargo run -p nova_probe -- run 08_scenario --profile --samply # + flamegraph
 ```
 
-The script builds the example with `--features debug,trace` (bevy's
-per-system spans are compiled in only under `bevy/trace`), runs it headless
-with `TRACE_CHROME=<out>` (bevy's chrome-trace writer), and renders the
-top-N table with `cargo run -p nova_probe --bin perf_trace`. Open the raw
+The profiled pass builds with `--features debug,trace` (bevy's per-system
+spans are compiled in only under `bevy/trace`), runs headless with
+`TRACE_CHROME` into the run dir (plus the `RUST_LOG=bevy_ecs=info` override
+that un-hides the spans from the game's log filter), and the report renders
+the top-N table (`probe trace <trace.json>` for a standalone one). Open the raw
 `trace.json` in https://ui.perfetto.dev for the full picture; `samply load`
 opens the flamegraph in the Firefox Profiler (the samply run is skipped with
 a note when samply is missing or blocked - sampling needs

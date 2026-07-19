@@ -21,21 +21,31 @@ cargo run -p nova_probe -- run <example> --profile    # + traced pass (top-N sys
 cargo run -p nova_probe -- run <example> --samply     # + named flamegraph
 cargo run -p nova_probe -- run <example> --fps        # + frame-time capture (wired examples)
 cargo run -p nova_probe -- run <example> --baseline <old-run-dir>   # FPS deltas
-cargo run -p nova_probe -- sweep [gpu|sw] [out]       # frame-time sweep (perf-baseline.sh)
-cargo run -p nova_probe -- web [scenario]             # web/WebGPU capture (perf-web.sh)
-cargo run -p nova_probe -- profile [example] [out]    # deep profile (perf-profile.sh)
+cargo run -p nova_probe -- run 20_perf_baseline --fps --release \
+  --render gpu --scenario asteroid_field --preset high --preset low  # perf sweep (matrix)
+cargo run -p nova_probe -- run <scenario> --platform web  # web/WebGPU frame capture
+cargo run -p nova_probe -- report <run-dir> [--baseline <dir>]  # re-render (manifest-gated)
+cargo run -p nova_probe -- trace <trace.json> [--top N]         # top-N systems table
 ```
 
-Also standalone: `--bin run_report -- <run-dir> [--baseline <dir>]` re-renders
-a report over any run dir (a sweep out-dir qualifies), `--bin perf_report` for
-FPS-only results dirs, `--bin perf_trace` for a chrome-trace top-N table.
+`report` REFUSES dirs without `probe-run.json` - a report can only be built
+from a dir probe itself produced, so stale hand-assembled folders cannot
+impersonate a run. The old `sweep|web|profile` subcommands are deprecated
+aliases that map onto `run` flags (the perf .sh scripts are gone); sweeps
+run with `--release` (dev-profile frame numbers are not baselines) and
+`--render sw` gives the lavapipe software floor.
 
-`run` writes to `probe-runs/<example>/` (gitignored): `timeline.jsonl`,
-`run.log`, `report.html`, `checks.json`, plus `trace.json`/`trace-run.log`
-(--profile), `samply-profile.json.gz` (--samply), `frametime.csv` (--fps on a
-wired example). Exit code mirrors the verdict (FAIL = 1). It spawns its own
-Xvfb (pid-derived display; `--display :0` to reuse one) and times out hung
-runs (`--timeout <s>`, default 180).
+`run` writes to `probe-runs/<example>/` (gitignored), SURGICALLY CLEANED of
+probe's own artifacts at start (nothing stale survives into a report):
+`probe-run.json` (the manifest: identity, passes, exit/timeout outcomes),
+`timeline.jsonl`, `run.log` (or `run-<n>.log` per sweep cell),
+`report.html`, `checks.json`, plus `trace.json`/`trace-run.log` (--profile),
+`samply-profile.json.gz` (--samply), `frametime.csv` (--fps on a wired
+example, or the sweep/web captures), `web-run.log` (--platform web). Exit
+code mirrors the verdict (FAIL and NO_DATA = 1). It spawns its own Xvfb
+(pid-derived display; `--display :0` to reuse one) and times out hung runs
+(`--timeout <s>`, default 180) - a timed-out run still produces a FAILing
+report.
 
 ## Reading the verdict (the honesty rules)
 
@@ -74,10 +84,10 @@ runs (`--timeout <s>`, default 180).
   probe again after; cite both in TASK.md. Strict invariants
   (`NOVA_PERF_INVARIANTS=strict` on a manual run) panic at the moment of
   corruption when you need the exact frame.
-- **Perf tasks (measure first)**: `sweep` before and after the change into
-  separate dirs, then `run_report -- <after> --baseline <before>` for the
-  delta table. Use `--profile` (or the `profile` subcommand + samply) to
-  RANK suspects before optimizing anything; the ledger's perf lessons
+- **Perf tasks (measure first)**: run the sweep matrix before and after the
+  change into separate run dirs, then `probe report <after> --baseline
+  <before>` for the delta table. Use `--profile` (+ `--samply`) to RANK
+  suspects before optimizing anything; the ledger's perf lessons
   (quiet-host-before-measuring, isolate-the-lever) still apply.
 - **/review**: when the implementer cites a probe verdict, open checks.json
   and read `measured` first, then the SKIPPED rows - what was NOT measured

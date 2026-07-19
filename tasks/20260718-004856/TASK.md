@@ -22,7 +22,8 @@ combat slice. Likely a defer after confirming the cause.
 ## Steps
 
 - [ ] Reproduce broadside-high on the Xvfb GPU rig
-      (`scripts/perf-baseline.sh gpu`) and confirm the tail is
+      (`probe run 20_perf_baseline --fps --release --scenario broadside
+      --preset high`) and confirm the tail is
       stable/repeatable across 3+ runs (if it moves or vanishes, it is noise:
       document and close).
 - [ ] Trace the spike frame (Bevy frame-time diagnostics or a targeted span)

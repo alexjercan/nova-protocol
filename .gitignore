@@ -18,7 +18,8 @@ screenshot.png
 # builds via credits/, not committed (cargo-about output is not byte-stable).
 credits/THIRD-PARTY-LICENSES.md
 
-# perf_web wasm build output (scripts/perf-web.sh)
+# perf_web wasm build output (probe run --platform web builds into target/,
+# this covers the old script's root-level dir)
 /dist-perf
 
 # Byte-compiled / optimized / DLL files

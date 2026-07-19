@@ -65,7 +65,7 @@ lto = true
 codegen-units = 1
 strip = true
 
-# Profile for the samply flamegraph pass (scripts/perf-profile.sh): full DWARF
+# Profile for the samply flamegraph pass (probe run --samply): full DWARF
 # kept IN the binary so samply can symbolicate every frame of our code - the
 # dev profile's line-tables-only + unpacked split (above) starves the
 # symbolicator and leaves flamegraphs full of raw addresses. The RAM concern
@@ -98,7 +98,7 @@ embed-resource = "1"
 [features]
 debug = ["nova_core/debug", "bevy/track_location"]
 dev = ["debug"]
-# The PROFILED pass (scripts/perf-profile.sh): bevy's per-system spans are
+# The PROFILED pass (probe run --profile): bevy's per-system spans are
 # compiled in only under bevy/trace, and bevy/trace_chrome adds the chrome-
 # trace writer (output path via the TRACE_CHROME env var). Tracing overhead
 # contaminates frame times, so never combine a trace build with an FPS

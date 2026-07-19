@@ -24,7 +24,10 @@
 //! child spans overlap - T4 R1.2); a truncated timeline IS the crash
 //! signal (flush-per-entry made it so - T2).
 
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     profile::{aggregate_system_costs, SystemCost},
@@ -145,10 +148,6 @@ impl RunManifest {
             passes,
         })
     }
-
-    fn pass(&self, name: &str) -> Option<&PassRecord> {
-        self.passes.iter().find(|p| p.name == name)
-    }
 }
 
 /// Everything a run directory yielded (each artifact optional).
@@ -191,7 +190,37 @@ impl RunArtifacts {
         let costs = read_opt("trace.json")?
             .map(|s| aggregate_system_costs(&s).map_err(|e| format!("trace.json: {e}")))
             .transpose()?;
-        let log = read_opt("run.log")?;
+        // The game's logs: run.log (single run) plus run-<n>.log (sweep
+        // cells), concatenated in cell order. web-run.log stays OUT - it is
+        // chromium's own output, not the game's.
+        let mut log_parts: Vec<String> = Vec::new();
+        if let Some(main_log) = read_opt("run.log")? {
+            log_parts.push(main_log);
+        }
+        let mut cell_logs: Vec<PathBuf> = std::fs::read_dir(dir)
+            .map(|entries| {
+                entries
+                    .filter_map(|e| e.ok().map(|e| e.path()))
+                    .filter(|p| {
+                        p.file_name()
+                            .and_then(|n| n.to_str())
+                            .is_some_and(|n| n.starts_with("run-") && n.ends_with(".log"))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        cell_logs.sort();
+        for path in cell_logs {
+            log_parts.push(
+                std::fs::read_to_string(&path)
+                    .map_err(|e| format!("could not read {}: {e}", path.display()))?,
+            );
+        }
+        let log = if log_parts.is_empty() {
+            None
+        } else {
+            Some(log_parts.join("\n"))
+        };
         let manifest = read_opt("probe-run.json")?
             .map(|s| RunManifest::from_json(&s))
             .transpose()?;
@@ -320,46 +349,77 @@ pub fn evaluate_checks(artifacts: &RunArtifacts) -> Vec<Check> {
     let mut checks = Vec::new();
     let manifest = artifacts.manifest.as_ref();
 
-    // process_exit: the child's actual outcome, from the manifest. For the
-    // harnessed examples this is real correctness evidence on its own -
-    // their autopilot assertions panic on failure, so a clean exit means
-    // the example's own contract held. SKIPPED only for foreign dirs.
-    checks.push(match manifest.and_then(|m| m.pass("clean")) {
+    // process_exit: the children's actual outcomes, from the manifest -
+    // ALL primary passes count (a sweep runs one clean pass per matrix
+    // cell; the web platform runs a web pass), and the worst outcome wins.
+    // For harnessed examples this is real correctness evidence on its own:
+    // their autopilot assertions panic on failure. SKIPPED only for
+    // foreign dirs. The profiled/samply passes are auxiliary and excluded
+    // (their failures degrade to missing artifacts by design).
+    checks.push(match manifest {
         None => Check {
             name: "process_exit",
             status: CheckStatus::Skipped,
             value: "no manifest".into(),
-            threshold: "clean pass exits success, untimed".into(),
+            threshold: "every primary pass exits success, untimed".into(),
             detail: "no probe-run.json - this dir was not produced by probe run".into(),
             data: serde_json::Value::Null,
         },
-        Some(pass) if pass.timed_out => Check {
-            name: "process_exit",
-            status: CheckStatus::Fail,
-            value: "timed out".into(),
-            threshold: "clean pass exits success, untimed".into(),
-            detail: "the runner killed a hung clean pass; the timeline below ends where it died"
-                .into(),
-            data: serde_json::json!({ "success": false, "timed_out": true }),
-        },
-        Some(pass) if !pass.success => Check {
-            name: "process_exit",
-            status: CheckStatus::Fail,
-            value: "non-zero exit".into(),
-            threshold: "clean pass exits success, untimed".into(),
-            detail:
-                "the example's own harness failed (assertion panic or error exit) - read run.log"
-                    .into(),
-            data: serde_json::json!({ "success": false, "timed_out": false }),
-        },
-        Some(_) => Check {
-            name: "process_exit",
-            status: CheckStatus::Pass,
-            value: "clean exit".into(),
-            threshold: "clean pass exits success, untimed".into(),
-            detail: "the example's own autopilot assertions all held".into(),
-            data: serde_json::json!({ "success": true, "timed_out": false }),
-        },
+        Some(m) => {
+            let primary: Vec<&PassRecord> = m
+                .passes
+                .iter()
+                .filter(|p| p.name.starts_with("clean") || p.name == "web")
+                .collect();
+            let failed: Vec<&&PassRecord> = primary
+                .iter()
+                .filter(|p| !p.success || p.timed_out)
+                .collect();
+            let data = serde_json::json!({
+                "primary_passes": primary.len(),
+                "failed": failed.iter().map(|p| serde_json::json!({
+                    "name": p.name, "timed_out": p.timed_out,
+                })).collect::<Vec<_>>(),
+            });
+            if primary.is_empty() {
+                Check {
+                    name: "process_exit",
+                    status: CheckStatus::Skipped,
+                    value: "no primary passes recorded".into(),
+                    threshold: "every primary pass exits success, untimed".into(),
+                    detail: "the manifest lists no clean/web passes".into(),
+                    data,
+                }
+            } else if failed.is_empty() {
+                Check {
+                    name: "process_exit",
+                    status: CheckStatus::Pass,
+                    value: format!("{} pass(es), all clean exits", primary.len()),
+                    threshold: "every primary pass exits success, untimed".into(),
+                    detail: "every run's own assertions held".into(),
+                    data,
+                }
+            } else {
+                let names: Vec<String> = failed
+                    .iter()
+                    .map(|p| {
+                        format!(
+                            "{}{}",
+                            p.name,
+                            if p.timed_out { " (timed out)" } else { "" }
+                        )
+                    })
+                    .collect();
+                Check {
+                    name: "process_exit",
+                    status: CheckStatus::Fail,
+                    value: format!("{}/{} pass(es) failed", failed.len(), primary.len()),
+                    threshold: "every primary pass exits success, untimed".into(),
+                    detail: format!("failed: {} - read the matching log", names.join(", ")),
+                    data,
+                }
+            }
+        }
     });
 
     // Skip-detail helper: "not captured" means different things depending
@@ -890,8 +950,8 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
     html.push_str("<h2>Performance</h2>\n");
     match &artifacts.runs {
         None => html.push_str(
-            "<p>No frame-time capture in this run dir - the CLEAN pass \
-             (scripts/perf-baseline.sh, no tracing) produces frametime.csv.</p>\n",
+            "<p>No frame-time capture in this run dir - probe run --fps (a \
+             wired example) or the sweep matrix flags produce frametime.csv.</p>\n",
         ),
         Some(runs) => {
             html.push_str(&render_chart(runs));
@@ -913,9 +973,8 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
     html.push_str("<h2>Profile</h2>\n");
     match &artifacts.costs {
         None => html.push_str(
-            "<p>No trace in this run dir - the PROFILED pass \
-             (scripts/perf-profile.sh) produces trace.json; open it in \
-             Perfetto for the deep dive.</p>\n",
+            "<p>No trace in this run dir - probe run --profile produces \
+             trace.json; open it in Perfetto for the deep dive.</p>\n",
         ),
         Some(costs) => {
             html.push_str(
@@ -1269,7 +1328,11 @@ mod tests {
         let checks = evaluate_checks(&artifacts);
         let c = check(&checks, "process_exit");
         assert_eq!(c.status, CheckStatus::Fail);
-        assert!(c.value.contains("timed out"), "{c:?}");
+        // The all-passes shape: the count in value, the names + timeout
+        // markers in detail/data.
+        assert!(c.value.contains("1/1 pass(es) failed"), "{c:?}");
+        assert!(c.detail.contains("clean (timed out)"), "{c:?}");
+        assert_eq!(c.data["failed"][0]["timed_out"], true);
         // ...and the verdict is FAIL even though everything else skipped
         // (a hung run must produce a failing report, finding 2).
         assert_eq!(overall_verdict(&checks), "FAIL");

@@ -19,25 +19,8 @@ path = "src/lib.rs"
 name = "perf_web"
 path = "src/bin/perf_web.rs"
 
-# Turns a perf-baseline.sh results dir (frametime.csv) into one self-contained
-# HTML report. Pure reporting over the capture output: it only uses the lib's
-# CSV parser (nova_probe::parse_frametime_csv), but lives in this crate so the
-# reader and the writer share one schema definition.
-[[bin]]
-name = "perf_report"
-path = "src/bin/perf_report.rs"
 
-# Renders the top-N costliest-systems table from a chrome-trace JSON (the
-# profiled pass; scripts/perf-profile.sh drives it end to end).
-[[bin]]
-name = "perf_trace"
-path = "src/bin/perf_trace.rs"
 
-# Assembles a run directory's artifacts (timeline, frametime, trace, log)
-# into the unified run report: report.html + checks.json.
-[[bin]]
-name = "run_report"
-path = "src/bin/run_report.rs"
 
 # The front door: `probe run <example>` orchestrates the passes and the
 # report; sweep/web/profile wrap the perf scripts.

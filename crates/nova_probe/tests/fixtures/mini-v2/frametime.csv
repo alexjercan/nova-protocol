@@ -1,3 +1,0 @@
-label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_ms,p99_ms,p999_ms,mean_fps,one_pct_low_fps,backend,adapter,resolution,quality,git_sha,host
-asteroid_field-high,120,126.5503,96.6889,166.1786,125.4380,152.8573,164.2634,166.1786,7.90,6.09,vulkan,llvmpipe (LLVM 17.0.6  256 bits),1280x720,high,f4bfb3af,devbox
-broadside-low,120,98.8898,72.3828,133.8965,98.2504,118.7390,133.2727,133.8965,10.11,7.50,vulkan,llvmpipe (LLVM 17.0.6  256 bits),1280x720,low,f4bfb3af,devbox

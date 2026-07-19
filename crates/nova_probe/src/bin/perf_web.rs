@@ -7,7 +7,7 @@
 //! logged to the console (`nova perf: label=...`) - on web there is no
 //! filesystem, so a browser driver scrapes that console line.
 //!
-//! Built for web via `scripts/perf-web.sh` / `perf.html`; no `debug` feature
+//! Built for web via `probe run --platform web` / `perf.html`; no `debug` feature
 //! needed (the harness lives in this crate, `nova_probe`, not `nova_debug`).
 //!
 //! Query/env params (all optional): `scenario`, `quality` (low|medium|high),

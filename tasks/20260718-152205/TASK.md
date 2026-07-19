@@ -27,7 +27,8 @@ depth. Headline of the v0.8.0 docs strand.
       tool and script, with the exact command and one-line purpose:
   - [ ] content CLI: `cargo run -p nova_assets --bin content -- gen|lint|audit`
         (and `lint --target <mod>`)
-  - [ ] perf: `scripts/perf-baseline.sh`, `scripts/perf-web.sh`, and the new
+  - [ ] perf + run verification: the probe front door (`cargo run -p
+        nova_probe -- run|report|trace`; sweeps, web capture, and the new
         HTML report bin (20260718-152230)
   - [ ] `nova_meta_gen`, `nova_portal_gen` (or their Python successors once
         20260718-152247 / 20260718-152255 land - keep this section in sync)
