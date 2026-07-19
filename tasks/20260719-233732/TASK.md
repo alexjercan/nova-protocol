@@ -83,3 +83,11 @@ gets reported honestly.
   complete).
 - trace.json confirmed present for all three - the profile section was
   never affected; only the frame capture is all-or-nothing.
+
+## Note (2026-07-19, post-filing)
+
+Spike 20260719-235305 now owns the ARCHITECTURE here (harness completion
+protocol + scene looping); this task re-scopes after the spike's
+adjudication - part 1 (partial emit) shrinks to the deadline safety net
+plus the diagnostic skip messages, part 2 (category window defaults)
+stays as ergonomics. Do not start this task before the spike lands.
