@@ -212,7 +212,7 @@ impl ProbeTimeline {
 
     /// Append one entry and FLUSH it, so a panic a frame later cannot lose
     /// it - a truncated run's timeline is the debugging artifact.
-    fn record(&mut self, entry: TimelineEvent) {
+    pub(crate) fn record(&mut self, entry: TimelineEvent) {
         let line = entry.to_json_line();
         if let Err(error) = writeln!(self.sink, "{line}").and_then(|()| self.sink.flush()) {
             warn!("nova probe: timeline write failed: {error}");
@@ -222,7 +222,7 @@ impl ProbeTimeline {
 }
 
 /// The (t_real, frame, scenario_elapsed) stamp for a new entry.
-fn stamp(
+pub(crate) fn stamp(
     time: &Time<Real>,
     frame: &FrameCount,
     scenario: Option<&NovaEventWorld>,
@@ -346,7 +346,7 @@ fn record_game_event(
 /// `variable` entry per change (old/new; a removed variable records
 /// `new: null`). Mirrors the engine's own write-on-diff logging: the
 /// every-frame `scenario_elapsed` clock is excluded, everything else counts.
-fn record_variable_changes(
+pub(crate) fn record_variable_changes(
     scenario: Option<Res<NovaEventWorld>>,
     time: Res<Time<Real>>,
     frame: Res<FrameCount>,

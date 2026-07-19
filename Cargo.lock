@@ -4716,6 +4716,7 @@ dependencies = [
 name = "nova_probe"
 version = "0.7.0"
 dependencies = [
+ "avian3d",
  "bevy",
  "nova-protocol",
  "nova_gameplay",

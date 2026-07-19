@@ -25,6 +25,9 @@ name = "perf_report"
 path = "src/bin/perf_report.rs"
 
 [dependencies]
+# The invariant checks read avian's LinearVelocity directly (same pinned
+# version the whole workspace resolves).
+avian3d = { version = "0.7" }
 bevy = { version = "0.19.0" }
 # The capture plugin reads GameStates / WeaponsHot / PlayerSpaceshipMarker and
 # tops up Health (re-exported by nova_gameplay, so the bcs version stays unified).

@@ -14,6 +14,7 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- Continuous invariant checks in `nova_probe`: arm with `NOVA_PERF_INVARIANTS=1` (or `=strict` to panic at the moment of corruption) and every frame asserts engine guarantees - health bounds, velocity finiteness plus an absurd-speed bound, scenario-variable finiteness, opt-in monotonic variables, and an entity-count leak bound. Violations warn and land on the run timeline; the run report's `invariants held` check reads the tally.
 - New run-timeline recorder in `nova_probe`: arm any wired autopilot example with `NOVA_PERF_TIMELINE=<out.jsonl>` and the run records an ordered JSONL timeline - state transitions, every fired scenario event with payload, scenario-variable changes (old/new) and the script's own beat markers - flushed per entry so a panicked run keeps everything up to the panic. The correctness half of the run-harness; 10_playable is the worked example.
 - bevy_common_systems 0.19.1 -> 0.19.2: `GameEvent` gained public read accessors (`name()`/`info()`) so external observers (the run recorder) can see events pass by without touching the dispatch queue.
 - New `perf_report` dev tool: turns a `perf-baseline.sh` results dir (`frametime.csv`) into one self-contained HTML report - per-run frame-time percentiles, an SVG bar chart with p99 marks and a 60 fps budget line, and signed deltas against a baseline dir (`REPORT=1 scripts/perf-baseline.sh` renders it after a sweep).

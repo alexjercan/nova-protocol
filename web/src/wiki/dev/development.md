@@ -250,6 +250,16 @@ var. It is the correctness half of the run-harness the perf capture is the
 performance half of; the unified run report (task 20260719-112304) renders
 both.
 
+Continuous INVARIANTS ride the same stream: set `NOVA_PERF_INVARIANTS=1` (or
+`=strict` to panic on the first violation) on a wired example and every frame
+asserts what the engine guarantees - health within `0..=max` and finite,
+velocities finite (plus an absurd-speed bound at 10x a ship's soft
+`FlightSpeedCap`), scenario Number variables finite, registered monotonic
+variables never decreasing (opt-in per example: 10_playable registers
+`target_down`/`leg`, 08_scenario `beat`/`rocks_destroyed`), and a total
+entity-count leak bound. Violations warn, land on the timeline as
+`kind: "invariant"` entries, and feed the report's `invariants held` check.
+
 ## Versioning and release
 
 - Version: `workspace.package.version` in root `Cargo.toml`; crates inherit it.

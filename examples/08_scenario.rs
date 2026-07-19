@@ -58,6 +58,10 @@ fn main() {
         // this example exercises the whole scenario language, so its recorded
         // timeline doubles as the recorder's stability probe.
         app.add_plugins(nova_probe::nova_timeline());
+        // Continuous invariants (inert unless NOVA_PERF_INVARIANTS is set):
+        // the beat gate and the destruction tally only ever advance in this
+        // scenario's design.
+        app.add_plugins(nova_probe::nova_invariants().monotonic(["beat", "rocks_destroyed"]));
     }
 
     app.run();

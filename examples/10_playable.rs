@@ -65,6 +65,10 @@ fn main() {
         // armed run reads "raise -> sweep -> fire -> ... -> done" in the same
         // JSONL stream as the scenario's own events and variables.
         app.add_plugins(nova_probe::nova_timeline());
+        // Continuous invariants (inert unless NOVA_PERF_INVARIANTS is set):
+        // target_down and leg are one-way latches in this scenario's design
+        // (0 -> 1 on kill / lock), so a decrease is a real regression.
+        app.add_plugins(nova_probe::nova_invariants().monotonic(["target_down", "leg"]));
     }
 
     app.run();

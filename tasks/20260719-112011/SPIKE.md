@@ -313,3 +313,10 @@ single source of current state.)
   identical across same-host runs (order+names+values); per-frame onupdate
   pulse varies by design; cross-host still unmeasured - the golden task's
   entry gate is half-met. 27 tests; details in the task's Close-out.
+- 2026-07-19 T3 (20260719-114931, CLOSED): continuous invariants shipped -
+  nova_invariants() (NOVA_PERF_INVARIANTS; strict panics): health bounds,
+  velocity finiteness + 10x soft-cap absurdity bound, variable finiteness,
+  OPT-IN monotonic variables (both examples register theirs), entity leak
+  bound. Violations warn + ride the timeline (kind "invariant");
+  InvariantState tallies for T5's `invariants held` check. E2E armed
+  10_playable: zero violations over the full window. 35 tests.
