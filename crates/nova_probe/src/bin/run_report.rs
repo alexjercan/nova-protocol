@@ -21,7 +21,7 @@ use std::{path::PathBuf, process::ExitCode};
 
 #[cfg(not(target_arch = "wasm32"))]
 use nova_probe::run_report::{
-    checks_json, evaluate_checks, overall_verdict, render_run_report, RunArtifacts,
+    checks_json, evaluate_checks, overall_verdict, print_checks, render_run_report, RunArtifacts,
 };
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -83,7 +83,7 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
     let json_path = run_dir.join("checks.json");
-    let json = format!("{:#}\n", checks_json(&checks));
+    let json = format!("{:#}\n", checks_json(&checks, artifacts.manifest.as_ref()));
     if let Err(error) = std::fs::write(&json_path, json) {
         eprintln!(
             "run_report: could not write {}: {error}",
@@ -97,15 +97,10 @@ fn main() -> ExitCode {
         html_path.display(),
         json_path.display()
     );
-    for check in &checks {
-        println!(
-            "  {:22} {:8} {}",
-            check.name,
-            format!("{:?}", check.status).to_uppercase(),
-            check.value
-        );
-    }
-    if verdict == "FAIL" {
+    print_checks(&checks);
+    // NO_DATA exits non-zero too: an agent must never mistake an
+    // evidence-free dir for a passing run.
+    if verdict == "FAIL" || verdict == "NO_DATA" {
         ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS

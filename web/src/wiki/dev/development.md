@@ -281,12 +281,16 @@ optional) - into a self-contained `report.html` plus a machine-readable
 cargo run -p nova_probe --bin run_report -- <run-dir> [--baseline <old-run-dir>]
 ```
 
-Auto checks produce a provisional OK/WARN/FAIL (run completed, invariants
-held, FPS vs baseline within a soft gate, log scan); missing artifacts are
-SKIPPED - "not measured", never "held". FPS regressions only ever WARN
-(frame numbers are host-noisy), and the report ends with a reviewer
-checklist: the final OK/NOT-OK is a human's or an agent's call, off
-`checks.json` without parsing HTML.
+Auto checks produce a provisional OK/WARN/FAIL/NO_DATA (process exit from
+the run manifest, run completed, reached Playing, invariants held, FPS vs
+baseline as a soft gate, log scan); missing artifacts are SKIPPED - "not
+measured", never "held" - and `checks.json` pairs the verdict with a
+`measured: n/total` figure plus per-check structured data. Zero evidence is
+NO_DATA (nonzero exit), FPS improvements PASS (only regressions WARN -
+frame numbers are host-noisy), a hung run is killed and still produces a
+FAILing report, and the report ends with a reviewer checklist: the final
+OK/NOT-OK is a human's or an agent's call, off `checks.json` without
+parsing HTML.
 
 ### Profiled pass (where does the time go)
 

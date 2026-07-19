@@ -36,7 +36,8 @@ mod native {
     };
 
     use nova_probe::run_report::{
-        checks_json, evaluate_checks, overall_verdict, render_run_report, RunArtifacts,
+        checks_json, evaluate_checks, overall_verdict, print_checks, render_run_report,
+        run_identity, PassRecord, RunArtifacts, RunManifest,
     };
 
     pub const USAGE: &str = "\
@@ -174,6 +175,14 @@ usage: probe <subcommand>
         if fps {
             env.push(("NOVA_PERF".into(), "1".into()));
             env.push(("NOVA_PERF_OUT".into(), out.display().to_string()));
+            // Label rows by the example so probe-vs-probe baselines match
+            // (the capture's default label "scene" matches nothing).
+            env.push((
+                "NOVA_PERF_LABEL".into(),
+                out.file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "scene".into()),
+            ));
         }
         env
     }
@@ -212,11 +221,12 @@ usage: probe <subcommand>
     }
 
     /// The throwaway-Xvfb display for this process: pid-derived so two
-    /// concurrent `probe run`s get distinct servers (:90-:99; a ten-way
-    /// pid collision is possible but vanishingly unlikely for a dev tool -
+    /// concurrent `probe run`s get distinct servers. The :80-:89 band stays
+    /// clear of the perf scripts' hardcoded :94/:95 (a ten-way pid
+    /// collision is possible but vanishingly unlikely for a dev tool -
     /// pass --display to pin one explicitly).
     pub fn default_display() -> String {
-        format!(":{}", 90 + std::process::id() % 10)
+        format!(":{}", 80 + std::process::id() % 10)
     }
 
     /// Use the explicit display, or spawn a throwaway Xvfb on a private one.
@@ -225,13 +235,21 @@ usage: probe <subcommand>
             return Ok((display.to_string(), None));
         }
         let display = default_display();
-        let child = Command::new("Xvfb")
+        let mut child = Command::new("Xvfb")
             .args([display.as_str(), "-screen", "0", "1280x720x24"])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
             .map_err(|e| format!("could not start Xvfb (is it installed?): {e}"))?;
         std::thread::sleep(Duration::from_secs(2));
+        // A dead child here means the display is taken (or Xvfb refused);
+        // running the example against it would fail confusingly later.
+        if let Ok(Some(status)) = child.try_wait() {
+            return Err(format!(
+                "Xvfb on {display} exited immediately ({status}) - display in use? \
+                 pass --display to pin a free one"
+            ));
+        }
         Ok((display, Some(XvfbGuard(child))))
     }
 
@@ -266,22 +284,43 @@ usage: probe <subcommand>
         Ok(())
     }
 
-    /// Run the built example with `env`, capturing stdout+stderr to
-    /// `log_path`, killing it after `timeout` (a hung run must not wedge the
-    /// check - the autopilot's own backstop normally exits far earlier).
-    fn run_example(
+    /// How a supervised child run ended. A timeout is an OUTCOME, not an
+    /// error: the hung-run case is exactly what the report must describe
+    /// (finding 2 - the old Err path aborted before any report existed).
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub enum RunOutcome {
+        Completed { success: bool },
+        TimedOut,
+    }
+
+    impl RunOutcome {
+        fn success(self) -> bool {
+            matches!(self, RunOutcome::Completed { success: true })
+        }
+        fn timed_out(self) -> bool {
+            matches!(self, RunOutcome::TimedOut)
+        }
+    }
+
+    /// Run a supervised child with `env`, capturing stdout+stderr to
+    /// `log_path`, killing it after `timeout` (a hung run must not wedge
+    /// the check - the autopilot's own backstop normally exits far
+    /// earlier). Errors only for infrastructure failures (spawn/log IO).
+    fn run_supervised(
         bin: &Path,
+        extra_args: &[&str],
         root: &Path,
         env: &[(String, String)],
         log_path: &Path,
         timeout: Duration,
-    ) -> Result<bool, String> {
+    ) -> Result<RunOutcome, String> {
         let log = std::fs::File::create(log_path)
             .map_err(|e| format!("could not create {}: {e}", log_path.display()))?;
         let err_log = log
             .try_clone()
             .map_err(|e| format!("could not clone log handle: {e}"))?;
         let mut child = Command::new(bin)
+            .args(extra_args)
             .current_dir(root)
             .envs(env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
             .stdout(Stdio::from(log))
@@ -291,19 +330,56 @@ usage: probe <subcommand>
         let start = Instant::now();
         loop {
             match child.try_wait().map_err(|e| e.to_string())? {
-                Some(status) => return Ok(status.success()),
+                Some(status) => {
+                    return Ok(RunOutcome::Completed {
+                        success: status.success(),
+                    })
+                }
                 None if start.elapsed() > timeout => {
                     let _ = child.kill();
                     let _ = child.wait();
-                    return Err(format!(
-                        "run exceeded {}s and was killed (log: {})",
+                    eprintln!(
+                        "probe: run exceeded {}s and was killed (log: {})",
                         timeout.as_secs(),
                         log_path.display()
-                    ));
+                    );
+                    return Ok(RunOutcome::TimedOut);
                 }
                 None => std::thread::sleep(Duration::from_millis(250)),
             }
         }
+    }
+
+    /// probe's own artifact filenames: surgically removed from the out dir
+    /// at the start of a run so nothing stale (an old trace, a previous
+    /// checks.json) can present as this run's evidence (finding 1). Never
+    /// a recursive wipe - the dir may be user-supplied.
+    const RUN_ARTIFACTS: [&str; 9] = [
+        "timeline.jsonl",
+        "run.log",
+        "trace.json",
+        "trace-run.log",
+        "frametime.csv",
+        "samply-profile.json.gz",
+        "samply-run.log",
+        "report.html",
+        "checks.json",
+    ];
+
+    fn clean_out_dir(out: &Path) -> Result<(), String> {
+        for name in RUN_ARTIFACTS {
+            let path = out.join(name);
+            if path.exists() {
+                std::fs::remove_file(&path)
+                    .map_err(|e| format!("could not clear stale {}: {e}", path.display()))?;
+            }
+        }
+        let manifest = out.join("probe-run.json");
+        if manifest.exists() {
+            std::fs::remove_file(&manifest)
+                .map_err(|e| format!("could not clear stale {}: {e}", manifest.display()))?;
+        }
+        Ok(())
     }
 
     fn run(opts: &RunOptions) -> Result<ExitCode, String> {
@@ -316,76 +392,151 @@ usage: probe <subcommand>
         let out = out
             .canonicalize()
             .map_err(|e| format!("could not resolve out dir: {e}"))?;
+        // Nothing stale may survive into this run's report.
+        clean_out_dir(&out)?;
+        // A bad baseline path must fail BEFORE minutes of build+run
+        // (finding 2c), and it must actually parse.
+        if let Some(baseline) = &opts.baseline {
+            let csv = baseline.join("frametime.csv");
+            let contents = std::fs::read_to_string(&csv).map_err(|e| {
+                format!("--baseline invalid before running: {}: {e}", csv.display())
+            })?;
+            nova_probe::parse_frametime_csv(&contents)
+                .map_err(|e| format!("--baseline invalid before running: {e}"))?;
+        }
         let (display, _xvfb) = ensure_display(opts.display.as_deref())?;
         let timeout = Duration::from_secs(opts.timeout_secs);
+        let started_unix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let mut passes: Vec<PassRecord> = Vec::new();
 
-        // Pass 1: CLEAN.
+        // Pass 1: CLEAN. Whatever happens here, the run continues to the
+        // report - a timeout/crash is a described outcome, never an abort.
         eprintln!(
             "probe: [1/{}] clean pass: building {}",
-            passes(opts),
+            passes_total(opts),
             opts.example
         );
         build_example(&root, &opts.example, "debug", None)?;
         let bin = root.join("target/debug/examples").join(&opts.example);
         eprintln!("probe: clean run -> {}", out.join("run.log").display());
         let env = clean_pass_env(&root, &out, &display, opts.fps);
-        let ok = run_example(&bin, &root, &env, &out.join("run.log"), timeout)?;
-        if !ok {
-            eprintln!(
-                "probe: clean run exited non-zero (the report will show it; log + timeline kept)"
-            );
+        let outcome = run_supervised(&bin, &[], &root, &env, &out.join("run.log"), timeout)?;
+        if !outcome.success() {
+            eprintln!("probe: clean run did not succeed; the report will say so");
         }
+        passes.push(PassRecord {
+            name: "clean".into(),
+            success: outcome.success(),
+            timed_out: outcome.timed_out(),
+        });
 
         // Pass 2: PROFILED (optional; separate build so tracing overhead
-        // never touches pass 1's numbers).
+        // never touches pass 1's numbers). Failures degrade to "no trace" -
+        // a successful clean pass is never discarded (finding 2b).
         if opts.profile {
             eprintln!(
                 "probe: [2/{}] profiled pass: building with tracing",
-                passes(opts)
+                passes_total(opts)
             );
-            build_example(&root, &opts.example, "debug,trace", None)?;
-            let env = trace_pass_env(&root, &out, &display);
-            eprintln!("probe: traced run -> {}", out.join("trace.json").display());
-            run_example(
-                &bin,
-                &root,
-                &env,
-                &out.join("trace-run.log"),
-                // Tracing throttles the run hard; give it double time.
-                timeout * 2,
-            )?;
+            match build_example(&root, &opts.example, "debug,trace", None) {
+                Err(e) => {
+                    eprintln!("probe: profiled build failed ({e}); continuing without a trace");
+                    passes.push(PassRecord {
+                        name: "profiled".into(),
+                        success: false,
+                        timed_out: false,
+                    });
+                }
+                Ok(()) => {
+                    let env = trace_pass_env(&root, &out, &display);
+                    eprintln!("probe: traced run -> {}", out.join("trace.json").display());
+                    // Tracing throttles the run hard; give it double time.
+                    let outcome = run_supervised(
+                        &bin,
+                        &[],
+                        &root,
+                        &env,
+                        &out.join("trace-run.log"),
+                        timeout * 2,
+                    )?;
+                    if !outcome.success() {
+                        eprintln!("probe: traced run did not succeed; the trace may be partial");
+                    }
+                    passes.push(PassRecord {
+                        name: "profiled".into(),
+                        success: outcome.success(),
+                        timed_out: outcome.timed_out(),
+                    });
+                }
+            }
         }
 
         // Pass 3: samply flamegraph (optional, tolerant - a missing/blocked
-        // profiler never fails the check).
+        // profiler never fails the check; supervised so a hung sampled run
+        // cannot wedge probe either, finding 11).
         if opts.samply {
-            eprintln!("probe: [{}/{}] samply pass", passes(opts), passes(opts));
+            eprintln!("probe: [{n}/{n}] samply pass", n = passes_total(opts));
             match build_example(&root, &opts.example, "debug", Some("profiling")) {
                 Err(e) => eprintln!("probe: samply build failed ({e}); flamegraph skipped"),
                 Ok(()) => {
                     let sbin = root.join("target/profiling/examples").join(&opts.example);
-                    let status = Command::new("samply")
-                        .current_dir(&root)
-                        .args(["record", "--save-only", "-o"])
-                        .arg(out.join("samply-profile.json.gz"))
-                        .arg(&sbin)
-                        .env("BCS_AUTOPILOT", "1")
-                        .env("BEVY_ASSET_ROOT", root.display().to_string())
-                        .env("DISPLAY", &display)
-                        .status();
-                    match status {
-                        Ok(s) if s.success() => eprintln!(
+                    let samply_env = vec![
+                        ("BCS_AUTOPILOT".to_string(), "1".to_string()),
+                        ("BEVY_ASSET_ROOT".to_string(), root.display().to_string()),
+                        ("DISPLAY".to_string(), display.clone()),
+                    ];
+                    let samply = Path::new("samply");
+                    let profile_out = out.join("samply-profile.json.gz");
+                    let outcome = run_supervised(
+                        samply,
+                        &[
+                            "record",
+                            "--save-only",
+                            "-o",
+                            &profile_out.display().to_string(),
+                            &sbin.display().to_string(),
+                        ],
+                        &root,
+                        &samply_env,
+                        &out.join("samply-run.log"),
+                        timeout * 2,
+                    );
+                    match outcome {
+                        Ok(o) if o.success() => eprintln!(
                             "probe: flamegraph saved; open with: samply load {}",
-                            out.join("samply-profile.json.gz").display()
+                            profile_out.display()
                         ),
                         Ok(_) => eprintln!(
-                            "probe: samply run failed (perms? perf_event_paranoid/mlock_kb); skipped"
+                            "probe: samply run failed or timed out (perms? \
+                             perf_event_paranoid/mlock_kb; see samply-run.log); skipped"
                         ),
                         Err(e) => eprintln!("probe: samply not runnable ({e}); skipped"),
                     }
                 }
             }
         }
+
+        // The manifest: this run's identity + outcomes, written BEFORE the
+        // report so the report reads it like any other artifact.
+        let (git_sha, host) = run_identity();
+        let manifest = RunManifest {
+            example: opts.example.clone(),
+            started_unix,
+            git_sha,
+            host,
+            armed_timeline: true,
+            armed_invariants: true,
+            armed_fps: opts.fps,
+            passes,
+        };
+        std::fs::write(
+            out.join("probe-run.json"),
+            format!("{:#}\n", manifest.to_json()),
+        )
+        .map_err(|e| format!("could not write probe-run.json: {e}"))?;
 
         // The report, in-process.
         let artifacts = RunArtifacts::load(&out, opts.baseline.as_deref())?;
@@ -398,27 +549,20 @@ usage: probe <subcommand>
         .map_err(|e| format!("could not write report.html: {e}"))?;
         std::fs::write(
             out.join("checks.json"),
-            format!("{:#}\n", checks_json(&checks)),
+            format!("{:#}\n", checks_json(&checks, artifacts.manifest.as_ref())),
         )
         .map_err(|e| format!("could not write checks.json: {e}"))?;
 
         println!("probe: {verdict} - {}", out.join("report.html").display());
-        for check in &checks {
-            println!(
-                "  {:22} {:8} {}",
-                check.name,
-                format!("{:?}", check.status).to_uppercase(),
-                check.value
-            );
-        }
-        Ok(if verdict == "FAIL" {
+        print_checks(&checks);
+        Ok(if verdict == "FAIL" || verdict == "NO_DATA" {
             ExitCode::FAILURE
         } else {
             ExitCode::SUCCESS
         })
     }
 
-    fn passes(opts: &RunOptions) -> usize {
+    fn passes_total(opts: &RunOptions) -> usize {
         1 + usize::from(opts.profile) + usize::from(opts.samply)
     }
 
@@ -520,7 +664,8 @@ usage: probe <subcommand>
         fn default_display_is_pid_derived_within_the_reserved_band() {
             let display = default_display();
             let n: u32 = display.strip_prefix(':').unwrap().parse().unwrap();
-            assert!((90..=99).contains(&n), "{display}");
+            // :80-:89 - clear of the perf scripts' hardcoded :94/:95.
+            assert!((80..=89).contains(&n), "{display}");
             assert_eq!(display, default_display(), "stable within one process");
         }
 
@@ -545,6 +690,15 @@ usage: probe <subcommand>
             assert_eq!(
                 get("NOVA_PERF_OUT", &env).as_deref(),
                 Some("/repo/probe-runs/x")
+            );
+            // Rows label by the run-dir name so probe-vs-probe baselines
+            // match (the capture's default "scene" matches nothing).
+            assert_eq!(get("NOVA_PERF_LABEL", &env).as_deref(), Some("x"));
+            let env = clean_pass_env(root, out, ":97", false);
+            assert_eq!(
+                get("NOVA_PERF_LABEL", &env),
+                None,
+                "label rides with --fps only"
             );
         }
 

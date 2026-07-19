@@ -39,6 +39,118 @@ use crate::{
 /// a flag for the reviewer, never a hard failure.
 pub const FPS_WARN_THRESHOLD_PCT: f64 = 10.0;
 
+/// The manifest `probe run` writes (`probe-run.json`): what was executed,
+/// with what outcome, producing which artifacts. The report treats it as
+/// the run's identity - `process_exit` reads it, skip details use its
+/// `armed` flags to distinguish "not armed" from "armed but the example is
+/// not wired", and `probe report` (consolidation task) will refuse dirs
+/// without one.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RunManifest {
+    /// The example that was run.
+    pub example: String,
+    /// Unix seconds when the run started.
+    pub started_unix: u64,
+    /// Short git SHA + host, same resolvers as the capture metadata.
+    pub git_sha: String,
+    pub host: String,
+    /// Which capture surfaces probe armed (timeline/invariants always; fps
+    /// only with --fps).
+    pub armed_timeline: bool,
+    pub armed_invariants: bool,
+    pub armed_fps: bool,
+    /// Per-pass outcomes, in execution order.
+    pub passes: Vec<PassRecord>,
+}
+
+/// One executed pass and how it ended.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PassRecord {
+    /// `clean`, `profiled`, `samply`.
+    pub name: String,
+    /// The child exited successfully (false also when timed out).
+    pub success: bool,
+    /// The child was killed by the runner's timeout.
+    pub timed_out: bool,
+}
+
+/// The run's identity pair (short git SHA, host tag) via the same
+/// resolvers the capture metadata uses - for the probe bin's manifest.
+pub fn run_identity() -> (String, String) {
+    (
+        crate::capture::resolve_git_sha(),
+        crate::capture::resolve_host(),
+    )
+}
+
+impl RunManifest {
+    /// Serialize for `probe-run.json`.
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "example": self.example,
+            "started_unix": self.started_unix,
+            "git_sha": self.git_sha,
+            "host": self.host,
+            "armed": {
+                "timeline": self.armed_timeline,
+                "invariants": self.armed_invariants,
+                "fps": self.armed_fps,
+            },
+            "passes": self.passes.iter().map(|p| serde_json::json!({
+                "name": p.name, "success": p.success, "timed_out": p.timed_out,
+            })).collect::<Vec<_>>(),
+        })
+    }
+
+    /// Parse `probe-run.json`. Loud on malformed content - a corrupt
+    /// manifest must not read as "no manifest".
+    pub fn from_json(contents: &str) -> Result<Self, String> {
+        let v: serde_json::Value =
+            serde_json::from_str(contents).map_err(|e| format!("probe-run.json: {e}"))?;
+        let s = |k: &str| -> Result<String, String> {
+            v.get(k)
+                .and_then(|x| x.as_str())
+                .map(str::to_string)
+                .ok_or_else(|| format!("probe-run.json: missing {k}"))
+        };
+        let armed = |k: &str| v["armed"].get(k).and_then(|x| x.as_bool()).unwrap_or(false);
+        let passes = v
+            .get("passes")
+            .and_then(|p| p.as_array())
+            .ok_or("probe-run.json: missing passes")?
+            .iter()
+            .map(|p| {
+                Ok(PassRecord {
+                    name: p
+                        .get("name")
+                        .and_then(|x| x.as_str())
+                        .ok_or("probe-run.json: pass missing name")?
+                        .to_string(),
+                    success: p.get("success").and_then(|x| x.as_bool()).unwrap_or(false),
+                    timed_out: p
+                        .get("timed_out")
+                        .and_then(|x| x.as_bool())
+                        .unwrap_or(false),
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        Ok(Self {
+            example: s("example")?,
+            started_unix: v.get("started_unix").and_then(|x| x.as_u64()).unwrap_or(0),
+            git_sha: s("git_sha")?,
+            host: s("host")?,
+            armed_timeline: armed("timeline"),
+            armed_invariants: armed("invariants"),
+            armed_fps: armed("fps"),
+            passes,
+        })
+    }
+
+    fn pass(&self, name: &str) -> Option<&PassRecord> {
+        self.passes.iter().find(|p| p.name == name)
+    }
+}
+
 /// Everything a run directory yielded (each artifact optional).
 #[derive(Default)]
 pub struct RunArtifacts {
@@ -52,6 +164,8 @@ pub struct RunArtifacts {
     pub log: Option<String>,
     /// Parsed baseline `frametime.csv` (from `--baseline`).
     pub baseline: Option<Vec<PerfRun>>,
+    /// Parsed `probe-run.json` (present in probe-produced dirs).
+    pub manifest: Option<RunManifest>,
 }
 
 impl RunArtifacts {
@@ -78,6 +192,9 @@ impl RunArtifacts {
             .map(|s| aggregate_system_costs(&s).map_err(|e| format!("trace.json: {e}")))
             .transpose()?;
         let log = read_opt("run.log")?;
+        let manifest = read_opt("probe-run.json")?
+            .map(|s| RunManifest::from_json(&s))
+            .transpose()?;
         let baseline = match baseline_dir {
             None => None,
             Some(base) => {
@@ -93,6 +210,7 @@ impl RunArtifacts {
             costs,
             log,
             baseline,
+            manifest,
         })
     }
 }
@@ -110,6 +228,9 @@ pub struct Check {
     pub threshold: String,
     /// One sentence of context (why skipped, what failed).
     pub detail: String,
+    /// Structured payload for machine consumers (counts, deltas) - the
+    /// prose fields are for humans, this is for agents.
+    pub data: serde_json::Value,
 }
 
 /// Check outcome. `Warn` never fails the run (soft gates); `Skipped` means
@@ -133,10 +254,25 @@ impl CheckStatus {
     }
 }
 
+/// How many checks actually measured something (not SKIPPED).
+pub fn measured_count(checks: &[Check]) -> usize {
+    checks
+        .iter()
+        .filter(|c| c.status != CheckStatus::Skipped)
+        .count()
+}
+
 /// The provisional overall verdict: FAIL if any hard check failed, WARN if
-/// anything warned, OK otherwise. The reviewer owns the final call.
+/// anything warned, NO_DATA when NOTHING was measured (a dir with zero
+/// evidence must not read as a passing run), OK otherwise. OK is always
+/// OK-with-coverage: consumers read `measured_count` alongside it - an OK
+/// with run_completed/invariants_held SKIPPED only proves the example's own
+/// assertions (its exit status), not the recorded run. The reviewer owns
+/// the final call either way.
 pub fn overall_verdict(checks: &[Check]) -> &'static str {
-    if checks.iter().any(|c| c.status == CheckStatus::Fail) {
+    if measured_count(checks) == 0 {
+        "NO_DATA"
+    } else if checks.iter().any(|c| c.status == CheckStatus::Fail) {
         "FAIL"
     } else if checks.iter().any(|c| c.status == CheckStatus::Warn) {
         "WARN"
@@ -182,55 +318,177 @@ fn violations_by_name(timeline: &[TimelineEvent]) -> BTreeMap<String, u64> {
 /// Evaluate every auto check against the loaded artifacts.
 pub fn evaluate_checks(artifacts: &RunArtifacts) -> Vec<Check> {
     let mut checks = Vec::new();
+    let manifest = artifacts.manifest.as_ref();
 
-    // run_completed: the timeline must CLOSE. Flush-per-entry means a
-    // panicked/killed run leaves a bracket-less file - that absence is the
-    // crash signal, by design.
+    // process_exit: the child's actual outcome, from the manifest. For the
+    // harnessed examples this is real correctness evidence on its own -
+    // their autopilot assertions panic on failure, so a clean exit means
+    // the example's own contract held. SKIPPED only for foreign dirs.
+    checks.push(match manifest.and_then(|m| m.pass("clean")) {
+        None => Check {
+            name: "process_exit",
+            status: CheckStatus::Skipped,
+            value: "no manifest".into(),
+            threshold: "clean pass exits success, untimed".into(),
+            detail: "no probe-run.json - this dir was not produced by probe run".into(),
+            data: serde_json::Value::Null,
+        },
+        Some(pass) if pass.timed_out => Check {
+            name: "process_exit",
+            status: CheckStatus::Fail,
+            value: "timed out".into(),
+            threshold: "clean pass exits success, untimed".into(),
+            detail: "the runner killed a hung clean pass; the timeline below ends where it died"
+                .into(),
+            data: serde_json::json!({ "success": false, "timed_out": true }),
+        },
+        Some(pass) if !pass.success => Check {
+            name: "process_exit",
+            status: CheckStatus::Fail,
+            value: "non-zero exit".into(),
+            threshold: "clean pass exits success, untimed".into(),
+            detail:
+                "the example's own harness failed (assertion panic or error exit) - read run.log"
+                    .into(),
+            data: serde_json::json!({ "success": false, "timed_out": false }),
+        },
+        Some(_) => Check {
+            name: "process_exit",
+            status: CheckStatus::Pass,
+            value: "clean exit".into(),
+            threshold: "clean pass exits success, untimed".into(),
+            detail: "the example's own autopilot assertions all held".into(),
+            data: serde_json::json!({ "success": true, "timed_out": false }),
+        },
+    });
+
+    // Skip-detail helper: "not captured" means different things depending
+    // on whether probe ARMED the surface (finding 4's misdirection).
+    let timeline_skip_detail = || -> String {
+        match manifest {
+            Some(m) if m.armed_timeline => format!(
+                "probe armed the recorder but {} is not wired with nova_probe::nova_timeline()",
+                m.example
+            ),
+            _ => "timeline.jsonl not captured (arm NOVA_PERF_TIMELINE)".into(),
+        }
+    };
+
+    // run_completed: the timeline must CLOSE, and the bracket's own entry
+    // count must match what is actually on disk (a swallowed write - full
+    // disk - otherwise goes unnoticed). Flush-per-entry means a
+    // panicked/killed run leaves a bracket-less file: that IS the crash
+    // signal, by design.
     checks.push(match &artifacts.timeline {
         None => Check {
             name: "run_completed",
             status: CheckStatus::Skipped,
             value: "no timeline".into(),
-            threshold: "run_end present + AppExit Success".into(),
-            detail: "timeline.jsonl not captured (arm NOVA_PERF_TIMELINE)".into(),
+            threshold: "run_end present + AppExit Success + entry count consistent".into(),
+            detail: timeline_skip_detail(),
+            data: serde_json::Value::Null,
         },
         Some(timeline) => {
             let end = timeline.iter().rev().find(|e| e.kind == "run_end");
             match end {
-                Some(end) if end.data["exit"].as_str().unwrap_or("").contains("Success") => Check {
-                    name: "run_completed",
-                    status: CheckStatus::Pass,
-                    value: format!("run_end at frame {}", end.frame),
-                    threshold: "run_end present + AppExit Success".into(),
-                    detail: "the run closed its bracket cleanly".into(),
-                },
+                Some(end) if end.data["exit"].as_str().unwrap_or("").contains("Success") => {
+                    let written = end.data["entries"].as_u64().unwrap_or(0);
+                    let on_disk = (timeline.len() as u64).saturating_sub(1);
+                    if written != on_disk {
+                        Check {
+                            name: "run_completed",
+                            status: CheckStatus::Fail,
+                            value: format!("{written} written vs {on_disk} on disk"),
+                            threshold: "run_end present + AppExit Success + entry count consistent"
+                                .into(),
+                            detail: "the recorder wrote entries the file does not hold (full \
+                                     disk / IO errors were warned but swallowed)"
+                                .into(),
+                            data: serde_json::json!({ "written": written, "on_disk": on_disk }),
+                        }
+                    } else {
+                        Check {
+                            name: "run_completed",
+                            status: CheckStatus::Pass,
+                            value: format!("run_end at frame {}", end.frame),
+                            threshold: "run_end present + AppExit Success + entry count consistent"
+                                .into(),
+                            detail: "the run closed its bracket cleanly".into(),
+                            data: serde_json::json!({ "end_frame": end.frame, "entries": written }),
+                        }
+                    }
+                }
                 Some(end) => Check {
                     name: "run_completed",
                     status: CheckStatus::Fail,
                     value: format!("exit: {}", end.data["exit"]),
-                    threshold: "run_end present + AppExit Success".into(),
+                    threshold: "run_end present + AppExit Success + entry count consistent".into(),
                     detail: "the run ended with a non-success exit".into(),
+                    data: serde_json::json!({ "exit": end.data["exit"] }),
                 },
                 None => Check {
                     name: "run_completed",
                     status: CheckStatus::Fail,
                     value: "timeline truncated (no run_end)".into(),
-                    threshold: "run_end present + AppExit Success".into(),
+                    threshold: "run_end present + AppExit Success + entry count consistent".into(),
                     detail: "flush-per-entry means truncation = the run died mid-flight".into(),
+                    data: serde_json::json!({ "truncated": true }),
+                },
+            }
+        }
+    });
+
+    // reached_playing: every harnessed example's smoke contract is "reach
+    // Playing and exit without panic" - an app that exits cleanly while
+    // still Loading (graceful asset failure) must not pass unnoticed.
+    checks.push(match &artifacts.timeline {
+        None => Check {
+            name: "reached_playing",
+            status: CheckStatus::Skipped,
+            value: "no timeline".into(),
+            threshold: "a GameStates transition entered Playing".into(),
+            detail: timeline_skip_detail(),
+            data: serde_json::Value::Null,
+        },
+        Some(timeline) => {
+            let entered = timeline.iter().find(|e| {
+                e.kind == "state"
+                    && e.name == "GameStates"
+                    && e.data["entered"].as_str() == Some("Playing")
+            });
+            match entered {
+                Some(entry) => Check {
+                    name: "reached_playing",
+                    status: CheckStatus::Pass,
+                    value: format!("Playing at frame {}", entry.frame),
+                    threshold: "a GameStates transition entered Playing".into(),
+                    detail: "the run reached gameplay".into(),
+                    data: serde_json::json!({ "frame": entry.frame }),
+                },
+                None => Check {
+                    name: "reached_playing",
+                    status: CheckStatus::Fail,
+                    value: "never entered Playing".into(),
+                    threshold: "a GameStates transition entered Playing".into(),
+                    detail: "the app ended while still loading/menu - the smoke contract \
+                             (reach Playing) was not met"
+                        .into(),
+                    data: serde_json::json!({ "reached": false }),
                 },
             }
         }
     });
 
     // invariants_held: the summary entry carries the tally; per-name counts
-    // ride in the detail.
+    // ride in detail AND data.
     checks.push(match &artifacts.timeline {
         None => Check {
             name: "invariants_held",
             status: CheckStatus::Skipped,
             value: "no timeline".into(),
             threshold: "0 violations".into(),
-            detail: "timeline.jsonl not captured".into(),
+            detail: timeline_skip_detail(),
+            data: serde_json::Value::Null,
         },
         Some(timeline) => {
             let summary = timeline
@@ -244,7 +502,15 @@ pub fn evaluate_checks(artifacts: &RunArtifacts) -> Vec<Check> {
                     status: CheckStatus::Skipped,
                     value: "no invariant entries".into(),
                     threshold: "0 violations".into(),
-                    detail: "invariants not armed (arm NOVA_PERF_INVARIANTS)".into(),
+                    detail: match manifest {
+                        Some(m) if m.armed_invariants => format!(
+                            "probe armed the checks but {} is not wired with \
+                             nova_probe::nova_invariants()",
+                            m.example
+                        ),
+                        _ => "invariants not armed (arm NOVA_PERF_INVARIANTS)".into(),
+                    },
+                    data: serde_json::Value::Null,
                 },
                 summary => {
                     let violations = summary
@@ -253,6 +519,11 @@ pub fn evaluate_checks(artifacts: &RunArtifacts) -> Vec<Check> {
                     let checks_run = summary
                         .map(|s| s.data["checks"].as_u64().unwrap_or(0))
                         .unwrap_or(0);
+                    let counts = serde_json::json!({
+                        "violations": violations,
+                        "checked_frames": checks_run,
+                        "by_name": by_name,
+                    });
                     if violations == 0 {
                         Check {
                             name: "invariants_held",
@@ -260,6 +531,7 @@ pub fn evaluate_checks(artifacts: &RunArtifacts) -> Vec<Check> {
                             value: format!("0 violations over {checks_run} checked frames"),
                             threshold: "0 violations".into(),
                             detail: "every engine-guaranteed bound held".into(),
+                            data: counts,
                         }
                     } else {
                         let names: Vec<String> = by_name
@@ -275,6 +547,7 @@ pub fn evaluate_checks(artifacts: &RunArtifacts) -> Vec<Check> {
                                 "by name (a persisting violation repeats per frame): {}",
                                 names.join(", ")
                             ),
+                            data: counts,
                         }
                     }
                 }
@@ -282,57 +555,88 @@ pub fn evaluate_checks(artifacts: &RunArtifacts) -> Vec<Check> {
         }
     });
 
-    // fps_within_baseline: soft gate, same labels only.
+    // fps_within_baseline: a soft gate on REGRESSIONS only - an improvement
+    // is a PASS with the delta noted, never a warning (an automated caller
+    // must not read a speedup as a regression flag).
     checks.push(match (&artifacts.runs, &artifacts.baseline) {
         (Some(runs), Some(baseline)) => {
-            let mut worst: Option<(String, f64)> = None;
+            let mut worst_regression: Option<(String, f64)> = None;
+            let mut best_note: Option<(String, f64)> = None;
+            let mut matched = 0;
             for run in runs {
                 if let Some(base) = baseline.iter().find(|b| b.label == run.label) {
                     if base.stats.mean_ms > 0.0 {
+                        matched += 1;
                         let delta =
                             (run.stats.mean_ms - base.stats.mean_ms) / base.stats.mean_ms * 100.0;
-                        if worst.as_ref().is_none_or(|(_, w)| delta.abs() > w.abs()) {
-                            worst = Some((run.label.clone(), delta));
+                        if delta > 0.0 {
+                            if worst_regression.as_ref().is_none_or(|(_, w)| delta > *w) {
+                                worst_regression = Some((run.label.clone(), delta));
+                            }
+                        } else if best_note.as_ref().is_none_or(|(_, b)| delta < *b) {
+                            best_note = Some((run.label.clone(), delta));
                         }
                     }
                 }
             }
-            match worst {
-                None => Check {
+            if matched == 0 {
+                Check {
                     name: "fps_within_baseline",
                     status: CheckStatus::Skipped,
                     value: "no matching labels".into(),
-                    threshold: format!("|mean delta| <= {FPS_WARN_THRESHOLD_PCT}%"),
-                    detail: "baseline shares no run labels with this capture".into(),
-                },
-                Some((label, delta)) if delta.abs() <= FPS_WARN_THRESHOLD_PCT => Check {
-                    name: "fps_within_baseline",
-                    status: CheckStatus::Pass,
-                    value: format!("worst {label}: {delta:+.1}%"),
-                    threshold: format!("|mean delta| <= {FPS_WARN_THRESHOLD_PCT}%"),
-                    detail: "mean frame time within the soft gate".into(),
-                },
-                Some((label, delta)) => Check {
-                    name: "fps_within_baseline",
-                    status: CheckStatus::Warn,
-                    value: format!("worst {label}: {delta:+.1}%"),
-                    threshold: format!("|mean delta| <= {FPS_WARN_THRESHOLD_PCT}%"),
-                    detail: "soft gate: frame numbers are host-noisy; reviewer judges \
-                             (was the host quiet? is the delta consistent?)"
+                    threshold: format!("regression <= {FPS_WARN_THRESHOLD_PCT}%"),
+                    detail: "baseline shares no run labels with this capture (baselines are \
+                             only valid probe-run-vs-probe-run or sweep-vs-sweep)"
                         .into(),
-                },
+                    data: serde_json::Value::Null,
+                }
+            } else {
+                match worst_regression {
+                    Some((label, delta)) if delta > FPS_WARN_THRESHOLD_PCT => Check {
+                        name: "fps_within_baseline",
+                        status: CheckStatus::Warn,
+                        value: format!("worst {label}: +{delta:.1}%"),
+                        threshold: format!("regression <= {FPS_WARN_THRESHOLD_PCT}%"),
+                        detail: "soft gate: frame numbers are host-noisy; reviewer judges \
+                                 (was the host quiet? is the delta consistent?)"
+                            .into(),
+                        data: serde_json::json!({ "label": label, "delta_pct": delta }),
+                    },
+                    Some((label, delta)) => Check {
+                        name: "fps_within_baseline",
+                        status: CheckStatus::Pass,
+                        value: format!("worst {label}: +{delta:.1}%"),
+                        threshold: format!("regression <= {FPS_WARN_THRESHOLD_PCT}%"),
+                        detail: "worst regression within the soft gate".into(),
+                        data: serde_json::json!({ "label": label, "delta_pct": delta }),
+                    },
+                    None => {
+                        let (label, delta) = best_note.expect("matched > 0 with no regressions");
+                        Check {
+                            name: "fps_within_baseline",
+                            status: CheckStatus::Pass,
+                            value: format!("improved; best {label}: {delta:.1}%"),
+                            threshold: format!("regression <= {FPS_WARN_THRESHOLD_PCT}%"),
+                            detail: "no label regressed against the baseline".into(),
+                            data: serde_json::json!({ "label": label, "delta_pct": delta }),
+                        }
+                    }
+                }
             }
         }
         _ => Check {
             name: "fps_within_baseline",
             status: CheckStatus::Skipped,
             value: "missing capture or baseline".into(),
-            threshold: format!("|mean delta| <= {FPS_WARN_THRESHOLD_PCT}%"),
+            threshold: format!("regression <= {FPS_WARN_THRESHOLD_PCT}%"),
             detail: "needs both frametime.csv and --baseline <dir>".into(),
+            data: serde_json::Value::Null,
         },
     });
 
-    // log_clean: panics and ERROR lines are hard failures.
+    // log_clean: panics and ERROR-level lines are hard failures. The level
+    // token is matched as a whole word after ANSI stripping (a substring
+    // match missed line-initial ERROR and false-positived on payloads).
     checks.push(match &artifacts.log {
         None => Check {
             name: "log_clean",
@@ -340,31 +644,40 @@ pub fn evaluate_checks(artifacts: &RunArtifacts) -> Vec<Check> {
             value: "no run.log".into(),
             threshold: "no panics / ERROR lines".into(),
             detail: "log not captured alongside the run".into(),
+            data: serde_json::Value::Null,
         },
         Some(log) => {
-            // Strip ANSI escapes first: a TTY-captured log wraps the level
-            // in color codes and the exact-substring scan would miss it.
             let cleaned: Vec<String> = log.lines().map(strip_ansi).collect();
-            let bad: Vec<&String> = cleaned
+            let offending: Vec<&String> = cleaned
                 .iter()
-                .filter(|line| line.contains("panicked at") || line.contains(" ERROR "))
-                .take(5)
+                .filter(|line| {
+                    line.contains("panicked at")
+                        || line.split_whitespace().any(|token| token == "ERROR")
+                })
                 .collect();
-            if bad.is_empty() {
+            if offending.is_empty() {
                 Check {
                     name: "log_clean",
                     status: CheckStatus::Pass,
                     value: "0 panic/ERROR lines".into(),
                     threshold: "no panics / ERROR lines".into(),
                     detail: "log scanned clean".into(),
+                    data: serde_json::json!({ "offending": 0 }),
                 }
             } else {
                 Check {
                     name: "log_clean",
                     status: CheckStatus::Fail,
-                    value: format!("{} offending line(s)", bad.len()),
+                    value: format!("{} offending line(s)", offending.len()),
                     threshold: "no panics / ERROR lines".into(),
-                    detail: format!("first: {}", bad[0].chars().take(160).collect::<String>()),
+                    detail: format!(
+                        "first: {}",
+                        offending[0].chars().take(160).collect::<String>()
+                    ),
+                    data: serde_json::json!({
+                        "offending": offending.len(),
+                        "sample": offending.iter().take(5).map(|s| s.chars().take(160).collect::<String>()).collect::<Vec<_>>(),
+                    }),
                 }
             }
         }
@@ -373,17 +686,35 @@ pub fn evaluate_checks(artifacts: &RunArtifacts) -> Vec<Check> {
     checks
 }
 
-/// The machine-readable mirror of the verdict rows.
-pub fn checks_json(checks: &[Check]) -> serde_json::Value {
+/// Print the verdict rows to stdout (shared by the probe and run_report
+/// bins, so the two never drift).
+pub fn print_checks(checks: &[Check]) {
+    for check in checks {
+        println!(
+            "  {:22} {:8} {}",
+            check.name,
+            check.status.as_str(),
+            check.value
+        );
+    }
+}
+
+/// The machine-readable mirror of the verdict rows, plus the run's
+/// identity (from the manifest) and the measured-coverage figure - an
+/// agent reads verdict AND measured, never verdict alone.
+pub fn checks_json(checks: &[Check], manifest: Option<&RunManifest>) -> serde_json::Value {
     serde_json::json!({
         "verdict": overall_verdict(checks),
+        "measured": format!("{}/{}", measured_count(checks), checks.len()),
         "reviewer_confirmation_required": true,
+        "run": manifest.map(RunManifest::to_json),
         "checks": checks.iter().map(|c| serde_json::json!({
             "name": c.name,
             "status": c.status.as_str(),
             "value": c.value,
             "threshold": c.threshold,
             "detail": c.detail,
+            "data": c.data,
         })).collect::<Vec<_>>(),
         "generated_by": "nova_probe run_report",
     })
@@ -412,12 +743,20 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
         escape(&dir.display().to_string())
     ));
 
-    // 1. Verdict banner.
+    // 1. Verdict banner (the CSS class for NO_DATA reuses the warn tint).
+    let banner_class = match verdict {
+        "OK" => "ok",
+        "FAIL" => "fail",
+        _ => "warn",
+    };
     html.push_str(&format!(
-        "<div class=\"banner {}\">Provisional verdict: {verdict}\
+        "<div class=\"banner {banner_class}\">Provisional verdict: {verdict} \
+         ({} of {} checks measured)\
          <span class=\"confirm\">Auto checks only - a reviewer (human or agent) \
-         must confirm via the checklist at the bottom.</span></div>\n",
-        verdict.to_lowercase()
+         must confirm via the checklist at the bottom. SKIPPED = not measured, \
+         never held.</span></div>\n",
+        measured_count(checks),
+        checks.len(),
     ));
     html.push_str("<table>\n<thead><tr><th>check</th><th>status</th><th>value</th><th>threshold</th><th>detail</th></tr></thead>\n<tbody>\n");
     for check in checks {
@@ -433,8 +772,36 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
     }
     html.push_str("</tbody>\n</table>\n");
 
-    // 2. Run summary (from the timeline's run_start, when present).
+    // 2. Run summary (manifest identity first, then timeline detail).
     html.push_str("<h2>Run summary</h2>\n");
+    if let Some(manifest) = &artifacts.manifest {
+        let passes: Vec<String> = manifest
+            .passes
+            .iter()
+            .map(|p| {
+                format!(
+                    "{}{}",
+                    p.name,
+                    if p.timed_out {
+                        " (TIMED OUT)"
+                    } else if !p.success {
+                        " (failed)"
+                    } else {
+                        ""
+                    }
+                )
+            })
+            .collect();
+        html.push_str(&format!(
+            "<p><code>{}</code> via probe run (started unix {}), git <code>{}</code> \
+             on <code>{}</code>; passes: {}.</p>\n",
+            escape(&manifest.example),
+            manifest.started_unix,
+            escape(&manifest.git_sha),
+            escape(&manifest.host),
+            escape(&passes.join(", ")),
+        ));
+    }
     match &artifacts.timeline {
         Some(timeline) => {
             if let Some(start) = timeline.iter().find(|e| e.kind == "run_start") {
@@ -656,7 +1023,10 @@ mod tests {
         let artifacts = RunArtifacts::load(&fixture(), None).expect("fixture loads");
         let checks = evaluate_checks(&artifacts);
         assert_eq!(check(&checks, "run_completed").status, CheckStatus::Pass);
+        assert_eq!(check(&checks, "reached_playing").status, CheckStatus::Pass);
         assert_eq!(check(&checks, "invariants_held").status, CheckStatus::Pass);
+        // No manifest in the fixture -> exit status unknowable.
+        assert_eq!(check(&checks, "process_exit").status, CheckStatus::Skipped);
         // No baseline passed -> FPS check skipped even though runs exist.
         assert_eq!(
             check(&checks, "fps_within_baseline").status,
@@ -664,6 +1034,7 @@ mod tests {
         );
         assert_eq!(check(&checks, "log_clean").status, CheckStatus::Pass);
         assert_eq!(overall_verdict(&checks), "OK");
+        assert_eq!(measured_count(&checks), 4);
     }
 
     #[test]
@@ -786,7 +1157,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_artifacts_are_skipped_never_passed() {
+    fn zero_evidence_is_no_data_never_ok() {
         let dir = scratch_run_dir();
         for name in ["timeline.jsonl", "frametime.csv", "trace.json", "run.log"] {
             let _ = std::fs::remove_file(dir.join(name));
@@ -794,9 +1165,10 @@ mod tests {
         let artifacts = RunArtifacts::load(&dir, None).unwrap();
         let checks = evaluate_checks(&artifacts);
         assert!(checks.iter().all(|c| c.status == CheckStatus::Skipped));
-        // All-skipped is OK-with-nothing-measured; the report says so and
-        // the reviewer checklist makes SKIPPED explicit.
-        assert_eq!(overall_verdict(&checks), "OK");
+        assert_eq!(measured_count(&checks), 0);
+        // A dir with zero evidence must never read as a passing run
+        // (finding 4: the live repro said OK over nothing).
+        assert_eq!(overall_verdict(&checks), "NO_DATA");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -828,14 +1200,204 @@ mod tests {
     }
 
     #[test]
-    fn checks_json_mirrors_the_rows() {
+    fn checks_json_mirrors_rows_with_coverage_and_run_identity() {
         let artifacts = RunArtifacts::load(&fixture(), None).expect("fixture loads");
         let checks = evaluate_checks(&artifacts);
-        let json = checks_json(&checks);
+        let manifest = RunManifest {
+            example: "10_playable".into(),
+            started_unix: 1789000000,
+            git_sha: "abc123".into(),
+            host: "devbox".into(),
+            armed_timeline: true,
+            armed_invariants: true,
+            armed_fps: false,
+            passes: vec![PassRecord {
+                name: "clean".into(),
+                success: true,
+                timed_out: false,
+            }],
+        };
+        let json = checks_json(&checks, Some(&manifest));
         assert_eq!(json["verdict"], "OK");
+        assert_eq!(json["measured"], "4/6");
         assert_eq!(json["reviewer_confirmation_required"], true);
+        assert_eq!(json["run"]["example"], "10_playable");
+        assert_eq!(json["run"]["passes"][0]["name"], "clean");
         assert_eq!(json["checks"].as_array().unwrap().len(), checks.len());
-        assert_eq!(json["checks"][0]["name"], "run_completed");
-        assert_eq!(json["checks"][0]["status"], "PASS");
+        // process_exit leads the rows and carries structured data.
+        assert_eq!(json["checks"][0]["name"], "process_exit");
+        let inv = json["checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["name"] == "invariants_held")
+            .unwrap();
+        assert_eq!(inv["data"]["violations"], 0);
+    }
+
+    #[test]
+    fn manifest_round_trips_and_drives_process_exit() {
+        let manifest = RunManifest {
+            example: "10_playable".into(),
+            started_unix: 1789000123,
+            git_sha: "abc123".into(),
+            host: "devbox".into(),
+            armed_timeline: true,
+            armed_invariants: true,
+            armed_fps: true,
+            passes: vec![
+                PassRecord {
+                    name: "clean".into(),
+                    success: false,
+                    timed_out: true,
+                },
+                PassRecord {
+                    name: "profiled".into(),
+                    success: true,
+                    timed_out: false,
+                },
+            ],
+        };
+        let parsed = RunManifest::from_json(&manifest.to_json().to_string()).expect("round-trips");
+        assert_eq!(parsed, manifest);
+
+        // A timed-out clean pass is a process_exit FAIL...
+        let artifacts = RunArtifacts {
+            manifest: Some(parsed),
+            ..Default::default()
+        };
+        let checks = evaluate_checks(&artifacts);
+        let c = check(&checks, "process_exit");
+        assert_eq!(c.status, CheckStatus::Fail);
+        assert!(c.value.contains("timed out"), "{c:?}");
+        // ...and the verdict is FAIL even though everything else skipped
+        // (a hung run must produce a failing report, finding 2).
+        assert_eq!(overall_verdict(&checks), "FAIL");
+
+        // A failed (non-timeout) exit also fails.
+        let artifacts = RunArtifacts {
+            manifest: Some(RunManifest {
+                passes: vec![PassRecord {
+                    name: "clean".into(),
+                    success: false,
+                    timed_out: false,
+                }],
+                ..manifest_ok()
+            }),
+            ..Default::default()
+        };
+        let checks = evaluate_checks(&artifacts);
+        assert_eq!(check(&checks, "process_exit").status, CheckStatus::Fail);
+    }
+
+    fn manifest_ok() -> RunManifest {
+        RunManifest {
+            example: "01_controller_section".into(),
+            started_unix: 1,
+            git_sha: "abc".into(),
+            host: "h".into(),
+            armed_timeline: true,
+            armed_invariants: true,
+            armed_fps: false,
+            passes: vec![PassRecord {
+                name: "clean".into(),
+                success: true,
+                timed_out: false,
+            }],
+        }
+    }
+
+    #[test]
+    fn armed_but_unwired_skip_details_name_the_wiring_not_the_env() {
+        // The live repro's misdirection: probe DID arm the env; the detail
+        // must say "not wired", not "arm NOVA_PERF_TIMELINE".
+        let artifacts = RunArtifacts {
+            manifest: Some(manifest_ok()),
+            ..Default::default()
+        };
+        let checks = evaluate_checks(&artifacts);
+        let c = check(&checks, "run_completed");
+        assert_eq!(c.status, CheckStatus::Skipped);
+        assert!(c.detail.contains("not wired with"), "{}", c.detail);
+        assert!(c.detail.contains("01_controller_section"), "{}", c.detail);
+        // And the verdict is OK-with-coverage (process_exit measured PASS),
+        // not NO_DATA and not the old evidence-free OK.
+        assert_eq!(overall_verdict(&checks), "OK");
+        assert_eq!(measured_count(&checks), 1);
+    }
+
+    #[test]
+    fn reached_playing_fails_when_the_run_never_left_loading() {
+        let dir = scratch_run_dir();
+        let path = dir.join("timeline.jsonl");
+        let contents = std::fs::read_to_string(&path).unwrap();
+        let kept: Vec<&str> = contents
+            .lines()
+            .filter(|l| !l.contains("\"entered\":\"Playing\""))
+            .collect();
+        // Keep the file bracket-consistent: drop one entry, patch run_end's
+        // count down by one.
+        let patched = kept.join("\n").replace("\"entries\":10", "\"entries\":9");
+        std::fs::write(&path, patched).unwrap();
+
+        let artifacts = RunArtifacts::load(&dir, None).unwrap();
+        let checks = evaluate_checks(&artifacts);
+        assert_eq!(check(&checks, "reached_playing").status, CheckStatus::Fail);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn swallowed_writes_fail_the_entry_cross_check() {
+        let dir = scratch_run_dir();
+        let path = dir.join("timeline.jsonl");
+        // Claim more entries than the file holds: ENOSPC's signature.
+        let contents = std::fs::read_to_string(&path)
+            .unwrap()
+            .replace("\"entries\":10", "\"entries\":14");
+        std::fs::write(&path, contents).unwrap();
+        let artifacts = RunArtifacts::load(&dir, None).unwrap();
+        let checks = evaluate_checks(&artifacts);
+        let c = check(&checks, "run_completed");
+        assert_eq!(c.status, CheckStatus::Fail);
+        assert!(c.value.contains("14 written vs 10 on disk"), "{c:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn fps_improvement_passes_and_line_initial_error_is_caught() {
+        let base_dir = scratch_run_dir();
+        let dir = scratch_run_dir();
+        std::fs::write(
+            base_dir.join("frametime.csv"),
+            "label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_ms,p99_ms,p999_ms,mean_fps,one_pct_low_fps\nscene-high,100,100.0,90.0,120.0,99.0,110.0,115.0,120.0,10.0,8.7\n",
+        )
+        .unwrap();
+        // 50% FASTER: must PASS with the improvement noted, never WARN.
+        std::fs::write(
+            dir.join("frametime.csv"),
+            "label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_ms,p99_ms,p999_ms,mean_fps,one_pct_low_fps\nscene-high,100,50.0,45.0,60.0,49.0,55.0,58.0,60.0,20.0,17.2\n",
+        )
+        .unwrap();
+        let artifacts = RunArtifacts::load(&dir, Some(&base_dir)).unwrap();
+        let checks = evaluate_checks(&artifacts);
+        let c = check(&checks, "fps_within_baseline");
+        assert_eq!(c.status, CheckStatus::Pass, "{c:?}");
+        assert!(c.value.contains("improved"), "{c:?}");
+
+        // Log scan: a line-INITIAL ERROR is caught (the old substring
+        // needed surrounding spaces), and a word merely containing it is
+        // not.
+        std::fs::write(
+            dir.join("run.log"),
+            "ERROR boot diagnostics failed\nnoting TERRORD is fine\n",
+        )
+        .unwrap();
+        let artifacts = RunArtifacts::load(&dir, Some(&base_dir)).unwrap();
+        let checks = evaluate_checks(&artifacts);
+        let c = check(&checks, "log_clean");
+        assert_eq!(c.status, CheckStatus::Fail, "{c:?}");
+        assert_eq!(c.data["offending"], 1, "TERRORD must not count: {c:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&base_dir);
     }
 }

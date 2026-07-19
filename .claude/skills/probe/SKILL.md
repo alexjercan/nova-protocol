@@ -40,12 +40,22 @@ runs (`--timeout <s>`, default 180).
 ## Reading the verdict (the honesty rules)
 
 - `checks.json` is the agent-readable mirror - read it instead of parsing
-  HTML. Checks: `run_completed` (a TRUNCATED timeline means the run died -
-  entries are flushed as written), `invariants_held` (violations counted per
-  name; one stuck entity violates every frame), `fps_within_baseline` (soft
-  gate, WARN only - frame numbers are host-noisy), `log_clean`.
-- SKIPPED means NOT MEASURED, never "held". A run with nothing armed is an
-  OK verdict over zero evidence - do not present it as proof.
+  HTML, and read `verdict` TOGETHER WITH `measured` ("n/total"), never the
+  verdict alone. Checks: `process_exit` (the child's real outcome from the
+  probe-run.json manifest; a timeout is a FAIL), `run_completed` (a
+  TRUNCATED timeline means the run died - entries are flushed as written -
+  and the bracket's entry count must match the file), `reached_playing`
+  (the smoke contract), `invariants_held` (violations counted per name;
+  one stuck entity violates every frame), `fps_within_baseline` (soft
+  gate; only REGRESSIONS beyond the threshold WARN - improvements PASS),
+  `log_clean` (ANSI-stripped, whole-word ERROR). Each check carries a
+  structured `data` object; the top-level `run` object is the manifest.
+- SKIPPED means NOT MEASURED, never "held". Zero measured checks =
+  verdict NO_DATA and a nonzero exit. An OK on an UNWIRED example is
+  OK-with-coverage: it proves the example's own assertions (exit status)
+  only - gameplay-verification claims require `run_completed` and
+  `invariants_held` MEASURED, and the skip details say when an example
+  simply is not wired.
 - The profile table RANKS systems; shares overlap (parent and child spans
   both count) so they are never summed, and traced-run numbers never compare
   against the clean pass.
@@ -70,8 +80,8 @@ runs (`--timeout <s>`, default 180).
   RANK suspects before optimizing anything; the ledger's perf lessons
   (quiet-host-before-measuring, isolate-the-lever) still apply.
 - **/review**: when the implementer cites a probe verdict, open checks.json
-  and re-read the SKIPPED rows - what was NOT measured is the first thing to
-  challenge. For perf claims, confirm same-label baselines and a quiet host.
+  and read `measured` first, then the SKIPPED rows - what was NOT measured
+  is the first thing to challenge. For perf claims, confirm same-label baselines and a quiet host.
 - **New examples**: wiring is one inert line each -
   `app.add_plugins(nova_probe::nova_timeline())` and
   `nova_probe::nova_invariants().monotonic([...])` (only variables the

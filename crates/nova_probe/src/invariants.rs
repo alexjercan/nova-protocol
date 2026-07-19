@@ -253,7 +253,10 @@ fn check_invariants(world: &mut World) {
     }
 
     // (c) Scenario variables: Numbers finite; registered monotonic keys
-    // never decrease.
+    // never decrease WITHIN one scenario's life. A teardown/reload re-seeds
+    // variables at their initial values, so a registered key DISAPPEARING
+    // (scenario cleared) resets its memory instead of firing a false
+    // regression on the next scenario's fresh 0 (state-diff-aliases-reset).
     {
         let monotonic_keys = world.resource::<InvariantState>().monotonic_keys.clone();
         let mut monotonic_seen: Vec<(String, f64)> = Vec::new();
@@ -275,6 +278,11 @@ fn check_invariants(world: &mut World) {
         }
         let state = world.resource_mut::<InvariantState>();
         let state = state.into_inner();
+        // Registered keys that vanished this frame: their scenario ended;
+        // forget them so the next scenario starts a fresh monotonic life.
+        state
+            .monotonic_last
+            .retain(|key, _| monotonic_seen.iter().any(|(seen, _)| seen == key));
         for (key, value) in monotonic_seen {
             if let Some(last) = state.monotonic_last.get(&key) {
                 if value < *last {
@@ -455,6 +463,36 @@ mod tests {
             .insert_variable("free".to_string(), VariableLiteral::Number(1.0));
         app.update();
         assert_eq!(violations(&app), 1, "unregistered variables are free-form");
+    }
+
+    #[test]
+    fn scenario_teardown_resets_monotonic_memory() {
+        // A reload re-seeds variables at 0; the invariant must not read
+        // that as a regression - but a LIVE decrease still fires.
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(nova_invariants().strict(false).monotonic(["beat"]));
+        app.init_resource::<NovaEventWorld>();
+        let set = |app: &mut App, v: f64| {
+            app.world_mut()
+                .resource_mut::<NovaEventWorld>()
+                .insert_variable("beat".to_string(), VariableLiteral::Number(v));
+        };
+        set(&mut app, 2.0);
+        app.update();
+        // Teardown: the scenario clears its variables...
+        app.world_mut().resource_mut::<NovaEventWorld>().clear();
+        app.update();
+        // ...and the next scenario seeds beat back at 0: NOT a regression.
+        set(&mut app, 0.0);
+        app.update();
+        assert_eq!(violations(&app), 0, "reload reset must not fire");
+        // The fresh life is still guarded: 1 -> 0 live fires.
+        set(&mut app, 1.0);
+        app.update();
+        set(&mut app, 0.0);
+        app.update();
+        assert_eq!(violations(&app), 1, "live regression still fires");
     }
 
     #[test]

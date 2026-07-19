@@ -263,17 +263,20 @@ impl PerfRun {
         if cols.len() != V1_COLS && cols.len() != V2_COLS {
             return None;
         }
+        // "NaN"/"inf" parse as f64 but poison every downstream stat; a row
+        // carrying them is corrupt, not data.
+        let finite = |s: &str| s.trim().parse::<f64>().ok().filter(|v| v.is_finite());
         let label = cols[0].to_string();
         let frames: usize = cols[1].trim().parse().ok()?;
-        let mean_ms: f64 = cols[2].trim().parse().ok()?;
-        let min_ms: f64 = cols[3].trim().parse().ok()?;
-        let max_ms: f64 = cols[4].trim().parse().ok()?;
-        let p50_ms: f64 = cols[5].trim().parse().ok()?;
-        let p95_ms: f64 = cols[6].trim().parse().ok()?;
-        let p99_ms: f64 = cols[7].trim().parse().ok()?;
-        let p999_ms: f64 = cols[8].trim().parse().ok()?;
-        let mean_fps: f64 = cols[9].trim().parse().ok()?;
-        let one_pct_low_fps: f64 = cols[10].trim().parse().ok()?;
+        let mean_ms: f64 = finite(cols[2])?;
+        let min_ms: f64 = finite(cols[3])?;
+        let max_ms: f64 = finite(cols[4])?;
+        let p50_ms: f64 = finite(cols[5])?;
+        let p95_ms: f64 = finite(cols[6])?;
+        let p99_ms: f64 = finite(cols[7])?;
+        let p999_ms: f64 = finite(cols[8])?;
+        let mean_fps: f64 = finite(cols[9])?;
+        let one_pct_low_fps: f64 = finite(cols[10])?;
         let meta = if cols.len() == V2_COLS {
             RunMeta {
                 backend: cols[11].trim().to_string(),
@@ -453,6 +456,15 @@ mod tests {
         assert_eq!(row.trim().split(',').count(), 17, "row: {row}");
         let run = PerfRun::from_csv_row(row.trim()).expect("sanitized row parses");
         assert_eq!(run.meta.adapter, "Intel  Inc. UHD Graphics   770");
+    }
+
+    #[test]
+    fn non_finite_numerics_reject_the_row() {
+        let row =
+            "broadside-high,120,NaN,82.7471,168.3229,111.4533,140.7148,166.7084,168.3229,8.69,6.00";
+        assert!(PerfRun::from_csv_row(row).is_none(), "NaN mean rejected");
+        let row = "broadside-high,120,115.0,82.7,inf,111.4,140.7,166.7,168.3,8.69,6.00";
+        assert!(PerfRun::from_csv_row(row).is_none(), "inf max rejected");
     }
 
     #[test]
