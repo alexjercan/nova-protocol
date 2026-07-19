@@ -241,10 +241,14 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   the target existing or they 404. 20260713-225324.
 - `ci-skips-client-render` (x1): build-only CI proves the bundle compiles;
   DOM logic needs a runtime check. 20260713-225324.
-- `render-output-eyeball` (x4): a dimensionally-valid generated visual can
-  still be wrong - open it; a layout task is unverified until someone SEES it
-  rendered (headless cannot see z-order). A scope change re-opens deferrals
-  built on the old premise. 20260715-004216, 20260718-122923.
+- `render-output-eyeball` (x5): a dimensionally-valid generated ARTIFACT can
+  still be empty/wrong while every exit code is green - open it (an all-green
+  profiled pass produced a header-only table); a layout task is unverified
+  until someone SEES it rendered. 20260718-122923, 20260719-112253.
+- `degrade-paths-need-a-forced-failure` (x1): a plan-claimed fallback ("skips
+  gracefully when blocked") is untested until that failure is FORCED once -
+  the samply perms case died under set -e and a user found it.
+  20260719-112253.
 - `roundtrip-hides-shared-bug` (x1): a round-trip test on a self-authored
   forward pass proves symmetry, not correctness; re-derive the reverse
   against the spec. 20260715-004216.
@@ -606,6 +610,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `verify-runtime-transitions-not-just-fresh-state` (x2): test A->B and B->A
   while running, not just each fresh boot state - both render-scale bugs
   lived only in the switch. 20260718-132638, 20260718-140903.
+- `env-filter-governs-spans` (domain, x1): tracing EnvFilter directives
+  written to silence LOG chatter also kill SPANS - nova_core's bevy_ecs=warn
+  silently emptied the profiler; bevy_log ADDS RUST_LOG directives on top of
+  the plugin filter, so a same-target override (bevy_ecs=info) restores them.
+  20260719-112253.
 - `bevy-camera-ignores-runtime-rendertarget-swap` (domain, x1): bevy 0.19
   re-derives camera target_info only on content change / is_added /
   projection change - swapping RenderTarget in place leaves sizes stale;
