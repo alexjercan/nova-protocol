@@ -208,7 +208,19 @@ impl FrameStats {
     /// Render as a pretty JSON object (hand-formatted to avoid a serde dep in
     /// this dev-only crate). Schema v2: the metadata fields follow the
     /// numeric ones.
-    pub(crate) fn to_json(&self, label: &str, meta: &RunMeta) -> String {
+    pub(crate) fn to_json(&self, label: &str, meta: &RunMeta, reload_ms: &[f64]) -> String {
+        let reload_field = if reload_ms.is_empty() {
+            String::new()
+        } else {
+            format!(
+                ",\n  \"reload_ms\": [{}]",
+                reload_ms
+                    .iter()
+                    .map(|ms| format!("{ms:.1}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        };
         format!(
             "{{\n  \"label\": \"{}\",\n  \"frames\": {},\n  \"total_ms\": {:.3},\n  \
              \"mean_ms\": {:.4},\n  \"min_ms\": {:.4},\n  \"max_ms\": {:.4},\n  \
@@ -216,7 +228,7 @@ impl FrameStats {
              \"p999_ms\": {:.4},\n  \"mean_fps\": {:.2},\n  \"one_pct_low_fps\": {:.2},\n  \
              \"backend\": \"{}\",\n  \"adapter\": \"{}\",\n  \"resolution\": \"{}\",\n  \
              \"quality\": \"{}\",\n  \"git_sha\": \"{}\",\n  \"host\": \"{}\",\n  \
-             \"profile\": \"{}\"\n}}\n",
+             \"profile\": \"{}\"{}\n}}\n",
             json_safe(label),
             self.frames,
             self.total_ms,
@@ -236,6 +248,7 @@ impl FrameStats {
             json_safe(&meta.git_sha),
             json_safe(&meta.host),
             json_safe(&meta.profile),
+            reload_field,
         )
     }
 
@@ -719,7 +732,7 @@ mod tests {
     #[test]
     fn json_carries_the_meta_fields() {
         let stats = FrameStats::from_samples(&[10.0; 3]);
-        let json = stats.to_json("scene", &some_meta());
+        let json = stats.to_json("scene", &some_meta(), &[]);
         assert!(json.contains("\"backend\": \"vulkan\""), "{json}");
         assert!(json.contains("\"git_sha\": \"f4bfb3af\""), "{json}");
         assert!(json.contains("\"adapter\": \"NVIDIA GeForce RTX 3060 Ti\""));

@@ -128,6 +128,60 @@ impl FrameTimePlugin {
 #[derive(Resource, Clone)]
 struct PerfDriverRes(Arc<PerfDriver>);
 
+/// Reload bookkeeping for LOOPED captures (task 20260720-000616): frames
+/// inside a scene reload are EXCLUDED from the scene stats - how many
+/// reloads land in a window is host-speed-dependent, so including them
+/// makes baseline deltas measure reload count instead of scene cost - and
+/// tallied here for the report's own reload line.
+#[derive(Resource, Default)]
+pub struct ReloadGate {
+    reloading: bool,
+    /// Skip one more frame after the gate closes: that frame's delta spans
+    /// the reload boundary.
+    skip_next: bool,
+    started_secs: f64,
+    reload_ms: Vec<f64>,
+}
+
+/// Whether a looped-capture scene reload is currently in flight. Enrolled
+/// example scripts gate on this: between the loop trigger and the
+/// scenario-loaded signal the scene's variables/entities do not exist, and
+/// a script frame that reads them would panic on torn-down state.
+pub fn capture_reloading(world: &World) -> bool {
+    world
+        .get_resource::<ReloadGate>()
+        .is_some_and(|gate| gate.reloading)
+}
+
+/// Mark a scene reload IN FLIGHT (an enrolled example's `AutopilotLoop`
+/// observer calls this before re-triggering its scenario load). No-op when
+/// the capture is not armed.
+pub fn capture_reload_begin(world: &mut World) {
+    let now = world.resource::<Time<Real>>().elapsed_secs_f64();
+    if let Some(mut gate) = world.get_resource_mut::<ReloadGate>() {
+        if !gate.reloading {
+            gate.reloading = true;
+            gate.started_secs = now;
+        }
+    }
+}
+
+/// Mark the reload COMPLETE (the example's scenario-loaded observer). The
+/// very first scene load calls this too - a no-op unless a reload was in
+/// flight.
+pub fn capture_reload_end(world: &mut World) {
+    let now = world.resource::<Time<Real>>().elapsed_secs_f64();
+    if let Some(mut gate) = world.get_resource_mut::<ReloadGate>() {
+        if gate.reloading {
+            gate.reloading = false;
+            gate.skip_next = true;
+            let ms = (now - gate.started_secs) * 1000.0;
+            gate.reload_ms.push(ms);
+            debug!("nova perf: reload interval closed ({ms:.1} ms, excluded from stats)");
+        }
+    }
+}
+
 /// Capture configuration, resolved once from the environment at plugin build.
 #[derive(Resource, Clone, Debug)]
 struct PerfConfig {
@@ -283,6 +337,7 @@ impl Plugin for FrameTimePlugin {
             return;
         }
         completion::register(app, CAPTURE_COLLECTOR);
+        app.init_resource::<ReloadGate>();
         let config = PerfConfig::resolve();
         info!(
             "nova perf: armed (label={}, warmup={}, frames={}, res={}x{}, render_scale={:?}, out={:?}, driven={})",
@@ -376,6 +431,7 @@ fn perf_capture(
     state_res: Res<State<GameStates>>,
     config: Res<PerfConfig>,
     adapter: Option<Res<RenderAdapterInfo>>,
+    mut gate: ResMut<ReloadGate>,
     mut state: ResMut<PerfState>,
     mut completion: ResMut<HarnessCompletion>,
 ) {
@@ -396,11 +452,21 @@ fn perf_capture(
             }
         }
         Phase::Capture => {
+            // Reload frames are not scene frames: skip the sample AND the
+            // frame right after the gate closes (its delta spans the
+            // reload boundary).
+            if gate.reloading {
+                return;
+            }
+            if gate.skip_next {
+                gate.skip_next = false;
+                return;
+            }
             state.samples.push(time.delta_secs_f64() * 1000.0);
             if state.samples.len() as u32 >= config.capture_frames {
                 let stats = FrameStats::from_samples(&state.samples);
                 let meta = RunMeta::resolve(&config, adapter.as_deref());
-                emit_stats(&config, &stats, &meta);
+                emit_stats(&config, &stats, &meta, &gate.reload_ms);
                 state.phase = Phase::Done;
                 // Negotiated, not unilateral: the watcher exits when every
                 // registered collector (this capture, the autopilot) is done.
@@ -415,7 +481,7 @@ fn perf_capture(
 /// file and append a row to the aggregated CSV (schema v3, run metadata
 /// included). The log line is always emitted - on wasm there is no filesystem,
 /// so a headless-browser driver scrapes it from the console.
-fn emit_stats(config: &PerfConfig, stats: &FrameStats, meta: &RunMeta) {
+fn emit_stats(config: &PerfConfig, stats: &FrameStats, meta: &RunMeta, reload_ms: &[f64]) {
     info!("{}", stats.summary_line(&config.label));
     info!(
         "nova perf: meta backend={} adapter={:?} res={} quality={} sha={} host={} profile={}",
@@ -427,6 +493,14 @@ fn emit_stats(config: &PerfConfig, stats: &FrameStats, meta: &RunMeta) {
         meta.host,
         meta.profile
     );
+    if !reload_ms.is_empty() {
+        let mean = reload_ms.iter().sum::<f64>() / reload_ms.len() as f64;
+        let max = reload_ms.iter().cloned().fold(0.0_f64, f64::max);
+        info!(
+            "nova perf: {} scene reload(s) excluded from the stats (mean {mean:.1} ms, max {max:.1} ms)",
+            reload_ms.len()
+        );
+    }
 
     let Some(dir) = &config.out_dir else {
         return;
@@ -437,7 +511,7 @@ fn emit_stats(config: &PerfConfig, stats: &FrameStats, meta: &RunMeta) {
     }
 
     let json_path = dir.join(format!("{}.json", sanitize(&config.label)));
-    if let Err(error) = std::fs::write(&json_path, stats.to_json(&config.label, meta)) {
+    if let Err(error) = std::fs::write(&json_path, stats.to_json(&config.label, meta, reload_ms)) {
         warn!("nova perf: could not write {:?}: {error}", json_path);
     } else {
         info!("nova perf: wrote {:?}", json_path);

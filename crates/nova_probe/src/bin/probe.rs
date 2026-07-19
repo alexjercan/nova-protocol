@@ -887,9 +887,10 @@ usage: probe <subcommand>
     /// at the start of a run so nothing stale (an old trace, a previous
     /// checks.json) can present as this run's evidence (finding 1). Never
     /// a recursive wipe - the dir may be user-supplied.
-    const RUN_ARTIFACTS: [&str; 10] = [
+    const RUN_ARTIFACTS: [&str; 11] = [
         "timeline.jsonl",
         "run.log",
+        "fps-run.log",
         "trace.json",
         "trace-run.log",
         "frametime.csv",
@@ -959,13 +960,14 @@ usage: probe <subcommand>
             );
         }
 
-        // Pass 1: CLEAN (native). With matrix flags this is the perf sweep:
-        // one supervised run per scenario x preset cell, all appending into
-        // THIS run's fresh frametime.csv; the recorder/invariants only arm
-        // on the single-cell shape (a sweep measures frames, and each cell
-        // would clobber the previous cell's timeline).
+        // Pass 1: CLEAN (native) - correctness only. The frame capture
+        // NEVER rides this pass (task 20260720-000616): the recorder
+        // flushes JSONL per entry on the frame path, so fps-on-clean
+        // numbers were contaminated; measurement passes (fps, trace,
+        // samply) are always separate. With matrix flags the cells REPLACE
+        // the clean pass entirely (a sweep is a measurement invocation).
         let cells = matrix_cells(&opts.scenarios, &opts.presets);
-        let sweeping = cells.len() > 1 || opts.scenarios.first().is_some();
+        let sweeping = !opts.scenarios.is_empty() || !opts.presets.is_empty();
         eprintln!(
             "probe: [1/{}] clean pass: building {}{}",
             passes_total(opts),
@@ -996,7 +998,7 @@ usage: probe <subcommand>
                 "run.log".to_string()
             };
             eprintln!("probe: {cell_name} -> {}", out.join(&log_name).display());
-            let mut env = clean_pass_env(&root, &out, &display, opts.fps);
+            let mut env = clean_pass_env(&root, &out, &display, sweeping && opts.fps);
             if sweeping {
                 // Sweep cells measure frames, not the recorder surfaces.
                 env.retain(|(k, _)| k != "NOVA_PERF_TIMELINE" && k != "NOVA_PERF_INVARIANTS");
@@ -1014,6 +1016,29 @@ usage: probe <subcommand>
             }
             passes.push(PassRecord {
                 name: cell_name,
+                success: outcome.success(),
+                timed_out: outcome.timed_out(),
+            });
+        }
+
+        // FPS pass (optional, non-sweep): the dedicated capture-only run -
+        // same binary as the clean pass, recorder/invariants OFF the frame
+        // path, its own log. The completion protocol keeps the app alive
+        // until the capture window closes.
+        if opts.fps && !sweeping {
+            eprintln!(
+                "probe: fps pass: capture-only -> {}",
+                out.join("fps-run.log").display()
+            );
+            let mut env = clean_pass_env(&root, &out, &display, true);
+            env.retain(|(k, _)| k != "NOVA_PERF_TIMELINE" && k != "NOVA_PERF_INVARIANTS");
+            let outcome =
+                run_supervised(&bin, &[], &root, &env, &out.join("fps-run.log"), timeout)?;
+            if !outcome.success() {
+                eprintln!("probe: fps pass did not succeed; the report will say so");
+            }
+            passes.push(PassRecord {
+                name: "fps".into(),
                 success: outcome.success(),
                 timed_out: outcome.timed_out(),
             });
@@ -1426,7 +1451,10 @@ usage: probe <subcommand>
     }
 
     fn passes_total(opts: &RunOptions) -> usize {
-        1 + usize::from(opts.profile) + usize::from(opts.samply)
+        let sweeping = !opts.scenarios.is_empty() || !opts.presets.is_empty();
+        1 + usize::from(opts.fps && !sweeping)
+            + usize::from(opts.profile)
+            + usize::from(opts.samply)
     }
 
     pub fn main() -> ExitCode {

@@ -61,7 +61,9 @@ use bevy::{
     prelude::*,
     render::view::screenshot::{save_to_disk, Screenshot, ScreenshotCaptured},
 };
-pub use bevy_common_systems::debug::harness::prelude::{AutopilotPlugin, ScreenshotPlugin};
+pub use bevy_common_systems::debug::harness::prelude::{
+    AutopilotLoop, AutopilotPlugin, ScreenshotPlugin,
+};
 use bevy_common_systems::prelude::WASDCameraController;
 use nova_gameplay::{prelude::HudVisibility, GameStates};
 use nova_scenario::prelude::{

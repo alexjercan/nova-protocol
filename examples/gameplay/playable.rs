@@ -55,9 +55,17 @@ fn main() {
         app.init_resource::<PlayableScript>();
         app.add_plugins(
             AutopilotPlugin::<GameStates>::new()
+                // Enrolled in capture looping (task 20260720-000616): when a
+                // frame capture outlives the window, the scene reloads and
+                // the script replays so the capture measures ACTIVITY.
+                .loop_while_pending()
                 .hold(GameStates::Loading, WINDOW_SECS)
                 .input(playable_script),
         );
+        app.add_systems(PreUpdate, on_autopilot_loop);
+        app.add_observer(|_: On<ScenarioLoaded>, mut commands: Commands| {
+            commands.queue(nova_probe::capture_reload_end);
+        });
         app.add_plugins(nova_screenshot());
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
         // Run-timeline recorder (inert unless NOVA_PERF_TIMELINE names an
@@ -274,6 +282,31 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
     }
 }
 
+/// Reset the cycle on an autopilot loop: fresh script, reload interval
+/// marked, the same run re-triggered (task 20260720-000616).
+#[cfg(feature = "debug")]
+fn on_autopilot_loop(
+    mut loops: MessageReader<nova_protocol::nova_debug::harness::AutopilotLoop>,
+    mut commands: Commands,
+    // Option: this system runs from frame 1, before the loader has
+    // inserted the asset resources - a bare Res fails param validation
+    // and kills the run.
+    game_assets: Option<Res<GameAssets>>,
+    sections: Option<Res<GameSections>>,
+    script: Option<ResMut<PlayableScript>>,
+) {
+    if loops.read().next().is_none() {
+        return;
+    }
+    let (Some(game_assets), Some(sections), Some(mut script)) = (game_assets, sections, script)
+    else {
+        return;
+    };
+    *script = PlayableScript::default();
+    commands.queue(nova_probe::capture_reload_begin);
+    commands.trigger(LoadScenario(playable_run(&game_assets, &sections)));
+}
+
 /// Stage tracker for the playable script.
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
@@ -303,6 +336,12 @@ fn number_variable(world: &World, key: &str) -> f64 {
 /// script never finishes (vacuous-pass guard).
 #[cfg(feature = "debug")]
 fn playable_script(world: &mut World, elapsed: f32) {
+    // A looped-capture scene reload is in flight: the scenario's variables
+    // and entities do not exist between the loop trigger and the loaded
+    // signal - script frames must not read torn-down state (20260720-000616).
+    if nova_probe::capture_reloading(world) {
+        return;
+    }
     if elapsed > WINDOW_SECS - 0.5 && !world.resource::<PlayableScript>().done {
         let script = world.resource::<PlayableScript>();
         panic!(

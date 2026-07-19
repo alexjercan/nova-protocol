@@ -135,7 +135,8 @@ pub use aggregate::{
     index_json, overall_verdict as aggregate_verdict, render_index, AllManifest, AllRow,
 };
 pub use capture::{
-    combat_burst_driver, nova_frametime, perf_armed, perf_param, FrameTimePlugin, PerfDriver,
+    capture_reload_begin, capture_reload_end, capture_reloading, combat_burst_driver,
+    nova_frametime, perf_armed, perf_param, FrameTimePlugin, PerfDriver, ReloadGate,
     DEFAULT_CAPTURE_FRAMES, DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, PERF_ENV,
 };
 #[cfg(not(target_arch = "wasm32"))]

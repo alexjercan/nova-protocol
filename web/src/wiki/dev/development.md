@@ -246,9 +246,15 @@ the pre-release/nightly sweep (roughly half an hour).
 
 Under the hood: an env-gated capture plugin drives the real gameplay app to
 `Playing`, warms up, records the wall-clock delta of every frame for a fixed
-window, and writes percentile stats. It is inert unless `NOVA_PERF` is set, so
-`perf_baseline` can carry it permanently. See the crate docs for the full
-knob list (`NOVA_PERF_*`).
+window, and writes percentile stats. It is inert unless `NOVA_PERF` is set,
+so the whole fleet carries it permanently. `--fps` runs it as a DEDICATED
+capture-only pass (the correctness recorder flushes per entry on the frame
+path - measurement and correctness never share a pass), the harness
+completion protocol keeps the app alive until the window closes, and
+enrolled scenes (`loop_while_pending`) reload + replay so the window
+measures activity - reload intervals are excluded from the stats and
+reported as their own line. See the crate docs for the full knob list
+(`NOVA_PERF_*`).
 
 The perf sweep is the same front door: a scenario x preset matrix of the
 frame-time capture, one labeled `frametime.csv` row per cell, release-built

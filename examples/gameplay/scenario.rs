@@ -51,7 +51,18 @@ fn main() {
     #[cfg(feature = "debug")]
     {
         app.init_resource::<ScenarioProbe>();
-        app.add_plugins(nova_autopilot().input(autopilot_scenario_probe));
+        app.add_plugins(
+            nova_autopilot()
+                // Enrolled in capture looping (task 20260720-000616): when a
+                // frame capture outlives the 6s cycle, the scene reloads and
+                // the script replays so the capture measures ACTIVITY.
+                .loop_while_pending()
+                .input(autopilot_scenario_probe),
+        );
+        app.add_systems(PreUpdate, on_autopilot_loop);
+        app.add_observer(|_: On<ScenarioLoaded>, mut commands: Commands| {
+            commands.queue(nova_probe::capture_reload_end);
+        });
         app.add_plugins(nova_screenshot());
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
         // Run-timeline recorder (inert unless NOVA_PERF_TIMELINE is set):
@@ -202,6 +213,30 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
     }
 }
 
+/// Reset the cycle on an autopilot loop: fresh probe, reload interval
+/// marked for the capture, and the SAME showcase scenario re-triggered
+/// (task 20260720-000616).
+#[cfg(feature = "debug")]
+fn on_autopilot_loop(
+    mut loops: MessageReader<nova_protocol::nova_debug::harness::AutopilotLoop>,
+    mut commands: Commands,
+    // Option: this system runs from frame 1, before the loader has
+    // inserted GameAssets - a bare Res fails param validation and kills
+    // the run.
+    game_assets: Option<Res<GameAssets>>,
+    probe: Option<ResMut<ScenarioProbe>>,
+) {
+    if loops.read().next().is_none() {
+        return;
+    }
+    let (Some(game_assets), Some(mut probe)) = (game_assets, probe) else {
+        return;
+    };
+    *probe = ScenarioProbe::default();
+    commands.queue(nova_probe::capture_reload_begin);
+    commands.trigger(LoadScenario(showcase(&game_assets)));
+}
+
 /// Stage tracker for the scenario probe.
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
@@ -226,6 +261,12 @@ fn number_variable(world: &World, key: &str) -> f64 {
 /// the beat, and the OnUpdate pulse promoted it again.
 #[cfg(feature = "debug")]
 fn autopilot_scenario_probe(world: &mut World, elapsed: f32) {
+    // A looped-capture scene reload is in flight: the scenario's variables
+    // and entities do not exist between the loop trigger and the loaded
+    // signal - script frames must not read torn-down state (20260720-000616).
+    if nova_probe::capture_reloading(world) {
+        return;
+    }
     // Backstop before the state gate: if the window is about to close and
     // the probe never completed (loading ate the window, a stage stalled),
     // fail loudly instead of vacuously passing.
@@ -242,7 +283,19 @@ fn autopilot_scenario_probe(world: &mut World, elapsed: f32) {
     }
 
     let Some(seeded_at) = world.resource::<ScenarioProbe>().seeded_at else {
-        // Stage 1: the OnStart handlers seeded the variables.
+        // Stage 1: WAIT for the OnStart handlers to seed the variables -
+        // seeding is asynchronous relative to the load (ScenarioLoaded
+        // fires before OnStart runs), and on a looped cycle the state gate
+        // above no longer covers that window (the game stays in Playing
+        // through a reload, task 20260720-000616). The backstop still
+        // catches a cycle that never seeds.
+        let seeded = matches!(
+            world.resource::<NovaEventWorld>().get_variable("beat"),
+            Some(VariableLiteral::Number(_))
+        );
+        if !seeded {
+            return;
+        }
         assert_eq!(
             number_variable(world, "beat"),
             1.0,

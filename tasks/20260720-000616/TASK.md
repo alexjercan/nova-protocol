@@ -1,6 +1,6 @@
 # Measurement passes always split (--fps dedicated, capture-only) + loop_while_pending scene repetition with reload lines
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 61
 - TAGS: v0.8.0,tooling,performance,testing
 
@@ -30,20 +30,51 @@ tasks/20260719-235305/SPIKE.md, D2 + adjudications 1-3). Depends on S1
 
 ## Steps
 
-- [ ] probe: fps as its own pass (env assembly, pass record, run-N log
+- [x] probe: fps as its own pass (env assembly, pass record, run-N log
       naming, USAGE/docs); clean pass drops NOVA_PERF arming.
-- [ ] looping surface (bcs or nova_debug harness extension + capture
+- [x] looping surface (bcs or nova_debug harness extension + capture
       reload-interval resource); scenario + playable enrolled.
-- [ ] capture: reload exclusion + tally; report renders the reload line.
-- [ ] Tests: env-assembly pins (fps pass vs clean pass), reload
+- [x] capture: reload exclusion + tally; report renders the reload line.
+- [x] Tests: env-assembly pins (fps pass vs clean pass), reload
       exclusion math (pure), report line.
-- [ ] E2E: `probe run gameplay --fps` with ZERO env knobs -> three FULL
+- [x] E2E: `probe run gameplay --fps` with ZERO env knobs -> three FULL
       windows; looped rows carry reload lines; baseline comparison
       between two looped runs stays like-for-like.
-- [ ] Docs: skill (--fps semantics + reload line), wiki capture section,
+- [x] Docs: skill (--fps semantics + reload line), wiki capture section,
       CHANGELOG.
 
 ## Notes
 
 - Spike: tasks/20260719-235305/SPIKE.md. After this, 20260719-233732
   (partial-emit) shrinks to the deadline net + diagnostics.
+
+## Close-out (2026-07-20, branch feature/fps-pass-loop; bcs v0.19.4 shipped)
+
+The window measures activity, with zero knobs. E2E (`probe run gameplay
+--fps`, no env): aggregate OK - scenario looped THREE cycles into a full
+900-frame capture with "3 scene reload(s)" as its own report line;
+playable's long script fit its window unlooped (900 frames); broadside
+(unenrolled, self-completing) captured its 900 via the S1 wait path.
+
+Shipped shape:
+- fps is ALWAYS a dedicated capture-only pass (fps-run.log, "fps"
+  PassRecord judged by process_exit, log fed to log_clean); the clean
+  pass never arms NOVA_PERF; sweep matrix cells unchanged (already
+  capture-only). RUN_ARTIFACTS + report loader extended.
+- bcs v0.19.4 (master f4d504b): AutopilotPlugin::loop_while_pending() +
+  AutopilotLoop message + HarnessCompletion::others_pending().
+- Enrollment (scenario, playable): loop observer resets script +
+  capture_reload_begin + re-triggers LoadScenario; ScenarioLoaded
+  observer closes the gate. Reload frames excluded (plus the boundary
+  frame after the gate closes); intervals in the <label>.json sidecar
+  ("reload_ms"), rendered as a mean/max line under the fps table.
+
+The e2e's three failing rounds were all REAL loop-cycle hazards, each
+fixed at its honest site: (1) observer params validated against
+resources that do not exist before the loader runs (Option params);
+(2) script frames reading torn-down state mid-reload
+(capture_reloading() gate); (3) the stage-1 seed assert racing OnStart
+handlers, which the first cycle's Loading gate had been masking (stage 1
+now WAITS for seeding - the backstop still catches never-seeding). Loop
+cycles strip the protections first cycles get for free - exactly the
+spike's R1 class.

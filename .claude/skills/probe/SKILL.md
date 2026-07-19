@@ -19,7 +19,7 @@ wiki's Performance section (`web/src/wiki/dev/development.md`).
 cargo run -p nova_probe -- run <example>              # clean pass -> report
 cargo run -p nova_probe -- run <example> --profile    # + traced pass (top-N systems)
 cargo run -p nova_probe -- run <example> --samply     # + named flamegraph
-cargo run -p nova_probe -- run <example> --fps        # + frame-time capture (wired examples)
+cargo run -p nova_probe -- run <example> --fps        # + DEDICATED capture-only pass
 cargo run -p nova_probe -- run <example> --baseline <old-run-dir>   # FPS deltas
 cargo run -p nova_probe -- run playable,scenario      # comma list -> aggregate index
 cargo run -p nova_probe -- run ui                     # a whole category (sections|gameplay|ui|screenshots|perf)
@@ -141,13 +141,17 @@ ui flows are state-transition shaped - the generic timeline already
 records every transition.
 
 Probe addresses examples by NAME (`probe run scenario`); categories come
-from `examples/<category>/` (catalog in the root Cargo.toml). `--fps` now
-captures on ANY example, but frame rows carry their build profile (schema
-v3) and dev rows are labeled NOT a baseline - baselines come from
-`--release` runs on measurement scenes, and `--fps` on a SELF-ENDING
-correctness script (broadside) can end the app before the script's
-completion guard, so keep fps runs to lifetime-driven examples or expect
-a FAIL that means "capture preempted the script", not a game bug.
+from `examples/<category>/` (catalog in the root Cargo.toml). `--fps` runs
+a DEDICATED capture-only pass (task 20260720-000616) - the clean pass
+never arms the capture (the recorder's per-entry flush contaminated
+fps-on-clean numbers), and the completion protocol keeps the app alive
+until the window closes. Enrolled scenes (gameplay/scenario, playable -
+`loop_while_pending`) RELOAD and replay while the capture fills, so the
+window measures activity; reload intervals are EXCLUDED from the stats
+(their count is host-speed-dependent) and reported as their own line
+("3 scene reloads - mean/max ms"). Frame rows carry their build profile
+(schema v3); dev rows are labeled NOT a baseline - baselines come from
+`--release` runs.
 
 ## Host knobs (flamegraphs)
 

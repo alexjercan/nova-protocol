@@ -165,6 +165,10 @@ pub struct RunArtifacts {
     pub baseline: Option<Vec<PerfRun>>,
     /// Parsed `probe-run.json` (present in probe-produced dirs).
     pub manifest: Option<RunManifest>,
+    /// Reload intervals per run label (from each `<label>.json` sidecar's
+    /// `reload_ms`, written by looped captures) - excluded from the frame
+    /// stats by the capture, shown as their own line (task 20260720-000616).
+    pub reloads: Vec<(String, Vec<f64>)>,
 }
 
 impl RunArtifacts {
@@ -197,6 +201,10 @@ impl RunArtifacts {
         if let Some(main_log) = read_opt("run.log")? {
             log_parts.push(main_log);
         }
+        // The fps pass is a real game run too; its panics/errors gate.
+        if let Some(fps_log) = read_opt("fps-run.log")? {
+            log_parts.push(fps_log);
+        }
         let mut cell_logs: Vec<PathBuf> = std::fs::read_dir(dir)
             .map(|entries| {
                 entries
@@ -224,6 +232,29 @@ impl RunArtifacts {
         let manifest = read_opt("probe-run.json")?
             .map(|s| RunManifest::from_json(&s))
             .transpose()?;
+        // Reload sidecars: each run label may have a <label>.json whose
+        // reload_ms array records looped-capture reload intervals.
+        let mut reloads: Vec<(String, Vec<f64>)> = Vec::new();
+        if let Some(runs) = &runs {
+            for run in runs {
+                let Ok(contents) = std::fs::read_to_string(
+                    dir.join(format!("{}.json", run.label.replace(['/', '\\'], "_"))),
+                ) else {
+                    continue;
+                };
+                let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) else {
+                    continue;
+                };
+                let intervals: Vec<f64> = value
+                    .get("reload_ms")
+                    .and_then(|v| v.as_array())
+                    .map(|a| a.iter().filter_map(|x| x.as_f64()).collect())
+                    .unwrap_or_default();
+                if !intervals.is_empty() {
+                    reloads.push((run.label.clone(), intervals));
+                }
+            }
+        }
         let baseline = match baseline_dir {
             None => None,
             Some(base) => {
@@ -240,6 +271,7 @@ impl RunArtifacts {
             log,
             baseline,
             manifest,
+            reloads,
         })
     }
 }
@@ -369,7 +401,7 @@ pub fn evaluate_checks(artifacts: &RunArtifacts) -> Vec<Check> {
             let primary: Vec<&PassRecord> = m
                 .passes
                 .iter()
-                .filter(|p| p.name.starts_with("clean") || p.name == "web")
+                .filter(|p| p.name.starts_with("clean") || p.name == "web" || p.name == "fps")
                 .collect();
             let failed: Vec<&&PassRecord> = primary
                 .iter()
@@ -966,6 +998,23 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
                 &baseline_map,
                 artifacts.baseline.is_some(),
             ));
+            // Looped captures: scene reloads are EXCLUDED from the stats
+            // above (their count is host-speed-dependent) and reported as
+            // their own number - scene-loading cost stays visible instead
+            // of smearing someone else's percentile tail.
+            for (label, intervals) in &artifacts.reloads {
+                let mean = intervals.iter().sum::<f64>() / intervals.len() as f64;
+                let max = intervals.iter().cloned().fold(0.0_f64, f64::max);
+                html.push_str(&format!(
+                    "<p class=\"note\">{}: {} scene reload(s) during the looped \
+                     capture - mean {:.1} ms, max {:.1} ms - excluded from the \
+                     stats above.</p>\n",
+                    crate::report::escape(label),
+                    intervals.len(),
+                    mean,
+                    max
+                ));
+            }
         }
     }
 
@@ -1322,6 +1371,7 @@ mod tests {
 
         // A timed-out clean pass is a process_exit FAIL...
         let artifacts = RunArtifacts {
+            reloads: Vec::new(),
             manifest: Some(parsed),
             ..Default::default()
         };
@@ -1339,6 +1389,7 @@ mod tests {
 
         // A failed (non-timeout) exit also fails.
         let artifacts = RunArtifacts {
+            reloads: Vec::new(),
             manifest: Some(RunManifest {
                 passes: vec![PassRecord {
                     name: "clean".into(),
@@ -1375,6 +1426,7 @@ mod tests {
         // The live repro's misdirection: probe DID arm the env; the detail
         // must say "not wired", not "arm NOVA_PERF_TIMELINE".
         let artifacts = RunArtifacts {
+            reloads: Vec::new(),
             manifest: Some(manifest_ok()),
             ..Default::default()
         };
