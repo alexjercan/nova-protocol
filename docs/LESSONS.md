@@ -441,6 +441,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   substrate covers the need before building infrastructure. 20260712-131348.
 - `trace-vehicle-timeline-first` (x1): pick an evidence rig by its script
   TIMELINE, not scene content. 20260711-183417.
+- `derived-not-hardcoded-shared-resources` (x1): displays, ports and temp
+  names two concurrent runs could contend on are derived (pid/unique) at
+  FIRST writing and unit-tested with the env assembly - a hardcoded Xvfb :97
+  reached review before the collision was seen. 20260719-112317.
 - `pkill-pattern-matches-own-shell` (x2, PROMOTED 2026-07-19 -> ~/AGENTS.md):
   `pkill -f` matches your own command line and look-alike processes; kill
   recorded PIDs. 20260716-180352, 20260717-004302.
