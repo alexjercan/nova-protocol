@@ -58,6 +58,12 @@ fn main() {
             app.add_systems(Last, guard_script_completion);
         }
         app.init_resource::<SliceAutopilot>();
+        // Probe wiring (task 20260719-210443; each plugin is inert without
+        // its NOVA_PERF_* env): run timeline + engine-bound invariants +
+        // frame-time capture, so `probe run` can measure this example.
+        app.add_plugins(nova_probe::nova_timeline());
+        app.add_plugins(nova_probe::nova_invariants());
+        app.add_plugins(nova_probe::nova_frametime());
         // The full walk needs THREE scenario loads (launch, retry, the
         // gunship part behind the checkpoint) plus three staged fights;
         // 50s of runway (the script exits itself in ~12s when healthy).

@@ -111,26 +111,33 @@ report.
 - **/review**: when the implementer cites a probe verdict, open checks.json
   and read `measured` first, then the SKIPPED rows - what was NOT measured
   is the first thing to challenge. For perf claims, confirm same-label baselines and a quiet host.
-- **New examples**: wiring is one inert line each -
-  `app.add_plugins(nova_probe::nova_timeline())` and
-  `nova_probe::nova_invariants().monotonic([...])` (only variables the
-  scenario DESIGN promises one-way), plus `probe_marker` calls at script
-  beats. FPS capture (`nova_frametime()`) only belongs on measurement
-  scenes, not scripted correctness runs.
+- **New examples**: wiring is three inert lines -
+  `app.add_plugins(nova_probe::nova_timeline())`,
+  `nova_probe::nova_invariants()` and `nova_probe::nova_frametime()` -
+  every cataloged example carries them (fleet wiring, 20260719-210443).
+  Monotonic variables (`.monotonic([...])`, only what the scenario DESIGN
+  promises one-way) and `probe_marker` beats are the depth pass (T3).
 
 ## Wired today
 
-| Example | timeline + invariants | fps capture |
-|---|---|---|
-| gameplay/scenario | yes (monotonic: beat, rocks_destroyed) | no |
-| gameplay/playable | yes (monotonic: target_down, leg) + 7 beat markers | no |
-| perf/perf_baseline | no | yes (`--fps`) |
-| others | SKIPPED until wired | no |
+The WHOLE fleet carries timeline + invariants + frame capture (inert
+without probe's env); `render_scale_shot` alone is unwired (NOT_PROBED -
+real-GPU pixel capture). Depth beyond the generic checks:
 
-Probe addresses examples by NAME (`probe run scenario`); the prefix above is
-the category dir (`examples/<category>/`, catalog in the root Cargo.toml).
-New `--fps` scenes belong in `perf/`, new wired correctness runs in
-`gameplay/`.
+| Example | extra depth |
+|---|---|
+| gameplay/scenario | monotonics: beat, rocks_destroyed |
+| gameplay/playable | monotonics: target_down, leg + 7 beat markers |
+| perf/perf_baseline | combat-burst fps driver (the sweep scene) |
+
+Probe addresses examples by NAME (`probe run scenario`); categories come
+from `examples/<category>/` (catalog in the root Cargo.toml). `--fps` now
+captures on ANY example, but frame rows carry their build profile (schema
+v3) and dev rows are labeled NOT a baseline - baselines come from
+`--release` runs on measurement scenes, and `--fps` on a SELF-ENDING
+correctness script (broadside) can end the app before the script's
+completion guard, so keep fps runs to lifetime-driven examples or expect
+a FAIL that means "capture preempted the script", not a game bug.
 
 ## Host knobs (flamegraphs)
 

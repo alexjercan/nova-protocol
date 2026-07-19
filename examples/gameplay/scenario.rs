@@ -62,6 +62,9 @@ fn main() {
         // the beat gate and the destruction tally only ever advance in this
         // scenario's design.
         app.add_plugins(nova_probe::nova_invariants().monotonic(["beat", "rocks_destroyed"]));
+        // Frame-time capture (inert unless NOVA_PERF is set): fleet-wide
+        // wiring, task 20260719-210443.
+        app.add_plugins(nova_probe::nova_frametime());
     }
 
     app.run();

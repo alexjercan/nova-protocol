@@ -2,14 +2,18 @@
 //! metadata ([`RunMeta`]), and the CSV/JSON writers + parsers both the capture
 //! harness and the report/probe consumers share, so the schema is defined once.
 //!
-//! Two CSV schema versions exist:
+//! Three CSV schema versions exist:
 //!
 //! - **v1** ([`CSV_HEADER_V1`]): the numeric columns only. The v0.7.0 baseline
 //!   sweeps (`tasks/20260716-123551/perf-results/`) are v1 and must keep
 //!   parsing - the reader accepts it and fills [`RunMeta::unknown`].
-//! - **v2** ([`CSV_HEADER`]): v1 plus the run-metadata columns
+//! - **v2** ([`CSV_HEADER_V2`]): v1 plus the run-metadata columns
 //!   (backend, adapter, resolution, quality, git_sha, host), so a results
 //!   file is self-describing instead of leaning on its directory name.
+//!   Rows parse with `profile = "unknown"`.
+//! - **v3** ([`CSV_HEADER`]): v2 plus the build `profile` column (`dev` or
+//!   `release`, task 20260719-210443) - dev-profile numbers are not
+//!   baselines, and the report labels them.
 
 /// Percentile frame-time statistics over a capture window. Frame times are in
 /// milliseconds; the derived FPS figures are `1000 / ms`.
@@ -59,6 +63,12 @@ pub struct RunMeta {
     pub git_sha: String,
     /// Host tag (env override, `/etc/hostname`, or `browser` on wasm).
     pub host: String,
+    /// Build profile of the CAPTURE binary: `dev` or `release`, detected via
+    /// `cfg!(debug_assertions)` at capture time (schema v3, task
+    /// 20260719-210443). Dev-profile numbers are NOT baselines - the report
+    /// labels them so fps-everywhere wiring cannot invite apples-to-oranges
+    /// deltas. Pre-v3 rows parse as `unknown`.
+    pub profile: String,
 }
 
 impl RunMeta {
@@ -73,6 +83,7 @@ impl RunMeta {
             quality: unknown(),
             git_sha: unknown(),
             host: unknown(),
+            profile: unknown(),
         }
     }
 
@@ -82,7 +93,7 @@ impl RunMeta {
     }
 
     /// The metadata columns in [`CSV_HEADER`] order, comma-sanitized.
-    pub(crate) fn csv_cells(&self) -> [String; 6] {
+    pub(crate) fn csv_cells(&self) -> [String; 7] {
         [
             csv_safe(&self.backend),
             csv_safe(&self.adapter),
@@ -90,6 +101,7 @@ impl RunMeta {
             csv_safe(&self.quality),
             csv_safe(&self.git_sha),
             csv_safe(&self.host),
+            csv_safe(&self.profile),
         ]
     }
 }
@@ -113,10 +125,16 @@ pub struct PerfRun {
     pub meta: RunMeta,
 }
 
-/// Header row for the aggregated CSV, schema v2 (numeric columns + run
-/// metadata), written when a new file is created. Public so a reader can
-/// validate a file against the exact column contract the writer emits.
+/// Header row for the aggregated CSV, schema v3 (numeric columns + run
+/// metadata + build profile), written when a new file is created. Public so
+/// a reader can validate a file against the exact column contract the
+/// writer emits.
 pub const CSV_HEADER: &str = "label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_ms,p99_ms,p999_ms,\
+     mean_fps,one_pct_low_fps,backend,adapter,resolution,quality,git_sha,host,profile\n";
+
+/// The schema v2 header (metadata without the build profile). Still
+/// accepted by the parser; its rows parse with `profile = "unknown"`.
+pub const CSV_HEADER_V2: &str = "label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_ms,p99_ms,p999_ms,\
      mean_fps,one_pct_low_fps,backend,adapter,resolution,quality,git_sha,host\n";
 
 /// The pre-metadata schema v1 header. Still accepted by the parser so the
@@ -125,9 +143,11 @@ pub const CSV_HEADER: &str = "label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_ms,p
 pub const CSV_HEADER_V1: &str =
     "label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_ms,p99_ms,p999_ms,mean_fps,one_pct_low_fps\n";
 
-/// Column counts for the two schema versions (label + numerics [+ meta]).
+/// Column counts for the three schema versions (label + numerics [+ meta
+/// [+ profile]]).
 const V1_COLS: usize = 11;
 const V2_COLS: usize = 17;
+const V3_COLS: usize = 18;
 
 impl FrameStats {
     /// Compute stats from a slice of per-frame times in milliseconds. Pure and
@@ -195,7 +215,8 @@ impl FrameStats {
              \"p50_ms\": {:.4},\n  \"p95_ms\": {:.4},\n  \"p99_ms\": {:.4},\n  \
              \"p999_ms\": {:.4},\n  \"mean_fps\": {:.2},\n  \"one_pct_low_fps\": {:.2},\n  \
              \"backend\": \"{}\",\n  \"adapter\": \"{}\",\n  \"resolution\": \"{}\",\n  \
-             \"quality\": \"{}\",\n  \"git_sha\": \"{}\",\n  \"host\": \"{}\"\n}}\n",
+             \"quality\": \"{}\",\n  \"git_sha\": \"{}\",\n  \"host\": \"{}\",\n  \
+             \"profile\": \"{}\"\n}}\n",
             json_safe(label),
             self.frames,
             self.total_ms,
@@ -214,14 +235,15 @@ impl FrameStats {
             json_safe(&meta.quality),
             json_safe(&meta.git_sha),
             json_safe(&meta.host),
+            json_safe(&meta.profile),
         )
     }
 
-    /// One CSV data row (no header), schema v2: matches [`CSV_HEADER`].
+    /// One CSV data row (no header), schema v3: matches [`CSV_HEADER`].
     pub(crate) fn to_csv_row(&self, label: &str, meta: &RunMeta) -> String {
         let cells = meta.csv_cells();
         format!(
-            "{},{},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.2},{:.2},{},{},{},{},{},{}\n",
+            "{},{},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.2},{:.2},{},{},{},{},{},{},{}\n",
             csv_safe(label),
             self.frames,
             self.mean_ms,
@@ -239,6 +261,7 @@ impl FrameStats {
             cells[3],
             cells[4],
             cells[5],
+            cells[6],
         )
     }
 }
@@ -252,15 +275,15 @@ fn json_safe(value: &str) -> String {
 impl PerfRun {
     /// Parse one aggregated-CSV data row (no header) - the inverse of
     /// [`FrameStats::to_csv_row`]. Accepts a v1 row (11 columns; metadata
-    /// becomes [`RunMeta::unknown`]) or a v2 row (17 columns). The CSV omits
-    /// `total_ms` (JSON-only), so it is reconstructed exactly as
-    /// `mean_ms * frames` (mean is defined as `total / frames`). Returns
-    /// `None` on any other column count or a numeric field that does not
-    /// parse, so a truncated or foreign file is rejected rather than
-    /// silently mis-read.
+    /// becomes [`RunMeta::unknown`]), a v2 row (17 columns; profile
+    /// `unknown`) or a v3 row (18 columns). The CSV omits `total_ms`
+    /// (JSON-only), so it is reconstructed exactly as `mean_ms * frames`
+    /// (mean is defined as `total / frames`). Returns `None` on any other
+    /// column count or a numeric field that does not parse, so a truncated
+    /// or foreign file is rejected rather than silently mis-read.
     pub fn from_csv_row(row: &str) -> Option<Self> {
         let cols: Vec<&str> = row.split(',').collect();
-        if cols.len() != V1_COLS && cols.len() != V2_COLS {
+        if cols.len() != V1_COLS && cols.len() != V2_COLS && cols.len() != V3_COLS {
             return None;
         }
         // "NaN"/"inf" parse as f64 but poison every downstream stat; a row
@@ -277,7 +300,7 @@ impl PerfRun {
         let p999_ms: f64 = finite(cols[8])?;
         let mean_fps: f64 = finite(cols[9])?;
         let one_pct_low_fps: f64 = finite(cols[10])?;
-        let meta = if cols.len() == V2_COLS {
+        let meta = if cols.len() >= V2_COLS {
             RunMeta {
                 backend: cols[11].trim().to_string(),
                 adapter: cols[12].trim().to_string(),
@@ -285,6 +308,10 @@ impl PerfRun {
                 quality: cols[14].trim().to_string(),
                 git_sha: cols[15].trim().to_string(),
                 host: cols[16].trim().to_string(),
+                profile: cols
+                    .get(17)
+                    .map(|cell| cell.trim().to_string())
+                    .unwrap_or_else(|| "unknown".to_string()),
             }
         } else {
             RunMeta::unknown()
@@ -367,6 +394,23 @@ pub fn append_frametime_row(
 ) -> Result<(), String> {
     use std::io::Write;
     let need_header = !path.exists();
+    // Never mix schemas in one file: appending a v3 row under an older
+    // header would give every consumer a column-count error at parse time
+    // (or worse, silent misreads). Probe's fresh-dir discipline makes this
+    // unreachable in practice; a manual NOVA_PERF_OUT into an old results
+    // dir is exactly when it matters.
+    if !need_header {
+        let existing = std::fs::read_to_string(path)
+            .map_err(|e| format!("could not read {}: {e}", path.display()))?;
+        let header = existing.lines().next().unwrap_or("");
+        if header.trim() != CSV_HEADER.trim() {
+            return Err(format!(
+                "{} has a pre-v3 header - appending would mix schemas; \
+                 move the old file aside (its rows still parse read-only)",
+                path.display()
+            ));
+        }
+    }
     let mut file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -383,23 +427,26 @@ pub fn append_frametime_row(
 
 /// Parse a whole aggregated `frametime.csv` (header + one row per run) into a
 /// list of runs, preserving file order. The first line must match
-/// [`CSV_HEADER`] (v2) or [`CSV_HEADER_V1`] (trimmed) or the file is rejected
-/// as not-a-frametime-CSV; every data row must then carry that version's
-/// column count. Blank lines are skipped and any row that fails to parse is
-/// an error naming its line, so a corrupt sweep is caught instead of silently
-/// dropping runs. Shared by every frametime consumer so the schema lives in
-/// one place.
+/// [`CSV_HEADER`] (v3), [`CSV_HEADER_V2`] or [`CSV_HEADER_V1`] (trimmed) or
+/// the file is rejected as not-a-frametime-CSV; every data row must then
+/// carry that version's column count. Blank lines are skipped and any row
+/// that fails to parse is an error naming its line, so a corrupt sweep is
+/// caught instead of silently dropping runs. Shared by every frametime
+/// consumer so the schema lives in one place.
 pub fn parse_frametime_csv(contents: &str) -> Result<Vec<PerfRun>, String> {
     let mut lines = contents.lines();
     let header = lines.next().ok_or("empty CSV (no header)")?;
     let expected_cols = if header.trim() == CSV_HEADER.trim() {
+        V3_COLS
+    } else if header.trim() == CSV_HEADER_V2.trim() {
         V2_COLS
     } else if header.trim() == CSV_HEADER_V1.trim() {
         V1_COLS
     } else {
         return Err(format!(
-            "unexpected CSV header\n  expected: {}\n  or (v1):  {}\n  found:    {}",
+            "unexpected CSV header\n  expected: {}\n  or (v2):  {}\n  or (v1):  {}\n  found:    {}",
             CSV_HEADER.trim(),
+            CSV_HEADER_V2.trim(),
             CSV_HEADER_V1.trim(),
             header.trim()
         ));
@@ -436,7 +483,40 @@ mod tests {
             quality: "high".to_string(),
             git_sha: "f4bfb3af".to_string(),
             host: "devbox".to_string(),
+            profile: "release".to_string(),
         }
+    }
+
+    #[test]
+    fn v2_rows_parse_with_unknown_profile() {
+        // A v2 file (pre-profile header + 17-column rows) must keep loading;
+        // its rows carry profile "unknown", never a guess.
+        let csv = format!(
+            "{}scene-high,100,10.0,9.0,12.0,10.0,11.0,11.5,12.0,100.0,87.0,\
+             vulkan,RTX,1280x720,high,abc123,devbox\n",
+            CSV_HEADER_V2
+        );
+        let runs = parse_frametime_csv(&csv).expect("v2 parses");
+        assert_eq!(runs[0].meta.quality, "high");
+        assert_eq!(runs[0].meta.profile, "unknown");
+    }
+
+    #[test]
+    fn v3_roundtrips_the_profile() {
+        let stats = FrameStats::from_samples(&[10.0; 10]);
+        let row = stats.to_csv_row("scene-high", &some_meta());
+        assert_eq!(
+            row.trim().split(',').count(),
+            18,
+            "v3 writes the profile column"
+        );
+        let run = PerfRun::from_csv_row(row.trim()).expect("v3 row parses");
+        assert_eq!(run.meta.profile, "release");
+        let csv = format!("{}{}", CSV_HEADER, row);
+        assert_eq!(
+            parse_frametime_csv(&csv).expect("v3 file parses")[0].meta,
+            some_meta()
+        );
     }
 
     #[test]
@@ -525,7 +605,7 @@ mod tests {
         meta.adapter = "Intel, Inc. UHD Graphics,  770".to_string();
         let stats = FrameStats::from_samples(&[10.0; 5]);
         let row = stats.to_csv_row("scene", &meta);
-        assert_eq!(row.trim().split(',').count(), 17, "row: {row}");
+        assert_eq!(row.trim().split(',').count(), 18, "row: {row}");
         let run = PerfRun::from_csv_row(row.trim()).expect("sanitized row parses");
         assert_eq!(run.meta.adapter, "Intel  Inc. UHD Graphics   770");
     }

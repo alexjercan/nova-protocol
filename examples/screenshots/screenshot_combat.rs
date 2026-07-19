@@ -49,6 +49,12 @@ fn main() {
     #[cfg(feature = "debug")]
     {
         app.init_resource::<CombatScript>();
+        // Probe wiring (task 20260719-210443; each plugin is inert without
+        // its NOVA_PERF_* env): run timeline + engine-bound invariants +
+        // frame-time capture, so `probe run` can measure this example.
+        app.add_plugins(nova_probe::nova_timeline());
+        app.add_plugins(nova_probe::nova_invariants());
+        app.add_plugins(nova_probe::nova_frametime());
         // A generous window: reach Playing, perform the gesture, let the lock +
         // inset + dwell settle, then capture.
         app.add_plugins(

@@ -104,6 +104,20 @@ fn main() {
     #[cfg(feature = "debug")]
     app.add_plugins(assert_scenario_loaded(scenario_id));
 
+    // Exit ownership (task 20260719-210443, found by the first probe --all):
+    // when the capture is ARMED it ends the app after its window; without
+    // it NOTHING did, so a plain `probe run perf_baseline` timed out by
+    // construction. The autopilot owns the exit exactly when the capture
+    // does not - never both, so the harness can never preempt a
+    // measurement window. The probe recorder/invariants ride along on the
+    // harnessed shape (inert without probe's env).
+    #[cfg(feature = "debug")]
+    if !nova_probe::perf_armed() {
+        app.add_plugins(nova_autopilot());
+        app.add_plugins(nova_probe::nova_timeline());
+        app.add_plugins(nova_probe::nova_invariants());
+    }
+
     app.run();
 }
 

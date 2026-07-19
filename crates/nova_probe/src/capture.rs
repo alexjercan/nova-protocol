@@ -177,6 +177,15 @@ impl RunMeta {
             quality: perf_param("quality").unwrap_or_else(|| "default".to_string()),
             git_sha: resolve_git_sha(),
             host: resolve_host(),
+            // The CAPTURE binary's own build profile (schema v3): dev
+            // numbers are not baselines, and every row must say which it
+            // is. cfg! resolves at the capture's compile time - exactly the
+            // binary that produced the frames.
+            profile: if cfg!(debug_assertions) {
+                "dev".to_string()
+            } else {
+                "release".to_string()
+            },
         }
     }
 }
@@ -391,14 +400,20 @@ fn perf_capture(
 }
 
 /// Log the summary line and, when `NOVA_PERF_OUT` is set, write a per-run JSON
-/// file and append a row to the aggregated CSV (schema v2, run metadata
+/// file and append a row to the aggregated CSV (schema v3, run metadata
 /// included). The log line is always emitted - on wasm there is no filesystem,
 /// so a headless-browser driver scrapes it from the console.
 fn emit_stats(config: &PerfConfig, stats: &FrameStats, meta: &RunMeta) {
     info!("{}", stats.summary_line(&config.label));
     info!(
-        "nova perf: meta backend={} adapter={:?} res={} quality={} sha={} host={}",
-        meta.backend, meta.adapter, meta.resolution, meta.quality, meta.git_sha, meta.host
+        "nova perf: meta backend={} adapter={:?} res={} quality={} sha={} host={} profile={}",
+        meta.backend,
+        meta.adapter,
+        meta.resolution,
+        meta.quality,
+        meta.git_sha,
+        meta.host,
+        meta.profile
     );
 
     let Some(dir) = &config.out_dir else {

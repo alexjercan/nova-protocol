@@ -59,6 +59,12 @@ fn main() {
             ));
         }
         app.init_resource::<MenuAutopilot>();
+        // Probe wiring (task 20260719-210443; each plugin is inert without
+        // its NOVA_PERF_* env): run timeline + engine-bound invariants +
+        // frame-time capture, so `probe run` can measure this example.
+        app.add_plugins(nova_probe::nova_timeline());
+        app.add_plugins(nova_probe::nova_invariants());
+        app.add_plugins(nova_probe::nova_frametime());
         app.add_plugins(nova_autopilot().input(menu_autopilot));
         app.add_plugins(nova_screenshot());
     }

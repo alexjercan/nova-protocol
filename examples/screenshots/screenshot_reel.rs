@@ -55,6 +55,12 @@ fn main() {
     {
         app.init_resource::<ReelSceneLoaded>();
         app.add_observer(note_scenario_loaded);
+        // Probe wiring (task 20260719-210443; each plugin is inert without
+        // its NOVA_PERF_* env): run timeline + engine-bound invariants +
+        // frame-time capture, so `probe run` can measure this example.
+        app.add_plugins(nova_probe::nova_timeline());
+        app.add_plugins(nova_probe::nova_invariants());
+        app.add_plugins(nova_probe::nova_frametime());
         app.add_plugins(nova_autopilot().input(reel_smoke_probe));
         app.add_plugins(ScreenshotReelPlugin::new(reel_beats()));
     }

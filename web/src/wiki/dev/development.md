@@ -261,8 +261,13 @@ cargo run -p nova_probe -- run <scenario> --platform web   # web/WebGPU capture 
 ```
 
 Every capture records run metadata (wgpu backend + GPU adapter, resolution,
-graphics preset, git SHA and host) so a results file names its own renderer
-(pre-metadata files, like the v0.7.0 baseline, still load). The web platform
+graphics preset, git SHA, host and - schema v3 - the BUILD PROFILE) so a
+results file names its own renderer (pre-v3 files, like the v0.7.0
+baseline, still load; their profile reads `unknown`). The report badges
+each row `dev` or `release`: dev numbers are NOT baselines, and since the
+whole fleet now carries the capture (`--fps` works on any example), the
+badge is what keeps ad-hoc dev captures from being mistaken for
+comparable measurements. The web platform
 builds the perf_web wasm app through Trunk, serves it from an embedded static
 server, drives headless Chromium with the calibrated WebGPU flags, and
 scrapes the summary line into a labeled CSV row (no fs in the browser).
@@ -274,8 +279,9 @@ per label - and `report` only accepts dirs probe itself produced
 
 `nova_probe` also records WHAT HAPPENED during a run: set
 `NOVA_PERF_TIMELINE=<out.jsonl>` on any example that adds
-`nova_probe::nova_timeline()` (playable does) and the run appends one JSON
-object per line - every `GameStates`/pause transition, every fired scenario
+`nova_probe::nova_timeline()` - since the fleet wiring (task
+20260719-210443) that is EVERY cataloged example except
+`render_scale_shot` - and the run appends one JSON object per line - every `GameStates`/pause transition, every fired scenario
 event with its payload (kills, area enter/exit, locks), every scenario-variable
 change (old/new), plus the beats the autopilot script pushes itself via
 `nova_probe::probe_marker`. Entries are flushed as written, so a panicked run

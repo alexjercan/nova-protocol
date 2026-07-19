@@ -69,6 +69,9 @@ fn main() {
         // target_down and leg are one-way latches in this scenario's design
         // (0 -> 1 on kill / lock), so a decrease is a real regression.
         app.add_plugins(nova_probe::nova_invariants().monotonic(["target_down", "leg"]));
+        // Frame-time capture (inert unless NOVA_PERF is set): fleet-wide
+        // wiring, task 20260719-210443.
+        app.add_plugins(nova_probe::nova_frametime());
     }
 
     app.run();

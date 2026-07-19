@@ -1301,6 +1301,9 @@ usage: probe <subcommand>
                 quality: quality.clone(),
                 git_sha,
                 host,
+                // The web capture is ALWAYS a trunk --release build (dev
+                // wasm is unusably slow and trunk has no custom profiles).
+                profile: "release".into(),
             };
             nova_probe::append_frametime_row(
                 &out.join("frametime.csv"),

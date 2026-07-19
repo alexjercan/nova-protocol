@@ -155,8 +155,15 @@ pub(crate) fn render_table(
         table.push_str(&format!("<td class=\"scene\">{}</td>", escape(&scene)));
         table.push_str(&format!("<td>{}</td>", escape(&preset)));
         // The adapter name rides as a hover title so the cell stays narrow.
+        // The build-profile badge (schema v3) flags dev rows - dev numbers
+        // are NOT baselines; unknown (pre-v3 rows) shows nothing.
+        let profile_badge = match run.meta.profile.as_str() {
+            "dev" => " <span class=\"profile dev\" title=\"dev build - not a baseline\">dev</span>",
+            "release" => " <span class=\"profile release\">release</span>",
+            _ => "",
+        };
         table.push_str(&format!(
-            "<td title=\"{}\">{}</td>",
+            "<td title=\"{}\">{}{profile_badge}</td>",
             escape(&run.meta.adapter),
             escape(&run_renderer(run, fallback_renderer))
         ));
@@ -242,6 +249,9 @@ td.status-pass { color: #087f23; font-weight: 600; }
 td.status-warn { color: #b8860b; font-weight: 600; }
 td.status-fail { color: #b00020; font-weight: 600; }
 td.status-skipped { color: #999; }
+.profile { font-size: 0.75em; padding: 0.05rem 0.3rem; border-radius: 3px; }
+.profile.dev { background: #fff3d6; color: #7a5b00; }
+.profile.release { background: #e3f4e6; color: #0b6623; }
 details { margin: 0.6rem 0; }
 details summary { cursor: pointer; color: #555; }
 .checklist li { margin: 0.3rem 0; }
