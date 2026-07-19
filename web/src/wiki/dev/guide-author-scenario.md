@@ -962,7 +962,7 @@ install, the `nova_portal_gen` publish step, and what a player sees - is
 one job: THIS page is the scenario grammar; that one is how the file becomes an
 installable mod.
 
-(The `examples/08_scenario.rs` smoke test builds its `ScenarioConfig` in Rust,
+(The `examples/gameplay/scenario.rs` smoke test builds its `ScenarioConfig` in Rust,
 not RON - it exercises the engine grammar for contributors, not an authored
 file, so it is not a way to test your own scenario.)
 

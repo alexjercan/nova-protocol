@@ -3,8 +3,8 @@
 //! through the harness passes and hands back the unified run report:
 //!
 //! ```text
-//! cargo run -p nova_probe -- run 10_playable            # clean pass + report
-//! cargo run -p nova_probe -- run 10_playable --profile  # + traced pass
+//! cargo run -p nova_probe -- run playable            # clean pass + report
+//! cargo run -p nova_probe -- run playable --profile  # + traced pass
 //! cargo run -p nova_probe -- report <run-dir>           # re-render (manifest-gated)
 //! cargo run -p nova_probe -- trace <trace.json>          # top-N systems table
 //! ```
@@ -195,12 +195,12 @@ usage: probe <subcommand>
                     _ => Render::Gpu,
                 };
                 eprintln!(
-                    "probe: `sweep` is deprecated; use: probe run 20_perf_baseline --fps \
+                    "probe: `sweep` is deprecated; use: probe run perf_baseline --fps \
                      --release --render {} --scenario asteroid_field --scenario broadside \
                      --scenario shakedown_run --preset high --preset low",
                     if render == Render::Sw { "sw" } else { "gpu" }
                 );
-                let mut opts = default_run("20_perf_baseline".into());
+                let mut opts = default_run("perf_baseline".into());
                 opts.fps = true;
                 opts.release = true;
                 opts.render = render;
@@ -224,7 +224,7 @@ usage: probe <subcommand>
                 Ok(Cmd::Run(opts))
             }
             Some("profile") => {
-                let example = iter.next().cloned().unwrap_or_else(|| "08_scenario".into());
+                let example = iter.next().cloned().unwrap_or_else(|| "scenario".into());
                 eprintln!(
                     "probe: `profile` is deprecated; use: probe run {example} --profile \
                      (add --samply for the flamegraph)"
@@ -325,7 +325,7 @@ usage: probe <subcommand>
 
     /// Environment for the CLEAN pass: autopilot + recorder + invariants
     /// always; the frame-time capture only on request (`--fps`) since only
-    /// the wired examples (20_perf_baseline) read it - elsewhere it is a
+    /// the wired examples (perf_baseline) read it - elsewhere it is a
     /// harmless no-op env.
     pub fn clean_pass_env(
         root: &Path,
@@ -1203,7 +1203,7 @@ usage: probe <subcommand>
         fn parse_run_with_all_flags() {
             let cmd = parse(&s(&[
                 "run",
-                "10_playable",
+                "playable",
                 "--profile",
                 "--samply",
                 "--fps",
@@ -1220,7 +1220,7 @@ usage: probe <subcommand>
             let Cmd::Run(opts) = cmd else {
                 panic!("expected run");
             };
-            assert_eq!(opts.example, "10_playable");
+            assert_eq!(opts.example, "playable");
             assert!(opts.profile && opts.samply && opts.fps);
             assert_eq!(opts.out, Some(PathBuf::from("runs/x")));
             assert_eq!(opts.baseline, Some(PathBuf::from("runs/old")));
@@ -1258,7 +1258,7 @@ usage: probe <subcommand>
 
             let Ok(Cmd::Run(opts)) = parse(&s(&[
                 "run",
-                "20_perf_baseline",
+                "perf_baseline",
                 "--fps",
                 "--release",
                 "--render",
@@ -1298,7 +1298,7 @@ usage: probe <subcommand>
             let Ok(Cmd::Run(opts)) = parse(&s(&["sweep", "sw", "out/dir"])) else {
                 panic!("sweep alias maps");
             };
-            assert_eq!(opts.example, "20_perf_baseline");
+            assert_eq!(opts.example, "perf_baseline");
             assert!(opts.fps && opts.release);
             assert_eq!(opts.render, Render::Sw);
             assert_eq!(opts.scenarios.len(), 3);
@@ -1314,7 +1314,7 @@ usage: probe <subcommand>
             let Ok(Cmd::Run(opts)) = parse(&s(&["profile"])) else {
                 panic!("profile alias maps");
             };
-            assert_eq!(opts.example, "08_scenario");
+            assert_eq!(opts.example, "scenario");
             assert!(opts.profile);
         }
 

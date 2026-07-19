@@ -49,11 +49,11 @@ Nightly toolchain (`rust-toolchain.toml`). On NixOS: `nix develop`.
 ```sh
 cargo run                        # the game (boots into the main menu)
 cargo run --features dev         # + debug tooling (inspector, wireframe)
-cargo run --example 08_scenario  # examples are the fastest way to test a subsystem
+cargo run --example scenario     # examples are the fastest way to test a subsystem
 trunk serve                      # web build on :8080
 cargo check && cargo fmt         # do this before committing
 cargo run -p nova_assets --bin content -- gen   # regen base content (also: lint, audit)
-cargo run -p nova_probe -- run 10_playable      # run-harness check: correctness+perf report
+cargo run -p nova_probe -- run playable      # run-harness check: correctness+perf report
 ```
 
 Do NOT run the full `cargo test` or `cargo clippy` locally unless asked: CI
@@ -78,8 +78,12 @@ suspected mechanism.
   regression pin (fail-first proof, numbers recorded in TASK.md).
 - **Features ship with harness coverage** that exercises them the way a
   player does - `tests/gauntlet_course.rs` and `tests/ledger_ch2_encounter.rs`
-  are the reference style, examples 01-19 the curriculum. Unit tests prove
-  the pieces; the harness proves the feature.
+  are the reference style, the examples the curriculum. They live in purpose
+  dirs (`examples/sections|gameplay|ui|screenshots|perf/`, reading order =
+  the `[[example]]` catalog in the root Cargo.toml), and each category smokes
+  alone: `cargo test --test examples_smoke sections` (or `gameplay`, `ui`,
+  `screenshots`). Unit tests prove the pieces; the harness proves the
+  feature.
 - **Rigs mirror production**: scheduling, spawn defaults, shipped
   configuration. Prefer extending an existing rig over writing a bespoke one.
 - **Probe gameplay-touching changes.** The post-feature check is one command:

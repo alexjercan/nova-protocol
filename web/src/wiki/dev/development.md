@@ -12,7 +12,7 @@
 ```sh
 cargo run                         # the game (boots into the main menu)
 cargo run --features dev          # + debug tooling (inspector, wireframe)
-cargo run --example 08_scenario   # run an example
+cargo run --example scenario   # run an example
 cargo build --release             # release profile: opt=s, lto, stripped
 cargo check && cargo fmt          # before committing
 cargo test --workspace            # full suite (CI runs this; skip locally unless asked)
@@ -76,54 +76,65 @@ in only under the `debug` feature:
 ## Examples
 
 `examples/` exercises one subsystem each, end to end; this repo prefers
-runnable examples over isolated unit tests. The set reads as a curriculum in
-four blocks:
+runnable examples over isolated unit tests. The examples live in purpose
+directories (bevy-repo style: category dirs, plain slug names), and the
+`[[example]]` catalog in the root Cargo.toml (`autoexamples = false`) is the
+single source of truth, listed in curriculum reading order:
 
-- Sections: `01_controller_section` (PD attitude), `02_thruster_section`
-  (burn -> thrust + plume shader), `03_hull_section` (damage -> destroy ->
-  ship survives), `04_turret_section` and `05_torpedo_section` (the weapon
-  test ranges), `06_torpedo_guidance` (PN deep-dive), `07_com_range` (mass
-  properties under section destruction).
-- Scenario: `08_scenario` (the scenario language - variables, events,
-  filters, actions - built in code and asserted live).
-- Editor: `09_editor` (the shipped editor flow).
-- Playable: `10_playable` (a scenario played through the real input
+- `sections/` - one test range per ship section: `controller_section` (PD
+  attitude), `thruster_section` (burn -> thrust + plume shader),
+  `hull_section` (damage -> destroy -> ship survives), `turret_section`
+  and `torpedo_section` (the weapon test ranges), `torpedo_guidance` (PN
+  deep-dive), `com_range` (mass properties under section destruction).
+- `gameplay/` - full autopilot scenario runs: `scenario` (the scenario
+  language - variables, events, filters, actions - built in code and
+  asserted live), `playable` (a scenario played through the real input
   pipeline: lock, kill, GOTO, arrive - watched by its own handlers),
-  `11_hud_range` (screen-projected HUD indicators, velocity sphere
-  included), `12_menu_newgame` (the shipped boot flow).
-- Screenshots: `13_screenshot_reel`, `14_screenshot_ui`,
-  `15_screenshot_combat`, `16_screenshot_sections`, `17_screenshot_juice`,
-  `18_screenshot_orbit` (drive the shipped scenes headless to capture the
-  wiki and marketing frames).
-- Slice: `19_broadside` (the chapter-two scenario end to end through the
-  Scenarios picker: defeat -> Retry reload -> the full act machine -> the
-  Victory overlay, all staged on scenario state).
+  `broadside` (the chapter-two scenario end to end through the Scenarios
+  picker: defeat -> Retry reload -> the full act machine -> the Victory
+  overlay, all staged on scenario state).
+- `ui/` - staged UI flows: `editor` (the shipped editor flow), `hud_range`
+  (screen-projected HUD indicators, velocity sphere included),
+  `menu_newgame` (the shipped boot flow).
+- `screenshots/` - `screenshot_reel`, `screenshot_ui`, `screenshot_combat`,
+  `screenshot_sections`, `screenshot_juice`, `screenshot_orbit` (drive the
+  shipped scenes headless to capture the wiki and marketing frames), and
+  `render_scale_shot` (a real-GPU window capture proving the render-scale
+  lever draws a correct frame).
+- `perf/` - `perf_baseline` (the frame-time measurement scene the probe
+  sweep runs; see [Performance and run verification](#performance-and-run-verification)).
 
 When adding a substantial feature, add or extend the example that drives it.
-(Consolidated over time: 01_scene/03_scenario merged into 08_scenario;
-02_thruster_shader into 02_thruster_section; 05_directional into
-11_hud_range; 10_gameplay into 03_hull_section + 10_playable; 07b_slicer's
+(Consolidated over time: 01_scene/03_scenario merged into scenario;
+02_thruster_shader into thruster_section; 05_directional into
+hud_range; 10_gameplay into hull_section + playable; 07b_slicer's
 subject lives in bevy-common-systems; 04_asteroids' slider tuning tool was
 dropped.)
 
-Every example is HARNESSED: it drives itself under `BCS_AUTOPILOT=1`, and
-`tests/examples_smoke.rs` (the `HARNESSED_EXAMPLES` list) runs all eighteen
-headless as a regression suite - each must reach `Playing` and exit without
-panic. The gameplay examples (01-12) additionally carry panic-on-failure
-behavior assertions with completion backstops (a stalled script fails instead
-of passing vacuously), except `06_torpedo_guidance` and `09_editor`, which
-assert at the scenario-load / reach-gameplay level; the screenshot examples
-(13-18) drive the shipped scenes to capture frames. Keep list and disk in
-sync: a new example joins the list with a harness, or it does not merge.
+Every example outside `perf/` (plus `render_scale_shot`) is HARNESSED: it
+drives itself under `BCS_AUTOPILOT=1`, and `tests/examples_smoke.rs` runs
+each category headless as a regression suite, one test per category -
+`cargo test --test examples_smoke sections` (or `gameplay`, `ui`,
+`screenshots`) runs a single category alone. Each example must reach
+`Playing` and exit without panic; the sections, gameplay and ui examples
+additionally carry panic-on-failure behavior assertions with completion
+backstops (a stalled script fails instead of passing vacuously), except
+`torpedo_guidance` and `editor`, which assert at the scenario-load /
+reach-gameplay level; the screenshot examples drive the shipped scenes to
+capture frames. Disk, catalog and smoke lists cannot drift: the
+display-free `catalog_matches_disk` test fails a bare `cargo test` when a
+new example misses its `[[example]]` block or its category's smoke list
+(`render_scale_shot` and `perf_baseline` are deliberately unsmoked; the
+`NOT_SMOKED` list records why).
 
 ### Examples as bug pins
 
 When a bug is fixed, prefer pinning it where it lives: a unit/App test for a
 system-level mechanism, an example assertion when the bug only manifests in a
-composed scene (for example, `12_menu_newgame` runs the shipped boot flow with
+composed scene (for example, `menu_newgame` runs the shipped boot flow with
 the ECS fallback error handler swapped to panic, so unhandled command errors on
 those transitions fail CI). An example pin is an autopilot-script assertion
-(`.input(...)` closure, staged by elapsed time - see `07_com_range`/`11_hud_range`
+(`.input(...)` closure, staged by elapsed time - see `com_range`/`hud_range`
 for the style); the smoke suite runs it on every push. Caveat: the handler swap
 does NOT catch `remove`/`despawn` command warns (they bake in the WARN handler
 at queue time).
@@ -170,13 +181,13 @@ staging dir, then package into `web/src/assets/`:
 
 ```sh
 export NOVA_SHOT_DIR=target/reel
-BCS_REEL=1                cargo run --example 13_screenshot_reel   --features debug
-BCS_AUTOPILOT=1 BCS_REEL=1 cargo run --example 14_screenshot_ui     --features debug
-BCS_AUTOPILOT=1 BCS_REEL=1 cargo run --example 15_screenshot_combat --features debug
+BCS_REEL=1                cargo run --example screenshot_reel   --features debug
+BCS_AUTOPILOT=1 BCS_REEL=1 cargo run --example screenshot_ui     --features debug
+BCS_AUTOPILOT=1 BCS_REEL=1 cargo run --example screenshot_combat --features debug
 python3 scripts/gen-web-screenshots.py   # validate + copy; build composites; write the 44x44 icons
 ```
 
-The example examples run headless under `BCS_AUTOPILOT`; the reel poses a
+The capture examples run headless under `BCS_AUTOPILOT`; the reel poses a
 free-fly camera per beat and captures 1920x1080 PNGs. The Python step validates
 each shot is 16:9, copies it in, builds the composite shots a single capture
 cannot make (e.g. `devlog5-radar-stance-slots`, two lock stances side by side)
@@ -193,10 +204,10 @@ and assembles one reviewable report. The POST-FEATURE CHECK - "did my change
 break behavior or perf?" - is one command:
 
 ```sh
-cargo run -p nova_probe -- run 10_playable            # clean pass -> report
-cargo run -p nova_probe -- run 10_playable --profile  # + traced pass (top-N systems)
-cargo run -p nova_probe -- run 10_playable --samply   # + named flamegraph
-cargo run -p nova_probe -- run 10_playable --baseline probe-runs/before  # FPS deltas
+cargo run -p nova_probe -- run playable            # clean pass -> report
+cargo run -p nova_probe -- run playable --profile  # + traced pass (top-N systems)
+cargo run -p nova_probe -- run playable --samply   # + named flamegraph
+cargo run -p nova_probe -- run playable --baseline probe-runs/before  # FPS deltas
 ```
 
 It runs the example headless (throwaway Xvfb; `--display :0` to reuse yours),
@@ -213,7 +224,7 @@ below.)
 Under the hood: an env-gated capture plugin drives the real gameplay app to
 `Playing`, warms up, records the wall-clock delta of every frame for a fixed
 window, and writes percentile stats. It is inert unless `NOVA_PERF` is set, so
-`20_perf_baseline` can carry it permanently. See the crate docs for the full
+`perf_baseline` can carry it permanently. See the crate docs for the full
 knob list (`NOVA_PERF_*`).
 
 The perf sweep is the same front door: a scenario x preset matrix of the
@@ -221,9 +232,9 @@ frame-time capture, one labeled `frametime.csv` row per cell, release-built
 (dev-profile frame numbers are not baselines):
 
 ```sh
-cargo run -p nova_probe -- run 20_perf_baseline --fps --release \
+cargo run -p nova_probe -- run perf_baseline --fps --release \
   --scenario asteroid_field --scenario broadside --preset high --preset low
-cargo run -p nova_probe -- run 20_perf_baseline --fps --release --render sw ...  # lavapipe floor
+cargo run -p nova_probe -- run perf_baseline --fps --release --render sw ...  # lavapipe floor
 cargo run -p nova_probe -- run <scenario> --platform web   # web/WebGPU capture (scraped)
 ```
 
@@ -241,7 +252,7 @@ per label - and `report` only accepts dirs probe itself produced
 
 `nova_probe` also records WHAT HAPPENED during a run: set
 `NOVA_PERF_TIMELINE=<out.jsonl>` on any example that adds
-`nova_probe::nova_timeline()` (10_playable does) and the run appends one JSON
+`nova_probe::nova_timeline()` (playable does) and the run appends one JSON
 object per line - every `GameStates`/pause transition, every fired scenario
 event with its payload (kills, area enter/exit, locks), every scenario-variable
 change (old/new), plus the beats the autopilot script pushes itself via
@@ -251,7 +262,7 @@ timestamps (wall-clock and frame counts vary across hosts):
 
 ```sh
 NOVA_PERF_TIMELINE=/tmp/run.jsonl BCS_AUTOPILOT=1 \
-  cargo run --example 10_playable --features debug
+  cargo run --example playable --features debug
 ```
 
 The timeline is native-only (no fs in the browser) and inert without the env
@@ -288,8 +299,8 @@ frame times, so a profiled run RANKS systems while the clean capture owns the
 FPS truth (never mix the two):
 
 ```sh
-cargo run -p nova_probe -- run 08_scenario --profile          # trace + report table
-cargo run -p nova_probe -- run 08_scenario --profile --samply # + flamegraph
+cargo run -p nova_probe -- run scenario --profile          # trace + report table
+cargo run -p nova_probe -- run scenario --profile --samply # + flamegraph
 ```
 
 The profiled pass builds with `--features debug,trace` (bevy's per-system
@@ -317,8 +328,8 @@ Continuous INVARIANTS ride the same stream: set `NOVA_PERF_INVARIANTS=1` (or
 asserts what the engine guarantees - health within `0..=max` and finite,
 velocities finite (plus an absurd-speed bound at 10x a ship's soft
 `FlightSpeedCap`), scenario Number variables finite, registered monotonic
-variables never decreasing (opt-in per example: 10_playable registers
-`target_down`/`leg`, 08_scenario `beat`/`rocks_destroyed`), and a total
+variables never decreasing (opt-in per example: playable registers
+`target_down`/`leg`, scenario `beat`/`rocks_destroyed`), and a total
 entity-count leak bound. Violations warn, land on the timeline as
 `kind: "invariant"` entries, and feed the report's `invariants held` check.
 

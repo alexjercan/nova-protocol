@@ -1,4 +1,4 @@
-//! 20_perf_baseline: boot a heavy gameplay scene and capture its frame times.
+//! perf_baseline: boot a heavy gameplay scene and capture its frame times.
 //!
 //! The measurement rig behind the v0.7.0 frame-time baseline
 //! (tasks/20260716-123551). It boots the real gameplay app (the same plugins
@@ -23,7 +23,7 @@
 //! Xvfb :95 -screen 0 1280x720x24 & \
 //! NOVA_PERF=1 NOVA_PERF_SCENARIO=asteroid_field NOVA_PERF_LABEL=asteroid_field-high \
 //!   NOVA_PERF_OUT=/tmp/perf BEVY_ASSET_ROOT="$PWD" DISPLAY=:95 \
-//!   cargo run --release --example 20_perf_baseline --features debug
+//!   cargo run --release --example perf_baseline --features debug
 //!
 //! # Software-raster floor (forced lavapipe ICD): the worst-case CPU/fill floor
 //! # that brackets weak hardware. NOT a browser-WebGPU stand-in.
@@ -31,7 +31,7 @@
 //! VK_ICD_FILENAMES=$ICD VK_DRIVER_FILES=$ICD WGPU_BACKEND=vulkan \
 //!   NOVA_PERF=1 NOVA_PERF_SCENARIO=asteroid_field NOVA_PERF_LABEL=asteroid_field-sw \
 //!   NOVA_PERF_OUT=/tmp/perf BEVY_ASSET_ROOT="$PWD" DISPLAY=:95 \
-//!   cargo run --release --example 20_perf_baseline --features debug
+//!   cargo run --release --example perf_baseline --features debug
 //! ```
 //!
 //! Extra env: `NOVA_PERF_QUALITY=low|medium|high` sweeps the graphics preset
@@ -45,7 +45,7 @@ use nova_probe::{combat_burst_driver, nova_frametime};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "20_perf_baseline")]
+#[command(name = "perf_baseline")]
 #[command(version = "1.0.0")]
 #[command(about = "Boot a heavy scenario and capture its frame-time baseline", long_about = None)]
 struct Cli {
@@ -71,7 +71,7 @@ fn main() {
                 {
                     Some(config) => commands.trigger(LoadScenario(config)),
                     None => panic!(
-                        "20_perf_baseline: scenario id '{id}' not found in GameScenarios \
+                        "perf_baseline: scenario id '{id}' not found in GameScenarios \
                              (shipped ids live in assets/base/scenarios/*.content.ron)"
                     ),
                 },

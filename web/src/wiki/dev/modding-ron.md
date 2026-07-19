@@ -104,7 +104,7 @@ asset refs); run it (and commit the result) after any builder change. The
 `content_ron_parity` test asserts each committed file matches its builder and that
 `base.bundle.ron` ships exactly the generated set, so the data cannot silently drift
 from the intended config. `menu_ambience`/`asteroid_field` use the seeded
-`ScatterObjects` action instead of runtime RNG. Verified by the `12_menu_newgame`
+`ScatterObjects` action instead of runtime RNG. Verified by the `menu_newgame`
 boot example.
 
 ## Mods: catalog + bundles + enabled set
@@ -191,7 +191,7 @@ flowchart TD
   prefs at startup, so a dev-tool run can never leave a hidden mod stuck-enabled
   with no menu row to disable it. No shipped mod is hidden right now - the
   screenshot-reel capture set left the mods system entirely (its scenario is
-  embedded in `examples/13_screenshot_reel.rs` via `examples/data/reel.content.ron`);
+  embedded in `examples/screenshots/screenshot_reel.rs` via `examples/screenshots/data/reel.content.ron`);
   the flag is pinned by the synthetic-catalog tests in
   `crates/nova_assets/tests/example_scenario.rs`.
 

@@ -19,7 +19,7 @@ fn main() {
     let args = Cli::parse();
 
     // The editor is the default game; `editor_app` is shared with the harnessed editor example
-    // (`examples/09_editor.rs`) so both launch the identical app.
+    // (`examples/ui/editor.rs`) so both launch the identical app.
     #[cfg(feature = "debug")]
     let render = !args.norender;
     #[cfg(not(feature = "debug"))]

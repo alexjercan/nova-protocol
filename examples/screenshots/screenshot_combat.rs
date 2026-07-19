@@ -1,7 +1,7 @@
-//! 15_screenshot_combat: capture the combat/HUD web screenshots - a live combat
+//! screenshot_combat: capture the combat/HUD web screenshots - a live combat
 //! lock with the red reticle and the target viewfinder inset - by driving the
 //! real radar-lock gesture on a small range (player ship + a target dead ahead),
-//! the same setup `11_hud_range` verifies.
+//! the same setup `hud_range` verifies.
 //!
 //! It performs the actual player gesture through the live input pipeline: raise
 //! weapons (RMB) + hold radar (CTRL); at the hold threshold the radar latches the
@@ -19,12 +19,12 @@
 //! Capture (windowed, real GPU):
 //! ```text
 //! NOVA_SHOT_DIR=target/reel BCS_AUTOPILOT=1 BCS_REEL=1 \
-//!   cargo run --example 15_screenshot_combat --features debug
+//!   cargo run --example screenshot_combat --features debug
 //! ```
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 15_screenshot_combat --features debug
+//! BCS_AUTOPILOT=1 cargo run --example screenshot_combat --features debug
 //! # look for: `nova harness: reached Playing`, `autopilot: cycle complete, no panic`
 //! ```
 
@@ -33,7 +33,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "15_screenshot_combat")]
+#[command(name = "screenshot_combat")]
 #[command(version = "1.0.0")]
 #[command(about = "Capture the combat-lock web screenshots", long_about = None)]
 struct Cli;
@@ -80,7 +80,7 @@ fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: R
 }
 
 /// A player ship at the origin with a turret, and an uncontrolled target ship
-/// parked dead ahead - the combat-lock subject. Mirrors `11_hud_range`.
+/// parked dead ahead - the combat-lock subject. Mirrors `hud_range`.
 fn combat_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
     let section = |id: &str| {
         sections
@@ -298,7 +298,7 @@ fn combat_capture_script(world: &mut World, elapsed: f32) {
     }
 
     // --- Combat lock: raise weapons (RMB), then hold radar (CTRL) a beat later
-    // (the natural order 11_hud_range uses). At the hold threshold the radar
+    // (the natural order hud_range uses). At the hold threshold the radar
     // latches the combat slot on the target and the reticle + inset come up. ---
     if t > 1.9 && !world.resource::<CombatScript>().raised {
         world.resource_mut::<CombatScript>().raised = true;

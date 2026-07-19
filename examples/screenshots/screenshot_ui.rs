@@ -1,8 +1,8 @@
-//! 14_screenshot_ui: capture the UI/state-dependent web screenshots that a
+//! screenshot_ui: capture the UI/state-dependent web screenshots that a
 //! scenario reel cannot make - the main menu and the sandbox editor - by driving
 //! the shipped app (`editor_app`, menu + editor) through an autopilot script.
 //!
-//! The pure-3D scene shots live in `13_screenshot_reel`; this example covers the
+//! The pure-3D scene shots live in `screenshot_reel`; this example covers the
 //! shots that need a real game state and UI up: `tutorial-menu.png` (main menu
 //! over the ambience backdrop) and `feature-editor.png` (the sandbox editor with
 //! a ship built from sections). It steps the same way a player would - reach the
@@ -17,12 +17,12 @@
 //! Capture (windowed, real GPU):
 //! ```text
 //! NOVA_SHOT_DIR=target/reel BCS_AUTOPILOT=1 BCS_REEL=1 \
-//!   cargo run --example 14_screenshot_ui --features debug
+//!   cargo run --example screenshot_ui --features debug
 //! ```
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 14_screenshot_ui --features debug
+//! BCS_AUTOPILOT=1 cargo run --example screenshot_ui --features debug
 //! # look for: `nova harness: reached Playing`, `autopilot: cycle complete, no panic`
 //! ```
 
@@ -32,7 +32,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "14_screenshot_ui")]
+#[command(name = "screenshot_ui")]
 #[command(version = "1.0.0")]
 #[command(about = "Capture the menu/editor web screenshots via the shipped app", long_about = None)]
 struct Cli;

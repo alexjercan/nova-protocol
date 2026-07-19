@@ -1,4 +1,4 @@
-//! 07_com_range: verify mass properties follow section destruction, live.
+//! com_range: verify mass properties follow section destruction, live.
 //!
 //! Task 20260709-140620: in play, a ship that loses sections appears to keep
 //! spinning around the old full-ship center of mass - a pivot outside the
@@ -25,7 +25,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 07_com_range --features debug
+//! BCS_AUTOPILOT=1 cargo run --example com_range --features debug
 //! # scripted (relative to entering Playing): spin at +1s, kill the
 //! # controller at +2s, kill hull(1) at +2.8s, then assert that the live COM
 //! # sits on the attached-section centroid, has moved aft from the spawn COM,
@@ -40,7 +40,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "07_com_range")]
+#[command(name = "com_range")]
 #[command(version = "1.0.0")]
 #[command(about = "A test range for mass properties under section destruction", long_about = None)]
 struct Cli;

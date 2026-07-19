@@ -179,7 +179,7 @@ pub(crate) fn setup_editor_scene(
 
                 rail.spawn(separator());
                 rail.spawn(panel_header("Ship"));
-                // Names kept exact: the 09_editor / 12_menu_newgame autopilots find
+                // Names kept exact: the editor / menu_newgame autopilots find
                 // these by Name and press them. Display text is free to change.
                 rail.spawn((
                     Name::new("Create New Spaceship Button V2"),

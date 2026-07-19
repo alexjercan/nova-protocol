@@ -1,4 +1,4 @@
-//! 11_hud_range: verify the screen-projected HUD indicators, live.
+//! hud_range: verify the screen-projected HUD indicators, live.
 //!
 //! Tasks 20260708-165700/165701/165702: the torpedo-lock reticle, the
 //! locked-target readout, the autopilot destination marker and the turret
@@ -18,7 +18,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 11_hud_range --features debug
+//! BCS_AUTOPILOT=1 cargo run --example hud_range --features debug
 //! # scripted (relative to entering Playing): at +0.2s the script SETS the
 //! # combat+travel locks (the radar stand-in - nothing locks passively in
 //! # the deliberate-radar model); at +0.7s assert the focus meter is filling
@@ -46,7 +46,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "11_hud_range")]
+#[command(name = "hud_range")]
 #[command(version = "1.0.0")]
 #[command(about = "A test range for the screen-projected HUD indicators", long_about = None)]
 struct Cli;
@@ -152,7 +152,7 @@ fn hud_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
     player_sections.push(SpaceshipSectionConfig {
         id: "player_turret".to_string(),
         position: Vec3::new(0.0, 0.0, -1.0),
-        // Matches the turret placement in 04_turret_section so the base sits
+        // Matches the turret placement in turret_section so the base sits
         // upright.
         rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
         source: SectionSource::Inline(section("better_turret_section")),

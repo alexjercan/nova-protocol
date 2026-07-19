@@ -1,7 +1,7 @@
-//! 06_torpedo_guidance: a focused harness for the torpedo's proportional-navigation
+//! torpedo_guidance: a focused harness for the torpedo's proportional-navigation
 //! guidance.
 //!
-//! Unlike the broader `05_torpedo_section`, this scene is built to answer one
+//! Unlike the broader `torpedo_section`, this scene is built to answer one
 //! question: does the torpedo *lead* a moving target and intercept it? A player
 //! torpedo ship sits at the origin; a single target crosses laterally, fast,
 //! some way ahead. Each fired torpedo auto-locks the crosser, and the harness
@@ -21,7 +21,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 06_torpedo_guidance --features debug
+//! BCS_AUTOPILOT=1 cargo run --example torpedo_guidance --features debug
 //! # look for: `guidance: closest approach ...` shrinking toward the blast radius,
 //! #           `range: torpedo detonated`, `autopilot: cycle complete, no panic`
 //! ```
@@ -32,7 +32,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "06_torpedo_guidance")]
+#[command(name = "torpedo_guidance")]
 #[command(version = "1.0.0")]
 #[command(about = "A harness for the torpedo PN guidance in nova_protocol", long_about = None)]
 struct Cli;

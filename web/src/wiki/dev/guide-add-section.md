@@ -174,16 +174,18 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    `SectionMeshRefs` and its `from_paths()` alongside the existing ones.
 
 9. **Example.**
-   Add `examples/NN_<kind>_section.rs`, modelled on the per-section examples
-   (`01_controller_section.rs` ... `05_torpedo_section.rs`; `03_hull_section.rs`
-   is the smallest). Note 01-05 are the section slots and are taken, as are
-   06-18 -- use the next free number. The example builds a minimal
+   Add `examples/sections/<kind>_section.rs`, modelled on the existing
+   per-section examples (`hull_section.rs` is the smallest), plus its
+   `[[example]]` block in the root Cargo.toml (auto-discovery is off; the
+   catalog is the source of truth) and its name in the `SECTIONS` list of
+   `tests/examples_smoke.rs` - the `catalog_matches_disk` test fails until
+   disk, catalog and smoke list agree. The example builds a minimal
    `ScenarioConfig` (a controller + your section), triggers
    `LoadScenario(...)`, and under `--features debug` drives an autopilot probe
    that asserts the kind's behavior end to end. Run it:
 
    ```text
-   BCS_AUTOPILOT=1 cargo run --example NN_<kind>_section --features debug
+   BCS_AUTOPILOT=1 cargo run --example <kind>_section --features debug
    ```
 
 ## Done

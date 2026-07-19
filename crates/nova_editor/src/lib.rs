@@ -438,7 +438,7 @@ mod tests {
 
     /// Sandbox mode heads for the editor scene, exactly as before the menu. The
     /// full editor path (scene setup needs GameAssets) is covered end to end by
-    /// the 09_editor smoke run; this pins just the state routing.
+    /// the editor smoke run; this pins just the state routing.
     #[test]
     fn sandbox_heads_to_editor_state() {
         let mut app = app();

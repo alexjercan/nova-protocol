@@ -49,7 +49,7 @@
 //! Run it headless:
 //!
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 08_scenario --features debug
+//! BCS_AUTOPILOT=1 cargo run --example scenario --features debug
 //! # look for: `nova harness: reached Playing`
 //! #           `autopilot: cycle complete, no panic`
 //! ```
@@ -96,7 +96,7 @@ pub fn nova_autopilot() -> AutopilotPlugin<GameStates> {
 /// Unlike [`nova_autopilot`], this force-advances to `Playing` on the first
 /// frame, so it is best used with examples that set their scene up in
 /// `OnEnter(GameAssetsStates::Loaded)` (the nova scenario convention, e.g.
-/// `08_scenario`) rather than `OnEnter(GameStates::Playing)`, which the early
+/// `scenario`) rather than `OnEnter(GameStates::Playing)`, which the early
 /// forced transition would run before `GameAssets` is ready.
 pub fn nova_screenshot() -> ScreenshotPlugin<GameStates> {
     ScreenshotPlugin::new(GameStates::Playing).settle_frames(NOVA_SCREENSHOT_SETTLE_FRAMES)
@@ -274,7 +274,7 @@ impl ReelBeat {
 /// This is the multi-shot sibling of [`nova_screenshot`] (one shot, then exit):
 /// the reel drives the *cadence* and camera framing for the pure-3D showcase
 /// beats, while the scene itself comes from a loaded scenario (e.g. the embedded
-/// reel scenario in `13_screenshot_reel`). Captures are serialized - each beat waits for its PNG
+/// reel scenario in `screenshot_reel`). Captures are serialized - each beat waits for its PNG
 /// to land before advancing - so a shot is never taken mid-camera-move.
 ///
 /// UI/state-dependent shots (menu, editor, HUD, combat) are NOT expressible as a

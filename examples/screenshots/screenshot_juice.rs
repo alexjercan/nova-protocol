@@ -1,4 +1,4 @@
-//! 17_screenshot_juice: capture the `feature-juice` shot - a section blown off a
+//! screenshot_juice: capture the `feature-juice` shot - a section blown off a
 //! hull mid-fight, framed close so the mesh fragments and hit rings read.
 //!
 //! The combat range films from the chase camera behind the player, which is too
@@ -10,12 +10,12 @@
 //! Capture (windowed, real GPU):
 //! ```text
 //! NOVA_SHOT_DIR=target/reel BCS_AUTOPILOT=1 BCS_REEL=1 \
-//!   cargo run --example 17_screenshot_juice --features debug
+//!   cargo run --example screenshot_juice --features debug
 //! ```
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 17_screenshot_juice --features debug
+//! BCS_AUTOPILOT=1 cargo run --example screenshot_juice --features debug
 //! # look for: `nova harness: reached Playing`, `autopilot: cycle complete, no panic`
 //! ```
 
@@ -24,7 +24,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "17_screenshot_juice")]
+#[command(name = "screenshot_juice")]
 #[command(version = "1.0.0")]
 #[command(about = "Capture the section-destruction juice shot", long_about = None)]
 struct Cli;

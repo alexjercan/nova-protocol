@@ -1263,7 +1263,7 @@ mod tests {
         let artifacts = RunArtifacts::load(&fixture(), None).expect("fixture loads");
         let checks = evaluate_checks(&artifacts);
         let manifest = RunManifest {
-            example: "10_playable".into(),
+            example: "playable".into(),
             started_unix: 1789000000,
             git_sha: "abc123".into(),
             host: "devbox".into(),
@@ -1280,7 +1280,7 @@ mod tests {
         assert_eq!(json["verdict"], "OK");
         assert_eq!(json["measured"], "4/6");
         assert_eq!(json["reviewer_confirmation_required"], true);
-        assert_eq!(json["run"]["example"], "10_playable");
+        assert_eq!(json["run"]["example"], "playable");
         assert_eq!(json["run"]["passes"][0]["name"], "clean");
         assert_eq!(json["checks"].as_array().unwrap().len(), checks.len());
         // process_exit leads the rows and carries structured data.
@@ -1297,7 +1297,7 @@ mod tests {
     #[test]
     fn manifest_round_trips_and_drives_process_exit() {
         let manifest = RunManifest {
-            example: "10_playable".into(),
+            example: "playable".into(),
             started_unix: 1789000123,
             git_sha: "abc123".into(),
             host: "devbox".into(),
@@ -1355,7 +1355,7 @@ mod tests {
 
     fn manifest_ok() -> RunManifest {
         RunManifest {
-            example: "01_controller_section".into(),
+            example: "controller_section".into(),
             started_unix: 1,
             git_sha: "abc".into(),
             host: "h".into(),
@@ -1382,7 +1382,7 @@ mod tests {
         let c = check(&checks, "run_completed");
         assert_eq!(c.status, CheckStatus::Skipped);
         assert!(c.detail.contains("not wired with"), "{}", c.detail);
-        assert!(c.detail.contains("01_controller_section"), "{}", c.detail);
+        assert!(c.detail.contains("controller_section"), "{}", c.detail);
         // And the verdict is OK-with-coverage (process_exit measured PASS),
         // not NO_DATA and not the old evidence-free OK.
         assert_eq!(overall_verdict(&checks), "OK");

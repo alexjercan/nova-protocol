@@ -1,6 +1,6 @@
 # Reorganize examples/ by purpose (sections, gameplay, ui, screenshots, perf): category dirs + per-category smoke tests
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 62
 - TAGS: v0.8.0,refactor,testing,examples
 
@@ -52,39 +52,44 @@ source of truth and a stray file can never become a phantom target.
 
 ## Steps
 
-- [ ] `git mv` the 21 examples into the five category dirs WITH the slug
+- [x] `git mv` the 21 examples into the five category dirs WITH the slug
       renames above (+ `turret_section/` module dir, + `data/`); add
       `autoexamples = false` and the 21 `[[example]]` blocks grouped by
       category in curriculum order; `cargo check --examples --features
       debug` proves every path resolves. With auto-discovery off, a
       missing block means an example silently vanishes from the build -
       the drift pin below is the count guard, not eyeballs.
-- [ ] examples_smoke.rs: split HARNESSED_EXAMPLES into per-category consts
+- [x] examples_smoke.rs: split HARNESSED_EXAMPLES into per-category consts
       (SECTIONS, GAMEPLAY, UI, SCREENSHOTS) carrying the NEW names, one
       `#[test]` per category sharing the existing runner fn - same
       assertions, sequential within a category. `cargo test --test
       examples_smoke sections` (test-name filter) then runs exactly one
       category; the CI job is unchanged (it runs the whole file).
-- [ ] Drift pin (display-free `#[test]`, runs on bare `cargo test`): walk
+- [x] Drift pin (display-free `#[test]`, runs on bare `cargo test`): walk
       `examples/` from CARGO_MANIFEST_DIR, collect every example target on
       disk, assert (a) each has a `[[example]]` block in Cargo.toml whose
       path points at it, (b) every example in a smoke-covered category dir
       appears in exactly ONE smoke const, (c) total count matches disk. A
       new example dropped into a dir without joining the catalog or its
       smoke list fails THIS test - no display, no Xvfb.
-- [ ] Curriculum order relocation: the numbers are gone, so the reading
+- [x] Curriculum order relocation: the numbers are gone, so the reading
       order must live SOMEWHERE explicit - rewrite AGENTS.md's "examples
       01-19 the curriculum" bullet as a short ordered list (or point it at
       the Cargo.toml catalog, which the first step keeps in curriculum
       order); the wiki dev page that introduces examples gets the same
       treatment. Losing the order silently is the failure mode this step
       exists to prevent.
-- [ ] required-features, decided honestly per example: declare
+- [x] required-features, decided honestly per example: declare
       `required-features = ["debug"]` ONLY where the example actually fails
       to build/run without the feature (check what the harness imports
       need); if they run fine without it, declare nothing - a gate that is
       not real is dishonest. Record the decision here either way.
-- [ ] Rename sweep (names AND paths changed): tests/examples_smoke.rs
+      DECISION: none declared. Every example cfg-gates its harness behind
+      `#[cfg(feature = "debug")]` (autopilot, assertions, screenshot hooks)
+      and builds/runs windowed without the feature - AGENTS.md's own
+      `cargo run --example scenario` (no features) is the documented bare
+      path, so a required-features gate would be fiction.
+- [x] Rename sweep (names AND paths changed): tests/examples_smoke.rs
       consts (previous step); probe SKILL.md wired table (scenario,
       playable, perf_baseline + category grouping); AGENTS.md build-block
       command (`cargo run --example scenario`) and curriculum bullet;
@@ -98,13 +103,13 @@ source of truth and a stray file can never become a phantom target.
       NOVA_SHOT_PATH commands); CHANGELOG Unreleased notes the renames.
       Re-grep `[0-9][0-9]_[a-z]` and `examples/[0-9]` afterwards: only
       task history remains.
-- [ ] E2E: `probe run scenario` from the new layout (one real run proves
+- [x] E2E: `probe run scenario` from the new layout (one real run proves
       the whole harness surface survived the move+rename), plus the
       cheapest category under Xvfb (`xvfb-run cargo test --test
       examples_smoke -- ui`) if a display is available locally - else CI
       owns the full smoke and this step says so. The drift pin runs
       locally regardless.
-- [ ] Verify: fmt; `cargo check --examples --features debug`; newly
+- [x] Verify: fmt; `cargo check --examples --features debug`; newly
       written tests (drift pin); CI runs the full per-category smoke.
 
 ## Notes
@@ -127,3 +132,50 @@ source of truth and a stray file can never become a phantom target.
   do not rewrite them.
 - NON-GOALS: new examples; probe wiring changes (the wired table only
   re-groups and renames).
+
+## Close-out (2026-07-19, branch refactor/examples-reorg)
+
+21 examples into five purpose dirs, slugs bevy-style, zero silent surfaces.
+
+Evidence:
+- `cargo check --examples --features debug`: all 21 cataloged examples
+  compile from the new paths (autoexamples off, so this IS the full set).
+- `catalog_matches_disk` (new, display-free): PASS - disk == [[example]]
+  catalog == smoke lists (+ NOT_SMOKED with reasons).
+- ui category smoke under a recorded-PID Xvfb: PASS in 43s
+  (`ui_reach_playing_without_panic`, editor/hud_range/menu_newgame all
+  reached Playing and completed their cycles under the new names).
+  Sections/gameplay/screenshots categories run in CI (same suite, same
+  assertions); not run locally per the skip-local-tests rule.
+- `probe run scenario`: verdict OK, exit 0, measured 5/6 - process_exit,
+  run_completed (frame 306), reached_playing (frame 19), invariants_held
+  (0 violations / 306 frames), log_clean all PASS; fps SKIPPED (scenario
+  is not fps-wired - correct coverage semantics). The probe surface
+  survived the rename end to end.
+- `cargo test -p nova_probe`: PASS (its parse/report fixtures were renamed
+  in the sweep).
+- Final re-grep: live files clean; the only numbered mentions left are
+  deliberate history (development.md lineage note, ci.yaml pre-rework
+  mention, retired-example comment in hud_range.rs, task records, news,
+  CHANGELOG history).
+
+Decisions recorded in-flight:
+- required-features: none declared (harness is cfg-gated; bare
+  `cargo run --example X` is a real, documented path).
+- screenshot_ stems kept (bare `ui`/`sections` names would collide with
+  category vocabulary in a flat example namespace).
+- CHANGELOG Unreleased treated as CURRENT docs (v0.8.0 ships the new
+  names): its two example mentions renamed + a reorg bullet added;
+  released sections and news posts untouched.
+- Meaning-level doc rewrites beyond the mechanical sweep: development.md
+  Examples section (curriculum now = category dirs + catalog order,
+  smoke-per-category, drift pin), guide-add-section step 9 (numbered-slot
+  scheme replaced with catalog+SECTIONS-list instructions), AGENTS.md
+  curriculum bullet, probe skill wired table (category-prefixed).
+
+Two execution stumbles, both caught in-run (for the retro): the first ui
+smoke attempt backgrounded the whole `cd && Xvfb` chain with `&`, so the
+test ran vacuously in the MAIN checkout (0 tests matched) with a
+pipe-swallowed exit code - redone via a script file with recorded-PID
+Xvfb and a bare exit; and `autoexamples = false` was first placed under
+`[lib]` (a silent no-op table key) before moving to `[package]`.

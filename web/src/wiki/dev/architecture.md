@@ -114,7 +114,7 @@ hud, camera controller, integrity, damage, flight, gravity, relations, audio, ju
   inside `Playing`; leaving `Playing` resets it.
 - `GameAssetsStates { Loading, Processing, Loaded }` (`nova_assets`) - asset
   pipeline. Scenario setup hooks `OnEnter(GameAssetsStates::Loaded)` - see
-  `examples/08_scenario.rs`.
+  `examples/gameplay/scenario.rs`.
 
 The top-level lifecycle, the pause overlay nested inside `Playing`, and the asset
 pipeline that gates entry:

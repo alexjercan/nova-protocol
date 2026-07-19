@@ -1,4 +1,4 @@
-//! 12_menu_newgame: the shipped boot flow, wired to the smoke-test harness.
+//! menu_newgame: the shipped boot flow, wired to the smoke-test harness.
 //!
 //! Boots the exact app the `nova_protocol` binary runs (via the shared
 //! [`editor_app`]: main menu over the ambience backdrop) and autopilot-drives
@@ -6,7 +6,7 @@
 //!
 //! - `newgame` (default): click New Game - the menu teardown +
 //!   `shakedown_run` load, the shipped default boot flow, which no other
-//!   harnessed example covers (09_editor clicks Sandbox).
+//!   harnessed example covers (editor clicks Sandbox).
 //! - `editorplay`: click Sandbox, create a ship, click Play - the editor's
 //!   preview-teardown -> play-test transition.
 //!
@@ -25,7 +25,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 12_menu_newgame --features debug
+//! BCS_AUTOPILOT=1 cargo run --example menu_newgame --features debug
 //! # look for: `probe: clicked New Game Button in the main menu`,
 //! #           `nova harness: reached Playing`,
 //! #           `autopilot: cycle complete, no panic`
@@ -37,7 +37,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "12_menu_newgame")]
+#[command(name = "menu_newgame")]
 #[command(version = "1.0.0")]
 #[command(about = "The shipped menu boot flow, wired to the smoke-test harness", long_about = None)]
 struct Cli;

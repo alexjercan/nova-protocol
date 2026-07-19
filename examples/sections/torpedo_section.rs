@@ -1,4 +1,4 @@
-//! 05_torpedo_section: a focused test range for the torpedo bay section.
+//! torpedo_section: a focused test range for the torpedo bay section.
 //!
 //! One player ship carrying a single torpedo bay sits at the origin facing a
 //! spread of asteroid "gates" - near, mid and far straight ahead, one off to the
@@ -26,7 +26,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 05_torpedo_section --features debug
+//! BCS_AUTOPILOT=1 cargo run --example torpedo_section --features debug
 //! # look for: `nova harness: reached Playing`, `range: torpedo fired`,
 //! #           `range: torpedo ... armed`, `autopilot: cycle complete, no panic`
 //! ```
@@ -37,7 +37,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "05_torpedo_section")]
+#[command(name = "torpedo_section")]
 #[command(version = "1.0.0")]
 #[command(about = "A test range for the torpedo bay section in nova_protocol", long_about = None)]
 struct Cli;

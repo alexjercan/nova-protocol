@@ -1,4 +1,4 @@
-//! 10_playable: a playable scenario, played - by the real input pipeline.
+//! playable: a playable scenario, played - by the real input pipeline.
 //!
 //! One armed player ship, one hostile rock dead ahead, one nav beacon
 //! beyond it. The script performs the exact gestures a player would, in
@@ -14,7 +14,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 10_playable --features debug
+//! BCS_AUTOPILOT=1 cargo run --example playable --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `playable: prey destroyed, waypoint locked, GOTO closing at ...`,
 //! #           `autopilot: cycle complete, no panic`
@@ -25,7 +25,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "10_playable")]
+#[command(name = "playable")]
 #[command(version = "1.0.0")]
 #[command(about = "A playable scenario driven through the real input pipeline, watched by its own event handlers", long_about = None)]
 struct Cli;
@@ -38,7 +38,7 @@ const SCENARIO_ID: &str = "playable_run";
 /// is far too tight, and the pre-dwell 18 s window left no margin under
 /// CI's llvmpipe throttle (frames hit Bevy's max-delta cap, so 18 wall
 /// seconds hold only ~6.5 sim seconds), so this example holds its own
-/// longer window like 07_com_range/11_hud_range.
+/// longer window like com_range/hud_range.
 #[cfg(feature = "debug")]
 const WINDOW_SECS: f32 = 24.0;
 

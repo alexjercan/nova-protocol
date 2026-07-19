@@ -1,6 +1,6 @@
 //! perf_web: frame-time capture binary for the web/WebGPU build (and native).
 //!
-//! Same measurement as `examples/20_perf_baseline`, but its config comes from
+//! Same measurement as `examples/perf/perf_baseline`, but its config comes from
 //! the cross-platform perf-param source ([`perf_param`]: the URL query string on
 //! wasm, `NOVA_PERF_*` env vars on native), so Trunk can build it into the wasm
 //! bundle and a headless browser can drive it by URL. The capture summary is

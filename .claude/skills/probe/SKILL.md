@@ -21,7 +21,7 @@ cargo run -p nova_probe -- run <example> --profile    # + traced pass (top-N sys
 cargo run -p nova_probe -- run <example> --samply     # + named flamegraph
 cargo run -p nova_probe -- run <example> --fps        # + frame-time capture (wired examples)
 cargo run -p nova_probe -- run <example> --baseline <old-run-dir>   # FPS deltas
-cargo run -p nova_probe -- run 20_perf_baseline --fps --release \
+cargo run -p nova_probe -- run perf_baseline --fps --release \
   --render gpu --scenario asteroid_field --preset high --preset low  # perf sweep (matrix)
 cargo run -p nova_probe -- run <scenario> --platform web  # web/WebGPU frame capture
 cargo run -p nova_probe -- report <run-dir> [--baseline <dir>]  # re-render (manifest-gated)
@@ -103,10 +103,15 @@ report.
 
 | Example | timeline + invariants | fps capture |
 |---|---|---|
-| 08_scenario | yes (monotonic: beat, rocks_destroyed) | no |
-| 10_playable | yes (monotonic: target_down, leg) + 7 beat markers | no |
-| 20_perf_baseline | no | yes (`--fps`) |
+| gameplay/scenario | yes (monotonic: beat, rocks_destroyed) | no |
+| gameplay/playable | yes (monotonic: target_down, leg) + 7 beat markers | no |
+| perf/perf_baseline | no | yes (`--fps`) |
 | others | SKIPPED until wired | no |
+
+Probe addresses examples by NAME (`probe run scenario`); the prefix above is
+the category dir (`examples/<category>/`, catalog in the root Cargo.toml).
+New `--fps` scenes belong in `perf/`, new wired correctness runs in
+`gameplay/`.
 
 ## Host knobs (flamegraphs)
 

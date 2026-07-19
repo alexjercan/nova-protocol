@@ -1,4 +1,4 @@
-//! 02_thruster_section: the thruster section - burn in, thrust and plume out.
+//! thruster_section: the thruster section - burn in, thrust and plume out.
 //!
 //! One minimal ship (controller + hull + main drive, no player input) holds
 //! a steady full burn written straight into [`ThrusterSectionInput`] - the
@@ -9,7 +9,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 02_thruster_section --features debug
+//! BCS_AUTOPILOT=1 cargo run --example thruster_section --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `burn probe: thrust accelerates the hull and drives the plume`,
 //! #           `autopilot: cycle complete, no panic`
@@ -26,7 +26,7 @@ use nova_protocol::nova_gameplay::sections::thruster_section::ThrusterExhaustMat
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "02_thruster_section")]
+#[command(name = "thruster_section")]
 #[command(version = "1.0.0")]
 #[command(about = "Thruster section: a steady burn accelerates the hull and drives the plume shader", long_about = None)]
 struct Cli;

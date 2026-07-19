@@ -1,8 +1,8 @@
-//! 13_screenshot_reel: film the showcase scene into the web site's pure-3D
+//! screenshot_reel: film the showcase scene into the web site's pure-3D
 //! screenshots.
 //!
 //! The reel scene is EXAMPLE-OWNED data, not a mod: its scenario RON lives at
-//! `examples/data/reel.content.ron` (never shipped - only `assets/` reaches
+//! `examples/screenshots/data/reel.content.ron` (never shipped - only `assets/` reaches
 //! players/the web build), is embedded via `include_str!`, parsed with the same
 //! `Content` type the modding loader uses, and loaded directly with
 //! `LoadScenario` once assets are `Loaded`. No catalog entry, no `EnabledMods`;
@@ -18,12 +18,12 @@
 //!
 //! Capture (windowed, real GPU):
 //! ```text
-//! NOVA_SHOT_DIR=target/reel BCS_REEL=1 cargo run --example 13_screenshot_reel --features debug
+//! NOVA_SHOT_DIR=target/reel BCS_REEL=1 cargo run --example screenshot_reel --features debug
 //! ```
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 13_screenshot_reel --features debug
+//! BCS_AUTOPILOT=1 cargo run --example screenshot_reel --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
@@ -34,7 +34,7 @@ use nova_modding::prelude::Content;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "13_screenshot_reel")]
+#[command(name = "screenshot_reel")]
 #[command(version = "1.0.0")]
 #[command(about = "Film the screenshot-reel scene into the web-site screenshots", long_about = None)]
 struct Cli;
@@ -77,13 +77,13 @@ fn custom_plugin(app: &mut App) {
 /// exactly one scenario and nothing else).
 fn parse_reel_scenario() -> ScenarioConfig {
     let items: Vec<Content> = ron::de::from_str(REEL_CONTENT_RON)
-        .expect("examples/data/reel.content.ron must parse as a Vec<Content>");
+        .expect("examples/screenshots/data/reel.content.ron must parse as a Vec<Content>");
     let mut scenarios: Vec<ScenarioConfig> = items
         .into_iter()
         .map(|item| match item {
             Content::Scenario(scenario) => scenario,
             other => panic!(
-                "examples/data/reel.content.ron holds a non-Scenario item this embedded \
+                "examples/screenshots/data/reel.content.ron holds a non-Scenario item this embedded \
                  path would drop: {other:?}"
             ),
         })
@@ -91,7 +91,7 @@ fn parse_reel_scenario() -> ScenarioConfig {
     assert_eq!(
         scenarios.len(),
         1,
-        "examples/data/reel.content.ron must hold exactly one Scenario"
+        "examples/screenshots/data/reel.content.ron must hold exactly one Scenario"
     );
     scenarios.pop().expect("length asserted above")
 }

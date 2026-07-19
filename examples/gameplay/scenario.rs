@@ -1,4 +1,4 @@
-//! 08_scenario: the scenario LANGUAGE, end to end - config in code, loaded
+//! scenario: the scenario LANGUAGE, end to end - config in code, loaded
 //! with variables, event handlers, filters and actions, and asserted live.
 //!
 //! The config exercises the whole event grammar: `OnStart` spawning objects
@@ -8,11 +8,11 @@
 //! `OnUpdate` promoting the beat again - variables, arithmetic, comparisons
 //! and per-event filters all in play. Building the `ScenarioConfig` in code
 //! (instead of loading a named one from `GameScenarios`, which
-//! 12_menu_newgame's boot flow covers) is the modding surface.
+//! menu_newgame's boot flow covers) is the modding surface.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 08_scenario --features debug
+//! BCS_AUTOPILOT=1 cargo run --example scenario --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `scenario probe: variables seeded`,
 //! #           `scenario probe: handlers, filters and expressions all ticked`,
@@ -24,7 +24,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "08_scenario")]
+#[command(name = "scenario")]
 #[command(version = "1.0.0")]
 #[command(about = "Scenario language showcase: variables, events, filters and actions", long_about = None)]
 struct Cli;

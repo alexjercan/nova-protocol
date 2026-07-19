@@ -1,4 +1,4 @@
-//! 21_render_scale_shot: boot a shipped scenario at a chosen graphics preset and
+//! render_scale_shot: boot a shipped scenario at a chosen graphics preset and
 //! capture the primary window to a PNG - the end-to-end proof that the
 //! render-scale lever (task 20260718-004723) renders a correct frame, not a
 //! black one.
@@ -14,9 +14,9 @@
 //! Capture High vs Low for the same scene (windowed, real GPU):
 //! ```text
 //! NOVA_SHOT_PATH=target/rs-high.png NOVA_PERF_QUALITY=high BCS_SHOT=1 \
-//!   cargo run --example 21_render_scale_shot --features debug
+//!   cargo run --example render_scale_shot --features debug
 //! NOVA_SHOT_PATH=target/rs-low.png  NOVA_PERF_QUALITY=low  BCS_SHOT=1 \
-//!   cargo run --example 21_render_scale_shot --features debug
+//!   cargo run --example render_scale_shot --features debug
 //! ```
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`): a plain
@@ -28,7 +28,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "21_render_scale_shot")]
+#[command(name = "render_scale_shot")]
 #[command(version = "1.0.0")]
 #[command(about = "Capture a shipped scenario at a graphics preset (render-scale proof)", long_about = None)]
 struct Cli {
@@ -53,7 +53,7 @@ fn main() {
                 {
                     Some(config) => commands.trigger(LoadScenario(config)),
                     None => panic!(
-                        "21_render_scale_shot: scenario id '{id}' not found in GameScenarios \
+                        "render_scale_shot: scenario id '{id}' not found in GameScenarios \
                          (shipped ids live in assets/base/scenarios/*.content.ron)"
                     ),
                 },
@@ -126,7 +126,7 @@ fn switch_quality_midway(
         commands.insert_resource(switch.0);
         *done = true;
         info!(
-            "21_render_scale_shot: switched quality to {:?} at frame 150",
+            "render_scale_shot: switched quality to {:?} at frame 150",
             switch.0
         );
     }

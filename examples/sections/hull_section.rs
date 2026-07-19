@@ -1,4 +1,4 @@
-//! 03_hull_section: hull sections through the damage pipeline.
+//! hull_section: hull sections through the damage pipeline.
 //!
 //! One minimal ship (controller + two hulls, no player input) takes fire
 //! from this example's script: first a partial hit - the hull's `Health`
@@ -6,11 +6,11 @@
 //! the section outright while the REST of the ship survives it (the
 //! integrity graph detaches the dead leaf; the root and the controller stay
 //! alive). This is the per-section slice of the health -> destroy pipeline;
-//! ship-wide destruction physics gets its own deep-dive in 07_com_range.
+//! ship-wide destruction physics gets its own deep-dive in com_range.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 03_hull_section --features debug
+//! BCS_AUTOPILOT=1 cargo run --example hull_section --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `hull probe: damage lands, the section dies, the ship survives`,
 //! #           `autopilot: cycle complete, no panic`
@@ -21,7 +21,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "03_hull_section")]
+#[command(name = "hull_section")]
 #[command(version = "1.0.0")]
 #[command(about = "Hull sections: damage drops health, overkill destroys the section, the ship survives", long_about = None)]
 struct Cli;

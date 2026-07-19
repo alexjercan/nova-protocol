@@ -1,4 +1,4 @@
-//! 18_screenshot_orbit: capture the `tutorial-orbit` shot - a ship flying a clean
+//! screenshot_orbit: capture the `tutorial-orbit` shot - a ship flying a clean
 //! ORBIT ring around a planetoid, with the orbit radius spoke on the HUD.
 //!
 //! It spawns a gravity planetoid and a player ship out at the ring radius, engages
@@ -9,12 +9,12 @@
 //! Capture (windowed, real GPU):
 //! ```text
 //! NOVA_SHOT_DIR=target/reel BCS_AUTOPILOT=1 BCS_REEL=1 \
-//!   cargo run --example 18_screenshot_orbit --features debug
+//!   cargo run --example screenshot_orbit --features debug
 //! ```
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 18_screenshot_orbit --features debug
+//! BCS_AUTOPILOT=1 cargo run --example screenshot_orbit --features debug
 //! # look for: `nova harness: reached Playing`, `autopilot: cycle complete, no panic`
 //! ```
 
@@ -23,7 +23,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "18_screenshot_orbit")]
+#[command(name = "screenshot_orbit")]
 #[command(version = "1.0.0")]
 #[command(about = "Capture the orbit tutorial shot", long_about = None)]
 struct Cli;

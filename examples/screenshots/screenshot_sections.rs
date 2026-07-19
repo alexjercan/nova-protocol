@@ -1,4 +1,4 @@
-//! 16_screenshot_sections: capture the wiki ship-section detail shots - a
+//! screenshot_sections: capture the wiki ship-section detail shots - a
 //! closeup of each section type on one built ship - using the screenshot reel.
 //!
 //! It builds a ship carrying all five section types (controller, hull, thruster,
@@ -9,12 +9,12 @@
 //! Capture (windowed, real GPU):
 //! ```text
 //! NOVA_SHOT_DIR=target/reel BCS_REEL=1 \
-//!   cargo run --example 16_screenshot_sections --features debug
+//!   cargo run --example screenshot_sections --features debug
 //! ```
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 16_screenshot_sections --features debug
+//! BCS_AUTOPILOT=1 cargo run --example screenshot_sections --features debug
 //! # look for: `nova harness: reached Playing`, `autopilot: cycle complete, no panic`
 //! ```
 
@@ -23,7 +23,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "16_screenshot_sections")]
+#[command(name = "screenshot_sections")]
 #[command(version = "1.0.0")]
 #[command(about = "Capture the wiki ship-section detail shots", long_about = None)]
 struct Cli;

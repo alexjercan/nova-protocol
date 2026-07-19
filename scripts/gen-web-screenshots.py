@@ -29,11 +29,11 @@ Capturing the screenshots (needs a display + a GPU; use Xvfb + lavapipe headless
 into the staging dir, then packaging them:
 
     NOVA_SHOT_DIR=target/reel BCS_REEL=1 \\
-        cargo run --example 13_screenshot_reel --features debug
+        cargo run --example screenshot_reel --features debug
     NOVA_SHOT_DIR=target/reel BCS_AUTOPILOT=1 BCS_REEL=1 \\
-        cargo run --example 14_screenshot_ui --features debug
+        cargo run --example screenshot_ui --features debug
     NOVA_SHOT_DIR=target/reel BCS_AUTOPILOT=1 BCS_REEL=1 \\
-        cargo run --example 15_screenshot_combat --features debug
+        cargo run --example screenshot_combat --features debug
     python3 scripts/gen-web-screenshots.py            # stage -> web/src/assets
 
 Run from the repo root. Uses only the Python standard library (no Pillow), like
@@ -63,25 +63,25 @@ WEB_ASSETS = os.path.join(REPO_ROOT, "web", "src", "assets")
 # reports them as pending and skips them, so it stays useful as coverage grows.
 FIGURES = [
     # name                         example
-    ("feature-gravity.png",        "13_screenshot_reel"),
-    ("wiki-gravity.png",           "13_screenshot_reel"),
-    ("wiki-sections.png",          "13_screenshot_reel"),
-    ("tutorial-menu.png",          "14_screenshot_ui"),
-    ("feature-editor.png",         "14_screenshot_ui"),
-    ("feature-combat.png",         "15_screenshot_combat"),
-    ("tutorial-combat-lock.png",   "15_screenshot_combat"),
-    ("feature-autopilot.png",      "15_screenshot_combat"),
-    ("tutorial-radar-lock.png",    "15_screenshot_combat"),
-    ("devlog5-target-viewfinder.png", "15_screenshot_combat"),
-    ("feature-hud.png",            "15_screenshot_combat"),
+    ("feature-gravity.png",        "screenshot_reel"),
+    ("wiki-gravity.png",           "screenshot_reel"),
+    ("wiki-sections.png",          "screenshot_reel"),
+    ("tutorial-menu.png",          "screenshot_ui"),
+    ("feature-editor.png",         "screenshot_ui"),
+    ("feature-combat.png",         "screenshot_combat"),
+    ("tutorial-combat-lock.png",   "screenshot_combat"),
+    ("feature-autopilot.png",      "screenshot_combat"),
+    ("tutorial-radar-lock.png",    "screenshot_combat"),
+    ("devlog5-target-viewfinder.png", "screenshot_combat"),
+    ("feature-hud.png",            "screenshot_combat"),
     # wiki-radar/-combat/-hud/-flight are filled by ALIASES (reuse), below.
-    ("feature-juice.png",          "17_screenshot_juice"),
-    ("tutorial-orbit.png",         "18_screenshot_orbit"),
-    ("wiki-section-hull.png",      "16_screenshot_sections"),
-    ("wiki-section-controller.png", "16_screenshot_sections"),
-    ("wiki-section-thruster.png",  "16_screenshot_sections"),
-    ("wiki-section-turret.png",    "16_screenshot_sections"),
-    ("wiki-section-torpedo-bay.png", "16_screenshot_sections"),
+    ("feature-juice.png",          "screenshot_juice"),
+    ("tutorial-orbit.png",         "screenshot_orbit"),
+    ("wiki-section-hull.png",      "screenshot_sections"),
+    ("wiki-section-controller.png", "screenshot_sections"),
+    ("wiki-section-thruster.png",  "screenshot_sections"),
+    ("wiki-section-turret.png",    "screenshot_sections"),
+    ("wiki-section-torpedo-bay.png", "screenshot_sections"),
     # devlog5-radar-stance-slots is built by COMPOSITES (below) from two shots.
 ]
 

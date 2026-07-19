@@ -1,4 +1,4 @@
-//! 09_editor: the ship editor, wired to the headless smoke-test harness.
+//! editor: the ship editor, wired to the headless smoke-test harness.
 //!
 //! This runs the exact same editor the `nova_protocol` binary launches (via the shared
 //! [`editor_app`]), just with the autopilot + screenshot harness attached. The point is to
@@ -21,7 +21,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 09_editor --features debug
+//! BCS_AUTOPILOT=1 cargo run --example editor --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `editor autopilot: created a ship with a controller`,
 //! #           `editor autopilot: placed a section ...`,
@@ -35,7 +35,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "09_editor")]
+#[command(name = "editor")]
 #[command(version = "1.0.0")]
 #[command(about = "The nova_protocol ship editor, wired to the smoke-test harness", long_about = None)]
 struct Cli;

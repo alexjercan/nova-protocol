@@ -11,9 +11,108 @@ exclude = ["dist", "build", "assets", "credits"]
 # Not published to crates.io (this is the game binary); also marks it first-party
 # so cargo-about's `[private] ignore` keeps it out of the third-party manifest.
 publish = false
+# The examples live in category subdirectories (bevy-repo style: purpose dirs,
+# plain slug names), which cargo's auto-discovery cannot see - it only looks at
+# examples/*.rs and examples/*/main.rs. Discovery off makes the [[example]]
+# catalog below the SINGLE source of truth: a stray file can never become a
+# phantom target, and a missing block means the example does not build at all
+# (the catalog_matches_disk test in tests/examples_smoke.rs pins catalog ==
+# disk == smoke lists). Task 20260719-193728.
+autoexamples = false
 
 [lib]
 path = "src/lib.rs"
+
+# The example catalog (see autoexamples above). Blocks are listed in
+# curriculum reading order within each category.
+# sections/ - one example per ship section, the correctness curriculum.
+[[example]]
+name = "controller_section"
+path = "examples/sections/controller_section.rs"
+
+[[example]]
+name = "thruster_section"
+path = "examples/sections/thruster_section.rs"
+
+[[example]]
+name = "hull_section"
+path = "examples/sections/hull_section.rs"
+
+[[example]]
+name = "turret_section"
+path = "examples/sections/turret_section.rs"
+
+[[example]]
+name = "torpedo_section"
+path = "examples/sections/torpedo_section.rs"
+
+[[example]]
+name = "torpedo_guidance"
+path = "examples/sections/torpedo_guidance.rs"
+
+[[example]]
+name = "com_range"
+path = "examples/sections/com_range.rs"
+
+# gameplay/ - full autopilot scenario runs (the timeline/invariant-wired ones).
+[[example]]
+name = "scenario"
+path = "examples/gameplay/scenario.rs"
+
+[[example]]
+name = "playable"
+path = "examples/gameplay/playable.rs"
+
+[[example]]
+name = "broadside"
+path = "examples/gameplay/broadside.rs"
+
+# ui/ - staged UI flows with their own autopilot timelines.
+[[example]]
+name = "editor"
+path = "examples/ui/editor.rs"
+
+[[example]]
+name = "hud_range"
+path = "examples/ui/hud_range.rs"
+
+[[example]]
+name = "menu_newgame"
+path = "examples/ui/menu_newgame.rs"
+
+# screenshots/ - capture producers for the website (gen-web-screenshots.py).
+[[example]]
+name = "screenshot_reel"
+path = "examples/screenshots/screenshot_reel.rs"
+
+[[example]]
+name = "screenshot_ui"
+path = "examples/screenshots/screenshot_ui.rs"
+
+[[example]]
+name = "screenshot_combat"
+path = "examples/screenshots/screenshot_combat.rs"
+
+[[example]]
+name = "screenshot_sections"
+path = "examples/screenshots/screenshot_sections.rs"
+
+[[example]]
+name = "screenshot_juice"
+path = "examples/screenshots/screenshot_juice.rs"
+
+[[example]]
+name = "screenshot_orbit"
+path = "examples/screenshots/screenshot_orbit.rs"
+
+[[example]]
+name = "render_scale_shot"
+path = "examples/screenshots/render_scale_shot.rs"
+
+# perf/ - frame-time measurement scenes (probe run --fps).
+[[example]]
+name = "perf_baseline"
+path = "examples/perf/perf_baseline.rs"
 
 # Inherit the workspace clippy allows (type_complexity, too_many_arguments) for
 # the root package too, so the lib, binary and examples match the crates' policy.
@@ -27,7 +126,7 @@ nova_core = { path = "crates/nova_core" }
 [dev-dependencies]
 avian3d = { version = "0.7" }
 bevy = { version = "0.19.0" }
-# The 20_perf_baseline example uses the frame-time capture harness, and the
+# The perf_baseline example uses the frame-time capture harness, and the
 # autopilot examples push run-timeline markers - both live in nova_probe (the
 # run-harness dev tool, not shipped with the game binary). serde_json builds
 # the markers' payloads (the timeline speaks JSON).
@@ -38,7 +137,7 @@ rand = { version = "0.10.2" }
 serde = { version = "1.0.228" }
 bevy_enhanced_input = { version = "0.26.0" }
 # The screenshot-reel example embeds and parses its scenario RON directly
-# (examples/data/reel.content.ron) instead of shipping it as a mod.
+# (examples/screenshots/data/reel.content.ron) instead of shipping it as a mod.
 nova_modding = { path = "crates/nova_modding" }
 ron = { version = "0.12" }
 

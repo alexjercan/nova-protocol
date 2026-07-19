@@ -1,4 +1,4 @@
-//! 19_broadside: the chapter-two slice, wired to the smoke-test harness.
+//! broadside: the chapter-two slice, wired to the smoke-test harness.
 //!
 //! Boots the exact app the binary runs, drives the Scenarios picker to launch
 //! Broadside, and plays the whole win/lose frame in ONE run: dies to prove
@@ -24,7 +24,7 @@
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
-//! BCS_AUTOPILOT=1 cargo run --example 19_broadside --features debug
+//! BCS_AUTOPILOT=1 cargo run --example broadside --features debug
 //! # look for: `probe: defeat overlay up, retrying`,
 //! #           `probe: victory overlay up`,
 //! #           `probe: script complete, exiting` (the self-ending sentinel
@@ -37,7 +37,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
-#[command(name = "19_broadside")]
+#[command(name = "broadside")]
 #[command(version = "1.0.0")]
 #[command(about = "The Broadside slice: defeat, retry, victory - under the smoke harness", long_about = None)]
 struct Cli;
@@ -92,7 +92,7 @@ fn guard_script_completion(mut exits: MessageReader<AppExit>, script: Option<Res
     let Some(script) = script else { return };
     if exits.read().next().is_some() && !script.done {
         panic!(
-            "19_broadside: run ended with the script stalled in stage {}",
+            "broadside: run ended with the script stalled in stage {}",
             script.stage
         );
     }
@@ -116,7 +116,7 @@ fn slice_autopilot(world: &mut World, elapsed: f32) {
     }
     if elapsed - state.stage_started > STAGE_DEADLINE_SECS {
         panic!(
-            "19_broadside: stage {} stalled for {STAGE_DEADLINE_SECS}s",
+            "broadside: stage {} stalled for {STAGE_DEADLINE_SECS}s",
             state.stage
         );
     }
