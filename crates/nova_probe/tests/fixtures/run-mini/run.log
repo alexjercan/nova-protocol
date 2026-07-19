@@ -1,0 +1,3 @@
+2026-07-19T10:00:00Z  INFO nova harness: reached Playing
+2026-07-19T10:00:03Z  INFO playable: prey destroyed
+2026-07-19T10:00:24Z  INFO autopilot: cycle complete, no panic (t=24.0s)
