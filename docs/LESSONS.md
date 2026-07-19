@@ -172,8 +172,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `match-ci-feature-set-in-targeted-tests` (x2): run targeted tests with CI's
   feature set or feature-gated test code fails to compile and reads as a
   regression. 20260718-004834, 20260718-102022.
-- `landing-no-cd` (x3, PROMOTED 2026-07-11 -> flow skill): squash-merge from
-  the main checkout, own command, no cd, `pwd` first. 20260709-160753.
+- `landing-no-cd` (x4, PROMOTED 2026-07-11 -> flow skill): squash-merge from
+  the main checkout, own command, no cd, `pwd` first - and never CHAIN the
+  land onto a sync command that cd'd into the worktree (the squash merges
+  the branch into itself as a silent no-op). 20260709-160753,
+  20260719-174541.
 - `resume-check-if-already-landed` (x1): when resuming a task with a leftover
   sprout/branch, `git diff master <branch> -- <the-real-file>` FIRST - an
   empty diff means the fix already landed (via PR) and the branch is just
