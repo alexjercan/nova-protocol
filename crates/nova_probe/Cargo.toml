@@ -1,10 +1,10 @@
 [package]
-name = "nova_perf"
+name = "nova_probe"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 publish = false
-description = "Frame-time capture and perf tooling for the Nova Protocol game (dev tools)"
+description = "Run-harness for the Nova Protocol game: frame-time capture and perf reporting over autopilot runs (dev tools)"
 
 [lib]
 path = "src/lib.rs"
@@ -18,7 +18,7 @@ path = "src/bin/perf_web.rs"
 
 # Turns a perf-baseline.sh results dir (frametime.csv) into one self-contained
 # HTML report. Pure reporting over the capture output: it only uses the lib's
-# CSV parser (nova_perf::parse_frametime_csv), but lives in this crate so the
+# CSV parser (nova_probe::parse_frametime_csv), but lives in this crate so the
 # reader and the writer share one schema definition.
 [[bin]]
 name = "perf_report"

@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8" />
         <title>nova perf</title>
-        <!-- Build the nova_perf crate's perf_web bin (the frame-time harness)
+        <!-- Build the nova_probe crate's perf_web bin (the frame-time harness)
              instead of the game. nova_core adds bevy's `webgpu` feature for
              wasm, so this is a WebGPU build. -->
         <!-- data-wasm-opt="0": trunk's bundled wasm-opt is too old for rustc's
@@ -12,7 +12,7 @@
         <link
             data-trunk
             rel="rust"
-            href="crates/nova_perf/Cargo.toml"
+            href="crates/nova_probe/Cargo.toml"
             data-bin="perf_web"
             data-wasm-opt="0"
         />

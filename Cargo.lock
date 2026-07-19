@@ -4537,7 +4537,7 @@ dependencies = [
  "embed-resource",
  "nova_core",
  "nova_modding",
- "nova_perf",
+ "nova_probe",
  "rand 0.10.2",
  "ron",
  "serde",
@@ -4700,16 +4700,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nova_perf"
-version = "0.7.0"
-dependencies = [
- "bevy",
- "nova-protocol",
- "nova_gameplay",
- "web-sys",
-]
-
-[[package]]
 name = "nova_portal_gen"
 version = "0.7.0"
 dependencies = [
@@ -4719,6 +4709,16 @@ dependencies = [
  "serde_json",
  "sha2",
  "tempfile",
+]
+
+[[package]]
+name = "nova_probe"
+version = "0.7.0"
+dependencies = [
+ "bevy",
+ "nova-protocol",
+ "nova_gameplay",
+ "web-sys",
 ]
 
 [[package]]

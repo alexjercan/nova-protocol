@@ -28,8 +28,8 @@ nova_core = { path = "crates/nova_core" }
 avian3d = { version = "0.7" }
 bevy = { version = "0.19.0" }
 # The 20_perf_baseline example uses the frame-time capture harness, which lives
-# in nova_perf (a dev tool, not shipped with the game binary).
-nova_perf = { path = "crates/nova_perf" }
+# in nova_probe (the run-harness dev tool, not shipped with the game binary).
+nova_probe = { path = "crates/nova_probe" }
 bevy_rand = { version = "0.15.0", default-features = false, features = ["chacha20", "wyrand"] }
 rand = { version = "0.10.2" }
 serde = { version = "1.0.228" }
@@ -104,8 +104,8 @@ members = [
   "crates/nova_mod_format",
   "crates/nova_meta_gen",
   "crates/nova_modding",
-  "crates/nova_perf",
   "crates/nova_portal_gen",
+  "crates/nova_probe",
   "crates/nova_scenario",
   "crates/nova_ui",
 ]

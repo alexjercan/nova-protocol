@@ -22,7 +22,7 @@ and the individual refactor tasks consume.
 - [ ] Catalog every dev entry point with its purpose, invocation, and
       dependencies:
   - [ ] Rust bins: `content` (lint only after the pre-made moves below;
-        was gen/lint/audit), `nova_perf` (perf_web + the report bin once
+        was gen/lint/audit), `nova_probe` (perf_web + the report bin once
         20260718-152230 lands), `nova_meta_gen`, `nova_portal_gen`.
   - [ ] scripts/: perf-baseline.sh, perf-web.sh, preview-web.sh,
         gen-licenses.sh, gen-web-screenshots.py, gen-placeholder-sounds.py,

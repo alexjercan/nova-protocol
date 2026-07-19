@@ -15,7 +15,7 @@ This is the breadth pass of the rustdoc strand (20260525-133033 coordinates;
 20260525-133030 does nova_gameplay in depth): a sweep across ALL workspace
 crates (nova_core, nova_scenario, nova_assets, nova_modding, nova_mod_format,
 nova_menu, nova_ui, nova_editor, nova_events, nova_info, nova_debug,
-nova_perf, nova_meta_gen, nova_portal_gen) adding at least a one-line doc
+nova_probe, nova_meta_gen, nova_portal_gen) adding at least a one-line doc
 comment to every public plugin struct, component, resource and event type.
 Retagged from the old backlog where it had no body.
 

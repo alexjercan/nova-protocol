@@ -187,7 +187,7 @@ the PNG codec (decode/resize/compose) in isolation.
 
 ## Performance
 
-Frame-time is measured with `nova_perf` (`crates/nova_perf/`), an env-gated
+Frame-time is measured with `nova_probe` (`crates/nova_probe/`), an env-gated
 capture plugin that drives the real gameplay app to `Playing`, warms up, records
 the wall-clock delta of every frame for a fixed window, and writes percentile
 stats. It is inert unless `NOVA_PERF` is set, so `20_perf_baseline` can carry it
@@ -211,13 +211,18 @@ a 60 fps budget line), and - against a baseline dir - per-run deltas so a
 regression is obvious:
 
 ```sh
-cargo run -p nova_perf --bin perf_report -- <results-dir>            # -> <results-dir>/report.html
-cargo run -p nova_perf --bin perf_report -- <new-dir> --baseline <old-dir> -o report.html
+cargo run -p nova_probe --bin perf_report -- <results-dir>            # -> <results-dir>/report.html
+cargo run -p nova_probe --bin perf_report -- <new-dir> --baseline <old-dir> -o report.html
 ```
 
+Every capture also records run metadata - wgpu backend + GPU adapter,
+resolution, graphics preset, git SHA and host - so a results file names its own
+renderer and the report shows it (pre-metadata result files, like the v0.7.0
+baseline, still load; their renderer falls back to the results dir's name).
+
 The report reads only the aggregated `frametime.csv` (schema
-`nova_perf::CSV_HEADER`), so the reader and the capture writer share one column
-contract; a fixture-rendered test (`crates/nova_perf/tests/fixtures/`) pins it.
+`nova_probe::CSV_HEADER`), so the reader and the capture writer share one column
+contract; a fixture-rendered test (`crates/nova_probe/tests/fixtures/`) pins it.
 
 The web target captures the same way through Trunk; `scripts/perf-web.sh` drives
 the wasm build under headless Chromium and scrapes the summary line (no fs in the

@@ -12,6 +12,12 @@ tagged **(breaking)**.
 
 ## [Unreleased]
 
+### Internals & Tooling
+
+- New `perf_report` dev tool: turns a `perf-baseline.sh` results dir (`frametime.csv`) into one self-contained HTML report - per-run frame-time percentiles, an SVG bar chart with p99 marks and a 60 fps budget line, and signed deltas against a baseline dir (`REPORT=1 scripts/perf-baseline.sh` renders it after a sweep).
+- The `nova_perf` crate is now `nova_probe`, the run-harness crate the v0.8.0 tooling strand grows (frame-time capture, reporting, and - as follow-up tasks land - run-correctness recording, invariant checks and profiling). Bin names, `NOVA_PERF_*` env vars and output formats are unchanged.
+- Perf captures now record run metadata alongside the numbers (wgpu backend + adapter, resolution, graphics preset, git SHA, host), so a results file names its own renderer instead of leaning on its directory name; the report shows it, and pre-metadata result files (the v0.7.0 baseline) still load.
+
 ## [0.7.0] - 2026-07-18
 
 ### Gameplay & Flight

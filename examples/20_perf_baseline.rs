@@ -36,12 +36,12 @@
 //!
 //! Extra env: `NOVA_PERF_QUALITY=low|medium|high` sweeps the graphics preset
 //! (task 20260525-133013), whose `GraphicsBudget` fractions this baseline exists
-//! to tune. See `nova_perf` for the capture knobs
+//! to tune. See `nova_probe` for the capture knobs
 //! (`NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` / `NOVA_PERF_RES`).
 
 use bevy::prelude::*;
 use clap::Parser;
-use nova_perf::{combat_burst_driver, nova_frametime};
+use nova_probe::{combat_burst_driver, nova_frametime};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -88,7 +88,7 @@ fn main() {
         app.insert_resource(quality);
     }
 
-    // The capture harness (from nova_perf; inert unless NOVA_PERF is set).
+    // The capture harness (from nova_probe; inert unless NOVA_PERF is set).
     // `NOVA_PERF_COMBAT=1` attaches the combat-burst driver (raise + hold fire,
     // keep combatants alive) so the capture measures particles/projectiles in
     // flight rather than the scene at rest - use it on a combat scenario.

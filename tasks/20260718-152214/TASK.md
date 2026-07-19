@@ -38,7 +38,7 @@ Known findings from the 2026-07-18 review (fix these first, they are verified):
       dropping the declaration from the example so the strict doc stands;
       either way doc and example must agree.
 - [ ] `project-tour.md` / `development.md`: add the two undocumented dev crates
-      `nova_perf` (frame-time capture harness) and `nova_meta_gen` (.meta
+      `nova_probe` (run-harness: frame-time capture + report) and `nova_meta_gen` (.meta
       sidecar generator, Trunk post_build hook), and list examples
       `20_perf_baseline` and `21_render_scale_shot` (noting they are not on the
       CI smoke list, unlike 01-19).

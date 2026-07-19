@@ -34,7 +34,7 @@ depth. Headline of the v0.8.0 docs strand.
   - [ ] `scripts/`: gen-licenses.sh, gen-web-screenshots.py,
         gen-placeholder-sounds.py, cut-obj-into-hulls.py, preview-web.sh
 - [ ] Fix the "Project layout" crate table: it lists ~8 of 15 crates. Add
-      nova_perf, nova_meta_gen, nova_portal_gen, nova_mod_format, nova_modding,
+      nova_probe, nova_meta_gen, nova_portal_gen, nova_mod_format, nova_modding,
       nova_ui, nova_info, nova_debug with one-line purposes.
 - [ ] Every HOW-TO/tool entry links to the deeper wiki page under
       `web/src/wiki/dev/` (development.md, mod-portal.md, ...) rather than
@@ -60,5 +60,5 @@ depth. Headline of the v0.8.0 docs strand.
   20260718-152255, inventory 20260718-152304), so the tools section documents
   the end state instead of chasing it.
 - Source of truth for detail stays the wiki (see docs/README.md).
-- The dev-wiki side of the same sweep is 20260718-152214 (it adds nova_perf /
+- The dev-wiki side of the same sweep is 20260718-152214 (it adds nova_probe /
   nova_meta_gen to project-tour + development.md); keep the two consistent.

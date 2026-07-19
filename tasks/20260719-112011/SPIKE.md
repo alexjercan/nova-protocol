@@ -297,4 +297,10 @@ Dependency order: T1 -> {T2 -> T3, T4} -> T5 -> T6.
 (Appended by each implementing task as it lands - keeps this doc the family's
 single source of current state.)
 
-- (none yet)
+- 2026-07-19 T1 (20260719-112231, CLOSED): crate renamed nova_perf ->
+  nova_probe and split into capture/stats/report modules (report rendering
+  now a lib module for T5); capture schema v2 adds RunMeta
+  (backend/adapter from main-world RenderAdapterInfo, resolution, quality,
+  git SHA, host) to CSV+JSON, parser reads v1 AND v2 so the v0.7.0
+  baseline keeps loading. NOVA_PERF_* env surface + bin names deliberately
+  unchanged (T6's). 24 tests; details in the task's Close-out.

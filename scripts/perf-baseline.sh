@@ -102,5 +102,5 @@ if [ -n "${REPORT:-}" ] || [ -n "${REPORT_BASELINE:-}" ]; then
   echo "== rendering HTML report =="
   REPORT_ARGS=("$OUT_DIR")
   [ -n "${REPORT_BASELINE:-}" ] && REPORT_ARGS+=(--baseline "$REPORT_BASELINE")
-  cargo run --release -p nova_perf --bin perf_report -- "${REPORT_ARGS[@]}"
+  cargo run --release -p nova_probe --bin perf_report -- "${REPORT_ARGS[@]}"
 fi
