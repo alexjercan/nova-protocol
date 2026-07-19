@@ -813,8 +813,8 @@ dependencies = [
 
 [[package]]
 name = "bevy_common_systems"
-version = "0.19.1"
-source = "git+https://github.com/alexjercan/bevy-common-systems?tag=v0.19.1#fca377dd4a5c761fb5746adee563eba87ad1a20e"
+version = "0.19.2"
+source = "git+https://github.com/alexjercan/bevy-common-systems?tag=v0.19.2#6eba8bf2c58257018abe7d7862f8078f2988386a"
 dependencies = [
  "avian3d",
  "bevy",
@@ -832,8 +832,8 @@ dependencies = [
 
 [[package]]
 name = "bevy_common_systems_macros"
-version = "0.19.1"
-source = "git+https://github.com/alexjercan/bevy-common-systems?tag=v0.19.1#fca377dd4a5c761fb5746adee563eba87ad1a20e"
+version = "0.19.2"
+source = "git+https://github.com/alexjercan/bevy-common-systems?tag=v0.19.2#6eba8bf2c58257018abe7d7862f8078f2988386a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4541,6 +4541,7 @@ dependencies = [
  "rand 0.10.2",
  "ron",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -4718,6 +4719,8 @@ dependencies = [
  "bevy",
  "nova-protocol",
  "nova_gameplay",
+ "nova_scenario",
+ "serde_json",
  "web-sys",
 ]
 

@@ -60,6 +60,11 @@ fn main() {
         );
         app.add_plugins(nova_screenshot());
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
+        // Run-timeline recorder (inert unless NOVA_PERF_TIMELINE names an
+        // output path): the script below pushes its beats as markers, so an
+        // armed run reads "raise -> sweep -> fire -> ... -> done" in the same
+        // JSONL stream as the scenario's own events and variables.
+        app.add_plugins(nova_probe::nova_timeline());
     }
 
     app.run();
@@ -319,12 +324,18 @@ fn playable_script(world: &mut World, elapsed: f32) {
     // Beat 1: raise, sweep, and the radar combat-locks the prey dead ahead.
     if t > 0.2 && !world.resource::<PlayableScript>().raised {
         world.resource_mut::<PlayableScript>().raised = true;
+        nova_probe::probe_marker(world, "beat: raised", serde_json::json!({ "t": t }));
         world
             .resource_mut::<ButtonInput<MouseButton>>()
             .press(MouseButton::Right);
     }
     if t > 0.5 && !world.resource::<PlayableScript>().radar_combat {
         world.resource_mut::<PlayableScript>().radar_combat = true;
+        nova_probe::probe_marker(
+            world,
+            "beat: radar combat sweep",
+            serde_json::json!({ "t": t }),
+        );
         world
             .resource_mut::<ButtonInput<KeyCode>>()
             .press(KeyCode::ControlLeft);
@@ -356,6 +367,11 @@ fn playable_script(world: &mut World, elapsed: f32) {
                 "playable: the combat lock must be on the prey"
             );
             world.resource_mut::<PlayableScript>().fired = true;
+            nova_probe::probe_marker(
+                world,
+                "beat: fire",
+                serde_json::json!({ "t": t, "combat_lock": combat_id }),
+            );
             world
                 .resource_mut::<ButtonInput<KeyCode>>()
                 .release(KeyCode::ControlLeft);
@@ -378,6 +394,7 @@ fn playable_script(world: &mut World, elapsed: f32) {
     {
         world.resource_mut::<PlayableScript>().lowered = true;
         world.resource_mut::<PlayableScript>().lowered_at = Some(t);
+        nova_probe::probe_marker(world, "beat: lowered", serde_json::json!({ "t": t }));
         world
             .resource_mut::<ButtonInput<MouseButton>>()
             .release(MouseButton::Left);
@@ -389,6 +406,11 @@ fn playable_script(world: &mut World, elapsed: f32) {
     if let Some(lowered_at) = lowered_at {
         if t > lowered_at + 0.3 && !world.resource::<PlayableScript>().radar_travel {
             world.resource_mut::<PlayableScript>().radar_travel = true;
+            nova_probe::probe_marker(
+                world,
+                "beat: radar travel sweep",
+                serde_json::json!({ "t": t }),
+            );
             world
                 .resource_mut::<ButtonInput<KeyCode>>()
                 .press(KeyCode::ControlLeft);
@@ -409,6 +431,11 @@ fn playable_script(world: &mut World, elapsed: f32) {
                 .is_some_and(|lock| lock.0.is_some())
             {
                 world.resource_mut::<PlayableScript>().engaged_goto = true;
+                nova_probe::probe_marker(
+                    world,
+                    "beat: goto engaged",
+                    serde_json::json!({ "t": t }),
+                );
                 world
                     .resource_mut::<ButtonInput<KeyCode>>()
                     .release(KeyCode::ControlLeft);
@@ -444,6 +471,11 @@ fn playable_script(world: &mut World, elapsed: f32) {
             info!(
                 "playable: prey destroyed, waypoint locked, GOTO closing at {:.2} u/s",
                 closing.unwrap_or_default()
+            );
+            nova_probe::probe_marker(
+                world,
+                "beat: done",
+                serde_json::json!({ "t": t, "closing_speed": closing }),
             );
             world.resource_mut::<PlayableScript>().done = true;
         }

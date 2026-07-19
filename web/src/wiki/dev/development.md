@@ -228,6 +228,28 @@ The web target captures the same way through Trunk; `scripts/perf-web.sh` drives
 the wasm build under headless Chromium and scrapes the summary line (no fs in the
 browser).
 
+### Run timeline (correctness recording)
+
+`nova_probe` also records WHAT HAPPENED during a run: set
+`NOVA_PERF_TIMELINE=<out.jsonl>` on any example that adds
+`nova_probe::nova_timeline()` (10_playable does) and the run appends one JSON
+object per line - every `GameStates`/pause transition, every fired scenario
+event with its payload (kills, area enter/exit, locks), every scenario-variable
+change (old/new), plus the beats the autopilot script pushes itself via
+`nova_probe::probe_marker`. Entries are flushed as written, so a panicked run
+keeps everything up to the panic. Compare runs by ORDER and VALUES, not
+timestamps (wall-clock and frame counts vary across hosts):
+
+```sh
+NOVA_PERF_TIMELINE=/tmp/run.jsonl BCS_AUTOPILOT=1 \
+  cargo run --example 10_playable --features debug
+```
+
+The timeline is native-only (no fs in the browser) and inert without the env
+var. It is the correctness half of the run-harness the perf capture is the
+performance half of; the unified run report (task 20260719-112304) renders
+both.
+
 ## Versioning and release
 
 - Version: `workspace.package.version` in root `Cargo.toml`; crates inherit it.

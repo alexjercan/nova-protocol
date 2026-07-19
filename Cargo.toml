@@ -27,9 +27,12 @@ nova_core = { path = "crates/nova_core" }
 [dev-dependencies]
 avian3d = { version = "0.7" }
 bevy = { version = "0.19.0" }
-# The 20_perf_baseline example uses the frame-time capture harness, which lives
-# in nova_probe (the run-harness dev tool, not shipped with the game binary).
+# The 20_perf_baseline example uses the frame-time capture harness, and the
+# autopilot examples push run-timeline markers - both live in nova_probe (the
+# run-harness dev tool, not shipped with the game binary). serde_json builds
+# the markers' payloads (the timeline speaks JSON).
 nova_probe = { path = "crates/nova_probe" }
+serde_json = { version = "1" }
 bevy_rand = { version = "0.15.0", default-features = false, features = ["chacha20", "wyrand"] }
 rand = { version = "0.10.2" }
 serde = { version = "1.0.228" }

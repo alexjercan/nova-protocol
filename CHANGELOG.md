@@ -14,6 +14,8 @@ tagged **(breaking)**.
 
 ### Internals & Tooling
 
+- New run-timeline recorder in `nova_probe`: arm any wired autopilot example with `NOVA_PERF_TIMELINE=<out.jsonl>` and the run records an ordered JSONL timeline - state transitions, every fired scenario event with payload, scenario-variable changes (old/new) and the script's own beat markers - flushed per entry so a panicked run keeps everything up to the panic. The correctness half of the run-harness; 10_playable is the worked example.
+- bevy_common_systems 0.19.1 -> 0.19.2: `GameEvent` gained public read accessors (`name()`/`info()`) so external observers (the run recorder) can see events pass by without touching the dispatch queue.
 - New `perf_report` dev tool: turns a `perf-baseline.sh` results dir (`frametime.csv`) into one self-contained HTML report - per-run frame-time percentiles, an SVG bar chart with p99 marks and a 60 fps budget line, and signed deltas against a baseline dir (`REPORT=1 scripts/perf-baseline.sh` renders it after a sweep).
 - The `nova_perf` crate is now `nova_probe`, the run-harness crate the v0.8.0 tooling strand grows (frame-time capture, reporting, and - as follow-up tasks land - run-correctness recording, invariant checks and profiling). Bin names, `NOVA_PERF_*` env vars and output formats are unchanged.
 - Perf captures now record run metadata alongside the numbers (wgpu backend + adapter, resolution, graphics preset, git SHA, host), so a results file names its own renderer instead of leaning on its directory name; the report shows it, and pre-metadata result files (the v0.7.0 baseline) still load.

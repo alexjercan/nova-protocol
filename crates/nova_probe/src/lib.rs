@@ -77,6 +77,39 @@
 //! | `NOVA_PERF_HOST` / `host`     | `/etc/hostname` | Overrides the recorded host tag (`browser` on wasm). |
 
 pub mod capture;
+// The run-timeline recorder writes a JSONL file; the browser has no
+// filesystem, so the module is native-only and wasm gets no-op stubs with the
+// same signatures (cross-target callers compile; the runner-CLI task owns the
+// web story).
+#[cfg(not(target_arch = "wasm32"))]
+pub mod recorder;
+#[cfg(target_arch = "wasm32")]
+pub mod recorder {
+    //! Wasm stubs for the native-only run-timeline recorder.
+    use bevy::prelude::*;
+
+    /// No-op on wasm (no filesystem for the JSONL sink).
+    pub fn nova_timeline() -> RunRecorderPlugin {
+        RunRecorderPlugin
+    }
+
+    /// Inert wasm stand-in for the native recorder plugin.
+    pub struct RunRecorderPlugin;
+
+    impl RunRecorderPlugin {
+        /// No-op on wasm.
+        pub fn out(self, _path: impl Into<std::path::PathBuf>) -> Self {
+            self
+        }
+    }
+
+    impl Plugin for RunRecorderPlugin {
+        fn build(&self, _app: &mut App) {}
+    }
+
+    /// No-op on wasm.
+    pub fn probe_marker(_world: &mut World, _name: &str, _data: serde_json::Value) {}
+}
 pub mod report;
 pub mod stats;
 
@@ -84,4 +117,7 @@ pub use capture::{
     combat_burst_driver, nova_frametime, perf_armed, perf_param, FrameTimePlugin, PerfDriver,
     DEFAULT_CAPTURE_FRAMES, DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, PERF_ENV,
 };
+pub use recorder::{nova_timeline, probe_marker, RunRecorderPlugin};
+#[cfg(not(target_arch = "wasm32"))]
+pub use recorder::{parse_timeline, ProbeTimeline, TimelineEvent};
 pub use stats::{parse_frametime_csv, FrameStats, PerfRun, RunMeta, CSV_HEADER, CSV_HEADER_V1};

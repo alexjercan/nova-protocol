@@ -29,6 +29,13 @@ bevy = { version = "0.19.0" }
 # The capture plugin reads GameStates / WeaponsHot / PlayerSpaceshipMarker and
 # tops up Health (re-exported by nova_gameplay, so the bcs version stays unified).
 nova_gameplay = { path = "../nova_gameplay" }
+# The run-timeline recorder observes the scenario's GameEvent stream (bcs
+# re-exported through nova_gameplay) and snapshot-diffs NovaEventWorld's
+# variables; nova_events carries the typed event vocabulary in its docs.
+nova_scenario = { path = "../nova_scenario" }
+# Timeline entries carry the events' serde_json payloads (GameEventInfo::data),
+# so the JSONL sink serializes with serde_json rather than hand-rolling.
+serde_json = { version = "1" }
 # The `perf_web` bin builds the real game app; it needs the full stack, but not
 # the debug overlays (the harness is not debug-gated now that it lives here).
 nova-protocol = { path = "../.." }

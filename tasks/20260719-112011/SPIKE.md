@@ -304,3 +304,12 @@ single source of current state.)
   git SHA, host) to CSV+JSON, parser reads v1 AND v2 so the v0.7.0
   baseline keeps loading. NOVA_PERF_* env surface + bin names deliberately
   unchanged (T6's). 24 tests; details in the task's Close-out.
+- 2026-07-19 T2 (20260719-112238, CLOSED): run-timeline recorder shipped -
+  `nova_timeline()` JSONL recorder (states, every scenario event with
+  payload, variable old/new diffs, script beat markers via `probe_marker`),
+  flush-per-entry, native-only, wired into 10_playable (7 beats) +
+  08_scenario. Unblocked by bcs v0.19.2 (GameEvent read accessors,
+  user-approved upstream release). STABILITY ANSWERED: meaningful sequences
+  identical across same-host runs (order+names+values); per-frame onupdate
+  pulse varies by design; cross-host still unmeasured - the golden task's
+  entry gate is half-met. 27 tests; details in the task's Close-out.

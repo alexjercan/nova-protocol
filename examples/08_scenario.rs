@@ -54,6 +54,10 @@ fn main() {
         app.add_plugins(nova_autopilot().input(autopilot_scenario_probe));
         app.add_plugins(nova_screenshot());
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
+        // Run-timeline recorder (inert unless NOVA_PERF_TIMELINE is set):
+        // this example exercises the whole scenario language, so its recorded
+        // timeline doubles as the recorder's stability probe.
+        app.add_plugins(nova_probe::nova_timeline());
     }
 
     app.run();

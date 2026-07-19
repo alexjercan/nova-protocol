@@ -255,6 +255,14 @@ impl NovaEventWorld {
     pub fn get_variable(&self, key: &str) -> Option<&VariableLiteral> {
         self.variables.get(key)
     }
+
+    /// Read-only iteration over all scenario variables (unordered). For
+    /// observers that snapshot the variable state - the run-timeline recorder
+    /// (nova_probe) diffs successive snapshots to log changes - without
+    /// exposing the map for mutation.
+    pub fn variables(&self) -> impl Iterator<Item = (&String, &VariableLiteral)> {
+        self.variables.iter()
+    }
 }
 
 #[cfg(test)]
