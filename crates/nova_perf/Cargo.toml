@@ -16,6 +16,14 @@ path = "src/lib.rs"
 name = "perf_web"
 path = "src/bin/perf_web.rs"
 
+# Turns a perf-baseline.sh results dir (frametime.csv) into one self-contained
+# HTML report. Pure reporting over the capture output: it only uses the lib's
+# CSV parser (nova_perf::parse_frametime_csv), but lives in this crate so the
+# reader and the writer share one schema definition.
+[[bin]]
+name = "perf_report"
+path = "src/bin/perf_report.rs"
+
 [dependencies]
 bevy = { version = "0.19.0" }
 # The capture plugin reads GameStates / WeaponsHot / PlayerSpaceshipMarker and

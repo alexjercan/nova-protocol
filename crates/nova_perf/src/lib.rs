@@ -471,6 +471,49 @@ impl FrameStats {
         )
     }
 
+    /// Parse one aggregated-CSV data row (no header) back into a
+    /// `(label, FrameStats)` pair - the inverse of [`to_csv_row`](Self::to_csv_row).
+    /// The CSV omits `total_ms` (JSON-only), so it is reconstructed exactly as
+    /// `mean_ms * frames` (mean is defined as `total / frames`). Returns `None`
+    /// on a row that does not have the [`CSV_HEADER`] column count or whose
+    /// numeric fields do not parse, so a truncated or foreign file is rejected
+    /// rather than silently mis-read. This is the reader the `perf_report` bin
+    /// uses, kept next to the writer so the schema is defined once.
+    pub fn from_csv_row(row: &str) -> Option<(String, Self)> {
+        let cols: Vec<&str> = row.split(',').collect();
+        // label + 10 numeric columns (see CSV_HEADER).
+        if cols.len() != 11 {
+            return None;
+        }
+        let label = cols[0].to_string();
+        let frames: usize = cols[1].trim().parse().ok()?;
+        let mean_ms: f64 = cols[2].trim().parse().ok()?;
+        let min_ms: f64 = cols[3].trim().parse().ok()?;
+        let max_ms: f64 = cols[4].trim().parse().ok()?;
+        let p50_ms: f64 = cols[5].trim().parse().ok()?;
+        let p95_ms: f64 = cols[6].trim().parse().ok()?;
+        let p99_ms: f64 = cols[7].trim().parse().ok()?;
+        let p999_ms: f64 = cols[8].trim().parse().ok()?;
+        let mean_fps: f64 = cols[9].trim().parse().ok()?;
+        let one_pct_low_fps: f64 = cols[10].trim().parse().ok()?;
+        Some((
+            label,
+            Self {
+                frames,
+                total_ms: mean_ms * frames as f64,
+                mean_ms,
+                min_ms,
+                max_ms,
+                p50_ms,
+                p95_ms,
+                p99_ms,
+                p999_ms,
+                mean_fps,
+                one_pct_low_fps,
+            },
+        ))
+    }
+
     /// One CSV row (no header): matches [`CSV_HEADER`].
     fn to_csv_row(&self, label: &str) -> String {
         format!(
@@ -491,8 +534,50 @@ impl FrameStats {
 }
 
 /// Header row for the aggregated CSV, written once when the file is created.
-const CSV_HEADER: &str =
+/// Public so a reader ([`FrameStats::from_csv_row`], [`parse_frametime_csv`])
+/// can validate a file against the exact column contract the writer emits.
+pub const CSV_HEADER: &str =
     "label,frames,mean_ms,min_ms,max_ms,p50_ms,p95_ms,p99_ms,p999_ms,mean_fps,one_pct_low_fps\n";
+
+/// One captured run: its label plus the percentile stats. The unit the
+/// aggregated `frametime.csv` stores one per row and the `perf_report` bin
+/// renders one per table row.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PerfRun {
+    /// The run's label (e.g. `broadside-high`), as written by the capture.
+    pub label: String,
+    /// The percentile frame-time statistics for the run.
+    pub stats: FrameStats,
+}
+
+/// Parse a whole aggregated `frametime.csv` (header + one row per run) into a
+/// list of runs, preserving file order. The first line must match
+/// [`CSV_HEADER`] (trimmed) or the file is rejected as not-a-frametime-CSV;
+/// blank lines are skipped and any data row that fails to parse is an error
+/// naming its line, so a corrupt sweep is caught instead of silently dropping
+/// runs. Shared by the `perf_report` bin and its tests so the schema lives in
+/// one place.
+pub fn parse_frametime_csv(contents: &str) -> Result<Vec<PerfRun>, String> {
+    let mut lines = contents.lines();
+    let header = lines.next().ok_or("empty CSV (no header)")?;
+    if header.trim() != CSV_HEADER.trim() {
+        return Err(format!(
+            "unexpected CSV header\n  expected: {}\n  found:    {}",
+            CSV_HEADER.trim(),
+            header.trim()
+        ));
+    }
+    let mut runs = Vec::new();
+    for (i, line) in lines.enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let (label, stats) = FrameStats::from_csv_row(line)
+            .ok_or_else(|| format!("malformed CSV row at data line {}: {line:?}", i + 1))?;
+        runs.push(PerfRun { label, stats });
+    }
+    Ok(runs)
+}
 
 /// Log the summary line and, when `NOVA_PERF_OUT` is set, write a per-run JSON
 /// file and append a row to the aggregated CSV. The log line is always emitted -
@@ -656,5 +741,67 @@ mod tests {
     fn sanitize_replaces_path_hostile_chars() {
         assert_eq!(sanitize("asteroid_field-gpu"), "asteroid_field-gpu");
         assert_eq!(sanitize("a/b c:d"), "a_b_c_d");
+    }
+
+    #[test]
+    fn from_csv_row_reads_a_known_literal_row() {
+        // A real row from the v0.7.0 sw baseline (broadside-high). Assert the
+        // literal values, not just a round-trip, so a shared writer/reader bug
+        // cannot pass this (roundtrip-hides-shared-bug).
+        let row =
+            "broadside-high,120,115.0519,82.7471,168.3229,111.4533,140.7148,166.7084,168.3229,8.69,6.00";
+        let (label, stats) = FrameStats::from_csv_row(row).expect("valid row parses");
+        assert_eq!(label, "broadside-high");
+        assert_eq!(stats.frames, 120);
+        assert!((stats.mean_ms - 115.0519).abs() < 1e-9);
+        assert!((stats.min_ms - 82.7471).abs() < 1e-9);
+        assert!((stats.max_ms - 168.3229).abs() < 1e-9);
+        assert!((stats.p99_ms - 166.7084).abs() < 1e-9);
+        assert!((stats.mean_fps - 8.69).abs() < 1e-9);
+        assert!((stats.one_pct_low_fps - 6.00).abs() < 1e-9);
+        // total_ms is reconstructed as mean * frames (CSV omits it).
+        assert!((stats.total_ms - 115.0519 * 120.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn csv_row_write_then_read_round_trips_the_stats() {
+        // Forward (to_csv_row) then back (from_csv_row) preserves every field
+        // the CSV carries. total_ms is CSV-omitted, so compare the rest.
+        let original = FrameStats::from_samples(&[8.0, 12.0, 10.0, 40.0, 9.5, 11.0, 10.5]);
+        let row = original.to_csv_row("shakedown_run-low");
+        let (label, parsed) = FrameStats::from_csv_row(row.trim()).expect("round-trips");
+        assert_eq!(label, "shakedown_run-low");
+        // The written row has 4-decimal precision, so compare at that scale.
+        assert!((parsed.mean_ms - original.mean_ms).abs() < 5e-4);
+        assert!((parsed.p99_ms - original.p99_ms).abs() < 5e-4);
+        assert!((parsed.max_ms - original.max_ms).abs() < 5e-4);
+        assert_eq!(parsed.frames, original.frames);
+    }
+
+    #[test]
+    fn parse_frametime_csv_rejects_a_foreign_header() {
+        let err = parse_frametime_csv("a,b,c\n1,2,3\n").expect_err("foreign header rejected");
+        assert!(err.contains("unexpected CSV header"), "{err}");
+    }
+
+    #[test]
+    fn parse_frametime_csv_reads_a_two_row_file_in_order() {
+        let csv = format!(
+            "{}asteroid_field-high,120,126.5503,96.6889,166.1786,125.4380,152.8573,164.2634,166.1786,7.90,6.09\n\
+             broadside-low,120,98.8898,72.3828,133.8965,98.2504,118.7390,133.2727,133.8965,10.11,7.50\n",
+            CSV_HEADER
+        );
+        let runs = parse_frametime_csv(&csv).expect("valid file parses");
+        assert_eq!(runs.len(), 2);
+        assert_eq!(runs[0].label, "asteroid_field-high");
+        assert_eq!(runs[1].label, "broadside-low");
+        assert!((runs[0].stats.p99_ms - 164.2634).abs() < 1e-9);
+    }
+
+    #[test]
+    fn parse_frametime_csv_errors_on_a_truncated_row() {
+        let csv = format!("{}broadside-high,120,115.05\n", CSV_HEADER);
+        let err = parse_frametime_csv(&csv).expect_err("short row rejected");
+        assert!(err.contains("malformed CSV row"), "{err}");
     }
 }

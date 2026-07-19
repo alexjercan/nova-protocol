@@ -26,6 +26,10 @@
 #   FRAMES           captured frames (default: 600; sw defaults lower)
 #   RES              forced window resolution WxH (default: 1280x720)
 #   LVP_ICD          lavapipe ICD path (sw mode)
+#   REPORT           if set, render an HTML report (perf_report bin) over the
+#                    results dir at the end, into $OUT_DIR/report.html
+#   REPORT_BASELINE  optional baseline results dir; the report shows per-run
+#                    deltas against it (implies REPORT)
 set -euo pipefail
 
 RENDERER="${1:-gpu}"
@@ -89,3 +93,14 @@ done
 echo
 echo "== results in $OUT_DIR =="
 [ -f "$OUT_DIR/frametime.csv" ] && column -s, -t "$OUT_DIR/frametime.csv"
+
+# Optional: render a self-contained HTML report over the results dir. Reuses the
+# release artifacts the example build produced above, so this is a quick link
+# step, not another full compile. REPORT_BASELINE implies REPORT.
+if [ -n "${REPORT:-}" ] || [ -n "${REPORT_BASELINE:-}" ]; then
+  echo
+  echo "== rendering HTML report =="
+  REPORT_ARGS=("$OUT_DIR")
+  [ -n "${REPORT_BASELINE:-}" ] && REPORT_ARGS+=(--baseline "$REPORT_BASELINE")
+  cargo run --release -p nova_perf --bin perf_report -- "${REPORT_ARGS[@]}"
+fi

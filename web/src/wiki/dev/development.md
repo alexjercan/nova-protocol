@@ -185,6 +185,44 @@ have no capture example yet. Commit the resulting PNGs (they are content, like
 `banner.png`). Run `python3 scripts/gen-web-screenshots.py --self-test` to check
 the PNG codec (decode/resize/compose) in isolation.
 
+## Performance
+
+Frame-time is measured with `nova_perf` (`crates/nova_perf/`), an env-gated
+capture plugin that drives the real gameplay app to `Playing`, warms up, records
+the wall-clock delta of every frame for a fixed window, and writes percentile
+stats. It is inert unless `NOVA_PERF` is set, so `20_perf_baseline` can carry it
+permanently. See the crate docs for the full knob list (`NOVA_PERF_*`).
+
+The sweep script builds the example once and runs it across the heavy scenes x
+graphics presets, writing one `<label>.json` per run plus an aggregated
+`frametime.csv` into a results dir:
+
+```sh
+scripts/perf-baseline.sh gpu               # real GPU, headless Xvfb (default)
+scripts/perf-baseline.sh sw                # lavapipe software-raster floor
+REPORT=1 scripts/perf-baseline.sh gpu      # + render an HTML report at the end
+```
+
+`perf_report` turns a results dir into one self-contained HTML report (inline
+CSS + inline SVG, opens offline, attachable to a task/PR): per scene x preset it
+shows frame count and window, mean and p50/p95/p99/p999/max frame times, the
+derived mean / 1%-low FPS, a bar chart (mean bar + p99 marker, one common scale,
+a 60 fps budget line), and - against a baseline dir - per-run deltas so a
+regression is obvious:
+
+```sh
+cargo run -p nova_perf --bin perf_report -- <results-dir>            # -> <results-dir>/report.html
+cargo run -p nova_perf --bin perf_report -- <new-dir> --baseline <old-dir> -o report.html
+```
+
+The report reads only the aggregated `frametime.csv` (schema
+`nova_perf::CSV_HEADER`), so the reader and the capture writer share one column
+contract; a fixture-rendered test (`crates/nova_perf/tests/fixtures/`) pins it.
+
+The web target captures the same way through Trunk; `scripts/perf-web.sh` drives
+the wasm build under headless Chromium and scrapes the summary line (no fs in the
+browser).
+
 ## Versioning and release
 
 - Version: `workspace.package.version` in root `Cargo.toml`; crates inherit it.

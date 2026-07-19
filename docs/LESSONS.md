@@ -362,10 +362,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   skills): a verification that cannot fail with the mechanism deleted proves
   nothing; a sabotage that will not go red refutes the assumed mechanism or
   the test's shape. 20260711-180426, 20260717-163033.
-- `out-of-context-review-pass` (positive, x30): a fresh-context review
+- `out-of-context-review-pass` (positive, x31): a fresh-context review
   re-derives load-bearing claims (spawn sites, algorithms, engine semantics,
-  course geometry) and catches MAJORs shared-session eyes miss; verify the
-  verifier's counterexamples too. 20260712-133343, 20260717-212219.
+  spike API claims) and catches MAJORs shared-session eyes miss; verify the
+  verifier's counterexamples too. 20260717-212219, 20260719-112011.
 - `required-component-in-shared-query` (x2): a required fetch narrows an
   existing query's membership; fetch `Option<&T>` or use a separate query.
   20260712-143832.
@@ -375,12 +375,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   consts, and encode layout invariants as computed rig assertions - carried-
   over positions need the same derivation as new ones. 20260716-124722,
   20260717-112630.
-- `verify-engine-guarantees-in-source` (x8, PROMOTED 2026-07-19 -> plan
+- `verify-engine-guarantees-in-source` (x9, PROMOTED 2026-07-19 -> plan
   skill): read the dependency's source or probe before designing around its
-  ordering/observer/failure behavior - doc comments (upstream AND ours) are
-  folklore; existence greps include dependency checkouts; grep for a
-  compensating system before theorizing a missing write. 20260717-013440,
-  20260717-133332.
+  ordering/observer/failure/API behavior - doc comments (upstream AND ours)
+  are folklore, and SPIKE docs stating a dependency capability cite the
+  verifying grep too (a spike claimed a Bevy per-system diagnostic that does
+  not exist). 20260717-133332, 20260719-112011.
 - `advertised-but-unwired` (x3): a config surface is not a capability until
   producer/consumer wiring and preconditions are verified in the new context.
   20260712-093044.
