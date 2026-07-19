@@ -1,8 +1,8 @@
 # CI red: 10_playable smoke fails post lock-dwell - guns on Space also fires FlightBurnInput, ship overruns the beacon
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 90
-- TAGS: v0.8.0,bug,examples,test
+- TAGS: v0.8.0, bug, examples, test
 
 CI run 29658523978 (master, 2026-07-18): `harnessed_examples_reach_playing_without_panic`
 fails on `10_playable` with the backstop panic

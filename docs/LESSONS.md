@@ -172,6 +172,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   regression. 20260718-004834, 20260718-102022.
 - `landing-no-cd` (x3, PROMOTED 2026-07-11 -> flow skill): squash-merge from
   the main checkout, own command, no cd, `pwd` first. 20260709-160753.
+- `resume-check-if-already-landed` (x1): when resuming a task with a leftover
+  sprout/branch, `git diff master <branch> -- <the-real-file>` FIRST - an
+  empty diff means the fix already landed (via PR) and the branch is just
+  stale; close and clean up, do not re-do or re-review. 20260718-235837.
 - `record-the-exact-rig` (x3, PROMOTED 2026-07-13 -> work skill): evidence
   notes record the rig (systems, command path, components) or they mislead.
   20260709-125640.
@@ -515,6 +519,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `modal-input-observer-dispatch` (x2): model a held modifier as a plain
   action read in observers (component-presence gate), not a binding Chord.
   20260711-173237, 20260718-122912.
+- `input-mapping-overlays-flight-rig` (x1): PlayerControllerConfig
+  `input_mapping` sections silently overlay the flight rig bindings
+  (consume_input: false), so any section mapped to W/S/Space/RightTrigger
+  double-drives flight - map custom actions to LMB/RightTrigger2 and grep
+  every reader of a shared binding. A content lint could catch this at author
+  time. 20260718-235837.
 - `bei-app-finish-in-tests` (x2): bevy_enhanced_input needs `app.finish()` +
   `app.cleanup()` before spawning an action rig. 20260708-165705.
 - `bevy-input-is-messages-in-tests` (x1): drive input tests with
