@@ -525,6 +525,16 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   never bulk-tick with sed - tick each step individually re-reading its
   clauses against the diff. 20260718-122912, 20260719-114931.
 
+- `upstream-dev-via-patch-not-premature-push` (x1): when a change spans
+  bcs + nova, develop nova against the LOCAL bcs branch via a root
+  `[patch."<git-url>"]` path override - never push unfinished upstream
+  work to bcs master just to make the pin resolve. Sharp edge: cargo
+  still resolves the UNPATCHED source, so the dep line must keep the
+  existing (pushed) tag during the patch phase; bumping it to a
+  not-yet-pushed tag fails with "failed to get ... as a dependency".
+  The tag bump and the [patch] removal land TOGETHER in the landing
+  commit, after the upstream push+tag. 20260720-000609.
+
 ## Domain lessons (nova-protocol specific)
 
 - `gate-scenario-handlers-to-their-acts` (x1): every handler fires in every
