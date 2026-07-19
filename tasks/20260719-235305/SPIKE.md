@@ -117,12 +117,82 @@ diagnostics; part 2 (category window defaults) stays as pure ergonomics.
 Order: S1 -> S2 -> 233732. S1 is the load-bearing change and is
 upstream-first (the bcs release rhythm is proven).
 
-## Open questions for the user
+## Adjudications (user input 2026-07-20) and answers
 
-1. D2's loop enrollment: opt-in per example (recommended - reload
-   cleanliness is a per-scene fact) or default-on for gameplay/?
-2. Reload hitch frames inside looped windows: keep them in the tail
-   (they are real cost) or mark-and-exclude?
-3. Does `--fps` on correctness scripts still ALSO ride the clean pass
-   when no looping is needed (today's behavior), or always split into
-   the dedicated pass for uniformity?
+1. **Loop enrollment: PER EXAMPLE (opt-in).** Settled - reload
+   cleanliness is a per-scene fact.
+
+2. **Reload frames: EXCLUDE from the scene stats, REPORT separately.**
+   The user's tension is real ("not part of the scene, but scene-loading
+   is still part of the game") and the resolution is that these are TWO
+   measurements, not one:
+   - The fps row answers "what does this SCENE cost per frame" - and its
+     KEY property is comparability (baseline deltas). How many reloads
+     land inside a window depends on host speed, so including them makes
+     two runs' distributions non-comparable garbage: the delta would
+     measure reload COUNT, not scene cost.
+   - Scene-loading cost deserves its own visible number, not a smear in
+     someone else's tail: the looped capture marks reload intervals and
+     the report emits a reload line per looped row ("3 reloads: mean
+     210ms, max 320ms"). Excluding-and-reporting serves "loading needs
+     checking" BETTER than inclusion - the cost becomes readable instead
+     of buried. If load hitches ever need gating, that line is the
+     natural seed for a dedicated check.
+
+3. **fps pass: ALWAYS SPLIT.** The user leaned this way unsure; the
+   review makes it clear-cut, for a reason stronger than uniformity:
+   the clean pass arms the run RECORDER, which flushes JSONL PER ENTRY
+   on the frame path (state transitions, events, variable diffs - the
+   scenario's onupdate pulse fires every frame). Today's fps-on-clean-
+   pass numbers are contaminated by recorder I/O - a T2-era honesty gap
+   this spike's review caught (the dev badge kept them non-baselines,
+   but the two-pass principle was already violated in spirit). Always
+   splitting: measurement passes (fps, trace, samply) are ALWAYS
+   separate from the correctness pass; the fps pass is capture-only, so
+   looping never touches monotonics/timelines AT ALL (D2's interplay
+   paragraph dissolves); and one command means one thing on every
+   example instead of a hidden mode switch when a script happens to
+   outlast a window.
+
+## Review round (honest adversarial pass on this spike)
+
+- **R1 (design gap, now fixed in S1's scope): assertion-before-done
+  ordering.** "Assertions move off the magic constant" was understated:
+  in-example asserts currently fire at SECS-0.5 so a panic propagates
+  BEFORE AppExit. Firing them "on completion" must be ordered - the
+  autopilot runs its final assert hook, THEN reports done - or a failing
+  assert races the negotiated exit. S1 must make this an explicit,
+  tested part of the protocol, and the conversion touches every
+  example's assert timing (mechanical but fleet-wide).
+- **R2 (upstream blast radius)**: S1 changes bcs AutopilotPlugin's exit
+  semantics - bcs's OWN examples/tests and any non-nova consumers must
+  be checked in the upstream cycle, not assumed.
+- **R3 (deadline arithmetic)**: the in-app deadline must resolve BELOW
+  probe's --timeout so the named-laggards report always beats the
+  SIGKILL; the default needs to be derived (e.g. min(own default,
+  supervisor budget)), not two independent constants.
+- **R4 (self-correction)**: the fps-on-clean-pass contamination (see
+  adjudication 3) was shipped by T2 with this session's own review
+  calling it honest. The always-split decision retroactively fixes it;
+  the lesson is that "inert without env" reasoning checked the UNARMED
+  cost but never the ARMED cross-talk between collectors.
+- **R5 (what partial-emit still covers)**: with looping opt-in and
+  splitting universal, the net catches exactly: non-enrolled examples
+  whose window does not fit, and deadline hits mid-window. Still worth
+  having; still demoted (233732).
+
+## Revised cuts
+
+1. **S1 (bcs upstream + adoption)**: completion protocol
+   (register/done/deadline-naming-laggards), assert-then-done ordering
+   explicit, autopilot/capture/screenshot converted, bcs's own consumers
+   checked; release + pin bump; perf_baseline conditional deleted,
+   broadside guard becomes protocol-level.
+2. **S2 (probe + examples)**: `--fps` ALWAYS a dedicated capture-only
+   pass (manifest records it; fps check reads the same artifacts);
+   loop_while_pending opt-in on gameplay/ scenes; reload intervals
+   marked, excluded from scene stats, reported as their own line. E2E:
+   `probe run gameplay --fps` -> three FULL windows, zero env knobs,
+   reload lines on looped rows.
+3. **233732 re-scope**: partial-emit as the deadline net + skip
+   diagnostics (unchanged from the earlier note).
