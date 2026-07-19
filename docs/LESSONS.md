@@ -494,9 +494,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   work skill): never end cargo with tail/grep/echo - the harness reads the
   last exit; write output to a file and grep the FILE. 20260717-002228,
   20260718-122932.
-- `half-ticked-compound-steps` (x3, PROMOTED 2026-07-19 -> work skill): tick
-  a step only when every clause is done, or split/amend it in the same edit.
-  20260708-165704, 20260718-122912.
+- `half-ticked-compound-steps` (x4, PROMOTED 2026-07-19 -> work skill): tick
+  a step only when every clause is done, or split/amend it in the same edit;
+  never bulk-tick with sed - tick each step individually re-reading its
+  clauses against the diff. 20260718-122912, 20260719-114931.
 
 ## Domain lessons (nova-protocol specific)
 
