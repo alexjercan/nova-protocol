@@ -1,6 +1,6 @@
 # Mute audio in harness runs (autopilot/shot/reel + NOVA_MUTE): output_gain seam, settings and persistence untouched
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 63
 - TAGS: v0.8.0,audio,testing,examples
 
@@ -39,13 +39,13 @@ Mute policy (env, resolved per call - no OnceLock, so tests can flip it):
 
 ## Steps
 
-- [ ] settings.rs: `harness_muted_from(nova_mute: Option<&str>, harness_env_active: bool)`
+- [x] settings.rs: `harness_muted_from(nova_mute: Option<&str>, harness_env_active: bool)`
       as a PURE fn (the repo's probe-env pattern - unit-testable without
       touching process env, no test races), a thin env-reading wrapper,
       and `MasterVolume::output_gain()`. Swap the three output sites:
       `apply_master_volume` (settings.rs:227) + the thruster-hum and RCS
       loop appliers (audio.rs). Persistence and menu UI keep `factor()`.
-- [ ] Tests: pure-fn combo table (explicit mute, explicit unmute beats
+- [x] Tests: pure-fn combo table (explicit mute, explicit unmute beats
       harness, harness envs alone, nothing set); extend the existing
       GlobalVolume-push App test - pin NOVA_MUTE=0 at its start (makes it
       deterministic even under `BCS_AUTOPILOT=1 cargo test`), then flip
@@ -53,11 +53,11 @@ Mute policy (env, resolved per call - no OnceLock, so tests can flip it):
       assert GlobalVolume goes Linear(0.0) while MasterVolume stays put;
       restore the env at the end (single test fn owns these vars - no
       parallel-test race).
-- [ ] Docs: settings.rs module doc (the two-path volume paragraph gains
+- [x] Docs: settings.rs module doc (the two-path volume paragraph gains
       the mute sentence), development.md harness/examples section (one
       line: harness runs are silent, NOVA_MUTE=0 to hear), CHANGELOG
       Unreleased bullet.
-- [ ] Verify: fmt; cargo test -p nova_gameplay with CI's feature set
+- [x] Verify: fmt; cargo test -p nova_gameplay with CI's feature set
       (crate-solo-tests-miss-unified-features lesson); by-EAR test is the
       user's (run any example under BCS_AUTOPILOT and hear nothing, then
       NOVA_MUTE=0 and hear the game).
@@ -74,3 +74,30 @@ Mute policy (env, resolved per call - no OnceLock, so tests can flip it):
   auto-mute rides on it. probe's checks are unaffected (no log delta).
 - render_scale_shot (BCS_SHOT) and the reel (BCS_REEL) runs mute too -
   same rule, scripted captures have nobody listening.
+
+## Close-out (2026-07-19, branch feature/harness-mute)
+
+Shipped as designed with one improvement over the plan: the mute is a
+`HarnessMute` RESOURCE resolved from env once at plugin build, not a
+per-call env read - tests inject the resource directly (insert after the
+plugin wins), so there is zero process-env mutation in tests and no
+parallel-test races; the pure `harness_muted_from` fn carries the
+precedence logic and its own combo test. `mute.map(|m| *m)` keeps the
+loop appliers' Option pattern (minimal rigs without the settings plugin
+default to unmuted, matching their existing full-volume behavior).
+
+Evidence:
+- `cargo test -p nova_gameplay settings::` - 8/8 PASS: the two new tests
+  (env-precedence combos; muted run pushes Linear(0.0) onto GlobalVolume
+  while MasterVolume::factor() stays 0.3) plus all six pre-existing
+  settings tests unregressed.
+- `cargo check --workspace` clean (prelude export consumed fine).
+- Coverage proof: `grep -rln "AudioPlayer|set_volume|AudioSink"` over
+  examples/, crates/, src/ returns exactly ONE file -
+  nova_gameplay/src/audio.rs - so the two masked paths (GlobalVolume
+  push, loop-sink writes) are the WHOLE audio output surface.
+- The by-EAR test is the user's: run any example under BCS_AUTOPILOT and
+  hear nothing; NOVA_MUTE=0 restores sound.
+
+No probe/smoke/example changes were needed - the auto-mute rides the
+BCS_AUTOPILOT env both already set for their children.

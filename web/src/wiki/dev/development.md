@@ -127,6 +127,13 @@ new example misses its `[[example]]` block or its category's smoke list
 (`render_scale_shot` and `perf_baseline` are deliberately unsmoked; the
 `NOT_SMOKED` list records why).
 
+Harness runs are SILENT: any bcs harness env (`BCS_AUTOPILOT`, `BCS_SHOT`,
+`BCS_REEL`) zeroes the audio output via `HarnessMute` - Xvfb hides the
+window but not the speakers, and nobody listens to a smoke test. The
+volume SETTING is untouched (persistence and the settings menu never see
+the mute). `NOVA_MUTE=0` forces sound through a harness run;
+`NOVA_MUTE=1` mutes a normal one.
+
 ### Examples as bug pins
 
 When a bug is fixed, prefer pinning it where it lives: a unit/App test for a

@@ -921,9 +921,11 @@ fn compute_thruster_hum_volume(
 fn apply_thruster_loop_volume(
     hum: Res<ThrusterHumVolume>,
     master: Option<Res<crate::settings::MasterVolume>>,
+    mute: Option<Res<crate::settings::HarnessMute>>,
     mut q_sink: Query<(&mut AudioSink, &ThrusterLoopSfx)>,
 ) {
-    let master = master.map(|m| m.factor()).unwrap_or(1.0);
+    let mute = mute.map(|m| *m).unwrap_or_default();
+    let master = master.map(|m| m.output_gain(mute)).unwrap_or(1.0);
     for (mut sink, sfx) in &mut q_sink {
         let smoothed = hum.hums.get(&sfx.0).map(|l| l.smoothed).unwrap_or(0.0);
         sink.set_volume(Volume::Linear(smoothed * master));
@@ -1039,9 +1041,11 @@ fn compute_rcs_loop_volume(
 fn apply_rcs_loop_volume(
     vol: Res<RcsLoopVolume>,
     master: Option<Res<crate::settings::MasterVolume>>,
+    mute: Option<Res<crate::settings::HarnessMute>>,
     mut q_sink: Query<(&mut AudioSink, &RcsLoopSfx)>,
 ) {
-    let master = master.map(|m| m.factor()).unwrap_or(1.0);
+    let mute = mute.map(|m| *m).unwrap_or_default();
+    let master = master.map(|m| m.output_gain(mute)).unwrap_or(1.0);
     for (mut sink, sfx) in &mut q_sink {
         let smoothed = vol.loops.get(&sfx.0).map(|l| l.smoothed).unwrap_or(0.0);
         sink.set_volume(Volume::Linear(smoothed * master));

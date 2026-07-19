@@ -7,7 +7,10 @@
 //!   through bevy's [`GlobalVolume`] (`audio_output` multiplies
 //!   `settings.volume * global_volume.volume`); the persistent thruster loop
 //!   sets its own sink volume every frame, so [`crate::audio`] scales that by
-//!   [`MasterVolume`] directly.
+//!   [`MasterVolume`] directly. Both output paths go through
+//!   [`MasterVolume::output_gain`], which [`HarnessMute`] masks to silence in
+//!   scripted runs (smoke suite, probe, screenshot captures) - the SETTING
+//!   stays untouched, so persistence and the menu never see the mute.
 //! - [`GraphicsQuality`] is a three-tier preset. It maps onto two things through
 //!   the single [`apply_graphics_quality`] seam: the combat juice
 //!   ([`crate::juice::JuiceSettings`]) and the derived [`GraphicsBudget`] gate
@@ -48,8 +51,58 @@ impl Default for MasterVolume {
 impl MasterVolume {
     /// The clamped linear factor, so a corrupt persisted value can never push
     /// the mixer out of range.
+    ///
+    /// This is the SETTING - what persistence saves and the menu slider shows.
+    /// The gain the mixer actually applies is [`Self::output_gain`], which a
+    /// harness run masks to silence; keeping the two apart is what stops a
+    /// muted smoke run from persisting `0.0` over the player's real volume.
     pub fn factor(self) -> f32 {
         self.0.clamp(0.0, 1.0)
+    }
+
+    /// The gain audio output applies: the setting, masked to silence when the
+    /// run is [`HarnessMute`]d. ONLY the output sites (the `GlobalVolume`
+    /// push and the per-frame loop-sink writes in `audio`) call this;
+    /// everything that means "the player's chosen volume" reads
+    /// [`Self::factor`].
+    pub fn output_gain(self, mute: HarnessMute) -> f32 {
+        if mute.0 {
+            0.0
+        } else {
+            self.factor()
+        }
+    }
+}
+
+/// Zero audio output for scripted runs - nobody listens to a smoke test, and
+/// Xvfb hides the window but not the speakers. Resolved from the environment
+/// ONCE at [`NovaSettingsPlugin`] build (a run's mute state cannot change
+/// mid-session): `NOVA_MUTE` set and not `"0"` mutes any run, `NOVA_MUTE=0`
+/// forces sound even under a harness, and with `NOVA_MUTE` unset a run is
+/// muted iff a bcs harness env (`BCS_AUTOPILOT`/`BCS_SHOT`/`BCS_REEL`) is
+/// active - which covers the smoke suite and probe with no changes there.
+/// Tests inject the resource directly (insert after the plugin) instead of
+/// touching process env, so parallel tests cannot race on it.
+#[derive(Resource, Clone, Copy, Default, Debug, PartialEq)]
+pub struct HarnessMute(pub bool);
+
+impl HarnessMute {
+    fn from_env() -> Self {
+        let nova_mute = std::env::var("NOVA_MUTE").ok();
+        let harness_env_active = ["BCS_AUTOPILOT", "BCS_SHOT", "BCS_REEL"]
+            .iter()
+            .any(|key| std::env::var_os(key).is_some());
+        Self(harness_muted_from(nova_mute.as_deref(), harness_env_active))
+    }
+}
+
+/// The mute decision as a pure function of its inputs (the probe-env pattern:
+/// the env read stays in the thin [`HarnessMute::from_env`] wrapper so this
+/// logic is unit-testable without process-global env mutation).
+fn harness_muted_from(nova_mute: Option<&str>, harness_env_active: bool) -> bool {
+    match nova_mute {
+        Some(explicit) => explicit != "0",
+        None => harness_env_active,
     }
 }
 
@@ -198,6 +251,7 @@ pub struct NovaSettingsPlugin;
 impl Plugin for NovaSettingsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MasterVolume>();
+        app.insert_resource(HarnessMute::from_env());
         app.init_resource::<GraphicsQuality>();
         app.init_resource::<GraphicsBudget>();
         app.register_type::<MasterVolume>();
@@ -221,10 +275,16 @@ impl Plugin for NovaSettingsPlugin {
 /// Push [`MasterVolume`] onto bevy's [`GlobalVolume`], which scales every sound
 /// played after this point (`audio_output` multiplies it into each new sink).
 /// `Option` on the target: minimal/headless rigs without bevy's `AudioPlugin`
-/// have no `GlobalVolume`, and this must not panic them.
-fn apply_master_volume(volume: Res<MasterVolume>, global: Option<ResMut<GlobalVolume>>) {
+/// have no `GlobalVolume`, and this must not panic them. Pushes the
+/// [`MasterVolume::output_gain`] (harness runs push silence), never the raw
+/// setting.
+fn apply_master_volume(
+    volume: Res<MasterVolume>,
+    mute: Res<HarnessMute>,
+    global: Option<ResMut<GlobalVolume>>,
+) {
     if let Some(mut global) = global {
-        global.volume = bevy::audio::Volume::Linear(volume.factor());
+        global.volume = bevy::audio::Volume::Linear(volume.output_gain(*mute));
     }
 }
 
@@ -269,13 +329,17 @@ mod tests {
 
     /// A minimal app with just the settings plugin and a `JuiceSettings` to
     /// receive the graphics preset (the plugin does not own it; the juice
-    /// plugin does, so a production app always has one).
+    /// plugin does, so a production app always has one). Overrides the
+    /// env-derived [`HarnessMute`] with an explicit unmuted one AFTER the
+    /// plugin (insert wins), so these tests stay deterministic even under
+    /// `BCS_AUTOPILOT=1 cargo test` - the mute test injects its own.
     fn app() -> App {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         app.init_resource::<JuiceSettings>();
         app.insert_resource(GlobalVolume::default());
         app.add_plugins(NovaSettingsPlugin);
+        app.insert_resource(HarnessMute(false));
         app
     }
 
@@ -295,6 +359,47 @@ mod tests {
             app.world().resource::<GlobalVolume>().volume,
             bevy::audio::Volume::Linear(0.3),
             "changing MasterVolume pushes onto GlobalVolume"
+        );
+    }
+
+    #[test]
+    fn harness_mute_silences_output_but_not_the_setting() {
+        let mut app = app();
+        app.insert_resource(HarnessMute(true));
+        app.insert_resource(MasterVolume(0.3));
+        app.update();
+        assert_eq!(
+            app.world().resource::<GlobalVolume>().volume,
+            bevy::audio::Volume::Linear(0.0),
+            "a muted run pushes silence onto the mixer"
+        );
+        assert_eq!(
+            app.world().resource::<MasterVolume>().factor(),
+            0.3,
+            "the SETTING is untouched - persistence and the menu never see the mute"
+        );
+    }
+
+    #[test]
+    fn mute_policy_resolves_env_precedence() {
+        // Explicit NOVA_MUTE wins in both directions; otherwise the bcs
+        // harness envs decide. Pure inputs - no process-env mutation.
+        assert!(harness_muted_from(Some("1"), false), "NOVA_MUTE=1 mutes");
+        assert!(
+            harness_muted_from(Some("1"), true),
+            "NOVA_MUTE=1 mutes under a harness too"
+        );
+        assert!(
+            !harness_muted_from(Some("0"), true),
+            "NOVA_MUTE=0 forces sound through a harness run"
+        );
+        assert!(
+            harness_muted_from(None, true),
+            "a harness run mutes by default"
+        );
+        assert!(
+            !harness_muted_from(None, false),
+            "a normal run keeps its sound"
         );
     }
 
