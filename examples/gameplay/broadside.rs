@@ -69,6 +69,11 @@ fn main() {
         // 50s of runway (the script exits itself in ~12s when healthy).
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+                // Script-owned completion (task 20260720-000609): the 50s
+                // hold is a RUNWAY; the staged script reports done at its
+                // final stage, and a runway expiry with the script pending
+                // is an error exit naming it.
+                .self_completing()
                 .hold(GameStates::Loading, 50.0)
                 .input(slice_autopilot),
         );
@@ -327,7 +332,11 @@ fn slice_autopilot(world: &mut World, elapsed: f32) {
             // nothing (tests/examples_smoke.rs accepts either line).
             info!("probe: script complete, exiting");
             state.done = true;
-            world.write_message(AppExit::Success);
+            // Negotiated (task 20260720-000609): report done; the harness
+            // watcher exits when every collector (script, capture) is done.
+            world
+                .resource_mut::<nova_protocol::nova_gameplay::bevy_common_systems::completion::HarnessCompletion>()
+                .done(nova_protocol::nova_gameplay::bevy_common_systems::completion::AUTOPILOT);
         }
         _ => unreachable!(),
     }

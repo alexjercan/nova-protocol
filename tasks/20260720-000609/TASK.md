@@ -1,6 +1,6 @@
 # Harness completion protocol (bcs upstream): collectors register/done, deadline names laggards; nova adoption deletes exit-ownership folklore
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 62
 - TAGS: v0.8.0,tooling,testing,refactor
 
@@ -48,24 +48,24 @@ nova adoption + pin bump.
 
 ## Steps
 
-- [ ] bcs: protocol resource + register/done + deadline system with
+- [x] bcs: protocol resource + register/done + deadline system with
       laggard naming; AutopilotPlugin + ScreenshotPlugin converted
       (assert-then-done ordered + tested); bcs examples/tests green.
-- [ ] bcs release: version + tag decided in-cycle; push + tag needs the
+- [x] bcs release: version + tag decided in-cycle; push + tag needs the
       user's go (outward-facing), requested at the stop point.
-- [ ] nova: [patch]-based dev loop; capture converted; perf_baseline
+- [x] nova: [patch]-based dev loop; capture converted; perf_baseline
       conditional deleted; broadside adapted; pin bumped when the tag
       exists; [patch] removed.
-- [ ] Tests: protocol units in bcs (register/done/empty-set exit,
+- [x] Tests: protocol units in bcs (register/done/empty-set exit,
       deadline + laggard names, single-collector parity); nova capture
       conversion pins.
-- [ ] E2E in nova: `probe run perf_baseline` (both collectors, no
+- [x] E2E in nova: `probe run perf_baseline` (both collectors, no
       conditional), `probe run scenario --fps` (capture outlives the 6s
       autopilot and the app WAITS - the spike's headline case),
       `probe run broadside` (self-ending + guard). process_exit clean on
       all three; a forced-laggard run (capture armed, window impossible)
       exits error naming "capture".
-- [ ] Verify: fmt both repos; cargo test -p nova_probe; affected
+- [x] Verify: fmt both repos; cargo test -p nova_probe; affected
       examples compile; degrade path (deadline) exercised once for real.
 
 ## Notes
@@ -76,3 +76,46 @@ nova adoption + pin bump.
 - The 210443 exclusive-ownership lesson is SUPERSEDED by
   no-unilateral-exit - record the supersession in LESSONS if a ledger
   entry exists for it.
+
+## Progress (2026-07-20, at the release stop point)
+
+bcs branch feature/harness-completion @ f8ed9db (worktree
+~/.cache/sprouts/bevy-common-systems/feature/harness-completion):
+completion.rs at the CRATE ROOT (ungated - nova's capture builds
+featureless for wasm; re-exported at debug::harness::completion),
+autopilot + screenshot converted, self_completing() added, 8 harness lib
+tests + 5 protocol tests green in BOTH feature configurations, examples
+check link-free (full bcs suite NOT run - it OOMs the box, see
+bcs-no-full-test-suite), version 0.19.3 + CHANGELOG.
+
+Nova adoption (this branch): capture registers "capture" and reports
+done (CAPTURE_COLLECTOR); perf_baseline's exit-ownership conditional
+DELETED; broadside .self_completing() with the script's negotiated done
+(sentinel log kept for the smoke grep). Dev loop: temporary PATH deps in
+all FIVE bcs-dependent manifests ([patch] rejects a version-bumped patch
+of a git-tag dep - see upstream-dev-via-patch-not-premature-push);
+restore all five + bump to git tag v0.19.3 in the landing commit.
+
+E2E (all live, patched local bcs):
+- A perf_baseline: exit 0, negotiated single-collector exit, no
+  conditional.
+- B THE HEADLINE: `probe run scenario --fps` with DEFAULT windows ->
+  frametime.csv with the FULL 900 frames; run.log shows "autopilot done
+  (1 still pending)" - the app WAITED for the capture that previously
+  lost 229 samples by 11 frames. (The tail measures post-script idle -
+  S2's scene looping owns that.)
+- C broadside: script sentinel + negotiated exit, guard quiet, exit 0.
+- D forced laggard (BCS_HARNESS_DEADLINE=10, impossible window): exit 1,
+  "deadline (10s) expired with collectors still pending: [autopilot,
+  capture]" in the log, probe FAILs the run with artifacts intact.
+
+REMAINING: user pushes bcs branch + tags v0.19.3 -> restore the five dep
+lines to git+tag v0.19.3 -> retest -> land both repos.
+
+## Close-out (2026-07-20, released + repinned)
+
+bcs v0.19.3 SHIPPED: master 3f6f7c8, tag pushed (user-authorized). All
+five nova dep lines restored to git+tag v0.19.3; Cargo.lock resolves the
+pushed commit; nova_probe 80/80 against the PUBLISHED tag (not the local
+path). The exit-ownership folklore is gone: one protocol, negotiated
+success, aborting failures, laggards named at the deadline.

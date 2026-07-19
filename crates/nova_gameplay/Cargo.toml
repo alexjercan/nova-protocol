@@ -19,7 +19,7 @@ bevy_enhanced_input = { version = "0.26.0" }
 rand = { version = "0.10.2" }
 bevy_hanabi = { version = "0.19.0", default-features = false, features = ["2d", "3d"] }
 serde = { version = "1", features = ["derive"], optional = true }
-bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", tag = "v0.19.2" }
+bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", tag = "v0.19.3" }
 bevy_rand = { version = "0.15.0", default-features = false, features = ["chacha20", "wyrand"] }
 # The interpolation crate behind avian's TransformInterpolation. Direct dep
 # only for the easing-state components (avian re-exports the markers but not

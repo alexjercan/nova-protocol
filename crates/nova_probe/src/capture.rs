@@ -2,7 +2,8 @@
 //! that drives a real gameplay app to `Playing`, warms up, records the
 //! wall-clock delta of every frame for a fixed window, then writes percentile
 //! frame-time stats (JSON + a CSV row, schema in [`crate::stats`]) and exits
-//! cleanly with [`AppExit::Success`]. Inert unless `NOVA_PERF` is set, so an
+//! cleanly through the harness completion protocol (the app exits when
+//! every registered collector is done). Inert unless `NOVA_PERF` is set, so an
 //! example adds it permanently and pays nothing in a normal run - the same
 //! contract the `nova_autopilot` / `nova_screenshot` harness presets (in
 //! `nova_debug`) follow.
@@ -20,6 +21,7 @@ use bevy::{
 // Health is re-exported by nova_gameplay, so nova_probe pins the same
 // bevy_common_systems version the game uses (no direct bcs dep, no version skew).
 use nova_gameplay::{
+    bevy_common_systems::completion::{self, HarnessCompletion},
     bevy_common_systems::health::Health,
     prelude::{GraphicsBudget, PlayerSpaceshipMarker, WeaponsHot},
     GameStates,
@@ -34,6 +36,13 @@ use crate::stats::{FrameStats, RunMeta, CSV_HEADER};
 /// the stable measurement surface the runner-CLI task redesigns, kept as-is so
 /// scripts and docs do not churn twice.
 pub const PERF_ENV: &str = "NOVA_PERF";
+
+/// Collector name the capture registers with the harness completion
+/// protocol (task 20260720-000609): the app exits when EVERY registered
+/// collector - this capture, the autopilot - is done, so a wall-clock
+/// timeline can no longer end the app mid-window (the 11-frames-short
+/// scenario capture that silently lost 229 samples).
+pub const CAPTURE_COLLECTOR: &str = "capture";
 
 /// A per-frame combat/scene driver run under [`FrameTimePlugin::drive`]: given
 /// `&mut World` and a monotonic frame counter (frames since `Playing`), it can
@@ -273,6 +282,7 @@ impl Plugin for FrameTimePlugin {
         if !perf_armed() {
             return;
         }
+        completion::register(app, CAPTURE_COLLECTOR);
         let config = PerfConfig::resolve();
         info!(
             "nova perf: armed (label={}, warmup={}, frames={}, res={}x{}, render_scale={:?}, out={:?}, driven={})",
@@ -367,7 +377,7 @@ fn perf_capture(
     config: Res<PerfConfig>,
     adapter: Option<Res<RenderAdapterInfo>>,
     mut state: ResMut<PerfState>,
-    mut exit: MessageWriter<AppExit>,
+    mut completion: ResMut<HarnessCompletion>,
 ) {
     match state.phase {
         Phase::WaitPlaying => {
@@ -392,7 +402,9 @@ fn perf_capture(
                 let meta = RunMeta::resolve(&config, adapter.as_deref());
                 emit_stats(&config, &stats, &meta);
                 state.phase = Phase::Done;
-                exit.write(AppExit::Success);
+                // Negotiated, not unilateral: the watcher exits when every
+                // registered collector (this capture, the autopilot) is done.
+                completion.done(CAPTURE_COLLECTOR);
             }
         }
         Phase::Done => {}
