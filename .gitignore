@@ -247,3 +247,5 @@ __marimo__/
 
 # Profiled-pass scratch artifacts (traces run to hundreds of MB)
 /perf-profile/
+# probe-run artifacts (`cargo run -p nova_probe -- run ...` default out)
+/probe-runs/

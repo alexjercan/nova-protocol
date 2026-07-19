@@ -1,5 +1,8 @@
 [package]
 name = "nova_probe"
+# `cargo run -p nova_probe -- ...` is the harness front door (the probe bin);
+# the other bins stay directly addressable via --bin.
+default-run = "probe"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
@@ -35,6 +38,12 @@ path = "src/bin/perf_trace.rs"
 [[bin]]
 name = "run_report"
 path = "src/bin/run_report.rs"
+
+# The front door: `probe run <example>` orchestrates the passes and the
+# report; sweep/web/profile wrap the perf scripts.
+[[bin]]
+name = "probe"
+path = "src/bin/probe.rs"
 
 [dependencies]
 # The invariant checks read avian's LinearVelocity directly (same pinned

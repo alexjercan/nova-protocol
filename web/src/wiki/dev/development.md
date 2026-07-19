@@ -185,13 +185,33 @@ have no capture example yet. Commit the resulting PNGs (they are content, like
 `banner.png`). Run `python3 scripts/gen-web-screenshots.py --self-test` to check
 the PNG codec (decode/resize/compose) in isolation.
 
-## Performance
+## Performance and run verification
 
-Frame-time is measured with `nova_probe` (`crates/nova_probe/`), an env-gated
-capture plugin that drives the real gameplay app to `Playing`, warms up, records
-the wall-clock delta of every frame for a fixed window, and writes percentile
-stats. It is inert unless `NOVA_PERF` is set, so `20_perf_baseline` can carry it
-permanently. See the crate docs for the full knob list (`NOVA_PERF_*`).
+`nova_probe` (`crates/nova_probe/`) is the run-harness: it drives an autopilot
+example, records what happened (correctness) and what it cost (performance),
+and assembles one reviewable report. The POST-FEATURE CHECK - "did my change
+break behavior or perf?" - is one command:
+
+```sh
+cargo run -p nova_probe -- run 10_playable            # clean pass -> report
+cargo run -p nova_probe -- run 10_playable --profile  # + traced pass (top-N systems)
+cargo run -p nova_probe -- run 10_playable --samply   # + named flamegraph
+cargo run -p nova_probe -- run 10_playable --baseline probe-runs/before  # FPS deltas
+```
+
+It runs the example headless (throwaway Xvfb; `--display :0` to reuse yours),
+captures the run timeline + continuous invariants + the log into
+`probe-runs/<example>/`, optionally adds the profiled and samply passes
+(separate builds - tracing overhead never touches the clean numbers), and
+renders `report.html` + `checks.json` with a provisional OK/WARN/FAIL the
+reviewer confirms. `probe sweep|web|profile` are the same front door for the
+frame-time sweep and deep-profile scripts below.
+
+Under the hood: an env-gated capture plugin drives the real gameplay app to
+`Playing`, warms up, records the wall-clock delta of every frame for a fixed
+window, and writes percentile stats. It is inert unless `NOVA_PERF` is set, so
+`20_perf_baseline` can carry it permanently. See the crate docs for the full
+knob list (`NOVA_PERF_*`).
 
 The sweep script builds the example once and runs it across the heavy scenes x
 graphics presets, writing one `<label>.json` per run plus an aggregated

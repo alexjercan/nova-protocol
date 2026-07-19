@@ -338,3 +338,13 @@ single source of current state.)
   provisional OK/WARN/FAIL + reviewer checklist owning the final call.
   Absorbed 20260718-152230 closed. Real 10_playable e2e: OK, 0/1372
   violation frames. 48 tests.
+- 2026-07-19 T6 (20260719-112317, CLOSED): the front door shipped -
+  `cargo run -p nova_probe -- run <example>` (default-run) orchestrates
+  clean pass + optional --profile/--samply + the report in-process;
+  sweep/web/profile subcommands front the perf scripts. E2E: 10_playable
+  clean OK; 08_scenario --profile OK with the populated top-N section.
+
+  FAMILY COMPLETE: T1-T6 all landed. The spike's goal - one tool, one
+  reviewable correctness+perf report over autopilot runs - is delivered;
+  only the golden-timeline compare stays parked in the backlog
+  (20260719-112245, entry gate half-met by T2's stability data).
