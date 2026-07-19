@@ -461,9 +461,13 @@ usage: probe <subcommand>
     /// The sequential multi driver: each example through `run()` into
     /// `<base>/<example>/` (today's per-example artifacts unchanged), a row
     /// per example built from ITS checks.json (probe consumes its own agent
-    /// surface), continue-on-failure, then the aggregate index. Per-run
-    /// Xvfb spawn is kept (a ~1s cost per run that buys zero new lifecycle
-    /// risk - recorded deviation from the spike's shared-Xvfb sketch).
+    /// surface), continue-on-failure, then the aggregate index. ONE Xvfb is
+    /// shared across the whole sweep (task 20260719-224011): every run in
+    /// this process derives the SAME pid-based display, so per-run
+    /// spawn/kill raced the old server's lock teardown and Xvfb died
+    /// "immediately - display in use" mid-fleet (found by the first user
+    /// --all). One spawn, one kill; run()'s explicit-display path skips
+    /// its own spawn.
     fn run_many(
         resolved: &Resolved,
         base: &RunOptions,
@@ -475,6 +479,7 @@ usage: probe <subcommand>
         let out_base = out_base
             .canonicalize()
             .map_err(|e| format!("could not resolve out dir: {e}"))?;
+        let (display, _xvfb) = ensure_display(base.display.as_deref())?;
         let started_unix = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
@@ -487,6 +492,7 @@ usage: probe <subcommand>
             let mut opts = base.clone();
             opts.example = example.clone();
             opts.out = Some(out_base.join(example));
+            opts.display = Some(display.clone());
             let started = Instant::now();
             let run_error = match run(&opts) {
                 Ok(_) => None,
@@ -736,37 +742,48 @@ usage: probe <subcommand>
         }
     }
 
-    /// The throwaway-Xvfb display for this process: pid-derived so two
-    /// concurrent `probe run`s get distinct servers. The :80-:89 band stays
-    /// clear of the perf scripts' hardcoded :94/:95 (a ten-way pid
-    /// collision is possible but vanishingly unlikely for a dev tool -
-    /// pass --display to pin one explicitly).
-    pub fn default_display() -> String {
-        format!(":{}", 80 + std::process::id() % 10)
+    /// The throwaway-Xvfb candidate walk for this process: pid-anchored
+    /// start, then the whole :80-:89 band in rotation (clear of the retired
+    /// perf scripts' :94/:95). Pure, so the band and its full coverage are
+    /// pinned by a test without spawning servers.
+    pub fn display_candidates() -> Vec<String> {
+        let base = std::process::id() % 10;
+        (0..10)
+            .map(|offset| format!(":{}", 80 + (base + offset) % 10))
+            .collect()
     }
 
-    /// Use the explicit display, or spawn a throwaway Xvfb on a private one.
+    /// Use the explicit display, or spawn a throwaway Xvfb on a free one:
+    /// WALK the candidates until a server holds (task 20260719-224011 - two
+    /// concurrent probes landed on the same pid%10 display in one evening,
+    /// and a multi-run's kill/respawn raced its own server's teardown;
+    /// picking a number and hoping is not allocation).
     fn ensure_display(explicit: Option<&str>) -> Result<(String, Option<XvfbGuard>), String> {
         if let Some(display) = explicit {
             return Ok((display.to_string(), None));
         }
-        let display = default_display();
-        let mut child = Command::new("Xvfb")
-            .args([display.as_str(), "-screen", "0", "1280x720x24"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|e| format!("could not start Xvfb (is it installed?): {e}"))?;
-        std::thread::sleep(Duration::from_secs(2));
-        // A dead child here means the display is taken (or Xvfb refused);
-        // running the example against it would fail confusingly later.
-        if let Ok(Some(status)) = child.try_wait() {
-            return Err(format!(
-                "Xvfb on {display} exited immediately ({status}) - display in use? \
-                 pass --display to pin a free one"
-            ));
+        let mut last_status = String::new();
+        for display in display_candidates() {
+            let mut child = Command::new("Xvfb")
+                .args([display.as_str(), "-screen", "0", "1280x720x24"])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .map_err(|e| format!("could not start Xvfb (is it installed?): {e}"))?;
+            std::thread::sleep(Duration::from_secs(2));
+            // A dead child means the display is taken (another probe, a
+            // stale lock); try the next one rather than failing the run.
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    last_status = status.to_string();
+                }
+                _ => return Ok((display, Some(XvfbGuard(child)))),
+            }
         }
-        Ok((display, Some(XvfbGuard(child))))
+        Err(format!(
+            "no free display in :80-:89 (every Xvfb attempt died; last: \
+             {last_status}) - pass --display to pin one"
+        ))
     }
 
     /// Build the example with the given feature set, streaming cargo output.
@@ -1783,12 +1800,22 @@ usage: probe <subcommand>
         }
 
         #[test]
-        fn default_display_is_pid_derived_within_the_reserved_band() {
-            let display = default_display();
-            let n: u32 = display.strip_prefix(':').unwrap().parse().unwrap();
-            // :80-:89 - clear of the perf scripts' hardcoded :94/:95.
-            assert!((80..=89).contains(&n), "{display}");
-            assert_eq!(display, default_display(), "stable within one process");
+        fn display_candidates_cover_the_whole_band_once() {
+            let candidates = display_candidates();
+            assert_eq!(candidates.len(), 10, "the walk tries every display");
+            let mut numbers: Vec<u32> = candidates
+                .iter()
+                .map(|d| d.strip_prefix(':').unwrap().parse().unwrap())
+                .collect();
+            numbers.sort_unstable();
+            // The full :80-:89 band, each exactly once - clear of the
+            // retired perf scripts' :94/:95, no candidate repeated.
+            assert_eq!(numbers, (80..=89).collect::<Vec<u32>>());
+            assert_eq!(
+                candidates,
+                display_candidates(),
+                "stable within one process (pid-anchored start)"
+            );
         }
 
         #[test]
