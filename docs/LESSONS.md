@@ -300,6 +300,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `stemmed-compound-extension` (x2): custom-asset files need a stem so the
   full extension matches the registered loader (`<pack>.bundle.ron`, never a
   bare `bundle.ron`). 20260714-163342.
+- `doc-sweep-grep-plus-reread` (x1): a reference sweep is grep PLUS a full
+  re-read of each touched section - grep finds names, not meaning; two
+  stale-in-meaning paragraphs survived a clean grep. Verify multi-edit
+  anchors (position + uniqueness) with a probe pass before the mutating
+  script. 20260719-174603.
 - `fixture-adds-verify-tracked` (x1): `git add -A` says nothing about what
   the ignore rules dropped - a global *.log swallowed a test fixture and the
   squash landed without it; after staging fixtures, `git ls-files` the
