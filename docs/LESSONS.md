@@ -300,11 +300,14 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `stemmed-compound-extension` (x2): custom-asset files need a stem so the
   full extension matches the registered loader (`<pack>.bundle.ron`, never a
   bare `bundle.ron`). 20260714-163342.
-- `doc-sweep-grep-plus-reread` (x1): a reference sweep is grep PLUS a full
+- `doc-sweep-grep-plus-reread` (x2): a reference sweep is grep PLUS a full
   re-read of each touched section - grep finds names, not meaning; two
   stale-in-meaning paragraphs survived a clean grep. Verify multi-edit
   anchors (position + uniqueness) with a probe pass before the mutating
-  script. 20260719-174603.
+  script. Applied deliberately in the examples reorg: the re-read caught
+  four meaning-level spots ("four blocks"/"all eighteen" counts, a
+  numbered-slot how-to, CHANGELOG Unreleased) a clean grep sailed past.
+  20260719-174603, 20260719-193728.
 - `fixture-adds-verify-tracked` (x1): `git add -A` says nothing about what
   the ignore rules dropped - a global *.log swallowed a test fixture and the
   squash landed without it; after staging fixtures, `git ls-files` the
@@ -511,10 +514,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `mirror-sibling-resolve-site` (x1): a new resource-resolving content field
   mirrors the sibling's resolve SITE, not just its declaration - the site
   decides which systems gain the dependency. 20260717-002228.
-- `piped-cargo-masks-exit-code` (x6, PROMOTED 2026-07-19 -> ~/AGENTS.md +
+- `piped-cargo-masks-exit-code` (x7, PROMOTED 2026-07-19 -> ~/AGENTS.md +
   work skill): never end cargo with tail/grep/echo - the harness reads the
-  last exit; write output to a file and grep the FILE. 20260717-002228,
-  20260718-122932.
+  last exit; write output to a file and grep the FILE. Re-violated in the
+  examples reorg (xvfb-run-not-found read as exit 0 through `| tail`); the
+  tell that saved it was reading the test COUNTS ("0 passed; 1 filtered
+  out"), not the exit. 20260717-002228, 20260718-122932, 20260719-193728.
 - `half-ticked-compound-steps` (x4, PROMOTED 2026-07-19 -> work skill): tick
   a step only when every clause is done, or split/amend it in the same edit;
   never bulk-tick with sed - tick each step individually re-reading its
@@ -616,9 +621,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `read-harness-contract-before-wiring` (x1): read a harness plugin's
   lifecycle contract (forced states, mutual exclusion) before composing it
   into an example. 20260718-004723.
-- `shell-bg-vs-and-chain` (x1): `A && B & C` backgrounds `A && B`; put
+- `shell-bg-vs-and-chain` (x2): `A && B & C` backgrounds `A && B`; put
   backgrounded processes on their own statement, keep kills out of launching
-  commands. 20260718-004723.
+  commands. Second hit: `cd wt && Xvfb :N &` backgrounded the cd too, so the
+  test ran vacuously in the MAIN checkout - anything needing job control
+  goes in a script file, where `&` scopes to its own line. 20260718-004723,
+  20260719-193728.
 - `measure-first-can-falsify-the-premise` (x1): the honest gate can say the
   lever barely helps; report it straight and surface the fork. 20260718-004723.
 - `verify-interaction-not-just-rendering` (x1): a screenshot proves the frame
