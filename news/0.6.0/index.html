@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>v0.6.0 - Mods over the wire - Nova Protocol</title>
+        <meta name="description" content="Nova Protocol v0.6.0: a static mod portal and an in-game Explore online tab install, update and uninstall mods over the wire on native and web, mod dependencies resolve end to end, a main-menu Scenarios picker, and particles return to the web build on WebGPU." />
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/news.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="news">
+                <nav class="news__toc" aria-label="On this page">
+                    <p class="news__toc-title">On this page</p>
+                    <a href="#the-mod-portal" class="news__toc-link">The mod portal</a>
+                    <a href="#validated-hashed-versioned-bundles" class="news__toc-link news__toc-link--sub">Validated, hashed, versioned bundles</a>
+                    <a href="#first-mod-on-the-shelf-gauntlet-run" class="news__toc-link news__toc-link--sub">First mod on the shelf: Gauntlet Run</a>
+                    <a href="#explore-online-mods-from-inside-the-game" class="news__toc-link">Explore online: mods from inside the game</a>
+                    <a href="#progress-offline-fallback-and-enabled-state-you-keep" class="news__toc-link news__toc-link--sub">Progress, offline fallback, and enabled-state you keep</a>
+                    <a href="#a-real-install-pipeline" class="news__toc-link">A real install pipeline</a>
+                    <a href="#the-local-cache-foundation" class="news__toc-link news__toc-link--sub">The local cache foundation</a>
+                    <a href="#staged-verified-commit-once-installs" class="news__toc-link news__toc-link--sub">Staged, verified, commit-once installs</a>
+                    <a href="#dependencies-that-resolve-themselves" class="news__toc-link">Dependencies that resolve themselves</a>
+                    <a href="#the-mods-menu-rebuilt" class="news__toc-link">The Mods menu, rebuilt</a>
+                    <a href="#hidden-mods-stay-out-of-the-way" class="news__toc-link news__toc-link--sub">Hidden mods stay out of the way</a>
+                    <a href="#a-home-for-scenarios" class="news__toc-link">A home for scenarios</a>
+                    <a href="#swapping-the-sky-mid-scenario" class="news__toc-link news__toc-link--sub">Swapping the sky mid-scenario</a>
+                    <a href="#particles-return-to-the-web" class="news__toc-link">Particles return to the web</a>
+                    <a href="#when-webgpu-is-not-available" class="news__toc-link news__toc-link--sub">When WebGPU is not available</a>
+                    <a href="#faster-event-dispatch-measured-first" class="news__toc-link">Faster event dispatch, measured first</a>
+                    <a href="#the-measure-first-gate" class="news__toc-link news__toc-link--sub">The measure-first gate</a>
+                    <a href="#two-optimizations-measured-and-deferred" class="news__toc-link news__toc-link--sub">Two optimizations measured and deferred</a>
+                    <a href="#fixes" class="news__toc-link">Fixes</a>
+                    <a href="#scenarios-picker-no-longer-crashes-on-odd-thumbnails" class="news__toc-link news__toc-link--sub">Scenarios picker no longer crashes on odd thumbnails</a>
+                    <a href="#local-web-testing-serves-the-portal-same-origin" class="news__toc-link news__toc-link--sub">Local web testing serves the portal same-origin</a>
+                    <a href="#removed-the-screenshot-reel-capture-set" class="news__toc-link">Removed: the Screenshot Reel capture set</a>
+                </nav>
+                <article class="prose news__body">
+                <p class="prose__meta">
+                    <a href="/nova-protocol/news/">&larr; News</a>
+                    &nbsp;//&nbsp; 2026-07-16 &nbsp;//&nbsp; v0.6.0
+                </p>
+                <h1>v0.6.0 - Mods over the wire</h1>
+                <p>For five releases, modding Nova Protocol meant dropping files next to the game
+and restarting. v0.6.0 is where that changes: a static <strong>mod portal</strong> ships
+alongside the game on every deploy, and a new <strong>Explore online</strong> tab lets you
+browse, install, update and uninstall mods from inside the game - on native and
+in the browser - with dependencies that resolve themselves. Around that
+headline, scenarios got a proper picker with thumbnails and a mid-run skybox
+swap, the web build got its particles back by moving to WebGPU, event dispatch
+got measurably faster behind a measure-first gate, and the Mods menu was rebuilt
+into a two-pane Factorio-style screen. This is the biggest release so far; here
+is the whole of it, section by section.</p>
+<h2 id="the-mod-portal" tabindex="-1">The mod portal</h2>
+<p>Every deploy now publishes a <strong>static mod portal</strong> next to the game. Each mod is
+a validated bundle served under <code>/mods/&lt;id&gt;/&lt;version&gt;/</code>, hashed with sha256, and
+listed in a generated <code>catalog.json</code>. There is deliberately no server and no
+database behind it - the portal is just static files, so it rides the exact same
+GitHub Pages deploy the game already ships on. That choice is the whole reason
+the feature is cheap to run: publishing a mod is publishing files, and the
+client only ever does plain HTTP GETs against predictable paths.</p>
+<h3 id="validated-hashed-versioned-bundles" tabindex="-1">Validated, hashed, versioned bundles</h3>
+<p>The <code>/mods/&lt;id&gt;/&lt;version&gt;/</code> layout is not cosmetic. Pinning the version into the
+path means an installed mod always points at an immutable location - an update
+is a fetch of a new <code>&lt;version&gt;</code> directory, never a mutation of an existing one.
+Each published bundle is validated at build time before it is written, so a
+malformed bundle never reaches the catalog, and every file carries a sha256 that
+the client checks after download. The generated <code>catalog.json</code> is the single
+index the client reads to discover what exists: ids, versions, sizes, and
+hashes, all produced from the bundles themselves rather than hand-maintained.</p>
+<h3 id="first-mod-on-the-shelf-gauntlet-run" tabindex="-1">First mod on the shelf: Gauntlet Run</h3>
+<p>The first mod on the portal is <strong>Gauntlet Run</strong>, the wave-survival scenario that
+used to be baked straight into the game. Moving it out onto the portal is the
+proof the pipeline works end to end: a scenario that used to ship in the binary
+is now discovered, downloaded, verified and merged exactly like any third-party
+mod would be. It also makes the base game a little leaner, since players who
+never touch Gauntlet Run no longer carry it.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-060-portal-catalog.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-060-portal-catalog.png</span>
+        <span class="figure__placeholder-note">The generated catalog.json (or a rendered view of it) showing the Gauntlet Run entry with its version, size and sha256 hash.</span>
+    </div>
+    <figcaption class="figure__caption">Mods are published as hashed, versioned static bundles with a generated catalog.</figcaption>
+</figure>
+<h2 id="explore-online-mods-from-inside-the-game" tabindex="-1">Explore online: mods from inside the game</h2>
+<p>The <strong>Explore online</strong> tab is what makes that portal live. You browse the
+catalog in-game and then install, update or uninstall any mod without ever
+leaving Nova Protocol, and it behaves the same whether you are on native or in
+the browser. This is the piece that completes the mod-portal arc: discovery,
+install, update and removal all now happen over the wire, from inside the game.</p>
+<h3 id="progress-offline-fallback-and-enabled-state-you-keep" tabindex="-1">Progress, offline fallback, and enabled-state you keep</h3>
+<p>Three details make Explore online feel finished rather than merely functional.
+Installs report <strong>per-file progress</strong>, so a multi-file bundle downloading over a
+slow link shows real movement instead of a frozen spinner. An <strong>offline catalog
+fallback</strong> keeps the list usable when the portal is unreachable - you still see
+what you have and what you last knew about, rather than an empty error screen.
+And updates <strong>preserve whether a mod was enabled</strong>: refreshing a mod to a new
+version never quietly toggles it off, so an update is safe to run on a mod you
+depend on being active.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-060-explore-online.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-060-explore-online.png</span>
+        <span class="figure__placeholder-note">The Mods menu on the Explore online tab: portal catalog on the left with per-row install/update state, a details panel on the right, mid-download progress if you can catch it.</span>
+    </div>
+    <figcaption class="figure__caption">Browse the portal and install mods without leaving the game.</figcaption>
+</figure>
+<h2 id="a-real-install-pipeline" tabindex="-1">A real install pipeline</h2>
+<p>Underneath Explore online sits an install pipeline built with one goal above all:
+never corrupt your game. It came together in two layers - a local cache
+foundation first, then the network client that fills it.</p>
+<h3 id="the-local-cache-foundation" tabindex="-1">The local cache foundation</h3>
+<p>Downloaded mods live in a local cache backed by a new <strong><code>mods://</code> asset source</strong>
+and a RON <strong>installed index</strong> that records what is present. The important
+property is that a downloaded bundle is not a second-class citizen: it loads and
+merges through the <strong>exact same pipeline</strong> as the mods that ship with the game.
+The cache was built and landed as its own foundation - <code>mods://</code> source,
+installed index, and downloaded bundles that load and merge like shipped ones -
+before any network code existed, so the merge path was proven against local
+files first and the fetch layer had a solid target to write into.</p>
+<h3 id="staged-verified-commit-once-installs" tabindex="-1">Staged, verified, commit-once installs</h3>
+<p>On top of that cache, the <strong>portal client</strong> fetches the portal's <code>catalog.json</code>
+and installs or uninstalls mods over the wire, on both native and web. Every
+install is <strong>staged and verified</strong> against both size and sha256, and a bundle is
+<strong>committed only once every file checks out</strong>. That commit-once rule is the
+safety property: a download that is interrupted, truncated, or tampered with
+fails verification and is discarded before it can replace anything, so a
+half-finished or corrupted download never becomes a half-installed mod. The
+staging area does the risky work; the live install only ever sees a fully
+verified result.</p>
+<h2 id="dependencies-that-resolve-themselves" tabindex="-1">Dependencies that resolve themselves</h2>
+<p>Mods can now depend on other mods, and v0.6.0 resolves those dependencies <strong>end
+to end</strong> rather than leaving the player to untangle them by hand.</p>
+<ul>
+<li><strong>Installing</strong> a mod auto-pulls anything it is missing, so you never install a
+broken half of a pair.</li>
+<li><strong>Enabling</strong> a mod auto-enables its transitive dependencies, walking the whole
+chain rather than just the direct parent.</li>
+<li><strong>Disabling</strong> a mod that something else still depends on is <strong>refused</strong> instead
+of silently breaking the dependent - the game stops you rather than letting you
+create an inconsistent state.</li>
+<li><strong>Merge order</strong> follows <strong>dependency-respecting topological order</strong>, so a mod
+always merges after the mods it builds on, and a dependency's content is in
+place before anything layers on top of it.</li>
+</ul>
+<p>For now this is <strong>ids-only</strong>: a mod names the mods it needs, but there are no
+version constraints yet. Pinning specific versions of a dependency is future
+work; the graph resolution, auto-pull, auto-enable, refuse-on-disable and
+topological merge are all here today.</p>
+<h2 id="the-mods-menu-rebuilt" tabindex="-1">The Mods menu, rebuilt</h2>
+<p>The Mods menu is now a two-pane, <strong>Factorio-style</strong> screen. The <code>Installed</code> and
+<code>Explore online</code> tabs sit over a scrollable mod list where each row carries its
+own enable checkbox, and a details side panel renders from the selected mod's
+bundle metadata - name, description, version, all read straight out of the
+bundle rather than a separate index. The two-pane layout is what lets discovery
+(Explore online) and management (Installed) share one coherent screen instead of
+living in different corners of the UI.</p>
+<h3 id="hidden-mods-stay-out-of-the-way" tabindex="-1">Hidden mods stay out of the way</h3>
+<p>Dev and tooling mods can mark themselves <strong><code>hidden: true</code></strong> in the catalog. A
+hidden mod stays installed and remains enableable by id from code, but it is kept
+out of the player-facing list, so the menu stays about mods a player actually
+chose rather than internal scaffolding. This is what lets tooling ride the same
+mod system without cluttering the screen a player sees.</p>
+<div class="callout callout--breaking">
+    <p class="callout__title">Breaking - migrating your mods</p>
+    <p>Mod metadata moved out of the shared catalog and into each mod's own
+    <code>*.bundle.ron</code> as a <code>meta</code> block, and
+    <code>assets/mods.catalog.ron</code> is now a thin pointer list. This is a
+    format break for the catalog and for any out-of-tree bundles. If you maintain
+    a bundle outside the tree, move its name, description and version into a
+    <code>meta</code> block inside the bundle itself, and slim your catalog entry
+    down to a pointer at that bundle.</p>
+</div>
+<h2 id="a-home-for-scenarios" tabindex="-1">A home for scenarios</h2>
+<p>The main menu gained a <strong>Scenarios picker</strong>: a two-pane overlay that lists every
+playable scenario - base and mod-added alike - with a details pane and a Play
+button. Before this, a mod could add a scenario and a player would have no way to
+find it short of a console; now mod-added scenarios are first-class and
+discoverable next to the built-in ones. To support it, scenarios gained two
+optional fields: a <strong><code>thumbnail</code></strong> so the details pane can show what a scenario
+looks like, and a <strong><code>hidden</code></strong> flag so a scenario can exist without appearing in
+the picker.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-060-scenarios-picker.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-060-scenarios-picker.png</span>
+        <span class="figure__placeholder-note">The Scenarios picker overlay: scenario list on the left, details pane with thumbnail on the right, Play button.</span>
+    </div>
+    <figcaption class="figure__caption">Every playable scenario, base and modded, in one picker.</figcaption>
+</figure>
+<h3 id="swapping-the-sky-mid-scenario" tabindex="-1">Swapping the sky mid-scenario</h3>
+<p>Scenarios can now change the backdrop while they run. A new <strong><code>SetSkybox</code></strong>
+action swaps the skybox cubemap mid-scenario, and it is <strong>deferred until the new
+image finishes loading</strong> - the swap only happens once the replacement is ready.
+That ordering is deliberate: a bad or missing path leaves the current sky
+unchanged instead of flashing an empty backdrop or crashing the renderer, so an
+authoring mistake degrades quietly rather than breaking the scene.</p>
+<h2 id="particles-return-to-the-web" tabindex="-1">Particles return to the web</h2>
+<p>Moving the web build from <strong>WebGL2 to WebGPU</strong> brought the particle effects back
+online in the browser. Muzzle flash, projectile trails, and the torpedo launch
+and detonation bursts now render on the web exactly as they do on native - the
+effects were always there in the code, but the old WebGL2 backend could not run
+the particle path, so the browser build had been quietly going without them.</p>
+<h3 id="when-webgpu-is-not-available" tabindex="-1">When WebGPU is not available</h3>
+<p>WebGPU is newer than WebGL2 and not every browser has it yet, so the release
+handles its absence directly. A browser without WebGPU now shows a clear
+<strong>&quot;WebGPU required&quot;</strong> message instead of a black canvas, and there is a matching
+heads-up under the landing page's &quot;Play in browser&quot; button. Between the two, a
+player on an unsupported browser learns exactly what is wrong at the front door
+and again at the canvas, rather than staring at a blank screen guessing.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-060-web-particles.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-060-web-particles.png</span>
+        <span class="figure__placeholder-note">The web build mid-combat showing a torpedo detonation burst and muzzle flash rendering in the browser, ideally with the browser chrome visible to make clear it is the web build.</span>
+    </div>
+    <figcaption class="figure__caption">Muzzle flash, trails and torpedo bursts now render in the browser on WebGPU.</figcaption>
+</figure>
+<h2 id="faster-event-dispatch-measured-first" tabindex="-1">Faster event dispatch, measured first</h2>
+<p>Modding event dispatch is now <strong>indexed by event name</strong>. Instead of walking
+every registered handler to find the ones that care about an event, dispatch
+looks handlers up by the event's name, which pays off sharply when many handlers
+are registered. The change was <strong>upstreamed to bevy-common-systems (rev
+<code>4c81117</code>)</strong> rather than kept as a local patch, so the whole ecosystem on that
+crate benefits.</p>
+<h3 id="the-measure-first-gate" tabindex="-1">The measure-first gate</h3>
+<p>The number here is earned, not guessed. A new criterion benchmark exercises the
+modding scenario-dispatch hot path, run with:</p>
+<pre><code class="hljs">cargo bench -p nova_scenario --bench scenario_dispatch
+</code></pre>
+<p>Against that benchmark, name-indexed dispatch measures <strong>17-24% faster under
+bursts of 500-5000 handlers</strong>, and <strong>neutral at the realistic
+one-event-per-frame rate</strong> - it helps the pathological case and costs nothing in
+the common one. The whole approach is governed by a measure-before-optimizing
+gate documented in <strong><code>tasks/20260714-083331/modding-perf-report.md</code></strong>: an optimization has to show
+up in the benchmark before it ships, not just look faster on paper.</p>
+<h3 id="two-optimizations-measured-and-deferred" tabindex="-1">Two optimizations measured and deferred</h3>
+<p>That gate did its job by talking us out of two changes. Alongside the dispatch
+index, two sibling optimizations were prototyped and measured:</p>
+<ul>
+<li><strong>filter-key interning</strong> - interning the filter keys handlers match on, to make
+the match cheaper per handler.</li>
+<li><strong>condition-eval compilation</strong> - compiling handler conditions ahead of time
+instead of evaluating them interpretively each dispatch.</li>
+</ul>
+<p>Both were measured against the same benchmark, and at realistic event rates
+their per-handler savings came out as <strong>noise</strong> - they only mattered in the same
+extreme handler counts the name index already covers. Rather than ship
+complexity for a win that does not show up at the rates the game actually runs
+at, both were <strong>deliberately deferred</strong> and kept as documented insurance: the
+analysis is written down, so if event volumes ever climb into that regime the
+work is a known quantity rather than a fresh investigation.</p>
+<h2 id="fixes" tabindex="-1">Fixes</h2>
+<p>Two bugs got fixed in this release, both small in surface but with real
+mechanisms behind them.</p>
+<h3 id="scenarios-picker-no-longer-crashes-on-odd-thumbnails" tabindex="-1">Scenarios picker no longer crashes on odd thumbnails</h3>
+<p>The Scenarios picker could crash the renderer when a scenario's <code>thumbnail</code> was
+not a plain 2D image. A cubemap or other non-2D texture handed to the picker's
+image widget would fault the render path. The fix is twofold: <strong>non-2D
+thumbnails are now skipped with a warning</strong> instead of being forced into a 2D
+slot, and images <strong>mount only once they have finished loading</strong>, so the picker
+never tries to display a handle that is not yet a valid 2D texture. A bad
+thumbnail now costs a log line, not the renderer.</p>
+<h3 id="local-web-testing-serves-the-portal-same-origin" tabindex="-1">Local web testing serves the portal same-origin</h3>
+<p>Testing the mod portal against a local web build used to require a cross-origin
+<strong><code>?portal=</code></strong> override to point the game at a separately hosted portal, which
+did not match how production serves everything from one origin. <code>scripts/preview-web.sh</code>
+now serves the portal <strong>same-origin</strong> as the game, exactly as the deployed site
+does. This closes a local-dev and docs gap: what you test locally now behaves
+like production, and there is no override to remember or to forget.</p>
+<h2 id="removed-the-screenshot-reel-capture-set" tabindex="-1">Removed: the Screenshot Reel capture set</h2>
+<p>The <strong>Screenshot Reel</strong> capture set no longer ships in the game assets. It was a
+capture tool, not gameplay, and its scenario has <strong>moved into the example that
+films it</strong> - the code that needs it still has it, but players and the web build
+stop downloading a tool they never use. It is a small size win and a clarity win:
+the shipped assets are now things a player might actually play, and the capture
+scenario lives next to the example that is its only real consumer.</p>
+
+                <footer class="post-footer">
+                    <p class="post-footer__discuss">
+                        Got a reaction, a question, or a ship you want to show
+                        off?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/discussions"
+                            target="_blank"
+                            rel="noopener"
+                            >Talk about this release on GitHub Discussions</a
+                        >.
+                    </p>
+                    <p class="post-footer__discuss">
+                        Want the terse, complete list for every version
+                        (patch releases included)?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
+                            target="_blank"
+                            rel="noopener"
+                            >Read CHANGELOG.md on GitHub</a
+                        >.
+                    </p>
+                    <p class="post-footer__nav">
+                        <a href="/nova-protocol/news/">&larr; All news</a>
+                    </p>
+                </footer>
+            </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

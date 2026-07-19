@@ -13,7 +13,7 @@
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -89,7 +89,7 @@ populated in <code>crates/nova_assets/src/sections.rs</code>. Look one up with
 <code>controller</code> (<code>None</code>, <code>Player</code>, or <code>AI</code>) and a list of <code>SpaceshipSectionConfig</code>,
 each placing one section at a local grid <code>position</code> + <code>rotation</code>. The player
 config carries the input mapping (section id -&gt; key/gamepad bindings) plus
-<code>speed_cap</code> and <code>infinite_ammo</code>; the AI config carries <code>patrol</code>/<code>orbit</code>/<code>leash</code>.</p>
+<code>speed_cap</code> and <code>infinite_ammo</code>; the AI config carries <code>patrol</code>/<code>orbit</code>/<code>leash</code>/<code>engage_delay</code>.</p>
 <p>Spawning: the base scenario bundle gives the root <code>RigidBody::Dynamic</code>; the
 spaceship object adds <code>SpaceshipRootMarker</code>, and an observer
 (<code>insert_spaceship_sections</code>) spawns each section as a direct child. Every
@@ -154,6 +154,13 @@ old mass-times-velocity damage is negligible; torpedoes detonate a typed
 <li><code>SectionAmmo</code> (<code>sections/ammo.rs</code>): optional magazine on a weapon section.
 Absent = unlimited fire; <code>ammo_capacity</code> in the turret/torpedo config opts in.
 The player <code>infinite_ammo</code> flag builds that ship's weapons without magazines.</li>
+<li><code>SectionReload</code> (<code>sections/ammo.rs</code>): optional auto-reload/regen on a magazine,
+from the turret/torpedo config <code>reload</code>. <code>tick_section_reload</code> (FixedUpdate)
+refills a spent magazine on a timer - discrete reload-to-full on empty
+(<code>only_when_empty</code>, <code>rounds_per_cycle = capacity</code>) or continuous per-round
+regen. Add-only vs the fire path's consume, so no ordering is needed. Only a
+weapon that has a magazine can reload, so unlimited weapons never do. Its
+<code>progress()</code> is what the diegetic ammo readout draws a reload state from.</li>
 <li><code>LoadedBullet</code> (<code>sections/turret_section.rs</code>): the turret's loaded-round slot
 (damage type + amount), seeded from the config. Fired bullets and the HUD ammo
 readout colors read this slot, so swapping ammo types is one component write.</li>
@@ -168,7 +175,7 @@ readout colors read this slot, so swapping ammo types is one component write.</l
     <nav aria-label="Footer">
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"

@@ -1,0 +1,40 @@
+// The example mod - the ONE copy-me tutorial mod. Copy this whole folder to
+// start your own mod: it demonstrates a little of EVERYTHING a mod can do in a
+// single, self-contained, playable package.
+//
+// A mod is the SAME folder-bundle shape as the base game: a `*.bundle.ron`
+// manifest listing its content files (paths relative to THIS folder) plus a
+// `meta` self-description (name/description/author/version..., what the Mods
+// menu and details panel show), and optionally the binary assets it ships.
+//
+// What this bundle carries:
+//   - content: one `*.content.ron` file. It OVERRIDES a base section by id, ADDS
+//     a new section, ADDS a playable arena scenario, and ADDS a menu-backdrop
+//     scenario - see the header of example.content.ron for the tour.
+//   - resources: the binary files this mod ships itself (bundle-dir-relative,
+//     the same base as `content` and `meta.icon`). Content references them with
+//     `self://<path>`, which resolves against THIS folder - `mods/example/...`
+//     when shipped, `mods://example/...` when downloaded from the portal. A
+//     `self://` ref may only name a LISTED resource; the portal generator, the
+//     static content lint and the runtime content gate all reject an undeclared
+//     one. The skybox's `.meta` sidecar (nebula.png.meta) rides along
+//     automatically and is NOT listed here.
+//
+// This mod is registered in `assets/mods.catalog.ron` (the installed-mods
+// catalog) so it ships INSTALLED but disabled; enable it from the main-menu Mods
+// section, or add its id to `EnabledMods`. `base` is an IMPLICIT dependency and
+// is never declared.
+(
+    content: ["example.content.ron"],
+    resources: [
+        "textures/nebula.png",
+        "textures/rock.png",
+    ],
+    meta: (
+        name: "Example Mod",
+        description: "The copy-me tutorial mod: a section overlay, a new section, a playable arena, mod-shipped art, and a menu backdrop - a little of everything.",
+        author: "Nova Protocol",
+        version: "1.0.0",
+        dependencies: ["base"],
+    ),
+)

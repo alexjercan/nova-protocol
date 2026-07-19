@@ -13,7 +13,7 @@
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -73,9 +73,11 @@
 <li><strong>Keybind hint cluster</strong> - a lower-left column of verb rows (STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT) that only shows a row while its verb can actually do something, and pulses gold when a scenario wants you to use it.</li>
 </ul>
 <h2 id="locks-and-reticles" tabindex="-1">Locks and reticles</h2>
-<p>Locks are slot-coloured: a <strong>white crosshair</strong> is your travel (nav) lock, a <strong>red reticle</strong> is your combat lock. The combat reticle carries a readout riding its right edge - range to the target (<code>DST</code>), closing speed (<code>CLS</code>) and a health bar - plus a focus meter that fills as a fine-lock dwell accumulates. While you hold the radar gesture a hollow box shows, coloured by the slot it will land in; clearing a lock pops a brief &quot;unlatch&quot; ghost. See <a href="../targeting-radar/">Targeting &amp; radar</a>.</p>
+<p>Locks are slot-coloured: a <strong>white crosshair</strong> is your travel (nav) lock, a <strong>red reticle</strong> is your combat lock. The combat reticle carries a readout riding its right edge - range to the target (<code>DST</code>), closing speed (<code>CLS</code>) and a health bar - plus a focus meter that fills as a fine-lock dwell accumulates. While you hold the radar gesture a hollow box shows, coloured by the slot it will land in; a <strong>white ring fills clockwise</strong> around the target while the lock-on dwell charges, and vanishes with a cue the instant the lock snaps (sweep off before it fills to cancel). Clearing a lock pops a brief &quot;unlatch&quot; ghost. See <a href="../targeting-radar/">Targeting &amp; radar</a>.</p>
 <h2 id="target-viewfinder" tabindex="-1">Target viewfinder</h2>
 <p>The corner inset renders a live, magnified 3D view of your combat lock through a second (offscreen) camera. Its frame glows hot-red while your weapons are hot and steel while safe, with corner ticks that appear only when hot; a caption names the target and its relation. Bodies that cannot be scoped (nav beacons) show a <strong>NO-SIGNAL</strong> panel instead. When the framed target dies the inset freezes the final pose for about two seconds - a <strong>kill cam</strong> - then closes. The fine-locked section glows in both the inset and the main view.</p>
+<h2 id="comms-and-objectives" tabindex="-1">Comms and objectives</h2>
+<p>Scenarios talk to you through a <strong>comms panel</strong>: speaker-attributed story lines (<code>OKONO &gt; Strip it clean.</code>) that queue and display in arrival order, so a burst of chatter no longer overwrites its own first line. Each line fades in with a soft blip, holds for a readable dwell (the author can set how long), and yields when the next line is waiting. Alongside it, a newly posted or changed <strong>objective flashes gold</strong> in the ghost column beside the objectives panel, so a mid-fight objective change registers at a glance; the ghost lines clear with the scenario rather than lingering over the menu.</p>
 <h2 id="the-screen-substrate" tabindex="-1">The screen substrate</h2>
 <p>Every projected element - lock brackets, edge arrows, turret lead pips, objective markers - rides one shared system that anchors a UI node to a world point or entity, sizes it by fixed pixels or apparent (on-screen) size, and either hides off-screen targets or clamps them to the viewport edge with an arrow pointing back to them. Turret <strong>lead pips</strong> are small amber squares at each turret's computed intercept point, turning red when your weapons are hot.</p>
 
@@ -88,7 +90,7 @@
     <nav aria-label="Footer">
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"

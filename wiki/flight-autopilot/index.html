@@ -13,7 +13,7 @@
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -38,7 +38,7 @@
                     </p>
                     <h1>Flight &amp; autopilot</h1>
                     <div class="wiki__tags" id="wiki-tags"></div>
-                    <p>Manual flight in Nova Protocol is fully <strong>Newtonian</strong>: momentum persists, nothing dampens you, and the only assist is the autopilot itself - which flies the same real controller and thrusters you do. There is no flight-assist toggle and no separate RCS budget; how a ship handles falls out of its mass and the thrusters bolted to it.</p>
+                    <p>Manual flight in Nova Protocol is fully <strong>Newtonian</strong>: momentum persists, nothing dampens you, and the only assist is the autopilot itself - which flies the same real controller and thrusters you do. There is no flight-assist toggle; how a ship handles falls out of its mass and the thrusters bolted to it. The one exception is <strong>RCS</strong>, an optional fine-translation mode a scenario can grant for close-in docking (see <a href="#rcs-fine-docking-thrusters">RCS</a> below).</p>
 <figure class="figure">
     <!-- Capture: assets/wiki-flight.png -->
     <div class="figure__placeholder">
@@ -69,6 +69,10 @@
 <li><strong>STOP</strong> - flips to retrograde and burns until you are at rest, budgeting for the local gravity pull along your velocity.</li>
 </ul>
 <p>Because the autopilot flies through the real actuators, it is honest about the ship's limits - an under-thrustered build takes longer to come around than a nimble one - and it will refuse a maneuver it cannot physically achieve (for example, ORBIT will not engage a well with no stable band). See <a href="../keybinds/">Keybinds</a> for the verb keys.</p>
+<h2 id="rcs-fine-docking-thrusters" tabindex="-1">RCS: fine docking thrusters</h2>
+<p>For the last few meters of an approach - where a main-drive burn is too coarse - a ship can carry <strong>RCS</strong> (a reaction-control system): hold <kbd>Shift</kbd> and steer with the mouse (lateral and fore/aft) and the scroll wheel (up and down) to nudge the ship straight along its own axes, with <strong>no rotation</strong>. While you hold it the helm and camera hold still so you can concentrate on the translation, the <a href="../hud/">velocity sphere</a> turns violet, and a soft burn loop plays.</p>
+<p>RCS is a <strong>trim, not free thrust</strong>: each ship-local axis caps at a gentle speed (about 2 u/s), so it eases you into position rather than replacing the main drive. Push an axis you are already coasting at the cap and nothing happens; the opposite direction still slows you. The autopilot uses the same thrusters under the hood - <strong>GOTO</strong> and <strong>STOP</strong> settle their arrival on RCS, braking with the fine jets in the last stretch so a ship eases to a stop instead of pulsing on the spot.</p>
+<p>RCS is a controller verb granted per ship, like the autopilot verbs, and the mainline campaign flies with it <strong>withheld</strong> - the <code>[Shift] RCS</code> hint only appears when a scenario grants it, so you know when it is available.</p>
 
                     <div id="wiki-seealso"></div>
                 </article>
@@ -79,7 +83,7 @@
     <nav aria-label="Footer">
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"

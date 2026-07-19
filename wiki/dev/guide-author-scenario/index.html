@@ -13,7 +13,7 @@
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -57,7 +57,7 @@ items; a scenario is one <code>Scenario((...))</code> item (a <code>Content</cod
         id: &quot;menu_ambience&quot;,
         name: &quot;Menu Ambience&quot;,
         description: &quot;The main menu's living backdrop.&quot;,
-        cubemap: &quot;textures/cubemap.png&quot;,
+        cubemap: &quot;dep://base/textures/cubemap.png&quot;,
         events: [
             // one ScenarioEventConfig per handler ...
         ],
@@ -68,11 +68,13 @@ items; a scenario is one <code>Scenario((...))</code> item (a <code>Content</cod
 <ul>
 <li><code>id</code> - unique scenario id, the key other scenarios switch to (<code>NextScenario</code>).</li>
 <li><code>name</code>, <code>description</code> - display strings.</li>
-<li><code>cubemap</code> - skybox image, authored as a bare asset-path string (an
-<code>AssetRef</code>; resolved to a handle at load time).</li>
+<li><code>cubemap</code> - skybox image, authored as a SCHEMED asset-path string (an
+<code>AssetRef</code> - <code>dep://base/textures/cubemap.png</code> for a stock skybox, or
+<code>self://textures/my.png</code> for your own; never bare/scheme-less; resolved to a
+handle at load time).</li>
 <li><code>thumbnail</code> (optional) - an image path shown in the main-menu Scenarios
 picker's details pane. Authored exactly like <code>cubemap</code> but wrapped in the
-<code>Option</code> variant (strict RON, never bare): <code>thumbnail: Some(&quot;banner.png&quot;)</code>.
+<code>Option</code> variant (strict RON, never bare): <code>thumbnail: Some(&quot;dep://base/banner.png&quot;)</code>.
 Omit it for no thumbnail. It MUST be a plain 2D image - NOT a skybox cubemap
 (a cubemap is a Cube texture the UI cannot bind; the picker skips a non-2D
 thumbnail with a warning rather than crashing). Point it at a regular
@@ -80,9 +82,46 @@ screenshot/art PNG, not the <code>cubemap</code> path.</li>
 <li><code>hidden</code> (optional, default <code>false</code>) - when <code>true</code>, the scenario is kept out
 of the Scenarios picker (the menu backdrop, mid-story continuations reached
 only via <code>NextScenario</code>). Author as <code>hidden: true</code>; omit it to be listed.</li>
+<li><code>menu_backdrop</code> (optional, default <code>false</code>) - when <code>true</code>, the scenario
+joins the main menu's BACKDROP ROTATION: on every menu entry the game picks
+one flagged scenario at random, so several ambience scenes (base or
+mod-added) can share the slot. Backdrops normally also set <code>hidden: true</code>
+(the flags are orthogonal: <code>menu_backdrop</code> opts INTO the menu rotation,
+<code>hidden</code> opts OUT of the picker). For the cinematic camera framing, include
+a gravity-well object with entity id <code>menu_planetoid</code> (see the base
+<code>menu_ambience</code> scenario); without one the menu falls back to your
+scenario's own camera pose after a short grace period.</li>
 <li><code>events</code> - the list of handlers. May be empty (<code>events: []</code>), but then
 nothing happens.</li>
 </ul>
+<p>Lint your content before shipping it: <code>cargo run -p nova_assets --bin content -- lint</code> (add <code>--target &lt;mod dir or id&gt;</code> to check just one mod) checks what the loaders cannot - section prototype ids,
+<code>NextScenario</code> targets, filter/action target ids, duplicate object ids
+(these all resolve at SPAWN time, so a typo loads green and misbehaves
+in-game) - plus ship-section geometry: sections that overlap on the
+unit-cube grid, or a turret/torpedo mount whose base does not seat
+against a neighboring section (see section 8), are errors too. CI runs
+the same checks; an Error fails the build.</p>
+<p>The same checks run in-game when mods merge: a scenario with Error-level
+findings REFUSES to start - the player sees a FAILED TO START report
+naming each problem (instead of a silently half-spawned scene), and a
+broken menu backdrop is skipped by the backdrop rotation. Fix the
+findings and re-enable the mod.</p>
+<p>Audit your BALANCE too: <code>cargo run -p nova_assets --bin content -- audit</code>
+derives every combat scenario's fairness sheet from the shipped data -
+per spawn group, the hostile count, combined burst dps, weapon
+envelopes, distance from the player spawn and time-to-kill against the
+player ship, plus the cover tiers (invulnerable anchors vs destructible
+chaff). Two findings are graded: an armed hostile that OPENS the scenario
+inside its own effective range of the player spawn is an ERROR (the
+player is under accurate fire before their first input; CI fails the
+build), and a TRIGGERED hostile spawning inside its own envelope of the
+player spawn is a WARN (a reinforcement arriving on top of the fight -
+sometimes intended drama, always worth knowing). When a WARN IS intended
+drama, acknowledge it in <code>crates/nova_assets/balance_acks.ron</code> with the
+reason and the deciding task: the finding still prints (tagged ACK) but
+stops counting as open, ERRORs can never be acked, and an ack whose
+finding disappears fails CI until pruned. Numbers beat feel: the audit is
+how encounter design stays honest without a playtest per commit.</p>
 <p>One file can hold several content items (sections, more scenarios). This guide
 covers the scenario item; a file that is just one scenario is fine.</p>
 <h2 id="2-event---filters---actions" tabindex="-1">2. Event -&gt; filters -&gt; actions</h2>
@@ -124,7 +163,7 @@ must pass; then the actions run in order.</p>
 </tr>
 <tr>
 <td><code>OnUpdate</code></td>
-<td>every frame while the scenario is live</td>
+<td>every frame while the scenario is live and unpaused (frozen while paused)</td>
 </tr>
 <tr>
 <td><code>OnDestroyed</code></td>
@@ -256,7 +295,7 @@ combinator or an <code>Or</code>.</p>
     ),
     kind: Asteroid((
         radius: 20.0,
-        texture: &quot;textures/asteroid.png&quot;,
+        texture: &quot;dep://base/textures/asteroid.png&quot;,
         health: 2000.0,
         surface_gravity: Some(6.0),
         invulnerable: true,
@@ -280,9 +319,16 @@ tagged <code>Srgba</code>):</p>
     )),
 )),
 </code></pre>
-<p>Object kinds also include <code>Spaceship</code> and <code>SalvageCrate</code>; ships inline a whole
+<p>Object kinds also include <code>Spaceship</code> and <code>SalvageCrate</code> (whose optional
+<code>pickup_sound</code> asset ref voices the collection ding -
+<code>dep://base/sounds/salvage_pickup.wav</code> is the base one; omit for a silent
+pickup); ships inline a whole
 section list and are verbose to hand-author (see the sharp edges in section 8,
-and <a href="../sections/">Ship sections (internals)</a>).</p>
+and <a href="../sections/">Ship sections (internals)</a>). A ship's side is authorable:
+omit <code>allegiance</code> and the controller decides (Player ships fight for the
+player, AI ships are hostile), or override it for bystanders - in strict RON
+the <code>Option</code> keeps its variant, <code>allegiance: Some(Neutral)</code> (Broadside's
+drifting hauler: no AI targets it, but stray blast damage still hurts it).</p>
 <h3 id="scatterobjects" tabindex="-1">ScatterObjects</h3>
 <p>Spawn <code>count</code> templated objects at deterministic random positions in a region
 (<code>Box { min, max }</code> or <code>Ring { inner, outer, y_min, y_max }</code>). <code>seed</code> fixes the
@@ -304,7 +350,7 @@ layout so it is identical every load:</p>
         ),
         kind: Asteroid((
             radius: 1.0,
-            texture: &quot;textures/asteroid.png&quot;,
+            texture: &quot;dep://base/textures/asteroid.png&quot;,
             health: 100.0,
             invulnerable: false,
         )),
@@ -334,6 +380,59 @@ range; use <code>None</code> (or omit) to keep the template radius.</p>
 </code></pre>
 <p>Re-adding the same id with a new <code>message</code> updates the text in place (the
 shakedown uses this for its &quot;recovered N/3&quot; tally).</p>
+<h3 id="the-beat-sheet" tabindex="-1">The beat sheet</h3>
+<p>The rhythm every base scenario follows (task 20260717-163058), and the
+convention new content should copy: <strong>announce -&gt; breathe -&gt; arrive -&gt;
+fight -&gt; confirm -&gt; breathe -&gt; next.</strong></p>
+<ul>
+<li>ONE story line per beat. Space consecutive lines with the scenario
+clock (<code>scenario_elapsed</code> gate + a seeded one-shot flag); the comms
+queue is the safety net for overlap, not the style.</li>
+<li>Every fight gets a lead-in: a warning line, a far spawn, and an
+<code>engage_delay</code> grace so the arrival is readable before it is lethal.</li>
+<li>Never put a StoryMessage beside an <code>Outcome</code> - it is frozen behind the
+overlay and dropped by the chained teardown (<code>content lint</code> warns). The
+overlay's own <code>message</code> carries the closing line.</li>
+<li>Pick the transition gear deliberately: hard cut for menu scenes,
+<code>delay: Some(secs)</code> for an unceremonial beat, the modal overlay (plus
+optional <code>auto_advance_secs</code>) for checkpoints and chapter ends.</li>
+</ul>
+<p>The pacing toolbox, all authorable in RON: the scenario clock
+(<code>scenario_elapsed</code>), per-line <code>dwell</code> on StoryMessage, <code>engage_delay</code>
+on the AI controller, <code>delay</code> on a non-lingering NextScenario, and
+<code>auto_advance_secs</code> on an Outcome.</p>
+<h3 id="telegraphed-arrivals" tabindex="-1">Telegraphed arrivals</h3>
+<p>Enemies read better when they ARRIVE. The pattern: announce with a
+clock-gated comms line, spawn far, and give the ship an arrival grace so
+its approach is visible but not yet lethal:</p>
+<pre><code class="hljs">controller: AI((
+    patrol: [(340.0, 30.0, -480.0), (60.0, 10.0, -100.0)],
+    engage_delay: Some(8.0),
+)),
+</code></pre>
+<p>A graced ship flies its passive routine and refuses to engage until the
+delay elapses; shooting it ends the grace instantly and permanently, and
+its point-defense still swats torpedoes throughout. Omitted or
+non-positive delays mean no grace.</p>
+<h3 id="storymessage" tabindex="-1">StoryMessage</h3>
+<p>Speaker-attributed story text, rendered by the HUD comms panel
+(bottom-left) as <code>SPEAKER &gt; text</code>. Lines QUEUE and display in arrival
+order with a fade and a soft blip (task 20260717-163033): each holds
+about eight seconds alone, yields to a waiting line after four, and an
+optional per-line hold is authored as strict-RON
+<code>dwell: Some(12.0)</code> (clamped to 3-30s; <code>content lint</code> warns outside it).
+At most four lines wait - older ones drop (the full log persists
+engine-side). Prefer one line per beat regardless; the queue is the
+safety net, not the style. This is the dialog surface for story
+content - objectives state goals, comms lines carry voice.
+Scenario-scoped like every event-world effect: teardown clears the log
+AND the on-screen mirror, so lines never leak into the next scenario,
+the menu, or a retry of the same scenario.</p>
+<pre><code class="hljs">StoryMessage((
+    speaker: &quot;Foreman Okono&quot;,
+    text: &quot;Strip it clean, Kestrel. Quota's quota.&quot;,
+)),
+</code></pre>
 <h3 id="objectivemarkerattach-objectivemarkerdetach" tabindex="-1">ObjectiveMarkerAttach / ObjectiveMarkerDetach</h3>
 <p>Add or remove the gold marker chip (label + distance) on a scoped object by id.
 A despawned target detaches implicitly.</p>
@@ -394,10 +493,32 @@ section (<code>DisableVerb(Goto)</code>) and re-grants them as the tutorial adva
 </code></pre>
 <h3 id="nextscenario" tabindex="-1">NextScenario</h3>
 <p>Queue a switch to another scenario by id. <code>linger: true</code> holds on the current
-scene until the player presses Enter, then switches (used for the death /
-&quot;press to continue&quot; beat):</p>
+scene until the player confirms (Enter, or the outcome overlay's
+Continue/Retry button), then switches:</p>
 <pre><code class="hljs">NextScenario((
     scenario_id: &quot;asteroid_next&quot;,
+    linger: true,
+)),
+</code></pre>
+<h3 id="outcome" tabindex="-1">Outcome</h3>
+<p>Declare the scenario's win/lose: shows the outcome overlay (gold VICTORY or
+red DEFEAT banner, your optional message, and buttons) and freezes the
+simulation behind it exactly like the pause menu - physics, AI, weapons and
+timers stop while the banner is up (the buttons and [Enter] still work), and
+resume when the outcome clears. Presentation only - compose the consequence
+next to it: queue a lingering <code>NextScenario</code> and the overlay offers Continue
+(Victory) or Retry (Defeat); queue nothing and it offers only Main Menu. Two
+authoring rules: the switch must LINGER - an instant <code>NextScenario</code>
+(<code>linger: false</code>) tears the scenario down the same frame and swallows the
+outcome before it can show - and note the strict-RON <code>Option</code>: the message
+keeps its <code>Some(...)</code> variant, never a bare string.</p>
+<pre><code class="hljs">// A lose beat: declare Defeat, queue the retry.
+Outcome((
+    outcome: Defeat,
+    message: Some(&quot;Your ship broke apart in the belt.&quot;),
+)),
+NextScenario((
+    scenario_id: &quot;my_scenario&quot;,
     linger: true,
 )),
 </code></pre>
@@ -582,7 +703,7 @@ load it per section 7.</p>
         id: &quot;my_scenario&quot;,
         name: &quot;My Scenario&quot;,
         description: &quot;A starter objective loop: clear the field, reach the zone.&quot;,
-        cubemap: &quot;textures/cubemap.png&quot;,
+        cubemap: &quot;dep://base/textures/cubemap.png&quot;,
         events: [
             // Seed the world and the objective state, once, on load.
             (
@@ -605,7 +726,7 @@ load it per section 7.</p>
                             ),
                             kind: Asteroid((
                                 radius: 1.0,
-                                texture: &quot;textures/asteroid.png&quot;,
+                                texture: &quot;dep://base/textures/asteroid.png&quot;,
                                 health: 100.0,
                                 invulnerable: false,
                             )),
@@ -796,6 +917,17 @@ ships runs to hundreds of lines. If you are hand-authoring, copy a ship block
 from a shipped scenario rather than typing it out, or generate the file by
 serializing a code-built config (<code>ron::ser::to_string_pretty</code>). See the
 authoring-verbosity note in <a href="../modding-ron/">RON scenario/mod format</a>.</li>
+<li>Ship sections sit on a unit-cube grid: positions are cell centers 1.0
+apart, and two sections closer than 1.0 on EVERY axis overlap (a lint
+error). Turrets and torpedo bays MOUNT: their model's base face is local
+-Y, so give each one the quarter-turn rotation that points
+<code>rotation * (0,-1,0)</code> at an occupied neighbor cell - identity for a top
+mount, <code>(0.0, 0.0, -0.7071068, 0.7071068)</code> rolls a starboard (+X flank)
+mount's base inboard, the mirror <code>(0.0, 0.0, 0.7071068, 0.7071068)</code> for
+port, and <code>(-0.7071068, 0.0, 0.0, 0.7071068)</code> seats a bow mount against
+the cell astern of it. A mount whose base points at empty space is a lint
+error (the class behind two shipped wrong-roll bugs); a non-quarter-turn
+rotation on a mount only warns, since the lint cannot check free angles.</li>
 <li>Pair events (<code>OnEnter</code>, <code>OnOrbit</code>, the locks) recur every 5s while the
 condition holds. Always gate their handlers on a variable so the repeat runs
 are no-ops, or you will re-fire actions.</li>
@@ -813,7 +945,7 @@ nothing. Spawn first.</li>
     <nav aria-label="Footer">
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"

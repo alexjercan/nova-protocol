@@ -13,7 +13,7 @@
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -81,7 +81,9 @@ below.</li>
 </ul>
 <p>The render meshes and effect fields are all <code>Option</code>s that default to <code>None</code>
 (the built-in prototype mesh), so omit them for the default look or write
-<code>Some(&quot;path&quot;)</code> for a custom asset (an asset ref is a bare path string).</p>
+<code>Some(&quot;&lt;scheme&gt;://path&quot;)</code> for a custom asset. An asset ref is a SCHEMED path
+string - <code>self://models/my.glb#Scene0</code> for your own model, or
+<code>dep://base/gltf/hull-01.glb#Scene0</code> to reuse a base-game mesh; never bare.</p>
 <h2 id="hull" tabindex="-1">Hull</h2>
 <p><code>HullSectionConfig</code> - passive armor. One optional field:</p>
 <pre><code class="hljs">Section((
@@ -93,12 +95,17 @@ below.</li>
         health: 200.0,
     ),
     kind: Hull((
-        render_mesh: Some(&quot;gltf/hull-01.glb#Scene0&quot;),
+        render_mesh: Some(&quot;dep://base/gltf/hull-01.glb#Scene0&quot;),
     )),
 )),
 </code></pre>
 <ul>
 <li><code>render_mesh</code> (optional) - the hull mesh; omit for a default 1x1x1 cuboid.</li>
+<li>every section's <code>base</code> block also takes <code>impact_sound</code> + <code>destroy_sound</code>
+(optional) - the sounds a hit on / the destruction of THIS section plays,
+asset refs like the meshes (<code>dep://base/sounds/impact.wav</code> /
+<code>dep://base/sounds/explosion.wav</code> are the base voices); an omitted sound is
+silent. Per-target = per-material: your reinforced hull can clang.</li>
 </ul>
 <h2 id="thruster" tabindex="-1">Thruster</h2>
 <p><code>ThrusterSectionConfig</code> - forward thrust.</p>
@@ -109,6 +116,10 @@ below.</li>
 <ul>
 <li><code>magnitude</code> - the thrust force this section produces at full throttle.</li>
 <li><code>render_mesh</code> (optional) - custom mesh; omit for the default thruster body.</li>
+<li><code>loop_sound</code> (optional) - the engine hum this thruster contributes to
+(<code>dep://base/sounds/thruster_loop.wav</code> is the base drone); thrusters sharing
+a sound share one loop whose volume tracks the loudest ship burning it. An
+omitted sound hums nothing.</li>
 </ul>
 <h2 id="controller" tabindex="-1">Controller</h2>
 <p><code>ControllerSectionConfig</code> - the steering PD controller; a ship needs a live one
@@ -125,55 +136,105 @@ commanded heading).</li>
 <li><code>damping_ratio</code> - the PD damping ratio (overshoot vs settle).</li>
 <li><code>max_torque</code> - the maximum torque the controller may apply.</li>
 <li><code>render_mesh</code> (optional) - custom mesh; omit for the default body.</li>
+<li><code>lock_on_sound</code>, <code>lock_off_sound</code>, <code>radar_deny_sound</code>,
+<code>radar_retarget_sound</code>, <code>safety_on_sound</code> (all optional) - the computer's
+radar/lock and weapons-safety feedback ticks, asset refs like the meshes
+(<code>dep://base/sounds/lock_on.wav</code> etc. for the base cues); an omitted cue is
+silent. Your ship's computer can have its own voice.</li>
 </ul>
 <h2 id="turret" tabindex="-1">Turret</h2>
 <p><code>TurretSectionConfig</code> - an articulated gun that aims with intercept lead and
-fires bullets. The most field-heavy kind; the shipped <code>better_turret_section</code>
+fires bullets. The mount is an arbitrary tree of joints (<code>root</code>): each joint
+sits at an <code>offset</code> from its parent, optionally rotates about an <code>axis</code> (a hinge
+the aim solver drives), optionally carries a <code>render_mesh</code>, optionally is a
+<code>muzzle</code> (a fire point), and hangs <code>children</code> joints off itself. Today's turret
+is one specific tree - base(fixed) -&gt; yaw(axis Y) -&gt; pitch(axis X) -&gt;
+barrel(fixed) -&gt; muzzle - but you can build twin barrels, extra hinges, or a
+turret whose elevation lives two joints down. The shipped <code>better_turret_section</code>
 is the reference:</p>
 <pre><code class="hljs">kind: Turret((
-    yaw_speed: 3.1415927,
-    pitch_speed: 3.1415927,
-    min_pitch: Some(-0.5235988),
-    max_pitch: Some(1.5707964),
-    base_offset: (0.0, -0.5, 0.0),
-    render_mesh_yaw: Some(&quot;gltf/turret-yaw-01.glb#Scene0&quot;),
-    yaw_offset: (0.0, 0.1, 0.0),
-    render_mesh_pitch: Some(&quot;gltf/turret-pitch-01.glb#Scene0&quot;),
-    pitch_offset: (0.0, 0.332706, 0.303954),
-    render_mesh_barrel: Some(&quot;gltf/turret-barrel-01.glb#Scene0&quot;),
-    barrel_offset: (0.0, 0.128437, -0.110729),
-    muzzle_offset: (0.0, 0.0, -1.2),
-    fire_rate: 100.0,
+    root: (
+        offset: (0.0, -0.5, 0.0),                                     // base (fixed)
+        children: [(
+            offset: (0.0, 0.1, 0.0),
+            axis: Some((0.0, 1.0, 0.0)),                              // yaw hinge (Y)
+            render_mesh: Some(&quot;dep://base/gltf/turret-yaw-01.glb#Scene0&quot;),
+            children: [(
+                offset: (0.0, 0.332706, 0.303954),
+                axis: Some((1.0, 0.0, 0.0)),                         // pitch hinge (X)
+                min: Some(-0.5235988), max: Some(1.5707964),          // pitch limits
+                render_mesh: Some(&quot;dep://base/gltf/turret-pitch-01.glb#Scene0&quot;),
+                children: [(
+                    offset: (0.0, 0.128437, -0.110729),               // barrel (fixed)
+                    render_mesh: Some(&quot;dep://base/gltf/turret-barrel-01.glb#Scene0&quot;),
+                    children: [(
+                        offset: (0.0, 0.0, -1.2),                     // muzzle (fixed)
+                        muzzle: Some((fire_rate: 100.0)),
+                    )],
+                )],
+            )],
+        )],
+    ),
     muzzle_speed: 100.0,
     projectile_lifetime: 5.0,
     bullet_damage: 4.0,
     bullet_kind: Kinetic,
+    fire_sound: Some(&quot;dep://base/sounds/turret_fire.wav&quot;),
     ammo_capacity: Some(500),
 )),
 </code></pre>
+<p>Per-joint fields (on every <code>root</code>/<code>children</code> node):</p>
 <ul>
-<li><code>yaw_speed</code>, <code>pitch_speed</code> - traverse speeds in radians per second.</li>
-<li><code>min_pitch</code>, <code>max_pitch</code> (optional) - pitch limits in radians; <code>None</code> for no
-limit.</li>
-<li><code>base_offset</code>, <code>yaw_offset</code>, <code>pitch_offset</code>, <code>barrel_offset</code>,
-<code>muzzle_offset</code> - <code>Vec3</code> mount offsets stacking base -&gt; yaw -&gt; pitch -&gt; barrel
--&gt; muzzle (bare 3-tuples).</li>
-<li><code>render_mesh_base</code>, <code>render_mesh_yaw</code>, <code>render_mesh_pitch</code>,
-<code>render_mesh_barrel</code> (all optional) - the per-part meshes; omit for defaults.</li>
-<li><code>fire_rate</code> - rounds per second.</li>
-<li><code>muzzle_speed</code> - projectile launch speed in units per second.</li>
+<li><code>offset</code> - <code>Vec3</code> local translation from the parent joint (the section origin
+for <code>root</code>), a bare 3-tuple. A joint's <code>children</code> are placed in its ROTATED
+frame, so they swing with it.</li>
+<li><code>axis</code> (optional) - the local hinge axis (a bare 3-tuple like <code>(0.0, 1.0, 0.0)</code>). Omit for a FIXED node (offsets and can still carry a mesh/muzzle, never
+rotates); set it to make the joint a hinge the aim solver steers. A muzzle's
+forward is its local <code>-Z</code>; the solver distributes the aim across every hinge
+above it.</li>
+<li><code>speed</code> (optional) - traverse speed in radians per second; omit for the
+default 180 deg/s (PI). Only meaningful on a hinge (<code>axis</code> set).</li>
+<li><code>min</code>, <code>max</code> (optional) - rotation limits in radians for this hinge; <code>None</code>
+for no limit.</li>
+<li><code>render_mesh</code> (optional) - this joint's mesh; omit for a plain default
+primitive. Shipped turrets author a GLB per visible joint.</li>
+<li><code>muzzle</code> (optional) - marks this joint a fire point: <code>Some((fire_rate: N))</code>
+(rounds per second), plus an optional <code>muzzle_effect</code> flash asset ref. A turret
+aims and fires ALL of its muzzles: hang two off one barrel for a twin PDC, or
+give each its own arm. Every muzzle fires at its own <code>fire_rate</code> but draws from
+the ONE shared section magazine (<code>ammo_capacity</code>), so a twin barrel empties the
+same mag twice as fast rather than carrying a pool per gun.</li>
+<li><code>children</code> (optional) - joints hanging off this one; omit for a leaf.</li>
+</ul>
+<p>Section-wide fields (once, alongside <code>root</code>):</p>
+<ul>
+<li><code>fire_sound</code> (optional) - the sound each fired round plays, an asset ref like
+the meshes (<code>self://</code> a wav your mod ships, or <code>dep://base/sounds/ turret_fire.wav</code> for the base cue); omit and the turret fires SILENTLY (the
+base turrets author it, so copy their line if you want the stock sound). Your
+turret can sound like its own gun.</li>
+<li><code>dry_fire_sound</code> (optional) - the click when the trigger is pulled on an
+empty magazine; same asset-ref rules (<code>dep://base/sounds/dry_fire.wav</code> is the
+base click), omit for a silent dry pull.</li>
+<li><code>muzzle_speed</code> - projectile launch speed in units per second (shared by all
+muzzles; <code>fire_rate</code> is per-muzzle, see the joint fields above).</li>
 <li><code>projectile_lifetime</code> - projectile lifetime in seconds.</li>
 <li><code>bullet_damage</code> - authored per-hit damage (pre-resistance).</li>
 <li><code>bullet_kind</code> - the damage type of the loaded round (<code>Kinetic</code>, and the other
 <code>DamageType</code> variants).</li>
 <li><code>ammo_capacity</code> (optional) - magazine size; <code>None</code> fires without a limit,
 <code>Some(n)</code> gives an ammo slot of <code>n</code> rounds.</li>
+<li><code>reload</code> (optional) - auto-reload for the magazine (needs <code>ammo_capacity</code>).
+<code>Some((reload_time, rounds_per_cycle, only_when_empty))</code>: a completed
+<code>reload_time</code> cycle restores <code>rounds_per_cycle</code> rounds (clamped to capacity).
+<code>only_when_empty: true</code> with <code>rounds_per_cycle</code> = capacity is discrete
+reload-on-empty; <code>only_when_empty: false</code> with <code>rounds_per_cycle: 1</code> is
+continuous per-round regen. <code>None</code> = a spent magazine stays empty.</li>
 </ul>
 <h2 id="torpedo" tabindex="-1">Torpedo</h2>
 <p><code>TorpedoSectionConfig</code> - a bay that launches guided, proportional-navigation
 torpedoes dealing blast damage. The shipped <code>torpedo_section</code>:</p>
 <pre><code class="hljs">kind: Torpedo((
-    render_mesh: Some(&quot;gltf/torpedo-bay-01.glb#Scene0&quot;),
+    render_mesh: Some(&quot;dep://base/gltf/torpedo-bay-01.glb#Scene0&quot;),
     spawn_offset: (0.0, 0.0, -2.0),
     spawn_rotation: (0.0, 0.0, 0.0, 1.0),
     fire_rate: 1.0,
@@ -190,6 +251,9 @@ torpedoes dealing blast damage. The shipped <code>torpedo_section</code>:</p>
 )),
 </code></pre>
 <ul>
+<li><code>launch_sound</code> (optional) - the sound a departing torpedo plays
+(<code>dep://base/sounds/torpedo_launch.wav</code> is the base whoosh); omit for a
+silent launch.</li>
 <li><code>render_mesh</code>, <code>projectile_render_mesh</code> (both optional) - the bay mesh and the
 torpedo mesh; omit for defaults.</li>
 <li><code>spawn_offset</code> (<code>Vec3</code>), <code>spawn_rotation</code> (<code>Quat</code>, a bare 4-tuple) - where the
@@ -210,21 +274,24 @@ the flight path follows guidance).</li>
 <li><code>blast_effect</code>, <code>launch_effect</code> (both optional) - custom particle effects;
 omit for the built-in bursts.</li>
 <li><code>ammo_capacity</code> (optional) - magazine size in torpedoes; <code>None</code> for unlimited.</li>
+<li><code>reload</code> (optional) - auto-reload for the bay (needs <code>ammo_capacity</code>); same
+<code>Some((reload_time, rounds_per_cycle, only_when_empty))</code> shape as the turret.
+The shipped bay uses continuous regen (one torpedo every few seconds).</li>
 </ul>
 <h2 id="a-section-in-a-mod" tabindex="-1">A section in a mod</h2>
-<p>The demo mod (<code>assets/mods/demo/mod.content.ron</code>) overlays the base
+<p>The example mod (<code>assets/mods/example/example.content.ron</code>) overlays the base
 <code>reinforced_hull_section</code> - same id, so it REPLACES the base part everywhere
 (editor palette, ships) with more health and a renamed label:</p>
 <pre><code class="hljs">Section((
     base: (
         id: &quot;reinforced_hull_section&quot;,
-        name: &quot;Reinforced Hull Section (Demo Mod)&quot;,
-        description: &quot;Base hull, up-armored by the demo mod to show section overlay.&quot;,
+        name: &quot;Reinforced Hull Section (Example Mod)&quot;,
+        description: &quot;Base hull, up-armored by the example mod to show section overlay by id.&quot;,
         mass: 1.0,
         health: 400.0,
     ),
     kind: Hull((
-        render_mesh: Some(&quot;gltf/hull-01.glb#Scene0&quot;),
+        render_mesh: Some(&quot;dep://base/gltf/hull-01.glb#Scene0&quot;),
     )),
 )),
 </code></pre>
@@ -243,7 +310,7 @@ flow.</p>
     <nav aria-label="Footer">
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"

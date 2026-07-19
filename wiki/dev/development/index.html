@@ -13,7 +13,7 @@
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -88,6 +88,11 @@ toggle, and the section/gravity debug overlays. The overlays are gated on a
 (<code>DEBUG_TOGGLE_KEYCODE</code>), so they can be flipped off without a rebuild. Note the
 feature is spelled <code>debug</code>, with <code>dev</code> as an alias for it (root <code>Cargo.toml</code>);
 <code>--features dev</code> and <code>--features debug</code> are interchangeable.</p>
+<p><code>DebugPlugin</code> also binds <strong>F12</strong> (<code>SCREENSHOT_KEYCODE</code>,
+<code>crates/nova_debug/src/screenshot.rs</code>) to a screenshot: it captures the primary
+window and saves it to your Downloads directory as <code>&lt;unix-millis&gt;.png</code>. The
+capture is intentionally not gated on <code>DebugEnabled</code>, so it works whether or not
+the overlays are shown.</p>
 <p>Two debug-only CLI flags exist, both parsed in <code>src/main.rs</code> and both compiled
 in only under the <code>debug</code> feature:</p>
 <ul>
@@ -118,6 +123,9 @@ included), <code>12_menu_newgame</code> (the shipped boot flow).</li>
 <code>15_screenshot_combat</code>, <code>16_screenshot_sections</code>, <code>17_screenshot_juice</code>,
 <code>18_screenshot_orbit</code> (drive the shipped scenes headless to capture the
 wiki and marketing frames).</li>
+<li>Slice: <code>19_broadside</code> (the chapter-two scenario end to end through the
+Scenarios picker: defeat -&gt; Retry reload -&gt; the full act machine -&gt; the
+Victory overlay, all staged on scenario state).</li>
 </ul>
 <p>When adding a substantial feature, add or extend the example that drives it.
 (Consolidated over time: 01_scene/03_scenario merged into 08_scenario;
@@ -210,49 +218,48 @@ during the cycle, and update the compare links at the bottom (repoint
 <li><code>git push origin master &amp;&amp; git push origin vX.Y.Z</code>.</li>
 <li>Watch the run (<code>gh run watch</code>), then check the GitHub release page and
 consider adding summarized release notes (<code>gh release edit vX.Y.Z --notes-file ...</code>).</li>
-<li>Write a devblog for the release cycle (see below) and land it in <code>web/</code>.</li>
+<li>Write or expand the release News post (see &quot;Writing the release news post&quot;
+below) and land it in <code>web/</code>; sync any wiki pages the cycle changed (see
+<a href="../keeping-docs-in-sync/">Keeping docs in sync</a>).</li>
 </ol>
 <p>The workflow uploads four assets to a release named after the tag: macOS
 universal <code>.dmg</code>, Linux <code>.tar.gz</code>, Windows <code>.zip</code>, and a wasm-opt'd web zip.
 It can also be re-run via <code>workflow_dispatch</code> with a <code>version</code> input.</p>
-<h3 id="writing-the-release-devblog" tabindex="-1">Writing the release devblog</h3>
-<p>Every release cycle also gets a devblog on the site, in <code>web/</code>. The devlogs
-are numbered (<code>#1</code>..<code>#N</code>) and track the minor versions: one devlog per minor
-release (<code>v0.4.0</code> -&gt; Devlog #4, <code>v0.5.0</code> -&gt; Devlog #5), with the cycle's patch
-releases folded into that same post as a short closing note rather than getting
-their own devlog. Source the content straight from the <code>CHANGELOG.md</code> sections
-for the versions in the cycle.</p>
-<p>The devlogs follow the spirit of Factorio's Friday Facts: a running numbered
-series, each issue broken into a handful of distinct topic sections, written
-candidly in the first person (the reasoning, the dead-ends, the &quot;the piece I am
-proudest of&quot;), leaning on screenshots and diagrams, and closing with a prompt to
-discuss. Match that tone; do not write terse release notes (the <code>CHANGELOG.md</code>
-already is those).</p>
-<p>Adding a devblog touches four places (mirror an existing post such as
-<code>devlog-4-guided-torpedoes-targeting-and-enemy-ai</code>):</p>
+<h3 id="writing-the-release-news-post" tabindex="-1">Writing the release news post</h3>
+<p>Every release cycle gets one <strong>News</strong> post on the site (<code>/news/</code>, markdown under
+<code>web/src/news/</code>). News is the merged devlog + release notes: <strong>one post per
+FEATURE release</strong> (<code>v0.1.0</code>, <code>v0.2.0</code>, ... <code>v0.6.0</code>). Patch releases do NOT get
+their own post - they fold into the parent feature post's <code>## Point releases</code>
+section (<code>v0.5.0</code>'s post covers <code>v0.5.1</code> and <code>v0.5.2</code>). The terse per-version
+list stays in <code>CHANGELOG.md</code>; source the post's content from the cycle's
+<code>CHANGELOG.md</code> sections.</p>
+<p>A News post follows the spirit of Factorio's Friday Facts: a narrative lead,
+then a handful of feature-by-feature <code>##</code> sections written candidly (the
+reasoning, the dead-ends, the piece you are proudest of), leaning on screenshots,
+and - where a devlog video exists - an optional <code>## Watch the devlog</code> companion
+near the top (the written highlights must stand on their own; the video is an
+extra). Do not just restate the terse <code>CHANGELOG.md</code>.</p>
+<p>Adding a post touches three places (mirror an existing post such as
+<code>web/src/news/0.5.0.md</code>):</p>
 <ol>
-<li>Write the post at <code>web/src/posts/&lt;slug&gt;.html</code>. Copy an existing devlog for
-the structure:
-<ul>
-<li>the <code>prose__meta</code> line carries <code>&lt;date&gt; // v&lt;X.Y.0&gt;</code>, and the
-<code>&lt;title&gt;</code>/<code>&lt;meta name=&quot;description&quot;&gt;</code> summarize the release;</li>
-<li>a <code>&lt;!-- Devlog video ... --&gt;</code> placeholder for the recorded footage;</li>
-<li>one <code>&lt;h2&gt;</code> per topic, in the candid FFF voice described above;</li>
-<li><code>.figure</code> blocks for screenshots/diagrams (they ship a dashed placeholder
-naming the image to capture later - see the component in <code>web/src/style.css</code>);</li>
-<li>the standard <code>.post-footer</code> closer (the &quot;discuss on GitHub Discussions&quot;
-prompt plus the &quot;All devlogs&quot; link) before <code>&lt;/article&gt;</code>.</li>
-</ul>
-</li>
-<li>Register the page in <code>web/webpack.config.js</code>: add a <code>page(&quot;post&quot;, ...)</code>
-entry in <code>plugins</code> and a matching <code>historyApiFallback</code> rewrite (keep both
-lists newest-first, above the previous devlog).</li>
-<li>Add a <code>.post-card</code> to <code>web/src/blog.html</code> at the top of <code>.post-grid</code> (newest
-first): a media thumbnail plus the date/version, title, and one-line excerpt.
-For the thumbnail, use the YouTube thumbnail
-(<code>https://img.youtube.com/vi/&lt;id&gt;/hqdefault.jpg</code>) once the post has a video
-embed; otherwise use the <code>.post-card__ph</code> placeholder naming
-<code>assets/thumb-&lt;slug&gt;.png</code>.</li>
+<li>Write the post at <code>web/src/news/&lt;version&gt;.md</code> (e.g. <code>0.6.0.md</code>). The page
+shell (<code>newsPostShell</code> in <code>web/markdown.js</code>) renders the H1, the
+<code>&lt;date&gt; // v&lt;version&gt;</code> meta line, and the footer (the Discussions prompt plus
+the <code>CHANGELOG.md</code> pointer and &quot;All news&quot; link), so the markdown is just the
+body: the H1 (<code># vX.Y.0 - &lt;title&gt;</code>), the lead, the <code>##</code> sections, <code>.figure</code>
+placeholder blocks for screenshots to capture later, an optional
+<code>.video-embed</code> companion, a <code>.callout.callout--breaking</code> block for any format
+break, and a closing <code>## Point releases</code> section for the cycle's patches.
+Do not add a footer or a <code>CHANGELOG.md</code> link yourself - the shell adds them.</li>
+<li>Register it in <code>web/webpack.config.js</code>: add an entry to <code>NEWS_POSTS</code>
+(newest-first) with <code>slug</code>/<code>version</code>/<code>date</code>/<code>description</code>. The plugin list and
+the <code>historyApiFallback</code> rewrite both derive from <code>NEWS_POSTS</code>, so no other
+wiring is needed.</li>
+<li>Add a <code>.post-card</code> to <code>web/src/news.html</code> at the top of <code>.post-grid</code>
+(newest-first): a media thumbnail plus the date/version, title, and one-line
+excerpt. For the thumbnail, use the YouTube thumbnail
+(<code>https://img.youtube.com/vi/&lt;id&gt;/hqdefault.jpg</code>) if the release has a video,
+otherwise the <code>.post-card__ph</code> placeholder naming <code>assets/thumb-news-&lt;version&gt;.png</code>.</li>
 <li>Rebuild and check it: <code>cd web &amp;&amp; npm run ci</code> (format check, lint, build).</li>
 </ol>
 <h2 id="contributing-a-change" tabindex="-1">Contributing a change</h2>
@@ -291,7 +298,7 @@ live under <code>docs/</code>.</p>
     <nav aria-label="Footer">
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"

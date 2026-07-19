@@ -13,7 +13,7 @@
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -41,31 +41,41 @@
                     <p>Task-oriented walkthrough: build a mod, test it locally, and publish it to the
 static mod portal. For the data-model reference behind these steps, see
 <a href="../modding-ron/">Modding data format (RON)</a> and <a href="../mod-portal/">Mod portal</a>.</p>
-<p>A mod is the same folder-bundle shape as the base game. The shipped demo mod
-(<code>assets/mods/demo/</code>) is the copy-me example; the first portal mod
+<p>A mod is the same folder-bundle shape as the base game. The shipped example mod
+(<code>assets/mods/example/</code>) is the copy-me example - one self-contained tutorial mod
+that does a little of everything (a section overlay, a new section, a playable
+scenario, its own skybox and texture, and a menu backdrop). The first portal mod
 (<code>webmods/gauntlet/</code>) is the copy-me publish example.</p>
 <p>A mod's content is <code>Scenario</code> and <code>Section</code> items. If you have not authored those
 yet, write them first with the two authoring guides -
 <a href="../guide-author-scenario/">Author a scenario</a> for the <code>Scenario</code> grammar and
 <a href="../guide-author-section/">Author a section</a> for the <code>Section</code> (ship-part)
-grammar - then come back here to package and ship them. The demo mod below leads
+grammar - then come back here to package and ship them. The example mod below leads
 with a <code>Section</code> overlay, so the section guide is the one that explains its
 <code>base</code>/<code>kind</code> shape.</p>
 <h2 id="1-bundle-anatomy" tabindex="-1">1. Bundle anatomy</h2>
 <p>A mod is a DIRECTORY containing:</p>
 <ul>
-<li>one <code>&lt;id&gt;.bundle.ron</code> manifest (a <code>BundleManifest</code>: <code>content</code> list + <code>meta</code>),</li>
+<li>one <code>&lt;id&gt;.bundle.ron</code> manifest (a <code>BundleManifest</code>: <code>content</code> list + <code>meta</code>,
+and an optional <code>resources</code> list of binary files it ships),</li>
 <li>one or more <code>*.content.ron</code> files it lists (a <code>[Content]</code> list of
-<code>Section((..))</code> / <code>Scenario((..))</code> items).</li>
+<code>Section((..))</code> / <code>Scenario((..))</code> items),</li>
+<li>optionally, the binary assets it ships (textures, skyboxes, models, audio)
+under the folder, declared in <code>resources</code> and referenced with <code>self://</code>.</li>
 </ul>
-<p>Start by copying <code>assets/mods/demo/</code>. Its manifest:</p>
+<p>Start by copying <code>assets/mods/example/</code>. Its manifest:</p>
 <pre><code class="hljs">(
-    content: [&quot;mod.content.ron&quot;],
+    content: [&quot;example.content.ron&quot;],
+    resources: [
+        &quot;textures/nebula.png&quot;,
+        &quot;textures/rock.png&quot;,
+    ],
     meta: (
-        name: &quot;Demo Mod&quot;,
-        description: &quot;Example mod: up-armors a hull section and adds an arena scenario.&quot;,
+        name: &quot;Example Mod&quot;,
+        description: &quot;The copy-me tutorial mod: a section overlay, a new section, a playable arena, mod-shipped art, and a menu backdrop - a little of everything.&quot;,
         author: &quot;Nova Protocol&quot;,
         version: &quot;1.0.0&quot;,
+        dependencies: [&quot;base&quot;],
     ),
 )
 </code></pre>
@@ -76,29 +86,121 @@ then falls back to the catalog id as the name) - but the portal will not
 publish a mod without a non-empty <code>name</code> and <code>version</code> (step 4). <code>dependencies</code>
 is a list of mod ids; <code>base</code> is an IMPLICIT dependency and is never declared.
 <code>icon</code> is an <code>Option</code>, so write <code>icon: Some(&quot;icon.png&quot;)</code>, not <code>icon: &quot;icon.png&quot;</code>.</p>
+<p>Lint your mod while you work: <code>cargo run -p nova_assets --bin content -- lint --target path/to/your-mod</code> (or an in-repo id like
+<code>--target the-ledger</code>) checks just your bundle - section prototype ids
+against the base catalog and your declared dependencies, scenario chain
+targets, filter/action target ids, duplicate object ids. An Error means
+the game would refuse the scenario at runtime; fix it before publishing.</p>
+<p>A manifest may also declare <code>new_game_scenario: Some(&quot;&lt;scenario id&gt;&quot;)</code> - the
+scenario New Game launches - but it is HONORED ONLY from the base game's own
+bundle: the merge warns and ignores it on any other bundle, so a mod cannot
+redirect the New Game start. Mods influence the menu through the Scenarios
+picker and the <code>menu_backdrop</code> scenario flag instead (see the scenario
+authoring guide).</p>
+<h3 id="referencing-art-the-scheme-model" tabindex="-1">Referencing art (the scheme model)</h3>
+<p>Every asset path in your content carries a SCHEME - there is no bare,
+scheme-less path (a bare asset ref is rejected by the gates). Three schemes
+cover every case:</p>
+<ul>
+<li><code>self://&lt;path&gt;</code> - a file THIS mod ships, from its own folder.</li>
+<li><code>dep://base/&lt;path&gt;</code> - a BASE-game asset (a stock skybox, hull mesh, ...).
+<code>base</code> is the implicit universal dependency, so you never declare it.</li>
+<li><code>dep://&lt;id&gt;/&lt;path&gt;</code> - a file a DECLARED dependency <code>&lt;id&gt;</code> ships (e.g. a shared
+art pack several mods depend on).</li>
+</ul>
+<p>To ship and use your OWN textures, skyboxes, models or audio, put the files in
+the mod folder, list them in <code>resources</code>, and reference them with <code>self://</code>:</p>
+<pre><code class="hljs">(
+    content: [&quot;example.content.ron&quot;],
+    resources: [
+        &quot;textures/nebula.png&quot;,
+        &quot;textures/rock.png&quot;,
+    ],
+    meta: (name: &quot;Example Mod&quot;, version: &quot;1.0.0&quot;),
+)
+</code></pre>
+<pre><code class="hljs">// in example.content.ron - self:// = &quot;this mod's own folder&quot;
+cubemap: &quot;self://textures/nebula.png&quot;,
+// ...
+texture: &quot;self://textures/rock.png&quot;,
+// a model keeps its label: render_mesh: Some(&quot;self://models/hull.glb#Scene0&quot;)
+</code></pre>
+<ul>
+<li><code>resources</code> paths are relative to the manifest's directory (the same base as
+<code>content</code> and <code>meta.icon</code>). A <code>self://</code> ref may only name a listed resource -
+the portal generator, the static <code>content lint</code>, and the in-game content gate
+all reject a <code>self://</code> ref that is not in <code>resources</code>.</li>
+<li><code>self://</code> resolves against the mod's own folder whether the mod is shipped
+(<code>assets/mods/&lt;id&gt;/</code>) or downloaded from the portal (<code>mods://&lt;id&gt;/</code>), on native
+and web alike - you never hard-code your own id.</li>
+<li>A skybox needs its <code>&lt;name&gt;.png.meta</code> sidecar (the <code>RowCount</code> cube reinterpret,
+copy <code>assets/base/textures/cubemap.png.meta</code>); sidecar <code>.meta</code> files ship
+automatically and are NOT listed in <code>resources</code>. The game reads it at load
+time on every platform - shipped or portal-downloaded, native or web - so the
+cubemap arrives as the 6-layer array the renderer needs. (Without the sidecar
+the skybox still usually renders, via a runtime fallback, but that fallback can
+crash on WebGL2-class GPUs mid-scenario-swap: ship the sidecar.)</li>
+<li><code>assets/mods/example/</code> is the copy-me example (it ships this skybox and rock
+texture and renders its arena and menu backdrop from them); a <code>self://</code> ref
+that names a missing file fails the mod's gates before it ever runs.</li>
+<li><code>self://</code> is a RESERVED leading token for every string in your content, not
+just asset paths: a message, objective text or variable string that STARTS
+with <code>self://</code> would be treated as a resource ref. In practice nothing legit
+does; just do not open a free-text string with it.</li>
+</ul>
+<p><code>self://</code> is your OWN folder only. To reuse another mod's shipped resources - a
+shared &quot;art pack&quot; several mods depend on for a common look, without each copying
+the bytes - reference them with <code>dep://&lt;id&gt;/&lt;path&gt;</code>, where <code>&lt;id&gt;</code> is a DECLARED
+dependency of your mod:</p>
+<pre><code class="hljs">// your bundle declares the dependency:
+meta: (name: &quot;My Campaign&quot;, version: &quot;0.1.0&quot;, dependencies: [&quot;art_pack&quot;]),
+</code></pre>
+<pre><code class="hljs">// in your content - dep://&lt;id&gt;/ = &quot;the file &lt;path&gt; that dependency &lt;id&gt; ships&quot;
+cubemap: &quot;dep://art_pack/textures/nebula.png&quot;,
+</code></pre>
+<ul>
+<li><code>&lt;id&gt;</code> MUST be a mod you declare in <code>meta.dependencies</code> (enabling your mod
+auto-enables it, and it merges first, so its files are available). Reaching
+into a mod you do not depend on is rejected by all three gates.</li>
+<li>The <code>&lt;path&gt;</code> must be a DECLARED <code>resources</code> member of that dependency - the
+same membership rule <code>self://</code> follows, checked against the OTHER mod's
+manifest.</li>
+<li>Resolution is transparent across shipped vs downloaded, exactly like <code>self://</code>:
+<code>dep://art_pack/x</code> resolves to <code>mods/art_pack/x</code> (shipped) or <code>mods://art_pack/x</code>
+(downloaded), native and web.</li>
+<li><code>dep://base/&lt;path&gt;</code> is the special case for the BASE game's own art (the base
+game ships its art under <code>assets/base/</code> and is referenced like any dependency -
+<code>dep://base/textures/cubemap.png</code> for the stock skybox,
+<code>dep://base/gltf/hull-01.glb#Scene0</code> for the stock hull mesh). <code>base</code> is the
+IMPLICIT universal dependency, so you do NOT list it in <code>meta.dependencies</code>.
+There is no bare/scheme-less shorthand - every asset ref is namespaced.</li>
+</ul>
 <p>A content file is a <code>[Content]</code> list. Each item is externally tagged by kind:</p>
 <pre><code class="hljs">[
     Section((
         base: (
             id: &quot;reinforced_hull_section&quot;,
-            name: &quot;Reinforced Hull Section (Demo Mod)&quot;,
-            description: &quot;Base hull, up-armored by the demo mod.&quot;,
+            name: &quot;Reinforced Hull Section (Example Mod)&quot;,
+            description: &quot;Base hull, up-armored by the example mod.&quot;,
             mass: 1.0,
             health: 400.0,
         ),
         kind: Hull((
-            render_mesh: Some(&quot;gltf/hull-01.glb#Scene0&quot;),
+            // reuse the BASE game's hull mesh via dep://base
+            render_mesh: Some(&quot;dep://base/gltf/hull-01.glb#Scene0&quot;),
         )),
     )),
     Scenario((
-        id: &quot;demo_mod_arena&quot;,
-        name: &quot;Demo Mod Arena&quot;,
-        description: &quot;A shooting gallery added by the demo mod: destroy the three derelict rocks.&quot;,
-        cubemap: &quot;textures/cubemap.png&quot;,
-        // OnStart spawns the player ship + three destructible asteroids and a
+        id: &quot;example_arena&quot;,
+        name: &quot;Example Arena&quot;,
+        description: &quot;The example mod's playable scenario: destroy two drifting rocks under a mod-shipped skybox.&quot;,
+        cubemap: &quot;self://textures/nebula.png&quot;,
+        // OnStart spawns the player ship + two destructible asteroids and a
         // `destroyed` counter; a per-target OnDestroyed increments it and a
-        // one-shot OnUpdate (destroyed &gt; 2) completes the objective. See
-        // &quot;Author a scenario&quot; for the full event/action grammar.
+        // one-shot OnUpdate (destroyed &gt; 1) completes the objective, ending in a
+        // Victory Outcome. See &quot;Author a scenario&quot; for the full event/action
+        // grammar. The example mod's content file also adds a second, new
+        // section and a `menu_backdrop` scenario.
         events: [ /* ... */ ],
     )),
 ]
@@ -107,12 +209,12 @@ is a list of mod ids; <code>base</code> is an IMPLICIT dependency and is never d
 fields, see <a href="../guide-author-section/">Author a section</a>; for the scenario
 event/action shapes, see <a href="../guide-author-scenario/">Author a scenario</a>.</p>
 <h3 id="the-stemmed-extension-rule-load-bearing" tabindex="-1">The stemmed-extension rule (load-bearing)</h3>
-<p>The manifest MUST be named <code>&lt;id&gt;.bundle.ron</code> (e.g. <code>demo.bundle.ron</code>), NEVER a
+<p>The manifest MUST be named <code>&lt;id&gt;.bundle.ron</code> (e.g. <code>example.bundle.ron</code>), NEVER a
 bare <code>bundle.ron</code>. Bevy resolves an untyped load (how <code>bevy_asset_loader</code> kicks
 off collection fields) by the file's FULL extension - everything after the
 FIRST dot. <code>bundle.ron</code> yields the bare <code>ron</code> extension, which no loader is
 registered for, so the load fails in-game with &quot;Could not find an asset
-loader&quot;; <code>demo.bundle.ron</code> yields <code>bundle.ron</code>, which matches. The same rule
+loader&quot;; <code>example.bundle.ron</code> yields <code>bundle.ron</code>, which matches. The same rule
 applies to <code>&lt;name&gt;.content.ron</code> and <code>&lt;name&gt;.catalog.ron</code>.</p>
 <h2 id="2-overlay-semantics" tabindex="-1">2. Overlay semantics</h2>
 <p>Bundles merge in load order (base first, then mods in catalog order), by
@@ -125,9 +227,10 @@ mod re-skins or rebalances base content.</li>
 <li>SAME id twice WITHIN one bundle = a conflict: the FIRST item is kept, the
 duplicate is skipped, and a message is recorded and logged (not a panic).</li>
 </ul>
-<p>The demo content does both: it reuses <code>reinforced_hull_section</code> (replace) and
-introduces <code>demo_mod_arena</code> (add) - a small but playable shooting gallery, so
-the example doubles as a worked scenario, not just an overlay demo.</p>
+<p>The example content does both: it reuses <code>reinforced_hull_section</code> (replace) and
+introduces both a NEW section (<code>example_plated_hull_section</code>) and a new playable
+scenario (<code>example_arena</code>, a small shooting gallery), so the one mod doubles as a
+worked scenario, not just an overlay demonstration.</p>
 <h2 id="3-test-it-locally" tabindex="-1">3. Test it locally</h2>
 <p>Register the mod in the installed catalog <code>assets/mods.catalog.ron</code>, a thin
 ordered pointer list (<code>base</code> first so mods overlay it):</p>
@@ -138,8 +241,8 @@ ordered pointer list (<code>base</code> first so mods overlay it):</p>
         base: true,
     ),
     (
-        id: &quot;demo&quot;,
-        bundle: &quot;mods/demo/demo.bundle.ron&quot;,
+        id: &quot;example&quot;,
+        bundle: &quot;mods/example/example.bundle.ron&quot;,
     ),
 ])
 </code></pre>
@@ -219,7 +322,8 @@ plays. A downloaded mod loads and merges exactly like a shipped one.</p>
 <h2 id="sharp-edges-today" tabindex="-1">Sharp edges (today)</h2>
 <ul>
 <li>Asset references (meshes, cubemaps, textures) are hand-typed path strings; a
-typo is not caught until spawn.</li>
+typo in a BASE-relative path is not caught until spawn (a mod-relative
+<code>self://</code> ref, by contrast, is validated against <code>resources</code> at the gates).</li>
 <li><code>version</code> is an opaque string - no semver comparison, no update detection.</li>
 <li>No scenario editor and no in-game schema reference: content is authored by
 hand against these examples.</li>
@@ -235,7 +339,7 @@ hand against these examples.</li>
     <nav aria-label="Footer">
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"

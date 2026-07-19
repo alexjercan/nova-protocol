@@ -13,7 +13,7 @@
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -53,14 +53,15 @@
 <ul>
 <li><strong>Events</strong>: OnStart, OnUpdate, OnDestroyed, OnEnter / OnExit (a trigger area), OnOrbit (an orbit held a few seconds), OnTravelLock / OnCombatLock (a <a href="../targeting-radar/">lock</a> landed on an object).</li>
 <li><strong>Filters</strong>: match by object id or type (asteroid / beacon / salvage crate), combine with not / or / and, or test a variable expression.</li>
-<li><strong>Actions</strong>: post or complete an objective, attach or detach the gold objective marker, emphasize a keybind hint, set a variable, spawn or despawn an object, install or lift a speed cap, grant or withhold a flight verb, create a trigger area, or queue the next scenario.</li>
+<li><strong>Actions</strong>: post or complete an objective, attach or detach the gold objective marker, emphasize a keybind hint, set a variable, spawn or despawn an object, install or lift a speed cap, grant or withhold a flight verb, create a trigger area, queue the next scenario, or declare the outcome - a victory or defeat screen with Continue/Retry and Main Menu that pauses the game behind it.</li>
 </ul>
 <p>This is the vocabulary the <a href="../../tutorial/">Shakedown Run</a> is built from - each beat is an event handler that grants the next verb, posts the next objective, and moves a beat counter forward.</p>
 <h2 id="the-shipped-scenarios" tabindex="-1">The shipped scenarios</h2>
 <ul>
-<li><strong>Shakedown Run</strong> - the New Game starter: a guided tutorial that teaches one gesture per beat (burn, freelook, salvage, GOTO, ORBIT, radar lock, a live-fire rehearsal, and a scavenger fight).</li>
+<li><strong>Shakedown Run</strong> - the New Game starter: a guided tutorial that teaches one gesture per beat (burn, freelook, salvage, GOTO, ORBIT, radar lock, a live-fire rehearsal, and a scavenger fight). Winning it offers to continue straight into Broadside.</li>
+<li><strong>Broadside</strong> - chapter two: the scavengers come back in force. Answer a neutral hauler's distress call across an asteroid cover field and break a two-corvette ambush; that win is a checkpoint, and the fight continues into the gang's gunship - screen its torpedoes with your PDC and take it apart section by section. Dying to the gunship retries the gunship, not the ambush, and hard boulders in the field now genuinely block incoming fire - use them.</li>
 <li><strong>Asteroid Field</strong> - a combat and gravity sandbox: a dense field, a planetoid to orbit, a fully outfitted ship and an AI drone. (A tiny <em>Asteroid Field - Next</em> loops it.)</li>
-<li><strong>Menu Ambience</strong> - the living backdrop behind the main menu: a planetoid with an AI ship flying a real ORBIT, no gameplay - just scale and motion.</li>
+<li><strong>Menu backdrops</strong> - the living scenes behind the menus, picked at random on each menu entry: <strong>Menu Ambience</strong> (a planetoid with an AI ship flying a real ORBIT), <strong>Waystation Traffic</strong> (a hauler convoy circling a freight stop under amber dock lights), and <strong>Scrapyard Drift</strong> (a quiet salvage yard of drifting crates, two wrecks and a lone tug). No gameplay - just scale and motion. Mods can ship their own by flagging a scenario <code>menu_backdrop</code>.</li>
 </ul>
 <p>You can author your own scenarios and mods in RON - see <a href="../modding/">Modding</a>.</p>
 
@@ -73,7 +74,7 @@
     <nav aria-label="Footer">
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"

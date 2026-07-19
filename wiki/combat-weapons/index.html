@@ -13,7 +13,7 @@
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -56,9 +56,23 @@
     </div>
 </figure>
 <h2 id="turrets" tabindex="-1">Turrets</h2>
-<p>A <a href="../sections/turret/">turret</a> is an articulated mount that aims at your combat lock with <strong>true intercept lead</strong> - the solution is computed in the shooter's own frame, so a moving ship's rounds actually land - bounded by its yaw and pitch limits and fire rate. Its rounds are sensor projectiles: they deal damage on first contact with no physical shove, and they curve through <a href="../gravity-wells/">gravity wells</a> like everything else. The point-defense cannon is tuned to chip a target down over a visible burst rather than delete it, and prioritizes shooting down inbound torpedoes.</p>
+<p>A <a href="../sections/turret/">turret</a> is an articulated mount that aims at your combat lock with <strong>true intercept lead</strong> - the solution is computed in the shooter's own frame, so a moving ship's rounds actually land - bounded by its yaw and pitch limits and fire rate. Its rounds are sensor projectiles: they deal damage on first contact with no physical shove, and they curve through <a href="../gravity-wells/">gravity wells</a> like everything else. The point-defense cannon is tuned to chip a target down over a visible burst rather than delete it, and prioritizes shooting down inbound torpedoes. A mount can carry <strong>more than one barrel</strong> - a twin-barrel PDC aims and fires every muzzle it has, throwing two streams at once (each at its own fire rate) that share the turret's one magazine, so it also drains that magazine twice as fast.</p>
 <h2 id="torpedoes" tabindex="-1">Torpedoes</h2>
 <p>A torpedo homes on the combat lock with <strong>proportional-navigation</strong> guidance - turning toward where the target will be - after an arming gate clears (a short time or distance from launch, so it cannot go off in your lap). It detonates on a proximity fuze and deals <strong>blast (area) damage</strong> that falls off from the center, so torpedoes are about zoning and catching clustered or fragile targets where turret fire is precise and pointed.</p>
+<h2 id="cover-line-of-fire" tabindex="-1">Cover &amp; line of fire</h2>
+<p>Rounds are physical: a bullet expends itself on the <strong>first tangible thing</strong>
+it meets, so an asteroid between you and a hostile eats the burst that was
+meant for you. Hostiles respect the same geometry - a gunner with a rock on
+the firing line <strong>holds fire</strong> instead of hosing the rock, and won't waste a
+torpedo on cover either. Its attack orbit keeps it circling all the while,
+so expect the pressure back the moment its motion clears the angle. That
+makes hard cover a real tool: breaking the line of sight buys you a pause in
+the pressure, not just a bullet sponge. Two caveats: destructible debris is
+only cover until it gets shot away, and intangible volumes (beacon rings,
+trigger zones) stop nothing. Point-defense is the exception - a turret
+swatting an inbound torpedo keeps firing no matter what is in the way.</p>
+<h2 id="ammo-reloading" tabindex="-1">Ammo &amp; reloading</h2>
+<p>Weapons carry a finite magazine, shown by a small diegetic gauge riding on the weapon: a <strong>ring</strong> on each turret that drains as it fires, and a <strong>row of pips</strong> on the torpedo bay, one per loaded torpedo. Running dry is not the end of the fight - a spent weapon <strong>auto-reloads</strong>. Turrets dump their magazine then reload it to full after a few seconds; the torpedo bay slowly rearms one torpedo at a time. While a weapon is reloading the gauge fills back up as a <strong>reload sweep</strong> in a dimmer shade of the same color, so you can read at a glance how close it is to firing again. Because ammo always comes back, magazine size is a firing-rhythm limit, not a way to be permanently disarmed. (Some tutorial or sandbox ships fly with unlimited ammo, and then carry no gauge at all.)</p>
 <h2 id="damage-types" tabindex="-1">Damage types</h2>
 <p>Every round carries a damage type, and each turret has a loaded-ammo slot that sets its rounds' type (the ammo readout is color-coded to match):</p>
 <ul>
@@ -109,7 +123,7 @@
     <nav aria-label="Footer">
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"

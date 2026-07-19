@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>v0.4.0 - The flight toy learns to fight - Nova Protocol</title>
+        <meta name="description" content="Nova Protocol v0.4.0: proportionally-navigated guided torpedoes, a full targeting arc with per-section fine-lock, turret auto-aim with true intercept lead, a faction model, an AI combat wave with a behavior state machine, a center-of-mass flight-assist overhaul, and the first audio and combat juice (with the v0.4.1 point release)." />
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/news.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="news">
+                <nav class="news__toc" aria-label="On this page">
+                    <p class="news__toc-title">On this page</p>
+                    <a href="#torpedoes-that-chase" class="news__toc-link">Torpedoes that chase</a>
+                    <a href="#proportional-navigation" class="news__toc-link news__toc-link--sub">Proportional navigation</a>
+                    <a href="#launch-aim-assist-and-the-arming-gate" class="news__toc-link news__toc-link--sub">Launch aim-assist and the arming gate</a>
+                    <a href="#reading-the-shot-at-a-glance" class="news__toc-link news__toc-link--sub">Reading the shot at a glance</a>
+                    <a href="#a-targeting-arc-that-knows-what-you-are-looking-at" class="news__toc-link">A targeting arc that knows what you are looking at</a>
+                    <a href="#acquisition-and-focus-dwell" class="news__toc-link news__toc-link--sub">Acquisition and focus dwell</a>
+                    <a href="#per-section-fine-lock" class="news__toc-link news__toc-link--sub">Per-section fine-lock</a>
+                    <a href="#turret-auto-aim-with-true-intercept-lead" class="news__toc-link news__toc-link--sub">Turret auto-aim with true intercept lead</a>
+                    <a href="#the-hud-substrate" class="news__toc-link">The HUD substrate</a>
+                    <a href="#anchors-apparent-size-and-edge-arrows" class="news__toc-link news__toc-link--sub">Anchors, apparent size, and edge arrows</a>
+                    <a href="#lead-pips-and-the-locked-target-readout" class="news__toc-link news__toc-link--sub">Lead pips and the locked-target readout</a>
+                    <a href="#friend-foe-or-furniture" class="news__toc-link">Friend, foe, or furniture</a>
+                    <a href="#an-enemy-with-a-state-machine" class="news__toc-link">An enemy with a state machine</a>
+                    <a href="#the-five-states" class="news__toc-link news__toc-link--sub">The five states</a>
+                    <a href="#discipline-defense-and-standoff" class="news__toc-link news__toc-link--sub">Discipline, defense, and standoff</a>
+                    <a href="#turning-like-a-ship" class="news__toc-link news__toc-link--sub">Turning like a ship</a>
+                    <a href="#flying-the-hull-honestly" class="news__toc-link">Flying the hull honestly</a>
+                    <a href="#velocity-hold-newtonian-and-the-rcs-budget" class="news__toc-link news__toc-link--sub">Velocity-hold, Newtonian, and the RCS budget</a>
+                    <a href="#balancing-thrust-through-the-center-of-mass" class="news__toc-link news__toc-link--sub">Balancing thrust through the center of mass</a>
+                    <a href="#mass-legible-handling" class="news__toc-link news__toc-link--sub">Mass-legible handling</a>
+                    <a href="#the-chase-camera" class="news__toc-link news__toc-link--sub">The chase camera</a>
+                    <a href="#sound-and-fury" class="news__toc-link">Sound and fury</a>
+                    <a href="#first-sfx" class="news__toc-link news__toc-link--sub">First SFX</a>
+                    <a href="#combat-juice" class="news__toc-link news__toc-link--sub">Combat juice</a>
+                    <a href="#one-hit-one-cue" class="news__toc-link news__toc-link--sub">One hit, one cue</a>
+                    <a href="#fixes" class="news__toc-link">Fixes</a>
+                    <a href="#under-the-hood" class="news__toc-link">Under the hood</a>
+                    <a href="#consuming-bevy-common-systems" class="news__toc-link news__toc-link--sub">Consuming bevy-common-systems</a>
+                    <a href="#example-test-ranges-and-the-smoke-harness" class="news__toc-link news__toc-link--sub">Example test ranges and the smoke harness</a>
+                    <a href="#continuous-integration" class="news__toc-link news__toc-link--sub">Continuous integration</a>
+                    <a href="#point-releases" class="news__toc-link">Point releases</a>
+                    <a href="#fixing-the-macos-universal-build" class="news__toc-link news__toc-link--sub">Fixing the macOS universal build</a>
+                    <a href="#one-feature-set-across-the-ci-matrix" class="news__toc-link news__toc-link--sub">One feature set across the CI matrix</a>
+                </nav>
+                <article class="prose news__body">
+                <p class="prose__meta">
+                    <a href="/nova-protocol/news/">&larr; News</a>
+                    &nbsp;//&nbsp; 2026-07-10 &nbsp;//&nbsp; v0.4.0
+                </p>
+                <h1>v0.4.0 - The flight toy learns to fight</h1>
+                <p>The last three releases built the pieces of a space combat game: modular ships,
+objectives, and weapons that do damage. v0.4.0 is where those pieces finally
+point at each other and shoot. It lands on four fronts at once - weapons that
+find their target, a targeting layer that tells you what you are locked onto, an
+enemy with an actual brain, and a flight model that flies the hull honestly - and
+on top of all of it, the game makes noise for the first time. This is the biggest
+update so far; here is the whole of it, bolt by bolt.</p>
+<h2 id="torpedoes-that-chase" tabindex="-1">Torpedoes that chase</h2>
+<p>In v0.3.0 the torpedo was a dumb projectile with a blast radius: aim, fire, hope.
+v0.4.0 turns it into a <strong>guided weapon</strong>, and it takes four separate pieces to do
+it well.</p>
+<h3 id="proportional-navigation" tabindex="-1">Proportional navigation</h3>
+<p>The torpedo steers toward its lock using <strong>proportional navigation</strong> - the same
+intercept law real missiles use, which turns toward where the target will be
+rather than where it is. Instead of chasing the target's current position (a tail
+chase that a moving target can outrun), the guidance nulls the rotation of the
+line of sight, so the torpedo settles onto a collision course and flies a lead
+that closes. A crossing target no longer buys itself safety just by not being
+where it was.</p>
+<h3 id="launch-aim-assist-and-the-arming-gate" tabindex="-1">Launch aim-assist and the arming gate</h3>
+<p>An <strong>angular lock-on aim-assist</strong> gets the shot pointed in the right direction on
+launch, so proportional navigation starts from a sane heading instead of having
+to haul the torpedo around from a cold launch angle. An <strong>arming gate</strong> keeps the
+warhead inert for the first stretch of flight, so a torpedo that clips something
+on the way out - or that you fire with a target right on top of you - does not
+detonate in your own lap.</p>
+<h3 id="reading-the-shot-at-a-glance" tabindex="-1">Reading the shot at a glance</h3>
+<p>Two visuals make the weapon legible. A <strong>launch particle burst</strong> marks the moment
+of fire, and a <strong>blast-radius visual</strong> shows the lethal volume when it goes off,
+so you can see whether a detonation actually reached its target or fell short.</p>
+<p>The effect is that torpedoes stop being an area-denial gimmick and become a
+genuine threat you have to respect - both when you fire them and, later in this
+same release, when something fires them at you.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-040-proportional-navigation.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-040-proportional-navigation.png</span>
+        <span class="figure__placeholder-note">An in-game torpedo trail curving onto a moving target, showing the intercept course rather than a straight line-of-sight run. A diagram of line-of-sight rotation vs. the intercept course works too.</span>
+    </div>
+    <figcaption class="figure__caption">Proportional navigation: the torpedo turns toward where the target will be, not where it is.</figcaption>
+</figure>
+<h2 id="a-targeting-arc-that-knows-what-you-are-looking-at" tabindex="-1">A targeting arc that knows what you are looking at</h2>
+<p>A guided weapon needs something to guide toward, so v0.4.0 adds a real
+<strong>targeting layer</strong>. It is not a single toggle but a graduated arc that starts
+wide and narrows down to a single component of an enemy hull.</p>
+<h3 id="acquisition-and-focus-dwell" tabindex="-1">Acquisition and focus dwell</h3>
+<p>Ships inside your <strong>550 m acquisition range</strong> are auto-acquired by their
+signature - they show up as candidates without you doing anything. Dwelling your
+focus on one of those candidates promotes it: hold the reticle on a contact and
+it graduates from a loose acquisition to a full <strong>lock</strong>. The focus dwell is what
+separates &quot;I can see it&quot; from &quot;I am committed to it&quot;, and a <strong>focus meter</strong> on the
+HUD fills as the dwell completes so you know when the lock is about to take.</p>
+<h3 id="per-section-fine-lock" tabindex="-1">Per-section fine-lock</h3>
+<p>From a full lock you can drill in. A <strong>per-section fine-lock</strong> lets you pick out
+an individual component of the enemy hull - a specific thruster, a turret, the
+torpedo bay - rather than the ship as a whole. <strong>Aim-snap</strong> pulls your aim onto
+the section so you do not have to be pixel-perfect, and <strong>cycling</strong> steps you
+between the available sections so you can walk your fire from a turret to a
+thruster to the hull. This is what makes the modular-ship foundation pay off
+offensively: you can dismantle a ship piece by piece instead of grinding down one
+health bar.</p>
+<h3 id="turret-auto-aim-with-true-intercept-lead" tabindex="-1">Turret auto-aim with true intercept lead</h3>
+<p>Turret fire plugs straight into this layer. Turrets <strong>auto-aim with true
+intercept lead</strong>, and the lead is solved in the shooter's own frame - so a moving
+ship's rounds actually land instead of trailing behind the shooter's own
+velocity. The turret prefers the <strong>fine-locked section</strong> if you have one, so your
+rounds converge on the same component you are picking apart; failing that it
+falls back to <strong>live structure</strong> on the locked target, and failing that to the
+<strong>camera ray</strong>, so it always has something coherent to shoot at.</p>
+<h2 id="the-hud-substrate" tabindex="-1">The HUD substrate</h2>
+<p>Holding all of this up is a new HUD <strong>substrate</strong>: a general layer of
+screen-projected indicators that the targeting and turret systems draw on top of.</p>
+<h3 id="anchors-apparent-size-and-edge-arrows" tabindex="-1">Anchors, apparent size, and edge arrows</h3>
+<p>Indicators <strong>anchor to entities or points</strong> and follow them through the world.
+They <strong>size themselves by apparent size</strong>, so a distant ship gets a small marker
+and a close one a large one, giving you a rough range read at a glance. When a
+target leaves the frame the indicator <strong>clamps to the screen edge with an arrow</strong>
+that points toward it, so you never lose track of where an off-screen contact
+sits relative to your nose.</p>
+<h3 id="lead-pips-and-the-locked-target-readout" tabindex="-1">Lead pips and the locked-target readout</h3>
+<p>On top of the anchors the substrate carries <strong>turret lead pips</strong> - markers that
+show you exactly where a turret is aiming its intercept solution, so the auto-aim
+is legible rather than a black box - and a <strong>locked-target readout</strong> that reports
+range, closing speed and health for whatever you have locked. Between the lock
+markers, the focus meter, the lead pips and the readout, the HUD finally tells you
+what the combat systems are thinking.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-040-hud-substrate.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-040-hud-substrate.png</span>
+        <span class="figure__placeholder-note">A gameplay screenshot with the HUD substrate in full view: a lock marker on an enemy ship, the focus meter, a clamp-to-edge arrow for an off-screen contact, turret lead pips, and the locked-target readout showing range, closing speed and health.</span>
+    </div>
+    <figcaption class="figure__caption">The HUD substrate: anchored markers, apparent-size sizing, edge arrows, lead pips, and a locked-target readout.</figcaption>
+</figure>
+<h2 id="friend-foe-or-furniture" tabindex="-1">Friend, foe, or furniture</h2>
+<p>None of this means anything without a notion of sides, so v0.4.0 introduces a
+<strong>faction and relation model</strong>: every ship is hostile, neutral, or own. The
+relation is what the rest of the combat layer reads to decide what to do:</p>
+<ul>
+<li>It drives <strong>acquisition</strong> - who gets auto-acquired and offered up as a target
+in the first place.</li>
+<li>It stamps <strong>projectile allegiance</strong> - every round and torpedo carries the
+allegiance of whoever fired it, so your rounds do not collide with you, and a
+torpedo you shoot down dies whole and blast-free instead of cooking off in your
+face.</li>
+<li>It sets <strong>reticle tint</strong> - the reticle is colored by the relation of whatever
+it is over, so hostile, neutral and own read at a glance without you parsing a
+label.</li>
+</ul>
+<p>It is a small system that quietly makes the whole combat sandbox coherent.</p>
+<h2 id="an-enemy-with-a-state-machine" tabindex="-1">An enemy with a state machine</h2>
+<p>The headline feature: v0.4.0 ships the first <strong>AI combat wave</strong>, and the enemy is
+no longer a stationary target. Each AI ship runs a <strong>behavior state machine</strong> and
+behaves differently in each state.</p>
+<h3 id="the-five-states" tabindex="-1">The five states</h3>
+<p>The machine has five states - <strong>Idle, Patrol, Engage, Evade, Retreat</strong> - and the
+ship picks its move from the state it is in. It flies <strong>autopilot-driven patrol
+routes</strong> when nothing is happening, transitions to engagement when a threat
+appears, breaks off to evade when it is under fire, and retreats when things have
+gone badly enough. Because the transitions are explicit, the enemy reads as
+having intent rather than twitching between behaviors.</p>
+<h3 id="discipline-defense-and-standoff" tabindex="-1">Discipline, defense, and standoff</h3>
+<p>Inside those states the AI plays a real fight. It keeps <strong>fire discipline</strong>
+instead of hosing rounds indiscriminately. It <strong>prioritizes point defense on
+inbound torpedoes</strong>, turning its guns onto the biggest immediate threat rather
+than the nearest target. It holds a <strong>standoff orbit and strafes</strong> rather than
+flying straight at you, keeping range while it works. It <strong>remembers threats</strong>
+through a threat-memory model and <strong>evades</strong> the things that have hurt it. And
+once it has a firing solution, it <strong>launches its own enveloped torpedoes</strong> back at
+you - the same guided weapon you have, now pointed the other way.</p>
+<h3 id="turning-like-a-ship" tabindex="-1">Turning like a ship</h3>
+<p>The AI helm writes <strong>slewed absolute rotation commands</strong> rather than snapping to a
+heading, so the enemy turns like a ship with mass instead of instantly facing a
+new direction. Combined with the standoff orbiting, an AI ship moves the way a
+piloted one does.</p>
+<p>This is the moment Nova Protocol stopped being a shooting range and started being
+a fight.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-040-ai-state-machine.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-040-ai-state-machine.png</span>
+        <span class="figure__placeholder-note">A state-transition diagram of the AI behavior states (Idle, Patrol, Engage, Evade, Retreat) with the edges between them, or a debug-overlay screenshot of an AI ship mid-engagement showing its current state.</span>
+    </div>
+    <figcaption class="figure__caption">The enemy runs a five-state behavior machine and picks its move from the state it is in.</figcaption>
+</figure>
+<h2 id="flying-the-hull-honestly" tabindex="-1">Flying the hull honestly</h2>
+<p>Underneath the combat is a <strong>flight-assist overhaul</strong>. The flight model got two
+distinct modes and a physical foundation that makes damaged ships fly like damaged
+ships.</p>
+<h3 id="velocity-hold-newtonian-and-the-rcs-budget" tabindex="-1">Velocity-hold, Newtonian, and the RCS budget</h3>
+<p>There is now an assisted <strong>velocity-hold</strong> mode: WASDQE nudges push you around, an
+X <strong>brake latch</strong> holds you to a stop, and a <strong>soft speed cap</strong> keeps assisted
+flight civil. Alongside it sits a <strong>Z direct Newtonian</strong> mode for when you want
+raw thrust with no assist between you and the hull. Both modes spend from an <strong>RCS
+budget</strong> rather than commanding infinite authority, and a live <strong>FA and speed
+readout</strong> on the HUD tells you which mode you are in and how fast you are going.</p>
+<h3 id="balancing-thrust-through-the-center-of-mass" tabindex="-1">Balancing thrust through the center of mass</h3>
+<p>The piece worth being proudest of: the flight computer <strong>balances thrust through
+the live center of mass</strong>. When a burn would induce torque - because your thrust
+line does not pass through the current center of mass - it uses <strong>differential
+throttle</strong> to null that torque, and it <strong>recruits off-axis thrusters for
+counter-torque</strong> when it needs more authority than the primaries alone can give.
+The payoff is that an asymmetric or battle-damaged ship still flies straight
+instead of pinwheeling: lose a thruster on one side and the computer compensates
+with what is left.</p>
+<h3 id="mass-legible-handling" tabindex="-1">Mass-legible handling</h3>
+<p>Handling is now <strong>mass-legible</strong>. Turn rate is derived from the torque budget and
+the ship's <strong>live inertia</strong>, so a stripped ship snaps around and a heavy build
+lumbers, and the difference is something you feel rather than a number in a sheet.
+As part of this pass <strong>max_torque dropped from 100 to 40</strong>, tightening the
+relationship between mass and turn rate so heavier builds actually pay for their
+mass.</p>
+<h3 id="the-chase-camera" tabindex="-1">The chase camera</h3>
+<p>The chase camera got the same honesty treatment. It now <strong>smooths across all
+gameplay modes</strong> instead of only some, and it anchors on the <strong>live center of
+mass</strong> with a <strong>burn push-back lean</strong> so the frame settles back under acceleration
+the way a cockpit would.</p>
+<p>All of this rides on the same foundation the game started from: a ship is not a
+monolithic model but a root entity with a handful of section children - hull,
+controller, thruster, turret, torpedo bay - each carrying its own mass and health
+and contributing exactly one behavior. Because the flight computer drives those
+real actuators rather than scripting a position, it stays honest about the hull it
+is given.</p>
+<h2 id="sound-and-fury" tabindex="-1">Sound and fury</h2>
+<p>And for the first time, the game has <strong>audio</strong>.</p>
+<h3 id="first-sfx" tabindex="-1">First SFX</h3>
+<p>Placeholder <strong>SFX</strong> cover the whole combat loop: explosions, impacts, turret fire,
+torpedo launches, and a <strong>throttle-tracking thruster loop</strong> whose pitch and volume
+follow how hard you are burning. Every cue plays with <strong>distance attenuation</strong> so
+far-off events are quieter, and with <strong>throttling</strong> so a busy fight does not
+collapse into a wall of noise.</p>
+<h3 id="combat-juice" tabindex="-1">Combat juice</h3>
+<p>Alongside the audio comes <strong>combat juice</strong>: a <strong>trauma-model camera shake</strong> that
+builds and decays with the action, and <strong>expanding hit and impact flash rings</strong>
+that mark where damage landed. Both are also <strong>distance-attenuated and throttled</strong>
+to match the audio, so the feedback stays proportional to how close and how busy
+the fight is.</p>
+<h3 id="one-hit-one-cue" tabindex="-1">One hit, one cue</h3>
+<p>The feedback stays crisp because one hit plays exactly one cue. The audio and
+juice observers <strong>ignore damage-propagation re-entry</strong>, so when a hit cascades
+damage through a ship's sections it does not fire a stack of overlapping cues.
+Underneath, the SFX and juice listener is an <strong>explicit marker on the gameplay
+camera</strong>, not &quot;any Camera3d&quot; - so editor previews and secondary cameras do not
+accidentally become listeners.</p>
+<h2 id="fixes" tabindex="-1">Fixes</h2>
+<p>A release this size shook out a long list of bugs and rough edges.</p>
+<ul>
+<li><strong>Skybox texture limit.</strong> The skybox cubemap is now reinterpreted into a
+6-layer array at load time. The raw 24576 px image exceeded smaller GPUs'
+texture limit and killed the app on load; splitting it into an array keeps it
+under the limit.</li>
+<li><strong>Blast coverage.</strong> Blast damage now reaches every body overlapping the blast,
+not just one - so a detonation in a cluster hurts the whole cluster.</li>
+<li><strong>Physics interpolation.</strong> Ships, asteroids and torpedoes interpolate between
+physics ticks, so the camera stops twitching between updates, and the chase
+camera anchors on the live center of mass.</li>
+<li><strong>Projectile self-collision.</strong> Projectiles no longer collide with their
+shooter, shot-down torpedoes die whole and blast-free, and destroyed asteroids
+no longer leave rigid-body husks lying around.</li>
+<li><strong>Overkill and disabled controllers.</strong> Section overkill is absorbed instead of
+propagated, so a single massive hit does not cascade absurd damage onward, and
+a disabled controller stops torquing the hull instead of continuing to steer a
+dead ship.</li>
+<li><strong>Lead in the shooter's frame.</strong> Bullet lead is solved in the shooter's frame
+so a moving shooter's rounds land, and the AI helm writes slewed absolute
+rotation commands so it turns like a ship.</li>
+<li><strong>One cue per hit.</strong> Audio and juice observers ignore propagation re-entry, so
+one hit plays one cue.</li>
+<li><strong>Miscellaneous.</strong> The editor preview controller is made inert, the turret
+resting position is fixed, and a one-frame origin snap on camera-mode switch is
+gone.</li>
+</ul>
+<h2 id="under-the-hood" tabindex="-1">Under the hood</h2>
+<p>A release this size came with plenty of plumbing.</p>
+<h3 id="consuming-bevy-common-systems" tabindex="-1">Consuming bevy-common-systems</h3>
+<p>The <strong>integrity, health, blast and mesh-slicer</strong> systems now come from the shared
+<strong><code>bevy-common-systems</code></strong> crate instead of in-tree copies, so the same tested
+implementations back both the game and its siblings, and there is one place to fix
+a bug. As part of the same tidy the <strong>torpedo section split into its own module</strong>.</p>
+<h3 id="example-test-ranges-and-the-smoke-harness" tabindex="-1">Example test ranges and the smoke harness</h3>
+<p>A row of example <strong>test ranges</strong> ships for exercising each system in isolation:
+<code>06_torpedo_range</code>, <code>08_turret_range</code>, <code>10_gameplay</code>, and <code>11_com_range</code> (the
+center-of-mass range). Each carries <strong>live tuning sliders</strong> and an <strong>FPS/version
+overlay</strong>, and there is a <strong>headless autopilot plus screenshot smoke harness</strong> that
+drives a scenario and asserts it initialized, so a broken scene fails loudly
+instead of silently.</p>
+<h3 id="continuous-integration" tabindex="-1">Continuous integration</h3>
+<p>A new <strong>CI workflow</strong> runs on every PR and push to master: <strong>fmt</strong>, <strong>clippy</strong>, and
+the <strong>workspace test suite</strong> (with the windowed examples running under Xvfb). It is
+the first automated gate on the project, so regressions get caught before they
+land.</p>
+<h2 id="point-releases" tabindex="-1">Point releases</h2>
+<p>Shortly after, <strong>v0.4.1</strong> followed with a build and CI plumbing patch that leaves
+the game itself untouched. If you play Nova Protocol it is invisible; if you build
+or contribute to it, it is the difference between a green pipeline and a flaky one.</p>
+<h3 id="fixing-the-macos-universal-build" tabindex="-1">Fixing the macOS universal build</h3>
+<p>The <code>release-flow</code> now installs the <strong><code>x86_64-apple-darwin</code> std</strong> for the pinned
+nightly. The macOS universal build stitches together the Intel and Apple-silicon
+slices, and it was failing because the pinned nightly toolchain was missing the
+<code>x86_64-apple-darwin</code> standard library target; installing it explicitly lets the
+universal build succeed.</p>
+<h3 id="one-feature-set-across-the-ci-matrix" tabindex="-1">One feature set across the CI matrix</h3>
+<p>CI consolidated onto a single <strong><code>--features debug</code></strong> feature set shared across
+<strong>clippy, tests and examples</strong>, so the whole run leans on <strong>one Bevy build</strong>
+instead of compiling several near-identical variants. On top of that the <strong>cache is
+now saved even when a job fails</strong>, so a red run still speeds up the next attempt,
+and the <strong>windowed examples smoke</strong> was pulled out into a <strong>separate, non-blocking
+step</strong>, so a flaky windowed run under Xvfb can no longer fail the whole pipeline.</p>
+
+                <footer class="post-footer">
+                    <p class="post-footer__discuss">
+                        Got a reaction, a question, or a ship you want to show
+                        off?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/discussions"
+                            target="_blank"
+                            rel="noopener"
+                            >Talk about this release on GitHub Discussions</a
+                        >.
+                    </p>
+                    <p class="post-footer__discuss">
+                        Want the terse, complete list for every version
+                        (patch releases included)?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
+                            target="_blank"
+                            rel="noopener"
+                            >Read CHANGELOG.md on GitHub</a
+                        >.
+                    </p>
+                    <p class="post-footer__nav">
+                        <a href="/nova-protocol/news/">&larr; All news</a>
+                    </p>
+                </footer>
+            </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

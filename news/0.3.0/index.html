@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>v0.3.0 - Where and when it hurts - Nova Protocol</title>
+        <meta name="description" content="Nova Protocol v0.3.0: OnEnter/OnExit zone events for richer scenarios, the torpedo bay section with area-of-effect blast damage, a per-section health system, and sharper directional and thruster shaders (with the v0.3.1 Bevy 0.19 point release)." />
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/news.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="news">
+                <nav class="news__toc" aria-label="On this page">
+                    <p class="news__toc-title">On this page</p>
+                    <a href="#the-torpedo-bay-and-blast-damage" class="news__toc-link">The torpedo bay and blast damage</a>
+                    <a href="#a-weapon-that-does-not-need-a-perfect-hit" class="news__toc-link news__toc-link--sub">A weapon that does not need a perfect hit</a>
+                    <a href="#a-section-like-any-other" class="news__toc-link news__toc-link--sub">A section like any other</a>
+                    <a href="#a-health-system-built-for-sections" class="news__toc-link">A health system built for sections</a>
+                    <a href="#one-path-for-every-kind-of-damage" class="news__toc-link news__toc-link--sub">One path for every kind of damage</a>
+                    <a href="#damage-stays-local" class="news__toc-link news__toc-link--sub">Damage stays local</a>
+                    <a href="#events-that-know-where-and-when" class="news__toc-link">Events that know where and when</a>
+                    <a href="#lifecycle-onenter-and-onexit" class="news__toc-link news__toc-link--sub">Lifecycle: OnEnter and OnExit</a>
+                    <a href="#place-the-zone-entry-trigger" class="news__toc-link news__toc-link--sub">Place: the zone-entry trigger</a>
+                    <a href="#sharper-shaders" class="news__toc-link">Sharper shaders</a>
+                    <a href="#directional-shader" class="news__toc-link news__toc-link--sub">Directional shader</a>
+                    <a href="#thruster-shaders" class="news__toc-link news__toc-link--sub">Thruster shaders</a>
+                    <a href="#point-releases" class="news__toc-link">Point releases</a>
+                    <a href="#v031---new-engine-new-home-for-the-docs" class="news__toc-link news__toc-link--sub">v0.3.1 - New engine, new home for the docs</a>
+                </nav>
+                <article class="prose news__body">
+                <p class="prose__meta">
+                    <a href="/nova-protocol/news/">&larr; News</a>
+                    &nbsp;//&nbsp; 2025-11-29 &nbsp;//&nbsp; v0.3.0
+                </p>
+                <h1>v0.3.0 - Where and when it hurts</h1>
+                <p>v0.2.0 gave the game objectives and a data-driven system to describe them.
+v0.3.0 makes that system say more interesting things and gives the player a
+weapon that is not just a turret. It lands on three fronts at once: the event
+system grows lifecycle and location awareness, the torpedo bay arrives as the
+first area-of-effect weapon, and the health model underneath it all is reworked
+so that section-by-section damage is clean and consistent. Directional and
+thruster shaders got sharper on the way out. This is a smaller release than the
+ones that follow, but every piece of it is groundwork the later combat and
+scenario work stands on.</p>
+<h2 id="the-torpedo-bay-and-blast-damage" tabindex="-1">The torpedo bay and blast damage</h2>
+<p>Until now the only way to hurt something was the turret - a hitscan round that
+damages exactly what it touches. Aim at a section, pull the trigger, and that
+section takes the hit. Precise, pointed, and unforgiving of a near miss. The
+<strong>torpedo bay section</strong> is the game's first <strong>area-of-effect weapon</strong>, and it
+plays by a completely different rulebook.</p>
+<h3 id="a-weapon-that-does-not-need-a-perfect-hit" tabindex="-1">A weapon that does not need a perfect hit</h3>
+<p>A torpedo does not need a pixel-perfect hit. It travels, it detonates, and it
+deals <strong>blast damage</strong> to everything inside its radius. That single difference
+changes the tactical texture of a fight completely. Turret fire stays precise
+and pointed, good for picking apart a specific section on a specific target.
+Torpedoes are about zoning: catching clustered targets, punishing fragile ones,
+and putting damage into a volume of space rather than onto a single point. The
+two weapons pull in different directions on purpose, and a build that carries
+both has answers to more situations.</p>
+<h3 id="a-section-like-any-other" tabindex="-1">A section like any other</h3>
+<p>The torpedo bay is not a special case bolted onto the ship. It is a <strong>section
+like any other</strong>, which means it mounts onto a build with the same physics and
+the same mounting rules as a thruster or a turret. There is no separate weapon
+subsystem to learn: if you know how to attach a thruster, you know how to attach
+a torpedo bay. It inherits mass, placement constraints, and mounting behaviour
+for free, which is exactly the payoff of treating every functional part of a
+ship as a section from the start.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-030-torpedo-blast.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-030-torpedo-blast.png</span>
+        <span class="figure__placeholder-note">A torpedo detonating next to a ship: the blast radius catching several sections at once, with the near-side sections taking damage while the far side survives.</span>
+    </div>
+    <figcaption class="figure__caption">Torpedoes zone an area instead of hitting a single point.</figcaption>
+</figure>
+<h2 id="a-health-system-built-for-sections" tabindex="-1">A health system built for sections</h2>
+<p>Blast damage only means something if there is a consistent thing for it to
+damage. A weapon that hits a whole radius needs targets that can be hit
+individually inside that radius, or the mechanic collapses back into &quot;the ship
+took some damage&quot;. So this release reworks health into a proper <strong>per-section
+health system</strong>.</p>
+<h3 id="one-path-for-every-kind-of-damage" tabindex="-1">One path for every kind of damage</h3>
+<p>Every section of a ship now carries its own health, and both flavours of damage
+feed into it through the <strong>same path</strong>. A turret round hits one section and
+subtracts from that section's health. A torpedo blast hits every section within
+its radius and subtracts from each of them. There is no separate hitscan health
+and blast health, no special code that treats the two weapons differently once
+the damage is computed. They converge on one shared, section-local model, which
+is what makes it safe to add more weapon types later without reinventing how
+damage is applied each time.</p>
+<h3 id="damage-stays-local" tabindex="-1">Damage stays local</h3>
+<p>The nice property that made destruction feel right in earlier builds carries
+forward: <strong>damage stays local</strong>. A torpedo that detonates on one side of a ship
+can shred the sections on that side while the far side survives untouched. Where
+a hit lands matters, not just whether it landed. That is what gives both weapons
+their character - the turret rewards aiming at the section you want gone, and the
+torpedo rewards putting the blast where the sections are densest.</p>
+<h2 id="events-that-know-where-and-when" tabindex="-1">Events that know where and when</h2>
+<p>The v0.2.0 modding backbone could react to things happening: an object
+destroyed, a variable crossing a threshold. What it could not do was react to
+<strong>lifecycle</strong> or to <strong>place</strong>. v0.3.0 adds both, and it adds them as more
+vocabulary for the same event language rather than as special-cased gameplay
+code.</p>
+<h3 id="lifecycle-onenter-and-onexit" tabindex="-1">Lifecycle: OnEnter and OnExit</h3>
+<p><strong>OnEnter and OnExit events</strong> fire when a scenario state begins and ends. That
+sounds small, but it is the difference between a mission that can only respond to
+mid-flight events and one that can bracket a whole phase of play. On entry a
+state can run its setup - spawn a wave, seed variables, show a briefing - and on
+exit it can run its teardown, all without hand-wiring any of it into game code.
+A scenario author gets a clean place to hang &quot;when this beat starts&quot; and &quot;when
+this beat ends&quot; logic, which is exactly where most mission scripting wants to
+live.</p>
+<h3 id="place-the-zone-entry-trigger" tabindex="-1">Place: the zone-entry trigger</h3>
+<p>A <strong>zone-entry trigger</strong> fires an event when a ship moves into a defined region
+of space. This one primitive unlocks a whole class of objectives that were
+awkward or impossible before: &quot;reach the nav point&quot;, &quot;leave the debris field&quot;,
+&quot;hold this area&quot;. All of them are expressed as data, flowing through the same
+filters-and-actions pipeline as every other event. Turning a region of space
+into something a scenario can react to means new scenario shapes without new
+engine code, which was the whole point of building the system data-driven in the
+first place. This is the machinery the scenario system still runs on today.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-030-zone-trigger.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-030-zone-trigger.png</span>
+        <span class="figure__placeholder-note">A ship crossing into a highlighted region of space, firing a zone-entry event that advances an objective.</span>
+    </div>
+    <figcaption class="figure__caption">A zone-entry trigger turns a region of space into a scriptable objective.</figcaption>
+</figure>
+<h2 id="sharper-shaders" tabindex="-1">Sharper shaders</h2>
+<p>Two visual upgrades round the release out, both aimed at legibility rather than
+spectacle.</p>
+<h3 id="directional-shader" tabindex="-1">Directional shader</h3>
+<p>The <strong>directional shader</strong> was reworked to make a ship's forward direction far
+more legible at a glance. It is a small thing that matters a lot: reading which
+way a ship is pointed in the middle of a fight is the kind of split-second
+judgement that decides whether you commit to a shot or a turn, and the clearer
+the cue, the fewer mistakes made under pressure.</p>
+<h3 id="thruster-shaders" tabindex="-1">Thruster shaders</h3>
+<p>The <strong>thruster shaders</strong> were extended to support more complex shapes and
+animations, so exhaust plumes can be more expressive than the single cone they
+started as. Beyond looking better, a more articulate thruster plume is also
+information: a bigger, brighter burn reads as more thrust, which feeds back into
+how you judge another ship's acceleration and intent.</p>
+<h2 id="point-releases" tabindex="-1">Point releases</h2>
+<h3 id="v031---new-engine-new-home-for-the-docs" tabindex="-1">v0.3.1 - New engine, new home for the docs</h3>
+<p><strong>v0.3.1</strong> is a maintenance release with no player-facing gameplay to speak of.
+It pulls the whole stack up to a current engine line and gives the project a
+proper documentation home, the groundwork that keeps the game building and makes
+the codebase legible to newcomers.</p>
+<p>The headline is the jump to <strong>Bevy 0.19</strong>, which drags the physics and
+randomness crates along with it: avian3d 0.7, bevy_rand 0.15,
+bevy_enhanced_input 0.26, and rand 0.10. It is a mechanical upgrade with no
+behaviour change for players, but it keeps Nova on a supported engine.</p>
+<p>The vendored <code>bevy_common_systems</code> copy is gone. It is now pulled in as a proper
+<strong>git dependency</strong> instead of living in-tree, so shared systems live in one place
+and stop drifting between copies. Alongside that change lands an <code>AGENTS.md</code> and
+a new <strong><code>docs/</code> folder</strong> covering architecture, the scenario system, sections,
+development, and migration notes - the first real home for how the project fits
+together, and the folder the later releases keep filling in.</p>
+<p>On the render side, a <strong>post-processing camera component</strong> lands as the seed of a
+proper post-processing pass. Nothing visible hangs off it yet; it is the hook
+that later visual work plugs into.</p>
+<div class="callout callout--breaking">
+    <p class="callout__title">Breaking - engine and dependency jump</p>
+    <p>The move to <strong>Bevy 0.19</strong> bumps the pinned dependency
+    versions across the board (avian3d 0.7, bevy_rand 0.15,
+    bevy_enhanced_input 0.26, rand 0.10). Anything building against nova - or a
+    mod built from source - must move to the matching Bevy, avian3d, bevy_rand,
+    bevy_enhanced_input, and rand versions to compile.</p>
+</div>
+
+                <footer class="post-footer">
+                    <p class="post-footer__discuss">
+                        Got a reaction, a question, or a ship you want to show
+                        off?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/discussions"
+                            target="_blank"
+                            rel="noopener"
+                            >Talk about this release on GitHub Discussions</a
+                        >.
+                    </p>
+                    <p class="post-footer__discuss">
+                        Want the terse, complete list for every version
+                        (patch releases included)?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
+                            target="_blank"
+                            rel="noopener"
+                            >Read CHANGELOG.md on GitHub</a
+                        >.
+                    </p>
+                    <p class="post-footer__nav">
+                        <a href="/nova-protocol/news/">&larr; All news</a>
+                    </p>
+                </footer>
+            </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

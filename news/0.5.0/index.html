@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>v0.5.0 - Lock, look, and a front door - Nova Protocol</title>
+        <meta name="description" content="Nova Protocol v0.5.0: deliberate CTRL-to-sweep radar locking with a live target viewfinder and kill cam, the Shakedown Run tutorial, typed damage against per-section resistances, a main menu and pause screen, and a landing site on the web (with the v0.5.1 and v0.5.2 point releases)." />
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/news.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="news">
+                <nav class="news__toc" aria-label="On this page">
+                    <p class="news__toc-title">On this page</p>
+                    <a href="#locking-is-a-decision-now" class="news__toc-link">Locking is a decision now</a>
+                    <a href="#stances-pick-the-slot" class="news__toc-link news__toc-link--sub">Stances pick the slot</a>
+                    <a href="#clearing-in-stages" class="news__toc-link news__toc-link--sub">Clearing in stages</a>
+                    <a href="#slot-colored-lock-language" class="news__toc-link news__toc-link--sub">Slot-colored lock language</a>
+                    <a href="#the-target-viewfinder-and-kill-cam" class="news__toc-link">The target viewfinder and kill cam</a>
+                    <a href="#what-the-inset-will-and-will-not-scope" class="news__toc-link news__toc-link--sub">What the inset will and will not scope</a>
+                    <a href="#the-shakedown-run" class="news__toc-link">The Shakedown Run</a>
+                    <a href="#one-gesture-per-beat" class="news__toc-link news__toc-link--sub">One gesture per beat</a>
+                    <a href="#the-playtest-tail" class="news__toc-link news__toc-link--sub">The playtest tail</a>
+                    <a href="#damage-with-a-grain" class="news__toc-link">Damage with a grain</a>
+                    <a href="#typed-damage-and-resistance-tables" class="news__toc-link news__toc-link--sub">Typed damage and resistance tables</a>
+                    <a href="#ammo-slots" class="news__toc-link news__toc-link--sub">Ammo slots</a>
+                    <a href="#pdc-retuned-to-point-defense" class="news__toc-link news__toc-link--sub">PDC retuned to point defense</a>
+                    <a href="#sensor-projectiles-that-curve" class="news__toc-link news__toc-link--sub">Sensor projectiles that curve</a>
+                    <a href="#a-game-that-boots-into-a-menu" class="news__toc-link">A game that boots into a menu</a>
+                    <a href="#diegetic-flight-readouts" class="news__toc-link news__toc-link--sub">Diegetic flight readouts</a>
+                    <a href="#hud-visibility-levels" class="news__toc-link news__toc-link--sub">HUD visibility levels</a>
+                    <a href="#contextual-keybinds" class="news__toc-link news__toc-link--sub">Contextual keybinds</a>
+                    <a href="#objectives-and-the-scenario-system" class="news__toc-link">Objectives and the scenario system</a>
+                    <a href="#objective-conveyance" class="news__toc-link news__toc-link--sub">Objective conveyance</a>
+                    <a href="#new-scenario-primitives" class="news__toc-link news__toc-link--sub">New scenario primitives</a>
+                    <a href="#ships-and-the-editor" class="news__toc-link">Ships and the editor</a>
+                    <a href="#rebindable-section-keys" class="news__toc-link news__toc-link--sub">Rebindable section keys</a>
+                    <a href="#a-passive-play-test-target" class="news__toc-link news__toc-link--sub">A passive play-test target</a>
+                    <a href="#a-home-on-the-web" class="news__toc-link">A home on the web</a>
+                    <a href="#under-the-hood" class="news__toc-link">Under the hood</a>
+                    <a href="#point-releases" class="news__toc-link">Point releases</a>
+                    <a href="#v051---web-build-shakeout" class="news__toc-link news__toc-link--sub">v0.5.1 - Web build shakeout</a>
+                    <a href="#v052---learn-the-ropes-on-the-web" class="news__toc-link news__toc-link--sub">v0.5.2 - Learn the ropes on the web</a>
+                </nav>
+                <article class="prose news__body">
+                <p class="prose__meta">
+                    <a href="/nova-protocol/news/">&larr; News</a>
+                    &nbsp;//&nbsp; 2026-07-13 &nbsp;//&nbsp; v0.5.0
+                </p>
+                <h1>v0.5.0 - Lock, look, and a front door</h1>
+                <p>v0.4.0 gave Nova Protocol combat, an AI to fight, and a lot of automatic
+targeting. v0.5.0 takes that targeting and hands the controls back to the player,
+deliberately: passive auto-acquisition is gone, replaced by hold-to-lock radar, a
+corner viewfinder that renders your target through a second camera, and a kill cam
+when it dies. It also does the thing every project eventually has to do - it teaches
+a new player how to fly through the Shakedown Run, gives damage a typed grain, boots
+into a real main menu, and puts up a front door on the web. Here is the whole of it,
+down to the nuts and crannies.</p>
+<h2 id="locking-is-a-decision-now" tabindex="-1">Locking is a decision now</h2>
+<p>The biggest change in feel: all the passive auto-targeting from the last release is
+gone, replaced by deliberate <strong>radar locking</strong>. Hold CTRL to sweep and live-lock
+whatever you look at; your stance picks the slot - lowered gives a white NAV
+crosshair that feeds GOTO, raised gives a red combat reticle that feeds guns,
+torpedoes and fine-lock. Tapping CTRL clears the lock in stages - combat first, then
+nav - and a lock sticks until the target dies, leaves range, or goes cold.
+Crucially, LOCK is now framed as a ship-computer capability, the same way GOTO is:
+it is something the ship does for you, not a magic HUD overlay.</p>
+<h3 id="stances-pick-the-slot" tabindex="-1">Stances pick the slot</h3>
+<p>The stance-to-slot mapping is the heart of it. With weapons lowered, the sweep
+paints a white NAV crosshair, and that lock is the one GOTO and the autopilot
+consume. Raise weapons and the same gesture paints a red combat reticle instead,
+feeding the guns, the torpedo solution, and the fine-lock that picks out a single
+section. Because the two locks live in different slots, a nav lock and a combat lock
+can coexist: you can be flying toward one body while your guns track another.</p>
+<h3 id="clearing-in-stages" tabindex="-1">Clearing in stages</h3>
+<p>Clearing is deliberate too. A tap of CTRL drops the combat lock first, and a second
+tap drops the nav lock, so you never lose your navigation target just because you
+wanted to stop shooting. Short of a manual clear, a lock holds on its own until one
+of three things ends it - the target dies, it drifts out of range, or it goes cold
+and stops returning a signal.</p>
+<h3 id="slot-colored-lock-language" tabindex="-1">Slot-colored lock language</h3>
+<p>The lock language got slot-colored to match: a red bracket is a combat lock, white
+is a nav lock, and the old relation tints and reticle pips were retired outright, so
+color now means one thing only. Turrets hold the combat lock even while you aim them
+manually, so peeling off to hand-fire a turret does not throw away the lock the rest
+of the ship is using.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-050-radar-lock.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-050-radar-lock.png</span>
+        <span class="figure__placeholder-note">Side-by-side of the two locks mid-sweep with CTRL held: weapons-lowered white NAV crosshair versus weapons-raised red combat reticle.</span>
+    </div>
+    <figcaption class="figure__caption">Your stance picks the slot: white NAV lock lowered, red combat lock raised.</figcaption>
+</figure>
+<h2 id="the-target-viewfinder-and-kill-cam" tabindex="-1">The target viewfinder and kill cam</h2>
+<p>To make a lock feel like something you have, v0.5.0 adds a <strong>target viewfinder</strong>: a
+corner inset that renders a live, magnified 3D view of your combat lock through a
+second camera. It shows a red armed frame while your weapons are hot, a NO-SIGNAL
+panel for bodies that cannot be scoped, and - the favorite touch - a roughly
+two-second freeze-frame <strong>kill cam</strong> when the target dies. The fine-locked section
+glows in both the main view and the inset, so you always know exactly what you are
+shooting at.</p>
+<h3 id="what-the-inset-will-and-will-not-scope" tabindex="-1">What the inset will and will not scope</h3>
+<p>The inset is picky by design. It zooms combat bodies only - ships, torpedoes,
+asteroids - and pointedly not beacons, which carry no combat identity worth
+scoping. For bodies that have no addressable sections, it falls back to framing them
+by their collider bounds, so a section-less rock still fills the inset cleanly
+instead of sitting tiny in a corner. Anything the second camera cannot resolve gets
+the NO-SIGNAL panel rather than a broken render.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-050-viewfinder.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-050-viewfinder.png</span>
+        <span class="figure__placeholder-note">Full-frame gameplay showing the corner viewfinder inset with its red armed frame and the fine-locked section glowing. A kill-cam freeze-frame is an even better shot if you can catch one.</span>
+    </div>
+    <figcaption class="figure__caption">The corner viewfinder renders a live magnified view of your combat lock, right through to the kill cam.</figcaption>
+</figure>
+<h2 id="the-shakedown-run" tabindex="-1">The Shakedown Run</h2>
+<p>New Game now starts the <strong>Shakedown Run</strong>, a roughly twelve-beat tutorial that walks
+a new pilot through the whole vocabulary: burn, freelook, stop, salvage, GOTO,
+coasting through a gravity well, ORBIT, radar lock, a live-fire rehearsal on a
+derelict, and finally a real scavenger fight. Each beat teaches exactly one gesture
+and completes the instant that gesture lands, so it never blocks a player who already
+knows the moves.</p>
+<h3 id="one-gesture-per-beat" tabindex="-1">One gesture per beat</h3>
+<p>The pacing is strict: burn to learn the throttle, freelook to learn the camera, stop
+to learn the brake, salvage to learn the loop, GOTO to hand a target to the
+autopilot, a gravity-well coast to feel orbital mechanics, ORBIT to hold a ring,
+radar lock to acquire, a live-fire rehearsal on a derelict to safely pull the
+trigger, and only then a real scavenger fight to put it all together. Because every
+beat completes on the gesture itself rather than on a timer, a returning pilot can
+blow through the whole run without ever being stalled.</p>
+<h3 id="the-playtest-tail" tabindex="-1">The playtest tail</h3>
+<p>Making it playable shook out a long tail of playtest fixes. Park points were sized
+to sit inside their beacon triggers so arriving actually counts; orbit-hold now
+completes when the ring is held rather than merely touched; scavenger spawn timing
+was tuned and paired with a 150u combat leash so the fight stays where it was
+staged. Planetoids were made invulnerable so a stray burst cannot brick a beat, the
+speed cap gets taught rather than silently enforced, and the objective text got
+readable wrapping and better sound pacing with legible gold pulses. Crucially,
+asteroid kills now emit OnDestroyed under the scenario id, which had soft-locked the
+derelict beat when the script never heard the kill it was waiting on.</p>
+<h2 id="damage-with-a-grain" tabindex="-1">Damage with a grain</h2>
+<p>Combat picked up some texture too. Damage is now <strong>typed</strong> - Kinetic, AP, EMP,
+Explosive - and checked against per-section resistance tables, so what you shoot
+matters as much as where you shoot it.</p>
+<h3 id="typed-damage-and-resistance-tables" tabindex="-1">Typed damage and resistance tables</h3>
+<p>Every hit now carries one of four types - Kinetic, AP, EMP, or Explosive - and
+each section carries its own resistance table against those four types, so the same
+round can be devastating against one section and shrugged off by the next. Picking
+the right ammunition for the section you are aiming at is now a real decision rather
+than flavor.</p>
+<h3 id="ammo-slots" tabindex="-1">Ammo slots</h3>
+<p>Each turret carries a loaded-ammo slot that sets the type of the rounds it fires,
+surfaced through a color-coded ammo readout so you can see at a glance what is
+loaded. The turret's slot and the target's resistance table are the two halves of
+the same equation.</p>
+<h3 id="pdc-retuned-to-point-defense" tabindex="-1">PDC retuned to point defense</h3>
+<p>The point-defense cannon was retuned to actually be point defense: per-hit damage
+dropped from 20 to 4, so the stream chips a target down over a visible burst instead
+of deleting it in a single frame. That turns the PDC back into a suppression weapon
+you watch work, rather than an instant-delete button.</p>
+<h3 id="sensor-projectiles-that-curve" tabindex="-1">Sensor projectiles that curve</h3>
+<p>Turret bullets are now sensor projectiles - same damage, no physical shove, expended
+on first contact - so a burst no longer knocks targets around like a battering ram,
+and each round spends itself the moment it connects. Those rounds now curve through
+gravity wells like ships and torpedoes, so shots near a planetoid arc the way
+everything else in the world does instead of flying dead straight through a field
+that bends every other body.</p>
+<h2 id="a-game-that-boots-into-a-menu" tabindex="-1">A game that boots into a menu</h2>
+<p>v0.5.0 is the release where Nova Protocol starts to feel like a shipped game rather
+than a scene loader. It boots into a <strong>main menu</strong> with a live ambient backdrop - an
+AI ship flying a thruster-driven orbit - plus an ESC pause menu, all living in a new
+<code>nova_menu</code> crate. Booting into the menu, rather than dropping straight into a scene,
+is the small structural change that makes the whole thing read as a game with a
+front door.</p>
+<h3 id="diegetic-flight-readouts" tabindex="-1">Diegetic flight readouts</h3>
+<p>The flight readouts went diegetic, replacing the old bottom-left status text. Speed
+and engaged-mode chips now sit beside the velocity sphere where your eyes already
+are, ORBIT draws a radius spoke so the hold ring is a thing you can see, and the
+whole cluster takes on a nav-cyan tint while the autopilot is flying so you always
+know when the ship has the stick.</p>
+<h3 id="hud-visibility-levels" tabindex="-1">HUD visibility levels</h3>
+<p>The HUD learned <strong>visibility levels</strong>: grave/tilde cycles ALL, then MINIMAL, then
+NONE, so you can strip the interface down to a clean view for a screenshot or a quiet
+cruise and cycle it right back.</p>
+<h3 id="contextual-keybinds" tabindex="-1">Contextual keybinds</h3>
+<p>The keybind cluster is now contextual: a verb's row appears only while that verb can
+actually act, so the prompts on screen are always things you can do right now.
+Scenario-emphasized keys show up early and pulse gold to draw the eye to whatever the
+current beat wants from you.</p>
+<h2 id="objectives-and-the-scenario-system" tabindex="-1">Objectives and the scenario system</h2>
+<p>Objectives got easier to follow, and the scenario system underneath grew the
+primitives that made the Shakedown Run expressible as pure data.</p>
+<h3 id="objective-conveyance" tabindex="-1">Objective conveyance</h3>
+<p>A gold marker chip now carries live distance to the current target so you always
+know how far you have to go. Salvage crates glow and wear brackets so they read as
+things to grab, keybind emphasis pulses point you at the next gesture, and finishing
+a beat lands with a completion chime and a posting blip so success is unmistakable.</p>
+<h3 id="new-scenario-primitives" tabindex="-1">New scenario primitives</h3>
+<p>Underneath, the scenario system gained new primitives: nav beacons and salvage
+crates with authorable radar signatures, so a scenario can place a body and specify
+exactly how it reads on the radar; despawn-by-id, so a script can remove a specific
+body it spawned; and a batch of new events and actions - OnOrbit, OnTravelLock and
+OnCombatLock to react to the player acquiring or holding a target, SetSpeedCap to
+teach the throttle limit, plus objective markers and hint emphasis. Together these
+are what let the twelve-beat run be authored as data rather than hand-wired code.</p>
+<h2 id="ships-and-the-editor" tabindex="-1">Ships and the editor</h2>
+<h3 id="rebindable-section-keys" tabindex="-1">Rebindable section keys</h3>
+<p>In the editor, placed sections now show their bound key as a chip, and you can click
+that chip to rebind the section to a different key or mouse button. The build panel
+scrolls too, so a busy ship no longer runs its section list off the bottom of the
+screen.</p>
+<h3 id="a-passive-play-test-target" tabindex="-1">A passive play-test target</h3>
+<p>The editor's play-test ship is now a passive target instead of an AI combatant, so
+you can shoot at your own build to check weapon coverage without the target shooting
+back.</p>
+<h2 id="a-home-on-the-web" tabindex="-1">A home on the web</h2>
+<p>Finally, the thing you are reading this on. v0.5.0 ships a <strong>web landing site</strong> (the
+<code>web/</code> directory: TypeScript, Webpack and Tailwind), and the GitHub Pages deploy now
+serves it at the root with the playable game tucked under <code>/play/</code>. This news feed
+and the game's new web home start here, with the wiki and tutorial following shortly
+after in v0.5.2.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-050-web-front-door.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-050-web-front-door.png</span>
+        <span class="figure__placeholder-note">The new web landing site served at the root, with the hero and the entry point down into /play/ for the playable build.</span>
+    </div>
+    <figcaption class="figure__caption">A front door on the web: the landing site at the root, the game tucked under /play/.</figcaption>
+</figure>
+<h2 id="under-the-hood" tabindex="-1">Under the hood</h2>
+<p>A handful of quieter fixes rounded the release out. The debug inspector stays on a
+window camera instead of leaking into render-to-texture cameras, so it no longer
+bleeds into the viewfinder's second-camera render. HUD apparent-size elements -
+reticles and brackets - now measure real colliders rather than the invisible trigger
+volumes around them, so their on-screen size matches the body they wrap. Debug builds
+no longer crash when a scenario advances, since the smoke assertion now covers only
+the boot load, and teardown no longer warns about despawned entities. And two bits of
+tidy-up: F1 back-to-editor is sandbox-only so it cannot fire from a real run, and the
+debug ammo readout no longer lingers on screen once debug mode is off.</p>
+<h2 id="point-releases" tabindex="-1">Point releases</h2>
+<p>Two patches followed close behind, and between them they cleared the web-build
+crashes and turned the site into a place you can actually learn from.</p>
+<h3 id="v051---web-build-shakeout" tabindex="-1">v0.5.1 - Web build shakeout</h3>
+<p>Shortly after 0.5.0 shipped, <strong>v0.5.1</strong> cleaned up two crashes unique to the shipped
+WASM build. Both only bit the browser when you started a run - New Game from the menu
+or Play from the editor - and never touched native, which is why they slipped past
+into the shipped app. The target inset was carrying a <code>view_formats</code> override that
+WebGL2 does not support for a plain sRGB target, and the render validation error it
+raised was fatal, so the inset now drops that override entirely.</p>
+<p>The second was subtler. The skybox cubemap's <code>.meta</code> loader settings had silently
+stopped applying in the shipped app: <code>AssetMetaCheck::Never</code> ignored them without a
+word, which resurrected an oversized-upload race that crashes GPUs with a 16384
+texture limit. With the meta settings honored again, the cubemap loads within the
+limit and the race is gone. If you play on the web, this is the one to grab.</p>
+<h3 id="v052---learn-the-ropes-on-the-web" tabindex="-1">v0.5.2 - Learn the ropes on the web</h3>
+<p>A little later, <strong>v0.5.2</strong> turned the site into a place you can actually learn from.</p>
+<p>A full <strong>wiki</strong> landed - gameplay, ship sections, keybinds, world, and meta pages -
+so the game's systems finally have a written home, alongside a tutorial trimmed down
+to first-scenario onboarding and two new devlogs. That trim was deliberate: the
+tutorial now covers exactly the first scenario rather than trying to document
+everything at once.</p>
+<p>Gamepad bindings got rounded out. ORBIT now maps to South, scenario-advance confirm
+to DPadDown, and HUD cycle, pause, and back-to-editor each gained a button, so a
+controller can drive the game and its menus end to end.</p>
+<p>The examples became a testable curriculum: twelve numbered examples, from controller
+PD through the full boot flow, each self-driving under <code>BCS_AUTOPILOT</code> with behavior
+assertions and a completion backstop. CI's example smoke suite is BLOCKING again now
+that the GitHub-runner-only taffy panic is gone, so those twelve examples gate every
+push. The smoke run now fails on ANY logged command error, closing the gap where
+handled remove/despawn warnings - the stale-entity teardown race - used to sail past
+the panic gate. And the weapon test ranges fire again: the weapons safety had
+silently disarmed both, so their scripts now raise the stance first, with new
+assertions pinning the fire-to-hit chain.</p>
+<p>A handful of audio and teardown bugs got fixed too. Thruster hum now attenuates with
+distance per ship, so another ship's or a torpedo's burn no longer plays at full
+volume from anywhere in the map, while your own ship stays exempt. Scenario teardown
+no longer logs an &quot;Entity despawned&quot; command error when a ship despawns with
+autopilot engaged: the telemetry-cleanup observer now uses the fallible remove
+variant, pinned by regression tests. And the debug inspector's window-camera
+placement fix moved upstream into bevy-common-systems (rev 4a743b2), deleting nova's
+local workaround.</p>
+
+                <footer class="post-footer">
+                    <p class="post-footer__discuss">
+                        Got a reaction, a question, or a ship you want to show
+                        off?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/discussions"
+                            target="_blank"
+                            rel="noopener"
+                            >Talk about this release on GitHub Discussions</a
+                        >.
+                    </p>
+                    <p class="post-footer__discuss">
+                        Want the terse, complete list for every version
+                        (patch releases included)?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
+                            target="_blank"
+                            rel="noopener"
+                            >Read CHANGELOG.md on GitHub</a
+                        >.
+                    </p>
+                    <p class="post-footer__nav">
+                        <a href="/nova-protocol/news/">&larr; All news</a>
+                    </p>
+                </footer>
+            </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

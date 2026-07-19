@@ -3,38 +3,101 @@
   "entries": [
     {
       "id": "gauntlet",
-      "version": "1.0.0",
+      "version": "1.2.0",
       "bundle": "gauntlet.bundle.ron",
       "meta": {
         "name": "Gauntlet Run",
-        "description": "A slalom race: fly your ship through the beacon gates in order, START to FINISH.",
+        "description": "A parkour course: thread six gates through asteroid slaloms and a gravity well, START to FINISH. Fly clean or wreck.",
         "author": "Nova Protocol",
-        "version": "1.0.0",
+        "version": "1.2.0",
         "dependencies": [
-          "base",
-          "demo"
+          "base"
         ],
         "icon": null,
         "screenshots": []
       },
       "files": [
         {
+          "path": "CHANGELOG.md",
+          "size": 1408,
+          "sha256": "8ccfda206d66c9e29c45e0de6d0865151412994ab52d1486ba3b3c86d69f28d7"
+        },
+        {
           "path": "README.md",
-          "size": 1379,
-          "sha256": "d8b5fe0214eaedc974f8729b7fc3c4e66d045f22d3dc2b2484b34ff878ea78df"
+          "size": 1893,
+          "sha256": "063cb0832377b19a18f2a19fbb2c7edd2875cf3ab19e1eea67c1a8f506a0c473"
         },
         {
           "path": "gauntlet.bundle.ron",
-          "size": 663,
-          "sha256": "e0c82ee281fefec55caa63e925a01088e4a1eadc2dcd1e9e4e4945a4391a4b6e"
+          "size": 1158,
+          "sha256": "357eac6b991393b3770239d6aff09d7f4d742a3243d1c77f521793c42bb9d5db"
         },
         {
           "path": "gauntlet.content.ron",
-          "size": 12293,
-          "sha256": "ddfe950ac0729aa5bd109d3a7cf3575becc9de81bc7578ba7ac04b7857ff5f5c"
+          "size": 41784,
+          "sha256": "0e2f84f23fea778236ec071211200566364f6e7a67d6bc4df1b44b656ecbc727"
         }
       ],
-      "total_size": 14335
+      "total_size": 46243
+    },
+    {
+      "id": "the-ledger",
+      "version": "1.5.0",
+      "bundle": "the-ledger.bundle.ron",
+      "meta": {
+        "name": "The Ledger",
+        "description": "A salvage crew in over its head: four chapters, one sealed crate everyone in the belt wants.",
+        "author": "Nova Protocol",
+        "version": "1.5.0",
+        "dependencies": [
+          "base"
+        ],
+        "icon": null,
+        "screenshots": []
+      },
+      "files": [
+        {
+          "path": "CHANGELOG.md",
+          "size": 1626,
+          "sha256": "882d181ad94b23eb485ae82915493bb9ff8c2f575a4a73e799fe2112a2df92dc"
+        },
+        {
+          "path": "README.md",
+          "size": 1622,
+          "sha256": "651ed4311e87ae51422596c75c31ec7ce89fc19dcfa33c2fea530ac030c5bde4"
+        },
+        {
+          "path": "ledger_ch1.content.ron",
+          "size": 68673,
+          "sha256": "9802f6fdc1ca9e53c75f5144218bb0505f46e8d0cff3fe651ac0c1a6ba5954c0"
+        },
+        {
+          "path": "ledger_ch2.content.ron",
+          "size": 99598,
+          "sha256": "c9f0417ae3f6aff9166e0aa81b54ca224f4f8f3de459c64a95330e4ca6f735ce"
+        },
+        {
+          "path": "ledger_ch2b.content.ron",
+          "size": 95387,
+          "sha256": "b9b1bd9c4a28608d614bfd35cfad4d06b726a8a6ec257b3b31117c0a6d9d9c7a"
+        },
+        {
+          "path": "ledger_ch3.content.ron",
+          "size": 56096,
+          "sha256": "45062a6cd0b89e4cfd171732fc2f420e0b2bbb63b88a080a95de35276571e803"
+        },
+        {
+          "path": "ledger_ch4.content.ron",
+          "size": 85215,
+          "sha256": "bc8d192c7c8cb10a56204d0f4767eb53308ddb8bec1436bb38c5ffae90b1bcc1"
+        },
+        {
+          "path": "the-ledger.bundle.ron",
+          "size": 1020,
+          "sha256": "98ed9e6a435fd990be61dfde677f0ac4974e9201a713dd6bbe2fc90c9aae6763"
+        }
+      ],
+      "total_size": 409237
     }
   ]
 }

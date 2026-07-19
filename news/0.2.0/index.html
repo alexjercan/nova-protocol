@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>v0.2.0 - A reason to fly - Nova Protocol</title>
+        <meta name="description" content="Nova Protocol v0.2.0: a data-driven game-events and queue system, the first scenario and modding capabilities, and procedurally generated asteroids with dynamic destruction (with a video devlog and the v0.2.1 point release)." />
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/news.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="news">
+                <nav class="news__toc" aria-label="On this page">
+                    <p class="news__toc-title">On this page</p>
+                    <a href="#watch-the-devlog" class="news__toc-link">Watch the devlog</a>
+                    <a href="#game-events-and-a-queue-system" class="news__toc-link">Game events and a queue system</a>
+                    <a href="#the-three-primitives" class="news__toc-link news__toc-link--sub">The three primitives</a>
+                    <a href="#dispatched-through-a-queue" class="news__toc-link news__toc-link--sub">Dispatched through a queue</a>
+                    <a href="#why-data-beats-code-here" class="news__toc-link news__toc-link--sub">Why data beats code here</a>
+                    <a href="#scenarios-and-modding" class="news__toc-link">Scenarios and modding</a>
+                    <a href="#a-scenario-is-a-bag-of-event-handlers" class="news__toc-link news__toc-link--sub">A scenario is a bag of event handlers</a>
+                    <a href="#the-objectives-hud" class="news__toc-link news__toc-link--sub">The objectives HUD</a>
+                    <a href="#from-the-devlog" class="news__toc-link">From the devlog</a>
+                    <a href="#a-first-gloriously-dumb-enemy-ai" class="news__toc-link news__toc-link--sub">A first, gloriously dumb enemy AI</a>
+                    <a href="#the-bevy-transform-timing-bug-that-ate-a-week" class="news__toc-link news__toc-link--sub">The Bevy transform-timing bug that ate a week</a>
+                    <a href="#asteroids-with-procedural-mesh-and-dynamic-destruction" class="news__toc-link">Asteroids with procedural mesh and dynamic destruction</a>
+                    <a href="#octahedron-sphere-base-mesh" class="news__toc-link news__toc-link--sub">Octahedron-sphere base mesh</a>
+                    <a href="#dynamic-destruction" class="news__toc-link news__toc-link--sub">Dynamic destruction</a>
+                    <a href="#point-releases" class="news__toc-link">Point releases</a>
+                    <a href="#v021---notes-for-the-modders" class="news__toc-link news__toc-link--sub">v0.2.1 - Notes for the modders</a>
+                </nav>
+                <article class="prose news__body">
+                <p class="prose__meta">
+                    <a href="/nova-protocol/news/">&larr; News</a>
+                    &nbsp;//&nbsp; 2025-11-08 &nbsp;//&nbsp; v0.2.0
+                </p>
+                <h1>v0.2.0 - A reason to fly</h1>
+                <p>This is the release where Nova Protocol grows past &quot;build a ship and shoot
+rocks&quot; and gains a reason to exist. v0.1.0 let you assemble a ship and fire at
+asteroids, which is fun for exactly as long as it takes to run out of things to
+do. v0.2.0 answers &quot;and then what?&quot; with three shipped pillars: a data-driven
+game-events and queue system, the first scenario and modding capabilities built
+directly on top of it, and procedurally generated asteroids that break apart
+under fire. It is a small update by line count, but it lays the backbone the
+whole game still runs on today.</p>
+<h2 id="watch-the-devlog" tabindex="-1">Watch the devlog</h2>
+<p>Prefer to watch? The v0.2.0 devlog walks through this release on video:</p>
+<div class="video-embed">
+    <iframe
+        src="https://www.youtube-nocookie.com/embed/NBpRYDvL-jM"
+        title="Nova Protocol Devlog #2"
+        loading="lazy"
+        allow="
+            accelerometer;
+            autoplay;
+            clipboard-write;
+            encrypted-media;
+            gyroscope;
+            picture-in-picture;
+        "
+        allowfullscreen
+    ></iframe>
+</div>
+<span class="video-embed__caption"
+    >Devlog #2 - the full v0.2.0 walkthrough on YouTube.</span
+>
+<p>It is an optional companion to the written highlights below, which stand on
+their own.</p>
+<h2 id="game-events-and-a-queue-system" tabindex="-1">Game events and a queue system</h2>
+<p>The headline of v0.2.0 is a small, data-driven engine that turns &quot;what happens
+in the world&quot; into something you author rather than compile. The impulse behind
+it was deliberate: rather than hardcode a couple of levels, the game leans on a
+data language for custom content, the same way old modding-friendly strategy
+games did. You cannot load Rust functions from an asset file, but you can load
+structs and turn them into logic at runtime, and that single idea is what the
+entire system is built around.</p>
+<h3 id="the-three-primitives" tabindex="-1">The three primitives</h3>
+<p>Everything is composed from three parts:</p>
+<ul>
+<li><strong>Events</strong> fired from the game world. When an object is destroyed, for
+example, the world emits an event carrying that object's id and type, so a
+handler downstream knows exactly what happened and to what.</li>
+<li><strong>Filters</strong> that decide when a handler should react. A filter can match by id,
+match by type, or invert another filter (a <code>NotFilter</code>), so handlers fire
+only for the objects they care about.</li>
+<li><strong>Actions</strong> that do something in response. An action can read or write
+scenario variables held in a small hashmap on the game world, or switch the
+game to another scenario entirely.</li>
+</ul>
+<h3 id="dispatched-through-a-queue" tabindex="-1">Dispatched through a queue</h3>
+<p>The events, filters, and actions are all dispatched through a queue rather than
+run inline, which keeps the flow of &quot;world emits, handlers react, state
+changes&quot; orderly and predictable. Under the hood this is the observer pattern,
+but the point was never the pattern - it was making the whole thing loadable
+from an asset instead of baked into the binary.</p>
+<h3 id="why-data-beats-code-here" tabindex="-1">Why data beats code here</h3>
+<p>Because a win condition is data rather than compiled Rust, an objective becomes
+something you can write instead of something you have to build. &quot;When an
+asteroid is destroyed, increment a counter; when the counter hits its target,
+switch scene&quot; is an entire objective expressed as filters and actions over game
+events, with no recompile in the loop. That property is exactly what makes the
+system double as the foundation for both objectives and modding: the same asset
+format that authors a level also lets someone outside the codebase author one.</p>
+<h2 id="scenarios-and-modding" tabindex="-1">Scenarios and modding</h2>
+<p>On top of the event engine sits the first <strong>scenario</strong> system, and with it the
+first real taste of modding.</p>
+<h3 id="a-scenario-is-a-bag-of-event-handlers" tabindex="-1">A scenario is a bag of event handlers</h3>
+<p>A scenario is nothing more than a bag of event handlers assembled from the
+filters and actions above. Because it is data all the way down, custom
+objectives can be loaded straight from assets, which means a scenario and a mod
+are the same shape of thing. This is the direct ancestor of the scenario engine
+the game runs on today - the surface has grown enormously since, but the core
+idea traces back here.</p>
+<h3 id="the-objectives-hud" tabindex="-1">The objectives HUD</h3>
+<p>To make a scenario legible while you play it, a HUD lists the active objectives,
+and <kbd>Enter</kbd> advances to the next scenario when the world resource
+reports one is queued. That is the whole player-facing loop in v0.2.0: read your
+goals, meet them, press Enter, move on.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-020-scenario-objectives.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-020-scenario-objectives.png</span>
+        <span class="figure__placeholder-note">In-game with the objectives HUD listing the active scenario goals, an asteroid mid-encounter, and the Enter-to-advance prompt visible once a goal is met.</span>
+    </div>
+    <figcaption class="figure__caption">A scenario is a win condition expressed as data - filters and actions over game events.</figcaption>
+</figure>
+<h2 id="from-the-devlog" tabindex="-1">From the devlog</h2>
+<p>The devlog goes further into the corners this release also touched. These are
+devlog color rather than headline features - the shipped features of v0.2.0 are
+the event engine, scenarios, and the asteroids below - but they explain a lot
+about how the release came together.</p>
+<h3 id="a-first-gloriously-dumb-enemy-ai" tabindex="-1">A first, gloriously dumb enemy AI</h3>
+<p>v0.2.0 saw the game's first other ships, and the AI flying them is deliberately
+minimal: rotate toward the player, and if the alignment is good enough, thrust
+and shoot. The first version did not understand physics and cheerfully flew off
+into deep space like it had somewhere better to be; the version that shipped at
+least stopped leaving the map, mostly because it more or less forgot how to use
+its thrusters. The genuinely interesting failure was target prediction - the AI
+points its turret straight at you and still misses, because projectiles inherit
+the ship's motion and you are moving too. That is not just an AI problem; it is
+the same intercept-lead problem player auto-aim would have to solve later.</p>
+<h3 id="the-bevy-transform-timing-bug-that-ate-a-week" tabindex="-1">The Bevy transform-timing bug that ate a week</h3>
+<p>Making projectiles inherit their firing ship's velocity sounds trivial and was
+not. Spawning a projectile needs the turret's <code>GlobalTransform</code>, which Bevy only
+finalises at the end of the frame, so it lags a frame behind. With physics
+running in <code>FixedUpdate</code> while the firing logic ran in <code>Update</code>, the transforms
+desynced and the whole game turned jittery and unplayable. The fix was a trio of
+counterintuitive moves: disable interpolation (it was supposed to smooth motion
+but made the jitter worse), move helper systems to <code>PostUpdate</code> so inputs are
+gathered before logic runs, and compute the global transform on demand with
+<code>TransformHelper</code> when firing - pricier, but only per shot. A Graphviz view of
+the system-set graph was what actually pinned down the one system running at the
+wrong time.</p>
+<h2 id="asteroids-with-procedural-mesh-and-dynamic-destruction" tabindex="-1">Asteroids with procedural mesh and dynamic destruction</h2>
+<p>The old sphere asteroids are gone, and their replacement is the most visible
+change in the release.</p>
+<h3 id="octahedron-sphere-base-mesh" tabindex="-1">Octahedron-sphere base mesh</h3>
+<p>Asteroids now build from a noise-displaced <strong>octahedron sphere</strong> rather than a UV
+sphere. The reason is triangle distribution: an octahedron sphere's triangles
+stay roughly even in size across the surface instead of bunching up at the
+poles, which gives noise displacement an even canvas to push and pull against.
+The base shape is displaced with noise, and a photo of an actual rock, made
+seamless and projected on with simple planar UVs, finishes the surface so it
+reads as stone rather than a tinted ball.</p>
+<h3 id="dynamic-destruction" tabindex="-1">Dynamic destruction</h3>
+<p>Asteroids also support dynamic destruction: instead of simply vanishing when
+their health runs out, they break apart under fire. That turns a rock from a
+static prop into something that visibly comes apart when you shoot it, and it
+pairs with the event system above - a destroyed asteroid is exactly the kind of
+event a scenario counter listens for.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-020-asteroids.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-020-asteroids.png</span>
+        <span class="figure__placeholder-note">A cluster of procedural asteroids with irregular rocky surfaces, ideally one caught mid-destruction as it splits under fire.</span>
+    </div>
+    <figcaption class="figure__caption">Procedural asteroids that finally look like asteroids - and come apart when you shoot them.</figcaption>
+</figure>
+<h2 id="point-releases" tabindex="-1">Point releases</h2>
+<h3 id="v021---notes-for-the-modders" tabindex="-1">v0.2.1 - Notes for the modders</h3>
+<p><strong>v0.2.1</strong> is aimed squarely at anyone writing mods, and nothing in it is
+player-facing.</p>
+<p>The modding capabilities that landed in v0.2.0 finally get <strong>documentation and
+worked examples</strong> to match. Instead of reading the source to work out how to
+hook into the game, you get written guidance and sample scenarios to start from,
+which turns the modding path from an archaeology exercise into something you can
+follow.</p>
+<p>Underneath, the <strong>event system</strong> got a cleanup refactor - the same events and
+queue introduced in v0.2.0, reworked to be cleaner and easier to reason about.
+It is groundwork only, with no change to how the game behaves, but it makes
+everything built on top of the event engine after this point easier to extend.</p>
+
+                <footer class="post-footer">
+                    <p class="post-footer__discuss">
+                        Got a reaction, a question, or a ship you want to show
+                        off?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/discussions"
+                            target="_blank"
+                            rel="noopener"
+                            >Talk about this release on GitHub Discussions</a
+                        >.
+                    </p>
+                    <p class="post-footer__discuss">
+                        Want the terse, complete list for every version
+                        (patch releases included)?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
+                            target="_blank"
+                            rel="noopener"
+                            >Read CHANGELOG.md on GitHub</a
+                        >.
+                    </p>
+                    <p class="post-footer__nav">
+                        <a href="/nova-protocol/news/">&larr; All news</a>
+                    </p>
+                </footer>
+            </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

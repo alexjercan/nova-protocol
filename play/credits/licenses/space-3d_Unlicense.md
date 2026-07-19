@@ -1,8 +1,7 @@
 # space-3d - The Unlicense
 
 The skybox cubemaps (`assets/textures/cubemap.png`,
-`assets/textures/cubemap_alt.png` and `assets/textures/cubemap_alt2.png`) were
-generated with
+`assets/textures/cubemap_alt.png`) were generated with
 [space-3d](https://tools.wwwtyro.net/space-3d/) by Rye Terrell (wwwtyro),
 which is released into the public domain under The Unlicense
 (<https://github.com/wwwtyro/space-3d>). Public-domain dedication imposes no

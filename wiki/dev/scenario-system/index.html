@@ -13,7 +13,7 @@
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -91,7 +91,7 @@ a scoped entity, (4) be a self-expiring <code>TempEntity</code>, or (5) be torn 
 </tr>
 <tr>
 <td><code>OnUpdate</code></td>
-<td>every frame while a scenario is live</td>
+<td>every frame while a scenario is live and unpaused (frozen behind the pause menu / outcome frame)</td>
 </tr>
 <tr>
 <td><code>OnDestroyed</code></td>
@@ -107,11 +107,11 @@ a scoped entity, (4) be a self-expiring <code>TempEntity</code>, or (5) be torn 
 </tr>
 <tr>
 <td><code>OnOrbit</code></td>
-<td>a ship has held an engaged autopilot ORBIT around a well for 5s; re-fires every further 5s window while the hold continues</td>
+<td>a ship has held an engaged autopilot ORBIT around a well for the hold window (default 5s); re-fires every further window while the hold continues</td>
 </tr>
 <tr>
 <td><code>OnTravelLock</code></td>
-<td>the player's TRAVEL lock lands on a scenario object; re-fires every 5s while held</td>
+<td>the player's TRAVEL lock lands on a scenario object; re-fires every re-fire window (default 5s) while held</td>
 </tr>
 <tr>
 <td><code>OnCombatLock</code></td>
@@ -127,6 +127,18 @@ target vs locker; see the Filters section). The recurrence is deliberate: a
 one-shot event consumed while a beat guard rejects it would soft-lock the
 script; gated handlers make repeats no-ops.</li>
 </ul>
+<p>Both 5s windows are the default and can be overridden per ship in RON (the
+value is seconds; a non-positive/non-finite value is a <code>content lint</code> error and
+is ignored at runtime):</p>
+<ul>
+<li><code>OnOrbit</code> hold: <code>orbit_hold_secs: Some(8.0)</code> on an AI controller (only
+meaningful alongside its <code>orbit</code> directive) -
+<code>controller: AI((orbit: Some(&quot;planetoid&quot;), orbit_hold_secs: Some(8.0)))</code>.</li>
+<li><code>OnTravelLock</code>/<code>OnCombatLock</code> re-fire: <code>lock_refire_secs: Some(8.0)</code> on the
+player controller - <code>controller: Player((lock_refire_secs: Some(8.0)))</code>.</li>
+</ul>
+<p>Both windows are measured against the scenario clock (below), so they freeze
+under pause and reset on retry with the rest of the scenario.</p>
 <p>The event-driven pipeline reads like this: an event fires, its filters gate
 whether it proceeds, and if they all pass its actions run in order and mutate
 scenario state.</p>
@@ -173,7 +185,18 @@ scoped ship's controller sections by id.</li>
 <li><code>CreateScenarioArea(ScenarioAreaConfig)</code> - spawn a spherical sensor zone
 (id, name, position, rotation, radius) that drives <code>OnEnter</code>/<code>OnExit</code>.</li>
 <li><code>NextScenario</code> - queue a switch to another scenario by id; <code>linger: true</code>
-defers the switch until something clears the flag (e.g. the Enter key input).</li>
+defers the switch until something clears the flag (the Enter/DPadDown
+scenario-advance input, or the outcome overlay's Continue/Retry button).</li>
+<li><code>Outcome { outcome, message? }</code> - declare the scenario's win/lose: shows the
+outcome overlay (gold VICTORY / red DEFEAT banner, the optional message, and
+buttons) and freezes the simulation behind it the same way the pause menu
+does - the app enters <code>PauseStates::Paused</code> while the outcome is set, so
+physics, AI, weapons and timers stop until it clears (the overlay's own
+buttons and the [Enter] advance stay live). Presentation only; compose what
+happens next from the existing vocabulary: pair with <code>NextScenario(linger: true)</code> so Continue/Retry (or Enter) rides the queued switch, or queue nothing
+and the overlay offers only Main Menu (Enter exits there too). In strict RON
+the optional message keeps its variant: <code>Outcome((outcome: Defeat, message: Some(&quot;...&quot;)))</code>. Cleared by scenario teardown like emphasis and objectives
+(clearing it also releases the pause).</li>
 <li><code>SetCamera { position, look_at }</code> - pose the scenario camera (the
 <code>ScenarioCameraMarker</code> entity) at <code>position</code> looking at <code>look_at</code>. It drops
 <code>WASDCameraController</code> so the scripted pose holds - the free-fly controller's
@@ -208,6 +231,82 @@ objectives into <code>GameObjectives</code> (write-on-diff), runs a queued non-l
 expression tree: <code>VariableExpressionNode</code> (add/subtract), <code>VariableTermNode</code>
 (multiply/divide), <code>VariableFactorNode</code> (literal/name/parens);
 <code>VariableConditionNode</code> (less/greater/equal) yields booleans for filters.</p>
+<h3 id="transition-pacing-the-three-gears" tabindex="-1">Transition pacing (the three gears)</h3>
+<p>A scenario switch has three speeds (task 20260717-163050):</p>
+<ul>
+<li><strong>Hard cut</strong> - <code>NextScenario((scenario_id: &quot;x&quot;, linger: false))</code>:
+instant. Never pair it with an <code>Outcome</code> in the same handler (the
+teardown swallows the overlay; content lint warns).</li>
+<li><strong>Delayed cut</strong> - <code>NextScenario((scenario_id: &quot;x&quot;, linger: false, delay: Some(4.0)))</code>: the world keeps playing for the delay (a story
+line can land and be read), then cuts. Ticks on virtual
+(pause-frozen) time, so a player pausing holds the cut. Non-positive or
+omitted = instant.</li>
+<li><strong>Modal hold</strong> - <code>Outcome((...))</code> + <code>NextScenario((..., linger: true))</code>: the banner freezes the sim and Continue/Retry releases the
+chain. Add <code>auto_advance_secs: Some(6.0)</code> to the Outcome for a TIMED
+banner: it advances by itself after that many real seconds (the pause
+stops virtual time, not the wall clock) - the player can still click
+sooner.</li>
+</ul>
+<h3 id="story-pacing-storymessage-and-the-comms-queue" tabindex="-1">Story pacing (<code>StoryMessage</code> and the comms queue)</h3>
+<p>Story lines display through a PACED queue (task 20260717-163033), not
+latest-wins: lines show in arrival order with a fade and a comms blip,
+each holds ~8s but yields to a waiting line after 4s; at most 4 lines
+wait (oldest dropped; the full log stays in the feed). Author an
+optional per-line hold with strict-RON <code>Some</code>:</p>
+<pre><code class="hljs">StoryMessage((speaker: &quot;Foreman Okono&quot;, text: &quot;Read this slowly.&quot;, dwell: Some(15.0))),
+</code></pre>
+<p><code>dwell</code> clamps to [3, 30] seconds (content lint warns outside it). The
+queue means a two-line beat is READ as two beats - but prefer one line
+per beat anyway (the beat-sheet convention); the queue is the safety
+net, not the style.</p>
+<h3 id="the-scenario-clock-scenario_elapsed" tabindex="-1">The scenario clock (<code>scenario_elapsed</code>)</h3>
+<p>The engine maintains one RESERVED variable: <code>scenario_elapsed</code>, the seconds
+of live, unpaused scenario time (<code>tick_scenario_clock</code> in <code>loader.rs</code>,
+chained ahead of the <code>OnUpdate</code> pulse under the same live+unpaused gate, so
+pausing freezes both together). It clears at teardown with the rest of the
+event world - it is the current scenario's clock, and a retry restarts it.
+Gate on it from any expression filter; never write it (the engine rewrites
+it every tick, and <code>content lint</code> errors on an authored <code>VariableSet</code> to
+it). A read before the first tick fails closed like any undefined variable.</p>
+<p>A one-shot timed beat is the clock threshold plus your own fired-flag:</p>
+<pre><code class="hljs">filters: [
+    Expression((GreaterThan(
+        Term(Factor(Name(&quot;scenario_elapsed&quot;))),
+        Term(Factor(Literal(Number(30.0)))),
+    ))),
+    Expression((Equal(
+        Term(Factor(Name(&quot;beat_fired&quot;))),
+        Term(Factor(Literal(Number(0.0)))),
+    ))),
+],
+actions: [
+    VariableSet((key: &quot;beat_fired&quot;, expression: Term(Factor(Literal(Number(1.0)))))),
+    // ... the beat ...
+],
+</code></pre>
+<p>Seed <code>beat_fired: 0</code> in <code>OnStart</code> (an unseeded gate fails closed forever).</p>
+<p>A repeating wave is the same shape gating on <code>elapsed &gt; next_at</code>, rearmed
+inside its own action (seed <code>next_at</code> in <code>OnStart</code> too):</p>
+<pre><code class="hljs">filters: [
+    Expression((GreaterThan(
+        Term(Factor(Name(&quot;scenario_elapsed&quot;))),
+        Term(Factor(Name(&quot;next_at&quot;))),
+    ))),
+],
+actions: [
+    VariableSet((
+        key: &quot;next_at&quot;,
+        expression: Add(Factor(Name(&quot;next_at&quot;)), Term(Factor(Literal(Number(30.0))))),
+    )),
+    // ... spawn the wave ...
+],
+</code></pre>
+<p>You can also SNAPSHOT the clock into your own variable to measure a
+duration since an event (<code>VariableSet((key: &quot;ambush_started&quot;, expression: Term(Factor(Name(&quot;scenario_elapsed&quot;)))))</code>, then gate on
+<code>elapsed &gt; ambush_started + grace</code> via an <code>Add</code> expression) - reading the
+reserved key is always fine; only writing it is gated. The example mod's
+arena ships a timed comms nudge and a timed bonus spawn as copyable worked
+examples.</p>
 <h2 id="scenario-objects-objects-scenarioobjectkind" tabindex="-1">Scenario objects (<code>objects/</code>, <code>ScenarioObjectKind</code>)</h2>
 <p>All share <code>BaseScenarioObjectConfig</code> (id, name, position, rotation) and spawn
 scoped, interpolated, dynamic bodies via <code>base_scenario_object</code>.</p>
@@ -216,9 +315,18 @@ scoped, interpolated, dynamic bodies via <code>base_scenario_object</code>.</p>
 override, <code>invulnerable</code> (no health node, so its gravity well cannot die),
 <code>lock_signature</code> override.</li>
 <li><code>Spaceship(SpaceshipConfig)</code> - sections plus a <code>SpaceshipController</code>:
-<code>None</code>, <code>Player</code> (input mapping, optional <code>speed_cap</code>, <code>infinite_ammo</code>), or
-<code>AI</code> (patrol route, orbit directive, optional <code>leash</code> break-off radius).
-See <a href="../sections/">Ship sections (internals)</a>.</li>
+<code>None</code>, <code>Player</code> (input mapping, optional <code>speed_cap</code>, <code>infinite_ammo</code>,
+optional <code>lock_refire_secs</code>), or <code>AI</code> (patrol route, orbit directive,
+optional <code>leash</code> break-off radius, optional <code>orbit_hold_secs</code>, optional
+<code>engage_delay: Some(secs)</code> arrival grace - the ship flies its passive
+routine and refuses to engage until the delay elapses, going hot
+immediately and permanently if shot; pair it with a clock-spaced
+warning story beat so enemies ARRIVE instead of appearing: <code>elapsed &gt; T</code> announce line -&gt; spawn far with <code>engage_delay</code> covering the
+approach -&gt; the fight starts when the player has read the warning).
+Section geometry is linted: overlapping unit-cube cells and a
+turret/torpedo mount whose base (local -Y under its rotation) points at
+an empty neighbor cell are <code>content lint</code> errors (see the authoring
+guide's sharp edges). See <a href="../sections/">Ship sections (internals)</a>.</li>
 <li><code>Beacon(BeaconConfig)</code> - nav waypoint with an automatic HUD chip: label,
 radius, color, optional <code>lock_signature</code>, optional <code>area_radius</code> (the
 beacon doubles as its own <code>OnEnter</code>/<code>OnExit</code> trigger).</li>
@@ -254,7 +362,7 @@ plus an <code>EventActionConfig</code> variant.</li>
     <nav aria-label="Footer">
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"

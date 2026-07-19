@@ -13,7 +13,7 @@
         <a href="/nova-protocol/">Home</a>
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"
@@ -64,7 +64,7 @@ real code lives under <code>crates/</code>.</p>
 </tr>
 <tr>
 <td><code>nova_menu</code></td>
-<td>Main menu (owns the <code>MainMenu</code> state UI: New Game / Sandbox / Settings / Exit) and the ESC pause overlay. Buttons write <code>GameMode</code> and hand off to <code>Playing</code>.</td>
+<td>Main menu (owns the <code>MainMenu</code> state UI: New Game / Sandbox / Settings / Exit) and the ESC pause overlay. Buttons write <code>GameMode</code> and hand off to <code>Playing</code>. The Settings modal (audio volume, graphics preset, read-only keybind reference) is shared by both entry points and persisted cross-platform in <code>settings_store</code> (RON file / localStorage).</td>
 </tr>
 <tr>
 <td><code>nova_editor</code></td>
@@ -72,11 +72,11 @@ real code lives under <code>crates/</code>.</p>
 </tr>
 <tr>
 <td><code>nova_gameplay</code></td>
-<td>Gameplay umbrella: <code>sections/</code>, <code>integrity/</code>, <code>damage</code>, <code>flight</code>, <code>gravity</code> (gravity wells), <code>input/</code> (player, ai, radar targeting with deliberate lock-on), <code>hud/</code> (many widgets: crosshairs, target inset, ammo, flight status, markers, ...), <code>camera_controller</code>, <code>audio</code>, <code>juice</code>, <code>relations</code>, <code>beacon</code>, <code>objective_marker</code>, <code>plugin</code>. Also owns <code>GameStates</code>, <code>PauseStates</code>, and the <code>GameMode</code> resource.</td>
+<td>Gameplay umbrella: <code>sections/</code>, <code>integrity/</code>, <code>damage</code>, <code>flight</code>, <code>gravity</code> (gravity wells), <code>input/</code> (player, ai, radar targeting with deliberate lock-on, <code>reference</code> keybind table), <code>hud/</code> (many widgets: crosshairs, target inset, ammo, flight status, markers, ...), <code>camera_controller</code>, <code>audio</code>, <code>juice</code>, <code>settings</code> (<code>MasterVolume</code>/<code>GraphicsQuality</code> + apply systems), <code>relations</code>, <code>beacon</code>, <code>objective_marker</code>, <code>plugin</code>. Also owns <code>GameStates</code>, <code>PauseStates</code>, and the <code>GameMode</code> resource.</td>
 </tr>
 <tr>
 <td><code>nova_scenario</code></td>
-<td>Scenario/modding engine: <code>events</code>, <code>filters</code>, <code>actions</code>, <code>variables</code>, <code>world</code>, <code>loader</code>, <code>objects/</code>. See <a href="../scenario-system/">Scenario engine</a>.</td>
+<td>Scenario/modding engine: <code>events</code>, <code>filters</code>, <code>actions</code>, <code>variables</code>, <code>world</code>, <code>loader</code>, <code>objects/</code>, <code>render_scale</code> (the Low-preset resolution lever: scenario view into a reduced offscreen target, upscaled to the window). See <a href="../scenario-system/">Scenario engine</a>.</td>
 </tr>
 <tr>
 <td><code>nova_events</code></td>
@@ -141,6 +141,13 @@ explode, PD controller, health, status bar, the generic game-event queue
 <code>GameEventsPlugin</code>/<code>EventWorld</code>) live in a separate repo, <code>bevy-common-systems</code>,
 pinned as a git dependency (rev in <code>crates/nova_gameplay/Cargo.toml</code>) and re-exported
 through <code>nova_gameplay::prelude</code>. If a helper feels &quot;generic&quot;, it lives there.</p>
+<p>The generic <code>HealthDisplay</code> bar stays here (still available for other games and
+for non-player entities), but Nova's player-ship health readout is no longer that
+bar: it is diegetic, grading each ship section's own mesh material by integrity
+(<code>nova_gameplay::sections::damage_tint</code>, task 20260717-003613). Because that
+readout keys on Nova's section graph and materials it is game-specific and is NOT
+a promotion candidate - the generic bar and the diegetic readout are different
+things at different layers.</p>
 <p>Boundary policy, from most game-agnostic to most game-specific:</p>
 <ol>
 <li><code>bevy_common_systems</code> (external) - fully reusable Bevy primitives.</li>
@@ -290,9 +297,12 @@ which is why they only showed at high speed.</p>
 observers, e.g. the integrity/destruction chain) rather than direct calls. Prefer
 adding an event/observer over coupling two systems.</p>
 <h2 id="assets" tabindex="-1">Assets</h2>
-<p><code>assets/</code> is <strong>runtime-only</strong> - everything the game actually loads: exported
-<code>gltf/</code> models (<code>.glb</code>), <code>textures/</code>, <code>shaders/</code> (<code>.wgsl</code>), <code>sounds/</code> (<code>.wav</code>),
-<code>icons/</code>, and the <code>base/</code>/<code>mods/</code> data (<code>.ron</code>). It is the whole directory the
+<p><code>assets/</code> is <strong>runtime-only</strong> - everything the game actually loads: <code>shaders/</code>
+(<code>.wgsl</code>), <code>icons/</code>, <code>sounds/</code> (UI chrome: menu clicks + objective chimes),
+and the <code>base/</code>/<code>mods/</code> data (<code>.ron</code>). The base game's own art and world audio
+live UNDER <code>assets/base/</code> (exported <code>gltf/</code> models <code>.glb</code>, <code>textures/</code>,
+<code>sounds/</code> <code>.wav</code> world cues, <code>banner.png</code>), referenced by base content with
+<code>self://</code> and by mods with <code>dep://base/&lt;path&gt;</code>. It is the whole directory the
 web (Trunk <code>copy-dir</code>) and native (<code>release.yaml</code>) builds ship, so non-runtime
 files must not live here. The Blender SOURCES the <code>gltf/</code> models are exported
 from live OUT of the shipped tree, in top-level <code>art/blender/</code> (they are
@@ -309,7 +319,7 @@ defined in Rust (<code>crates/nova_assets/src/sections.rs</code>, <code>scenario
     <nav aria-label="Footer">
         <a href="/nova-protocol/tutorial/">Tutorial</a>
         <a href="/nova-protocol/wiki/">Wiki</a>
-        <a href="/nova-protocol/blog/">Blog</a>
+        <a href="/nova-protocol/news/">News</a>
         <a
             href="https://github.com/alexjercan/nova-protocol"
             target="_blank"

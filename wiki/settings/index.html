@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Settings - Nova Protocol Wiki</title>
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/wiki.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="wiki">
+                <aside
+                    class="wiki__nav"
+                    id="wiki-nav"
+                    aria-label="Wiki navigation"
+                ></aside>
+                <article class="wiki__body prose">
+                    <p class="wiki__crumb">
+                        <a href="/nova-protocol/wiki/">Wiki</a>
+                        / Settings
+                    </p>
+                    <h1>Settings</h1>
+                    <div class="wiki__tags" id="wiki-tags"></div>
+                    <p>The Settings menu is the same modal from <strong>both</strong> the main menu and the pause
+menu, so you can change anything mid-run. Every choice is <strong>remembered across
+restarts</strong> - saved to a config file on the desktop build and to browser storage
+on the web.</p>
+<figure class="figure">
+    <!-- Capture: assets/wiki-settings.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Screenshot needed</span>
+        <span class="figure__placeholder-name">assets/wiki-settings.png</span>
+        <span class="figure__placeholder-note">The Settings modal open over the main menu: the master volume slider, the Low/Medium/High graphics preset selector, and the keybind reference panel.</span>
+    </div>
+    <figcaption class="figure__caption">One Settings modal, reachable from the main menu and the pause menu.</figcaption>
+</figure>
+<h2 id="audio" tabindex="-1">Audio</h2>
+<p>A draggable <strong>master volume</strong> slider scales all game audio at once - the engine
+hum, weapons, radar ticks and the world's impact sounds. It takes effect live as
+you drag.</p>
+<h2 id="graphics-quality" tabindex="-1">Graphics quality</h2>
+<p>A single <strong>Low / Medium / High</strong> preset trades visual richness for performance.
+It does two things at once: it tunes the combat <em>juice</em>, and on the lower tiers
+it drops the heavier effects for weak machines.</p>
+<ul>
+<li><strong>High</strong> - everything on: camera shake, hit flashes, and the full particle
+effects, rendered at your window's native resolution.</li>
+<li><strong>Medium</strong> - drops the camera shake but keeps the particle bursts. Still full
+resolution.</li>
+<li><strong>Low</strong> - turns the combat juice off entirely (no shake, no hit flashes) and
+is <strong>spawn-less</strong>: torpedo and muzzle particle bursts are not created at all.
+Low also renders the world at a <strong>reduced internal resolution</strong> and upscales it
+to fill the window - a lever aimed at fill-bound hardware (laptop iGPUs,
+phones). The HUD and menus stay crisp and fully clickable; only the 3D world
+softens. On a strong discrete GPU the speed win is small, so Low is a knob for
+the low end rather than a general speed-up.</li>
+</ul>
+<h2 id="controls-reference" tabindex="-1">Controls reference</h2>
+<p>The <strong>Controls</strong> panel is a read-only reference of the current keyboard and
+gamepad bindings - flight, targeting, camera and pause - the same reference laid
+out on the <a href="../keybinds/">Keybinds</a> page. It is there to check a binding without
+leaving the game; the bindings themselves are fixed (weapon fire is the one thing
+you assign, per section, in the editor).</p>
+
+                    <div id="wiki-seealso"></div>
+                </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

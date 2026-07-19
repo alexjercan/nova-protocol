@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>v0.7.0 - A game you can win or lose - Nova Protocol</title>
+        <meta name="description" content="Nova Protocol v0.7.0: scenarios can declare victory or defeat with a real outcome frame, a second base-campaign chapter (Broadside) and a four-chapter campaign mod (The Ledger) on the portal, smarter fights (cover, auto-reload ammo, earned locks, multi-barrel turrets), RCS docking thrusters, a real Settings menu, and arbitrary joint-tree turrets plus self:// / dep:// asset schemes for modders." />
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/news.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="news">
+                <nav class="news__toc" aria-label="On this page">
+                    <p class="news__toc-title">On this page</p>
+                    <a href="#win-or-lose" class="news__toc-link">Win or lose</a>
+                    <a href="#a-result-with-real-buttons" class="news__toc-link news__toc-link--sub">A result, with real buttons</a>
+                    <a href="#the-world-freezes-behind-the-banner" class="news__toc-link news__toc-link--sub">The world freezes behind the banner</a>
+                    <a href="#pacing-the-cut" class="news__toc-link news__toc-link--sub">Pacing the cut</a>
+                    <a href="#the-sandboxes-join-in" class="news__toc-link news__toc-link--sub">The sandboxes join in</a>
+                    <a href="#broadside-and-a-campaign-that-talks-back" class="news__toc-link">Broadside, and a campaign that talks back</a>
+                    <a href="#chapter-two-the-capital-combat-slice" class="news__toc-link news__toc-link--sub">Chapter two: the capital-combat slice</a>
+                    <a href="#a-checkpoint-that-respects-the-approach" class="news__toc-link news__toc-link--sub">A checkpoint that respects the approach</a>
+                    <a href="#scenarios-can-speak" class="news__toc-link news__toc-link--sub">Scenarios can speak</a>
+                    <a href="#objectives-that-register" class="news__toc-link news__toc-link--sub">Objectives that register</a>
+                    <a href="#fights-that-announce-themselves" class="news__toc-link news__toc-link--sub">Fights that announce themselves</a>
+                    <a href="#the-ledger-a-full-campaign-on-the-portal" class="news__toc-link">The Ledger: a full campaign on the portal</a>
+                    <a href="#four-chapters-two-endings" class="news__toc-link news__toc-link--sub">Four chapters, two endings</a>
+                    <a href="#rebuilt-around-fair-fights" class="news__toc-link news__toc-link--sub">Rebuilt around fair fights</a>
+                    <a href="#smarter-fights" class="news__toc-link">Smarter fights</a>
+                    <a href="#enemies-take-cover" class="news__toc-link news__toc-link--sub">Enemies take cover</a>
+                    <a href="#weapons-reload" class="news__toc-link news__toc-link--sub">Weapons reload</a>
+                    <a href="#locks-are-earned" class="news__toc-link news__toc-link--sub">Locks are earned</a>
+                    <a href="#more-than-one-barrel" class="news__toc-link news__toc-link--sub">More than one barrel</a>
+                    <a href="#reading-the-damage-you-deal" class="news__toc-link news__toc-link--sub">Reading the damage you deal</a>
+                    <a href="#docking-on-the-fine-thrusters" class="news__toc-link">Docking on the fine thrusters</a>
+                    <a href="#hold-shift-and-trim" class="news__toc-link news__toc-link--sub">Hold SHIFT and trim</a>
+                    <a href="#a-trim-not-free-thrust" class="news__toc-link news__toc-link--sub">A trim, not free thrust</a>
+                    <a href="#the-autopilot-flies-them-too" class="news__toc-link news__toc-link--sub">The autopilot flies them too</a>
+                    <a href="#a-real-settings-menu" class="news__toc-link">A real Settings menu</a>
+                    <a href="#audio-graphics-and-a-keybind-reference" class="news__toc-link news__toc-link--sub">Audio, graphics and a keybind reference</a>
+                    <a href="#what-the-preset-actually-does" class="news__toc-link news__toc-link--sub">What the preset actually does</a>
+                    <a href="#a-ship-sounds-like-itself" class="news__toc-link">A ship sounds like itself</a>
+                    <a href="#every-world-sound-has-an-author" class="news__toc-link news__toc-link--sub">Every world sound has an author</a>
+                    <a href="#per-target-impact-and-destruction" class="news__toc-link news__toc-link--sub">Per-target impact and destruction</a>
+                    <a href="#turrets-art-and-time-the-modding-surface" class="news__toc-link">Turrets, art and time: the modding surface</a>
+                    <a href="#turret-mounts-are-a-joint-tree" class="news__toc-link news__toc-link--sub">Turret mounts are a joint tree</a>
+                    <a href="#mods-ship-their-own-art-and-sounds" class="news__toc-link news__toc-link--sub">Mods ship their own art and sounds</a>
+                    <a href="#scenarios-can-tell-time" class="news__toc-link news__toc-link--sub">Scenarios can tell time</a>
+                    <a href="#menu-backdrops-and-the-new-game-hook" class="news__toc-link news__toc-link--sub">Menu backdrops and the New Game hook</a>
+                    <a href="#smaller-authoring-wins" class="news__toc-link news__toc-link--sub">Smaller authoring wins</a>
+                    <a href="#tooling-that-catches-your-mistakes" class="news__toc-link">Tooling that catches your mistakes</a>
+                    <a href="#one-content-cli" class="news__toc-link news__toc-link--sub">One content CLI</a>
+                    <a href="#geometry-checks" class="news__toc-link news__toc-link--sub">Geometry checks</a>
+                    <a href="#the-balance-audit" class="news__toc-link news__toc-link--sub">The balance audit</a>
+                    <a href="#broken-content-fails-loud" class="news__toc-link news__toc-link--sub">Broken content fails loud</a>
+                    <a href="#odds-and-ends" class="news__toc-link">Odds and ends</a>
+                    <a href="#two-new-menu-backdrops" class="news__toc-link news__toc-link--sub">Two new menu backdrops</a>
+                    <a href="#one-example-mod" class="news__toc-link news__toc-link--sub">One example mod</a>
+                    <a href="#retry-from-the-pause-menu" class="news__toc-link news__toc-link--sub">Retry from the pause menu</a>
+                    <a href="#f12-for-the-devlog" class="news__toc-link news__toc-link--sub">F12 for the devlog</a>
+                    <a href="#fixes" class="news__toc-link">Fixes</a>
+                    <a href="#the-rust-tally-learns-to-broadside" class="news__toc-link news__toc-link--sub">The Rust Tally learns to broadside</a>
+                    <a href="#the-auditors-bay-comes-out-of-the-hull" class="news__toc-link news__toc-link--sub">The Auditor's bay comes out of the hull</a>
+                    <a href="#skyboxes-stop-crashing-webgl2-class-gpus" class="news__toc-link news__toc-link--sub">Skyboxes stop crashing WebGL2-class GPUs</a>
+                    <a href="#no-more-ghost-hulls" class="news__toc-link news__toc-link--sub">No more ghost hulls</a>
+                    <a href="#paused-means-paused" class="news__toc-link news__toc-link--sub">Paused means paused</a>
+                    <a href="#retry-keeps-your-objectives" class="news__toc-link news__toc-link--sub">Retry keeps your objectives</a>
+                    <a href="#quieter-guns" class="news__toc-link news__toc-link--sub">Quieter guns</a>
+                    <a href="#under-the-hood" class="news__toc-link">Under the hood</a>
+                    <a href="#one-clock-for-the-event-windows" class="news__toc-link news__toc-link--sub">One clock for the event windows</a>
+                    <a href="#removed-the-demo-scenario" class="news__toc-link">Removed: the Demo Scenario</a>
+                </nav>
+                <article class="prose news__body">
+                <p class="prose__meta">
+                    <a href="/nova-protocol/news/">&larr; News</a>
+                    &nbsp;//&nbsp; 2026-07-18 &nbsp;//&nbsp; v0.7.0
+                </p>
+                <h1>v0.7.0 - A game you can win or lose</h1>
+                <p>For six releases Nova Protocol was a place to fly, not a game you could finish.
+There was no win, no loss, no reason a fight had to end - you flew until you got
+bored or blown up, and blown up just dropped you back at a silent restart.
+v0.7.0 is the release that gives the flying stakes: scenarios can now declare a
+<strong>victory or a defeat</strong>, the base campaign grew a real second chapter that
+chains off the first, a full four-chapter <strong>campaign mod</strong> ships on the portal,
+and the fights themselves got smarter - enemies that take cover, weapons that
+reload, locks you have to earn. Around that there is a real Settings menu, fine
+docking thrusters, a world where every sound is now something a mod can author,
+and a pile of tooling that catches content mistakes before you ever see them.
+Here is the whole of it, section by section.</p>
+<h2 id="win-or-lose" tabindex="-1">Win or lose</h2>
+<h3 id="a-result-with-real-buttons" tabindex="-1">A result, with real buttons</h3>
+<p>The headline is the smallest-sounding change: scenarios can now end. A new
+<code>Outcome</code> action throws up a <strong>VICTORY</strong> or <strong>DEFEAT</strong> overlay with real buttons</p>
+<ul>
+<li>Continue or Retry, and Main Menu always - instead of the old silent
+press-Enter-to-restart. Dying in the Shakedown Run now shows Defeat and offers
+Retry; clearing it shows Victory and chains you straight into chapter two.</li>
+</ul>
+<h3 id="the-world-freezes-behind-the-banner" tabindex="-1">The world freezes behind the banner</h3>
+<p>The part that took the most care is what the overlay does to the world behind it.
+It <strong>freezes the simulation</strong> the same way the pause menu does - physics, AI,
+weapons and scenario timers all stop dead behind the banner - so the world does
+not quietly play on underneath a screen you are reading. The closing story lines
+that used to fire behind the victory banner (where nobody could ever read them)
+now live inside the banner itself.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-070-outcome-frame.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-070-outcome-frame.png</span>
+        <span class="figure__placeholder-note">The VICTORY (or DEFEAT) overlay mid-scenario with the Continue/Retry and Main Menu buttons, the frozen world visible behind it.</span>
+    </div>
+    <figcaption class="figure__caption">Scenarios can finally declare a result, and the world freezes behind it.</figcaption>
+</figure>
+<h3 id="pacing-the-cut" tabindex="-1">Pacing the cut</h3>
+<p>Scenario transitions also grew a middle gear between &quot;hard cut now&quot; and &quot;wait
+for a click&quot;. A <code>NextScenario</code> that does not linger can carry a <strong>delay</strong>: the
+world keeps playing for those seconds - long enough to read the closing comms
+line - before the cut lands. And a Victory or Defeat banner can carry
+<code>auto_advance_secs</code>, advancing its queued chain by itself after that many real
+seconds if the player does not click first. The content lint warns on the
+classic authoring trap of pairing an Outcome with a non-lingering switch in the
+same handler, where the overlay gets swallowed before anyone sees it.</p>
+<h3 id="the-sandboxes-join-in" tabindex="-1">The sandboxes join in</h3>
+<p>The outcome frame is not just for the campaign. The <strong>Asteroid Field</strong> sandbox
+now declares Victory when you reach the zone (Continue rerolls the field) and
+Defeat with a Retry when you die, replacing its old silent scene switches. If a
+scenario can end, it now ends like it means it.</p>
+<h2 id="broadside-and-a-campaign-that-talks-back" tabindex="-1">Broadside, and a campaign that talks back</h2>
+<h3 id="chapter-two-the-capital-combat-slice" tabindex="-1">Chapter two: the capital-combat slice</h3>
+<p><strong>Broadside</strong> is chapter two of the base storyline and the first place the
+win/lose frame really earns its keep: answer a neutral hauler's distress call,
+break a two-corvette ambush, then screen a gang gunship's torpedoes with your
+point-defense and pull it apart. It is the capital-combat slice, it is in the
+Scenarios picker, and it is chained from Shakedown Run's victory screen, so the
+base game now plays as a sequence, not a menu of disconnected scenes.</p>
+<h3 id="a-checkpoint-that-respects-the-approach" tabindex="-1">A checkpoint that respects the approach</h3>
+<p>Broadside now plays as <strong>two scenarios under the hood</strong>: break the corvette
+ambush and a Victory beat banks your progress as a checkpoint, then Continue
+carries you into the gunship fight - which retries itself on death instead of
+marching you back through the whole approach and ambush. Five <strong>invulnerable
+boulders</strong> now anchor the hauler fight and the gunship lane (the destructible
+rock field stays as chaff), so the new hold-fire-behind-cover rules have
+something solid to work with in the chapter's biggest fight.</p>
+<h3 id="scenarios-can-speak" tabindex="-1">Scenarios can speak</h3>
+<p>The whole campaign got a <strong>storytelling pass</strong> at the same time. Scenarios can
+now talk: a new <code>StoryMessage</code> action shows speaker-attributed dialog in a HUD
+comms panel (<code>OKONO &gt; Strip it clean.</code>). The comms lines queue and display in
+arrival order instead of a burst overwriting its own first line, and each fades
+in with a soft blip, holds the screen for a readable dwell (authors can set a
+per-line hold), and yields gracefully when another line waits.</p>
+<h3 id="objectives-that-register" tabindex="-1">Objectives that register</h3>
+<p>Mid-fight objective changes read at a glance now: a newly posted objective
+<strong>flashes gold</strong> in the ghost column beside the panel, so a change registers
+even while you are busy not dying. Leftover ghost lines also vanish with the
+scenario instead of fading awkwardly over the menu after you leave.</p>
+<h3 id="fights-that-announce-themselves" tabindex="-1">Fights that announce themselves</h3>
+<p>Every fight now announces itself. Attackers fly in on a readable <strong>arrival
+grace</strong> before going hot instead of materializing point-blank - shoot first and
+the courtesy ends instantly - while ships that already spawn far away keep their
+ungraced entrance, and the one by-design hot drop (the Ledger finale's Auditor)
+stays a hot drop on purpose. Opening comms beats are spaced on the scenario
+clock rather than dumped in one burst. The <strong>beat-sheet convention</strong> - announce,
+breathe, arrive - is written down for scenario authors, and the content lint
+enforces its two hard rules.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-070-broadside-comms.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-070-broadside-comms.png</span>
+        <span class="figure__placeholder-note">Broadside mid-fight: the gunship and boulders in view with a speaker-attributed StoryMessage line showing in the HUD comms panel.</span>
+    </div>
+    <figcaption class="figure__caption">Broadside, with the new comms panel carrying the story mid-fight.</figcaption>
+</figure>
+<h2 id="the-ledger-a-full-campaign-on-the-portal" tabindex="-1">The Ledger: a full campaign on the portal</h2>
+<h3 id="four-chapters-two-endings" tabindex="-1">Four chapters, two endings</h3>
+<p>If Broadside proves the base game can tell a story, <strong>The Ledger</strong> proves a mod
+can. It is the first campaign mod on the portal: a four-chapter salvage arc -
+strip the wreck, break the claim jumpers, run the quiet channel, then pick the
+buyer, or the buoy - with comms-driven story beats and a <strong>two-ending finale</strong>,
+all authored in the RON scenario stack v0.6.0 shipped. Install it from Mods &gt;
+Explore.</p>
+<h3 id="rebuilt-around-fair-fights" tabindex="-1">Rebuilt around fair fights</h3>
+<p>Dogfooding the authoring stack on a real campaign is also what surfaced the
+balance work, and chapter two got the first full pass. Wave one's Magpies now
+carry the light mook gun instead of the top-tier turret, burn in down a <strong>single
+~600u lane</strong> instead of materializing point-blank on both flanks, and an
+invulnerable boulder field between their lane and the Dray Mule gives the new
+line-of-fire rules something to work with. The chapter plays in <strong>two acts
+across two scenarios</strong>: breaking wave one is a checkpoint, so dying to the
+reinforced heavies - who arrive from the opposite lane, ~950u out, with exactly
+one big gun between them - retries the heavies, never the whole chapter. The
+Mule holds station high off the fight plane, out of the stray-fire lanes, and
+Okono now tells you the play: their guns only want you, so drag the fire wide of
+her.</p>
+<p>The finale got the same treatment. The Auditor traded its top-tier turret for
+the mook gun on <strong>both ending branches</strong> - the playtest-decided answer to the
+balance audit flagging it - because its drama is the close entrance and the
+torpedo you screen with your PDC, not an instant shred.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-070-ledger-ch2.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-070-ledger-ch2.png</span>
+        <span class="figure__placeholder-note">The Ledger chapter two: Magpies burning in down the single lane toward the boulder field, the Dray Mule holding station high off the fight plane.</span>
+    </div>
+    <figcaption class="figure__caption">The Ledger's chapter two, rebuilt around fair fights and real cover.</figcaption>
+</figure>
+<h2 id="smarter-fights" tabindex="-1">Smarter fights</h2>
+<p>The combat model grew five teeth this cycle.</p>
+<h3 id="enemies-take-cover" tabindex="-1">Enemies take cover</h3>
+<p>A gunner with an asteroid - or any other tangible body - between its muzzle and
+you now <strong>holds fire</strong> instead of hosing the rock, and holds torpedo launches
+the same way. Its attack orbit keeps it circling, so the pressure resumes once
+the angle comes back, but breaking line of sight behind hard cover now actually
+relieves you instead of just soaking bullets. Intangible volumes (beacon rings,
+trigger zones) still stop nothing, and point-defense fire at inbound torpedoes
+is exempt on purpose - a torpedo does not get to hide. To give the rule
+something to bite on, the big fights gained a handful of <strong>invulnerable
+boulders</strong> as real cover, with the destructible rock field kept as chaff.</p>
+<h3 id="weapons-reload" tabindex="-1">Weapons reload</h3>
+<p>A magazine that runs dry now refills on its own instead of leaving the weapon
+dead for the rest of the scenario - PDCs dump and reload to full after a few
+seconds, the torpedo bay rearms one tube at a time. Because a spent weapon
+always comes back, magazine size is a <strong>fire-pacing beat</strong> rather than a hard
+fail, so finite ammo is on by default everywhere: Broadside and the example
+arena joined Shakedown Run in dropping the old unlimited-ammo setting, and you
+manage magazines in every fight in the game (authors keep unlimited ammo as a
+testing tool). The diegetic ammo gauge shows the reload as it happens: the pips
+above your live rounds <strong>fill back up as a sweep</strong> in a dimmer shade of the
+loaded round's color, so you can read at a glance how close a weapon is to
+firing again.</p>
+<h3 id="locks-are-earned" tabindex="-1">Locks are earned</h3>
+<p>Locking is no longer instant. Once the radar settles on a target you hold it
+under your aim through a short <strong>lock-on dwell</strong> before it commits, and the
+dwell is longer the farther the target is. Sweep off before it fills and the
+acquisition cancels; re-designating to a new target earns a fresh dwell while
+the old lock holds. A lock is now something you keep the target under your aim
+to earn, not something granted the instant you point at it.</p>
+<h3 id="more-than-one-barrel" tabindex="-1">More than one barrel</h3>
+<p>A turret mount now fires and aims every muzzle it has, so a twin-barrel PDC
+throws two streams at once, each at its own fire rate, all sharing the turret's
+one magazine - so a twin barrel empties it twice as fast.</p>
+<h3 id="reading-the-damage-you-deal" tabindex="-1">Reading the damage you deal</h3>
+<p>Enemy ships now show battle damage too: knock out one of a hostile's sections
+and it reads <strong>burnt-black</strong>, so you can see at a glance which of its components
+you have already destroyed and which are still a threat. Unlike your own ship -
+which reddens and darkens gradually as each section wears down - enemies only
+show the black endpoint, staying pristine until a section is actually gone, so
+the enemy hull reads as a checklist, not a health bar.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-070-enemy-damage.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-070-enemy-damage.png</span>
+        <span class="figure__placeholder-note">A hostile ship mid-fight with one section burnt black and the rest pristine, the player's tracer stream still on it.</span>
+    </div>
+    <figcaption class="figure__caption">Destroyed enemy sections char black - the enemy hull reads as a checklist.</figcaption>
+</figure>
+<h2 id="docking-on-the-fine-thrusters" tabindex="-1">Docking on the fine thrusters</h2>
+<h3 id="hold-shift-and-trim" tabindex="-1">Hold SHIFT and trim</h3>
+<p>New this cycle: a <strong>reaction-control system</strong> for the close-in work autopilot
+and main-drive burns are too coarse for. Hold <strong>SHIFT</strong> and steer with the mouse
+(lateral and fore/aft) and the scroll wheel (up and down) to nudge the ship
+along its own axes under a gentle speed cap, with no rotation - the helm and
+camera hold still while you translate, the velocity sphere turns violet, and a
+soft burn loop tells you it is live.</p>
+<h3 id="a-trim-not-free-thrust" tabindex="-1">A trim, not free thrust</h3>
+<p>Each axis caps around 2 u/s, so RCS is for easing the last few meters of an
+approach, not for flying. It is a controller verb granted per ship, and the
+mainline campaign flies with it withheld (the <code>[SHIFT] RCS</code> hint only shows when
+a scenario grants it), so it stays out of the way until a scenario that wants
+docking opts a ship in.</p>
+<h3 id="the-autopilot-flies-them-too" tabindex="-1">The autopilot flies them too</h3>
+<p>The autopilot uses the same thrusters under the hood: GOTO and STOP now settle
+their arrival on RCS, braking with the fine jets in the last stretch once the
+desired velocity is near zero, so a ship eases to a stop instead of pulsing on
+the spot - the same soft burn loop playing while it does.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-070-rcs-dock.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-070-rcs-dock.png</span>
+        <span class="figure__placeholder-note">A ship easing sideways toward a target on RCS: the velocity sphere shown in its violet RCS state, SHIFT-RCS hint visible.</span>
+    </div>
+    <figcaption class="figure__caption">RCS: hold SHIFT and trim the last few meters under the cap.</figcaption>
+</figure>
+<h2 id="a-real-settings-menu" tabindex="-1">A real Settings menu</h2>
+<h3 id="audio-graphics-and-a-keybind-reference" tabindex="-1">Audio, graphics and a keybind reference</h3>
+<p>The Settings menu is real content now instead of a placeholder. It carries a
+draggable master audio volume slider, a <strong>Low / Medium / High graphics-quality
+preset</strong>, and a read-only reference of the current keyboard and gamepad bindings
+(flight, targeting, camera, pause). It is reachable from both the main menu and
+the pause menu - the same modal, both doors - and it is remembered across
+restarts, as a config file on native and browser storage on the web.</p>
+<h3 id="what-the-preset-actually-does" tabindex="-1">What the preset actually does</h3>
+<p>The graphics preset is not just cosmetic. High keeps the full combat juice
+(camera shake, hit flashes); Medium drops the shake; Low turns the juice off
+entirely and also gates the heavier visuals for weak machines - it is spawn-less
+(no particle bursts) and renders the world at a reduced internal resolution that
+upscales to the window. That last lever is aimed squarely at fill-bound hardware
+(laptop iGPUs, phones); the HUD and menus stay crisp and fully clickable, and on
+a strong discrete GPU the win is small - it is a knob for the low end, not a
+general speed-up.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-070-settings.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image needed</span>
+        <span class="figure__placeholder-name">assets/news-070-settings.png</span>
+        <span class="figure__placeholder-note">The Settings modal: master volume slider, the Low/Medium/High graphics preset selector, and the keybind reference panel.</span>
+    </div>
+    <figcaption class="figure__caption">Audio, a graphics preset, and a keybind reference - remembered across restarts.</figcaption>
+</figure>
+<h2 id="a-ship-sounds-like-itself" tabindex="-1">A ship sounds like itself</h2>
+<p>The quietest big change this release: <strong>every world sound is now content-owned</strong>.
+A sound plays because something you can author declares it, which means a modded
+ship no longer borrows the stock game's voice.</p>
+<h3 id="every-world-sound-has-an-author" tabindex="-1">Every world sound has an author</h3>
+<p>Weapon and controller sections now fully own their sounds as authorable asset
+refs, the same way they own their meshes: the turret's <code>fire_sound</code> and
+<code>dry_fire_sound</code>, the torpedo bay's <code>launch_sound</code> and <code>detonation_sound</code>, the
+controller's radar and lock ticks (<code>lock_on_sound</code>, <code>lock_off_sound</code>,
+<code>radar_deny_sound</code>, <code>radar_retarget_sound</code>, <code>safety_on_sound</code>), the thruster's
+engine hum (<code>loop_sound</code> - thrusters sharing a sound share one loop, so two
+mods' ships can hum differently side by side), and the salvage crate's
+<code>pickup_sound</code>. A section that authors no sound is silent; the base sections
+author all of them, so the stock game sounds exactly the same. The base game's
+world sounds ship with the base mod under <code>assets/base/sounds/</code>, while UI sounds
+(menu clicks, objective chimes) stay engine chrome. More section sounds are on
+the way.</p>
+<h3 id="per-target-impact-and-destruction" tabindex="-1">Per-target impact and destruction</h3>
+<p>Every damage target can now declare its own hit and death voice: <code>impact_sound</code>
+and <code>destroy_sound</code> live on any section's base block and on asteroids.
+Per-target means <strong>per-material</strong> - a rock, a light hull and a reinforced hull
+can each sound different when your rounds connect, so your ears learn what you
+are hitting before your eyes confirm it.</p>
+<h2 id="turrets-art-and-time-the-modding-surface" tabindex="-1">Turrets, art and time: the modding surface</h2>
+<p>The authoring stack grew in three big ways this cycle, each a format change
+worth reading if you write mods - plus a stack of smaller authoring wins.</p>
+<h3 id="turret-mounts-are-a-joint-tree" tabindex="-1">Turret mounts are a joint tree</h3>
+<p>A <code>Turret</code> section now describes its gun as a <code>root</code> joint with recursive
+<code>children</code> - each joint an offset, an optional hinge axis the aim solver steers,
+an optional render mesh, and an optional muzzle fire point - instead of the old
+fixed yaw/pitch/barrel fields. A mount can have extra hinges, a rotator chain,
+or elevation several joints down, and the aim solver distributes the lead across
+whatever hinges a muzzle hangs below, so novel mounts track without bespoke
+code. The stock turrets aim and fire exactly as before.</p>
+<h3 id="mods-ship-their-own-art-and-sounds" tabindex="-1">Mods ship their own art and sounds</h3>
+<p>A bundle manifest gains a <code>resources</code> list of the binary files it packages
+(textures, skyboxes, models, audio), and content references them with a
+<code>self://</code> path that resolves against the mod's own folder. Cross-mod and
+base-game references got one canonical form too: <code>self://</code> for your own folder,
+<code>dep://&lt;id&gt;/</code> for a declared dependency's file, and <code>dep://base/</code> for a
+base-game asset. The base game itself became a normal self-contained mod - its
+art moved under <code>assets/base/</code> and is referenced like any dependency. List a wav
+in <code>resources</code> and a turret's fire, a hull's impact voice, a thruster's hum are
+yours to ship.</p>
+<h3 id="scenarios-can-tell-time" tabindex="-1">Scenarios can tell time</h3>
+<p>The engine now maintains a reserved <code>scenario_elapsed</code> variable - seconds of
+live, unpaused scenario time, frozen by pause and reset by retry - readable from
+any expression filter, so authors can write timed story beats, breathers and
+late reinforcement waves with the existing gate vocabulary. The <code>example</code> mod
+ships a timed comms nudge and a timed bonus spawn as the copy-me pattern, and
+writing the reserved clock is a content-lint error.</p>
+<h3 id="menu-backdrops-and-the-new-game-hook" tabindex="-1">Menu backdrops and the New Game hook</h3>
+<p>Scenarios gained a <code>menu_backdrop</code> flag: on every menu entry the game picks one
+flagged scenario at random, so mods can ship their own menu ambience scenes -
+the base backdrop is just the first of them. The New Game start also moved from
+code into the base bundle's <code>new_game_scenario</code> declaration; it is honored only
+from the base game, so a mod cannot silently redirect your New Game button.</p>
+<h3 id="smaller-authoring-wins" tabindex="-1">Smaller authoring wins</h3>
+<ul>
+<li>Ships in scenario RON can author their side: an optional <code>allegiance</code> field
+(<code>Some(Neutral)</code> for bystanders like Broadside's hauler) overrides the
+controller default.</li>
+<li>The two 5-second event windows are now author-tunable per ship:
+<code>orbit_hold_secs</code> sets how long a ship holds its orbit before <code>OnOrbit</code> fires
+and re-fires, and <code>lock_refire_secs</code> sets how often a held travel or combat
+lock re-fires. Both default to the old 5 seconds when omitted, and a
+non-positive value is a content-lint error.</li>
+</ul>
+<div class="callout callout--breaking">
+    <p class="callout__title">Breaking - migrating your mods</p>
+    <p>Three format breaks this release. <strong>Turret sections</strong> must
+    move their <code>yaw_speed</code> / <code>*_offset</code> /
+    <code>render_mesh_*</code> / <code>fire_rate</code> fields into the new joint
+    tree (<code>fire_rate</code> is now per-muzzle; <code>muzzle_speed</code>
+    stays section-wide) - the dev wiki's section-authoring guide has the new
+    shape. <strong>Asset paths</strong> now always carry a scheme: a bare,
+    scheme-less path is an error, so reuse of base art must be written
+    <code>dep://base/&lt;path&gt;</code>. And <strong>scenario_elapsed</strong> is
+    now a reserved variable - a mod that used that name for its own variable must
+    rename it. Existing stock turret content is migrated for you; the content lint
+    flags each of these at build time.</p>
+</div>
+<h2 id="tooling-that-catches-your-mistakes" tabindex="-1">Tooling that catches your mistakes</h2>
+<p>Building two campaigns worth of content surfaced whole classes of authoring
+slip, and the checks got much stricter for it.</p>
+<h3 id="one-content-cli" tabindex="-1">One content CLI</h3>
+<p>The content tools are one CLI now: <code>cargo run -p nova_assets --bin content -- &lt;gen|lint|audit&gt;</code> replaces the three former separate binaries - <code>gen</code> writes the
+base content, <code>lint</code> runs the reference and geometry checks, <code>audit</code> grades
+combat balance. One tool to remember instead of three, and mod developers can
+check just their own mod with <code>lint --target &lt;mod&gt;</code> instead of linting the whole
+repo.</p>
+<h3 id="geometry-checks" tabindex="-1">Geometry checks</h3>
+<p>The lint now errors on ships whose unit-cube sections overlap, and on a turret
+or torpedo bay whose base face does not seat against an occupied neighbor cell
+of its own ship - at build time and in the in-game mod gate alike. These are the
+exact bugs behind the Auditor's embedded torpedo bay and the Rust Tally's four
+wrong-rolled side mounts (both fixed this release - see Fixes). Turret joint
+trees get their own checks for the mistakes the parser accepts but the game
+cannot use: a hinge with a zero axis or non-positive speed, min/max limits the
+wrong way round, or a mount with no muzzle at all.</p>
+<h3 id="the-balance-audit" tabindex="-1">The balance audit</h3>
+<p><code>content -- audit</code> derives each combat scenario's fairness sheet from the
+shipped content - hostile dps, weapon envelopes, spawn distances, time-to-kill
+against the player ship, cover tiers - and fails CI when an armed hostile opens
+a scenario already inside its own effective range of the player spawn. It earned
+its keep on the first run by flagging the Ledger finale's Auditor on both ending
+branches. Intended drama can be <strong>acknowledged</strong> in <code>balance_acks.ron</code> with a
+reason and the deciding task: an acked warning still prints (tagged ACK) but
+stops counting, errors can never be acked, and a stale ack fails CI until it is
+pruned. The Auditor's torpedo-envelope warning is the first acked entry.</p>
+<h3 id="broken-content-fails-loud" tabindex="-1">Broken content fails loud</h3>
+<p>Scenarios with reference errors - unknown section prototypes, dangling chapter
+chains, filters targeting things nothing spawns - refuse to start with a
+<strong>FAILED TO START</strong> report naming each problem, and the menu backdrop rotation
+skips them rather than crashing. A broken mod tells you what is wrong instead of
+behaving mysteriously.</p>
+<h2 id="odds-and-ends" tabindex="-1">Odds and ends</h2>
+<h3 id="two-new-menu-backdrops" tabindex="-1">Two new menu backdrops</h3>
+<p>Two new scenes join the rotation behind the menus: <strong>Waystation Traffic</strong>, a
+hauler convoy circling a freight stop under amber dock lights, and <strong>Scrapyard
+Drift</strong>, a quiet salvage yard of drifting crates, two wrecks and a lone tug.
+Mods can ship their own, too - any scenario flagged <code>menu_backdrop</code> is eligible,
+and the game picks one at random on each menu entry.</p>
+<h3 id="one-example-mod" tabindex="-1">One example mod</h3>
+<p>The earlier scattered demos folded into a single copy-me tutorial: a section
+overlay, a brand-new section, a playable arena, its own shipped skybox and
+texture, a comms beat, Victory/Defeat outcomes, a timed <code>scenario_elapsed</code>
+pattern and a menu backdrop - a little of everything, in one folder.</p>
+<h3 id="retry-from-the-pause-menu" tabindex="-1">Retry from the pause menu</h3>
+<p>The pause menu (Esc) gained a <strong>Retry</strong> button: restart the current scenario
+from scratch without going back through the main menu. It is offered only while
+a scenario is live, so the editor's build mode does not show it.</p>
+<h3 id="f12-for-the-devlog" tabindex="-1">F12 for the devlog</h3>
+<p>Debug builds (<code>--features debug</code>) bind <strong>F12</strong> to a screenshot: the primary
+window saves to your Downloads directory as <code>&lt;timestamp&gt;.png</code>.</p>
+<h2 id="fixes" tabindex="-1">Fixes</h2>
+<h3 id="the-rust-tally-learns-to-broadside" tabindex="-1">The Rust Tally learns to broadside</h3>
+<p>The gunship's side mounts now actually mount: both flank turrets and both
+torpedo tubes roll so their bases seat against the spine instead of all pointing
+the same way off into space, tube hatches face outboard, and the port and
+starboard section ids match the sides they are on (they were swapped). The roll
+also reshapes its firing arcs the way a broadside gunship should fight: one gun
+per beam, both on the bow, and the previously blind stern covered.</p>
+<h3 id="the-auditors-bay-comes-out-of-the-hull" tabindex="-1">The Auditor's bay comes out of the hull</h3>
+<p>The Ledger finale's Auditor no longer carries its torpedo bay inside its own
+hull: the bay was authored half-embedded in the spine, visibly clipping through
+the controller and bow sections, and now mounts flush on the bow's flank, seated
+base-to-hull. The new geometry lint catches this whole class of slip at build
+time now.</p>
+<h3 id="skyboxes-stop-crashing-webgl2-class-gpus" tabindex="-1">Skyboxes stop crashing WebGL2-class GPUs</h3>
+<p>Cubemap <code>.meta</code> sidecars are now honored for every asset - base and mod alike,
+shipped or portal-downloaded - so a skybox gets its 6-face cube layout at load
+time instead of risking the raw 4096x24576 stacked image being uploaded as-is
+(a fatal error on GPUs with a 16384 texture limit) if a scenario tore down
+mid-load. This covers Broadside's deep-field sky, the gauntlet and ledger mods
+that reuse it via <code>dep://base</code>, and any mod that ships its own cube.</p>
+<h3 id="no-more-ghost-hulls" tabindex="-1">No more ghost hulls</h3>
+<p>A ship that loses its last section outside the damage path no longer lingers as
+a targetable 0-HP ghost: the health aggregate carries a structural death
+backstop (no living sections means dead), closing a soft-lock where Broadside's
+act gates waited on a kill that never registered.</p>
+<h3 id="paused-means-paused" tabindex="-1">Paused means paused</h3>
+<p>Scenario <code>OnUpdate</code> handlers now freeze while the game is paused - the pause
+menu or the Victory/Defeat frame - so an already-satisfied handler no longer
+re-applies its action every frame behind a screen you are reading.</p>
+<h3 id="retry-keeps-your-objectives" tabindex="-1">Retry keeps your objectives</h3>
+<p>Restarting a scenario (Retry, from the pause menu or the outcome frame) no
+longer loses the objective text: the objectives HUD resets on scenario teardown,
+so a restart that re-posts the same objectives repaints the panel instead of
+leaving it blank.</p>
+<h3 id="quieter-guns" tabindex="-1">Quieter guns</h3>
+<p>Firing no longer spams the log with a physics warning per round: turret bullets,
+which use a near-zero mass and a sensor collider, now carry an explicit angular
+inertia, removing the warning and its NaN risk.</p>
+<h2 id="under-the-hood" tabindex="-1">Under the hood</h2>
+<h3 id="one-clock-for-the-event-windows" tabindex="-1">One clock for the event windows</h3>
+<p>The two 5-second scenario-event windows - the orbit-hold check behind <code>OnOrbit</code>
+and the lock re-fire behind <code>OnTravelLock</code>/<code>OnCombatLock</code> - now measure their
+elapsed time against the engine scenario clock (<code>scenario_elapsed</code>) instead of
+each accumulating its own frame delta. Pause, teardown and retry freeze and
+reset both windows in one place, so their pause-correctness no longer rides an
+implicit assumption. No change to when the events fire.</p>
+<h2 id="removed-the-demo-scenario" tabindex="-1">Removed: the Demo Scenario</h2>
+<p>The base Demo Scenario - the old ship-less RON authoring demo - was removed from
+the game and the Scenarios picker. The example mod's arena is the worked
+hand-authored RON example now, and it demonstrates strictly more: outcomes,
+comms, timed beats, shipped art and a menu backdrop.</p>
+
+                <footer class="post-footer">
+                    <p class="post-footer__discuss">
+                        Got a reaction, a question, or a ship you want to show
+                        off?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/discussions"
+                            target="_blank"
+                            rel="noopener"
+                            >Talk about this release on GitHub Discussions</a
+                        >.
+                    </p>
+                    <p class="post-footer__discuss">
+                        Want the terse, complete list for every version
+                        (patch releases included)?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
+                            target="_blank"
+                            rel="noopener"
+                            >Read CHANGELOG.md on GitHub</a
+                        >.
+                    </p>
+                    <p class="post-footer__nav">
+                        <a href="/nova-protocol/news/">&larr; All news</a>
+                    </p>
+                </footer>
+            </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/tutorial/">Tutorial</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

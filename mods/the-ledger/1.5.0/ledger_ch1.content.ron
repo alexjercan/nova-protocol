@@ -1,0 +1,1497 @@
+// The Ledger, chapter 1 of 4: DEAD WEIGHT (task 20260716-123535, spike
+// 20260716-183104). The fantasy tutorial: strip a dead freighter for a
+// three-crate quota, then the job turns - the fourth ping is a sealed
+// military black box nobody logged. Mechanics are the shipped patterns:
+// act-gated salvage OnEnter counting (shakedown), per-crate objectives with
+// markers, a Neutral patrol ship as set dressing (broadside), Victory ->
+// NextScenario chain and player-death Defeat + retry (broadside).
+//
+// Acts: 1 = quota run, 2 = the black box ping, 3 = resolved (victory beat).
+// Every handler is act-gated except the player-death Defeat, which is the
+// deliberate global exception - gated to act < 3 so a post-victory death
+// cannot overwrite an earned win (the broadside act-gating lesson).
+[
+    Scenario((
+        id: "ledger_ch1_dead_weight",
+        name: "The Ledger 1: Dead Weight",
+        description: "Mesa Verde Reclamation contract 4471: strip the freighter Ceres Matron for a three-crate quota. Chapter one of The Ledger.",
+        cubemap: "dep://base/textures/cubemap.png",
+        thumbnail: Some("dep://base/textures/asteroid.png"),
+        events: [
+            (
+                name: OnStart,
+                filters: [],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    VariableSet((
+                        key: "crates",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Foreman Okono",
+                        text: "Kestrel, the Ceres Matron's yours. Three containers on the manifest. Strip it clean - quota's quota.",
+                    )),
+                    Objective((
+                        id: "obj_ch1_recap",
+                        message: "Ch.1 - Dead Weight: work the wreck line for Mesa Verde.",
+                    )),
+                    // The tug: the gauntlet player loadout (turret included -
+                    // later chapters fight, and the belt is not polite).
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player_spaceship",
+                            name: "Salvage Tug Kestrel",
+                            position: (0.0, 0.0, 40.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: Player((
+                                input_mapping: {
+                                    "cube_i1_j0_km1": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                    "cube_im1_j0_km1": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                },
+                                speed_cap: Some(25.0),
+                                infinite_ammo: true,
+                            )),
+                            sections: [
+                                (
+                                    id: "cube_i0_j0_k0",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j0_km2"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k0",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k0"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i0_j1_km2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k0",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k2",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_km1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        -0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_cube_i1_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k0",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k2",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_km1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.70710677,
+                                        0.70710677,
+                                    ),
+                                    source: Prototype("racer_cube_im1_j0_km1"),
+                                ),
+                            
+                            ],
+                        )),
+                    )),
+                    // The wreck: two dead hull masses, invulnerable set
+                    // dressing (nothing in this chapter should pop the stage).
+                    // Nominal radius is NOT the visible size: the asteroid
+                    // noise mesh reaches ASTEROID_GEOMETRIC_FACTOR_MIN..MAX
+                    // (3.5..6.0) past the nominal sphere, so the real hull is
+                    // radius * ~6 at worst. These stay small (real ~7..12u) so
+                    // the quota crates 15..16u out never end up buried inside
+                    // the rock, AND so they stay under min_well_radius (5.0) -
+                    // a bigger nominal would silently make each wreck a gravity
+                    // well that tugs the tug across the whole work site.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "matron_bow",
+                            name: "Ceres Matron - Bow Section",
+                            position: (0.0, 0.0, -80.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                impact_sound: Some("dep://base/sounds/impact.wav"),
+                destroy_sound: Some("dep://base/sounds/explosion.wav"),
+                            radius: 2.0,
+                            texture: "dep://base/textures/asteroid.png",
+                            health: 1000.0,
+                            surface_gravity: None,
+                            invulnerable: true,
+                            lock_signature: None,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "matron_stern",
+                            name: "Ceres Matron - Stern Section",
+                            position: (20.0, -8.0, -100.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                impact_sound: Some("dep://base/sounds/impact.wav"),
+                destroy_sound: Some("dep://base/sounds/explosion.wav"),
+                            radius: 1.7,
+                            texture: "dep://base/textures/asteroid.png",
+                            health: 1000.0,
+                            surface_gravity: None,
+                            invulnerable: true,
+                            lock_signature: None,
+                        )),
+                    )),
+                    // The manifest: three quota crates, each its own objective
+                    // + marker so pickup order does not matter.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "ledger_crate_1",
+                            name: "Container MV-1",
+                            position: (12.0, 5.0, -70.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: SalvageCrate((
+                            pickup_sound: Some("dep://base/sounds/salvage_pickup.wav"),
+                            size: 2.0,
+                            area_radius: 6.0,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "ledger_crate_2",
+                            name: "Container MV-2",
+                            position: (-14.0, -3.0, -88.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: SalvageCrate((
+                            pickup_sound: Some("dep://base/sounds/salvage_pickup.wav"),
+                            size: 2.0,
+                            area_radius: 6.0,
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "ledger_crate_3",
+                            name: "Container MV-3",
+                            position: (8.0, -10.0, -108.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: SalvageCrate((
+                            pickup_sound: Some("dep://base/sounds/salvage_pickup.wav"),
+                            size: 2.0,
+                            area_radius: 6.0,
+                        )),
+                    )),
+                    // The fourth ping. Spawned dark: no objective, no marker,
+                    // until the quota flips act 2.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "ledger_blackbox",
+                            name: "Unlogged Container",
+                            position: (2.0, -16.0, -124.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: SalvageCrate((
+                            pickup_sound: Some("dep://base/sounds/salvage_pickup.wav"),
+                            size: 2.0,
+                            area_radius: 6.0,
+                        )),
+                    )),
+                    Objective((
+                        id: "obj_crate_1",
+                        message: "Salvage container MV-1.",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "ledger_crate_1",
+                        label: "MV-1",
+                    )),
+                    Objective((
+                        id: "obj_crate_2",
+                        message: "Salvage container MV-2.",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "ledger_crate_2",
+                        label: "MV-2",
+                    )),
+                    Objective((
+                        id: "obj_crate_3",
+                        message: "Salvage container MV-3.",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "ledger_crate_3",
+                        label: "MV-3",
+                    )),
+                    // A Magpie watches the job from a lazy patrol loop.
+                    // Neutral: chapter one has no fight, only a bad feeling.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "magpie_scout",
+                            name: "Magpie Scout 'Sixpence'",
+                            position: (110.0, 20.0, -120.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            allegiance: Some(Neutral),
+                            controller: AI((
+                                patrol: [
+                                    (110.0, 20.0, -120.0),
+                                    (60.0, -10.0, -40.0),
+                                    (140.0, 0.0, -30.0),
+                                ],
+                            )),
+                            sections: [
+                                (
+                                    id: "cube_i0_j0_k0",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i0_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i0_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_k2",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i0_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j0_km1",
+                                    position: (
+                                        0.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i0_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i0_j1_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_k2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i0_j1_k2"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km1",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i0_j1_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j1_km2",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i0_j1_km2"),
+                                ),
+                                (
+                                    id: "cube_i0_j2_k0",
+                                    position: (
+                                        0.0,
+                                        2.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i0_j2_k0"),
+                                ),
+                                (
+                                    id: "cube_i0_j2_k1",
+                                    position: (
+                                        0.0,
+                                        2.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i0_j2_k1"),
+                                ),
+                                (
+                                    id: "cube_i0_j2_km1",
+                                    position: (
+                                        0.0,
+                                        2.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i0_j2_km1"),
+                                ),
+                                (
+                                    id: "cube_i0_j2_km2",
+                                    position: (
+                                        0.0,
+                                        2.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i0_j2_km2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k0",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_k2",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_i1_j0_km1",
+                                    position: (
+                                        1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i1_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_i1_j1_k0",
+                                    position: (
+                                        1.0,
+                                        1.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i1_j1_k0"),
+                                ),
+                                (
+                                    id: "cube_i1_j1_k1",
+                                    position: (
+                                        1.0,
+                                        1.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i1_j1_k1"),
+                                ),
+                                (
+                                    id: "cube_i1_j1_k2",
+                                    position: (
+                                        1.0,
+                                        1.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i1_j1_k2"),
+                                ),
+                                (
+                                    id: "cube_i1_j1_km1",
+                                    position: (
+                                        1.0,
+                                        1.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i1_j1_km1"),
+                                ),
+                                (
+                                    id: "cube_i1_j1_km2",
+                                    position: (
+                                        1.0,
+                                        1.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i1_j1_km2"),
+                                ),
+                                (
+                                    id: "cube_i1_j2_k0",
+                                    position: (
+                                        1.0,
+                                        2.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i1_j2_k0"),
+                                ),
+                                (
+                                    id: "cube_i1_j2_k1",
+                                    position: (
+                                        1.0,
+                                        2.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i1_j2_k1"),
+                                ),
+                                (
+                                    id: "cube_i1_j2_km1",
+                                    position: (
+                                        1.0,
+                                        2.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i1_j2_km1"),
+                                ),
+                                (
+                                    id: "cube_i1_j2_km2",
+                                    position: (
+                                        1.0,
+                                        2.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i1_j2_km2"),
+                                ),
+                                (
+                                    id: "cube_i2_j0_k0",
+                                    position: (
+                                        2.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i2_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_i2_j0_k1",
+                                    position: (
+                                        2.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i2_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_i2_j0_km1",
+                                    position: (
+                                        2.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i2_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_i2_j1_k0",
+                                    position: (
+                                        2.0,
+                                        1.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i2_j1_k0"),
+                                ),
+                                (
+                                    id: "cube_i2_j1_k1",
+                                    position: (
+                                        2.0,
+                                        1.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i2_j1_k1"),
+                                ),
+                                (
+                                    id: "cube_i2_j1_k2",
+                                    position: (
+                                        2.0,
+                                        1.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i2_j1_k2"),
+                                ),
+                                (
+                                    id: "cube_i2_j1_km1",
+                                    position: (
+                                        2.0,
+                                        1.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_i2_j1_km1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k0",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im1_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im1_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_k2",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im1_j0_k2"),
+                                ),
+                                (
+                                    id: "cube_im1_j0_km1",
+                                    position: (
+                                        -1.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im1_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_im1_j1_k0",
+                                    position: (
+                                        -1.0,
+                                        1.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im1_j1_k0"),
+                                ),
+                                (
+                                    id: "cube_im1_j1_k1",
+                                    position: (
+                                        -1.0,
+                                        1.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im1_j1_k1"),
+                                ),
+                                (
+                                    id: "cube_im1_j1_k2",
+                                    position: (
+                                        -1.0,
+                                        1.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im1_j1_k2"),
+                                ),
+                                (
+                                    id: "cube_im1_j1_km1",
+                                    position: (
+                                        -1.0,
+                                        1.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im1_j1_km1"),
+                                ),
+                                (
+                                    id: "cube_im1_j1_km2",
+                                    position: (
+                                        -1.0,
+                                        1.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im1_j1_km2"),
+                                ),
+                                (
+                                    id: "cube_im1_j2_k0",
+                                    position: (
+                                        -1.0,
+                                        2.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im1_j2_k0"),
+                                ),
+                                (
+                                    id: "cube_im1_j2_k1",
+                                    position: (
+                                        -1.0,
+                                        2.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im1_j2_k1"),
+                                ),
+                                (
+                                    id: "cube_im1_j2_km1",
+                                    position: (
+                                        -1.0,
+                                        2.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im1_j2_km1"),
+                                ),
+                                (
+                                    id: "cube_im1_j2_km2",
+                                    position: (
+                                        -1.0,
+                                        2.0,
+                                        -2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im1_j2_km2"),
+                                ),
+                                (
+                                    id: "cube_im2_j0_k0",
+                                    position: (
+                                        -2.0,
+                                        0.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im2_j0_k0"),
+                                ),
+                                (
+                                    id: "cube_im2_j0_k1",
+                                    position: (
+                                        -2.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im2_j0_k1"),
+                                ),
+                                (
+                                    id: "cube_im2_j0_km1",
+                                    position: (
+                                        -2.0,
+                                        0.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im2_j0_km1"),
+                                ),
+                                (
+                                    id: "cube_im2_j1_k0",
+                                    position: (
+                                        -2.0,
+                                        1.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im2_j1_k0"),
+                                ),
+                                (
+                                    id: "cube_im2_j1_k1",
+                                    position: (
+                                        -2.0,
+                                        1.0,
+                                        1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im2_j1_k1"),
+                                ),
+                                (
+                                    id: "cube_im2_j1_k2",
+                                    position: (
+                                        -2.0,
+                                        1.0,
+                                        2.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im2_j1_k2"),
+                                ),
+                                (
+                                    id: "cube_im2_j1_km1",
+                                    position: (
+                                        -2.0,
+                                        1.0,
+                                        -1.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_cube_im2_j1_km1"),
+                                ),
+                                (
+                                    id: "core_controller",
+                                    position: (
+                                        0.0,
+                                        1.0,
+                                        0.0,
+                                    ),
+                                    rotation: (
+                                        0.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                    ),
+                                    source: Prototype("cargoa_core_controller"),
+                                ),
+                            ],
+                        )),
+                    )),
+                    // Loose debris for depth, outside the work site.
+                    ScatterObjects((
+                        id_prefix: "ledger_debris_",
+                        count: 10,
+                        seed: 4471,
+                        region: Ring(
+                            inner: 150.0,
+                            outer: 210.0,
+                            y_min: -50.0,
+                            y_max: 10.0,
+                        ),
+                        template: (
+                            base: (
+                                id: "ledger_debris_",
+                                name: "Debris",
+                                position: (0.0, 0.0, 0.0),
+                                rotation: (0.0, 0.0, 0.0, 1.0),
+                            ),
+                            kind: Asteroid((
+                impact_sound: Some("dep://base/sounds/impact.wav"),
+                destroy_sound: Some("dep://base/sounds/explosion.wav"),
+                                radius: 1.0,
+                                texture: "dep://base/textures/asteroid.png",
+                                health: 100.0,
+                                surface_gravity: None,
+                                invulnerable: false,
+                                lock_signature: None,
+                            )),
+                        ),
+                        asteroid_radius: Some((0.8, 2.0)),
+                    )),
+                ],
+            ),
+            // --- Act 1: the quota. One handler per crate, order-free. ---
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("ledger_crate_1"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    DespawnScenarioObject((
+                        id: "ledger_crate_1",
+                    )),
+                    VariableSet((
+                        key: "crates",
+                        expression: Add(Factor(Name("crates")), Term(Factor(Literal(Number(1.0))))),
+                    )),
+                    ObjectiveComplete((
+                        id: "obj_crate_1",
+                    )),
+                    StoryMessage((
+                        speaker: "Foreman Okono",
+                        text: "MV-1 on the hook. Two to go.",
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("ledger_crate_2"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    DespawnScenarioObject((
+                        id: "ledger_crate_2",
+                    )),
+                    VariableSet((
+                        key: "crates",
+                        expression: Add(Factor(Name("crates")), Term(Factor(Literal(Number(1.0))))),
+                    )),
+                    ObjectiveComplete((
+                        id: "obj_crate_2",
+                    )),
+                    StoryMessage((
+                        speaker: "Foreman Okono",
+                        text: "MV-2 logged. Keep it moving, the Matron isn't getting any deader.",
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("ledger_crate_3"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    DespawnScenarioObject((
+                        id: "ledger_crate_3",
+                    )),
+                    VariableSet((
+                        key: "crates",
+                        expression: Add(Factor(Name("crates")), Term(Factor(Literal(Number(1.0))))),
+                    )),
+                    ObjectiveComplete((
+                        id: "obj_crate_3",
+                    )),
+                    StoryMessage((
+                        speaker: "Foreman Okono",
+                        text: "MV-3. That's the manifest done.",
+                    )),
+                ],
+            ),
+            // Quota met (`> 2`, not `== 3`: a double-fire cannot skip the
+            // gate - the count-gate lesson) -> act 2: the fourth ping.
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("crates"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    StoryMessage((
+                        speaker: "Foreman Okono",
+                        text: "Hold up. Scope's showing a fourth return, deep in the stern... that container is not on any manifest I've ever filed.",
+                    )),
+                    Objective((
+                        id: "obj_blackbox",
+                        message: "Investigate the unlogged container.",
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "ledger_blackbox",
+                        label: "UNLOGGED",
+                    )),
+                ],
+            ),
+            // The black box -> act 3, victory, chapter 2.
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("ledger_blackbox"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                ],
+                actions: [
+                    DespawnScenarioObject((
+                        id: "ledger_blackbox",
+                    )),
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "obj_blackbox",
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("The quota's in the hold - and so is a sealed military casing that was never on the books. Okono's board is already lighting up with buyers nobody called."),
+                    )),
+                    NextScenario((
+                        scenario_id: "ledger_ch2_claim_jumpers",
+                        linger: true,
+                    )),
+                ],
+            ),
+            // Player death before the win: Defeat + retry this chapter.
+            // Gated act < 3 so a post-victory death cannot overwrite the win.
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("The belt keeps the Kestrel. Mesa Verde files the claim, and the debt rolls over."),
+                    )),
+                    NextScenario((
+                        scenario_id: "ledger_ch1_dead_weight",
+                        linger: true,
+                    )),
+                ],
+            ),
+        ],
+    )),
+]
