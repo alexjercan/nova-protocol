@@ -12,12 +12,13 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 
 ## Process lessons
 
-- `keep-docs-in-sync-with-code` (x4, enforced in AGENTS.md): a code change is
+- `keep-docs-in-sync-with-code` (x5, enforced in AGENTS.md): a code change is
   not done until every doc surface it invalidates (CHANGELOG, news, player +
   dev wiki, tutorial) is fixed in the SAME task; map:
   `web/src/wiki/dev/keeping-docs-in-sync.md`. A ticked docs step is not proof
-  - check its surface list against the diff; the LAST task of a family sweeps
-  the whole feature's player-facing surfaces. 20260716-115938, 20260718-004723.
+  - check its surface list against the diff, and a surface updated for the
+  rename must also claim the diff's NEW features. 20260718-004723,
+  20260719-112231.
 - `inseparable-seeded-tasks-remerge` (x1, PROMOTED 2026-07-19 -> flow skill):
   when seeded tasks prove architecturally inseparable, surface the re-cut and
   merge them instead of building shims. 20260717-215742.
@@ -134,10 +135,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `delivery-guards-on-null-assertions` (x6, PROMOTED 2026-07-11 -> review
   skill): "nothing happens" tests prove the stimulus fired IN the same test.
   20260710-231931.
-- `verify-first-plan-steps` (x8, PROMOTED 2026-07-11 -> plan skill): plan
+- `verify-first-plan-steps` (x9, PROMOTED 2026-07-11 -> plan skill): plan
   steps stating a mechanism/formula/API cite the verifying file - including
-  shipped CONTENT data (grep the .content.ron when data picks the mechanism).
-  20260712-093044, 20260717-003613.
+  shipped CONTENT data; embedding the exact citation (file:line) in the step
+  makes implementation AND review mechanical. 20260717-003613,
+  20260719-112231.
 - `scripted-walks-skip-the-bridges` (x1): a hand-fired scenario walk proves
   the script; each consumed event needs one pin driving the production
   bridge. 20260713-150343.
