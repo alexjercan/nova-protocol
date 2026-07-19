@@ -91,6 +91,10 @@ struct SliceAutopilot {
     stage_started: f32,
     wait: u32,
     done: bool,
+    /// Stage transition awaiting its timeline marker: `advance` runs while
+    /// `state` is out of the world, so it buffers here and the closure's
+    /// flush point emits (task 20260719-210450).
+    announce: Option<(u32, String)>,
 }
 
 #[cfg(feature = "debug")]
@@ -132,6 +136,7 @@ fn slice_autopilot(world: &mut World, elapsed: f32) {
         state.stage = to;
         state.stage_started = elapsed;
         state.wait = 10;
+        state.announce = Some((to, note.to_string()));
     };
 
     let entity_by_name = |world: &mut World, name: &str| -> Option<Entity> {
@@ -327,5 +332,15 @@ fn slice_autopilot(world: &mut World, elapsed: f32) {
         _ => unreachable!(),
     }
 
+    // Flush the stage marker `advance` buffered: stage transitions are the
+    // script's design-promised beats (task 20260719-210450).
+    let announce = state.announce.take();
     world.insert_resource(state);
+    if let Some((stage, note)) = announce {
+        nova_probe::probe_marker(
+            world,
+            &format!("stage {stage}"),
+            serde_json::json!({ "note": note, "t": elapsed }),
+        );
+    }
 }

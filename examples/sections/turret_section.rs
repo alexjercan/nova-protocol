@@ -410,6 +410,9 @@ struct RangeOutcome {
     fired: bool,
     gate_damaged: bool,
     asserted: bool,
+    /// Timeline beats already emitted for the flags above.
+    fired_marked: bool,
+    damaged_marked: bool,
 }
 
 /// Autopilot input: hold the fire key while in Playing so the range fires
@@ -440,6 +443,30 @@ fn autopilot_fire_and_assert(world: &mut World, elapsed: f32) {
         world
             .resource_mut::<ButtonInput<KeyCode>>()
             .press(KeyCode::Space);
+    }
+
+    // Timeline beats (task 20260719-210450): mark each range outcome the
+    // first frame it is OBSERVED, so the probe report shows the feature
+    // working, not just the process surviving.
+    let newly: Vec<&str> = {
+        let mut outcome = world.resource_mut::<RangeOutcome>();
+        let mut newly = Vec::new();
+        if outcome.fired && !outcome.fired_marked {
+            outcome.fired_marked = true;
+            newly.push("turret fired");
+        }
+        if outcome.gate_damaged && !outcome.damaged_marked {
+            outcome.damaged_marked = true;
+            newly.push("gate damaged");
+        }
+        newly
+    };
+    for name in newly {
+        nova_probe::probe_marker(
+            world,
+            &format!("outcome: {name}"),
+            serde_json::json!({ "t": elapsed }),
+        );
     }
 
     if elapsed > nova_protocol::nova_debug::harness::NOVA_AUTOPILOT_SECS - 0.5 {

@@ -224,4 +224,11 @@ fn autopilot_burn_probe(world: &mut World, elapsed: f32) {
          ({baseline:.3} -> {nose_speed:.3} u/s)"
     );
     world.resource_mut::<BurnProbe>().asserted = true;
+    // Timeline beat (task 20260719-210450): the burn accelerated and the
+    // plume followed the throttle; speeds on the record.
+    nova_probe::probe_marker(
+        world,
+        "outcome: burn accelerates, plume follows",
+        serde_json::json!({ "t": elapsed, "speed_before": baseline, "speed_after": nose_speed }),
+    );
 }

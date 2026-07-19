@@ -417,6 +417,13 @@ fn autopilot_script(world: &mut World, elapsed: f32) {
              away from the live COM - the camera orbits a phantom point"
         );
         info!("com range: camera anchor tracks the COM (drift {cam_drift:.3})");
+        // Timeline beat (task 20260719-210450): COM and camera both
+        // tracked the section loss; drifts on the record.
+        nova_probe::probe_marker(
+            world,
+            "outcome: com + camera track section loss",
+            serde_json::json!({ "t": elapsed, "com_drift": drift, "camera_drift": cam_drift }),
+        );
         info!("com range: PASS - COM follows the surviving sections");
     }
 }

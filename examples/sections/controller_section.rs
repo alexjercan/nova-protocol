@@ -217,4 +217,11 @@ fn autopilot_attitude_probe(world: &mut World, elapsed: f32) {
     );
     info!("attitude probe: hull tracks the command ({error:.3} rad lag)");
     world.resource_mut::<AttitudeProbe>().asserted = true;
+    // Timeline beat (task 20260719-210450): the PD tracked, with the lag
+    // on the record.
+    nova_probe::probe_marker(
+        world,
+        "outcome: attitude tracks",
+        serde_json::json!({ "t": elapsed, "error_rad": error }),
+    );
 }

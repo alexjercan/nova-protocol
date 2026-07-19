@@ -202,6 +202,13 @@ fn autopilot_hull_probe(world: &mut World, elapsed: f32) {
             amount: spawn_health * 10.0,
         });
         world.resource_mut::<HullProbe>().partial_checked = true;
+        // Timeline beat (task 20260719-210450): the partial hit landed
+        // EXACTLY - the damage path is doing arithmetic, not vibes.
+        nova_probe::probe_marker(
+            world,
+            "outcome: partial hit exact",
+            serde_json::json!({ "t": elapsed, "health_after": current }),
+        );
         return;
     }
 
@@ -230,4 +237,11 @@ fn autopilot_hull_probe(world: &mut World, elapsed: f32) {
     );
     info!("hull probe: damage lands, the section dies, the ship survives");
     world.resource_mut::<HullProbe>().asserted = true;
+    // Timeline beat (task 20260719-210450): the destroy path held end to
+    // end - section gone, root and controller alive.
+    nova_probe::probe_marker(
+        world,
+        "outcome: section destroyed, ship survives",
+        serde_json::json!({ "t": elapsed }),
+    );
 }
