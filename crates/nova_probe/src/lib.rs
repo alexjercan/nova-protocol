@@ -89,6 +89,10 @@ pub mod invariants;
 // web story).
 #[cfg(not(target_arch = "wasm32"))]
 pub mod recorder;
+// The unified run report reads the recorder's timeline, so it is native-only
+// with it (the run_report bin never builds for wasm).
+#[cfg(not(target_arch = "wasm32"))]
+pub mod run_report;
 #[cfg(target_arch = "wasm32")]
 pub mod recorder {
     //! Wasm stubs for the native-only run-timeline recorder.
@@ -129,4 +133,6 @@ pub use profile::{aggregate_system_costs, render_top_table, SystemCost};
 pub use recorder::{nova_timeline, probe_marker, RunRecorderPlugin};
 #[cfg(not(target_arch = "wasm32"))]
 pub use recorder::{parse_timeline, ProbeTimeline, TimelineEvent};
+#[cfg(not(target_arch = "wasm32"))]
+pub use run_report::{evaluate_checks, Check, CheckStatus, RunArtifacts};
 pub use stats::{parse_frametime_csv, FrameStats, PerfRun, RunMeta, CSV_HEADER, CSV_HEADER_V1};

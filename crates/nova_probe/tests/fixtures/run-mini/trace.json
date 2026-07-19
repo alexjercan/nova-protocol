@@ -1,0 +1,5 @@
+[
+    {"ph":"B","ts":1000.0,"tid":1,"name":"system: name=\"game::alpha\""},
+    {"ph":"E","ts":3000.0,"tid":1},
+    {"ph":"X","ts":4000.0,"tid":1,"dur":500.0,"name":"system: name=\"game::beta\""}
+]

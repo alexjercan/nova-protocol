@@ -330,3 +330,11 @@ single source of current state.)
   render 25.5%/18.8%, inspector 5.8%, and insert_asteroid_collider at
   67 ms/call surfaced as a hitch candidate (-> task 20260718-004856).
   42 tests.
+- 2026-07-19 T5 (20260719-112304, CLOSED): unified run report shipped -
+  run_report bin assembles a run dir (timeline/frametime/trace/log, each
+  optional) into self-contained report.html + machine-readable checks.json:
+  4 auto checks (run_completed via the truncation-is-crash contract,
+  invariants_held with per-name counts, fps soft gate WARN-only, log scan),
+  provisional OK/WARN/FAIL + reviewer checklist owning the final call.
+  Absorbed 20260718-152230 closed. Real 10_playable e2e: OK, 0/1372
+  violation frames. 48 tests.

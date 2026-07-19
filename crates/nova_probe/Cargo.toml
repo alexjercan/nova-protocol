@@ -30,6 +30,12 @@ path = "src/bin/perf_report.rs"
 name = "perf_trace"
 path = "src/bin/perf_trace.rs"
 
+# Assembles a run directory's artifacts (timeline, frametime, trace, log)
+# into the unified run report: report.html + checks.json.
+[[bin]]
+name = "run_report"
+path = "src/bin/run_report.rs"
+
 [dependencies]
 # The invariant checks read avian's LinearVelocity directly (same pinned
 # version the whole workspace resolves).

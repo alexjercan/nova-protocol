@@ -67,7 +67,7 @@ fn split_label(label: &str) -> (String, String) {
 }
 
 /// Escape the five characters that matter for HTML text/attribute content.
-fn escape(text: &str) -> String {
+pub(crate) fn escape(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
@@ -152,7 +152,7 @@ pub fn render_report(
 /// Horizontal bar chart: one row per run, bar length = mean frame time, a tick
 /// at p99, all runs on one common scale (the largest p99/max across runs), plus
 /// a dashed 16.6 ms budget line. Pure inline SVG - no script, no external lib.
-fn render_chart(runs: &[PerfRun]) -> String {
+pub(crate) fn render_chart(runs: &[PerfRun]) -> String {
     const LABEL_W: f64 = 200.0;
     const BAR_W: f64 = 460.0;
     const VALUE_W: f64 = 80.0;
@@ -233,7 +233,7 @@ fn render_chart(runs: &[PerfRun]) -> String {
 /// (v2) or the dir-derived fallback (v1). When `has_baseline`, two delta
 /// columns (mean, p99) show the percentage change against the baseline row of
 /// the same label; a missing baseline row renders as an em dash.
-fn render_table(
+pub(crate) fn render_table(
     runs: &[PerfRun],
     fallback_renderer: &str,
     baseline: &HashMap<&str, &PerfRun>,
@@ -303,7 +303,7 @@ fn delta_cell(baseline: Option<f64>, current: f64) -> String {
     format!("<td class=\"num delta {class}\">{pct:+.1}%</td>")
 }
 
-const STYLE: &str = r#"<style>
+pub(crate) const STYLE: &str = r#"<style>
 :root { color-scheme: light dark; }
 * { box-sizing: border-box; }
 body {
@@ -336,6 +336,19 @@ td.delta.none { color: #bbb; }
 .chart .legend { font-size: 11px; fill: #777; }
 .chart .legend tspan { margin-right: 8px; }
 footer { margin-top: 2.5rem; color: #888; font-size: 0.85rem; border-top: 1px solid #ddd; padding-top: 0.6rem; }
+.banner { padding: 0.8rem 1rem; border-radius: 6px; font-weight: 600; margin: 1rem 0; }
+.banner.ok { background: #e3f4e6; color: #0b6623; }
+.banner.warn { background: #fff3d6; color: #7a5b00; }
+.banner.fail { background: #fbe3e4; color: #8f1013; }
+.banner .confirm { display: block; font-weight: 400; font-size: 0.85rem; margin-top: 0.3rem; }
+td.status-pass { color: #087f23; font-weight: 600; }
+td.status-warn { color: #b8860b; font-weight: 600; }
+td.status-fail { color: #b00020; font-weight: 600; }
+td.status-skipped { color: #999; }
+details { margin: 0.6rem 0; }
+details summary { cursor: pointer; color: #555; }
+.checklist li { margin: 0.3rem 0; }
+.oknok { font-weight: 700; margin-top: 0.8rem; }
 @media (prefers-color-scheme: dark) {
   body { color: #e6e6e6; background: #16181c; }
   h2 { border-color: #333; }

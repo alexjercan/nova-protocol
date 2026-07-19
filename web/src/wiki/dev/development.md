@@ -250,6 +250,24 @@ var. It is the correctness half of the run-harness the perf capture is the
 performance half of; the unified run report (task 20260719-112304) renders
 both.
 
+### The run report (one verdict surface)
+
+`run_report` assembles a RUN DIRECTORY - whatever the passes above dropped
+into it (`timeline.jsonl`, `frametime.csv`, `trace.json`, `run.log`, each
+optional) - into a self-contained `report.html` plus a machine-readable
+`checks.json`:
+
+```sh
+cargo run -p nova_probe --bin run_report -- <run-dir> [--baseline <old-run-dir>]
+```
+
+Auto checks produce a provisional OK/WARN/FAIL (run completed, invariants
+held, FPS vs baseline within a soft gate, log scan); missing artifacts are
+SKIPPED - "not measured", never "held". FPS regressions only ever WARN
+(frame numbers are host-noisy), and the report ends with a reviewer
+checklist: the final OK/NOT-OK is a human's or an agent's call, off
+`checks.json` without parsing HTML.
+
 ### Profiled pass (where does the time go)
 
 Per-system costs come from a SEPARATE traced run - tracing overhead inflates

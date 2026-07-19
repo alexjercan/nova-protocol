@@ -1,6 +1,6 @@
 # nova_perf: add an HTML report-generator binary that turns the frametime JSON/CSV into a styled standalone report (per-scene percentiles, charts, deltas)
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.8.0, tooling, performance
 
@@ -79,3 +79,14 @@ record of the FPS renderer's origin.
 - If styling is cheap to share, keep it visually consistent with the content
   audit report (20260718-152240) so the project's generated reports read as a
   family.
+
+## CLOSED (2026-07-19): delivered through the unified run report
+
+The perf_report HTML generator shipped with T1 (nova_probe rename,
+03828732) and became the Performance SECTION of the unified run report in
+T5 (20260719-112304): `run_report` renders the same chart/table/deltas
+inside report.html, and perf_report remains as the standalone
+FPS-results-dir tool. DoD disposition: report renders offline with
+percentiles/chart/deltas (shipped); perf-baseline.sh renders in the same
+invocation (REPORT=1, shipped); the v0.7.0 baseline spot-check and schema
+pin shipped with T1 (v1 back-compat tests + fixtures).
