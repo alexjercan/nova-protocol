@@ -297,6 +297,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `stemmed-compound-extension` (x2): custom-asset files need a stem so the
   full extension matches the registered loader (`<pack>.bundle.ron`, never a
   bare `bundle.ron`). 20260714-163342.
+- `fixture-adds-verify-tracked` (x1): `git add -A` says nothing about what
+  the ignore rules dropped - a global *.log swallowed a test fixture and the
+  squash landed without it; after staging fixtures, `git ls-files` the
+  fixture dir and count, and carve ignore exceptions for fixture trees.
+  20260719-112304.
 - `stage-lock-with-manifest` (x1): a Cargo.toml dep change stages Cargo.lock
   too; explicit-path adds drop it silently. 20260714-113408.
 - `pin-the-fix-at-its-boundary` (x4, PROMOTED 2026-07-19 -> review skill):
