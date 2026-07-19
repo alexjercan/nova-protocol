@@ -181,8 +181,13 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `record-the-exact-rig` (x3, PROMOTED 2026-07-13 -> work skill): evidence
   notes record the rig (systems, command path, components) or they mislead.
   20260709-125640.
-- `probe-surfaces-adjacent-issues` (x1): run de-risk probes for real; they
-  pay beyond their stated question. 20260710-104421.
+- `probe-surfaces-adjacent-issues` (x2): run de-risk probes for real; they
+  pay beyond their stated question (the timeline recorder's first armed run
+  exposed an unknown spawn-overlap onenter). 20260710-104421, 20260719-112238.
+- `upstream-api-gap-fix-beats-workaround` (positive, x1): when the blocking
+  gap is a missing accessor in a dependency the USER owns, surface the fork -
+  the small upstream fix + tag + pin bump beat both in-repo workarounds
+  (per-site wrapper sweep, deferral) on every axis. 20260719-112238.
 - `headless-shot-after-load` (x1): BCS_SHOT captures black pre-load; inject
   `Screenshot::primary_window` from the autopilot at a settled moment.
   20260710-104421.
