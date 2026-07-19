@@ -122,37 +122,16 @@ fn catalog_matches_disk() {
         }
     }
 
-    // The catalog, parsed from Cargo.toml's [[example]] blocks. autoexamples
-    // is off, so this IS the set of buildable examples.
-    let manifest = std::fs::read_to_string(root.join("Cargo.toml")).unwrap();
-    let mut cataloged = BTreeSet::new();
-    let mut in_example = false;
-    let (mut name, mut path) = (None, None);
-    for line in manifest.lines() {
-        let line = line.trim();
-        if line.starts_with('[') {
-            in_example = line == "[[example]]";
-            (name, path) = (None, None);
-            continue;
-        }
-        if !in_example {
-            continue;
-        }
-        if let Some(v) = line.strip_prefix("name = ") {
-            name = Some(v.trim_matches('"').to_string());
-        } else if let Some(v) = line.strip_prefix("path = ") {
-            path = Some(v.trim_matches('"').to_string());
-        }
-        if let (Some(n), Some(p)) = (&name, &path) {
-            cataloged.insert((n.clone(), p.clone()));
-            (name, path) = (None, None);
-        }
-    }
-    assert!(
-        manifest.contains("autoexamples = false"),
-        "autoexamples must stay off - the [[example]] catalog is the single \
-         source of truth this test pins"
-    );
+    // The catalog, via THE parser probe's multi-run specs resolve against
+    // (nova_probe::catalog) - one parser, two consumers, no drift between
+    // them. It refuses a manifest without `autoexamples = false` itself,
+    // so this unwrap also pins that discovery stays off.
+    let catalog = nova_probe::load_example_catalog(root)
+        .expect("the [[example]] catalog must parse (and autoexamples must stay off)");
+    let cataloged: BTreeSet<(String, String)> = catalog
+        .iter()
+        .map(|example| (example.name.clone(), example.path.clone()))
+        .collect();
     assert_eq!(
         cataloged, on_disk,
         "Cargo.toml [[example]] catalog and examples/ disagree - every \

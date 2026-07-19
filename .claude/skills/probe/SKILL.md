@@ -21,6 +21,9 @@ cargo run -p nova_probe -- run <example> --profile    # + traced pass (top-N sys
 cargo run -p nova_probe -- run <example> --samply     # + named flamegraph
 cargo run -p nova_probe -- run <example> --fps        # + frame-time capture (wired examples)
 cargo run -p nova_probe -- run <example> --baseline <old-run-dir>   # FPS deltas
+cargo run -p nova_probe -- run playable,scenario      # comma list -> aggregate index
+cargo run -p nova_probe -- run ui                     # a whole category (sections|gameplay|ui|screenshots|perf)
+cargo run -p nova_probe -- run --all                  # the whole catalog minus NOT_PROBED
 cargo run -p nova_probe -- run perf_baseline --fps --release \
   --render gpu --scenario asteroid_field --preset high --preset low  # perf sweep (matrix)
 cargo run -p nova_probe -- run <scenario> --platform web  # web/WebGPU frame capture
@@ -28,12 +31,28 @@ cargo run -p nova_probe -- report <run-dir> [--baseline <dir>]  # re-render (man
 cargo run -p nova_probe -- trace <trace.json> [--top N]         # top-N systems table
 ```
 
-`report` REFUSES dirs without `probe-run.json` - a report can only be built
-from a dir probe itself produced, so stale hand-assembled folders cannot
-impersonate a run. The old `sweep|web|profile` subcommands are deprecated
-aliases that map onto `run` flags (the perf .sh scripts are gone); sweeps
-run with `--release` (dev-profile frame numbers are not baselines) and
-`--render sw` gives the lavapipe software floor.
+Multi specs (list, category, `--all`) resolve against the `[[example]]`
+catalog in the root Cargo.toml, run SEQUENTIALLY with continue-on-failure
+(one hung example FAILs its row, the sweep keeps going), and write an
+aggregate above the per-example run dirs: `index.html`, `index.json` (the
+agent surface: one file answers "does everything still work"), and
+`probe-all.json` (the gate). The aggregate verdict is the WORST row and
+the exit code mirrors it; each row shows verdict + measured n/total + the
+six check statuses + a link to that example's own report. `--all` skips
+the NOT_PROBED list (each entry has its reason, shown in the report);
+bare `probe run` errors with the catalog instead of accidentally starting
+a 30-minute fleet sweep. Expect a category to take single-digit minutes
+warm and `--all` 25-40 min - categories are the everyday unit, `--all`
+the pre-release/nightly sweep.
+
+`report` REFUSES dirs without `probe-run.json` (or `probe-all.json` for an
+aggregate dir - its rows are re-read fresh from each run's checks.json) -
+a report can only be built from dirs probe itself produced, so stale
+hand-assembled folders cannot impersonate a run. The old
+`sweep|web|profile` subcommands are deprecated aliases that map onto
+`run` flags (the perf .sh scripts are gone); sweeps run with `--release`
+(dev-profile frame numbers are not baselines) and `--render sw` gives the
+lavapipe software floor.
 
 `run` writes to `probe-runs/<example>/` (gitignored), SURGICALLY CLEANED of
 probe's own artifacts at start (nothing stale survives into a report):

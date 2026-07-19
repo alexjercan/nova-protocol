@@ -76,7 +76,14 @@
 //! | `NOVA_PERF_SHA` / `sha`       | `git rev-parse` | Overrides the recorded git SHA (the web build cannot shell out). |
 //! | `NOVA_PERF_HOST` / `host`     | `/etc/hostname` | Overrides the recorded host tag (`browser` on wasm). |
 
+// The aggregated multi-run report and the example catalog feed the probe
+// bin's multi-spec runs and the root package's drift test - host tooling,
+// native-only like the run report.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod aggregate;
 pub mod capture;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod catalog;
 pub mod profile;
 // Continuous invariant checks ride the recorder's timeline sink, so they are
 // native-only with it (nothing wasm-side references them - the examples that
@@ -123,10 +130,16 @@ pub mod recorder {
 pub mod report;
 pub mod stats;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub use aggregate::{
+    index_json, overall_verdict as aggregate_verdict, render_index, AllManifest, AllRow,
+};
 pub use capture::{
     combat_burst_driver, nova_frametime, perf_armed, perf_param, FrameTimePlugin, PerfDriver,
     DEFAULT_CAPTURE_FRAMES, DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, PERF_ENV,
 };
+#[cfg(not(target_arch = "wasm32"))]
+pub use catalog::{categories, load_example_catalog, parse_example_catalog, CatalogExample};
 #[cfg(not(target_arch = "wasm32"))]
 pub use invariants::{nova_invariants, InvariantState, InvariantsPlugin};
 pub use profile::{aggregate_system_costs, render_top_table, SystemCost};

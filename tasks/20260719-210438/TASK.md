@@ -1,6 +1,6 @@
 # probe run multi-spec (comma list, category, --all) + aggregated index report (index.html/json, probe-all.json gate)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 59
 - TAGS: v0.8.0,tooling,testing,examples
 
@@ -57,25 +57,25 @@ probe run                         # ERROR: prints the catalog by category + spec
 
 ## Steps
 
-- [ ] Catalog parser in nova_probe (name, path, category; unit-tested);
+- [x] Catalog parser in nova_probe (name, path, category; unit-tested);
       switch catalog_matches_disk to it, drift pins unchanged.
-- [ ] Spec resolution pure fn + parse() wiring (bare run -> catalog
+- [x] Spec resolution pure fn + parse() wiring (bare run -> catalog
       error listing; --all; comma lists; categories; collision assert)
       + multi-mode flag rejections. Parse pins for all of it.
-- [ ] Sequential driver: loop run(), collect row from checks.json (or
+- [x] Sequential driver: loop run(), collect row from checks.json (or
       FAIL row on missing), durations, continue-on-failure.
-- [ ] Aggregate render: index.html (reuse report.rs shared pieces) +
+- [x] Aggregate render: index.html (reuse report.rs shared pieces) +
       index.json + probe-all.json; worst-of verdict + exit code;
       NOT_PROBED section. probe report gains the probe-all.json branch.
-- [ ] Docs: probe skill (spec forms + aggregate), wiki Performance
+- [x] Docs: probe skill (spec forms + aggregate), wiki Performance
       section, CHANGELOG Unreleased.
-- [ ] Tests: resolution/rejection pins, parser units, manifest + row
+- [x] Tests: resolution/rejection pins, parser units, manifest + row
       serde, worst-of pure fn.
-- [ ] E2E: `probe run ui` (category, 3 examples) -> index with 3 rows +
+- [x] E2E: `probe run ui` (category, 3 examples) -> index with 3 rows +
       per-example reports; `probe run scenario,hud_range` (list);
       `probe report` re-render of the index; bare `probe run` error
       lists the catalog. Record all here.
-- [ ] Verify: fmt; cargo test -p nova_probe; root drift test still
+- [x] Verify: fmt; cargo test -p nova_probe; root drift test still
       passes (`cargo test -p nova-protocol --test examples_smoke
       catalog`).
 
@@ -90,3 +90,37 @@ probe run                         # ERROR: prints the catalog by category + spec
 - NOT in scope: CI wiring (smoke stays the CI gate; probe-all is the
   local/nightly evidence artifact), RunMeta.profile label (T2), marker
   depth (T3).
+
+## Close-out (2026-07-19, branch feature/probe-all)
+
+Multi-spec + aggregate landed exactly per the spike, all e2es live:
+
+- `probe run ui` (category): 3 sequential runs (editor 271s carrying the
+  cold build, hud_range 15s, menu_newgame 13s), aggregate OK, exit 0,
+  index.html + index.json + probe-all.json above the per-example dirs.
+- `probe run scenario,hud_range` (list): the aggregate's whole point in
+  one table - scenario OK measured 5/6 (wired) next to hud_range OK
+  measured 2/6 (unwired). T2's motivation is now VISIBLE, not implied.
+- `probe report probe-runs`: re-renders the index with rows re-read fresh
+  from each checks.json; a foreign dir is refused naming both manifests.
+- Bare `probe run`: exit 1 + the full catalog by category + the three
+  spec forms. `probe run typo_example`: unknown-spec error with the same
+  listing. `probe run playable --all`: contradiction error.
+- Tests: 61 lib (catalog parser: fail-closed on missing keys/uncategorized
+  paths/duplicates/name-category collisions/discovery-on; aggregate:
+  worst-of verdict incl. fail-closed unknown verdicts, manifest JSON
+  roundtrip, index-html honesty assertions) + 16 bin (parse specs/--all/
+  contradictions + resolve: single-stays-single, category-expands-minus-
+  NOT_PROBED, explicit-name-overrides-exclusion, dedupe, catalog-listing
+  errors). Root drift test passes against the SHARED parser (the inline
+  copy in examples_smoke.rs is gone).
+- fmt clean, zero warnings.
+
+Design notes recorded in-flight:
+- `--platform web` bypasses catalog resolution (its positional is a
+  scenario id, not an example) and rejects multi specs.
+- Per-run Xvfb spawn kept (deviation from the spike's shared-Xvfb
+  sketch): ~1s/run for zero new lifecycle risk.
+- A new multi run into the same base dir replaces the previous aggregate
+  (its manifest names ITS spec and rows); per-example dirs persist and
+  single-run/`--out` semantics are unchanged.

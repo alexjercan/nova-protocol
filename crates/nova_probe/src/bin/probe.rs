@@ -1,10 +1,15 @@
 //! `probe` - the run-harness front door (task 20260719-112317; spike
-//! tasks/20260719-112011/SPIKE.md). One command runs an autopilot example
-//! through the harness passes and hands back the unified run report:
+//! tasks/20260719-112011/SPIKE.md; multi-run task 20260719-210438). One
+//! command runs autopilot examples through the harness passes and hands
+//! back the unified run report - or, for a multi spec, one report per
+//! example plus an aggregated status index:
 //!
 //! ```text
 //! cargo run -p nova_probe -- run playable            # clean pass + report
 //! cargo run -p nova_probe -- run playable --profile  # + traced pass
+//! cargo run -p nova_probe -- run playable,scenario   # comma list -> aggregate
+//! cargo run -p nova_probe -- run ui                  # a category dir's examples
+//! cargo run -p nova_probe -- run --all               # the whole catalog (minus NOT_PROBED)
 //! cargo run -p nova_probe -- report <run-dir>           # re-render (manifest-gated)
 //! cargo run -p nova_probe -- trace <trace.json>          # top-N systems table
 //! ```
@@ -13,8 +18,11 @@
 //! optionally the frame-time capture for wired examples), pass 2 PROFILED
 //! (`--profile`: separate trace build, its overhead never touches pass 1's
 //! numbers - the two-pass rule), optional `--samply` flamegraph run, then
-//! the run report in-process. `sweep`/`web`/`profile` are thin wrappers
-//! over the battle-tested scripts - one front door, scripts as the engine.
+//! the run report in-process. Multi specs resolve against the Cargo.toml
+//! `[[example]]` catalog (the single source of truth - autoexamples is
+//! off), run sequentially with continue-on-failure, and write
+//! `index.html` + `index.json` + `probe-all.json` above the per-example
+//! run dirs.
 
 // Native-only like the recorder/report it wraps; the wasm build gets a stub
 // main so `cargo check --target wasm32` over the package stays green.
@@ -41,22 +49,27 @@ mod native {
 
     pub const USAGE: &str = "\
 usage: probe <subcommand>
-  run <example|scenario> [--out <dir>] [--profile] [--samply] [--fps]
+  run <spec> [--all] [--out <dir>] [--profile] [--samply] [--fps]
       [--baseline <run-dir>] [--timeout <secs>] [--display <:N>]
       [--release] [--render gpu|sw] [--scenario <id>]... [--preset <p>]...
       [--platform native|web]
-      the post-feature check and the perf sweep. Matrix flags (--scenario/
-      --preset, repeatable) sweep the frame-time capture (with --fps);
-      --platform web captures the web/WebGPU frame line (positional =
-      scenario id). Artifacts + report land in the run dir.
+      the post-feature check and the perf sweep. <spec> is one example, a
+      comma list (playable,scenario), or a category dir (sections|gameplay|
+      ui|screenshots|perf); --all runs the whole catalog minus NOT_PROBED.
+      Multi specs run sequentially into <out|probe-runs>/<example>/ and
+      write an aggregated index.html/index.json + probe-all.json above
+      them. Matrix flags (--scenario/--preset, repeatable, with --fps),
+      --platform web (positional = scenario id) and --baseline are
+      single-example concerns. Artifacts + report land in the run dir.
   report <run-dir> [--baseline <run-dir>]
-      re-render the report; refuses dirs without probe-run.json
+      re-render the report (probe-run.json dirs) or the aggregate index
+      (probe-all.json dirs); refuses dirs probe did not produce
   trace <trace.json> [--top N] [-o <table.md>]
       top-N costliest-systems table from a chrome trace
   sweep|web|profile   DEPRECATED aliases that map onto `run` flags";
 
     /// Parsed `probe run` options.
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, Clone, PartialEq)]
     pub struct RunOptions {
         pub example: String,
         pub out: Option<PathBuf>,
@@ -93,7 +106,17 @@ usage: probe <subcommand>
     /// Parsed command line.
     #[derive(Debug, PartialEq)]
     pub enum Cmd {
+        /// A single fully-resolved run (the deprecated aliases build this).
         Run(RunOptions),
+        /// A `probe run` spec, resolved against the example catalog at
+        /// dispatch (parse stays pure/fs-free): `tokens` is the comma-split
+        /// positional (possibly empty - resolution errors with the catalog
+        /// listing), `all` the --all flag.
+        RunSpec {
+            tokens: Vec<String>,
+            all: bool,
+            base: RunOptions,
+        },
         Report {
             dir: PathBuf,
             baseline: Option<PathBuf>,
@@ -240,10 +263,12 @@ usage: probe <subcommand>
 
     fn parse_run(args: Vec<String>) -> Result<Cmd, String> {
         let mut example: Option<String> = None;
+        let mut all = false;
         let mut opts = default_run(String::new());
         let mut iter = args.iter();
         while let Some(arg) = iter.next() {
             match arg.as_str() {
+                "--all" => all = true,
                 "--profile" => opts.profile = true,
                 "--samply" => opts.samply = true,
                 "--fps" => opts.fps = true,
@@ -292,14 +317,18 @@ usage: probe <subcommand>
                 }
                 other => {
                     if example.replace(other.to_string()).is_some() {
-                        return Err("only one example may be given".into());
+                        return Err("only one spec may be given (commas form a list)".into());
                     }
                 }
             }
         }
-        opts.example = example.ok_or("run needs an example name")?;
-        // Honest-combination gates: the matrix is a perf sweep (needs the
-        // capture armed), and the web pipeline has no native passes.
+        if all && example.is_some() {
+            return Err("give a spec or --all, not both".into());
+        }
+        // Honest-combination gates that need no catalog: the matrix is a
+        // perf sweep (needs the capture armed), and the web pipeline has no
+        // native passes. Multi-spec gates live in resolve (they need to
+        // know whether the spec expands).
         let matrix = !opts.scenarios.is_empty() || !opts.presets.is_empty();
         if matrix && !opts.fps {
             return Err("--scenario/--preset form a perf sweep: add --fps".into());
@@ -311,7 +340,358 @@ usage: probe <subcommand>
                     .into(),
             );
         }
-        Ok(Cmd::Run(opts))
+        let tokens: Vec<String> = example
+            .map(|spec| {
+                spec.split(',')
+                    .filter(|token| !token.is_empty())
+                    .map(String::from)
+                    .collect()
+            })
+            .unwrap_or_default();
+        Ok(Cmd::RunSpec {
+            tokens,
+            all,
+            base: opts,
+        })
+    }
+
+    /// Examples that `--all` and category expansion SKIP, each with its
+    /// reason - listed in the aggregate report so the absence reads as a
+    /// decision (no silent caps). An explicit `probe run <name>` still runs
+    /// one (operator's choice, with a printed note).
+    const NOT_PROBED: &[(&str, &str)] = &[(
+        "render_scale_shot",
+        "BCS_SHOT real-GPU pixel capture with no self-ending autopilot: under \
+         probe's Xvfb it would time out, and its point (correct pixels) needs \
+         a real GPU and human eyes",
+    )];
+
+    /// A spec resolved against the example catalog.
+    #[derive(Debug, PartialEq)]
+    pub struct Resolved {
+        pub examples: Vec<String>,
+        /// True when the spec EXPANDS (list, category, --all) - the multi
+        /// gates and the aggregate apply; a bare example name stays the
+        /// single-run path with today's semantics exactly.
+        pub multi: bool,
+        /// The spec as given, for the aggregate manifest ("--all", "ui", ...).
+        pub spec_display: String,
+        /// What expansion skipped, with reasons (empty for explicit names).
+        pub excluded: Vec<(String, String)>,
+    }
+
+    /// Resolve spec tokens against the catalog: an exact example name wins,
+    /// else a category dir name expands to its members (minus NOT_PROBED),
+    /// else an error that lists the catalog. Pure - the catalog is injected
+    /// (the probe-env pattern), so every branch is unit-testable.
+    pub fn resolve_spec(
+        tokens: &[String],
+        all: bool,
+        catalog: &[nova_probe::CatalogExample],
+        not_probed: &[(&str, &str)],
+    ) -> Result<Resolved, String> {
+        let excluded_reason = |name: &str| {
+            not_probed
+                .iter()
+                .find(|(n, _)| *n == name)
+                .map(|(n, r)| (n.to_string(), r.to_string()))
+        };
+        if all {
+            let mut excluded = Vec::new();
+            let examples = catalog
+                .iter()
+                .filter(|example| match excluded_reason(&example.name) {
+                    Some(entry) => {
+                        excluded.push(entry);
+                        false
+                    }
+                    None => true,
+                })
+                .map(|example| example.name.clone())
+                .collect();
+            return Ok(Resolved {
+                examples,
+                multi: true,
+                spec_display: "--all".into(),
+                excluded,
+            });
+        }
+        if tokens.is_empty() {
+            return Err(format!(
+                "run needs a spec (or --all)\n{}",
+                spec_help(catalog)
+            ));
+        }
+        let categories = nova_probe::categories(catalog);
+        let mut examples: Vec<String> = Vec::new();
+        let mut excluded = Vec::new();
+        let mut multi = tokens.len() > 1;
+        for token in tokens {
+            if catalog.iter().any(|example| example.name == *token) {
+                // Explicit names run even when NOT_PROBED lists them - the
+                // operator asked; the driver prints the note.
+                if !examples.contains(token) {
+                    examples.push(token.clone());
+                }
+            } else if categories.contains(&token.as_str()) {
+                multi = true;
+                for example in catalog.iter().filter(|e| e.category == *token) {
+                    match excluded_reason(&example.name) {
+                        Some(entry) => {
+                            if !excluded.contains(&entry) {
+                                excluded.push(entry);
+                            }
+                        }
+                        None => {
+                            if !examples.contains(&example.name) {
+                                examples.push(example.name.clone());
+                            }
+                        }
+                    }
+                }
+            } else {
+                return Err(format!(
+                    "unknown example or category `{token}`\n{}",
+                    spec_help(catalog)
+                ));
+            }
+        }
+        Ok(Resolved {
+            examples,
+            multi,
+            spec_display: tokens.join(","),
+            excluded,
+        })
+    }
+
+    /// The catalog, listed by category, plus the spec forms - the body of
+    /// the bare-`probe run` error and every unknown-spec error.
+    fn spec_help(catalog: &[nova_probe::CatalogExample]) -> String {
+        let mut help = String::from("examples by category:\n");
+        for category in nova_probe::categories(catalog) {
+            let members: Vec<&str> = catalog
+                .iter()
+                .filter(|example| example.category == category)
+                .map(|example| example.name.as_str())
+                .collect();
+            help.push_str(&format!("  {category}: {}\n", members.join(", ")));
+        }
+        help.push_str(
+            "forms: probe run <example>[,<example>...] | probe run <category> | probe run --all",
+        );
+        help
+    }
+
+    /// Dispatch a parsed run spec: resolve against the catalog, then either
+    /// the single-run path (semantics unchanged) or the sequential multi
+    /// driver with the aggregate. `--platform web` bypasses resolution -
+    /// its positional is a SCENARIO id, not an example.
+    fn run_spec(tokens: &[String], all: bool, mut base: RunOptions) -> Result<ExitCode, String> {
+        if base.platform == Platform::Web {
+            if all || tokens.len() != 1 {
+                return Err(
+                    "--platform web takes exactly one scenario id; it does not combine \
+                     with a list/category/--all spec"
+                        .into(),
+                );
+            }
+            base.example = tokens[0].clone();
+            return run(&base);
+        }
+        let root = repo_root();
+        let catalog = nova_probe::load_example_catalog(&root)?;
+        let resolved = resolve_spec(tokens, all, &catalog, NOT_PROBED)?;
+        if !resolved.multi {
+            base.example = resolved.examples[0].clone();
+            if let Some((_, reason)) = NOT_PROBED
+                .iter()
+                .find(|(name, _)| *name == base.example.as_str())
+            {
+                eprintln!(
+                    "probe: note: {} is excluded from --all/category runs: {reason}",
+                    base.example
+                );
+            }
+            return run(&base);
+        }
+        // Multi gates: these flags are single-example concerns.
+        if !base.scenarios.is_empty() || !base.presets.is_empty() {
+            return Err(
+                "the --scenario/--preset matrix is a single-example perf sweep; \
+                 give one example"
+                    .into(),
+            );
+        }
+        if base.baseline.is_some() {
+            return Err(
+                "--baseline compares one run dir; it does not combine with a \
+                 list/category/--all spec"
+                    .into(),
+            );
+        }
+        run_many(&resolved, &base, &catalog)
+    }
+
+    /// The sequential multi driver: each example through `run()` into
+    /// `<base>/<example>/` (today's per-example artifacts unchanged), a row
+    /// per example built from ITS checks.json (probe consumes its own agent
+    /// surface), continue-on-failure, then the aggregate index. Per-run
+    /// Xvfb spawn is kept (a ~1s cost per run that buys zero new lifecycle
+    /// risk - recorded deviation from the spike's shared-Xvfb sketch).
+    fn run_many(
+        resolved: &Resolved,
+        base: &RunOptions,
+        catalog: &[nova_probe::CatalogExample],
+    ) -> Result<ExitCode, String> {
+        let root = repo_root();
+        let out_base = base.out.clone().unwrap_or_else(|| root.join("probe-runs"));
+        std::fs::create_dir_all(&out_base).map_err(|e| format!("could not create out dir: {e}"))?;
+        let out_base = out_base
+            .canonicalize()
+            .map_err(|e| format!("could not resolve out dir: {e}"))?;
+        let started_unix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let (git_sha, host) = run_identity();
+        let total = resolved.examples.len();
+        let mut rows = Vec::new();
+        for (i, example) in resolved.examples.iter().enumerate() {
+            eprintln!("probe: ===== {example} [{}/{total}] =====", i + 1);
+            let mut opts = base.clone();
+            opts.example = example.clone();
+            opts.out = Some(out_base.join(example));
+            let started = Instant::now();
+            let run_error = match run(&opts) {
+                Ok(_) => None,
+                Err(message) => {
+                    eprintln!("probe: {example}: {message}; continuing with the next example");
+                    Some(message)
+                }
+            };
+            let category = catalog
+                .iter()
+                .find(|entry| entry.name == *example)
+                .map(|entry| entry.category.clone())
+                .unwrap_or_default();
+            rows.push(build_row(
+                example,
+                &category,
+                &out_base.join(example),
+                run_error,
+                started.elapsed().as_secs(),
+            ));
+        }
+        let manifest = nova_probe::AllManifest {
+            spec: resolved.spec_display.clone(),
+            started_unix,
+            git_sha,
+            host,
+            excluded: resolved.excluded.clone(),
+            rows,
+        };
+        write_aggregate(&out_base, &manifest)?;
+        print_aggregate(&out_base, &manifest);
+        Ok(aggregate_exit(&manifest))
+    }
+
+    /// One aggregate row, read back from the run's own checks.json. A run
+    /// that never produced one (build failure, probe error) becomes an
+    /// ERROR row carrying the message - the sweep must show it, not skip it.
+    fn build_row(
+        example: &str,
+        category: &str,
+        dir: &Path,
+        run_error: Option<String>,
+        duration_secs: u64,
+    ) -> nova_probe::AllRow {
+        let checks = std::fs::read_to_string(dir.join("checks.json"))
+            .ok()
+            .and_then(|contents| serde_json::from_str::<serde_json::Value>(&contents).ok());
+        match checks {
+            Some(value) => nova_probe::AllRow {
+                example: example.into(),
+                category: category.into(),
+                verdict: value
+                    .get("verdict")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("ERROR")
+                    .into(),
+                measured: value
+                    .get("measured")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("-")
+                    .into(),
+                checks: value
+                    .get("checks")
+                    .and_then(|c| c.as_array())
+                    .map(|checks| {
+                        checks
+                            .iter()
+                            .filter_map(|check| {
+                                Some((
+                                    check.get("name")?.as_str()?.to_string(),
+                                    check.get("status")?.as_str()?.to_string(),
+                                ))
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                duration_secs,
+                error: run_error,
+            },
+            None => nova_probe::AllRow {
+                example: example.into(),
+                category: category.into(),
+                verdict: "ERROR".into(),
+                measured: "-".into(),
+                checks: Vec::new(),
+                duration_secs,
+                error: Some(run_error.unwrap_or_else(|| "the run produced no checks.json".into())),
+            },
+        }
+    }
+
+    fn write_aggregate(out_base: &Path, manifest: &nova_probe::AllManifest) -> Result<(), String> {
+        std::fs::write(
+            out_base.join("probe-all.json"),
+            format!("{:#}\n", manifest.to_json()),
+        )
+        .map_err(|e| format!("could not write probe-all.json: {e}"))?;
+        std::fs::write(
+            out_base.join("index.json"),
+            format!("{:#}\n", nova_probe::index_json(manifest)),
+        )
+        .map_err(|e| format!("could not write index.json: {e}"))?;
+        std::fs::write(
+            out_base.join("index.html"),
+            nova_probe::render_index(manifest),
+        )
+        .map_err(|e| format!("could not write index.html: {e}"))
+    }
+
+    fn print_aggregate(out_base: &Path, manifest: &nova_probe::AllManifest) {
+        let overall = nova_probe::aggregate_verdict(&manifest.rows);
+        println!(
+            "probe: aggregate {overall} - {}",
+            out_base.join("index.html").display()
+        );
+        for row in &manifest.rows {
+            println!(
+                "  {:<24} {:<8} measured {:>4}  {}s",
+                row.example, row.verdict, row.measured, row.duration_secs
+            );
+        }
+        for (example, reason) in &manifest.excluded {
+            println!("  {example:<24} NOT PROBED - {reason}");
+        }
+    }
+
+    fn aggregate_exit(manifest: &nova_probe::AllManifest) -> ExitCode {
+        match nova_probe::aggregate_verdict(&manifest.rows) {
+            "OK" | "WARN" => ExitCode::SUCCESS,
+            _ => ExitCode::FAILURE,
+        }
     }
 
     /// The repo root, derived from this crate's manifest dir at compile time
@@ -1117,6 +1497,13 @@ usage: probe <subcommand>
                     ExitCode::FAILURE
                 }
             },
+            Ok(Cmd::RunSpec { tokens, all, base }) => match run_spec(&tokens, all, base) {
+                Ok(code) => code,
+                Err(message) => {
+                    eprintln!("probe: {message}");
+                    ExitCode::FAILURE
+                }
+            },
             Ok(Cmd::Report { dir, baseline }) => match report(&dir, baseline.as_deref()) {
                 Ok(code) => code,
                 Err(message) => {
@@ -1137,12 +1524,23 @@ usage: probe <subcommand>
     /// `probe report`: re-render an existing run dir - GATED on the
     /// manifest, so a report can only ever be built from a dir `probe run`
     /// itself produced (stale hand-assembled folders are refused, which is
-    /// the whole point of the gate).
+    /// the whole point of the gate). An aggregate dir (probe-all.json)
+    /// re-renders the index instead: each row is re-read fresh from its
+    /// run dir's checks.json (re-render a single example's report via
+    /// `probe report <base>/<example>`).
     fn report(dir: &Path, baseline: Option<&Path>) -> Result<ExitCode, String> {
+        if dir.join("probe-all.json").exists() {
+            if baseline.is_some() {
+                return Err("--baseline compares one run dir; it does not apply to an \
+                     aggregate index"
+                    .into());
+            }
+            return report_aggregate(dir);
+        }
         if !dir.join("probe-run.json").exists() {
             return Err(format!(
-                "{} has no probe-run.json - probe only reports over dirs it produced; \
-                 run `probe run <example> --out {}` first",
+                "{} has neither probe-run.json nor probe-all.json - probe only \
+                 reports over dirs it produced; run `probe run <example> --out {}` first",
                 dir.display(),
                 dir.display()
             ));
@@ -1167,6 +1565,40 @@ usage: probe <subcommand>
         } else {
             ExitCode::SUCCESS
         })
+    }
+
+    /// Re-render an aggregate dir's index: identity/durations/exclusions
+    /// come from probe-all.json; every row's verdict/measured/checks are
+    /// re-read FRESH from its run dir's checks.json (a row whose dir lost
+    /// its checks.json keeps the manifest's recorded row - deleting
+    /// evidence does not upgrade a verdict).
+    fn report_aggregate(dir: &Path) -> Result<ExitCode, String> {
+        let contents = std::fs::read_to_string(dir.join("probe-all.json"))
+            .map_err(|e| format!("could not read probe-all.json: {e}"))?;
+        let value: serde_json::Value = serde_json::from_str(&contents)
+            .map_err(|e| format!("probe-all.json is not valid JSON: {e}"))?;
+        let mut manifest = nova_probe::AllManifest::from_json(&value)?;
+        manifest.rows = manifest
+            .rows
+            .iter()
+            .map(|row| {
+                let refreshed = build_row(
+                    &row.example,
+                    &row.category,
+                    &dir.join(&row.example),
+                    row.error.clone(),
+                    row.duration_secs,
+                );
+                if refreshed.checks.is_empty() && !row.checks.is_empty() {
+                    row.clone()
+                } else {
+                    refreshed
+                }
+            })
+            .collect();
+        write_aggregate(dir, &manifest)?;
+        print_aggregate(dir, &manifest);
+        Ok(aggregate_exit(&manifest))
     }
 
     /// `probe trace`: the standalone top-N table (absorbed perf_trace).
@@ -1217,24 +1649,147 @@ usage: probe <subcommand>
                 ":0",
             ]))
             .expect("parses");
-            let Cmd::Run(opts) = cmd else {
-                panic!("expected run");
+            let Cmd::RunSpec { tokens, all, base } = cmd else {
+                panic!("expected run spec");
             };
-            assert_eq!(opts.example, "playable");
-            assert!(opts.profile && opts.samply && opts.fps);
-            assert_eq!(opts.out, Some(PathBuf::from("runs/x")));
-            assert_eq!(opts.baseline, Some(PathBuf::from("runs/old")));
-            assert_eq!(opts.timeout_secs, 60);
-            assert_eq!(opts.display.as_deref(), Some(":0"));
+            assert_eq!(tokens, s(&["playable"]));
+            assert!(!all);
+            assert!(base.profile && base.samply && base.fps);
+            assert_eq!(base.out, Some(PathBuf::from("runs/x")));
+            assert_eq!(base.baseline, Some(PathBuf::from("runs/old")));
+            assert_eq!(base.timeout_secs, 60);
+            assert_eq!(base.display.as_deref(), Some(":0"));
+        }
+
+        #[test]
+        fn parse_run_specs() {
+            // A comma list splits into tokens; resolution happens later.
+            let Ok(Cmd::RunSpec { tokens, all, .. }) = parse(&s(&["run", "playable,scenario"]))
+            else {
+                panic!("list parses");
+            };
+            assert_eq!(tokens, s(&["playable", "scenario"]));
+            assert!(!all);
+
+            // --all carries no tokens.
+            let Ok(Cmd::RunSpec { tokens, all, .. }) = parse(&s(&["run", "--all"])) else {
+                panic!("--all parses");
+            };
+            assert!(tokens.is_empty());
+            assert!(all);
+
+            // A bare run parses too - RESOLUTION errors with the catalog
+            // listing (parse is pure and has no catalog to print).
+            let Ok(Cmd::RunSpec { tokens, all, .. }) = parse(&s(&["run"])) else {
+                panic!("bare run parses; resolution owns the error");
+            };
+            assert!(tokens.is_empty() && !all);
+
+            // But a spec AND --all contradict.
+            assert!(parse(&s(&["run", "playable", "--all"])).is_err());
         }
 
         #[test]
         fn parse_rejects_bad_input() {
             assert!(parse(&s(&[])).is_err());
-            assert!(parse(&s(&["run"])).is_err(), "example required");
-            assert!(parse(&s(&["run", "a", "b"])).is_err(), "one example only");
+            assert!(parse(&s(&["run", "a", "b"])).is_err(), "one spec only");
             assert!(parse(&s(&["run", "a", "--nope"])).is_err());
             assert!(parse(&s(&["frobnicate"])).is_err());
+        }
+
+        fn catalog() -> Vec<nova_probe::CatalogExample> {
+            [
+                ("controller_section", "sections"),
+                ("scenario", "gameplay"),
+                ("playable", "gameplay"),
+                ("screenshot_reel", "screenshots"),
+                ("render_scale_shot", "screenshots"),
+                ("perf_baseline", "perf"),
+            ]
+            .into_iter()
+            .map(|(name, category)| nova_probe::CatalogExample {
+                name: name.into(),
+                path: format!("examples/{category}/{name}.rs"),
+                category: category.into(),
+            })
+            .collect()
+        }
+
+        const EXCLUDED: &[(&str, &str)] = &[("render_scale_shot", "needs a real GPU")];
+
+        #[test]
+        fn resolve_single_name_stays_single() {
+            let resolved = resolve_spec(&s(&["playable"]), false, &catalog(), EXCLUDED).unwrap();
+            assert_eq!(resolved.examples, s(&["playable"]));
+            assert!(!resolved.multi, "a bare name keeps single-run semantics");
+            assert!(resolved.excluded.is_empty());
+        }
+
+        #[test]
+        fn resolve_list_and_category_expand() {
+            let resolved =
+                resolve_spec(&s(&["playable", "scenario"]), false, &catalog(), EXCLUDED).unwrap();
+            assert_eq!(resolved.examples, s(&["playable", "scenario"]));
+            assert!(resolved.multi);
+
+            let resolved = resolve_spec(&s(&["screenshots"]), false, &catalog(), EXCLUDED).unwrap();
+            assert_eq!(
+                resolved.examples,
+                s(&["screenshot_reel"]),
+                "category expansion skips NOT_PROBED members"
+            );
+            assert!(
+                resolved.multi,
+                "a category is a multi spec even with one member"
+            );
+            assert_eq!(resolved.excluded.len(), 1, "and records what it skipped");
+        }
+
+        #[test]
+        fn resolve_all_and_explicit_excluded() {
+            let resolved = resolve_spec(&[], true, &catalog(), EXCLUDED).unwrap();
+            assert!(
+                !resolved.examples.contains(&"render_scale_shot".to_string()),
+                "--all skips NOT_PROBED"
+            );
+            assert_eq!(resolved.examples.len(), 5);
+            assert_eq!(resolved.spec_display, "--all");
+            assert_eq!(
+                resolved.excluded,
+                vec![(
+                    "render_scale_shot".to_string(),
+                    "needs a real GPU".to_string()
+                )]
+            );
+
+            // An explicit name overrides the exclusion (operator's choice).
+            let resolved =
+                resolve_spec(&s(&["render_scale_shot"]), false, &catalog(), EXCLUDED).unwrap();
+            assert_eq!(resolved.examples, s(&["render_scale_shot"]));
+            assert!(!resolved.multi);
+        }
+
+        #[test]
+        fn resolve_errors_list_the_catalog() {
+            let err = resolve_spec(&[], false, &catalog(), EXCLUDED).unwrap_err();
+            assert!(err.contains("examples by category"), "{err}");
+            assert!(err.contains("gameplay: scenario, playable"), "{err}");
+            assert!(err.contains("--all"), "{err}");
+
+            let err = resolve_spec(&s(&["typo"]), false, &catalog(), EXCLUDED).unwrap_err();
+            assert!(err.contains("unknown example or category `typo`"), "{err}");
+            assert!(err.contains("examples by category"), "{err}");
+        }
+
+        #[test]
+        fn resolve_dedupes_overlapping_tokens() {
+            let resolved =
+                resolve_spec(&s(&["playable", "gameplay"]), false, &catalog(), EXCLUDED).unwrap();
+            assert_eq!(
+                resolved.examples,
+                s(&["playable", "scenario"]),
+                "a name already included is not repeated by its category"
+            );
         }
 
         #[test]
@@ -1256,7 +1811,7 @@ usage: probe <subcommand>
             assert_eq!(top, 7);
             assert_eq!(out, Some(PathBuf::from("t.md")));
 
-            let Ok(Cmd::Run(opts)) = parse(&s(&[
+            let Ok(Cmd::RunSpec { tokens, base, .. }) = parse(&s(&[
                 "run",
                 "perf_baseline",
                 "--fps",
@@ -1272,10 +1827,11 @@ usage: probe <subcommand>
             ])) else {
                 panic!("sweep-shaped run parses");
             };
-            assert!(opts.release && opts.fps);
-            assert_eq!(opts.render, Render::Sw);
-            assert_eq!(opts.scenarios, s(&["a", "b"]));
-            assert_eq!(opts.presets, s(&["high"]));
+            assert_eq!(tokens, s(&["perf_baseline"]));
+            assert!(base.release && base.fps);
+            assert_eq!(base.render, Render::Sw);
+            assert_eq!(base.scenarios, s(&["a", "b"]));
+            assert_eq!(base.presets, s(&["high"]));
         }
 
         #[test]
@@ -1285,12 +1841,15 @@ usage: probe <subcommand>
             // Web does not combine with the native-only passes.
             assert!(parse(&s(&["run", "x", "--platform", "web", "--profile"])).is_err());
             assert!(parse(&s(&["run", "x", "--platform", "web", "--fps"])).is_err());
-            // Web alone is fine.
-            let Ok(Cmd::Run(opts)) = parse(&s(&["run", "asteroid_field", "--platform", "web"]))
+            // Web alone is fine (the positional is a scenario id, resolved
+            // past the catalog at dispatch).
+            let Ok(Cmd::RunSpec { tokens, base, .. }) =
+                parse(&s(&["run", "asteroid_field", "--platform", "web"]))
             else {
                 panic!("web run parses");
             };
-            assert_eq!(opts.platform, Platform::Web);
+            assert_eq!(tokens, s(&["asteroid_field"]));
+            assert_eq!(base.platform, Platform::Web);
         }
 
         #[test]

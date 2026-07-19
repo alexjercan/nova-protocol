@@ -215,6 +215,9 @@ cargo run -p nova_probe -- run playable            # clean pass -> report
 cargo run -p nova_probe -- run playable --profile  # + traced pass (top-N systems)
 cargo run -p nova_probe -- run playable --samply   # + named flamegraph
 cargo run -p nova_probe -- run playable --baseline probe-runs/before  # FPS deltas
+cargo run -p nova_probe -- run playable,scenario   # comma list -> aggregate index
+cargo run -p nova_probe -- run gameplay            # a whole category
+cargo run -p nova_probe -- run --all               # the fleet (minus NOT_PROBED)
 ```
 
 It runs the example headless (throwaway Xvfb; `--display :0` to reuse yours),
@@ -227,6 +230,18 @@ OK/WARN/FAIL/NO_DATA the reviewer confirms. Every run dir carries a
 re-renders dirs that have one. (`probe sweep|web|profile` are deprecated
 aliases from the retired perf scripts - they map onto the `run` flags
 below.)
+
+Multi specs (comma list, category dir name, `--all`) resolve against the
+`[[example]]` catalog, run each example sequentially with
+continue-on-failure, and write an aggregated status index above the run
+dirs: `index.html` (one row per example - verdict, measured n/total, the
+six check statuses, duration, a link to its report), `index.json` (the
+machine mirror), and `probe-all.json` (the re-render gate). The aggregate
+verdict is the WORST row; the exit code mirrors it. `--all` skips the
+NOT_PROBED exclusions, which the report lists with their reasons - and a
+bare `probe run` errors with the catalog rather than starting a fleet
+sweep by accident. Categories take single-digit minutes warm; `--all` is
+the pre-release/nightly sweep (roughly half an hour).
 
 Under the hood: an env-gated capture plugin drives the real gameplay app to
 `Playing`, warms up, records the wall-clock delta of every frame for a fixed
