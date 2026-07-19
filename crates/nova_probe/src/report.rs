@@ -56,7 +56,10 @@ pub(crate) fn render_chart(runs: &[PerfRun]) -> String {
     const ROW_H: f64 = 26.0;
     const TOP: f64 = 12.0;
     let width = LABEL_W + BAR_W + VALUE_W;
-    let height = TOP + ROW_H * runs.len() as f64 + 12.0;
+    // A dedicated legend row below the bars (a text at y=0 clips above the
+    // viewBox - SVG anchors text at its BASELINE).
+    const LEGEND_H: f64 = 22.0;
+    let height = TOP + ROW_H * runs.len() as f64 + LEGEND_H;
 
     // Scale to the largest value any bar/tick can reach so nothing clips.
     let scale = runs
@@ -117,11 +120,13 @@ pub(crate) fn render_chart(runs: &[PerfRun]) -> String {
             run.stats.mean_ms
         ));
     }
-    svg.push_str(
-        "<text class=\"legend\" x=\"0\" y=\"0\">\
-         <tspan>bar = mean</tspan> <tspan>| tick = p99</tspan> <tspan>-- = 60fps budget</tspan>\
-         </text>\n",
-    );
+    // One plain text run: tspan spacing via CSS margins does not exist in
+    // SVG, so the separators live in the string itself.
+    svg.push_str(&format!(
+        "<text class=\"legend\" x=\"{LABEL_W:.0}\" y=\"{:.1}\">\
+         bar = mean&#160;&#160;|&#160;&#160;tick = p99&#160;&#160;|&#160;&#160;dashed = 60 fps budget</text>\n",
+        height - 7.0
+    ));
     svg.push_str("</svg>\n");
     svg
 }
@@ -238,7 +243,6 @@ td.delta.none { color: #bbb; }
 .chart .p99 { stroke: #1a1a1a; stroke-width: 1.5; }
 .chart .budget { stroke: #087f23; stroke-width: 1.2; stroke-dasharray: 3 3; }
 .chart .legend { font-size: 11px; fill: #777; }
-.chart .legend tspan { margin-right: 8px; }
 footer { margin-top: 2.5rem; color: #888; font-size: 0.85rem; border-top: 1px solid #ddd; padding-top: 0.6rem; }
 .banner { padding: 0.8rem 1rem; border-radius: 6px; font-weight: 600; margin: 1rem 0; }
 .banner.ok { background: #e3f4e6; color: #0b6623; }
