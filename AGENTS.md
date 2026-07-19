@@ -53,6 +53,7 @@ cargo run --example 08_scenario  # examples are the fastest way to test a subsys
 trunk serve                      # web build on :8080
 cargo check && cargo fmt         # do this before committing
 cargo run -p nova_assets --bin content -- gen   # regen base content (also: lint, audit)
+cargo run -p nova_probe -- run 10_playable      # run-harness check: correctness+perf report
 ```
 
 Do NOT run the full `cargo test` or `cargo clippy` locally unless asked: CI
@@ -81,6 +82,15 @@ suspected mechanism.
   the pieces; the harness proves the feature.
 - **Rigs mirror production**: scheduling, spawn defaults, shipped
   configuration. Prefer extending an existing rig over writing a bespoke one.
+- **Probe gameplay-touching changes.** The post-feature check is one command:
+  `cargo run -p nova_probe -- run <example>` runs the autopilot example
+  headless and produces `probe-runs/<example>/report.html` + `checks.json`
+  (run timeline, continuous invariants, log scan, optional profiled pass and
+  FPS deltas) with a provisional OK/WARN/FAIL the reviewer confirms. Use it
+  in /work's verify step, for before/after evidence on bug and perf tasks,
+  and read SKIPPED as "not measured", never "held". Full usage + SDLC
+  wiring: the `probe` skill (`.claude/skills/probe/SKILL.md`); docs in the
+  wiki's Performance section.
 
 ## How the app is assembled
 
