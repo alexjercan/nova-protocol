@@ -815,8 +815,8 @@ dependencies = [
 
 [[package]]
 name = "bevy_common_systems"
-version = "0.19.4"
-source = "git+https://github.com/alexjercan/bevy-common-systems?tag=v0.19.4#f4d504b8a2a005c95dba7226134533d566b1e3ac"
+version = "0.19.5"
+source = "git+https://github.com/alexjercan/bevy-common-systems?tag=v0.19.5#30d1befa320067a81585abb0f9818707e4da26bc"
 dependencies = [
  "avian3d",
  "bevy",
@@ -834,8 +834,8 @@ dependencies = [
 
 [[package]]
 name = "bevy_common_systems_macros"
-version = "0.19.4"
-source = "git+https://github.com/alexjercan/bevy-common-systems?tag=v0.19.4#f4d504b8a2a005c95dba7226134533d566b1e3ac"
+version = "0.19.5"
+source = "git+https://github.com/alexjercan/bevy-common-systems?tag=v0.19.5#30d1befa320067a81585abb0f9818707e4da26bc"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -60,9 +60,6 @@ fn main() {
                 .input(autopilot_scenario_probe),
         );
         app.add_systems(PreUpdate, on_autopilot_loop);
-        app.add_observer(|_: On<ScenarioLoaded>, mut commands: Commands| {
-            commands.queue(nova_probe::capture_reload_end);
-        });
         app.add_plugins(nova_screenshot());
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
         // Run-timeline recorder (inert unless NOVA_PERF_TIMELINE is set):
@@ -232,7 +229,10 @@ fn on_autopilot_loop(
     let (Some(game_assets), Some(mut probe)) = (game_assets, probe) else {
         return;
     };
-    *probe = ScenarioProbe::default();
+    *probe = ScenarioProbe {
+        looped: true,
+        ..ScenarioProbe::default()
+    };
     commands.queue(nova_probe::capture_reload_begin);
     commands.trigger(LoadScenario(showcase(&game_assets)));
 }
@@ -241,6 +241,11 @@ fn on_autopilot_loop(
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
 struct ScenarioProbe {
+    /// True once the autopilot has looped: repeat cycles start LATE by the
+    /// reload duration, so the completion backstop only binds on the FIRST
+    /// cycle (and every clean-pass run) - looped cycles feed the capture
+    /// activity (20260720-014142).
+    looped: bool,
     seeded_at: Option<f32>,
     destroyed: bool,
     asserted: bool,
@@ -261,17 +266,28 @@ fn number_variable(world: &World, key: &str) -> f64 {
 /// the beat, and the OnUpdate pulse promoted it again.
 #[cfg(feature = "debug")]
 fn autopilot_scenario_probe(world: &mut World, elapsed: f32) {
-    // A looped-capture scene reload is in flight: the scenario's variables
-    // and entities do not exist between the loop trigger and the loaded
-    // signal - script frames must not read torn-down state (20260720-000616).
+    // A looped-capture scene reload is in flight. The gate closes on the
+    // SCRIPT'S OWN readiness signal (the OnStart-seeded variable exists),
+    // not on ScenarioLoaded - which fires BEFORE OnStart runs, the gap the
+    // first real playable loop crashed in (task 20260720-014142). The seed
+    // wait is honestly part of the reload cost.
     if nova_probe::capture_reloading(world) {
-        return;
+        let seeded = matches!(
+            world.resource::<NovaEventWorld>().get_variable("beat"),
+            Some(VariableLiteral::Number(_))
+        );
+        if !seeded {
+            return;
+        }
+        nova_probe::capture_reload_end(world);
+        // The scene is live again from this frame; fall through.
     }
     // Backstop before the state gate: if the window is about to close and
     // the probe never completed (loading ate the window, a stage stalled),
     // fail loudly instead of vacuously passing.
     if elapsed > nova_protocol::nova_debug::harness::NOVA_AUTOPILOT_SECS - 0.3
         && !world.resource::<ScenarioProbe>().asserted
+        && !world.resource::<ScenarioProbe>().looped
     {
         panic!("scenario probe: never completed within the autopilot window");
     }

@@ -63,9 +63,6 @@ fn main() {
                 .input(playable_script),
         );
         app.add_systems(PreUpdate, on_autopilot_loop);
-        app.add_observer(|_: On<ScenarioLoaded>, mut commands: Commands| {
-            commands.queue(nova_probe::capture_reload_end);
-        });
         app.add_plugins(nova_screenshot());
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
         // Run-timeline recorder (inert unless NOVA_PERF_TIMELINE names an
@@ -302,7 +299,10 @@ fn on_autopilot_loop(
     else {
         return;
     };
-    *script = PlayableScript::default();
+    *script = PlayableScript {
+        looped: true,
+        ..PlayableScript::default()
+    };
     commands.queue(nova_probe::capture_reload_begin);
     commands.trigger(LoadScenario(playable_run(&game_assets, &sections)));
 }
@@ -311,6 +311,11 @@ fn on_autopilot_loop(
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
 struct PlayableScript {
+    /// True once the autopilot has looped: repeat cycles start LATE by the
+    /// reload duration, so completion-deadline backstops only bind on the
+    /// FIRST cycle (and every clean-pass run) - looped cycles exist to feed
+    /// the capture activity, not to re-prove completion (20260720-014142).
+    looped: bool,
     playing_since: Option<f32>,
     raised: bool,
     radar_combat: bool,
@@ -336,13 +341,28 @@ fn number_variable(world: &World, key: &str) -> f64 {
 /// script never finishes (vacuous-pass guard).
 #[cfg(feature = "debug")]
 fn playable_script(world: &mut World, elapsed: f32) {
-    // A looped-capture scene reload is in flight: the scenario's variables
-    // and entities do not exist between the loop trigger and the loaded
-    // signal - script frames must not read torn-down state (20260720-000616).
+    // A looped-capture scene reload is in flight. The gate closes on the
+    // SCRIPT'S OWN readiness signal (the OnStart-seeded variable exists),
+    // not on ScenarioLoaded - which fires BEFORE OnStart runs, the gap the
+    // first real playable loop crashed in (task 20260720-014142). The seed
+    // wait is honestly part of the reload cost.
     if nova_probe::capture_reloading(world) {
-        return;
+        let seeded = matches!(
+            world
+                .resource::<NovaEventWorld>()
+                .get_variable("target_down"),
+            Some(VariableLiteral::Number(_))
+        );
+        if !seeded {
+            return;
+        }
+        nova_probe::capture_reload_end(world);
+        // The scene is live again from this frame; fall through.
     }
-    if elapsed > WINDOW_SECS - 0.5 && !world.resource::<PlayableScript>().done {
+    if elapsed > WINDOW_SECS - 0.5
+        && !world.resource::<PlayableScript>().done
+        && !world.resource::<PlayableScript>().looped
+    {
         let script = world.resource::<PlayableScript>();
         panic!(
             "playable: the run never finished (raised={} combat={} fired={} \
