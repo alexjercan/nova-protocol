@@ -320,3 +320,13 @@ single source of current state.)
   bound. Violations warn + ride the timeline (kind "invariant");
   InvariantState tallies for T5's `invariants held` check. E2E armed
   10_playable: zero violations over the full window. 35 tests.
+- 2026-07-19 T4 (20260719-112253, CLOSED): profiled pass shipped - root
+  `trace` feature, chrome-trace parser + top-N systems table
+  (nova_probe::profile + perf_trace bin), scripts/perf-profile.sh (traced
+  run + graceful samply pass; blocked here by perf_event_paranoid=2, skips
+  with the hint). CRITICAL FIELD FACT: the game log filter's bevy_ecs=warn
+  silently kills all system spans - the script overrides with
+  RUST_LOG=bevy_ecs=info (T5/T6 must keep this). Real 08_scenario table:
+  render 25.5%/18.8%, inspector 5.8%, and insert_asteroid_collider at
+  67 ms/call surfaced as a hitch candidate (-> task 20260718-004856).
+  42 tests.

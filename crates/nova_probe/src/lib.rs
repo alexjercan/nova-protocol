@@ -77,6 +77,7 @@
 //! | `NOVA_PERF_HOST` / `host`     | `/etc/hostname` | Overrides the recorded host tag (`browser` on wasm). |
 
 pub mod capture;
+pub mod profile;
 // Continuous invariant checks ride the recorder's timeline sink, so they are
 // native-only with it (nothing wasm-side references them - the examples that
 // wire them never build for wasm).
@@ -124,6 +125,7 @@ pub use capture::{
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub use invariants::{nova_invariants, InvariantState, InvariantsPlugin};
+pub use profile::{aggregate_system_costs, render_top_table, SystemCost};
 pub use recorder::{nova_timeline, probe_marker, RunRecorderPlugin};
 #[cfg(not(target_arch = "wasm32"))]
 pub use recorder::{parse_timeline, ProbeTimeline, TimelineEvent};

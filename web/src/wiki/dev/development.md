@@ -250,6 +250,36 @@ var. It is the correctness half of the run-harness the perf capture is the
 performance half of; the unified run report (task 20260719-112304) renders
 both.
 
+### Profiled pass (where does the time go)
+
+Per-system costs come from a SEPARATE traced run - tracing overhead inflates
+frame times, so a profiled run RANKS systems while the clean capture owns the
+FPS truth (never mix the two):
+
+```sh
+scripts/perf-profile.sh 08_scenario          # trace.json + top-systems.md
+SAMPLY=1 scripts/perf-profile.sh 08_scenario # + a samply flamegraph profile
+```
+
+The script builds the example with `--features debug,trace` (bevy's
+per-system spans are compiled in only under `bevy/trace`), runs it headless
+with `TRACE_CHROME=<out>` (bevy's chrome-trace writer), and renders the
+top-N table with `cargo run -p nova_probe --bin perf_trace`. Open the raw
+`trace.json` in https://ui.perfetto.dev for the full picture; `samply load`
+opens the flamegraph in the Firefox Profiler (the samply run is skipped with
+a note when samply is missing or blocked - sampling needs
+`perf_event_paranoid <= 1` AND, on many-core hosts, enough perf ring-buffer
+memory: an "mmap failed" means raising `perf_event_mlock_kb`, e.g.
+`echo 16384 | sudo tee /proc/sys/kernel/perf_event_mlock_kb`). The samply
+run builds with the dedicated `profiling` cargo profile (full DWARF in the
+binary + frame pointers via RUSTFLAGS) so our frames symbolicate to real
+names instead of raw addresses; frames inside the NVIDIA driver blob and
+stripped system libraries stay hex - that is their stripping, not a build
+problem. Load the profile right after recording: symbolication resolves
+from the binary on disk, so a rebuild in between loses names. Expect the trace to be large (a 30 s autopilot
+run produces hundreds of MB); it is a scratch artifact, not something to
+commit.
+
 Continuous INVARIANTS ride the same stream: set `NOVA_PERF_INVARIANTS=1` (or
 `=strict` to panic on the first violation) on a wired example and every frame
 asserts what the engine guarantees - health within `0..=max` and finite,

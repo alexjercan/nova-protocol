@@ -24,6 +24,12 @@ path = "src/bin/perf_web.rs"
 name = "perf_report"
 path = "src/bin/perf_report.rs"
 
+# Renders the top-N costliest-systems table from a chrome-trace JSON (the
+# profiled pass; scripts/perf-profile.sh drives it end to end).
+[[bin]]
+name = "perf_trace"
+path = "src/bin/perf_trace.rs"
+
 [dependencies]
 # The invariant checks read avian's LinearVelocity directly (same pinned
 # version the whole workspace resolves).

@@ -241,3 +241,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Profiled-pass scratch artifacts (traces run to hundreds of MB)
+/perf-profile/

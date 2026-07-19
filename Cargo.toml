@@ -65,6 +65,25 @@ lto = true
 codegen-units = 1
 strip = true
 
+# Profile for the samply flamegraph pass (scripts/perf-profile.sh): full DWARF
+# kept IN the binary so samply can symbolicate every frame of our code - the
+# dev profile's line-tables-only + unpacked split (above) starves the
+# symbolicator and leaves flamegraphs full of raw addresses. The RAM concern
+# behind the dev settings is about linking MANY test/example binaries at once;
+# this profile builds ONE example at a time, so a single fully-fat binary is
+# affordable. Frame pointers (the other half of readable stacks) cannot be set
+# in a cargo profile - the script passes -C force-frame-pointers=yes via
+# RUSTFLAGS, which is also why this profile's cache only ever sees that flag.
+[profile.profiling]
+inherits = "dev"
+debug = true
+split-debuginfo = "off"
+
+# Mirror the dev profile's dependency optimization explicitly (package
+# overrides do not ride along with `inherits`).
+[profile.profiling.package."*"]
+opt-level = 3
+
 # Profile for distribution
 [profile.dist]
 inherits = "release"
@@ -79,6 +98,12 @@ embed-resource = "1"
 [features]
 debug = ["nova_core/debug", "bevy/track_location"]
 dev = ["debug"]
+# The PROFILED pass (scripts/perf-profile.sh): bevy's per-system spans are
+# compiled in only under bevy/trace, and bevy/trace_chrome adds the chrome-
+# trace writer (output path via the TRACE_CHROME env var). Tracing overhead
+# contaminates frame times, so never combine a trace build with an FPS
+# capture - two passes, one clean, one profiled.
+trace = ["bevy/trace", "bevy/trace_chrome"]
 
 [workspace.lints.rust]
 # dead_code = "allow"
