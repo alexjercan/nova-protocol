@@ -1,6 +1,6 @@
 # Goal: resolve nova pending-promotion ledger backlog and triage the OPEN task backlog
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: goal
 
