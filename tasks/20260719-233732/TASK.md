@@ -91,3 +91,52 @@ protocol + scene looping); this task re-scopes after the spike's
 adjudication - part 1 (partial emit) shrinks to the deadline safety net
 plus the diagnostic skip messages, part 2 (category window defaults)
 stays as ergonomics. Do not start this task before the spike lands.
+
+## Field finding (2026-07-20, broadside HARD-TIMEOUT - facet part 1 misses)
+
+User re-ran `NOVA_PERF_WARMUP=60 NOVA_PERF_FRAMES=240 probe run gameplay
+--fps --profile`. broadside's report is now a bare `process_exit FAIL:
+1/2 pass(es) failed - fps (timed out)`, NOT the "partial 181" this task
+predicted. clean + profiled PASS; only the fps pass dies. Evidence
+(probe-runs/broadside/fps-run.log, git_sha f2663b00):
+
+- 06:24:10.548 fps process start.
+- ~72s of cold load: broadside spawns many ships (gunship + dozens of
+  explodable sections, racer, cargoa, cargob) AND reloads the whole scene
+  once (its die -> Defeat -> Retry beat loads twice). Under lavapipe that
+  is the bulk of the wall-clock.
+- 06:25:22.926 warmup(60) done, "capturing 240 frames" begins.
+- 06:25:39 gunship broken / Victory; 06:25:46 "victory capture settling".
+- 06:26:13.578 "script complete, exiting"; autopilot marks done; log ends
+  with `completion: autopilot done (1 still pending)` = the fps CAPTURE
+  collector, still short of 240. NO frametime.csv was ever flushed.
+- Elapsed to script-complete: 123.0s. Default BCS_HARNESS_DEADLINE is
+  120s -> the process is HARD-KILLED at the deadline, ~3s after the
+  script finished, mid-capture.
+
+Why part 1 (exit-observer emit-on-exit) does NOT rescue this: broadside
+never reaches a graceful AppExit inside the deadline - it is killed. An
+exit observer cannot fire on a SIGKILL, so no partial window flushes. Two
+additions this task needs:
+
+1. Yield-on-primary-done: when the self-ending script (the primary
+   collector) completes with capture still pending, the capture flushes
+   its partial window and the app exits Success IMMEDIATELY, instead of
+   idling on the victory overlay until the deadline kills it. (On this
+   run script-complete was 123s vs a 120s deadline, so even this loses by
+   3s here - hence #2.)
+2. broadside is structurally a poor fps target: its ENTIRE lifetime is
+   ~181 frames (clean pass run_end at frame 181), it carries a mid-run
+   scenario reload, and it double-loads a heavy multi-ship scene. It can
+   never supply a 240-frame post-warmup window. Decide explicitly:
+   mark broadside fps-EXEMPT (report "no stable frame-time window:
+   narrative scenario with a mid-run reload" honestly, run it clean+
+   profiled only), OR give narrative examples a much smaller window +
+   a longer deadline. Recommendation: fps-exempt - playable/scenario
+   (loopable) are the gameplay fps targets; broadside is a correctness
+   smoke test. This is a per-example "fps-capturable" capability flag.
+
+Add to Steps: an fps-exempt/capability flag in the example catalog +
+probe honoring it; the yield-on-primary-done flush; an e2e that
+`run gameplay --fps` yields playable(full) + scenario(partial) +
+broadside(exempt, honest skip) and NO bare FAIL.
