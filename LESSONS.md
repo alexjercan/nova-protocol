@@ -12,13 +12,14 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 
 ## Process lessons
 
-- `keep-docs-in-sync-with-code` (x6, enforced in AGENTS.md): a code change is
-  not done until every doc surface it invalidates (CHANGELOG, news, player +
-  dev wiki, tutorial, per-mod READMEs, content-file headers) is fixed in the
-  SAME task; map: `web/src/wiki/dev/keeping-docs-in-sync.md`. A ticked docs step
-  is not proof - `grep -rn <oldname>` tree-wide (a tool rename hides in mod
-  READMEs the wiki sweep skips), and a surface updated for the rename must also
-  claim the diff's NEW features. 20260718-004723, 20260719-112231, 20260718-231555.
+- `keep-docs-in-sync-with-code` (x7, enforced in AGENTS.md but STILL recurring
+  -> needs a tooling guard, not more prose): a code change is not done until
+  every doc surface it invalidates (CHANGELOG, news, player + dev wiki, tutorial,
+  per-mod READMEs, content-file headers, and the crate table which lives in
+  README + AGENTS + MULTIPLE wiki pages - project-tour, architecture) is fixed in
+  the SAME task; map: `web/src/wiki/dev/keeping-docs-in-sync.md`. A ticked docs
+  step is not proof - `grep -rn <oldname>` tree-wide and fix EVERY hit, never a
+  hand-picked subset. 20260718-004723, 20260719-112231, 20260718-231555, 20260720-224236.
 - `doc-sweep-covers-source-doc-comments` (x1): when RENAMING/REMOVING a
   command or symbol, `grep -rn '<oldname>' --include='*.rs'` the source
   `//!`/`///` doc comments too - a CLI surface is described in module/crate
