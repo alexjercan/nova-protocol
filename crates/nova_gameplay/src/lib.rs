@@ -1,6 +1,13 @@
-//! Gameplay related functionality for Nova Protocol.
-//!
-//! Nova Protocol specific systems and components.
+//! `nova_gameplay` is the game itself: the systems and components that make a
+//! ship fly, fight, and take damage. `NovaGameplayPlugin` composes it and owns
+//! the top-level [`GameStates`] state machine. The modules span the whole
+//! playable surface - `sections` (the modular ship parts), `integrity` and
+//! `damage` (health, disable, destroy), `flight` and `gravity` (the diegetic
+//! controller, autopilot verbs, and gravity wells), `input` (player, AI, and
+//! radar targeting), `hud`, `camera_controller`, `audio`, `juice` (camera
+//! shake and hit feedback), and `settings` (volume + graphics presets). It
+//! builds on the reusable `bevy_common_systems` layer for integrity, health,
+//! and blast mechanics.
 
 use bevy::prelude::*;
 

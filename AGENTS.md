@@ -121,6 +121,18 @@ hooks `OnEnter(GameAssetsStates::Loaded)`.
   comments).
 - Worktrees come only from the sprout skill (used by /work and /flow). Never
   create one by hand. Otherwise work in the main checkout.
+- Rustdoc (the code-level docs; the wiki owns concepts, task 20260525-133033):
+  every crate opens with a crate-level `//!` paragraph - what it owns, its main
+  plugin(s), how it relates to its neighbors - distilled from the architecture
+  wiki, not duplicating it. Public items get a `///` line saying what and why,
+  not how (the code shows how). Prefer intra-doc links (`` [`Type`] ``) for
+  types in reach; link to the relevant wiki page for a concept that needs more
+  than a paragraph rather than restating it. Runnable `# Examples` are NOT
+  expected on every item - the `examples/` dir and the wiki are the worked
+  examples. `#![warn(missing_docs)]` is enabled per crate AS IT COMES CLEAN
+  (not workspace-wide): `nova_info` is the exemplar; a crate turns it on only
+  once its whole public surface is documented (the per-crate push is
+  20260525-133032). Keep `cargo doc --workspace --no-deps` warning-free.
 
 ## Shared-checkout discipline
 

@@ -1,3 +1,12 @@
+//! `nova_events` is the event vocabulary shared between gameplay and the
+//! scenario engine. It defines the game-event kinds a scenario reacts to -
+//! `OnStartEvent`, `OnUpdateEvent`, `OnDestroyedEvent`, the area
+//! `OnEnterEvent`/`OnExitEvent`, `OnOrbitEvent`, `OnTravelLockEvent`,
+//! `OnCombatLockEvent` - and the entity-identity components that tag scenario
+//! objects so filters can find them (`EntityId`, `EntityTypeName`). It is
+//! engine-light glue: `nova_gameplay` emits these events and `nova_scenario`
+//! filters and dispatches on them.
+
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
 

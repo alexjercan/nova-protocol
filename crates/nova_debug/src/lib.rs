@@ -1,4 +1,10 @@
-//! A Bevy plugin that adds various debugging tools.
+//! `nova_debug` is the debug-only tooling plugin, compiled only under the
+//! `debug` feature so it costs nothing in a shipped build. `DebugPlugin` adds
+//! the world inspector and dev overlays (gravity, section wireframes); the
+//! `harness` module provides the headless-run presets the examples and the
+//! `nova_probe` run-harness drive - `nova_autopilot` (scripted play) and
+//! `nova_screenshot` (settled-frame capture). Import the presets from the
+//! prelude; the raw plugin types stay reachable under `nova_debug::harness::`.
 
 use bevy::prelude::*;
 use bevy_common_systems::{debug::harness::AUTOPILOT_ENV, prelude::*};

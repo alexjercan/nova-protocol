@@ -1,6 +1,6 @@
 # General documentation pass
 
-- STATUS: OPEN
+- STATUS: IN_PROGRESS
 - PRIORITY: 58
 - TAGS: docs,v0.8.0
 
@@ -21,20 +21,59 @@ consistency, and the decision on enforcement.
 
 ## Steps
 
-- [ ] Write or refresh crate-level docs (`//!` in lib.rs) for every workspace
-      crate: what it owns, its main plugin(s), how it relates to its neighbors
-      (one paragraph each; the architecture wiki page is the source to distill
-      from, not duplicate).
-- [ ] Establish the rustdoc conventions for the workspace (doc style, whether
-      examples are expected, intra-doc links) and record them in AGENTS.md or
-      the dev wiki so the per-crate tasks follow one standard.
-- [ ] Sequence and, where cheap, execute the per-crate tasks (133030, 133032;
-      133031 lives in the bevy-common-systems repo) against that standard.
-- [ ] Decide on enforcement: is `#![warn(missing_docs)]` (or deny) worth
-      turning on per crate as it comes clean? Record the decision; wire it for
-      any crate that is already compliant.
-- [ ] Verify `cargo doc --workspace --no-deps` builds warning-free and spot
-      check the rendered output for the main crates.
+- [x] Crate-level `//!` docs for every workspace crate. Survey found 4 with
+      NONE (nova_core, nova_events, nova_info, nova_scenario), 3 too thin
+      (nova_assets, nova_debug at one line; nova_gameplay vague) - all 7
+      written/expanded to a one-paragraph "what it owns + main plugin +
+      neighbors" header distilled from the architecture wiki. The other 8
+      (editor, ui, menu, modding, mod_format, portal_gen, meta_gen, probe)
+      already had adequate headers; left as-is.
+- [x] Rustdoc conventions recorded in AGENTS.md ("## Conventions"): crate-level
+      `//!` per crate; `///` on public items saying what/why not how; intra-doc
+      links for reachable types, wiki links for concepts; runnable examples NOT
+      required per item; missing_docs enabled per-crate-as-clean; keep
+      `cargo doc --workspace --no-deps` warning-free.
+- [x] Sequenced the per-crate tasks: 133030 (nova_gameplay API) and 133032
+      (inline docs on public items across crates) now reference the AGENTS.md
+      convention and drive the missing_docs rollout crate by crate; 133031
+      (bcs) lives in the sibling repo (retagged out of v0.8.0 during grooming).
+      Not executed here - they are the large per-item push, out of this
+      umbrella's scope.
+- [x] Enforcement decision (recorded in AGENTS.md + here): `#![warn(missing_docs)]`
+      is enabled PER CRATE AS IT COMES CLEAN, not workspace-wide - a blanket
+      turn-on would demand every public item documented at once (that IS 133032).
+      Wired `nova_info` (tiny, now fully documented) as the exemplar so the
+      enforcement path is proven; other crates opt in via 133032.
+- [~] Verify `cargo doc --workspace --no-deps` (--features debug). It BUILDS
+      (exit 0) and all NEW crate-level docs are link-clean, but a
+      RUSTDOCFLAGS="-D warnings" run surfaced 108 PRE-EXISTING per-item
+      broken-link warnings (see the finding below) - NOT introduced here.
+      `nova_info` is fully clean and carries `#![warn(missing_docs)]`.
+
+## Finding (2026-07-20): 108 pre-existing broken intra-doc links
+
+A strict `cargo doc` run (`RUSTDOCFLAGS="-D warnings"`) found the workspace's
+rustdoc surface already carries 108 broken/ambiguous intra-doc-link warnings in
+EXISTING `///` docs (none from this task's crate-level headers):
+
+- 88 "public documentation links to PRIVATE item" - a public item's `///`
+  intra-doc-links a private fn (e.g. `ScreenshotActionConfig` -> private
+  `resolve_capture_path`). Fix: un-link (plain backticks) or make the target
+  public; un-link is right for implementation-detail references.
+- 11 unresolved links, 5 fn-vs-module ambiguous, 4 redundant explicit targets.
+
+By crate: nova_gameplay 78, nova_scenario 17, nova_assets 10, nova_modding 2,
+nova_probe 1.
+
+Re-scope (this is exactly the umbrella's "sequence per-crate work" job): the
+per-ITEM link cleanup is NOT this umbrella's deliverable - it belongs with the
+per-crate passes that document each crate's items. nova_gameplay's 78 go with
+20260525-133030 (nova_gameplay API docs); the remaining 30 with 20260525-133032
+(inline docs across crates). Each crate turns on `#![warn(missing_docs)]` (and
+becomes broken-link-free) as it comes clean; `nova_info` is the first. The
+"cargo doc warning-free" DoD is therefore the STRAND's end state, driven by the
+per-crate tasks against the AGENTS.md convention - not achievable in the
+crate-level umbrella alone without pre-empting those tasks.
 
 ## Definition of Done
 

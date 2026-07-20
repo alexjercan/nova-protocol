@@ -1,3 +1,11 @@
+//! `nova_core` is the composition root: [`AppBuilder`] wires the whole plugin
+//! stack - window and logging setup, assets, gameplay, the scenario/modding
+//! engine, menus, the editor, and (under the `debug` feature) the debug
+//! tooling - into a runnable app. It owns no gameplay logic itself; every
+//! subsystem lives in its own `nova_*` crate and this crate assembles them in
+//! the right order. Start here to see how the pieces fit together; the
+//! architecture wiki page carries the dependency graph.
+
 use bevy::{
     app::Plugins,
     log::{Level, LogPlugin},

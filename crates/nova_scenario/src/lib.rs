@@ -1,3 +1,14 @@
+//! `nova_scenario` is the scenario and modding ENGINE: it turns authored
+//! content (RON scenarios and their mod bundles) into running missions.
+//! `NovaScenarioPlugin` wires it up, and the modules are the vocabulary a
+//! scenario is built from - `events` (what happened), `filters` (which
+//! entities and conditions), `actions` (what to do), `variables` (scenario
+//! state), `objects` (spawnable scenario entities), `world` (the
+//! `NovaEventWorld` holding live scenario state), `loader` (parse + register
+//! bundles), `render_scale` (the Low-preset resolution lever), and `lint` (the
+//! author-time content checks the `content` CLI runs). This crate is the
+//! runtime; the authoring grammar is documented in the scenario-system wiki.
+
 pub mod actions;
 pub mod events;
 pub mod filters;

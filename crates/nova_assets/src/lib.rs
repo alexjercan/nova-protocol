@@ -1,4 +1,10 @@
-//! A Bevy plugin for loading game assets and initializing asset resources.
+//! `nova_assets` loads the game's assets and assembles its content. It sets up
+//! `bevy_asset_loader` (glTF, textures, shaders, sounds), registers the
+//! built-in sections and scenarios, and performs the MOD MERGE - resolving the
+//! installed-mods catalog and `EnabledMods` into the active section/scenario
+//! set. The base content it registers is GENERATED from Rust builders (edit the
+//! builder, not the committed `*.content.ron`), and the crate also backs the
+//! `content` CLI (`gen`/`lint`/`audit`) that authors and validates that content.
 
 use std::collections::{HashMap, HashSet};
 
