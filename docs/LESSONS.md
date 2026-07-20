@@ -166,9 +166,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `relocation-leaves-ignored-siblings` (x1, PROMOTED 2026-07-19 -> sprout
   skill): gitignored files exist only in the main checkout; clean them up
   after landing a stop-shipping-dir move. 20260714-154958.
-- `verify-stale-brief-against-tree` (x2): task briefs go stale - read the
-  live tree/scene before trusting the premise, and fix the rationale when
-  wrong. 20260714-154958, 20260718-004834.
+- `verify-stale-brief-against-tree` (x3, PENDING): task briefs go stale -
+  read the live tree/scene before trusting the premise; reproduce-first
+  against the CURRENT tree can falsify a bug's FIX SCOPE too, not just its
+  premise (a landed loop feature left the filed partial-emit pipeline with no
+  caller). 20260714-154958, 20260718-004834, 20260719-233732.
 - `match-ci-feature-set-in-targeted-tests` (x2): run targeted tests with CI's
   feature set or feature-gated test code fails to compile and reads as a
   regression. 20260718-004834, 20260718-102022.
@@ -669,3 +671,7 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `prose-from-diff-not-intent` (x3) -> work skill's close-out/NOTES step
   (or compound): derive record prose and counts from the final diff, never
   from the memory of making the edits.
+- `verify-stale-brief-against-tree` (x3) -> plan/work skill (bug playbook):
+  reproduce-first against the CURRENT tree before implementing a filed bug -
+  a subsystem change since filing can shrink or falsify the fix scope
+  (partial-emit had no caller once looping landed).

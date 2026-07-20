@@ -1,6 +1,6 @@
 # Frame capture is all-or-nothing: emit partial windows on early exit (marked honest) + category-aware --fps window defaults
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 88
 - TAGS: v0.8.0,bug,tooling,performance
 
