@@ -26,6 +26,6 @@ Supports the 0.4.0 testability theme (roadmap spike 20260708-161726).
   assertion rides an existing smoke test rather than adding a new binary; confirm
   it still passes under `Xvfb :99 & DISPLAY=:99` as documented in the example
   headers.
-- [x] Run the full check suite (`cargo test`, `cargo clippy --all-targets`,
+- [ ] Run the full check suite (`cargo test`, `cargo clippy --all-targets`,
   `cargo fmt --check`).
 

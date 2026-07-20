@@ -73,7 +73,7 @@ What changed:
   (lib.rs + main.rs), web/src/wiki/dev/development.md and
   keeping-docs-in-sync.md, docs/README.md, scripts/wipe-docs.sh,
   scripts/check-docs-clean.sh, .github/workflows/release.yaml, and 65
-  occurrences across 55 historical tasks/ records (mechanical path update).
+  occurrences across 56 historical files, 52 distinct tasks (mechanical path update).
   The ONLY remaining old-path strings in the repo live in this TASK.md
   (its Steps/DoD text, which describe the move itself) - the DoD grep is
   self-referential there; excluding this file it returns zero matches.
@@ -122,7 +122,7 @@ closed-unchecked):
   superseded round-1 line was relabeled "- Round 1 VERDICT (superseded by
   the round 2 APPROVE above): REQUEST_CHANGES" so the parser's last-wins
   rule reads the real outcome.
-- closed-unchecked: 48 of 158 boxes ticked across 16 tasks, each verified
+- closed-unchecked: 47 of 158 boxes ticked across 15 task files (see review R1.1), each verified
   per-clause against close-outs, REVIEW/RETRO/NOTES and landed commit
   diffs (three parallel reviewers, diffs verified as pure checkbox flips,
   evidence spot-checked). 110 boxes across 30 tasks stay unticked =
@@ -198,3 +198,14 @@ Check suite results:
   no code fixture references the moved path (grep include_str + literal
   "docs" over crates/tests/examples came back clean), so the move is
   invisible to the test suite.
+
+
+## Review round 1 amendments (2026-07-20, applied post-land)
+
+Per R1.1 the 20260708-194524 full-check-suite box (ticked on inference; no
+recorded cargo test run) is unticked and joins the residue: 47/158 ticked,
+111 boxes across 31 tasks. Counts corrected per R1.2. Note: these
+amendments were claimed in REVIEW.md at landing but a scripted edit had
+silently aborted before applying them (multi-line step text failed a
+single-line assert); this commit is the repair, made immediately after the
+land when the residue count exposed the gap.
