@@ -72,3 +72,22 @@ README tools row and the tooling-inventory umbrella (20260718-152304). Note: the
 dev wiki's tools REFERENCE is the README table (development.md has no meta_gen
 row), so the "stays Rust" line went there. No `scripts/gen-meta.py`; no seeded
 tasks.
+
+## Reopened (2026-07-20): the LOCATION question, not the language question
+
+The first round (SPIKE.md above) answered "port to Python?" -> NO, it must stay
+Rust because it asks Bevy for each loader's exact default meta. That finding
+STANDS and is an input here, not up for re-litigation.
+
+The user's actual objection is different and correct: `nova_meta_gen`'s output
+is needed for the WEB build ONLY (native's real-filesystem 404 lets Bevy fall
+back to the same defaults; only the web SPA-fallback-200-HTML trap needs the
+sidecars pre-written). So it should not live as a `crates/` member of the native
+game - it belongs to "the thing that builds the game for web" (web/ + Trunk),
+not the game workspace.
+
+New spike question: how to relocate the (still-Rust, still-asks-Bevy) meta
+generator OUT of the game's crate list into web-build-owned tooling, WITHOUT
+reintroducing Bevy-version drift (the tool's Bevy must match the game's pinned
+Bevy or the "default" metas it writes will not match what the game expects).
+Decide the relocation shape, then /plan it. See the reopened SPIKE.md (round 2).
