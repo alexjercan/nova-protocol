@@ -1,6 +1,6 @@
 # Relocate nova_meta_gen to tools/ as a workspace-member build tool (out of crates/)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 34
 - TAGS: v0.8.0,tooling,refactor,web,spike
 
@@ -22,37 +22,37 @@ builds via `default-members`.
 
 ## Steps
 
-- [ ] `git mv crates/nova_meta_gen tools/nova_meta_gen` (keep the PACKAGE name
+- [x] `git mv crates/nova_meta_gen tools/nova_meta_gen` (keep the PACKAGE name
       `nova_meta_gen` - Trunk invokes `-p nova_meta_gen`, so the package name
       must not change; only the directory moves). `rm -rf` the emptied
       `crates/nova_meta_gen` if `git mv` leaves it behind
       (`git-mv-leaves-empty-parent`).
-- [ ] Fix the crate's own relative path-dep in `tools/nova_meta_gen/Cargo.toml`:
+- [x] Fix the crate's own relative path-dep in `tools/nova_meta_gen/Cargo.toml`:
       `nova_modding = { path = "../nova_modding" }` -> `{ path =
       "../../crates/nova_modding" }`. (Workspace-inherited fields -
       `version`/`edition`/`license`/`[lints] workspace = true` - keep working
       because it stays a member.)
-- [ ] Update `[workspace] members` in the root `Cargo.toml`:
+- [x] Update `[workspace] members` in the root `Cargo.toml`:
       `"crates/nova_meta_gen"` -> `"tools/nova_meta_gen"`.
-- [ ] Add `default-members` to the root `[workspace]` listing the game crates +
+- [x] Add `default-members` to the root `[workspace]` listing the game crates +
       the root package (`"."`) but NOT `tools/nova_meta_gen`, so a bare
       `cargo build`/`test` at the root no longer compiles the web-only tool.
       (See Notes for the maintenance caveat.)
-- [ ] Confirm the move preserved feature unification: build the tool in its new
+- [x] Confirm the move preserved feature unification: build the tool in its new
       home and run it on a temp dir containing a `.wav`, and check a
       `sample.wav.meta` IS written (proves the `wav` feature still unifies in
       via nova_modding -> nova_gameplay from `tools/`). If the `.wav` sidecar is
       skipped, unification broke and the move regressed the tool.
-- [ ] Repoint the path-shaped doc reference in `README.md:148`: the
+- [x] Repoint the path-shaped doc reference in `README.md:148`: the
       `See [`crates/nova_meta_gen`](crates/nova_meta_gen/)` link ->
       `tools/nova_meta_gen`; keep the `-p nova_meta_gen` invocation as-is. Sweep
       the README crate table + `AGENTS.md` crate table rows for `nova_meta_gen`
       and note it now lives under `tools/` (grep the old path tree-wide:
       `grep -rn 'crates/nova_meta_gen'`, `keep-docs-in-sync-with-code`).
-- [ ] Update the tooling-inventory umbrella note
+- [x] Update the tooling-inventory umbrella note
       (`tasks/20260718-152304/TASK.md`) so its catalog records meta-gen under
       `tools/`, not `crates/`.
-- [ ] Verify the web hook path end to end: `Trunk.toml`'s `post_build` hook
+- [x] Verify the web hook path end to end: `Trunk.toml`'s `post_build` hook
       (`cargo run -p nova_meta_gen`) still resolves and runs (a `trunk build`,
       or at minimum `cargo run -p nova_meta_gen -- --assets <temp>` from the
       repo root, succeeds and writes sidecars).
@@ -98,3 +98,33 @@ builds via `default-members`.
   minimize surprise.
 - Coordinates with the tooling-inventory umbrella 20260718-152304 (keep its
   catalog in sync: meta-gen moves to tools/).
+
+## Outcome (closed 2026-07-20)
+
+Relocated `crates/nova_meta_gen` -> `tools/nova_meta_gen` via `git mv` (history
+preserved), keeping the PACKAGE name `nova_meta_gen` so the Trunk hook
+(`cargo run -p nova_meta_gen`) and every `-p` invocation are unchanged. Fixed
+the crate's own `nova_modding` path-dep (`../nova_modding` ->
+`../../crates/nova_modding`). In the root `Cargo.toml`: moved its `[workspace]
+members` entry to `tools/nova_meta_gen` and added `default-members` (the 14 game
+crates + the root package `"."`, NOT the tool) so a bare `cargo build`/`test`
+skips the web-only tool while `--workspace` and `-p` still reach it.
+
+Correctness verified: the tool builds and RUNS from its new home and still
+writes a `sample.wav.meta` for a `.wav` asset - proving the `wav` feature
+unification (via nova_modding -> nova_gameplay) survived the move, which was the
+whole risk the spike flagged. `cargo metadata` confirms it is a workspace member
+(16) but NOT a default-member (15). Docs repointed: README tools row + link ->
+`tools/nova_meta_gen`, README + AGENTS crate-table rows note the `tools/`
+location + default-members exclusion, and the 152304 catalog records the move.
+
+No code changed (main.rs already defaults `--assets` to `$TRUNK_STAGING_DIR/
+assets`, no hardcoded workspace paths). The tool's own tests (`tests/generate.rs`
++ unit tests) compile from the new location.
+
+Self-reflection: a clean, mechanical relocation - the spike's up-front finding
+(feature unification requires workspace membership) made the design obvious, and
+the `.wav.meta` check turned that abstract risk into a concrete pass/fail proof.
+The `default-members` allowlist is the one maintenance cost (new game crates
+must be added there too); flagged in Notes with the CI-stays-on-`--workspace`
+mitigation.

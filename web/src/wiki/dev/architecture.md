@@ -26,7 +26,7 @@ real code lives under `crates/`.
 | `nova_debug`    | Debug-only plugin (inspector, overlays). Compiled only under the `debug` feature. |
 | `nova_info`     | Exposes `APP_VERSION`, injected by `build.rs`. |
 | `nova_probe`    | Dev tooling (not in the shipped game): the run-harness that drives an autopilot example headless and assembles a run report - frame-time capture plus the run-timeline recorder and continuous invariant checks. `run`/`report` CLI. See [Development](../development/). |
-| `nova_meta_gen` | Binary: writes default `.meta` sidecars for web assets that lack one (a Trunk `post_build` hook for `AssetMetaCheck::Always`). Boots a headless Bevy app, so it stays Rust. |
+| `nova_meta_gen` | Binary under `tools/` (web-build tooling, not a game crate): writes default `.meta` sidecars for web assets that lack one (a Trunk `post_build` hook for `AssetMetaCheck::Always`). Boots a headless Bevy app, so it stays Rust. |
 
 The dependency layering the table describes, from top-level shell down to leaf crates:
 

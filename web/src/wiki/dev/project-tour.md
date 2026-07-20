@@ -45,7 +45,7 @@ for responsibilities and the dependency graph.
 | `nova_debug` | Debug-only plugin (inspector, overlays); compiled under the `debug` feature. |
 | `nova_info` | Exposes `APP_VERSION`, injected by `build.rs`. |
 | `nova_probe` | Dev tool (not in the shipped game): run-harness - frame-time capture + run-timeline/invariant report over autopilot examples; `run`/`report`. |
-| `nova_meta_gen` | Binary: writes default `.meta` sidecars for web assets (Trunk `post_build` hook). |
+| `nova_meta_gen` | Binary under `tools/` (web-build tooling, not a game crate): writes default `.meta` sidecars for web assets (Trunk `post_build` hook). |
 
 ## Want to change X? Start here
 

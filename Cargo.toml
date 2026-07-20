@@ -240,7 +240,34 @@ members = [
   "crates/nova_info",
   "crates/nova_menu",
   "crates/nova_mod_format",
-  "crates/nova_meta_gen",
+  "crates/nova_modding",
+  "crates/nova_portal_gen",
+  "crates/nova_probe",
+  "crates/nova_scenario",
+  "crates/nova_ui",
+  # Web-build tooling, not game crates. `nova_meta_gen` stays a workspace
+  # MEMBER (so Cargo's feature unification auto-pins its Bevy version AND
+  # features - the `wav` feature via nova_modding -> nova_gameplay - to the
+  # game's), but lives under tools/ and is EXCLUDED from default-members so a
+  # bare `cargo build`/`test` skips the web-only tool. It is reached explicitly
+  # by `cargo run -p nova_meta_gen` (Trunk post_build) and by CI's
+  # `--workspace`. See tasks/20260718-152255/SPIKE.md (round 2).
+  "tools/nova_meta_gen",
+]
+# The game: a bare `cargo build`/`test` at the repo root builds these and skips
+# tools/. NOTE: this is an allowlist - a NEW game crate must be added here too,
+# or a bare build silently skips it; CI stays on `--workspace` so nothing rots.
+default-members = [
+  ".",
+  "crates/nova_assets",
+  "crates/nova_core",
+  "crates/nova_debug",
+  "crates/nova_editor",
+  "crates/nova_events",
+  "crates/nova_gameplay",
+  "crates/nova_info",
+  "crates/nova_menu",
+  "crates/nova_mod_format",
   "crates/nova_modding",
   "crates/nova_portal_gen",
   "crates/nova_probe",

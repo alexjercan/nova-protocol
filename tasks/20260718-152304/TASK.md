@@ -71,7 +71,11 @@ and the individual refactor tasks consume.
     20260718-152255, 2026-07-20): STAYS RUST - it asks Bevy for each loader's
     default meta (Bevy-version-specific loader paths + settings fields), so a
     Python hardcode would silently drift and break web mod cubemaps. Portal gen
-    ported to Python (152247), meta gen does not.
+    ported to Python (152247), meta gen does not. LOCATION resolved too (spike
+    152255 round 2 -> task 20260720-224236): it moved OUT of `crates/` into
+    `tools/nova_meta_gen`, staying a workspace member (feature unification pins
+    its Bevy to the game's) but excluded from `default-members` so bare builds
+    skip the web-only tool.
 - Do this EARLY in the tooling strand - its whole value is sequencing the
   other tasks; done last it is just a writeup.
 
