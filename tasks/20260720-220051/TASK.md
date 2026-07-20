@@ -1,6 +1,6 @@
 # lessons: resolve 6 pending promotions
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog, chore
 

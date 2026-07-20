@@ -24,7 +24,10 @@ Overall: `tatr check` and `tatr check --ledger LESSONS.md` clean (modulo the goa
 
 ## Tasks
 
-- [ ] 20260720-220051 (p0) lessons: resolve the 6 pending promotions
+- [x] 20260720-220051 (p0) lessons: resolve the 6 pending promotions
+      landed 2669d332; 1 review round (APPROVE, no findings). 5 folded into
+      AGENTS.md Conventions, out-of-context-review-pass -> flow round-1; Pending
+      promotions empty. (Master moved mid-cycle; merged + re-verified before land.)
 - [ ] 20260720-220104 (p0) backlog triage: disposition the OPEN tasks
 
 ## Manual acceptance (batched for the user at Finish)
