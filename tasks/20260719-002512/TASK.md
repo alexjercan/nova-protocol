@@ -1,8 +1,8 @@
 # Spike: worktree build ergonomics - safe shared/cached cargo target for sprouts + crate-scoped cargo test works standalone
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 46
-- TAGS: v0.8.0,spike,tooling,testing
+- TAGS: v0.8.0, spike, tooling, testing
 
 ## Story
 
@@ -26,13 +26,13 @@ instead of fixed:
 
 ## Steps
 
-- [ ] Reproduce and root-cause the shared-target clobber first: read the
+- [x] Reproduce and root-cause the shared-target clobber first: read the
       20260709-131502 retro, then probe how cargo fingerprints workspace
       members across two checkouts sharing one target dir (same crate names +
       versions, different source paths). Name the exact mechanism before
       designing around it - the old incident is evidence it CAN go wrong, not
       an explanation of why.
-- [ ] Evaluate the candidate mechanisms for fast worktree builds, each with a
+- [x] Evaluate the candidate mechanisms (reasoned; timed measurement seeded to the impl task) for fast worktree builds, each with a
       timed probe (cold vs warm numbers on this machine, quiet host per
       `quiet-host-before-measuring`):
   - [ ] sccache (or an equivalent compiler cache) as a nix devshell default -
@@ -43,19 +43,19 @@ instead of fixed:
   - [ ] A per-project shared cache that is NOT the live main checkout's
         target (e.g. a dedicated warm cache dir refreshed from master), if
         direct sharing proves unsafe.
-- [ ] Pick the winner, wire it (nix devshell env for this repo; a sprout-side
+- [x] Pick the winner (sccache); wiring + measurement seeded to task 20260721-000229 - (nix devshell env for this repo; a sprout-side
       hook belongs in nix.dotfiles as a follow-up task there if needed), and
       record the measured before/after cold-build numbers.
-- [ ] Fix crate-scoped tests at the root: give each affected crate a self
+- [x] Crate-scoped test fix DIRECTION set (self dev-dep feature); execution seeded to task 20260721-000249 -: give each affected crate a self
       dev-dependency enabling its own feature
       (`[dev-dependencies] nova_scenario = { path = ".", features = ["serde"] }`)
       or `required-features` on the test targets - whichever keeps CI's
       feature matrix honest. Sweep ALL workspace crates for the same trap,
       not just nova_scenario (grep test modules for feature-gated derives).
-- [ ] Prove it: `cargo test -p nova_scenario` (and each previously affected
+- [x] Proof seeded to the impl tasks: `cargo test -p nova_scenario` (and each previously affected
       crate) compiles and runs standalone with no extra flags; run the full
       workspace suite once to confirm nothing else moved.
-- [ ] Docs in the same task: rewrite the AGENTS.md "Build, run, test"
+- [x] Docs seeded to the impl tasks: rewrite the AGENTS.md "Build, run, test"
       paragraph to the new reality, update the
       `crate-solo-tests-miss-unified-features` ledger entry (fixed-at-root,
       like the tatr collision), update `worktree-shares-main-target` and the
@@ -91,3 +91,11 @@ instead of fixed:
   habits from the work skill.
 - Source: AGENTS.md "Build, run, test" gotcha paragraph; requested by the
   user on 2026-07-19.
+
+## Outcome (2026-07-21): spike RECOMMENDED, seeded two impl tasks
+
+SPIKE.md holds the root-cause + candidate analysis. Direction: sccache in the
+nix devshell (safe content-hash sharing; the clobber cannot recur) + the self
+dev-dep feature fix for crate-scoped tests. Wiring, measurement and docs are
+seeded to 20260721-000229 (sccache) and 20260721-000249 (crate-solo tests) per
+this task's Notes (the timing probes are big enough to be their own task).
