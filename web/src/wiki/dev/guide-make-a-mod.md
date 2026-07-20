@@ -57,6 +57,31 @@ is a list of mod ids; `base` is an IMPLICIT dependency and is never declared.
 `icon` is an `Option`, so write `icon: Some("icon.png")`, not `icon:
 "icon.png"`.
 
+#### Versioning your mod
+
+The loader accepts ANY non-empty `version` string - it is an opaque token, not
+a parsed semver (there is no comparison and no update detection in code today).
+The convention the shipped portal mods follow is semver-ish, so a reader can
+tell a release apart at a glance:
+
+- content rework (new/rebalanced sections or scenarios, changed dependencies) ->
+  bump the MINOR, e.g. `1.1.0`;
+- a reskin or bug fix that does not change what content exists -> bump the PATCH,
+  e.g. `1.0.1`.
+
+Gauntlet has walked `1.0.0 -> 1.1.0 -> 1.2.0` and The Ledger `1.0.0 -> 1.5.0`
+this way.
+
+`version` matters even though nothing parses it. The portal publishes each
+release under `<id>/<version>/`, so the string is how a republish is
+distinguished from the one before it (the update the player sees), and it is the
+anchor a changelog entry associates with. FORGETTING to bump on a republish is
+the silent failure: the new bytes land under the same `<version>` directory and
+the update is indistinguishable from the old one. Because of that a mod's test
+may PIN its version - `crates/nova_assets/tests/gauntlet_course.rs` asserts the
+bundle `contains("version: \"1.2.0\"")` (`bundle_ships_the_bumped_version`) so a
+content change that ships without a bump fails CI instead of shipping silently.
+
 Lint your mod while you work: `cargo run -p nova_assets --bin
 content -- lint --target path/to/your-mod` (or an in-repo id like
 `--target the-ledger`) checks just your bundle - section prototype ids
@@ -120,6 +145,14 @@ texture: "self://textures/rock.png",
   `content` and `meta.icon`). A `self://` ref may only name a listed resource -
   the portal generator, the static `content lint`, and the in-game content gate
   all reject a `self://` ref that is not in `resources`.
+- `.meta` SIDECAR files are the ONE exception: a `<name>.png.meta` (a texture's
+  import settings, e.g. a skybox's `RowCount` cube reinterpret) rides along with
+  its `<name>.png` AUTOMATICALLY and is NOT listed in `resources`. This is
+  deliberate, not an oversight: the example mod ships `textures/nebula.png` AND
+  `textures/nebula.png.meta` yet lists only the `.png` in `resources`, and it
+  publishes and loads fine. If you find a `.meta` next to a listed asset but
+  absent from `resources`, that is correct - do not add it, and do not treat the
+  omission as a bug to fix.
 - `self://` resolves against the mod's own folder whether the mod is shipped
   (`assets/mods/<id>/`) or downloaded from the portal (`mods://<id>/`), on native
   and web alike - you never hard-code your own id.
@@ -232,6 +265,38 @@ The example content does both: it reuses `reinforced_hull_section` (replace) and
 introduces both a NEW section (`example_plated_hull_section`) and a new playable
 scenario (`example_arena`, a small shooting gallery), so the one mod doubles as a
 worked scenario, not just an overlay demonstration.
+
+### Dependencies and merge order
+
+Merge order decides who wins a replace, so it is worth stating exactly.
+`register_bundles` builds the enabled bundles in a fixed order:
+
+1. installed-catalog order first (`base` is first in `mods.catalog.ron`, so it
+   always merges first and everything overlays it),
+2. then downloaded (portal-installed) mods, in install-index order - SHIPPED
+   mods always merge before DOWNLOADED ones,
+3. then that list is topologically sorted so a mod's DEPENDENCIES merge BEFORE
+   it (a dependent overlays its dependency), keeping the catalog-then-download
+   sequence as the stable tiebreak among mods that do not depend on each other.
+
+The practical rule: a mod overlays `base` and everything it depends on, and last
+declared in the enabled set wins among independent mods.
+
+Adding or dropping a `dependencies` entry is a BREAKING change for players who
+already have the mod installed - not just a metadata edit. A dependency is
+enabled and merged alongside your mod, so:
+
+- ADDING a dep means the resolver must fetch and enable another mod for yours to
+  behave as shipped; on the second release players silently gain (and merge) it.
+- DROPPING a dep removes whatever that mod was overlaying. Gauntlet's `1.0.0`
+  declared `dependencies: ["base", "demo"]`; the `demo` dep was silently
+  overriding `reinforced_hull_section`'s health from 200 to 400 and forcing the
+  demo arena on. Dropping `demo` in the rework restored base's honest 200-health
+  hull - a real gameplay change for anyone who had `1.0.0` installed, which is
+  why it rode a MINOR bump, not a patch.
+
+Treat any `dependencies` edit as content-affecting: bump the minor version and
+say so in your changelog.
 
 ## 3. Test it locally
 

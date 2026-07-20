@@ -61,6 +61,40 @@ every webmods bundle through the real bevy loaders to recursive `Loaded` on
 regular CI - the deep half of the publish gate, running where tests already
 run.
 
+### The publish-vs-load split (what "publishes clean" does NOT prove)
+
+The generator is a MANIFEST gate. It parses the bundle, checks publishable meta,
+confirms every listed file exists, rejects id collisions, resolves dependencies,
+and checks that asset refs are well-formed and name declared resources - but it
+NEVER deserializes or type-checks the content itself (it walks the RON only for
+its string leaves; it does not construct a single game type, and stays
+engine-free with no bevy). So a mod can publish CLEAN and still fail in-game: a
+scenario that references a section id no bundle defines, a fight that spawns
+already dead, a flight rig bound to a key the ship already drives - none of those
+are manifest-level, so the generator waves them through. Publishing clean means
+"the portal can serve it", not "the game can run it".
+
+Close that gap yourself with a two-part PRE-PUBLISH check on every release,
+before you land:
+
+1. `cargo run -p nova_assets --bin content -- lint --target <mod>` - as of
+   the folded-lint work this ONE command runs every check the manifest gate
+   cannot: reference/geometry (prototype ids, chain targets, filter/action
+   targets, duplicate object ids), the combat BALANCE audit
+   (spawned-dead / close-spawn) and the flight-rig INPUT-OVERLAP check.
+   `<mod>` may be a directory path or an in-repo id (`gauntlet`, `the-ledger`,
+   `base`). Add `--report report.md` (or a `.html` path) to write a per-mod
+   document grouping every finding by severity with source/id/fix for each - a
+   checklist to work through instead of scanning stdout.
+2. A LOCAL in-game load: install/enable the mod and actually play it (or, for
+   the shipped `webmods/`, `cargo test -p nova_assets --test webmods_validation`,
+   which is the loader half CI runs anyway). `content lint` catches the content
+   errors it knows about; only a real load proves the bevy loaders accept the
+   whole tree.
+
+Do BOTH. `content lint` is fast and catches the common content errors; the load
+catches whatever it does not.
+
 ## The wire schema (catalog.json)
 
 The full publish-then-install flow ties these sections together:
