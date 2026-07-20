@@ -290,8 +290,16 @@ a window they can never fill; add narrative examples to that list. Outside
 `perf/`, `--fps` defaults to a short 60/240 window (`perf/` and the sweep
 matrix keep the full 180/900 baseline window) so a bare
 `probe run gameplay --fps` fits the completion deadline; your own
-`NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` always override it. See the crate
-docs for the full knob list (`NOVA_PERF_*`).
+`NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` always override it. The completion
+deadline is SIZED to that window (not a flat 120s): probe sets
+`BCS_HARNESS_DEADLINE` for the fps pass to `(warmup + frames) / ~2fps +
+margin`, so a slow-but-progressing capture (a heavy scene in a dev build under
+software rendering - `perf_baseline --fps` is the case) completes instead of
+tripping the hang detector; a genuine hang still fails at a window-appropriate
+bound, and your own `BCS_HARNESS_DEADLINE` overrides it. Every example's `main`
+returns `AppExit`, so a deadline expiry is a non-zero process exit the
+`process_exit` check reports. See the crate docs for the full knob list
+(`NOVA_PERF_*`).
 
 The perf sweep is the same front door: a scenario x preset matrix of the
 frame-time capture, one labeled `frametime.csv` row per cell, release-built

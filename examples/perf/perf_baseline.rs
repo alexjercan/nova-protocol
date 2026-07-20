@@ -55,7 +55,7 @@ struct Cli {
     scenario: String,
 }
 
-fn main() {
+fn main() -> bevy::app::AppExit {
     let cli = Cli::parse();
     let scenario_id = std::env::var("NOVA_PERF_SCENARIO").unwrap_or(cli.scenario);
 
@@ -117,7 +117,7 @@ fn main() {
         app.add_plugins(nova_probe::nova_invariants());
     }
 
-    app.run();
+    app.run()
 }
 
 /// Map a `low|medium|high` env value onto the preset. Unknown values are

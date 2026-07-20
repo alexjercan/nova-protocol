@@ -37,7 +37,7 @@ struct Cli {
     scenario: String,
 }
 
-fn main() {
+fn main() -> bevy::app::AppExit {
     let cli = Cli::parse();
     let scenario_id = std::env::var("NOVA_PERF_SCENARIO").unwrap_or(cli.scenario);
 
@@ -106,7 +106,7 @@ fn main() {
         app.add_plugins(nova_screenshot().path(path).settle_frames(SETTLE_FRAMES));
     }
 
-    app.run();
+    app.run()
 }
 
 /// The preset to switch to partway through, and a frame counter.

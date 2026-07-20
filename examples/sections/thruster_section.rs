@@ -31,7 +31,7 @@ use nova_protocol::prelude::*;
 #[command(about = "Thruster section: a steady burn accelerates the hull and drives the plume shader", long_about = None)]
 struct Cli;
 
-fn main() {
+fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
@@ -51,7 +51,7 @@ fn main() {
         app.add_plugins(nova_screenshot());
     }
 
-    app.run();
+    app.run()
 }
 
 fn custom_plugin(app: &mut App) {

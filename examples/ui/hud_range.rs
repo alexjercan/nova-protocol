@@ -58,7 +58,7 @@ struct Cli;
 #[cfg(feature = "debug")]
 const CENTER_TOLERANCE_PX: f32 = 10.0;
 
-fn main() {
+fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
@@ -80,7 +80,7 @@ fn main() {
         app.add_plugins(nova_screenshot());
     }
 
-    app.run();
+    app.run()
 }
 
 fn custom_plugin(app: &mut App) {

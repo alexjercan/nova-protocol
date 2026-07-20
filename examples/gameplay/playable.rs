@@ -42,7 +42,7 @@ const SCENARIO_ID: &str = "playable_run";
 #[cfg(feature = "debug")]
 const WINDOW_SECS: f32 = 24.0;
 
-fn main() {
+fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
@@ -79,7 +79,7 @@ fn main() {
         app.add_plugins(nova_probe::nova_frametime());
     }
 
-    app.run();
+    app.run()
 }
 
 fn custom_plugin(app: &mut App) {

@@ -40,7 +40,7 @@ use nova_protocol::prelude::*;
 #[command(about = "The nova_protocol ship editor, wired to the smoke-test harness", long_about = None)]
 struct Cli;
 
-fn main() {
+fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
 
     // The same editor app the game/binary runs - not a bespoke copy.
@@ -59,7 +59,7 @@ fn main() {
         app.add_plugins(nova_screenshot());
     }
 
-    app.run();
+    app.run()
 }
 
 /// The autopilot's step through the editor: create a ship, select a section, then drive the

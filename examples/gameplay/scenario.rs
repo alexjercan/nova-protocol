@@ -40,7 +40,7 @@ const ASTEROID_COUNT: usize = 6;
 /// threshold).
 const BEAT_KILLS: f64 = 2.0;
 
-fn main() {
+fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
@@ -75,7 +75,7 @@ fn main() {
         app.add_plugins(nova_probe::nova_frametime());
     }
 
-    app.run();
+    app.run()
 }
 
 fn custom_plugin(app: &mut App) {

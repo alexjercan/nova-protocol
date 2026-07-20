@@ -635,14 +635,23 @@ usage: probe <subcommand>
             .unwrap_or_else(|_| Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
     }
 
-    /// The non-`perf/` fps window (task 20260719-233732): warm-up + capture
-    /// frame counts small enough that a bare `probe run <example> --fps` fits
-    /// the harness completion deadline under software rendering. `perf/`
-    /// examples (dedicated steady-state scenes) and the sweep matrix keep the
-    /// capture crate's full 180/900 baseline window so baselines stay
-    /// like-for-like.
-    const NON_PERF_WARMUP: &str = "60";
-    const NON_PERF_FRAMES: &str = "240";
+    /// The non-`perf/` fps window (task 20260719-233732): a shorter warm-up +
+    /// capture than the perf baseline so a bare `probe run <example> --fps`
+    /// finishes quickly. `perf/` examples (dedicated steady-state scenes) and
+    /// the sweep matrix keep the capture crate's full 180/900 baseline window
+    /// so baselines stay like-for-like.
+    const NON_PERF_WARMUP: u32 = 60;
+    const NON_PERF_FRAMES: u32 = 240;
+
+    /// Conservative software-render frame-rate FLOOR (frames/sec) used to size
+    /// the completion deadline to the capture window (task 20260720-115935).
+    /// The heavy perf scene measured ~2.3 fps in a dev build under lavapipe, so
+    /// the floor is the slowest we budget for: the sized deadline is a ceiling
+    /// a legitimately-slow-but-progressing capture fits under, while a genuine
+    /// hang still fails (just at a window-appropriate bound, not a flat 120s).
+    const FPS_FLOOR: f64 = 2.0;
+    /// Extra seconds added to the sized deadline for scene load + asset warm.
+    const FPS_LOAD_MARGIN_SECS: u64 = 45;
 
     /// Resolve an example's fps policy from the catalog + probe metadata: its
     /// category (drives the window default) and, when configured fps-exempt,
@@ -669,25 +678,57 @@ usage: probe <subcommand>
         (category, reason)
     }
 
-    /// Category-aware capture-window env for the fps pass: outside `perf/`,
-    /// default to the short [`NON_PERF_WARMUP`]/[`NON_PERF_FRAMES`] window;
-    /// `perf/` keeps the capture crate's defaults. The operator's own
-    /// `NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` always win - pushed only when
-    /// unset - so a deliberately chosen window is never overridden (the child
-    /// inherits probe's env, so an unset var here means the example's own
-    /// default, which is why the non-perf default must be pushed explicitly).
-    fn fps_window_env(category: &str) -> Vec<(String, String)> {
-        if category == "perf" {
-            return Vec::new();
+    /// Read an env var as u32 (empty/unparseable -> None). Reads probe's own
+    /// environment, which the child inherits, so operator overrides are honored.
+    fn env_u32(key: &str) -> Option<u32> {
+        std::env::var(key).ok().and_then(|v| v.trim().parse().ok())
+    }
+
+    /// Resolve the fps capture window (warmup, frames) probe will use for a
+    /// category: the operator's `NOVA_PERF_WARMUP`/`NOVA_PERF_FRAMES` win, else
+    /// the `perf/` full baseline window (the capture crate's defaults) or the
+    /// short non-perf window.
+    fn resolve_fps_window(category: &str) -> (u32, u32) {
+        let (default_warmup, default_frames) = if category == "perf" {
+            (
+                nova_probe::DEFAULT_WARMUP_FRAMES,
+                nova_probe::DEFAULT_CAPTURE_FRAMES,
+            )
+        } else {
+            (NON_PERF_WARMUP, NON_PERF_FRAMES)
+        };
+        (
+            env_u32("NOVA_PERF_WARMUP").unwrap_or(default_warmup),
+            env_u32("NOVA_PERF_FRAMES").unwrap_or(default_frames),
+        )
+    }
+
+    /// The completion deadline (seconds) a capture window needs at the
+    /// pessimistic [`FPS_FLOOR`], plus the load margin. Sized so a
+    /// slow-but-progressing capture completes instead of tripping the hang
+    /// detector (task 20260720-115935).
+    fn fps_deadline_secs(warmup: u32, frames: u32) -> u64 {
+        (f64::from(warmup + frames) / FPS_FLOOR).ceil() as u64 + FPS_LOAD_MARGIN_SECS
+    }
+
+    /// Env for the fps pass: the resolved capture window set EXPLICITLY (even
+    /// for `perf/`, so the deadline matches the exact window the child
+    /// measures) plus the window-sized `BCS_HARNESS_DEADLINE`. Returns the
+    /// deadline seconds too, so the caller can raise the supervisor timeout
+    /// above it. The operator's `NOVA_PERF_WARMUP`/`FRAMES` are already folded
+    /// in by [`resolve_fps_window`]; their `BCS_HARNESS_DEADLINE` wins here
+    /// (pushed only when unset).
+    fn fps_window_and_deadline_env(category: &str) -> (Vec<(String, String)>, u64) {
+        let (warmup, frames) = resolve_fps_window(category);
+        let deadline = fps_deadline_secs(warmup, frames);
+        let mut env = vec![
+            ("NOVA_PERF_WARMUP".into(), warmup.to_string()),
+            ("NOVA_PERF_FRAMES".into(), frames.to_string()),
+        ];
+        if std::env::var_os("BCS_HARNESS_DEADLINE").is_none() {
+            env.push(("BCS_HARNESS_DEADLINE".into(), deadline.to_string()));
         }
-        let mut env = Vec::new();
-        if std::env::var_os("NOVA_PERF_WARMUP").is_none() {
-            env.push(("NOVA_PERF_WARMUP".into(), NON_PERF_WARMUP.into()));
-        }
-        if std::env::var_os("NOVA_PERF_FRAMES").is_none() {
-            env.push(("NOVA_PERF_FRAMES".into(), NON_PERF_FRAMES.into()));
-        }
-        env
+        (env, deadline)
     }
 
     /// Environment for the CLEAN pass: autopilot + recorder + invariants
@@ -1099,10 +1140,19 @@ usage: probe <subcommand>
                 );
                 let mut env = clean_pass_env(&root, &out, &display, true);
                 env.retain(|(k, _)| k != "NOVA_PERF_TIMELINE" && k != "NOVA_PERF_INVARIANTS");
-                // Category-aware window: non-perf examples fit the deadline.
-                env.extend(fps_window_env(&category));
+                // Category-aware window + a completion deadline SIZED to that
+                // window, so a slow-but-progressing capture (a heavy dev scene
+                // under software rendering) completes instead of tripping the
+                // flat 120s hang detector (task 20260720-115935).
+                let (window_env, deadline_secs) = fps_window_and_deadline_env(&category);
+                env.extend(window_env);
+                // The supervisor timeout MUST exceed the in-process deadline,
+                // or probe kills the child before the deadline can complete or
+                // report; keep the operator's --timeout if it is larger.
+                let fps_timeout = Duration::from_secs((deadline_secs + 30).max(opts.timeout_secs));
+                eprintln!("probe: fps pass deadline {deadline_secs}s (window-sized)");
                 let outcome =
-                    run_supervised(&bin, &[], &root, &env, &out.join("fps-run.log"), timeout)?;
+                    run_supervised(&bin, &[], &root, &env, &out.join("fps-run.log"), fps_timeout)?;
                 if !outcome.success() {
                     eprintln!("probe: fps pass did not succeed; the report will say so");
                 }
@@ -1650,27 +1700,57 @@ usage: probe <subcommand>
         }
 
         #[test]
-        fn fps_window_env_leaves_perf_on_the_full_baseline_window() {
-            // perf/ examples never get the short non-perf default - the
-            // 180/900 baseline window is what their baselines are built on.
-            assert!(fps_window_env("perf").is_empty());
-        }
-
-        #[test]
-        fn fps_window_env_defaults_non_perf_to_the_short_window() {
-            // Deterministic only when the operator has not pinned a window.
-            // The suite runs without NOVA_PERF_* set; guard so a stray env in
-            // some other runner does not flake this.
+        fn resolve_fps_window_defaults_per_category() {
+            // Deterministic only when the operator has not pinned a window
+            // (the suite runs without NOVA_PERF_* set; guard against a stray).
             if std::env::var_os("NOVA_PERF_WARMUP").is_none()
                 && std::env::var_os("NOVA_PERF_FRAMES").is_none()
             {
-                let env = fps_window_env("gameplay");
+                // perf/ keeps the full baseline window; other categories get
+                // the short window.
+                assert_eq!(
+                    resolve_fps_window("perf"),
+                    (
+                        nova_probe::DEFAULT_WARMUP_FRAMES,
+                        nova_probe::DEFAULT_CAPTURE_FRAMES
+                    )
+                );
+                assert_eq!(
+                    resolve_fps_window("gameplay"),
+                    (NON_PERF_WARMUP, NON_PERF_FRAMES)
+                );
+            }
+        }
+
+        #[test]
+        fn fps_deadline_scales_with_the_window_and_clears_the_flat_default() {
+            // The flat bcs default is 120s; the perf window (180+900) must get a
+            // much larger deadline, and the short window a smaller one - the
+            // whole point of sizing (task 20260720-115935).
+            let perf = fps_deadline_secs(
+                nova_probe::DEFAULT_WARMUP_FRAMES,
+                nova_probe::DEFAULT_CAPTURE_FRAMES,
+            );
+            let short = fps_deadline_secs(NON_PERF_WARMUP, NON_PERF_FRAMES);
+            // 1080 / 2.0 + 45 = 585; 300 / 2.0 + 45 = 195.
+            assert_eq!(perf, 585);
+            assert_eq!(short, 195);
+            assert!(perf > 120 && short > 120, "both clear the flat 120s default");
+            assert!(perf > short, "a bigger window gets a bigger deadline");
+        }
+
+        #[test]
+        fn fps_window_and_deadline_env_sets_window_and_deadline() {
+            if std::env::var_os("NOVA_PERF_WARMUP").is_none()
+                && std::env::var_os("NOVA_PERF_FRAMES").is_none()
+                && std::env::var_os("BCS_HARNESS_DEADLINE").is_none()
+            {
+                let (env, deadline) = fps_window_and_deadline_env("perf");
+                assert_eq!(deadline, 585);
+                assert!(env.iter().any(|(k, v)| k == "NOVA_PERF_FRAMES" && v == "900"));
                 assert!(env
                     .iter()
-                    .any(|(k, v)| k == "NOVA_PERF_WARMUP" && v == NON_PERF_WARMUP));
-                assert!(env
-                    .iter()
-                    .any(|(k, v)| k == "NOVA_PERF_FRAMES" && v == NON_PERF_FRAMES));
+                    .any(|(k, v)| k == "BCS_HARNESS_DEADLINE" && v == "585"));
             }
         }
 

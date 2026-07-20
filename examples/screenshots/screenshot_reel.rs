@@ -45,7 +45,7 @@ const REEL_CONTENT_RON: &str = include_str!("data/reel.content.ron");
 #[cfg(feature = "debug")]
 const SCENARIO_ID: &str = "screenshot_reel";
 
-fn main() {
+fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
@@ -65,7 +65,7 @@ fn main() {
         app.add_plugins(ScreenshotReelPlugin::new(reel_beats()));
     }
 
-    app.run();
+    app.run()
 }
 
 /// Load the embedded reel scenario once assets are `Loaded` (textures the

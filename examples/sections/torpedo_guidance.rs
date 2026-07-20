@@ -44,7 +44,7 @@ const TARGET_CROSS_SPEED: f32 = 15.0;
 /// smoke-test assertion so both agree on what "loaded" means.
 const SCENARIO_ID: &str = "torpedo_guidance";
 
-fn main() {
+fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
@@ -62,7 +62,7 @@ fn main() {
         app.add_plugins(assert_scenario_loaded(SCENARIO_ID));
     }
 
-    app.run();
+    app.run()
 }
 
 fn custom_plugin(app: &mut App) {

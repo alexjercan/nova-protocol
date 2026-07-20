@@ -30,7 +30,7 @@ struct Cli;
 #[cfg(feature = "debug")]
 const PARTIAL_HIT: f32 = 60.0;
 
-fn main() {
+fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
@@ -50,7 +50,7 @@ fn main() {
         app.add_plugins(nova_screenshot());
     }
 
-    app.run();
+    app.run()
 }
 
 fn custom_plugin(app: &mut App) {

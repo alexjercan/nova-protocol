@@ -46,7 +46,7 @@ struct Cli;
 #[cfg(feature = "debug")]
 const UI_AUTOPILOT_SECS: f32 = 20.0;
 
-fn main() {
+fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
 
     // The same app the game/binary runs (main menu over the ambience backdrop).
@@ -79,7 +79,7 @@ fn main() {
         );
     }
 
-    app.run();
+    app.run()
 }
 
 /// Force the window to 1920x1080 (the 16:9 the web figures use) at startup.

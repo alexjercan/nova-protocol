@@ -45,7 +45,7 @@ struct Cli;
 /// Id of the one gate that drifts, so the range can single it out and drive it.
 const MOVING_GATE_ID: &str = "gate_moving";
 
-fn main() {
+fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
@@ -93,7 +93,7 @@ fn main() {
         app.add_plugins(nova_screenshot());
     }
 
-    app.run();
+    app.run()
 }
 
 /// What the headless range run has observed so far; asserted complete just

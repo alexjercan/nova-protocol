@@ -163,6 +163,16 @@ window they can never fill. Outside `perf/`, `--fps` defaults to a short
 and the sweep keep 180/900, and your own `NOVA_PERF_WARMUP`/`NOVA_PERF_FRAMES`
 always win.
 
+The completion deadline is SIZED to the fps window, not a flat 120s (task
+20260720-115935): probe sets `BCS_HARNESS_DEADLINE` for the fps pass to
+`(warmup + frames) / ~2fps + margin`, so a legitimately-slow capture (a heavy
+scene in a dev build under software rendering) COMPLETES instead of tripping
+the hang detector - `perf_baseline --fps` in dev no longer false-FAILs on the
+deadline. A genuine hang still fails, at a window-appropriate bound; your own
+`BCS_HARNESS_DEADLINE` overrides it. Every example's `main` returns `AppExit`,
+so a deadline expiry (or any harness error-exit) is a NON-ZERO process exit
+that `process_exit` reports - not just a log-scan flag.
+
 ## Host knobs (flamegraphs)
 
 samply needs `perf_event_paranoid <= 1` and, on many-core hosts, a raised

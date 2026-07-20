@@ -31,7 +31,7 @@ struct Cli;
 /// The orbit ring radius the ship holds around the planetoid.
 const ORBIT_RADIUS: f32 = 45.0;
 
-fn main() {
+fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
@@ -52,7 +52,7 @@ fn main() {
         app.add_systems(Startup, (force_resolution, hide_dev_overlays));
     }
 
-    app.run();
+    app.run()
 }
 
 /// Force the window to 1920x1080 (the 16:9 the web figures use) at startup.
