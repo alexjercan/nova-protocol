@@ -62,6 +62,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   test data); an "X holds everywhere" audit sweeps base + webmods +
   assets/mods + Rust-coded scenarios, re-derived in review. 20260717-002105,
   20260717-201534.
+- `build-time-move-weigh-generator-deps` (x1): before scoping a "move X to
+  build-time" task, check whether the generator drags in a heavy dep (bevy via
+  `Reflect` derives) - a `build.rs` then needs it as a build-dependency and
+  DUPLICATE-compiles it in the build graph, usually killing the cost/benefit.
+  20260719-092952 (declined on exactly this).
 - `audit-framed-task-delivers-the-audit` (x1): for "apply X where it makes
   sense", the deliverable is the bounding audit, not the two-line edit; read
   the existing lint/guard before hand-ruling the boundary. 20260717-201534.

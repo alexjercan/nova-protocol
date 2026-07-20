@@ -1,8 +1,8 @@
 # Move base-mod content gen to build-time; remove the content bin's gen subcommand
 
-- STATUS: OPEN
-- PRIORITY: 42
-- TAGS: v0.8.0,tooling,refactor,build
+- STATUS: CLOSED
+- PRIORITY: 0
+- TAGS: wontdo,v0.8.0,tooling,build
 
 ## Story
 
@@ -78,3 +78,31 @@ decision from that pass.
   chosen behavior in the README tools section.
 - Umbrella: 20260718-152304 (tooling inventory) records this as the base-mod-gen
   build-time move; keep its catalog in sync (content bin loses `gen`).
+
+## Decision (2026-07-20): keep `content gen`, do NOT move to build-time
+
+Investigated during the v0.8.0 tooling flow and DECLINED the build-time move
+(user call). Rationale:
+
+- `content_files()` builds the section/scenario config types, which derive
+  bevy `Reflect`, so any generator pulls in the full bevy dependency tree. A
+  root `build.rs` calling it needs `nova_assets` as a BUILD-dependency, which
+  compiles bevy a SECOND time in the build graph (resolver-2 keeps build-deps
+  and normal deps separate) - a large first-build regression on every native
+  `cargo build`/`cargo run`, plus the build would mutate tracked files
+  (`assets/base/**/*.content.ron`), the dirty-tree/CI-surprise footgun the
+  task Notes flagged.
+- The only cheap build-time hook in the repo is `nova_meta_gen`'s Trunk
+  `post_build` hook, which is web-only and pays the bevy-compile cost once per
+  fresh checkout. Routing base-mod gen through Trunk was rejected: the user
+  does not want Trunk building the base mod, and it would not cover native
+  builds anyway.
+- Net: the build-time move trades a real, repeated build-cost + tree-mutation
+  footgun for removing one hand-run step that the `content_ron_parity` test
+  already guards. Poor cost/benefit.
+
+Outcome: `content gen` STAYS as a subcommand; `content_ron_parity` remains the
+drift gate (it fails a stale-RON PR and names `content gen` to fix it). The
+`content` bin is therefore `gen` + `lint` (not the single-`lint` end state the
+umbrella 20260718-152304 sketched); that end state is not pursued. Retagged
+`wontdo`, priority 0. Umbrella note updated.
