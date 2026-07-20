@@ -61,8 +61,19 @@ Lint your mod while you work: `cargo run -p nova_assets --bin
 content -- lint --target path/to/your-mod` (or an in-repo id like
 `--target the-ledger`) checks just your bundle - section prototype ids
 against the base catalog and your declared dependencies, scenario chain
-targets, filter/action target ids, duplicate object ids. An Error means
-the game would refuse the scenario at runtime; fix it before publishing.
+targets, filter/action target ids, duplicate object ids. It also runs the
+combat BALANCE audit (spawned-dead / close-spawn hostiles) and the flight-rig
+INPUT-OVERLAP check (a section bound to W/Space/RightTrigger or another flight
+key silently double-drives the ship) in the same pass. An Error means the game
+would refuse the scenario at runtime or a fight is unwinnable; fix it before
+publishing.
+
+Pre-publish check: add `--report report.md` (or a `.html` path) to write a
+per-mod document that groups every finding by severity and pinpoints, for each,
+the source file, the offending id/field, a short explanation and a suggested
+fix - a checklist to work through before you ship a multi-file bundle instead
+of reading stdout lines. A clean mod still gets a report (it says so); zero
+findings is not an empty file.
 
 A manifest may also declare `new_game_scenario: Some("<scenario id>")` - the
 scenario New Game launches - but it is HONORED ONLY from the base game's own

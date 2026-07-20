@@ -20,7 +20,7 @@ Cargo workspace. The root crate is thin (`src/main.rs` is the CLI entry,
 | `nova_core` | `AppBuilder`: assembles all plugins. Start here. |
 | `nova_gameplay` | Sections, integrity, input, HUD, targeting, flight/autopilot, AI, camera. Owns `GameStates`. |
 | `nova_scenario` | Scenario/modding engine: actions, events, filters, variables, objects, the content lint. |
-| `nova_assets` | Asset loading; content builders and the `content` CLI (gen/lint/audit). |
+| `nova_assets` | Asset loading; content builders and the `content` CLI (gen/lint; balance audit + input-overlap folded into lint). |
 | `nova_modding` | Mod loading/merging: bundles, installed catalog, portal client, downloads. |
 | `nova_mod_format` | Engine-free serde types for the mod formats (portal wire schema). |
 | `nova_menu` | Main/pause menus, settings, mods UI, scenarios picker. |
@@ -52,7 +52,7 @@ cargo run --features dev         # + debug tooling (inspector, wireframe)
 cargo run --example scenario     # examples are the fastest way to test a subsystem
 trunk serve                      # web build on :8080
 cargo check && cargo fmt         # do this before committing
-cargo run -p nova_assets --bin content -- gen   # regen base content (also: lint, audit)
+cargo run -p nova_assets --bin content -- gen   # regen base content (also: lint - refs + balance + input overlaps)
 cargo run -p nova_probe -- run playable      # run-harness check: correctness+perf report
 ```
 

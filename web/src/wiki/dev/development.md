@@ -16,7 +16,7 @@ cargo run --example scenario   # run an example
 cargo build --release             # release profile: opt=s, lto, stripped
 cargo check && cargo fmt          # before committing
 cargo test --workspace            # full suite (CI runs this; skip locally unless asked)
-cargo run -p nova_assets --bin content -- lint   # validate content (also: gen, audit)
+cargo run -p nova_assets --bin content -- lint   # validate content: refs + balance + input overlaps (also: gen)
 cargo run -p nova_probe -- run playable          # run-harness check (correctness + perf)
 ```
 
@@ -151,28 +151,38 @@ at queue time).
 ## Content CLI
 
 `content` (`crates/nova_assets/src/bin/content.rs`) authors and validates the
-game's content. One bin, three subcommands, run from the repo root:
+game's content. One bin, two subcommands, run from the repo root:
 
 ```sh
-cargo run -p nova_assets --bin content -- gen                 # regenerate the base *.content.ron
-cargo run -p nova_assets --bin content -- lint                # lint the whole content tree
-cargo run -p nova_assets --bin content -- lint --target <mod> # lint one mod (dir, id, or `base`)
-cargo run -p nova_assets --bin content -- audit               # combat balance sheets + grading
+cargo run -p nova_assets --bin content -- gen                                   # regenerate the base *.content.ron
+cargo run -p nova_assets --bin content -- lint                                  # lint the whole content tree
+cargo run -p nova_assets --bin content -- lint --target <mod>                   # lint one mod (dir, id, or `base`)
+cargo run -p nova_assets --bin content -- lint --target <mod> --report r.md     # + write a per-mod report (md|html)
 ```
 
 - `gen` serializes the code-built base content into the committed
   `assets/base/**/*.content.ron`. The base RON is GENERATED from Rust builders
   (`nova_assets::scenario_generation`) - edit the builder and regenerate, never
   hand-edit the RON, or the `content_ron_parity` test goes red.
-- `lint` runs the identifier + geometry checks the load/publish gates cannot
-  (dangling `NextScenario` targets, unspawnable filter targets, duplicate ids,
-  scenarios with no terminal `Outcome`, ...); `--target` lints a single mod by
-  directory, in-repo id (`webmods/<id>`, `assets/mods/<id>`, or `base`). The
-  `content_lint_gate` test runs it in CI.
-- `audit` prints every combat scenario's derived balance sheet and grades the
-  static fairness findings; deliberate imbalances are acknowledged in
-  `crates/nova_assets/balance_acks.ron` so a known-hard fight does not re-flag.
-  The `balance_audit_gate` test pins it.
+- `lint` runs EVERY content check in one pass (the `audit` subcommand was folded
+  in here - balance is a kind of lint):
+  - the identifier + geometry + resource checks the load/publish gates cannot
+    (dangling `NextScenario` targets, unspawnable filter targets, duplicate ids,
+    scenarios with no terminal `Outcome`, resource-ref membership, ...);
+  - the combat balance/fairness audit - every combat scenario's derived sheet,
+    graded for spawned-dead (ERROR) and close-spawn (WARN) hostiles; deliberate
+    imbalances are acknowledged in `crates/nova_assets/balance_acks.ron` (a
+    stale ack that matches no live finding is an ERROR, so the list stays
+    pruned);
+  - the flight-rig input-overlap check - a content `input_mapping` section
+    bound to a key the always-on flight rig also binds (W/Space/RightTrigger
+    burn, autopilot, ...) silently double-drives flight and is flagged (WARN).
+  - `--target` lints a single mod by directory or in-repo id
+    (`webmods/<id>`, `assets/mods/<id>`, or `base`); `--report <path>` writes a
+    per-mod document (Markdown, or HTML for a `.html` path / `--format html`)
+    that names, for each finding, the file + element + explanation + suggested
+    fix. Exits non-zero on any ERROR. The `content_lint_gate`,
+    `balance_audit_gate` and `content_report_gate` tests run these walks in CI.
 
 ## Web build
 

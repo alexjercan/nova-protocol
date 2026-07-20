@@ -10,9 +10,9 @@ use crate::prelude::*;
 
 pub mod prelude {
     pub use super::{
-        binding_label, FlightVerbHints, PlayerSpaceshipMarker, SpaceshipPlayerInputPlugin,
-        SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
-        VerbHint,
+        binding_label, binding_source, flight_rig_reserved_sources, FlightVerbHints, InputSource,
+        PlayerSpaceshipMarker, SpaceshipPlayerInputPlugin, SpaceshipThrusterInputBinding,
+        SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding, VerbHint,
     };
 }
 
@@ -160,6 +160,87 @@ pub fn binding_label(bindings: &[Binding]) -> String {
             _ => None,
         })
         .unwrap_or_default()
+}
+
+/// A physical input source - the discrete button a binding occupies, stripped
+/// of modifiers and gesture conditions. Two bindings that name the same source
+/// drive the same physical input; that is exactly the silent double-drive a
+/// content `input_mapping` must not create against the always-on flight rig.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum InputSource {
+    Keyboard(KeyCode),
+    Mouse(MouseButton),
+    Gamepad(GamepadButton),
+}
+
+impl InputSource {
+    /// A short human label for the source (`W`, `Space`, `LMB`, `RightTrigger`).
+    pub fn label(&self) -> String {
+        match self {
+            InputSource::Keyboard(key) => keyboard_label(*key),
+            InputSource::Mouse(MouseButton::Left) => "LMB".to_string(),
+            InputSource::Mouse(MouseButton::Right) => "RMB".to_string(),
+            InputSource::Mouse(MouseButton::Middle) => "MMB".to_string(),
+            InputSource::Mouse(button) => format!("{button:?}"),
+            InputSource::Gamepad(button) => format!("{button:?}"),
+        }
+    }
+}
+
+/// The physical source a binding occupies, if it names a discrete button
+/// (keyboard / mouse / gamepad). Motion, wheel, stick-axis, `AnyKey`, custom
+/// and empty bindings have no single collision key and return `None`.
+pub fn binding_source(binding: &Binding) -> Option<InputSource> {
+    match binding {
+        Binding::Keyboard { key, .. } => Some(InputSource::Keyboard(*key)),
+        Binding::MouseButton { button, .. } => Some(InputSource::Mouse(*button)),
+        Binding::GamepadButton(button) => Some(InputSource::Gamepad(*button)),
+        _ => None,
+    }
+}
+
+/// The discrete input sources the always-on flight rig ([`flight_input_rig`])
+/// reserves, each paired with the flight verb it drives. Every action in that
+/// rig runs with `consume_input: false`, so a content `input_mapping` section
+/// that reuses one of these sources SILENTLY double-drives flight (bug
+/// 20260718-235837: "guns" on Space burned the ship off its mark and broke the
+/// 10_playable CI smoke; lesson `input-mapping-overlays-flight-rig`). The
+/// content lint's input-overlap check flags exactly this set; the
+/// `flight_rig_reserves_exactly_these_sources` test in this module pins the
+/// list against the REAL rig so authoring and lint cannot drift apart. Wheel
+/// and motion sources (component cycle, RCS aim) are deliberately absent: they
+/// are axes, not discrete buttons a section binding collides on.
+pub fn flight_rig_reserved_sources() -> Vec<(InputSource, &'static str)> {
+    use InputSource::{Gamepad, Keyboard};
+    vec![
+        (Keyboard(KeyCode::KeyW), "flight burn"),
+        (Keyboard(KeyCode::Space), "flight burn"),
+        (Gamepad(GamepadButton::RightTrigger), "flight burn"),
+        (Keyboard(KeyCode::KeyX), "autopilot stop"),
+        (Gamepad(GamepadButton::East), "autopilot stop"),
+        (Keyboard(KeyCode::KeyG), "autopilot goto"),
+        (Gamepad(GamepadButton::North), "autopilot goto"),
+        (Keyboard(KeyCode::KeyO), "autopilot orbit"),
+        (Gamepad(GamepadButton::South), "autopilot orbit"),
+        (Keyboard(KeyCode::KeyZ), "autopilot off"),
+        (Gamepad(GamepadButton::West), "autopilot off"),
+        (
+            Keyboard(KeyCode::ControlLeft),
+            "radar hold / lock-cycle modifier",
+        ),
+        (
+            Keyboard(KeyCode::ControlRight),
+            "radar hold / lock-cycle modifier",
+        ),
+        (Gamepad(GamepadButton::DPadUp), "radar hold"),
+        (Keyboard(KeyCode::BracketRight), "component cycle next"),
+        (Gamepad(GamepadButton::DPadRight), "component cycle next"),
+        (Keyboard(KeyCode::BracketLeft), "component cycle prev"),
+        (Gamepad(GamepadButton::DPadLeft), "component cycle prev"),
+        (Keyboard(KeyCode::ShiftLeft), "RCS modifier"),
+        (Keyboard(KeyCode::ShiftRight), "RCS modifier"),
+        (Gamepad(GamepadButton::LeftTrigger2), "RCS modifier"),
+    ]
 }
 
 /// Resolve the verb hints from the live world: availability from the same
@@ -1366,6 +1447,52 @@ mod command_lag_tests {
     use bevy::time::TimeUpdateStrategy;
 
     use super::*;
+
+    /// The drift guard for [`flight_rig_reserved_sources`]: build the REAL
+    /// flight rig and confirm the hand-authored reserved list names exactly the
+    /// rig's discrete-button sources - no more, no less. If a future edit adds,
+    /// removes or rebinds a flight action, this fails until the reserved list
+    /// (and the content lint that reads it) is updated, so `input-mapping-
+    /// overlays-flight-rig` cannot silently regress.
+    #[test]
+    fn flight_rig_reserves_exactly_these_sources() {
+        use std::collections::HashSet;
+
+        use bevy::input::InputPlugin;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_input_context::<FlightInputMarker>();
+        // The context registry finalizes in App::finish; run the lifecycle
+        // before spawning the rig, exactly as the production app does.
+        app.finish();
+        app.cleanup();
+        app.update();
+        app.world_mut().spawn(flight_input_rig());
+        app.update();
+
+        let mut rig_sources: HashSet<InputSource> = HashSet::new();
+        let mut q = app.world_mut().query::<&Binding>();
+        for binding in q.iter(app.world()) {
+            if let Some(source) = binding_source(binding) {
+                rig_sources.insert(source);
+            }
+        }
+
+        let reserved: HashSet<InputSource> = flight_rig_reserved_sources()
+            .into_iter()
+            .map(|(s, _)| s)
+            .collect();
+
+        let missing: Vec<_> = rig_sources.difference(&reserved).collect();
+        let extra: Vec<_> = reserved.difference(&rig_sources).collect();
+        assert!(
+            missing.is_empty() && extra.is_empty(),
+            "flight_rig_reserved_sources drifted from the real rig.\n  \
+             in the rig but not reserved (add them): {missing:?}\n  \
+             reserved but not in the rig (remove them): {extra:?}"
+        );
+    }
 
     /// A mouse 180 must NOT reach the rotation command in one frame: the
     /// command slews at the hull's torque-budget turn rate, so the PD tracks

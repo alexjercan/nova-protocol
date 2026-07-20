@@ -142,7 +142,7 @@ the deeper docs live in the dev wiki linked in each row.
 
 | Tool | Command | What it does |
 | --- | --- | --- |
-| Content CLI | `cargo run -p nova_assets --bin content -- gen\|lint\|audit` (also `lint --target <mod>`) | Author + validate content: `gen` regenerates the base `*.content.ron` from the Rust builders, `lint` runs the identifier/geometry checks the load gates cannot, `audit` prints combat balance sheets. See [`content.rs`](crates/nova_assets/src/bin/content.rs). |
+| Content CLI | `cargo run -p nova_assets --bin content -- gen\|lint` (also `lint --target <mod> --report <path>`) | Author + validate content: `gen` regenerates the base `*.content.ron` from the Rust builders; `lint` runs every content check in one pass - references/geometry, combat balance/fairness (the old `audit`, now folded in), and flight-rig input overlaps - and with `--report <path>` writes a per-mod document (`--format md\|html`) pinpointing file + element + fix for each finding. See [`content.rs`](crates/nova_assets/src/bin/content.rs). |
 | Probe (run-harness) | `cargo run -p nova_probe -- run <example>` / `cargo run -p nova_probe -- report <run-dir>` | Drives an autopilot example headless and writes a correctness + frame-time report under `probe-runs/`; `--profile`, `--samply`, `--fps`, `--all`, `--baseline`, `--platform web` extend it; `report` re-renders a run dir. See [`development.md`](web/src/wiki/dev/development.md). |
 | `perf_web` | (not called directly - built and driven by `probe run <example> --platform web`) | The WASM measurement build the probe boots under headless Chromium to capture the web frame line. See [`development.md`](web/src/wiki/dev/development.md). |
 | Meta-sidecar gen | `cargo run -p nova_meta_gen -- [--assets <dir>]...` | Writes default `.meta` sidecars for assets that lack one (for `AssetMetaCheck::Always` on the web); normally runs as a Trunk `post_build` hook. See [`crates/nova_meta_gen`](crates/nova_meta_gen/). |
@@ -170,7 +170,7 @@ deeper tour is in [`project-tour.md`](web/src/wiki/dev/project-tour.md).
 | `nova_core` | `AppBuilder`: assembles all plugins. Start here. |
 | `nova_gameplay` | Sections, integrity, input (player + AI), HUD, targeting, flight/autopilot, camera. Owns `GameStates`. |
 | `nova_scenario` | Scenario/modding engine: actions, events, filters, variables, objects, the content lint. |
-| `nova_assets` | Asset loading; content builders and the `content` CLI (gen/lint/audit). |
+| `nova_assets` | Asset loading; content builders and the `content` CLI (gen/lint, balance audit + input-overlap folded into lint). |
 | `nova_modding` | Mod loading/merging: bundles, installed catalog, portal client, downloads. |
 | `nova_mod_format` | Engine-free serde types for the mod formats (portal wire schema). |
 | `nova_menu` | Main/pause menus, settings, mods UI, scenarios picker. |

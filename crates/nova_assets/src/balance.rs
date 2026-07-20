@@ -33,8 +33,9 @@
 //! their own tests (ledger_ch2_encounter.rs, broadside_assault.rs); this
 //! module is the repo-wide generalization that also covers content nobody
 //! hand-pinned (asteroid_field, the ledger's later chapters, future mods).
-//! `balance_audit_gate` runs it in CI; the `content` CLI's `audit`
-//! subcommand prints the full table.
+//! `balance_audit_gate` runs it in CI; the `content` CLI's `lint` runs it in
+//! one pass with the reference checks (the balance audit was folded into
+//! `lint`, task 20260718-152240).
 
 use std::collections::HashMap;
 
@@ -491,7 +492,19 @@ pub fn audit_scenario(
 /// webmods), each against ITS bundle's resolved section overlay. Returns
 /// `(bundle id, audit)` pairs in walk order.
 pub fn audit_content_tree() -> Vec<(String, ScenarioAudit)> {
-    let bundles = crate::lint_walk::audit_bundles();
+    audit_bundles_to_audits(&crate::lint_walk::audit_bundles())
+}
+
+/// Audit an already-walked set of bundles: each bundle's scenarios against the
+/// catalog resolved from base + its declared deps + its own sections (the
+/// runtime merge order). The single balance code path - [`audit_content_tree`]
+/// feeds it the whole repo, and the unified content report
+/// (`crate::content_report`) feeds it a target's walk (the target plus the
+/// repo it depends on) so a `--target` audit sees the same numbers the tree
+/// audit does.
+pub fn audit_bundles_to_audits(
+    bundles: &[crate::lint_walk::AuditBundle],
+) -> Vec<(String, ScenarioAudit)> {
     let by_id: HashMap<&str, &crate::lint_walk::AuditBundle> =
         bundles.iter().map(|b| (b.id.as_str(), b)).collect();
     let base: &[SectionConfig] = by_id
@@ -500,7 +513,7 @@ pub fn audit_content_tree() -> Vec<(String, ScenarioAudit)> {
         .unwrap_or(&[]);
 
     let mut audits = Vec::new();
-    for bundle in &bundles {
+    for bundle in bundles {
         // base is implicit; declared deps layer over it in declared order;
         // the bundle's own sections win last (the runtime merge's order).
         let mut layers: Vec<&[SectionConfig]> = vec![base];

@@ -32,11 +32,11 @@ timed beats, invulnerable cover, allegiance) is the toolbox.
       cover or a gravity well), clearer stakes, and comms/objective beats that
       tell a story between fights. Reuse existing actions/events only.
 - [ ] Retune balance so win/lose feels earned; keep every fight winnable and
-      losable. Use `content -- audit` findings as the floor; ack intended
+      losable. Use `content lint` balance findings as the floor; ack intended
       drama in balance_acks.ron with reasons.
 - [ ] Give new scenarios picker thumbnails (ties to 20260715-220011) and wire
       them into the New Game progression + Scenarios picker.
-- [ ] Run `content lint` + `audit` over the result; fix findings.
+- [ ] Run `content lint` (references + balance in one pass) over the result; fix findings.
 - [ ] Sync the docs surfaces in the same task (per AGENTS.md): player wiki
       scenarios.md flow description, CHANGELOG entry; note anything for the
       v0.8.0 news post.
@@ -48,7 +48,7 @@ timed beats, invulnerable cover, allegiance) is the toolbox.
 - Every scenario in the chain has an Outcome path for both win and lose, a
   checkpoint structure that never replays more than one fight on death, and
   comms beats following the beat-sheet convention (lint clean).
-- `content lint` and `content audit` pass (acks only with reasons).
+- `content lint` passes, balance findings included (acks only with reasons).
 - scenarios.md and CHANGELOG reflect the new chain; playtest questions for the
   owner are listed in this task, not silently decided.
 

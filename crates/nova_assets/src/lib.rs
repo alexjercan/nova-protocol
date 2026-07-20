@@ -4,7 +4,8 @@
 //! installed-mods catalog and `EnabledMods` into the active section/scenario
 //! set. The base content it registers is GENERATED from Rust builders (edit the
 //! builder, not the committed `*.content.ron`), and the crate also backs the
-//! `content` CLI (`gen`/`lint`/`audit`) that authors and validates that content.
+//! `content` CLI (`gen`/`lint`; the balance audit and input-overlap check are
+//! folded into `lint`) that authors and validates that content.
 
 use std::collections::{HashMap, HashSet};
 
@@ -19,6 +20,7 @@ use nova_modding::prelude::{
 };
 use nova_scenario::prelude::{GameScenarios, NewGameStart};
 
+pub mod content_report;
 pub mod mod_cache;
 pub mod mod_prefs;
 pub mod mod_refs;
@@ -1390,11 +1392,18 @@ pub mod lint_walk {
         path::{Path, PathBuf},
     };
 
-    use nova_gameplay::prelude::SectionConfig;
+    use nova_gameplay::prelude::{
+        binding_source, flight_rig_reserved_sources, InputSource, SectionConfig,
+    };
     use nova_mod_format::BundleManifest;
     use nova_modding::prelude::Content;
     use nova_scenario::prelude::{
-        lint_scenario, KnownSections, LintIssue, LintSeverity, ScenarioConfig,
+        lint_scenario, EventActionConfig, KnownSections, LintIssue, LintSeverity, ScenarioConfig,
+        ScenarioObjectKind, SpaceshipController,
+    };
+
+    use crate::content_report::{
+        AckedFinding, Category, ContentReport, Finding, Severity as ReportSeverity,
     };
 
     /// One walked bundle: its id (directory-derived), manifest, parsed content
@@ -1404,9 +1413,26 @@ pub mod lint_walk {
         manifest: BundleManifest,
         sections: Vec<SectionConfig>,
         scenarios: Vec<ScenarioConfig>,
-        /// Every parsed content item (sections and scenarios), kept so the
-        /// mod-relative `self://` resource-ref check can see both kinds.
-        content: Vec<Content>,
+        /// Every parsed content item paired with the bundle-relative file it was
+        /// read from (a bundle lists several content files). Kept so the
+        /// mod-relative `self://` resource-ref check can see both kinds, and so
+        /// the unified report can point each finding at its source file.
+        content: Vec<(String, Content)>,
+    }
+
+    impl WalkedBundle {
+        /// The bundle-relative file a content element (scenario or section id)
+        /// was authored in, for report provenance. `None` when no content item
+        /// carries that id (e.g. a finding about a missing/foreign prototype).
+        fn file_of(&self, element_id: &str) -> Option<&str> {
+            self.content.iter().find_map(|(file, item)| {
+                let id = match item {
+                    Content::Scenario(cfg) => cfg.id.as_str(),
+                    Content::Section(cfg) => cfg.base.id.as_str(),
+                };
+                (id == element_id).then_some(file.as_str())
+            })
+        }
     }
 
     /// The workspace root (this crate sits at `crates/nova_assets`).
@@ -1441,11 +1467,11 @@ pub mod lint_walk {
                     .unwrap_or_else(|err| panic!("read {}: {err}", path.display())),
             )
             .unwrap_or_else(|err| panic!("parse {}: {err}", path.display()));
-            content.extend(items);
+            content.extend(items.into_iter().map(|item| (rel.clone(), item)));
         }
         let mut sections = Vec::new();
         let mut scenarios = Vec::new();
-        for item in &content {
+        for (_, item) in &content {
             match item {
                 Content::Section(section) => sections.push(section.as_ref().clone()),
                 Content::Scenario(scenario) => scenarios.push(scenario.clone()),
@@ -1581,7 +1607,7 @@ pub mod lint_walk {
             declared_deps: &declared_deps,
             deps: &dep_refs,
         };
-        for item in &bundle.content {
+        for (_, item) in &bundle.content {
             let (scenario, kind) = match item {
                 Content::Scenario(cfg) => (cfg.id.clone(), "scenario"),
                 Content::Section(cfg) => (cfg.base.id.clone(), "section"),
@@ -1694,6 +1720,248 @@ pub mod lint_walk {
         lint_bundle(&target, &repo)
     }
 
+    /// The flight-rig input overlaps in one scenario: every player
+    /// `input_mapping` binding whose physical source the always-on flight rig
+    /// already reserves (`consume_input: false`, so both fire). Returns
+    /// `(section id, colliding source, the flight verb it drives)` - the raw
+    /// material for an `input-overlap` finding. See
+    /// `nova_gameplay::flight_rig_reserved_sources` and lesson
+    /// `input-mapping-overlays-flight-rig`.
+    fn scenario_input_overlaps(scenario: &ScenarioConfig) -> Vec<(String, InputSource, String)> {
+        let reserved: HashMap<InputSource, &'static str> =
+            flight_rig_reserved_sources().into_iter().collect();
+        let mut out = Vec::new();
+        for event in &scenario.events {
+            for action in &event.actions {
+                let EventActionConfig::SpawnScenarioObject(config) = action else {
+                    continue;
+                };
+                let ScenarioObjectKind::Spaceship(ship) = &config.kind else {
+                    continue;
+                };
+                let SpaceshipController::Player(player) = &ship.controller else {
+                    continue;
+                };
+                for (section_id, bindings) in &player.input_mapping {
+                    for binding in bindings {
+                        if let Some(source) = binding_source(binding) {
+                            if let Some(verb) = reserved.get(&source) {
+                                out.push((section_id.clone(), source, (*verb).to_string()));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    fn lint_severity(severity: LintSeverity) -> ReportSeverity {
+        match severity {
+            LintSeverity::Error => ReportSeverity::Error,
+            LintSeverity::Warn => ReportSeverity::Warn,
+        }
+    }
+
+    /// Build the unified [`ContentReport`] over an already-walked bundle set,
+    /// reporting on the bundles named in `report_ids`. Runs all three checker
+    /// families in one pass and attaches each finding's source file from the
+    /// walk's provenance. `collect_tree` and `collect_target` are the two
+    /// entry points; the split of `all` vs `report_ids` is what lets a
+    /// `--target` lint see the whole repo for context while reporting only the
+    /// target's own findings.
+    fn build_report(
+        all: &[WalkedBundle],
+        report_ids: &HashSet<String>,
+        target: Option<String>,
+    ) -> ContentReport {
+        let by_id: HashMap<&str, &WalkedBundle> = all.iter().map(|b| (b.id.as_str(), b)).collect();
+        let file_of = |bundle: &str, element: &str| -> Option<String> {
+            by_id
+                .get(bundle)
+                .and_then(|b| b.file_of(element))
+                .map(str::to_string)
+        };
+
+        let mut findings = Vec::new();
+
+        // 1. Reference / geometry / resource checks (nova_scenario::lint).
+        for bundle in all.iter().filter(|b| report_ids.contains(&b.id)) {
+            for (bundle_id, issue) in lint_bundle(bundle, all) {
+                let file = file_of(&bundle_id, &issue.scenario);
+                findings.push(Finding {
+                    bundle: bundle_id,
+                    file,
+                    severity: lint_severity(issue.severity),
+                    category: Category::Reference,
+                    element: issue.scenario,
+                    message: issue.message,
+                    suggestion: None,
+                });
+            }
+        }
+
+        // 2. Balance / fairness audit (nova_assets::balance), acks applied.
+        let audit_bundles: Vec<AuditBundle> = all
+            .iter()
+            .map(|b| AuditBundle {
+                id: b.id.clone(),
+                dependencies: b.manifest.meta.dependencies.clone(),
+                sections: b.sections.clone(),
+                scenarios: b.scenarios.clone(),
+            })
+            .collect();
+        let audits = crate::balance::audit_bundles_to_audits(&audit_bundles);
+        let scenarios_audited = audits
+            .iter()
+            .filter(|(bundle, _)| report_ids.contains(bundle))
+            .count();
+        let balance_findings: Vec<(String, crate::balance::BalanceFinding)> = audits
+            .iter()
+            .filter(|(bundle, _)| report_ids.contains(bundle))
+            .flat_map(|(bundle, audit)| {
+                audit
+                    .findings()
+                    .into_iter()
+                    .map(move |finding| (bundle.clone(), finding))
+            })
+            .collect();
+        // Only acks in the reported scope: a whole-tree lint prunes every ack,
+        // a --target lint only the target's, so another mod's ack is not
+        // falsely stale against a single-mod walk.
+        let acks: Vec<crate::balance::BalanceAck> = crate::balance::shipped_acks()
+            .into_iter()
+            .filter(|ack| report_ids.contains(&ack.bundle))
+            .collect();
+        let (active, acked, stale) = crate::balance::partition_findings(balance_findings, &acks);
+        for (bundle, finding) in active {
+            let file = file_of(&bundle, &finding.scenario);
+            let suggestion = match finding.kind {
+                crate::balance::FindingKind::SpawnedDead => Some(format!(
+                    "spawn '{}' outside its threat envelope, or delay it past OnStart so the \
+                     player has fired before it opens up",
+                    finding.hostile
+                )),
+                crate::balance::FindingKind::CloseSpawn => Some(format!(
+                    "distance or delay '{}', or record it in balance_acks.ron if the close \
+                     reinforcement is intended",
+                    finding.hostile
+                )),
+            };
+            findings.push(Finding {
+                bundle: bundle.clone(),
+                file,
+                severity: match finding.severity {
+                    crate::balance::BalanceSeverity::Error => ReportSeverity::Error,
+                    crate::balance::BalanceSeverity::Warn => ReportSeverity::Warn,
+                },
+                category: Category::Balance,
+                element: format!("{} > {}", finding.scenario, finding.hostile),
+                message: finding.message,
+                suggestion,
+            });
+        }
+        // A stale ack fails the build (it names an exception the content moved
+        // past), so it is an Error-grade finding here - the exit code keys on
+        // error count and this preserves the "non-zero on stale ack" rule.
+        for ack in stale {
+            findings.push(Finding {
+                bundle: ack.bundle.clone(),
+                file: file_of(&ack.bundle, &ack.scenario),
+                severity: ReportSeverity::Error,
+                category: Category::Balance,
+                element: format!("{} > {}", ack.scenario, ack.hostile),
+                message: format!(
+                    "stale ack ({}): task {} acknowledged a {} finding for '{}' that no live \
+                     audit raises - the content was rebalanced; prune it from balance_acks.ron",
+                    ack.kind, ack.task, ack.kind, ack.hostile
+                ),
+                suggestion: Some("remove the dead entry from balance_acks.ron".to_string()),
+            });
+        }
+        let acked_findings: Vec<AckedFinding> = acked
+            .into_iter()
+            .map(|(bundle, finding, ack)| AckedFinding {
+                file: file_of(&bundle, &finding.scenario),
+                element: format!("{} > {}", finding.scenario, finding.hostile),
+                message: finding.message,
+                ack_task: ack.task.clone(),
+                ack_reason: ack.reason.clone(),
+                bundle,
+            })
+            .collect();
+
+        // 3. Flight-rig input-overlap check.
+        for bundle in all.iter().filter(|b| report_ids.contains(&b.id)) {
+            for scenario in &bundle.scenarios {
+                for (section_id, source, verb) in scenario_input_overlaps(scenario) {
+                    let key = source.label();
+                    findings.push(Finding {
+                        bundle: bundle.id.clone(),
+                        file: file_of(&bundle.id, &scenario.id),
+                        severity: ReportSeverity::Warn,
+                        category: Category::InputOverlap,
+                        element: format!("{} > {}", scenario.id, section_id),
+                        message: format!(
+                            "section '{section_id}' binds {key}, which the flight rig already \
+                             drives ({verb}, consume_input: false) - the key silently \
+                             double-drives flight"
+                        ),
+                        suggestion: Some(format!(
+                            "rebind '{section_id}' off {key}; LMB and the analog RightTrigger2 \
+                             are free of the flight rig"
+                        )),
+                    });
+                }
+            }
+        }
+
+        let bundles: Vec<String> = all
+            .iter()
+            .map(|b| b.id.clone())
+            .filter(|id| report_ids.contains(id))
+            .collect();
+
+        ContentReport {
+            target,
+            bundles,
+            scenarios_audited,
+            findings,
+            acked: acked_findings,
+        }
+    }
+
+    /// The unified content report over the whole repo tree: reference/geometry,
+    /// balance/fairness, and input-overlap findings for every bundle, each
+    /// located to its source file. This is what `content lint` (no `--target`)
+    /// produces.
+    pub fn collect_tree() -> ContentReport {
+        let all = walk_repo_bundles();
+        let report_ids: HashSet<String> = all.iter().map(|b| b.id.clone()).collect();
+        build_report(&all, &report_ids, None)
+    }
+
+    /// The unified content report for ONE mod (`--target`): the same three
+    /// checker families over just the target's content, but with the full repo
+    /// walk as context so cross-mod chains, dependency sections and base
+    /// prototypes still resolve. The target's dir name is its id; an in-repo
+    /// target is deduped from the walked set by that id.
+    pub fn collect_target(dir: &Path) -> ContentReport {
+        let id = dir
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "target".to_string());
+        let target = read_bundle(&id, dir);
+        let target_id = target.id.clone();
+        let mut all: Vec<WalkedBundle> = walk_repo_bundles()
+            .into_iter()
+            .filter(|b| b.id != target_id)
+            .collect();
+        all.push(target);
+        let report_ids: HashSet<String> = std::iter::once(target_id.clone()).collect();
+        build_report(&all, &report_ids, Some(target_id))
+    }
+
     #[cfg(test)]
     mod tests {
         use nova_gameplay::prelude::AssetRef;
@@ -1757,7 +2025,12 @@ pub mod lint_walk {
                 },
                 sections,
                 scenarios,
-                content,
+                // The tests do not exercise multi-file provenance; a single
+                // synthetic file name carries every item.
+                content: content
+                    .into_iter()
+                    .map(|c| ("content.ron".to_string(), c))
+                    .collect(),
             }
         }
 

@@ -77,7 +77,8 @@ naming each problem (instead of a silently half-spawned scene), and a
 broken menu backdrop is skipped by the backdrop rotation. Fix the
 findings and re-enable the mod.
 
-Audit your BALANCE too: `cargo run -p nova_assets --bin content -- audit`
+The same `content lint` run audits your BALANCE too (the balance `audit` is
+folded into `lint` - balance is a kind of lint): it
 derives every combat scenario's fairness sheet from the shipped data -
 per spawn group, the hostile count, combined burst dps, weapon
 envelopes, distance from the player spawn and time-to-kill against the
