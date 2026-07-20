@@ -1,6 +1,6 @@
 # General documentation pass
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 58
 - TAGS: docs,v0.8.0
 
