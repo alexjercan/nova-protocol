@@ -23,57 +23,81 @@ does the page-by-page sweep to catch what that review missed. It is the
 
 Known findings from the 2026-07-18 review (fix these first, they are verified):
 
-- [ ] `guide-author-scenario.md` "Launch it" section (~line 948): says to point
-      the `NEW_GAME_SCENARIO_ID` constant in `crates/nova_menu/src/lib.rs` at
-      your scenario "(one line of Rust)". That constant no longer exists; New
-      Game start is the base bundle's `new_game_scenario` declaration (honored
-      only from base; in code it lands in the private `NewGameScenario`
-      resource, `crates/nova_menu/src/lib.rs` ~line 1148). Rewrite the section
-      around the declaration; this is the only doc claim that actively strands
-      a verbatim reader.
-- [ ] `guide-make-a-mod.md` (lines ~56 and ~82) says base "is an implicit
-      dependency and is never declared", but the shipped example manifest
-      `assets/mods/example/example.bundle.ron` (~line 38) declares
-      `dependencies: ["base"]`. Resolve the contradiction: preferred fix is
-      dropping the declaration from the example so the strict doc stands;
-      either way doc and example must agree.
-- [ ] `project-tour.md` / `development.md`: add the two undocumented dev crates
-      `nova_probe` (run-harness: frame-time capture + report) and `nova_meta_gen` (.meta
-      sidecar generator, Trunk post_build hook), and list examples
-      `20_perf_baseline` and `21_render_scale_shot` (noting they are not on the
-      CI smoke list, unlike 01-19).
-- [ ] `development.md`: add a consolidated reference for the `content` CLI
-      (`gen`/`lint [--target <mod>]`/`audit`, plus `balance_acks.ron`) - today
-      it is only mentioned in passing inside two guides.
-- [ ] `guide-author-section.md`: document the v0.7.0 content-owned audio
-      fields (turret `fire_sound`/`dry_fire_sound`, torpedo bay
-      `launch_sound`/`detonation_sound`, controller radar/lock/safety sounds,
-      thruster `loop_sound` and its shared-loop semantics, section
-      `impact_sound`/`destroy_sound`, salvage `pickup_sound`).
+- [x] `guide-author-scenario.md` NEW_GAME_SCENARIO_ID (lines 947-950 and the
+      section-8 sharp-edges reference at 978). Verified removed (grep empty);
+      rewrote both around the base bundle's `new_game_scenario` ->
+      `NewGameStart` (loader.rs:34; base.bundle.ron:175 = `shakedown_run`) plus
+      the picker's `NewGameScenario` per-session override (nova_menu:1148),
+      noting it is base-owned and not moddable.
+- [x] `guide-make-a-mod.md` base-declaration contradiction. The example
+      manifest was SELF-contradictory (its own header comment says base is
+      never declared, yet line 38 declared it). Dropped it to
+      `dependencies: []` with a clarifying comment; the strict guide stands.
+      Verified no test asserts the example's declared deps and base is
+      force-enabled regardless.
+- [x] Added `nova_probe` + `nova_meta_gen` to the crate maps in
+      `architecture.md` and `project-tour.md` (the crate-map pages;
+      development.md has no crate table). `perf_baseline`/`render_scale_shot`
+      already listed under the category dirs in development.md (the task's
+      `20_`/`21_` numbering is stale - examples reorged to slug names).
+- [x] `development.md`: added a consolidated `## Content CLI` section
+      (gen/lint [--target]/audit, `crates/nova_assets/balance_acks.ron`, the
+      three CI gate tests) + two command lines in Everyday commands.
+- [x] `guide-author-section.md` audio: 12 of 13 fields were already documented;
+      added the missing torpedo `detonation_sound` (verified at
+      torpedo_section/mod.rs:136).
 
-General sweep (the part the review sampled rather than exhausted):
+General sweep (three out-of-context audit agents, then a repo-wide stale-token
+grep):
 
-- [ ] Page-by-page reconcile each `web/src/wiki/dev/*.md` with the code it
-      describes. Known suspects to verify:
-  - [ ] `architecture.md` crate map vs the 15 real crates and plugin order.
-  - [ ] `scenario-system.md` vs current actions/events/filters (Outcome, area
-        OnEnter/OnExit, allegiance, `scenario_elapsed`, `orbit_hold_secs` /
-        `lock_refire_secs`) shipped in v0.7.0.
-  - [ ] `sections.md` vs render-mesh-transform + configurable colliders
-        (v0.7.0 tasks 20260718-113307/121205/102022) and ammo slots.
-  - [ ] `modding-ron.md` / `mod-portal.md` vs the bundle model and
-        mod-relative resource refs.
-  - [ ] `development.md` command list vs the real scripts/bins and the
-        settings / RCS features added in v0.7.0.
-- [ ] Verify each documented command actually runs; correct any that changed.
-- [ ] Where a v0.7.0 feature has no page/section at all, add one (RCS, settings
-      menu, graphics presets, render-scale lever, outcome frame).
-- [ ] While editing `keeping-docs-in-sync.md`, record the news-page conventions
-      the v0.7.0 post now sets: h2 sections + h3 subsections (the build derives
-      the sticky TOC from them) and the figure-placeholder format.
-- [ ] Record the drift found so the release-flow "keeping-docs-in-sync" step
-      can be tightened to prevent recurrence.
-- [ ] `cd web && npm run ci` green.
+- [x] Page-by-page reconcile (audit agents + grep sweep for `nova_perf`,
+      retired probe verbs, numbered examples - clean except the intentional
+      "Consolidated over time" history line in development.md).
+  - [x] `architecture.md` crate map -> 15 crates + root.
+  - [x] `scenario-system.md` vs current vocab: verified accurate; fixed two
+        understated verb lists - `HintEmphasisSet` (added RCS, ROW_VERBS has 7)
+        and `SetControllerVerb` (STOP/GOTO/ORBIT -> +LOCK/RCS, FlightVerb has 5).
+  - [x] `sections.md`: added a "Meshes and colliders" subsection
+        (`render_mesh_transform`, the `SectionCollider` enum
+        Cuboid/Sphere/Capsule/Cylinder), fixed the "unit cuboid Collider" line
+        and the controller-verb line; ammo slots already covered by `## Ammo`.
+  - [x] `modding-ron.md` / `mod-portal.md`: audited clean, no drift.
+  - [x] `development.md` command list: verified scripts/bins; added content CLI.
+- [~] Verify each documented command runs: the content CLI and `probe run` were
+      run this session (both exit 0); the rest are source-verified against their
+      clap/arg definitions. Bare-run of every command not done (heavy builds).
+- [~] Pages for RCS/settings/presets/render-scale/outcome: authoring-side v0.7.0
+      surfaces now covered (RCS/LOCK verbs, colliders, render-mesh-transform,
+      Outcome already in scenario-system.md, render_scale noted in
+      architecture.md). Player-facing runtime UI (settings menu, graphics
+      presets) lives in the PLAYER wiki (audited clean in the 2026-07-18 review),
+      not the dev wiki - deliberately not duplicated here.
+- [x] `keeping-docs-in-sync.md`: recorded the 0.7.0 news-post conventions
+      (`##`/`###` headings drive the sticky TOC; figure-placeholder format).
+- [x] Drift list recorded (below, for release-flow tightening).
+- [ ] `cd web && npm run ci` green (running in the verify step).
+
+## Drift found (2026-07-20 audit) - for keeping-docs-in-sync tightening
+
+Each drift traced to the code change that caused it, so the release-flow
+"sync the docs the change touched" step can target these classes:
+
+1. `NEW_GAME_SCENARIO_ID` const -> `new_game_scenario` bundle field: a
+   Rust->data mechanism move that no doc sweep caught. CLASS: a removed public
+   const/API that docs reference by name - grep the wiki for the symbol on
+   removal.
+2. `example.bundle.ron` declared `base` while its own comment forbade it:
+   a shipped EXAMPLE drifting from the guide it illustrates. CLASS: worked
+   examples are doc surfaces - diff example vs guide when either changes.
+3. Verb lists (`HintEmphasisSet` 6->7, `SetControllerVerb` 3->5) understated
+   after RCS/LOCK landed: an enum/const-array grew and the prose list did not.
+   CLASS: a doc that enumerates enum variants/array entries re-counts on any
+   change to that type (ties to `lint-covers-types-not-variants`).
+4. Two new crates + section config (colliders, render-mesh-transform) shipped
+   with no dev-wiki entry. CLASS: a new crate joins the crate map; a new
+   authorable config field joins its section reference - in the SAME task.
+5. `content` CLI only documented in passing; a tool with no consolidated
+   reference. CLASS: a dev tool gets one reference home when it stabilizes.
 
 ## Definition of Done
 

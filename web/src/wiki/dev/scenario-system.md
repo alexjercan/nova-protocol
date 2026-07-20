@@ -109,15 +109,15 @@ flowchart LR
   marker chip (label + distance) on the scoped object by id; a despawned
   target detaches implicitly.
 - `HintEmphasisSet` / `HintEmphasisClear` - pulse one keybind-hint row gold
-  (verbs: STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT); availability never
+  (verbs: STOP, GOTO, ORBIT, CANCEL, RADAR, COMPONENT, RCS); availability never
   changes, and teardown clears all emphasis.
 - `SpawnScenarioObject(ScenarioObjectConfig)` - spawn an object (see below).
 - `DespawnScenarioObject` - despawn the scoped object whose id matches
   (scoped-only lookup, so ship sections with colliding ids are safe).
 - `SetSpeedCap` - install (`Some(cap)`) or remove (`None`) the manual
   `FlightSpeedCap` on a scoped ship by id.
-- `SetControllerVerb` - enable/disable one flight verb (STOP/GOTO/ORBIT) on a
-  scoped ship's controller sections by id.
+- `SetControllerVerb` - enable/disable one flight verb (STOP/GOTO/ORBIT/LOCK/RCS)
+  on a scoped ship's controller sections by id.
 - `CreateScenarioArea(ScenarioAreaConfig)` - spawn a spherical sensor zone
   (id, name, position, rotation, radius) that drives `OnEnter`/`OnExit`.
 - `NextScenario` - queue a switch to another scenario by id; `linger: true`

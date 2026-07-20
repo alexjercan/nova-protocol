@@ -237,6 +237,9 @@ kind: Torpedo((
 - `launch_sound` (optional) - the sound a departing torpedo plays
   (`dep://base/sounds/torpedo_launch.wav` is the base whoosh); omit for a
   silent launch.
+- `detonation_sound` (optional) - the sound the warhead plays when it blasts
+  (proximity or on impact); rides the torpedo's own destroy event, so it fires
+  even when a torpedo is shot down. Omit for a silent detonation.
 - `render_mesh`, `projectile_render_mesh` (both optional) - the bay mesh and the
   torpedo mesh; omit for defaults.
 - `spawn_offset` (`Vec3`), `spawn_rotation` (`Quat`, a bare 4-tuple) - where the

@@ -81,7 +81,12 @@ level, a release means:
    `web/webpack.config.js` with a card added to `web/src/news.html`. A **patch
    release** (`0.X.Y`) gets **no post of its own** - fold it into its parent
    feature post's `## Point releases` section instead. Full steps: [Writing the
-   release news post](../development/).
+   release news post](../development/). Post conventions the 0.7.0 post sets:
+   structure the body as `##` sections with `###` subsections - the build
+   derives the sticky TOC sidebar from those headings, so a flat post gets an
+   empty TOC; and use the figure-placeholder format (a `.figure` block that
+   auto-upgrades to its screenshot once `scripts/gen-web-screenshots.py`
+   packages the image) rather than inlining an `<img>`.
 3. **Wiki**: sync any player or dev pages the release's changes touched (use the
    map above). Do this as you go during the cycle, not in a scramble at release.
 4. **Build check**: `cd web && npm run ci` (format check, lint, build) must be

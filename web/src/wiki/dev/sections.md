@@ -20,13 +20,30 @@ A section is a `SectionConfig { base: BaseSectionConfig, kind: SectionKind }`.
 |--------------|--------------|
 | `Hull`       | Passive structure/armor. Just a `render_mesh`. |
 | `Thruster`   | Forward thrust (`magnitude`); drives the exhaust visual. |
-| `Controller` | PD attitude controller (`frequency`, `damping_ratio`, `max_torque`). Also grants flight `verbs` (STOP/GOTO/ORBIT autopilot capabilities). A ship needs one to be drivable. |
+| `Controller` | PD attitude controller (`frequency`, `damping_ratio`, `max_torque`). Also grants flight `verbs` (STOP/GOTO/ORBIT maneuvers plus LOCK targeting and RCS fine-translation). A ship needs one to be drivable. |
 | `Turret`     | Aims and fires bullets. Yaw/pitch speeds and limits, per-part meshes and offsets, `fire_rate`, `muzzle_speed`, authored `bullet_damage` + `bullet_kind`, optional `ammo_capacity`. |
 | `Torpedo`    | Torpedo bay. Fires guided torpedoes that detonate an Explosive area blast (`blast_radius`, `blast_damage`), optional `ammo_capacity`. |
 
 `GameSections(Vec<SectionConfig>)` is the resource of section blueprints,
 populated in `crates/nova_assets/src/sections.rs`. Look one up with
 `sections.get_section("basic_thruster_section")`.
+
+### Meshes and colliders (authorable)
+
+Two authorable knobs decouple a section's LOOK and PHYSICS from the default unit
+cube (`crates/nova_gameplay/src/sections/base_section.rs`); both default to the
+old behavior so unset content is byte-for-byte unchanged:
+
+- `render_mesh_transform` (optional, on every mesh-bearing kind) - an offset /
+  rotation / scale applied to the section's render mesh child ONLY, so a model
+  can be re-seated visually without moving the collider or (for turrets) the
+  joint tree. Type `RenderMeshTransform`.
+- `collider` on `BaseSectionConfig` (optional) - the physics shape:
+  `Cuboid { size }`, `Sphere { radius }`, `Capsule { radius, length }`, or
+  `Cylinder { radius, height }` (the last three along local Y). `None` resolves
+  to the unit cube (`Cuboid { size: (1,1,1) }`) - the shape every section had
+  before colliders were authorable. Section mass is `density * collider_volume`,
+  so a larger collider is also heavier.
 
 ## Building a ship
 
@@ -39,9 +56,10 @@ config carries the input mapping (section id -> key/gamepad bindings) plus
 Spawning: the base scenario bundle gives the root `RigidBody::Dynamic`; the
 spaceship object adds `SpaceshipRootMarker`, and an observer
 (`insert_spaceship_sections`) spawns each section as a direct child. Every
-section gets `SectionMarker`, a unit cuboid `Collider`, and `Health`
-(`base_section` in `sections/base_section.rs`), so the ship is one rigid body
-whose child colliders each carry their own health.
+section gets `SectionMarker`, its `Collider` (the authored `collider` shape, or
+a unit cube by default), and `Health` (`base_section` in
+`sections/base_section.rs`), so the ship is one rigid body whose child colliders
+each carry their own health.
 
 See the `asteroid_field` ship in `crates/nova_assets/src/scenario.rs` for a full
 example. The editor (`crates/nova_editor`) assembles ships interactively using

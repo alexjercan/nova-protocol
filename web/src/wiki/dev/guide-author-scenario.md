@@ -944,10 +944,15 @@ needs no Rust:
    `NextScenario` action (section 4), the way `asteroid_field` chains to
    `asteroid_next`. Use this to string scenarios into a campaign, or to reach a
    `hidden` continuation the picker deliberately omits.
-3. MAKE IT THE DEFAULT NEW GAME. `NEW_GAME_SCENARIO_ID` in
-   `crates/nova_menu/src/lib.rs` is the scenario the New Game button plays. Point
-   it at your id (one line of Rust) if you want your scenario to BE the New Game
-   start, rather than one pick among many in the picker.
+3. MAKE IT THE DEFAULT NEW GAME (base only). The scenario the New Game button
+   plays is declared in the BASE bundle: `new_game_scenario` in
+   `assets/base/base.bundle.ron` (currently `Some("shakedown_run")`). It lands in
+   the `NewGameStart` resource at load (`crates/nova_scenario/src/loader.rs`) and
+   is honored ONLY from base - a mod cannot repoint New Game. While you iterate in
+   the base bundle you can set it there; a shipped mod instead reaches players
+   through the Scenarios picker (option 1) or a `NextScenario` chain (option 2).
+   (Picking a row and hitting Play also sets a per-session `NewGameScenario`
+   override, so the New Game button replays your last pick.)
 
 While iterating, sprinkle `DebugMessage` actions and run with `--features dev` to
 watch each event fire as you play, then edit, re-run, repeat.
@@ -975,7 +980,8 @@ file, so it is not a way to test your own scenario.)
   scenario and launches the one you pick, so a mod scenario is playable with no
   Rust once its mod is enabled. A `hidden` scenario stays off the picker and is
   reached only by a `NextScenario` chain; making yours the New Game default is
-  the `NEW_GAME_SCENARIO_ID` one-liner (see section 7).
+  the base bundle's `new_game_scenario` declaration (base-owned, not moddable -
+  see section 7).
 - The loader uses STRICT RON: an unknown or misspelled field is a hard parse
   error, and enum variants must use the newtype form -
   `Asteroid((...))`, `DebugMessage((...))`, `Objective((...))` - double parens

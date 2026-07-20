@@ -16,6 +16,8 @@ cargo run --example scenario   # run an example
 cargo build --release             # release profile: opt=s, lto, stripped
 cargo check && cargo fmt          # before committing
 cargo test --workspace            # full suite (CI runs this; skip locally unless asked)
+cargo run -p nova_assets --bin content -- lint   # validate content (also: gen, audit)
+cargo run -p nova_probe -- run playable          # run-harness check (correctness + perf)
 ```
 
 Notes that keep the suite honest and fast:
@@ -145,6 +147,32 @@ those transitions fail CI). An example pin is an autopilot-script assertion
 for the style); the smoke suite runs it on every push. Caveat: the handler swap
 does NOT catch `remove`/`despawn` command warns (they bake in the WARN handler
 at queue time).
+
+## Content CLI
+
+`content` (`crates/nova_assets/src/bin/content.rs`) authors and validates the
+game's content. One bin, three subcommands, run from the repo root:
+
+```sh
+cargo run -p nova_assets --bin content -- gen                 # regenerate the base *.content.ron
+cargo run -p nova_assets --bin content -- lint                # lint the whole content tree
+cargo run -p nova_assets --bin content -- lint --target <mod> # lint one mod (dir, id, or `base`)
+cargo run -p nova_assets --bin content -- audit               # combat balance sheets + grading
+```
+
+- `gen` serializes the code-built base content into the committed
+  `assets/base/**/*.content.ron`. The base RON is GENERATED from Rust builders
+  (`nova_assets::scenario_generation`) - edit the builder and regenerate, never
+  hand-edit the RON, or the `content_ron_parity` test goes red.
+- `lint` runs the identifier + geometry checks the load/publish gates cannot
+  (dangling `NextScenario` targets, unspawnable filter targets, duplicate ids,
+  scenarios with no terminal `Outcome`, ...); `--target` lints a single mod by
+  directory, in-repo id (`webmods/<id>`, `assets/mods/<id>`, or `base`). The
+  `content_lint_gate` test runs it in CI.
+- `audit` prints every combat scenario's derived balance sheet and grades the
+  static fairness findings; deliberate imbalances are acknowledged in
+  `crates/nova_assets/balance_acks.ron` so a known-hard fight does not re-flag.
+  The `balance_audit_gate` test pins it.
 
 ## Web build
 
