@@ -685,32 +685,20 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   wipe; the read-the-source half is [[verify-engine-guarantees-in-source]].)
   20260718-175424.
 
+## Promoted (resolved 2026-07-21, task 20260720-220051)
+
+Five folded into AGENTS.md's Conventions ("Promoted ledger lessons" block);
+out-of-context-review-pass annotated as already /flow round-1 practice. Kept
+here (annotated) as the paid record.
+
+- `prose-from-diff-not-intent` (x3, PROMOTED 2026-07-21 -> AGENTS.md Conventions): write CHANGELOG/wiki/NOTES from the final diff (count sites by counting the diff), then re-read asking "does the prose claim anything the diff does not do?". 20260717-112622, 20260717-163058, 20260719-001600.
+- `verify-stale-brief-against-tree` (x3, PROMOTED 2026-07-21 -> AGENTS.md Conventions + flow bug playbook): reproduce a filed bug against the CURRENT tree before implementing; a subsystem change can shrink or falsify the fix scope. 20260714-154958, 20260718-004834, 20260719-233732.
+- `render-output-eyeball` (x5, PROMOTED 2026-07-21 -> AGENTS.md Conventions): a dimensionally-valid generated artifact can be empty/wrong while every exit code is green - open it; a layout task is unverified until someone SEES it rendered. 20260718-122923, 20260719-112253.
+- `authored-vs-derived-values` (x4, PROMOTED 2026-07-21 -> AGENTS.md Conventions): author content against measured runtime consts, and encode layout invariants as computed rig assertions. 20260716-124722, 20260717-112630.
+- `advertised-but-unwired` (x3, PROMOTED 2026-07-21 -> AGENTS.md Conventions): a config surface is not a capability until producer/consumer wiring and preconditions are verified in the new context. 20260712-093044.
+- `out-of-context-review-pass` (positive, x31, PROMOTED 2026-07-21 -> already /flow round-1 practice): a fresh-context review re-derives load-bearing claims and catches MAJORs shared-session eyes miss; verify the verifier's counterexamples too. 20260717-212219, 20260719-112011.
+
 ## Pending promotions (3+ occurrences, user decides)
 
-- `prose-from-diff-not-intent` (x3) -> work skill's close-out/NOTES step
-  (or compound): write CHANGELOG/wiki/NOTES from the final diff (count sites
-  by counting the diff), then re-read asking "does the prose claim anything
-  the diff does not do?". 20260717-112622, 20260717-163058, 20260719-001600.
-- `verify-stale-brief-against-tree` (x3) -> plan/work skill (bug playbook):
-  task briefs go stale - reproduce-first against the CURRENT tree before
-  implementing a filed bug; a subsystem change since filing can shrink or
-  falsify the fix scope (partial-emit had no caller once looping landed).
-  20260714-154958, 20260718-004834, 20260719-233732.
-- `render-output-eyeball` (x5) -> work/review skill: a dimensionally-valid
-  generated ARTIFACT can still be empty/wrong while every exit code is green -
-  open it (an all-green profiled pass produced a header-only table); a layout
-  task is unverified until someone SEES it rendered. 20260718-122923,
-  20260719-112253.
-- `authored-vs-derived-values` (x4) -> work skill: author content against
-  measured runtime consts, and encode layout invariants as computed rig
-  assertions - carried-over positions need the same derivation as new ones.
-  20260716-124722, 20260717-112630.
-- `advertised-but-unwired` (x3) -> plan/review skill: a config surface is not
-  a capability until producer/consumer wiring and preconditions are verified
-  in the new context. 20260712-093044.
-- `out-of-context-review-pass` (positive, x31) -> already /flow's round-1
-  practice; user decides whether to annotate PROMOTED/absorbed: a
-  fresh-context review re-derives load-bearing claims (spawn sites,
-  algorithms, engine semantics, spike API claims) and catches MAJORs
-  shared-session eyes miss; verify the verifier's counterexamples too.
-  20260717-212219, 20260719-112011.
+None open - the 6 x3+ lessons were resolved and promoted on 2026-07-21
+(task 20260720-220051); see the Promoted section above.

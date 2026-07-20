@@ -133,6 +133,26 @@ hooks `OnEnter(GameAssetsStates::Loaded)`.
   once its whole public surface is documented (the per-crate push is
   20260525-133032). Keep `cargo doc --workspace --no-deps` warning-free.
 
+### Promoted ledger lessons (folded 2026-07-21, task 20260720-220051)
+
+These recurred x3+ across retros and are conventions now, not just history:
+
+- Write prose from the diff, not from intent: write CHANGELOG / wiki / NOTES
+  from the FINAL diff (count sites by counting the diff), then re-read asking
+  "does the prose claim anything the diff does not do?".
+- Verify a stale brief against the current tree: a filed bug's brief goes stale -
+  reproduce it against the CURRENT tree before implementing, because a subsystem
+  change since filing can shrink or falsify the fix scope.
+- Eyeball the rendered output: a dimensionally-valid generated artifact can be
+  empty or wrong while every exit code is green - OPEN it. A layout/render task
+  is unverified until someone SEES it rendered (an all-green profiled pass once
+  produced a header-only table).
+- Author against measured values, derive invariants: author content against
+  measured runtime constants, and encode layout invariants as computed rig
+  assertions - carried-over positions need the same derivation as new ones.
+- Advertised is not wired: a config surface is not a capability until its
+  producer/consumer wiring and preconditions are verified in the new context.
+
 ## Shared-checkout discipline
 
 Parallel sessions share the main checkout. These rules keep them from eating
