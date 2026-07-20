@@ -67,6 +67,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `Reflect` derives) - a `build.rs` then needs it as a build-dependency and
   DUPLICATE-compiles it in the build graph, usually killing the cost/benefit.
   20260719-092952 (declined on exactly this).
+- `removal-sweep-includes-dev-deps-and-test-drivers` (x1): before recording a
+  crate/symbol can be removed, grep its NAME across the whole workspace -
+  `Cargo.toml` deps AND dev-deps and `tests/` - not just the deploy/production
+  path; a dev-dependency test driver (portal_install.rs -> nova_portal_gen) is a
+  real consumer that blocks removal. 20260718-152247.
 - `audit-framed-task-delivers-the-audit` (x1): for "apply X where it makes
   sense", the deliverable is the bounding audit, not the two-line edit; read
   the existing lint/guard before hand-ruling the boundary. 20260717-201534.
