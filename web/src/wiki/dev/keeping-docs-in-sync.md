@@ -72,11 +72,17 @@ The full command-level checklist is in
 [Building & running -> Versioning and release](../development/). At the doc
 level, a release means:
 
-1. **`CHANGELOG.md`**: promote `## [Unreleased]` to `## [<version>] -
+1. **`docs/` compile-and-wipe** (ephemeral-docs model): `docs/` is free scratch
+   during the cycle; before the tag, distil anything durable out of it into
+   `docs/LESSONS.md` (lessons) and the wiki (reference detail), then run
+   `scripts/wipe-docs.sh`. The release-flow guard fails the tag if `docs/` holds
+   anything but `LESSONS.md` + `README.md`. (Plans live in tatr tasks, not
+   `docs/plans`.)
+2. **`CHANGELOG.md`**: promote `## [Unreleased]` to `## [<version>] -
    <YYYY-MM-DD>`, leave a fresh empty `[Unreleased]`, merge any duplicate
    subsystem headings that grew during the cycle, and update the compare links
    at the bottom.
-2. **News**: a **feature release** (`0.X.0`) gets a new post at
+3. **News**: a **feature release** (`0.X.0`) gets a new post at
    `web/src/news/<version>.md`, registered in `NEWS_POSTS` in
    `web/webpack.config.js` with a card added to `web/src/news.html`. A **patch
    release** (`0.X.Y`) gets **no post of its own** - fold it into its parent
@@ -87,9 +93,9 @@ level, a release means:
    empty TOC; and use the figure-placeholder format (a `.figure` block that
    auto-upgrades to its screenshot once `scripts/gen-web-screenshots.py`
    packages the image) rather than inlining an `<img>`.
-3. **Wiki**: sync any player or dev pages the release's changes touched (use the
+4. **Wiki**: sync any player or dev pages the release's changes touched (use the
    map above). Do this as you go during the cycle, not in a scramble at release.
-4. **Build check**: `cd web && npm run ci` (format check, lint, build) must be
+5. **Build check**: `cd web && npm run ci` (format check, lint, build) must be
    green; confirm `/news/` and the new post render, and the section TOC sidebar
    is populated.
 

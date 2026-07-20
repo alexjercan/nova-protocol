@@ -71,4 +71,3 @@ return to the pristine base game.
 - `web/src/wiki/dev/guide-author-scenario.md` - the scenario event/action grammar
 - `web/src/wiki/dev/guide-author-section.md` - the section `base`/`kind` grammar
 - `web/src/wiki/dev/modding-ron.md` - the data-format reference
-- `docs/design/mod-binary-resources.md` - the `self://` design

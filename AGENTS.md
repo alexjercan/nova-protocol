@@ -183,11 +183,15 @@ Everything tied to one task lives in that task's folder - never as loose
 - `tasks/<id>/RETRO.md` - the retrospective (/compound).
 - `tasks/<id>/NOTES.md` - design/fix record for the shipped change.
 
-`docs/` keeps only: `docs/LESSONS.md` (the ledger /compound appends to),
-`docs/plans/` (release plans - being retired into tatr tasks by
-20260718-175424), and transient scratch that the release-time compile step
-will fold into LESSONS.md. If a skill's default output path says
-`docs/retros/` or `docs/spikes/`, use the task folder instead.
+`docs/` is EPHEMERAL scratch (task 20260718-175424): write whatever notes you
+like during a cycle, but at every release tag it is wiped to only
+`docs/LESSONS.md` (the ledger /compound appends to) and `docs/README.md` (which
+describes the model). Distil anything durable out of scratch FIRST - lessons
+into `LESSONS.md`, reference detail into the wiki - then run
+`scripts/wipe-docs.sh`; the release-flow guard (`scripts/check-docs-clean.sh`)
+fails a tag if scratch remains. Plans are tatr tasks, NOT `docs/plans` files
+(retired). If a skill's default output path says `docs/retros/`, `docs/spikes/`
+or `docs/plans/`, use the task folder (or a tatr task for a plan) instead.
 
 ## Docs, tasks, versioning
 
@@ -200,9 +204,9 @@ will fold into LESSONS.md. If a skill's default output path says
   starting, close tasks when done. Skills: /plan, /work, /review, /compound,
   /flow.
 - Task tags encode scheduling - EVERY new tatr task carries exactly one of:
-  `backlog` with priority 0 (not scheduled), or the current release tag
-  (newest `vX.Y.Z` plan in `docs/plans/`, e.g. `v0.8.0`) with a priority
-  slotted RELATIVE to that release's open tasks
+  `backlog` with priority 0 (not scheduled), or the current release tag (the
+  active `vX.Y.Z`, e.g. `v0.8.0` - its `release`/`meta` tracker task holds the
+  strand map) with a priority slotted RELATIVE to that release's open tasks
   (`tatr ls -f ':tags contains vX.Y.Z' --sort priority` first). Topical tags
   (`bug`, `scenario`, `ui`, ...) come on top. Pulling a backlog task into a
   release = swap the tag, re-slot the priority.

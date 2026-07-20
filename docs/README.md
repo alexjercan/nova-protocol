@@ -1,69 +1,52 @@
-# Nova Protocol docs
+# Nova Protocol docs/
 
-This folder holds the project's **transient** records - the working notes the
-SDLC workflow generates. The durable reference documentation (architecture,
-build/dev, the game systems, modding) now lives in the wiki source and is
-published as public pages; see below.
+`docs/` is **ephemeral scratch space**. During a development cycle, write
+whatever working notes, investigations, or design sketches you like here - no
+structure required. At every release tag the folder is compiled down and wiped,
+so the only things that survive are the two permanent files:
 
-## Reference docs live in the wiki
+- **[LESSONS.md](LESSONS.md)** - the lessons ledger, the durable record of the
+  repo's paid-for mistakes. Read it before starting work; `/compound` appends to
+  it. This is where a scratch note's lasting *insight* goes.
+- **README.md** (this file) - describes the model.
 
-The onboarding / reference docs moved into the website so they render as real
-wiki pages (with diagrams, syntax highlighting and search) at `/wiki/dev/`.
-Edit them at their source under `web/src/wiki/dev/` and keep them accurate when
-the code they describe changes:
+Everything else under `docs/` is transient.
 
-- `web/src/wiki/dev/development.md` - toolchain, everyday commands, features,
-  examples, the web build, and the versioning/release checklist.
-- `web/src/wiki/dev/architecture.md` - crate map and dependency graph, app
-  assembly and plugin order, states, and the Update vs FixedUpdate frame flow.
-- `web/src/wiki/dev/scenario-system.md` - the event/filter/action scenario and
-  modding engine, variables, scenario objects, and where to add new pieces.
-- `web/src/wiki/dev/sections.md` - ship sections, the integrity pipeline, typed
-  damage, and ammo slots.
-- `web/src/wiki/dev/modding-ron.md` - the RON data format, catalog, bundles and
-  enabled set, the local cache and the `mods://` source, and file naming.
-- `web/src/wiki/dev/mod-portal.md` - the static mod portal: layout, generator,
-  the `catalog.json` wire schema, publishing, and game-side storage.
-- `web/src/wiki/dev/keeping-docs-in-sync.md` - the map of which docs
-  (CHANGELOG, News, wiki, tutorial) to update when you change code or cut a
-  release, so nothing drifts.
+## The two durable homes
 
-## What lives here
+Durable knowledge has exactly two homes, and neither is a `docs/` junk drawer:
 
-The only files that belong under `docs/` are this README, the LESSONS.md
-ledger, and the `design/` and `plans/` folders:
+- **The wiki** (`web/src/wiki/`, published at `/wiki/`) - REFERENCE: how the
+  code and systems work, at full detail (architecture, dev workflow, the
+  scenario/section/modding guides). A scratch note whose substance is
+  reference-grade gets migrated into a wiki dev page, not left in `docs/`.
+- **LESSONS.md** - LESSONS: one-or-two-line distilled insights with task ids.
 
-- [LESSONS.md](LESSONS.md) - the distilled lessons ledger. Read it before
-  starting work; /compound appends to it.
-- [design/](design/README.md) - durable design and implementation-reflection
-  records for changes not owned by a single tatr task (or that landed outside
-  one). Per-task records still live in the task folder.
-- [plans/](plans/README.md) - long-form plans spanning multiple tasks (release
-  scopes, roadmaps, process proposals).
+## Release: compile, then wipe
 
-Nothing else belongs in `docs/` root - no dated or per-task record files. Those
-go in their task folder (below) or, if durable and cross-cutting, `design/`.
+At release time (before tagging):
+
+1. **Distill** everything worth keeping out of `docs/` scratch - lessons into
+   `LESSONS.md` (the `/compound` format), reference detail into the wiki. A
+   script cannot summarize free-form notes into good lessons, so this step is
+   yours.
+2. Run **`scripts/wipe-docs.sh`** - clears everything under `docs/` except
+   `LESSONS.md` and this `README.md`. Idempotent (a no-op on an already-clean
+   `docs/`).
+3. The **release-flow guard** (`scripts/check-docs-clean.sh`, run by
+   `.github/workflows/release.yaml`) FAILS the tag build if `docs/` still holds
+   anything else - so a release can never ship a junk-drawer `docs/`.
 
 ## Where records go
 
-Everything tied to one task lives in that task's folder, so a `grep` or `ls`
-of `tasks/<id>/` shows the whole story:
-
-- `tasks/<id>/TASK.md` - the task itself (tatr).
-- `tasks/<id>/SPIKE.md` - research that scoped the task (/spike).
-- `tasks/<id>/REVIEW.md` - review rounds and verdicts (/review).
-- `tasks/<id>/RETRO.md` - the retrospective (/compound).
-- `tasks/<id>/NOTES.md` - design/fix record for the shipped change.
-
-Do not create per-task record files under `docs/` root. A record tied to one
-task lives in that task's folder as `NOTES.md`. The records kept under `docs/`
-are the [LESSONS.md](LESSONS.md) ledger and the cross-cutting
-[design/](design/README.md) records.
-
-## After a meaningful change
-
-Record, per `AGENTS.md`: what changed and why (alternatives, tradeoffs),
-difficulties and how they were diagnosed, and what to do differently next time.
-Update the relevant reference page under `web/src/wiki/dev/`, or write the
-task's `RETRO.md`/`NOTES.md`; new recurring lessons go to the LESSONS.md ledger.
-Plain ASCII punctuation only.
+- Anything tied to one task lives in that task's folder: `tasks/<id>/TASK.md`,
+  `SPIKE.md`, `REVIEW.md`, `RETRO.md`, `NOTES.md`. A `grep`/`ls` of
+  `tasks/<id>/` shows the whole story. Do not create per-task record files under
+  `docs/`.
+- **Plans are tatr tasks**, not `docs/plans` files (that folder is retired). A
+  release plan is a task with the strand breakdown in its body (or a parent
+  `meta`/`release` task linking the per-strand tasks); `/plan` and `/flow`
+  produce tatr tasks directly.
+- A durable, cross-cutting design record that used to live in `docs/design` now
+  lands in the wiki (if reference) or `LESSONS.md` (if a lesson) in the cycle it
+  matters - `docs/` keeps nothing durable of its own.

@@ -1,6 +1,6 @@
 # CI/pre-tag guard: fail if docs/ contains anything but LESSONS.md at release (enforces the ephemeral-docs model)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.8.0, tooling, docs, release
 
@@ -49,3 +49,16 @@ wipe" (owned by 20260718-175424).
   175424 slips, this guard must not land first or every release goes red.
 - Keep it dumb: allowlist = LESSONS.md only. All judgment lives in the compile
   step, not here.
+
+## Closed (2026-07-20): absorbed into 20260718-175424
+
+The guard was BUILT and wired as part of the ephemeral-docs task
+20260718-175424, which owns the model this enforces:
+- `scripts/check-docs-clean.sh` - exits non-zero if docs/ holds anything but
+  LESSONS.md + README.md (the two permanent files), listing offenders.
+- `.github/workflows/release.yaml` - a `guard-docs` job runs the check; the
+  whole release build waits on it (via `get-version needs: guard-docs`), so a
+  dirty docs/ blocks the tag.
+Verified: guard exits 0 on a clean docs/, 1 on junk. This task's original
+"distribute junk to its correct home" design was superseded by the
+compile-then-wipe model; nothing left to do here.

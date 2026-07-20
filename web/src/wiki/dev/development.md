@@ -430,20 +430,25 @@ entity-count leak bound. Violations warn, land on the timeline as
 Pushing a tag `v[0-9]+.[0-9]+.[0-9]+*` triggers `release-flow`
 (`.github/workflows/release.yaml`). Steps, on `master`:
 
-1. Bump `workspace.package.version` in root `Cargo.toml`.
-2. Refresh `Cargo.lock`: `cargo metadata --format-version 1 >/dev/null`.
-3. Update `CHANGELOG.md` (Keep a Changelog, one concise line per entry):
+1. Compile-and-wipe `docs/` (the ephemeral-docs model): distil anything durable
+   out of `docs/` scratch into `docs/LESSONS.md` (lessons) and the wiki
+   (reference detail), then run `scripts/wipe-docs.sh` and commit. The
+   release-flow guard (`scripts/check-docs-clean.sh`, a job the build waits on)
+   FAILS the tag if `docs/` holds anything but `LESSONS.md` + `README.md`.
+2. Bump `workspace.package.version` in root `Cargo.toml`.
+3. Refresh `Cargo.lock`: `cargo metadata --format-version 1 >/dev/null`.
+4. Update `CHANGELOG.md` (Keep a Changelog, one concise line per entry):
    promote `[Unreleased]` to `[<version>] - <YYYY-MM-DD>`, leave a fresh empty
    `## [Unreleased]` on top, merge any duplicate section headings that grew
    during the cycle, and update the compare links at the bottom (repoint
    `[unreleased]`, add the new `[<version>]` line).
-4. Commit exactly those three files:
+5. Commit exactly those three files:
    `git add Cargo.toml Cargo.lock CHANGELOG.md && git commit -m "chore(release): vX.Y.Z"`.
-5. `git tag vX.Y.Z` (CI reads the tag for the release name).
-6. `git push origin master && git push origin vX.Y.Z`.
-7. Watch the run (`gh run watch`), then check the GitHub release page and
+6. `git tag vX.Y.Z` (CI reads the tag for the release name).
+7. `git push origin master && git push origin vX.Y.Z`.
+8. Watch the run (`gh run watch`), then check the GitHub release page and
    consider adding summarized release notes (`gh release edit vX.Y.Z --notes-file ...`).
-8. Write or expand the release News post (see "Writing the release news post"
+9. Write or expand the release News post (see "Writing the release news post"
    below) and land it in `web/`; sync any wiki pages the cycle changed (see
    [Keeping docs in sync](../keeping-docs-in-sync/)).
 
@@ -519,5 +524,8 @@ Work items live as markdown under `tasks/` (managed with the `tatr` CLI), so
 they are versioned alongside the code. Check the backlog before starting and
 close tasks when done. Each task has its own folder holding its `TASK.md` plus
 any task-scoped records (`SPIKE.md`, `REVIEW.md`, `RETRO.md`, `NOTES.md`).
-Multi-task plans (`docs/plans/`) and the lessons ledger (`docs/LESSONS.md`)
-live under `docs/`.
+Multi-task plans are tatr tasks too - a release plan is a task with the strand
+breakdown in its body (or a `release`/`meta` tracker task linking the per-strand
+tasks). `docs/` is ephemeral scratch wiped at each release to only the lessons
+ledger (`docs/LESSONS.md`) and its own `README.md`; see that README for the
+model.

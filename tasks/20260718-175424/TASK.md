@@ -1,6 +1,6 @@
 # Ephemeral docs/ model: release-time compiles docs/ into LESSONS.md entries then wipes it; retire docs/plans in favor of tatr tasks
 
-- STATUS: OPEN
+- STATUS: IN_PROGRESS
 - PRIORITY: 56
 - TAGS: v0.8.0,docs,tooling,release,refactor
 
@@ -22,29 +22,29 @@ folded into this) with "fold into the lessons ledger, then wipe."
 
 ## Steps
 
-- [ ] Define the model precisely and rewrite docs/README.md to describe it:
+- [x] Define the model precisely and rewrite docs/README.md to describe it:
       docs/ is transient scratch during a cycle; LESSONS.md is the compiled
       durable record; nothing in docs/ survives a release except LESSONS.md
       itself.
-- [ ] Build the release-time compile step (Rust bin or scripts/ Python): read
+- [x] Build the release-time compile step (Rust bin or scripts/ Python): read
       every file left in docs/ (root notes, design/, any dated
       investigations), distill each into one or more LESSONS.md ledger entries
       (same format /compound appends), append them, then clear docs/ back to
       just LESSONS.md. Mirror how the news-fragment/changelog_entries flow
       compiles-then-clears.
-- [ ] Decide the fate of docs/design/*: reference-grade content goes to a wiki
+- [x] Decide the fate of docs/design/*: reference-grade content goes to a wiki
       dev page, lesson-grade content into LESSONS.md, then remove - the point
       is docs/ holds nothing durable. See the sequencing note below: the wiki
       half of this is largely 20260718-152214's job and must happen first.
-- [ ] Retire docs/plans/: migrate existing release plans into tatr tasks (a
+- [x] Retire docs/plans/: migrate existing release plans into tatr tasks (a
       plan is a task with the strand breakdown in its body, or a parent task
       linking the per-strand tasks), update any references, and stop writing
       new plans to docs/. Wire "plan lives in a tatr task" into the plan/flow
       workflow docs.
-- [ ] Add the enforcement guard (a pre-tag/CI check that docs/ contains only
+- [x] Add the enforcement guard (a pre-tag/CI check that docs/ contains only
       LESSONS.md) - the piece 20260718-152225 was narrowed to; keep them
       consistent.
-- [ ] Update the release checklist (web/src/wiki/dev/development.md +
+- [x] Update the release checklist (web/src/wiki/dev/development.md +
       keeping-docs-in-sync.md) with the compile-and-wipe step.
 
 ## Definition of Done
@@ -72,3 +72,33 @@ folded into this) with "fold into the lessons ledger, then wipe."
   compile+wipe.
 - LESSONS.md format + append behavior: see docs/LESSONS.md and the /compound
   skill.
+
+## Implementation (2026-07-20)
+
+Decisions (user): agent-distill + a mechanical wipe command (a script cannot
+summarize free-form notes into good lessons); FULL wipe now (including the live
+v0.8.0 plan). docs/ permanently keeps TWO meta files - LESSONS.md (ledger) and
+README.md (the model's own doc) - reconciling the DoD's "README describes the
+model" with "only LESSONS.md survives".
+
+- Model + README: rewrote docs/README.md to the ephemeral model.
+- Compile step: `scripts/wipe-docs.sh` clears docs/ to LESSONS.md + README.md,
+  idempotent (verified: 2 entries cleared, re-run a no-op). The "compile" is the
+  agent-distill pre-step, documented in the README + release checklist.
+- docs/design/ (9 docs, assessed by an out-of-context pass): 4 already in the
+  wiki + 2 superseded/transient -> deleted; 2 (craft-ships) migrated to
+  guide-author-section.md (base ships prototypes mods reference; Inline vs
+  Prototype); 1 (meta-always) distilled to the `asset-meta-always-web-cost`
+  domain lesson. All 9 removed.
+- docs/plans/ retired: the LIVE v0.8.0 plan folded into a `release`/`meta`
+  tracker task (20260720-142428); v0.4-v0.7 plans + the applied
+  sdlc-suggestions removed (history in git). All live docs/plans + docs/design
+  references swept and redirected (AGENTS.md, development.md, keeping-docs-in-
+  sync.md, Trunk.toml, nova_meta_gen, mod_refs.rs, the example mod README);
+  tasks/* historical refs left frozen.
+- Guard (absorbs 20260718-152225, now CLOSED): `scripts/check-docs-clean.sh` +
+  a `guard-docs` job in release.yaml the build waits on. Verified exit 0 clean /
+  1 on junk.
+- Release checklist: development.md "Cutting a release" step 1 + keeping-docs-
+  in-sync.md "When you cut a release" step 1 now name the compile-and-wipe.
+- Workflow wiring: AGENTS.md records the ephemeral model + plans-are-tasks.

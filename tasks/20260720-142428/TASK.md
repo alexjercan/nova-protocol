@@ -1,4 +1,15 @@
-# v0.8.0 plan: docs, tooling & content polish
+# v0.8.0 release tracker: docs, tooling & content polish
+
+- STATUS: IN_PROGRESS
+- PRIORITY: 1
+- TAGS: v0.8.0,release,meta
+
+Release-level tracker for v0.8.0, migrated from docs/plans/20260718-v0.8.0-plan.md
+when docs/plans was retired under the ephemeral-docs model (task 20260718-175424).
+Per-strand work lives in its own tatr task (linked below / by tag v0.8.0); this
+task carries the release theme, strand map, out-of-scope decisions, and the
+grooming history. The original plan doc is preserved in git history.
+
 
 - DATE: 2026-07-18
 - BASE: master at v0.7.0 (unreleased at planning time; head c65f0432)

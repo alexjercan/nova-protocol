@@ -670,6 +670,14 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   re-derives camera target_info only on content change / is_added /
   projection change - swapping RenderTarget in place leaves sizes stale;
   `projection.set_changed()` forces the re-derive. 20260718-140903.
+- `asset-meta-always-web-cost` (domain, x1): `AssetMetaCheck::Always` is
+  required so DYNAMIC mod paths (not in the fixed `Paths` set) read their
+  `.meta` sidecars - without it mod cubemaps crash; the cost is one request
+  per missing `.meta`, which is a graceful 404 natively but a 200-OK-HTML SPA
+  fallback under `trunk serve`, so `nova_meta_gen` writes default sidecars at
+  build time to avoid it. (Distilled from docs/design on the ephemeral-docs
+  wipe; the read-the-source half is [[verify-engine-guarantees-in-source]].)
+  20260718-175424.
 
 ## Pending promotions (3+ occurrences, user decides)
 

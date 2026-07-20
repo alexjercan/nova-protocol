@@ -290,3 +290,14 @@ alongside the base catalog. Either way, a ship references the section by id via
 `source: Prototype("<id>")` in its `sections` list. To ship the section, package
 the file as a mod - [Make and publish a mod](../guide-make-a-mod/) is the full
 flow.
+
+Base ships a whole CATALOG of ship-part prototypes - the mainline campaign ships
+(the racer, the cargo hauler) are themselves built from `racer_cube_*` /
+`cargob_cube_*` prototype parts. So a mod does not have to inline a big ship or
+carry any mesh paths: build one as a compact list of
+`(id, position, rotation, source: Prototype("<base-part-id>"))` entries, and each
+prototype resolves the base's meshes and sounds for you. Vary a ship by grade by
+swapping which prototypes it references (e.g. a weaker `_light_` turret variant
+for an enemy) rather than re-authoring the parts. `SectionSource` is `Inline`
+(the full config, for a one-off part) or `Prototype` (a catalog reference, the
+compact reusable form).
