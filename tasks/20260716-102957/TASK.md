@@ -1,7 +1,7 @@
 # Optional: news-fragment changelog authoring pipeline (changelog_entries/ + release compile + CI nag)
 
 - STATUS: OPEN
-- PRIORITY: 25
+- PRIORITY: 22
 - TAGS: spike,docs,tooling,v0.8.0
 
 ## Story
@@ -49,3 +49,13 @@ lands without a fragment.
   under the AGENTS.md same-task rule; the ephemeral-docs compile step
   (20260718-175424) is adopting the compile-then-clear pattern for lessons
   anyway, so revisit only if a release ships with a CHANGELOG hole.
+
+## Grooming (2026-07-20): reprioritized 25 -> 22; recommend CLOSE-with-decision
+
+The task's own step 1 says: "If the hand flow is still holding, write the
+documented decision not to build it and close." It is holding - v0.7.0 shipped
+with CHANGELOG.md consistent with git history; the only drift was deliberate
+editorial compression in the news page, which fragments would not fix. The
+honest outcome is to close this with that decision recorded, not to build the
+pipeline. Left OPEN at the bottom rather than closed unilaterally in a
+reprioritization pass; flagged for closure at the next docs cycle.

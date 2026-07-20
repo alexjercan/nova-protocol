@@ -1,7 +1,7 @@
 # Tooling inventory + consolidation pass: catalog every bin/script, decide what merges or moves to build-time, document the result
 
 - STATUS: OPEN
-- PRIORITY: 30
+- PRIORITY: 26
 - TAGS: v0.8.0,tooling,refactor,docs
 
 ## Story
@@ -68,3 +68,17 @@ and the individual refactor tasks consume.
     vs Rust, owned by spike 20260718-152255 - do not double-file it here.
 - Do this EARLY in the tooling strand - its whole value is sequencing the
   other tasks; done last it is just a writeup.
+
+## Grooming (2026-07-20): SHRUNK + reprioritized 30 -> 26
+
+The inventory half is already delivered: the README Tools section (commit
+a0e3393d) catalogs every bin (content, probe, perf_web, meta_gen, portal_gen,
+the dispatch bench) and every script with exact invocation + purpose, and the
+probe consolidation (sweep/web/profile/trace retired; scripts/perf_*.sh gone)
+already folded the perf scripts. What remains unique to THIS task: (1) the
+explicit keep-as-Rust / port-to-Python / fold-to-build-time CLASSIFICATION
+table (the README lists tools but not their target home), and (2) the
+Justfile/task-runner yes-or-no with reasoning. That is a short writeup, not
+an umbrella - the concrete refactors (152247, 152255, 092952, 152240) are
+self-contained and do not block on it. Demoted accordingly; close it by
+recording those two decisions.

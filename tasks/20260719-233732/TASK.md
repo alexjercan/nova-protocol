@@ -1,7 +1,7 @@
 # Frame capture is all-or-nothing: emit partial windows on early exit (marked honest) + category-aware --fps window defaults
 
 - STATUS: OPEN
-- PRIORITY: 59
+- PRIORITY: 88
 - TAGS: v0.8.0,bug,tooling,performance
 
 ## Goal
@@ -140,3 +140,13 @@ Add to Steps: an fps-exempt/capability flag in the example catalog +
 probe honoring it; the yield-on-primary-done flush; an e2e that
 `run gameplay --fps` yields playable(full) + scenario(partial) +
 broadside(exempt, honest skip) and NO bare FAIL.
+
+## Grooming (2026-07-20): REPRIORITIZED 59 -> 88 (top of the OPEN queue)
+
+Field-validated playtest bug: the user hit the broadside fps timeout live
+twice, and it blocks the perf-capture workflow the whole probe strand
+exists to serve. The v0.8.0 plan's policy files playtest bugs at p90+; this
+is the top open task under the already-closed p90 CI-red bug. Scope is now
+three parts (see field finding above): yield-on-primary-done flush,
+partial-emit + skip diagnostics, and the per-example fps-capable flag +
+category window defaults - reasonable to split into sub-tasks when picked up.

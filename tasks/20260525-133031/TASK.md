@@ -1,8 +1,8 @@
 # Write documentation for bevy_common_systems public API
 
 - STATUS: OPEN
-- PRIORITY: 38
-- TAGS: docs,v0.8.0
+- PRIORITY: 0
+- TAGS: docs,backlog
 
 ## Story
 
@@ -46,3 +46,13 @@ backlog where it had no body; part of the rustdoc strand coordinated by
   architecture wiki page already explains how nova composes it.
 - Coordinate with 20260525-133030/133032 so shared conventions (units,
   intra-doc links) match across repos.
+
+## Grooming (2026-07-20): RETAGGED out of v0.8.0 (v0.8.0 -> backlog, p0)
+
+Every step of this task is "in the bevy-common-systems repo" - it is
+cross-repo work in a separate project (~/personal/bevy-common-systems), not a
+nova-protocol v0.8.0 deliverable. Keeping it tagged v0.8.0 inflated the
+release's doc scope with work nova cannot land. Retagged to backlog and left
+as a pointer: when the bcs public-API docs are written in that repo, bump
+nova's pin. The rustdoc CONVENTIONS still come from 20260525-133033 so the two
+repos stay consistent.

@@ -1,7 +1,7 @@
 # Gauntlet time-trial: visible run timer + clean-run bonus
 
 - STATUS: OPEN
-- PRIORITY: 42
+- PRIORITY: 36
 - TAGS: scenario,content,modding,hud,v0.8.0
 
 ## Story
@@ -58,3 +58,14 @@ that missing modding-surface piece and wires the gauntlet to it.
   piece, not a gameplay feature. Keep the addition minimal.
 - Dependency status: 20260716-124722 (Gauntlet 2.0) HAS landed; this decorates
   the shipped course.
+
+## Grooming (2026-07-20): reprioritized 42 -> 36
+
+Confirmed there is no existing HUD-readout action in nova_gameplay
+(`grep -ri 'run_timer|ScenarioTimerHud|HudTimer' crates/nova_gameplay/src`
+is empty), so this task carries a small NEW engine/modding-surface addition.
+That brushes the v0.8.0 "no new features" theme - the plan explicitly accepts
+it as a modding-surface piece, but it is the only content task needing code,
+so it sits below the pure data/content polish (base campaign 152313, Ledger
+152320) and below the tooling that unblocks content DX. Prereq: the
+generic-vs-purpose-built decision in spike 20260716-174631 should land first.

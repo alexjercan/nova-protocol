@@ -1,7 +1,7 @@
 # Investigate the broadside-high single-frame hitch (75ms max, p99 39ms) seen in the baseline
 
 - STATUS: OPEN
-- PRIORITY: 30
+- PRIORITY: 24
 - TAGS: performance,bug,v0.8.0
 
 ## Story
@@ -48,3 +48,14 @@ combat slice. Likely a defer after confirming the cause.
 - Baseline report, "Native, discrete GPU" section, finding 3:
   tasks/20260716-123551/frametime-baseline-report.md
 - Measure-first policy applies: no speculative preloading without the trace.
+
+## Grooming (2026-07-20): reprioritized 30 -> 24 (likely moot, kept as low)
+
+Contingent on the broadside fps decision in 20260719-233732: if broadside
+becomes fps-EXEMPT (the recommendation), the probe stops measuring its frame
+times, so there is no perf tail to chase here and the baseline report's
+finding 3 is retired by that decision rather than by a trace. NOT closed,
+because the 75 ms frame was a real measured event that could still surface as
+a visible stall in actual play (first-particle-use is the lead suspect) -
+re-open with a fresh trace only if a playtester reports a hitch. Demoted below
+the active content/tooling work.

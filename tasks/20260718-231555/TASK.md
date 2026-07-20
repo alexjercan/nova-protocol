@@ -1,7 +1,7 @@
 # Document the scenario-authoring vocabulary the shipped mods use; promote Gauntlet to the worked example
 
 - STATUS: OPEN
-- PRIORITY: 57
+- PRIORITY: 43
 - TAGS: v0.8.0,docs,web,modding,scenario
 
 ## Story
@@ -75,3 +75,21 @@ content-file comments (`webmods/gauntlet/gauntlet.content.ron`).
   timer vocabulary belongs in the same reference pass.
 - Complements 20260718-152214 (dev wiki drift audit): that task fixes what the
   docs say wrongly; this one adds what they do not say at all.
+
+## Grooming (2026-07-20): NARROWED + reprioritized 57 -> 43
+
+A tree re-check found this task ~80% already delivered by the wiki: `SetSkybox`
+(scenario-system.md), `ScatterObjects` (guide-author-scenario.md),
+`NextScenario` linger (scenario-system.md), `Asteroid` invulnerable/
+surface_gravity (scenario-system.md) and the per-spawn audio fields
+(guide-author-section.md) are ALL now documented. Only two pieces remain and
+are the real scope:
+  1. the "Scenario patterns" section (gate-counter + act-gating idioms) -
+     confirmed absent (`grep -ri 'gate.counter|act.gating' web/src/wiki/dev/`
+     is empty);
+  2. promoting Gauntlet to the worked example (content-file + test-rig
+     cross-links).
+Tick the already-done action/field sub-steps as covered-by-wiki when picked
+up. No longer a docs-headline task - it is a small patterns + worked-example
+pass, hence the demotion below the drift audit (152214) and ephemeral-docs
+work.
