@@ -57,9 +57,13 @@ usage: probe <subcommand>
       ui|screenshots|perf); --all runs the whole catalog minus NOT_PROBED.
       Multi specs run sequentially into <out|probe-runs>/<example>/ and
       write an aggregated index.html/index.json + probe-all.json above
-      them. Matrix flags (--scenario/--preset, repeatable, with --fps),
-      --platform web (positional = scenario id) and --baseline are
-      single-example concerns. Artifacts + report land in the run dir.
+      them. Matrix flags (--scenario/--preset, repeatable, with --fps) and
+      --platform web (positional = scenario id) are single-example concerns.
+      --baseline is one example's run dir for a single spec, or a baseline
+      ROOT for a group: each example compares against <root>/<example>/ when
+      it has a frametime.csv, else that example skips the comparison (baseline
+      an --all run against a previous --all out dir). Artifacts + report land
+      in the run dir.
   report <run-dir> [--baseline <run-dir>]
       re-render the report (probe-run.json dirs) or the aggregate index
       (probe-all.json dirs); refuses dirs probe did not produce";
@@ -448,14 +452,21 @@ usage: probe <subcommand>
                     .into(),
             );
         }
-        if base.baseline.is_some() {
-            return Err(
-                "--baseline compares one run dir; it does not combine with a \
-                 list/category/--all spec"
-                    .into(),
-            );
-        }
+        // --baseline IS allowed for a group: it is the baseline ROOT (a prior
+        // probe-runs-shaped out dir), resolved per example in run_many -
+        // `<root>/<example>/frametime.csv` if present, else that example skips
+        // the comparison. (For a single example it is the run dir itself.)
         run_many(&resolved, &base, &catalog)
+    }
+
+    /// Resolve a group example's baseline against a `--baseline` ROOT: the
+    /// per-example run dir `<root>/<example>` when it holds a `frametime.csv`,
+    /// else `None` (that example skips the comparison rather than erroring).
+    /// Mirrors the probe-runs layout a prior group run wrote, so `--all` is
+    /// baselined against a previous `--all` out dir.
+    fn group_baseline_for(root: &Path, example: &str) -> Option<PathBuf> {
+        let dir = root.join(example);
+        dir.join("frametime.csv").is_file().then_some(dir)
     }
 
     /// The sequential multi driver: each example through `run()` into
@@ -487,12 +498,31 @@ usage: probe <subcommand>
         let (git_sha, host) = run_identity();
         let total = resolved.examples.len();
         let mut rows = Vec::new();
+        let mut baseline_matches = 0usize;
         for (i, example) in resolved.examples.iter().enumerate() {
             eprintln!("probe: ===== {example} [{}/{total}] =====", i + 1);
             let mut opts = base.clone();
             opts.example = example.clone();
             opts.out = Some(out_base.join(example));
             opts.display = Some(display.clone());
+            // Per-example baseline from the --baseline ROOT: use this example's
+            // prior run dir when present, otherwise SKIP its comparison (not an
+            // error) - a group baselines only the examples that have one.
+            opts.baseline = base.baseline.as_ref().and_then(|root| {
+                match group_baseline_for(root, example) {
+                    Some(dir) => {
+                        baseline_matches += 1;
+                        Some(dir)
+                    }
+                    None => {
+                        eprintln!(
+                            "probe: {example}: no baseline in {}, skipping fps comparison",
+                            root.display()
+                        );
+                        None
+                    }
+                }
+            });
             let started = Instant::now();
             let run_error = match run(&opts) {
                 Ok(_) => None,
@@ -513,6 +543,15 @@ usage: probe <subcommand>
                 run_error,
                 started.elapsed().as_secs(),
             ));
+        }
+        if let Some(root) = &base.baseline {
+            if baseline_matches == 0 {
+                eprintln!(
+                    "probe: warning: --baseline {} matched none of the {total} example(s) - \
+                     expected <root>/<example>/frametime.csv (a prior group run's out dir)",
+                    root.display()
+                );
+            }
         }
         let manifest = nova_probe::AllManifest {
             spec: resolved.spec_display.clone(),
@@ -1697,6 +1736,27 @@ usage: probe <subcommand>
 
         fn s(args: &[&str]) -> Vec<String> {
             args.iter().map(|a| a.to_string()).collect()
+        }
+
+        #[test]
+        fn group_baseline_for_resolves_present_and_skips_missing() {
+            // A --baseline ROOT resolves per example: the example's dir when it
+            // holds a frametime.csv, else None (skip, not error).
+            let base =
+                std::env::temp_dir().join(format!("nova_probe_gb_{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&base);
+            std::fs::create_dir_all(base.join("playable")).unwrap();
+            std::fs::write(base.join("playable").join("frametime.csv"), "x").unwrap();
+            // dir exists but no csv - still a miss.
+            std::fs::create_dir_all(base.join("scenario")).unwrap();
+
+            assert_eq!(
+                group_baseline_for(&base, "playable"),
+                Some(base.join("playable"))
+            );
+            assert_eq!(group_baseline_for(&base, "scenario"), None);
+            assert_eq!(group_baseline_for(&base, "missing"), None);
+            let _ = std::fs::remove_dir_all(&base);
         }
 
         #[test]

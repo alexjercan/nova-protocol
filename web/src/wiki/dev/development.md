@@ -270,7 +270,13 @@ verdict is the WORST row; the exit code mirrors it. `--all` skips the
 NOT_PROBED exclusions, which the report lists with their reasons - and a
 bare `probe run` errors with the catalog rather than starting a fleet
 sweep by accident. Categories take single-digit minutes warm; `--all` is
-the pre-release/nightly sweep (roughly half an hour).
+the pre-release/nightly sweep (roughly half an hour). `--baseline` works
+across a group too: for a multi-spec it is a baseline ROOT (a prior group's
+out dir), and each example compares against `<root>/<example>/frametime.csv`
+when present, else that example skips the comparison (`fps_within_baseline`
+SKIPPED, not an error) - so `probe run --all --fps --baseline probe-runs/before`
+regression-checks the whole fleet against a previous `--all` run and quietly
+skips the examples that had no prior capture.
 
 Under the hood: an env-gated capture plugin drives the real gameplay app to
 `Playing`, warms up, records the wall-clock delta of every frame for a fixed

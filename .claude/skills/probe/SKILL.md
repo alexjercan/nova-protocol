@@ -24,6 +24,7 @@ cargo run -p nova_probe -- run <example> --baseline <old-run-dir>   # FPS deltas
 cargo run -p nova_probe -- run playable,scenario      # comma list -> aggregate index
 cargo run -p nova_probe -- run ui                     # a whole category (sections|gameplay|ui|screenshots|perf)
 cargo run -p nova_probe -- run --all                  # the whole catalog minus NOT_PROBED
+cargo run -p nova_probe -- run --all --fps --baseline probe-runs/before  # group: per-example baseline root
 cargo run -p nova_probe -- run perf_baseline --fps --release \
   --render gpu --scenario asteroid_field --preset high --preset low  # perf sweep (matrix)
 cargo run -p nova_probe -- run <scenario> --platform web  # web/WebGPU frame capture
