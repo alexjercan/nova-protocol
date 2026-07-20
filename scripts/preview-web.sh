@@ -49,7 +49,7 @@ echo ">> generating the mod portal…"
 # <root>/mods same-origin with no ?portal= override and no CORS. Without this the
 # Explore tab 404s on /mods/catalog.json (task 20260715-214540).
 rm -rf web/dist/mods
-cargo run -p nova_portal_gen -- \
+python3 scripts/gen-portal.py \
     --source webmods \
     --shipped assets/mods.catalog.ron \
     --out web/dist/mods

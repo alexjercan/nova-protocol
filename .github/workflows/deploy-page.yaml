@@ -83,13 +83,14 @@ jobs:
           touch site/.nojekyll
 
       # --- static mod portal: catalog.json + hashed file copies under /mods/ ---
-      # nova_portal_gen is engine-free (no bevy), so this compiles in seconds;
-      # it validates manifests and refuses ids that collide with the shipped
+      # scripts/gen-portal.py is a stdlib-only Python port of the (soon-to-be-
+      # removed) nova_portal_gen crate; no toolchain, runs instantly. It
+      # validates manifests and refuses ids that collide with the shipped
       # catalog. Deep content validation (do the bundles actually load?) is the
       # webmods_validation test on regular CI.
       - name: Generate mod portal
         run: |
-          cargo run --release -p nova_portal_gen -- \
+          python3 scripts/gen-portal.py \
             --source webmods \
             --shipped assets/mods.catalog.ron \
             --out site/mods

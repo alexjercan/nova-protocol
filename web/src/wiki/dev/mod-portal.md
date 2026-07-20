@@ -37,15 +37,17 @@ serves, so escaping `../` paths are rejected).
 
 ## The generator
 
-`crates/nova_portal_gen` (engine-free: no bevy, builds in seconds) turns
-`webmods/` into the portal tree:
+`scripts/gen-portal.py` (Python 3, stdlib only - no toolchain, runs instantly)
+turns `webmods/` into the portal tree:
 
 ```sh
-cargo run --release -p nova_portal_gen -- \
+python3 scripts/gen-portal.py \
     --source webmods --shipped assets/mods.catalog.ron --out site/mods
 ```
 
-It validates what a manifest gate can - bundle parses, publishable meta, every
+It is a byte-for-byte port of the (soon-to-be-removed) `nova_portal_gen` crate,
+which is kept for one release as a parity oracle (see task 20260718-152247). It
+validates what a manifest gate can - bundle parses, publishable meta, every
 listed content file exists, well-formed unique ids that do not collide with
 the SHIPPED catalog, dependencies resolve within the portal + shipped set -
 computes per-file size + sha256, copies files under `<id>/<version>/`, and
@@ -66,7 +68,7 @@ The full publish-then-install flow ties these sections together:
 ```mermaid
 sequenceDiagram
     participant Pub as Author
-    participant Gen as nova_portal_gen
+    participant Gen as gen-portal.py
     participant Portal as Static portal
     participant Game as Game client
     participant Cache as Local cache
@@ -99,8 +101,10 @@ to the cache.
 
 1. Add `webmods/<id>/` with a `<name>.bundle.ron` (content list + full meta,
    version non-empty) and its content files.
-2. `cargo test -p nova_portal_gen` and `cargo test -p nova_assets --test
-   webmods_validation` locally (or let CI run them).
+2. `python3 scripts/gen-portal.py --source webmods --shipped
+   assets/mods.catalog.ron --out /tmp/portal/mods` (the publish gates) and
+   `cargo test -p nova_assets --test webmods_validation` (does it load?) locally
+   (or let CI run them).
 3. Land on master; the next deploy publishes it.
 
 ## Local development
@@ -130,7 +134,7 @@ goes to `<site>/mods`, a SIBLING of `<site>/play`, NOT inside it:
 ```sh
 trunk build                                      # -> dist/ (the game)
 mkdir -p site/play && cp -r dist/. site/play/    # game under /play/
-cargo run -p nova_portal_gen -- --source webmods \
+python3 scripts/gen-portal.py --source webmods \
   --shipped assets/mods.catalog.ron --out site/mods   # portal as the /mods sibling
 python3 -m http.server -d site 8090
 # open http://localhost:8090/play/  with NO ?portal=
@@ -145,7 +149,7 @@ For a quick iteration without assembling the full `/play/` site, run the portal
 on its own server and let `trunk serve` proxy to it same-origin:
 
 ```sh
-cargo run -p nova_portal_gen -- --source webmods --shipped assets/mods.catalog.ron --out /tmp/portal/mods
+python3 scripts/gen-portal.py --source webmods --shipped assets/mods.catalog.ron --out /tmp/portal/mods
 python3 -m http.server -d /tmp/portal 8000       # portal at :8000/mods/
 trunk serve                                       # Trunk.toml proxies /mods -> :8000/mods
 # open http://localhost:8080  (game at root) with NO ?portal=
@@ -159,7 +163,7 @@ The dev-only `[[proxy]]` in `Trunk.toml` applies to `trunk serve` only (never
 No origin rule applies; point at any local portal with `NOVA_PORTAL_URL`:
 
 ```sh
-cargo run -p nova_portal_gen -- --source webmods --shipped assets/mods.catalog.ron --out /tmp/portal/mods
+python3 scripts/gen-portal.py --source webmods --shipped assets/mods.catalog.ron --out /tmp/portal/mods
 python3 -m http.server -d /tmp/portal 8000
 NOVA_PORTAL_URL=http://localhost:8000/mods cargo run
 ```

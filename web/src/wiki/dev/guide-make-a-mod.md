@@ -281,10 +281,10 @@ gauntlet mod as a template:
 )
 ```
 
-Run the generator (engine-free, no bevy, builds in seconds):
+Run the generator (a stdlib-only Python script, no build step):
 
 ```sh
-cargo run --release -p nova_portal_gen -- \
+python3 scripts/gen-portal.py \
     --source webmods --shipped assets/mods.catalog.ron --out site/mods
 ```
 
@@ -320,8 +320,10 @@ the `webmods_validation` integration test
 (`crates/nova_assets/tests/webmods_validation.rs`), which drives every
 `webmods/` bundle through the real bevy loaders to a recursive `Loaded` on CI -
 the deep half of the publish gate. To publish: add `webmods/<id>/`, run
-`cargo test -p nova_portal_gen` and `cargo test -p nova_assets --test
-webmods_validation` (or let CI), and land on master; the next deploy publishes.
+`python3 scripts/gen-portal.py --source webmods --shipped
+assets/mods.catalog.ron --out /tmp/portal` (it runs the publish gates) and
+`cargo test -p nova_assets --test webmods_validation` (or let CI), and land on
+master; the next deploy publishes.
 
 ## 5. What the player sees
 
@@ -335,7 +337,7 @@ plays. A downloaded mod loads and merges exactly like a shipped one.
 
 ```mermaid
 flowchart LR
-    Author[Author webmods/id/] --> Gen[nova_portal_gen]
+    Author[Author webmods/id/] --> Gen[gen-portal.py]
     Gen --> Validate{Gates pass?}
     Validate -- no --> Fail[Deploy fails]
     Validate -- yes --> Publish[catalog.json + hashed files]

@@ -25,7 +25,7 @@ port = 8080
 # tab fetches `http://localhost:8080/mods/...` with no cross-origin `?portal=`
 # override (which the browser blocks on CORS). Generate + serve the portal
 # first, then `trunk serve` and open http://localhost:8080 with NO ?portal=:
-#   cargo run -p nova_portal_gen -- --source webmods \
+#   python3 scripts/gen-portal.py --source webmods \
 #     --shipped assets/mods.catalog.ron --out /tmp/portal/mods
 #   python3 -m http.server -d /tmp/portal 8000
 # See web/src/wiki/dev/mod-portal.md, "Local development".

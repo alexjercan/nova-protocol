@@ -146,7 +146,7 @@ the deeper docs live in the dev wiki linked in each row.
 | Probe (run-harness) | `cargo run -p nova_probe -- run <example>` / `cargo run -p nova_probe -- report <run-dir>` | Drives an autopilot example headless and writes a correctness + frame-time report under `probe-runs/`; `--profile`, `--samply`, `--fps`, `--all`, `--baseline`, `--platform web` extend it; `report` re-renders a run dir. See [`development.md`](web/src/wiki/dev/development.md). |
 | `perf_web` | (not called directly - built and driven by `probe run <example> --platform web`) | The WASM measurement build the probe boots under headless Chromium to capture the web frame line. See [`development.md`](web/src/wiki/dev/development.md). |
 | Meta-sidecar gen | `cargo run -p nova_meta_gen -- [--assets <dir>]...` | Writes default `.meta` sidecars for assets that lack one (for `AssetMetaCheck::Always` on the web); normally runs as a Trunk `post_build` hook. See [`crates/nova_meta_gen`](crates/nova_meta_gen/). |
-| Mod-portal gen | `cargo run --release -p nova_portal_gen -- --source webmods --shipped assets/mods.catalog.ron --out site/mods` | Builds the static mod portal (`catalog.json` + hashed, versioned file copies) from a `webmods/` source tree. See [`mod-portal.md`](web/src/wiki/dev/mod-portal.md). |
+| Mod-portal gen | `python3 scripts/gen-portal.py --source webmods --shipped assets/mods.catalog.ron --out site/mods` | Builds the static mod portal (`catalog.json` + hashed, versioned file copies) from a `webmods/` source tree (stdlib-only Python). See [`mod-portal.md`](web/src/wiki/dev/mod-portal.md). |
 | Dispatch benchmark | `cargo bench -p nova_scenario` | Criterion baseline/regression benchmark for the scenario event-dispatch hot path (report in `target/criterion/`). See [`benches/scenario_dispatch.rs`](crates/nova_scenario/benches/scenario_dispatch.rs). |
 
 ### Scripts (`scripts/`)
@@ -181,7 +181,7 @@ deeper tour is in [`project-tour.md`](web/src/wiki/dev/project-tour.md).
 | `nova_debug` | Debug tooling (inspector, wireframe, overlays); `debug` feature only. |
 | `nova_probe` | Run-harness: frame-time capture + perf reporting over autopilot runs. |
 | `nova_meta_gen` | `.meta` sidecar generator for the web build (Trunk post_build hook). |
-| `nova_portal_gen` | Static mod-portal generator (`webmods/` -> `site/mods`). |
+| `nova_portal_gen` | Static mod-portal generator (`webmods/` -> `site/mods`). Superseded by `scripts/gen-portal.py`; kept one release as the byte-for-byte parity oracle, then removed (task 20260718-152247). |
 | `web` | The landing/content site (TypeScript + Webpack + Tailwind). |
 
 ## License
