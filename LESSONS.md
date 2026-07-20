@@ -34,6 +34,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `review-the-generated-artifact-too` (x1): after changing an authored or
   generated schema, READ the regenerated file with an author's eye - parity
   tests never check readability. 20260717-215742.
+- `commit-review-retro-before-land` (x1, -> flow/review skills): commit
+  REVIEW.md (and any retro/decision file) on the feature branch and confirm the
+  worktree `git status` is clean BEFORE `sprout land` - the squash only takes
+  committed state and `sprout land` removes the worktree, so an uncommitted
+  review file is dropped AND lost with the worktree, not just left behind.
+  20260718-231601.
 - `rename-id-sweep-in-file` (x1): after renaming a content id, grep the WHOLE
   file for the old id - lint validates spawn/prototype/filter refs but not AI
   orbit/patrol targets. 20260716-215513.
