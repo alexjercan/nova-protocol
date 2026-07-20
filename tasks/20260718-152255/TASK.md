@@ -1,8 +1,8 @@
 # Spike: can nova_meta_gen become a Python build-time hook, or must it stay Rust (Bevy .meta coupling)? Decide and port-or-document
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 34
-- TAGS: v0.8.0,tooling,spike,web
+- TAGS: v0.8.0, tooling, spike, web
 
 ## Story
 
@@ -23,25 +23,24 @@ port-vs-keep, don't blindly port.
 
 ## Steps
 
-- [ ] Characterize what the current tool actually emits: dump the `.meta`
+- [x] Characterize what the current tool actually emits: dump the `.meta`
       content it writes per asset extension (png, glb, ogg, wav, ...) and
       confirm how much is Bevy-version-specific vs static boilerplate. Check
       it against at least the last two Bevy versions' defaults (0.18 vs 0.19)
       to see whether the format actually moved.
-- [ ] Judge drift risk: if the meta is stable, documented boilerplate, a
+- [x] Judge drift risk: if the meta is stable, documented boilerplate, a
       Python script that writes it is safe and cheaper; if it is derived from
       Bevy internal defaults, keeping the Rust tool (which asks Bevy) is the
       correct call. Weigh that v0.7.0 made `.meta` correctness load-bearing
       for EVERY mod cubemap (the WebGL2 crash class), so silent drift now
       breaks mods, not just the base build.
-- [ ] If PORT: write `scripts/gen-meta.py`, wire it as the Trunk post_build
-      hook in place of the Rust bin, add a parity check vs the Rust output
-      over `assets/`, and note the Bevy-version assumption it bakes in.
-- [ ] If KEEP: record the decision and why in this task + the dev wiki
+- [x] PORT branch RESOLVED: not taken. The decision was KEEP, so there is no
+      `scripts/gen-meta.py`, no Trunk rewire, and no parity check - see SPIKE.md.
+- [x] If KEEP: record the decision and why in this task + the dev wiki
       (development.md tools list gets a "stays Rust because it asks Bevy"
       line), and update the tooling inventory (20260718-152304) so the plan
       reflects reality.
-- [ ] Write the SPIKE.md in this task folder either way: evidence dump,
+- [x] Write the SPIKE.md in this task folder either way: evidence dump,
       decision, consequences.
 
 ## Definition of Done
@@ -60,3 +59,16 @@ port-vs-keep, don't blindly port.
 - Background: `docs/design/wasm-asset-meta-always.md` - source material for
   the dev-wiki write-up (see 20260718-152214's sequencing note before the
   ephemeral-docs wipe folds it away).
+
+## Decision (2026-07-20): KEEP RUST
+
+Full evidence + rationale in SPIKE.md. Summary: `nova_meta_gen` asks Bevy for
+each loader's DEFAULT `.meta` (loader type paths + `Settings::default()`), which
+are Bevy-version-specific; a Python hardcode would silently drift on a Bevy bump
+and break web mod cubemaps (`.meta` correctness is load-bearing since v0.7.0).
+The portal generator ported to Python (152247) because it is engine-free; meta
+gen is a thin shim over Bevy's own serialization and stays Rust. Recorded in the
+README tools row and the tooling-inventory umbrella (20260718-152304). Note: the
+dev wiki's tools REFERENCE is the README table (development.md has no meta_gen
+row), so the "stays Rust" line went there. No `scripts/gen-meta.py`; no seeded
+tasks.

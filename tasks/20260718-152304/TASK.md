@@ -67,8 +67,11 @@ and the individual refactor tasks consume.
     ends up as a single `lint` command.
   - `nova_meta_gen` is ALREADY a build-time hook (Trunk `post_build`), and it
     is needed for the DEPLOYED web build (`AssetMetaCheck::Always`, mod
-    cubemaps), not just local `trunk serve`. The open question is only Python
-    vs Rust, owned by spike 20260718-152255 - do not double-file it here.
+    cubemaps), not just local `trunk serve`. Python-vs-Rust is RESOLVED (spike
+    20260718-152255, 2026-07-20): STAYS RUST - it asks Bevy for each loader's
+    default meta (Bevy-version-specific loader paths + settings fields), so a
+    Python hardcode would silently drift and break web mod cubemaps. Portal gen
+    ported to Python (152247), meta gen does not.
 - Do this EARLY in the tooling strand - its whole value is sequencing the
   other tasks; done last it is just a writeup.
 
