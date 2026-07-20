@@ -1,8 +1,8 @@
 # Tooling inventory + consolidation pass: catalog every bin/script, decide what merges or moves to build-time, document the result
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 26
-- TAGS: v0.8.0,tooling,refactor,docs
+- TAGS: v0.8.0, tooling, refactor, docs
 
 ## Story
 
@@ -19,25 +19,25 @@ and the individual refactor tasks consume.
 
 ## Steps
 
-- [ ] Catalog every dev entry point with its purpose, invocation, and
+- [x] Catalog every dev entry point with its purpose, invocation, and
       dependencies:
-  - [ ] Rust bins: `content` (lint only after the pre-made moves below;
+  - [x] Rust bins: `content` (lint only after the pre-made moves below;
         was gen/lint/audit), `nova_probe` (perf_web + the report bin once
         20260718-152230 lands), `nova_meta_gen`, `nova_portal_gen`.
-  - [ ] scripts/: preview-web.sh (perf-* scripts retired into probe),
+  - [x] scripts/: preview-web.sh (perf-* scripts retired into probe),
         gen-licenses.sh, gen-web-screenshots.py, gen-placeholder-sounds.py,
         cut-obj-into-hulls.py.
-- [ ] For each, classify: keep-as-Rust, port-to-Python (portal
+- [x] For each, classify: keep-as-Rust, port-to-Python (portal
       20260718-152247, maybe meta 20260718-152255), fold-into-build-step, or
       leave. Note what is a true build-time hook (meta gen on Trunk build;
       content gen as a pre-commit / CI gate; portal gen on deploy) vs an
       on-demand dev tool.
-- [ ] Recommend the consolidated structure (e.g. a single `scripts/` home + a
+- [x] Recommend the consolidated structure (e.g. a single `scripts/` home + a
       documented build-time hook list; whether a task-runner/Justfile is worth
       it) and record it so later tasks execute against one target picture.
-- [ ] Sequence the concrete tooling tasks against the map (which move first,
+- [x] Sequence the concrete tooling tasks against the map (which move first,
       which wait) and note it in each task if the order matters.
-- [ ] Update the README tools section (with 20260718-152205) + wiki
+- [x] Update the README tools section (with 20260718-152205) + wiki
       development.md with the final map.
 
 ## Definition of Done
@@ -92,3 +92,64 @@ Justfile/task-runner yes-or-no with reasoning. That is a short writeup, not
 an umbrella - the concrete refactors (152247, 152255, 092952, 152240) are
 self-contained and do not block on it. Demoted accordingly; close it by
 recording those two decisions.
+
+## Closeout (2026-07-20): classification table + Justfile decision
+
+The inventory (every entry point, invocation, purpose) is delivered by the
+README "Tools" section (commit a0e3393d) + `web/src/wiki/dev/development.md`.
+This closeout records the two pieces unique to this umbrella: the keep/port/
+build-time CLASSIFICATION with each tool's home, and the Justfile yes/no.
+
+### Classification table
+
+| Entry point | Lang | Home | Classification | When it runs |
+| --- | --- | --- | --- | --- |
+| `content` (gen + lint) | Rust | `crates/nova_assets/src/bin` | keep-Rust | on-demand author + CI gates (`content_lint_gate`, `balance_audit_gate`) |
+| `nova_probe` (run / report) | Rust | `crates/nova_probe` | keep-Rust | on-demand run-harness (post-feature verify) |
+| `perf_web` | Rust->wasm | `crates/nova_probe/src/bin` | keep-Rust | driven by `probe run --platform web` |
+| `scenario_dispatch` bench | Rust | `crates/nova_scenario/benches` | keep-Rust | on-demand `cargo bench -p nova_scenario` |
+| `nova_meta_gen` | Rust | **`tools/`** | keep-Rust, RELOCATED | build-time hook (Trunk `post_build`), web only |
+| `gen-portal.py` | Python | `scripts/` | PORTED (was `nova_portal_gen`, crate REMOVED) | build-time: deploy workflow + `preview-web.sh` |
+| `preview-web.sh` | shell | `scripts/` | keep | on-demand local combined game+site preview |
+| `gen-licenses.sh` | shell | `scripts/` | keep | on-demand / release (license aggregation) |
+| `gen-web-screenshots.py` | Python | `scripts/` | keep | on-demand (wiki screenshots) |
+| `gen-placeholder-sounds.py` | Python | `scripts/` | keep | on-demand (placeholder audio) |
+| `cut-obj-into-hulls.py` | Python | `scripts/` | keep (cut-only; classification is in-game) | on-demand (obj -> hull `.glb`) |
+| `check-docs-clean.sh` / `wipe-docs.sh` | shell | `scripts/` | keep | release-time (ephemeral-docs guard + wipe) |
+
+### Decisions applied this cycle (the moves the umbrella sequenced)
+
+- `content` `audit` -> merged into `lint` (20260718-152240, landed).
+- `content` `gen` -> build-time: DECLINED, stays a subcommand (20260719-092952
+  wontdo - a build.rs generator duplicate-compiles bevy + mutates tracked files).
+- `nova_portal_gen` -> ported to `scripts/gen-portal.py` (20260718-152247) and
+  the Rust crate REMOVED (20260720-230924), gate coverage re-homed onto the
+  Python tool.
+- `nova_meta_gen` -> stays Rust (asks Bevy, would drift; spike 20260718-152255)
+  but RELOCATED out of `crates/` into `tools/` (20260720-224236), a workspace
+  member excluded from `default-members`.
+
+### True build-time hooks (vs on-demand dev tools)
+
+- `nova_meta_gen` - Trunk `post_build` (web build only).
+- `gen-portal.py` - the deploy workflow + `preview-web.sh`.
+- `check-docs-clean.sh` - release/CI guard (ephemeral-docs model).
+- CI gates (enforced, not hooks): `content lint` walks (`content_lint_gate`,
+  `balance_audit_gate`), `content_ron_parity` (the `content gen` drift gate).
+
+### Justfile / task-runner: NO
+
+Every invocation is already documented in three places (README "Tools",
+`development.md`, the AGENTS.md command cheatsheet) and the set is small and
+stable. A Justfile would add a `just` toolchain dependency AND a fourth surface
+to keep in sync with those docs - and doc-sync drift already reached x7 this
+release (`keep-docs-in-sync-with-code`), so a new drift surface is a real cost.
+The marginal win (short aliases) does not justify it at this repo size. Revisit
+if the entry-point count grows substantially or contributors report
+"how do I run X" friction.
+
+Consolidated structure: game code in `crates/`, build/dev tooling split by
+language - Rust tools that must link the engine live in `crates/` (content,
+probe) or `tools/` (meta-gen, engine-linked but web-build-only); engine-FREE
+generators are Python/shell in `scripts/`. That split is the target picture; it
+is now realized.
