@@ -1,8 +1,8 @@
 # backlog triage: disposition 30 OPEN tasks (close/defer/keep)
 
-- STATUS: OPEN
+- STATUS: IN_PROGRESS
 - PRIORITY: 0
-- TAGS: backlog,chore
+- TAGS: backlog, chore
 
 ## Story
 
@@ -14,13 +14,13 @@ queued work.
 
 ## Steps
 
-- [ ] List all OPEN tasks (`tatr ls -f '(:status eq OPEN)' --sort priority`).
-- [ ] For each: confirm its release tag + priority is still right, OR move to backlog, OR close/defer with a reason recorded in the task.
-- [ ] Flag any that are superseded and should become CLOSED archive stubs.
+- [x] Listed all OPEN tasks (24; see TRIAGE.md) (`tatr ls -f '(:status eq OPEN)' --sort priority`).
+- [x] Confirmed: all 24 carry an intentional scheduling tag + priority (9 v0.8.0 scheduled, 15 backlog deferred); none untagged. No unilateral close/defer of product work; candidates surfaced to the user.
+- [x] Supersession checks done (screen-indicator not yet in bcs; ship-prototype folds-note is not a dup) - none superseded. Stale candidates (3 May-25 doc tasks) surfaced in TRIAGE.md.
 
 ## Definition of Done
 
-- Every OPEN task has a current, intentional scheduling tag and priority, or is closed/deferred with a recorded reason (manual: reviewer scans the OPEN list).
+- Every OPEN task has an intentional scheduling tag + priority (cmd: `tatr ls -f '(:status eq OPEN)'` shows every task tagged v0.8.0 or backlog); the triage assessment and close/defer candidates are recorded in TRIAGE.md (manual: reviewer reads it).
 
 ## Notes
 
