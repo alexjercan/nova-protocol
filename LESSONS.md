@@ -19,6 +19,15 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   - check its surface list against the diff, and a surface updated for the
   rename must also claim the diff's NEW features. 20260718-004723,
   20260719-112231.
+- `doc-sweep-covers-source-doc-comments` (x1): when RENAMING/REMOVING a
+  command or symbol, `grep -rn '<oldname>' --include='*.rs'` the source
+  `//!`/`///` doc comments too - a CLI surface is described in module/crate
+  docs as often as in README/wiki, and a markdown-only sweep left three stale
+  `audit` mentions for review to catch. 20260718-152240.
+- `pin-mirrored-list-against-source` (positive, x1): a lint/tool that hardcodes
+  a copy of runtime data (the flight rig's reserved keys) gets a test that
+  builds the REAL source and set-diffs both directions, so the copy
+  self-corrects on drift instead of rotting. 20260718-152240.
 - `inseparable-seeded-tasks-remerge` (x1, PROMOTED 2026-07-19 -> flow skill):
   when seeded tasks prove architecturally inseparable, surface the re-cut and
   merge them instead of building shims. 20260717-215742.
