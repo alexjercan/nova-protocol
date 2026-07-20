@@ -11,7 +11,7 @@ permissions:
 #                   pages subpath /nova-protocol/
 #   /play/       -> the Bevy WASM game (Trunk, relative public_url so it is
 #                   position-independent under the subpath)
-#   /mods/       -> the static mod portal (nova_portal_gen: catalog.json +
+#   /mods/       -> the static mod portal (scripts/gen-portal.py: catalog.json +
 #                   hashed, versioned copies of every webmods/ mod)
 env:
   # Project pages are served from https://<user>.github.io/nova-protocol/, so the
@@ -83,8 +83,8 @@ jobs:
           touch site/.nojekyll
 
       # --- static mod portal: catalog.json + hashed file copies under /mods/ ---
-      # scripts/gen-portal.py is a stdlib-only Python port of the (soon-to-be-
-      # removed) nova_portal_gen crate; no toolchain, runs instantly. It
+      # scripts/gen-portal.py is THE static mod-portal generator (stdlib-only
+      # Python; no toolchain, runs instantly). It
       # validates manifests and refuses ids that collide with the shipped
       # catalog. Deep content validation (do the bundles actually load?) is the
       # webmods_validation test on regular CI.

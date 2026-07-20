@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static mod-portal generator - Python port of the Rust `nova_portal_gen` crate.
+"""The static mod-portal generator (the deploy workflow + preview script run this).
 
 Interim build-time tool (task 20260718-152247): a hosted mods API will eventually
 replace it wholesale. It scans a SOURCE directory of mod folders (`webmods/` in
@@ -9,10 +9,12 @@ manifest-level PUBLISH gates, and writes a deterministic portal tree:
     <out>/catalog.json                  # PortalCatalog (JSON, schema-versioned)
     <out>/<id>/<version>/<files...>     # every file of the mod, verbatim copy
 
-Output is BYTE-FOR-BYTE identical to the Rust generator's (the oracle kept for one
-release; see tasks/20260718-152247/TASK.md). Stdlib only.
+Originally a byte-for-byte port of the now-removed Rust `nova_portal_gen` crate
+(task 20260720-230924 retired the crate once this was proven at parity). Stdlib
+only. Its publish gates are exercised by
+`crates/nova_assets/tests/gen_portal_gate.rs`.
 
-The PUBLISH gates (each rejects with a non-zero exit, mirroring the Rust crate):
+The PUBLISH gates (each rejects with a non-zero exit):
   - the shipped catalog parses; a portal id may not collide with a shipped id
   - the source has at least one mod (refuse to publish an empty portal)
   - each mod has exactly one *.bundle.ron at its root and it parses
@@ -40,7 +42,7 @@ from pathlib import Path
 
 PORTAL_SCHEMA_VERSION = 1
 
-# Mirror of nova_assets::mod_refs::ASSET_EXTENSIONS (see the Rust crate). A
+# Mirror of nova_assets::mod_refs::ASSET_EXTENSIONS. A
 # scheme-less content string ending in one of these is a bare asset ref.
 ASSET_EXTENSIONS = frozenset(
     [
@@ -421,7 +423,7 @@ def ron_parse(text):
 
 
 # ---------------------------------------------------------------------------
-# Ref walking (mirrors nova_portal_gen's collect_self_refs / collect_dep_refs /
+# Ref walking (mirrors nova_assets::mod_refs's collect_self_refs / collect_dep_refs /
 # collect_bare_refs over a parsed value tree - String leaves only).
 # ---------------------------------------------------------------------------
 

@@ -41,7 +41,7 @@ copy this folder as a template:
 
 ## How it publishes
 
-`nova_portal_gen` copies this folder to `site/mods/gauntlet/<version>/` and lists
+`scripts/gen-portal.py` copies this folder to `site/mods/gauntlet/<version>/` and lists
 it in `catalog.json` with per-file `size` + `sha256`. The full flow - the
 generator invocation, the validation gates, and the deploy - is in
 `web/src/wiki/dev/guide-make-a-mod.md` (Publish to the portal).

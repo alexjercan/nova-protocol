@@ -1,8 +1,8 @@
 //! The DEEP publish gate for portal mods (task 20260715-142900): every bundle
 //! under the repo-root `webmods/` must load through the REAL modding loaders -
 //! manifest, every content file, every config tree - to a recursive `Loaded`.
-//! The portal generator (`nova_portal_gen`) deliberately validates only what a
-//! manifest gate can (it is engine-free so the deploy job stays fast); THIS
+//! The portal generator (`scripts/gen-portal.py`) deliberately validates only
+//! what a manifest gate can (it is engine-free so the deploy job stays fast); THIS
 //! test, running where CI already runs tests, is the "does the content
 //! actually load" half of publishing.
 //!

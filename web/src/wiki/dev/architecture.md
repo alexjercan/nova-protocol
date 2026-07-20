@@ -20,8 +20,7 @@ real code lives under `crates/`.
 | `nova_events`   | Game event kinds and entity identity components, shared between gameplay and scenario. |
 | `nova_assets`   | `bevy_asset_loader` setup. Loads glb/textures/shaders/sounds, then registers the built-in sections and scenarios. Owns the mod merge (`register_bundles`, `EnabledMods`, `ModCatalog`) and prefs persistence. |
 | `nova_modding`  | Bundle/content/catalog ASSET LOADERS and the `Content` routing enum. See [Modding data format (RON)](../modding-ron/). |
-| `nova_mod_format` | Pure serde types for the mod formats (bundle manifests, catalog declarations, the portal wire schema). Engine-free; re-exported by `nova_modding`. |
-| `nova_portal_gen` | Binary: generates the static mod portal (catalog.json + hashed file copies) from `webmods/`. Engine-free. See [Mod portal](../mod-portal/). |
+| `nova_mod_format` | Pure serde types for the mod formats (bundle manifests, catalog declarations, the portal wire schema). Engine-free; re-exported by `nova_modding`. The static mod portal is built by `scripts/gen-portal.py`, not a crate. See [Mod portal](../mod-portal/). |
 | `nova_ui`       | Shared UI: the theme palette/metrics (`theme::*`) and the themed widgets (`widget`: button, selection machinery, panel header) the menu and editor draw from. |
 | `nova_debug`    | Debug-only plugin (inspector, overlays). Compiled only under the `debug` feature. |
 | `nova_info`     | Exposes `APP_VERSION`, injected by `build.rs`. |
@@ -42,7 +41,6 @@ graph TD
     scenario --> events
     assets --> modding["nova_modding"]
     modding --> modfmt["nova_mod_format"]
-    portal["nova_portal_gen"] --> modfmt
     menu --> ui["nova_ui"]
     editor --> ui
     core --> debug["nova_debug"]

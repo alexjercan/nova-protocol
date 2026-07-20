@@ -7,7 +7,8 @@
 //! observers, channel and poll system; `register_mods_source`; the real merge
 //! condition):
 //!
-//! - THE REAL WIRE: `nova_portal_gen::generate` builds a portal tree from a
+//! - THE REAL WIRE: `scripts/gen-portal.py` (the production generator, run as a
+//!   python3 subprocess) builds a portal tree from a
 //!   synthetic fixture source (no real mod named - task 20260716-155839),
 //!   `tiny_http` serves it on localhost, and the REAL `EhttpTransport`
 //!   fetches it - catalog to `RemoteCatalog::Ready`, install to cached
@@ -234,7 +235,7 @@ fn assert_nothing_committed(app: &App, guard: &CacheRootGuard, id: &str, paths: 
 }
 
 // ---------------------------------------------------------------------------
-// The real wire: nova_portal_gen tree + tiny_http + the production
+// The real wire: gen-portal.py tree + tiny_http + the production
 // EhttpTransport.
 // ---------------------------------------------------------------------------
 
@@ -323,7 +324,7 @@ fn serve_portal_tree(root: std::path::PathBuf) -> String {
 /// portal client fails this test: no fetch -> no Ready; no commit -> no
 /// cached files; no DownloadedMods push -> no merge; no EnabledMods strip ->
 /// the last assert. (Whether the real webmods/ tree publishes is
-/// nova_portal_gen's generic every-dir-publishes test, not this one.)
+/// gen_portal_gate.rs's real-webmods-publishes test, not this one.)
 #[test]
 fn portal_fetch_install_enable_uninstall_over_the_wire() {
     let guard = cache_root_guard();
@@ -333,15 +334,34 @@ fn portal_fetch_install_enable_uninstall_over_the_wire() {
     let source_dir = tempfile::tempdir().expect("temp mod source tree");
     let source_files = write_fixture_mod(source_dir.path());
     let portal_dir = tempfile::tempdir().expect("temp portal tree");
-    let generated = nova_portal_gen::generate(
-        source_dir.path(),
-        Some(Path::new("../../assets/mods.catalog.ron")),
-        portal_dir.path(),
-    )
-    .expect("generate the portal tree from the fixture source");
+    // Drive the PRODUCTION generator (scripts/gen-portal.py) the same way the
+    // deploy job does - a subprocess with --source/--shipped/--out. The crate
+    // was retired (task 20260720-230924); its gate coverage moved to
+    // tests/gen_portal_gate.rs. Absolute paths so cwd never matters; the shipped
+    // catalog stays wired in so the shipped-id collision gate is still exercised.
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("repo root resolves from CARGO_MANIFEST_DIR");
+    let status = std::process::Command::new("python3")
+        .arg(repo_root.join("scripts/gen-portal.py"))
+        .arg("--source")
+        .arg(source_dir.path())
+        .arg("--shipped")
+        .arg(repo_root.join("assets/mods.catalog.ron"))
+        .arg("--out")
+        .arg(portal_dir.path())
+        .status()
+        .expect("gen-portal.py runs (python3 on PATH)");
     assert!(
-        generated.entries.iter().any(|e| e.id == FIXTURE_ID),
-        "the fixture mod publishes"
+        status.success(),
+        "gen-portal.py must publish the fixture source tree"
+    );
+    let catalog_json = std::fs::read_to_string(portal_dir.path().join("catalog.json"))
+        .expect("catalog.json written by gen-portal.py");
+    assert!(
+        catalog_json.contains(&format!("\"{FIXTURE_ID}\"")),
+        "the fixture mod publishes (catalog.json names {FIXTURE_ID}):\n{catalog_json}"
     );
 
     let base_url = serve_portal_tree(portal_dir.path().to_path_buf());

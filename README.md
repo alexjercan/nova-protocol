@@ -181,7 +181,6 @@ deeper tour is in [`project-tour.md`](web/src/wiki/dev/project-tour.md).
 | `nova_debug` | Debug tooling (inspector, wireframe, overlays); `debug` feature only. |
 | `nova_probe` | Run-harness: frame-time capture + perf reporting over autopilot runs. |
 | `nova_meta_gen` | `.meta` sidecar generator for the web build (Trunk post_build hook). Lives under `tools/` (web-build tooling), a workspace member excluded from `default-members`. |
-| `nova_portal_gen` | Static mod-portal generator (`webmods/` -> `site/mods`). Superseded by `scripts/gen-portal.py`; kept one release as the byte-for-byte parity oracle, then removed (task 20260718-152247). |
 | `web` | The landing/content site (TypeScript + Webpack + Tailwind). |
 
 ## License

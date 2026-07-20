@@ -971,7 +971,7 @@ watch each event fire as you play, then edit, re-run, repeat.
 Once it works, do NOT leave it in the base bundle - package it as its OWN mod
 (its own folder, `*.bundle.ron`, and catalog entry), and optionally publish it to
 the portal so others can install it. The whole flow - bundle layout, local
-install, the `nova_portal_gen` publish step, and what a player sees - is
+install, the `scripts/gen-portal.py` publish step, and what a player sees - is
 [Make & publish a mod](../guide-make-a-mod/). The two guides are two halves of
 one job: THIS page is the scenario grammar; that one is how the file becomes an
 installable mod.

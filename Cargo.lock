@@ -4567,7 +4567,6 @@ dependencies = [
  "nova_gameplay",
  "nova_mod_format",
  "nova_modding",
- "nova_portal_gen",
  "nova_scenario",
  "ron",
  "serde",
@@ -4704,18 +4703,6 @@ dependencies = [
  "nova_scenario",
  "ron",
  "serde",
-]
-
-[[package]]
-name = "nova_portal_gen"
-version = "0.7.0"
-dependencies = [
- "clap",
- "nova_mod_format",
- "ron",
- "serde_json",
- "sha2",
- "tempfile",
 ]
 
 [[package]]

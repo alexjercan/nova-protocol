@@ -45,8 +45,10 @@ python3 scripts/gen-portal.py \
     --source webmods --shipped assets/mods.catalog.ron --out site/mods
 ```
 
-It is a byte-for-byte port of the (soon-to-be-removed) `nova_portal_gen` crate,
-which is kept for one release as a parity oracle (see task 20260718-152247). It
+It is the static mod-portal generator (originally a byte-for-byte port of a
+now-removed Rust crate; see task 20260718-152247). Its publish
+gates are exercised by `crates/nova_assets/tests/gen_portal_gate.rs`, which drives
+this script over synthetic fixtures. It
 validates what a manifest gate can - bundle parses, publishable meta, every
 listed content file exists, well-formed unique ids that do not collide with
 the SHIPPED catalog, dependencies resolve within the portal + shipped set -

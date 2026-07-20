@@ -362,7 +362,7 @@ export const WIKI_PAGES: WikiPage[] = [
         category: "Scenarios & mods",
         tags: ["dev", "guide", "modding"],
         summary:
-            "The mod-author lifecycle end to end - bundle anatomy and the stemmed-extension rule, overlay semantics, local testing, publishing to the portal with nova_portal_gen, what the player sees, and the honest sharp edges.",
+            "The mod-author lifecycle end to end - bundle anatomy and the stemmed-extension rule, overlay semantics, local testing, publishing to the portal with scripts/gen-portal.py, what the player sees, and the honest sharp edges.",
         related: [
             "dev/modding-ron",
             "dev/mod-portal",

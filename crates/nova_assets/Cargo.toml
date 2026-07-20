@@ -16,8 +16,8 @@ ron = { version = "0.12" }
 serde = { version = "1", features = ["derive"] }
 # The portal client (task 20260715-163508): ehttp is the one HTTP surface for
 # native (ureq worker thread) and wasm (browser fetch); serde_json decodes the
-# portal's catalog.json; sha2 verifies each downloaded file (0.10 to share the
-# workspace's existing pin with nova_portal_gen, which hashes the same files).
+# portal's catalog.json; sha2 verifies each downloaded file (0.10, the same pin
+# the deploy-time generator scripts/gen-portal.py hashes these files with).
 ehttp = { version = "0.7" }
 serde_json = { version = "1" }
 sha2 = { version = "0.10" }
@@ -68,9 +68,9 @@ bevy_rand = { version = "0.15.0", default-features = false, features = [
 # GameEventsPlugin), matching nova_scenario's own dep pin.
 bevy_common_systems = { git = "https://github.com/alexjercan/bevy-common-systems", tag = "v0.19.5" }
 nova_events = { path = "../nova_events" }
-# The portal e2e serves a real generated portal tree over localhost HTTP
-# (tiny_http) built by the production generator (nova_portal_gen).
-nova_portal_gen = { path = "../nova_portal_gen" }
+# The portal e2e (portal_install.rs) and the publish-gate test
+# (gen_portal_gate.rs) serve/exercise a real portal tree built by the production
+# generator scripts/gen-portal.py, invoked as a python3 subprocess.
 tempfile = "3"
 tiny_http = "0.12"
 

@@ -60,7 +60,7 @@ use crate::{
     DownloadedMod, DownloadedMods, EnabledMods, GameAssets,
 };
 
-/// The production portal base URL - the GitHub Pages tree `nova_portal_gen`
+/// The production portal base URL - the GitHub Pages tree `scripts/gen-portal.py`
 /// publishes next to the wasm build (web/src/wiki/dev/mod-portal.md).
 pub const DEFAULT_PORTAL_URL: &str = "https://alexjercan.github.io/nova-protocol/mods";
 
@@ -140,7 +140,7 @@ impl PortalConfig {
     }
 
     /// One mod file's URL: `<base>/<id>/<version>/<path>` (the tree layout
-    /// `nova_portal_gen` writes).
+    /// `scripts/gen-portal.py` writes).
     pub fn file_url(&self, id: &str, version: &str, path: &str) -> String {
         join_url(&self.base_url, &format!("{id}/{version}/{path}"))
     }
@@ -740,7 +740,7 @@ const MAX_TOTAL_SIZE: u64 = 128 * 1024 * 1024;
 
 /// The generator's PUBLISHED charset for the URL path segments an entry
 /// contributes (`<id>/<version>/<path>`): lowercase ascii alphanumerics plus
-/// `-` and `.` for ids/versions (`validate_id` in nova_portal_gen is even
+/// `-` and `.` for ids/versions (`validate_id` in scripts/gen-portal.py is even
 /// tighter - no dots - but versions like `1.0.0` need them). Never a
 /// dot-only segment (`.`/`..`).
 fn is_url_safe_segment(s: &str) -> bool {

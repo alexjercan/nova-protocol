@@ -37,8 +37,7 @@ for responsibilities and the dependency graph.
 | `nova_events` | Shared game-event kinds + entity identity components (gameplay <-> scenario). |
 | `nova_assets` | `bevy_asset_loader` setup; loads glb/textures/shaders/sounds; owns the mod merge + prefs. |
 | `nova_modding` | Bundle/content/catalog asset loaders and the `Content` routing enum. |
-| `nova_mod_format` | Pure serde types for the mod formats (engine-free); re-exported by `nova_modding`. |
-| `nova_portal_gen` | Binary: generates the static mod portal from `webmods/` (engine-free). |
+| `nova_mod_format` | Pure serde types for the mod formats (engine-free); re-exported by `nova_modding`. The static mod portal is built by `scripts/gen-portal.py`. |
 | `nova_editor` | The ship editor scene (`NovaEditorPlugin`), shown in `GameMode::Sandbox`. |
 | `nova_menu` | Main menu + the ESC pause overlay; hands off to `Playing`. |
 | `nova_ui` | Shared theme palette/metrics and themed widgets the menu and editor draw from. |

@@ -5,7 +5,7 @@
 // scenario files (claim jumpers, then the heavies) so a death retries the
 // current act, not the chapter - the difficulty rework of task
 // 20260717-112630. A PORTAL mod like gauntlet: lives under webmods/,
-// published by nova_portal_gen, never shipped inside assets/.
+// published by scripts/gen-portal.py, never shipped inside assets/.
 (
     content: [
         "ledger_ch1.content.ron",

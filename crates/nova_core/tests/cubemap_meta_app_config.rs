@@ -99,7 +99,7 @@ fn app_asset_config_loads_cubemap_alt_as_six_layer_array() {
 ///
 /// This loads the SHIPPED path (default file source, `assets/mods/example/...`).
 /// The DOWNLOADED path (a `mods://` source reading a cached sidecar) is not
-/// exercised here; its coverage rests on `nova_portal_gen` packaging every mod
+/// exercised here; its coverage rests on `scripts/gen-portal.py` packaging every mod
 /// file verbatim (the `.meta` included) so the sidecar lands in the cache -
 /// asserted by `nova_assets/tests/mod_binary_resources.rs`.
 #[test]
