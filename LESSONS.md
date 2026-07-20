@@ -565,6 +565,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `deleted-content-tests-carry-engine-coverage` (x1): data tests can be the
   only exercise of an engine mechanism; re-pin at the owning crate before
   deleting them. 20260716-155830.
+- `re-homed-coverage-keeps-assertion-fidelity` (x1): re-homing a test onto a
+  different tool (Rust lib -> subprocess/script) must carry the ASSERTION, not
+  just the case - if the original checked WHY it failed (error string), the port
+  checks the same, else coverage silently degrades to "something went wrong".
+  Count of cases != fidelity. 20260720-230924.
 - `two-clocks` (family): FixedUpdate reads raw Position/Rotation; render-rate
   reads eased Transform; one computation, one clock, one frame. Full rule:
   tasks/20260711-103527/SPIKE.md.
