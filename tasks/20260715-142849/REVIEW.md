@@ -27,7 +27,7 @@ nova_menu 13, all passing; fmt clean.
   doc did not warn that it must be `icon: Some("icon.png")`.
   - Response: fixed on-branch - the doc bullet now spells out the
     `Some("icon.png")` requirement. Verified by reviewer.
-- [x] R1.2 (NIT, pre-existing) crates/nova_menu/src/lib.rs
+- [x] R1.2 (NIT) [pre-existing] crates/nova_menu/src/lib.rs
   `mods_panel_lists_catalog_demo_toggle_base_locked` - asserted only the
   `ModToggle` ids; no test pinned that the rendered `Text` nodes carry
   `meta.name`/`meta.description`, so a swapped field in `spawn_mod_row` would

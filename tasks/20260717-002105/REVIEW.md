@@ -29,14 +29,14 @@ outside the crates/ test trees.
     correct. Verified `examples/data/reel.content.ron` is the ONLY content file
     under `examples/`, and every other bare-ref grep hit is `#[cfg(test)]`
     synthetic data.
-- [ ] R1.2 (MINOR, PRE-EXISTING, deferred) crates/nova_core/src/lib.rs:245 - the
+- [ ] R1.2 (MINOR) [PRE-EXISTING, deferred] crates/nova_core/src/lib.rs:245 - the
   `meta_check` `Paths` set lists only `cubemap.png` (now `base/textures/cubemap.png`),
   not `cubemap_alt.png`, though `cubemap_alt.png.meta` carries the cube
   `RowCount(6)` layout and cubemap_alt IS a live skybox (broadside). This was
   already true on master (not a migration regression); flagged because the
   migration is when these paths get audited. Deferred to a follow-up, not changed
   here (adding it alters skybox rendering behavior and wants a visual check).
-- [ ] R1.3 (MINOR, out-of-scope, deferred) the author wiki
+- [ ] R1.3 (MINOR) [out-of-scope, deferred] the author wiki
   (guide-author-scenario.md, guide-make-a-mod.md, modding-ron.md,
   guide-author-section.md) still teaches the OLD bare-ref pattern that this
   migration + the bare-ref lint (task 20260717-002133) retire. Prose only, no

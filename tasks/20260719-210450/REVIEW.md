@@ -37,4 +37,4 @@
 
 ## Verdict
 
-APPROVE - land per the stacked-flow authorization.
+- VERDICT: APPROVE - land per the stacked-flow authorization.

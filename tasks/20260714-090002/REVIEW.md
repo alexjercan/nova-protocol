@@ -2,7 +2,9 @@
 
 Branch: `feat/salvage-pickup-polish`
 
-## Verdict: APPROVE (after one MAJOR fixed in-cycle)
+## Verdict
+
+- VERDICT: APPROVE (after one MAJOR fixed in-cycle)
 
 ## Scope reviewed
 

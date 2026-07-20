@@ -7,7 +7,7 @@
 
 - VERDICT: APPROVE (fresh-context agent review; findings non-blocking)
 
-- [x] R1.1 (INFO) latest-wins pending refresh collapses back-to-back
+- [x] R1.1 (NIT) latest-wins pending refresh collapses back-to-back
   transitions to one blip - judged acceptable and spec'd (generic cue,
   no stacking).
 - [x] R1.2 (MINOR) a completion-only change while a blip is pending did

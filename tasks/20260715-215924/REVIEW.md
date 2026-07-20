@@ -26,7 +26,7 @@ re-bucketing. Verified:
 
 Content correctness caught in-scope:
 
-- [x] R1.1 (MAJOR, fixed) The player `modding` page asserted the RON modding
+- [x] R1.1 (MAJOR) [fixed in-review] The player `modding` page asserted the RON modding
   format is "planned, not shipped yet" - false; the format shipped (the whole
   creators band documents it). Rewrote the page as the creators-band front door
   and fixed the matching stale "authoring is on the way" line in `scenarios.md`.

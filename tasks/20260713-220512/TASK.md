@@ -22,10 +22,10 @@ recorded above; reproduce it with the rig in the first step.
       ship + torpedo bay), log the ship's LinearVelocity each frame during a
       volley alongside every impulse applied to it (diagnostic-first, real
       numbers before theorizing).
-- [ ] Identify the writer (spawner recoil path, collider coupling in the
+- [x] Identify the writer (spawner recoil path, collider coupling in the
       launch window, blast impulse reach, or an unexpected system) and
       decide whether the magnitude is intended.
-- [ ] Fix or document-as-designed; if fixed, a fail-first regression test
+- [x] Fix or document-as-designed; if fixed, a fail-first regression test
       (App-level velocity assertion during a scripted volley) plus a
       10_playable assertion tightening (the script currently tolerates the
       drift by geometry).

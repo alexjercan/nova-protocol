@@ -28,5 +28,5 @@
 
 ## Verdict
 
-APPROVE - land immediately (the user's fleet runs are exposed until it
+- VERDICT: APPROVE - land immediately (the user's fleet runs are exposed until it
 lands).

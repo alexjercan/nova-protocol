@@ -34,4 +34,4 @@
 
 - [x] Follow-up 20260717-162121 (mount-base adjacency lint) - the
   mechanical guard for this whole class, born on the branch.
-- [x] docs/LESSONS.md: new lesson cited-finding-reread-not-recalled (x1).
+- [x] LESSONS.md: new lesson cited-finding-reread-not-recalled (x1).

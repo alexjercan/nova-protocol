@@ -39,4 +39,4 @@
 
 ## Verdict
 
-APPROVE - land.
+- VERDICT: APPROVE - land.

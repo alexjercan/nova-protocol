@@ -61,7 +61,7 @@ See TASK.md for what/why and REVIEW.md for the findings; this is process only.
 
 ## Action items
 
-- [x] Both lessons appended to docs/LESSONS.md (`mirror-sibling-resolve-site`,
+- [x] Both lessons appended to LESSONS.md (`mirror-sibling-resolve-site`,
   `piped-cargo-masks-exit-code`).
 - No follow-up code task: torpedo/thruster/damage sounds were deliberately scoped
   out (documented in TASK.md + design doc) and are a clean future extension, not a

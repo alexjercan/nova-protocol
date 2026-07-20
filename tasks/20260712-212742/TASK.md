@@ -57,18 +57,18 @@ GOTO) stays aim-driven and separate (do NOT make it sticky - review R1.1 of
 
 ## Steps
 
-- [ ] In `update_spaceship_target_input` candidate collection
+- [x] In `update_spaceship_target_input` candidate collection
       (input/targeting.rs), add a `is_combat_target` flag to the collected
       tuple = `is_ship || (committed hostile torpedo:
       TorpedoProjectileMarker + TorpedoTargetChosen)`. Keep the local `is_ship`
       for the range-gate branch; replace the tuple's 4th field (currently
       `is_ship`, only consumed by the ranked-candidate filter) with
       `is_combat_target`.
-- [ ] Rank filter (`rank_ship_candidates` caller): `is_hostile &&
+- [x] Rank filter (`rank_ship_candidates` caller): `is_hostile &&
       is_combat_target` so the candidate `entries` (the CTRL+scroll cycle set,
       the candidate HUD, edge indicators) include committed hostile torpedoes.
       Rename `rank_ship_candidates` -> `rank_combat_targets` (+ doc) for clarity.
-- [ ] Sticky `held`: gate on `is_combat_target` (not just `is_ship`), so a
+- [x] Sticky `held`: gate on `is_combat_target` (not just `is_ship`), so a
       cycled/acquired committed torpedo is also sticky (holds while you shoot
       it) and reverts to the aim pick when it dies / leaves range. Nav bodies
       stay non-combat -> non-sticky.
@@ -77,7 +77,7 @@ GOTO) stays aim-driven and separate (do NOT make it sticky - review R1.1 of
       body does not steal it); a passing torpedo still does NOT auto-steal a
       held ship lock; a non-combat nav lock (asteroid/beacon) stays aim-driven
       (re-designates). Reuse the `multi_target_world` rig style.
-- [ ] Verify: `cargo test -p nova_gameplay targeting`; 12_hud_range +
+- [x] Verify: `cargo test -p nova_gameplay targeting`; 12_hud_range +
       10_gameplay autopilots green.
 
 ## Notes

@@ -51,4 +51,4 @@ Findings:
   single-player assumption as camera_controller's `action_held`; fine
   until multiplayer, not this task's problem.
 
-VERDICT: APPROVE (round 1, with R1.1 folded in).
+- VERDICT: APPROVE (round 1, with R1.1 folded in).

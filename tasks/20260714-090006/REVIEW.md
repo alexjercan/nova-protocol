@@ -2,7 +2,9 @@
 
 Branch: `feat/ui-feedback-sfx`
 
-## Verdict: APPROVE
+## Verdict
+
+- VERDICT: APPROVE
 
 Self-review found no correctness bugs; a few design decisions are recorded below.
 

@@ -51,4 +51,4 @@ pip color-only exception, the dropped center-screen ghost fallback (dead
 code path - the writer guarantees Some), and the mid-task user fold-in
 (panel below the status bar). All verified against the diff.
 
-VERDICT: APPROVE (round 1, with R1.1/R1.2 folded in).
+- VERDICT: APPROVE (round 1, with R1.1/R1.2 folded in).

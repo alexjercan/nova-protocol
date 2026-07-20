@@ -35,4 +35,4 @@ Playtest notes (knobs, not blockers): a pre-beat-4 CTRL press buzzes with
 no textual explanation (diegetic, but watch for confusion); beat-4 text is
 three sentences - trim if it wraps badly.
 
-VERDICT: APPROVE (round 1).
+- VERDICT: APPROVE (round 1).

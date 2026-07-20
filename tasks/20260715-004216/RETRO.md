@@ -45,7 +45,7 @@ verification. Process observations only below.
 ## Action items
 
 - [x] bumped `verify-the-nit-compiles` neighbour lesson set: added
-  `render-output-eyeball` and `roundtrip-hides-shared-bug` to docs/LESSONS.md.
+  `render-output-eyeball` and `roundtrip-hides-shared-bug` to LESSONS.md.
 - [ ] tatr 20260715-092658 (follow-up, OPEN): the 3 devlog thumbnails, deferred
   at the user's request (source choices not decided).
 </content>

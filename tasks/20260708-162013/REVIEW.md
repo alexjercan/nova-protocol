@@ -62,7 +62,7 @@ implementer's discretion.
 - BRANCH: feature/hit-feedback-juice (2 commits) -> master
 - REVIEWED AT: 1301813 (branch tip)
 - TASK: 20260708-162013 (1 review round on-branch, APPROVE, both MINORs addressed)
-- VERDICT: **APPROVE** (no blockers or majors; merge as is. The findings below
+- VERDICT: APPROVE (no blockers or majors; merge as is. The findings below
   are follow-ups, filed as tasks - see "Follow-ups" at the end)
 
 ### Scope

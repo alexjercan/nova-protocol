@@ -18,7 +18,7 @@
 
 - [x] R1.2 (MINOR) crates/nova_gameplay/src/audio.rs:896 -
   `a_distant_ships_burn_does_not_raise_the_hum` is a "stays zero" assertion with no
-  in-test delivery guard (docs/LESSONS.md `delivery-guards-on-null-assertions`,
+  in-test delivery guard (LESSONS.md `delivery-guards-on-null-assertions`,
   promoted to the review skill): if `spawn_burning_ship` ever drifted out of the
   system's query shape, the test would pass vacuously. Today the guard is only
   cross-test (the midrange/combine tests assert nonzero through the same helper).
@@ -82,7 +82,7 @@
   smoothing advancement (R1.3).
 - Two-clocks convention: `compute_thruster_hum_volume` is a render-rate consumer
   running in Update and reading `GlobalTransform` for both listener and ship - the
-  eased pose, which is exactly what docs/LESSONS.md `two-clocks` prescribes for
+  eased pose, which is exactly what LESSONS.md `two-clocks` prescribes for
   render-rate consumers. Correct clock; both poses come from the same frame's
   propagation, so no clock mixing.
 

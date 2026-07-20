@@ -20,7 +20,7 @@ APPROVE.
 ## Round 1
 
 - DATE: 20260713-222025
-- VERDICT: REQUEST_CHANGES (round 1)
+- Round 1 VERDICT (superseded by the round 2 APPROVE above): REQUEST_CHANGES
 
 Reviewed the `style.css` rewrite + `index.html` markup against the task Goal and
 the spike's Option B. Palette and banner are untouched, the floaty levers are

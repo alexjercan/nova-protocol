@@ -38,5 +38,5 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: new lesson `author-facing-schema-needs-syntax-doc`;
+- [x] LESSONS.md: new lesson `author-facing-schema-needs-syntax-doc`;
   bumped `out-of-context-review-pass`.

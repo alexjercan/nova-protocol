@@ -60,7 +60,7 @@ status in the spike's fix record.
 
 - [x] Bumped `shared-checkout-write-leak` (x2) and added
   `per-crate-test-needs-gated-features` + `grep-test-module-before-adding-a-helper`
-  to docs/LESSONS.md.
+  to LESSONS.md.
 - No follow-up code tasks: the deferred items (RcsSpeedCap scenario authoring,
   the deflection->cap feel decision) are already routed to the sibling tasks
   (-122912) and NOTES.md; the RCS family's remaining work (input/HUD/autopilot)

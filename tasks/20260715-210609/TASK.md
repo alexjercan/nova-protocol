@@ -45,13 +45,13 @@ current behavior (do not add or drop meta).
 
 ## Steps
 
-- [ ] Add `blogPostPage` + `blogPostShell` to markdown.js; extend the config with
+- [x] Add `blogPostPage` + `blogPostShell` to markdown.js; extend the config with
       `BLOG_POSTS`; wire the rewrites off it.
-- [ ] Convert the 5 devlog posts to `web/src/posts/devlog-*.md` (article content
+- [x] Convert the 5 devlog posts to `web/src/posts/devlog-*.md` (article content
       only; meta/h1/footer come from the shell; figures + video embeds as raw
       HTML; relative cross-links). Capture each post's date/version/description
       from its current `prose__meta` + `<meta>` into the BLOG_POSTS entry.
-- [ ] `git rm` the old post HTML; remove the dead `page("post", ...)` entries.
+- [x] `git rm` the old post HTML; remove the dead `page("post", ...)` entries.
 - [ ] Verify: `npm run ci` green; serve + headless-eyeball a converted post
       (meta line, figures upgrade, YouTube embed renders, footer + back-to-blog,
       code/kbd), the blog index still links correctly; check at the deploy

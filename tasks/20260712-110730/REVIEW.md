@@ -9,7 +9,7 @@
   but the user's live playtest of the branch found a runtime BLOCKER the
   same hour - recorded here as R1.5 and the round re-verdicted)
 
-- [x] R1.1 (MINOR, agent) loader.rs - once-per-engagement OnOrbit is
+- [x] R1.1 (MINOR) [agent] loader.rs - once-per-engagement OnOrbit is
   fragile: an event consumed while a beat guard rejects it is gone for
   good; unreachable in shakedown today but a landmine for future
   scenarios.
@@ -17,19 +17,19 @@
     the orbit is held (held_secs resets instead of a fired flag);
     beat-gated handlers make repeats no-ops. Test reworked to assert
     once-per-window recurrence plus fresh-clock-on-re-engage.
-- [x] R1.2 (MINOR, agent) loader.rs - `fired = true` was set before the
+- [x] R1.2 (MINOR) [agent] loader.rs - `fired = true` was set before the
   well-id lookup, so an unaddressable well silently consumed the
   engagement.
   - Response: fixed by the same rework - the window resets and the next
     window retries the lookup.
-- [x] R1.3 (NIT, agent) AsteroidHealth still inserted on invulnerable
+- [x] R1.3 (NIT) [agent] AsteroidHealth still inserted on invulnerable
   roots (ignored value, inspector noise).
   - Response: left as-is - the component documents the authored value
     and removing it conditionally complicates the bundle for zero
     behavior change.
-- [x] R1.4 (NIT, agent) TASK.md "13 new tests" overcounted.
+- [x] R1.4 (NIT) [agent] TASK.md "13 new tests" overcounted.
   - Response: fixed - reworded to name the tests instead of counting.
-- [x] R1.5 (BLOCKER, user playtest) hud/mod.rs - the objectives panel
+- [x] R1.5 (BLOCKER) [user playtest] hud/mod.rs - the objectives panel
   spawn tuple carried TWO Node components (the bcs panel bundle's and
   nova's override): bevy PANICS on duplicate components in one bundle
   ("Bundle ... has duplicate components: [bevy_ui::ui_node::Node]") the

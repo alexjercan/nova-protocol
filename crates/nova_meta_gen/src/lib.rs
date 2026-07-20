@@ -10,7 +10,7 @@
 //! HTML body; Bevy then tries to parse that HTML as RON and fails with
 //! `Failed to deserialize meta ... ExpectedNamedStructLike("AssetMetaMinimal")`,
 //! and the asset never loads. See
-//! the `asset-meta-always-web-cost` lesson (docs/LESSONS.md) for the trace.
+//! the `asset-meta-always-web-cost` lesson (LESSONS.md, repo root) for the trace.
 //!
 //! The fix is to make sure every asset actually HAS a `.meta`, so the server
 //! never has to serve a missing one. This tool writes the default `.meta` for

@@ -23,7 +23,7 @@ claims rather than trusting the summary:
 
 Findings:
 
-- [x] R1.1 (verification, not a defect) The new guard must fail without the fix.
+- [x] R1.1 (NIT) [verification, not a defect] The new guard must fail without the fix.
   Sabotage-verified: copied the manifest to the un-stemmed `bundle.ron`, pointed the
   untyped test at it -> it panicked with the exact in-game error
   ("Could not find an asset loader matching: Asset Type: None; Path: base/bundle.ron");

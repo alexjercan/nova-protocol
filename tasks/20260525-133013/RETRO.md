@@ -55,7 +55,7 @@ See TASK.md for what/why and REVIEW.md for the findings; this is process only.
 
 ## Action items
 
-- [x] Added `gate-producer-and-its-consumers` to docs/LESSONS.md.
+- [x] Added `gate-producer-and-its-consumers` to LESSONS.md.
 - No follow-up code task: the provisional tuning constants are intentionally
   deferred to the baseline task (20260716-123551), which already carries that
   scope; nothing new to file.

@@ -37,7 +37,7 @@
 
 ## Action items
 
-- [x] Recorded `verbosity-invites-fabrication` in docs/LESSONS.md.
+- [x] Recorded `verbosity-invites-fabrication` in LESSONS.md.
 - [x] Applied the review fix (0.5.0 damage-type flavor reduced to name-only).
 - [ ] Screenshots for the figure__placeholder slots (now more of them across the
   6 expanded posts) still need capturing.

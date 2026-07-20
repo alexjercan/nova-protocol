@@ -40,5 +40,5 @@ A smooth cycle; short retro to say so. See TASK.md/REVIEW.md for detail.
 
 ## Action items
 
-- [x] docs/LESSONS.md: keep-docs-in-sync-with-code bumped x3 -> x4 with the
+- [x] LESSONS.md: keep-docs-in-sync-with-code bumped x3 -> x4 with the
   002228 occurrence.

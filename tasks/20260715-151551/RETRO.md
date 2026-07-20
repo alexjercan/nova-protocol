@@ -41,5 +41,5 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: sharpened `sweep-then-delete` (rustdoc/comment prose in
+- [x] LESSONS.md: sharpened `sweep-then-delete` (rustdoc/comment prose in
   all file types) and bumped it; bumped `out-of-context-review-pass`.

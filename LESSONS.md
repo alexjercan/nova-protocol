@@ -107,10 +107,6 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   pins all N - count gates in the diff, count pins. 20260717-112639.
 - `prose-invariant-becomes-pin` (x1): a design invariant stated in prose
   becomes a computed assertion in the same sitting. 20260717-112630.
-- `prose-from-diff-not-intent` (x3, PENDING): write CHANGELOG/wiki/NOTES
-  from the final diff (count sites by counting the diff), then re-read
-  asking "does the prose claim anything the diff does not do?".
-  20260717-112622, 20260717-163058, 20260719-001600.
 - `doc-lint-autofix-misreads-prose` (x1): clippy --fix on doc lints
   silences the marker misparse instead of fixing it - rewrap the prose so
   no line starts with `-`/`+`/`>=`; re-read every --fix doc hunk.
@@ -166,11 +162,6 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `relocation-leaves-ignored-siblings` (x1, PROMOTED 2026-07-19 -> sprout
   skill): gitignored files exist only in the main checkout; clean them up
   after landing a stop-shipping-dir move. 20260714-154958.
-- `verify-stale-brief-against-tree` (x3, PENDING): task briefs go stale -
-  read the live tree/scene before trusting the premise; reproduce-first
-  against the CURRENT tree can falsify a bug's FIX SCOPE too, not just its
-  premise (a landed loop feature left the filed partial-emit pipeline with no
-  caller). 20260714-154958, 20260718-004834, 20260719-233732.
 - `match-ci-feature-set-in-targeted-tests` (x2): run targeted tests with CI's
   feature set or feature-gated test code fails to compile and reads as a
   regression. 20260718-004834, 20260718-102022.
@@ -253,10 +244,6 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   20260718-152205.
 - `ci-skips-client-render` (x1): build-only CI proves the bundle compiles;
   DOM logic needs a runtime check. 20260713-225324.
-- `render-output-eyeball` (x5): a dimensionally-valid generated ARTIFACT can
-  still be empty/wrong while every exit code is green - open it (an all-green
-  profiled pass produced a header-only table); a layout task is unverified
-  until someone SEES it rendered. 20260718-122923, 20260719-112253.
 - `degrade-paths-need-a-forced-failure` (x1): a plan-claimed fallback ("skips
   gracefully when blocked") is untested until that failure is FORCED once -
   the samply perms case died under set -e and a user found it.
@@ -398,28 +385,17 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   skills): a verification that cannot fail with the mechanism deleted proves
   nothing; a sabotage that will not go red refutes the assumed mechanism or
   the test's shape. 20260711-180426, 20260717-163033.
-- `out-of-context-review-pass` (positive, x31): a fresh-context review
-  re-derives load-bearing claims (spawn sites, algorithms, engine semantics,
-  spike API claims) and catches MAJORs shared-session eyes miss; verify the
-  verifier's counterexamples too. 20260717-212219, 20260719-112011.
 - `required-component-in-shared-query` (x2): a required fetch narrows an
   existing query's membership; fetch `Option<&T>` or use a separate query.
   20260712-143832.
 - `spike-open-question-pays-off` (positive, x1): a spike naming a risky
   unknown lets the implementer resolve it before wiring. 20260712-143832.
-- `authored-vs-derived-values` (x4): author content against measured runtime
-  consts, and encode layout invariants as computed rig assertions - carried-
-  over positions need the same derivation as new ones. 20260716-124722,
-  20260717-112630.
 - `verify-engine-guarantees-in-source` (x9, PROMOTED 2026-07-19 -> plan
   skill): read the dependency's source or probe before designing around its
   ordering/observer/failure/API behavior - doc comments (upstream AND ours)
   are folklore, and SPIKE docs stating a dependency capability cite the
   verifying grep too (a spike claimed a Bevy per-system diagnostic that does
   not exist). 20260717-133332, 20260719-112011.
-- `advertised-but-unwired` (x3): a config surface is not a capability until
-  producer/consumer wiring and preconditions are verified in the new context.
-  20260712-093044.
 - `cross-cycle-warning-with-numbers` (positive, x2): write hazards and
   findings belonging to a QUEUED task into that task's TASK.md with
   specifics. 20260711-140234, 20260716-155823.
@@ -538,7 +514,6 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   a step only when every clause is done, or split/amend it in the same edit;
   never bulk-tick with sed - tick each step individually re-reading its
   clauses against the diff. 20260718-122912, 20260719-114931.
-
 - `upstream-dev-via-patch-not-premature-push` (x1): when a change spans
   bcs + nova, develop nova against the LOCAL bcs branch - never push
   unfinished upstream work just to make the pin resolve. What actually
@@ -682,9 +657,29 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 ## Pending promotions (3+ occurrences, user decides)
 
 - `prose-from-diff-not-intent` (x3) -> work skill's close-out/NOTES step
-  (or compound): derive record prose and counts from the final diff, never
-  from the memory of making the edits.
+  (or compound): write CHANGELOG/wiki/NOTES from the final diff (count sites
+  by counting the diff), then re-read asking "does the prose claim anything
+  the diff does not do?". 20260717-112622, 20260717-163058, 20260719-001600.
 - `verify-stale-brief-against-tree` (x3) -> plan/work skill (bug playbook):
-  reproduce-first against the CURRENT tree before implementing a filed bug -
-  a subsystem change since filing can shrink or falsify the fix scope
-  (partial-emit had no caller once looping landed).
+  task briefs go stale - reproduce-first against the CURRENT tree before
+  implementing a filed bug; a subsystem change since filing can shrink or
+  falsify the fix scope (partial-emit had no caller once looping landed).
+  20260714-154958, 20260718-004834, 20260719-233732.
+- `render-output-eyeball` (x5) -> work/review skill: a dimensionally-valid
+  generated ARTIFACT can still be empty/wrong while every exit code is green -
+  open it (an all-green profiled pass produced a header-only table); a layout
+  task is unverified until someone SEES it rendered. 20260718-122923,
+  20260719-112253.
+- `authored-vs-derived-values` (x4) -> work skill: author content against
+  measured runtime consts, and encode layout invariants as computed rig
+  assertions - carried-over positions need the same derivation as new ones.
+  20260716-124722, 20260717-112630.
+- `advertised-but-unwired` (x3) -> plan/review skill: a config surface is not
+  a capability until producer/consumer wiring and preconditions are verified
+  in the new context. 20260712-093044.
+- `out-of-context-review-pass` (positive, x31) -> already /flow's round-1
+  practice; user decides whether to annotate PROMOTED/absorbed: a
+  fresh-context review re-derives load-bearing claims (spawn sites,
+  algorithms, engine semantics, spike API claims) and catches MAJORs
+  shared-session eyes miss; verify the verifier's counterexamples too.
+  20260717-212219, 20260719-112011.

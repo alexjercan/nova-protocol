@@ -48,13 +48,13 @@ the top linking its guide; each guide links back to its reference page.
 
 ## Steps
 
-- [ ] Regroup categories + reassign page categories in `web/src/wiki-pages.ts`.
-- [ ] Author the 5 new markdown pages under `web/src/wiki/dev/`, grounded in the
+- [x] Regroup categories + reassign page categories in `web/src/wiki-pages.ts`.
+- [x] Author the 5 new markdown pages under `web/src/wiki/dev/`, grounded in the
       code (verify every file:line and RON example against the tree; use mermaid
       where a flow/checklist reads better as a diagram).
-- [ ] Register the 5 pages in `web/webpack.config.js` WIKI_DOC_PAGES + manifest
+- [x] Register the 5 pages in `web/webpack.config.js` WIKI_DOC_PAGES + manifest
       entries (with headings + cross-links) in `web/src/wiki-pages.ts`.
-- [ ] Add "to extend this, see <guide>" pointers atop the reference pages.
+- [x] Add "to extend this, see <guide>" pointers atop the reference pages.
 - [ ] Verify: `npm run ci` green; serve + headless-eyeball the new pages (render,
       diagrams, sidebar groups, search, see-also); check at the deploy subpath.
 

@@ -2,7 +2,9 @@
 
 Branch: `chore/dependency-licenses`
 
-## Verdict: APPROVE
+## Verdict
+
+- VERDICT: APPROVE
 
 Delivers the task: a complete per-crate third-party license manifest that ships
 in every build, a copyleft/unknown-license gate, and generation wired so it

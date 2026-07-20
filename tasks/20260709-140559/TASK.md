@@ -24,7 +24,7 @@ This is a balance/design question, not a code bug:
 
 ## Steps
 
-- [ ] Decide the intended behavior with the user (blast friendly-fire on owner:
+- [x] Decide the intended behavior with the user (blast friendly-fire on owner:
       yes/no; salvo fratricide: yes/no) before touching code.
 - [ ] Apply the decision: config knobs on TorpedoSectionConfig (e.g. blast
       falloff, min self-damage range) or an owner/sibling exemption in the blast

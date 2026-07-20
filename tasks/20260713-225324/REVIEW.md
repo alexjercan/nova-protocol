@@ -22,7 +22,7 @@ APPROVE.
 
 ## Round 1
 
-- VERDICT: REQUEST_CHANGES
+- Round 1 VERDICT (superseded by the round 2 APPROVE above): REQUEST_CHANGES
 
 Reviewed the manifest (`wiki-pages.ts`), the chrome injector (`wiki.ts`), the
 wiki CSS, the manifest-rendered index, the two sample sub-pages, and the

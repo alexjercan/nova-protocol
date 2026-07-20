@@ -41,6 +41,6 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: new lesson new-cadence-reaudits-readers (x1);
+- [x] LESSONS.md: new lesson new-cadence-reaudits-readers (x1);
   production-faithful-rigs bumped (registration mirrored in rigs instead
   of shared).

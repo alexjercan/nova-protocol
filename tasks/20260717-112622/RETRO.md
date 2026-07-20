@@ -47,8 +47,8 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: reuse-production-helpers-in-tests bumped to x3 ->
+- [x] LESSONS.md: reuse-production-helpers-in-tests bumped to x3 ->
   Pending promotions (work skill candidate).
-- [x] docs/LESSONS.md: new lesson prose-from-diff-not-intent (x1).
-- [x] docs/LESSONS.md: verify-engine-guarantees-in-source bumped (positive:
+- [x] LESSONS.md: new lesson prose-from-diff-not-intent (x1).
+- [x] LESSONS.md: verify-engine-guarantees-in-source bumped (positive:
   wrong upstream doc comment caught by reading the implementation).

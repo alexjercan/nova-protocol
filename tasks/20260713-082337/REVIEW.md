@@ -36,7 +36,7 @@ Independent verification (shared-session blind-spot guard):
 
 Findings:
 
-- [ ] R1.1 (MINOR, recorded) The audio blip on the safety OFF->ON edge was
+- [ ] R1.1 (MINOR) [recorded] The audio blip on the safety OFF->ON edge was
   deferred for want of a sound asset; the status block covers the cue
   visually. Fold into the shakedown/polish pass (20260713-090653) where sound
   content is already in scope.

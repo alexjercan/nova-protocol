@@ -35,5 +35,5 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: production-faithful-rigs bumped (x8, the
+- [x] LESSONS.md: production-faithful-rigs bumped (x8, the
   hand-picked-state-vs-required-default variant).

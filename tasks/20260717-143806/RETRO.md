@@ -30,4 +30,4 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: bumped measure-before-writing-the-number (x2).
+- [x] LESSONS.md: bumped measure-before-writing-the-number (x2).

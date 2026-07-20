@@ -14,7 +14,7 @@ out-of-context pass that re-derived all six load-bearing claims from source
 hold and the freeze mechanism is the identical `PauseStates::Paused` the menu
 uses. Findings below are all MINOR/NIT and left to implementer discretion.
 
-- [x] R1.1 (MINOR, pre-existing - route to follow-up) crates/nova_scenario/src/loader.rs:252
+- [x] R1.1 (MINOR) [pre-existing - route to follow-up] crates/nova_scenario/src/loader.rs:252
   - `fire_on_update` is gated only on `scenario_is_live`, not on
   `PauseStates::Unpaused`, so the `OnUpdate` scenario pulse keeps firing while
   Paused, and OnUpdate handlers' actions still apply via the ungated PostUpdate

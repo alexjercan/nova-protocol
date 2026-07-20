@@ -40,5 +40,5 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: `validate-membership-not-existence` sharpened into the
+- [x] LESSONS.md: `validate-membership-not-existence` sharpened into the
   cross-domain rule (third occurrence -> flagged for promotion).

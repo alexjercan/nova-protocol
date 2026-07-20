@@ -73,7 +73,7 @@ deferred (the branch squash-merges back into the already-landed work):
   - Response: FIXED. Comment now says thumbnails share the capture and the site
     sizes them down with CSS at ~300px wide.
 
-- [ ] R1.4 (MINOR, left as-is) scripts/gen-web-screenshots.py aliases - an alias
+- [ ] R1.4 (MINOR) [left as-is] scripts/gen-web-screenshots.py aliases - an alias
   reads its source from `web/src/assets/` (already-copied), so if the source was
   not captured this run but a stale copy from a previous run exists, the alias
   silently propagates the stale image. Low impact given the regen workflow (a

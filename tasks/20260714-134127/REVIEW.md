@@ -33,7 +33,7 @@ lifetimes, ModListLoader asset-root-relative path resolution, the demo mod RON
 deserializable), and the empty-enable-list base parity. No BLOCKER/MAJOR/MINOR
 defects in the code.
 
-- [x] R1.1 (MINOR, informational - accepted as intentional)
+- [x] R1.1 (MINOR) [informational - accepted as intentional]
   crates/nova_assets/src/lib.rs (merge_bundles) - the intra-bundle conflict guard
   also applies to the BASE bundle (its content files flatten into one bundle), so a
   hypothetical duplicate id within base now keeps the FIRST occurrence + logs an

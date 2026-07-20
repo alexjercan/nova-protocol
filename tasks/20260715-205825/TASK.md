@@ -53,13 +53,13 @@ existing `wiki.ts` fills; parent/child manifest relationships already exist.
 
 ## Steps
 
-- [ ] Extend `markdown.js` (`wikiDocPage`/`docShell`: mdPath, description, crumb
+- [x] Extend `markdown.js` (`wikiDocPage`/`docShell`: mdPath, description, crumb
       parent) and `webpack.config.js` (move player slugs to the doc-page list;
       keep child-before-parent ordering for the history rewrites).
-- [ ] Convert the 10 top-level player pages to markdown (raw HTML for figures +
+- [x] Convert the 10 top-level player pages to markdown (raw HTML for figures +
       kbd; relative cross-links).
-- [ ] Convert the 5 `sections/*` children; put the child grid div in `sections.md`.
-- [ ] `git rm` the old HTML; confirm `WIKI_SLUGS` is empty (or only the index) and
+- [x] Convert the 5 `sections/*` children; put the child grid div in `sections.md`.
+- [x] `git rm` the old HTML; confirm `WIKI_SLUGS` is empty (or only the index) and
       remove now-dead html plumbing.
 - [ ] Verify: `npm run ci` green; serve + headless-eyeball a converted top-level
       page, the sections parent (child grid) and a child (two-level crumb),

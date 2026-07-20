@@ -38,4 +38,4 @@ geometry and the event-ordering traps.
   derelict (~1200u) is manual flight by design (nothing lockable at that
   range); the marker carries wayfinding. Watch for "are we there yet".
 
-VERDICT: APPROVE (round 1).
+- VERDICT: APPROVE (round 1).

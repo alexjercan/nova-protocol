@@ -45,6 +45,6 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: bumped `validate-membership-not-existence` with the
+- [x] LESSONS.md: bumped `validate-membership-not-existence` with the
   read-back variant; bumped `out-of-context-review-pass` (empirical premise
   correction) and `agent-interrupted-verify-worktree`.

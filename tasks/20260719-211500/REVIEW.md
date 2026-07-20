@@ -37,5 +37,5 @@
 
 ## Verdict
 
-APPROVE - land per the stacked-flow authorization. This closes the probe
+- VERDICT: APPROVE - land per the stacked-flow authorization. This closes the probe
 strand.

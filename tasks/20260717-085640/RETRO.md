@@ -43,7 +43,7 @@
 
 ## Action items
 
-- [x] Bumped `manual-time-rig-measures-its-clock` to x2 in docs/LESSONS.md,
+- [x] Bumped `manual-time-rig-measures-its-clock` to x2 in LESSONS.md,
   sharpened with the `max_delta` mechanism and the raise-max_delta fix.
 - [ ] Next in this flow: 20260716-123556 (reload-state on the diegetic readout),
   now unblocked - reads `SectionReload::progress()`.

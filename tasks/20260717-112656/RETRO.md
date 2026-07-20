@@ -42,5 +42,5 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: new lesson rule-inputs-rederive-from-engine (x1).
+- [x] LESSONS.md: new lesson rule-inputs-rederive-from-engine (x1).
 - [x] Follow-up task 20260717-143806 (ch4 Auditor) carries the numbers.

@@ -73,10 +73,10 @@ The full command-level checklist is in
 level, a release means:
 
 1. **`docs/` compile-and-wipe** (ephemeral-docs model): `docs/` is free scratch
-   during the cycle; before the tag, distil anything durable out of it into
-   `docs/LESSONS.md` (lessons) and the wiki (reference detail), then run
-   `scripts/wipe-docs.sh`. The release-flow guard fails the tag if `docs/` holds
-   anything but `LESSONS.md` + `README.md`. (Plans live in tatr tasks, not
+   during the cycle; before the tag, distil anything durable out of it into the
+   root `LESSONS.md` (lessons) and the wiki (reference detail), then run
+   `scripts/wipe-docs.sh`. The release-flow guard fails the tag if `docs/`
+   holds anything but its `README.md`. (Plans live in tatr tasks, not
    `docs/plans`.)
 2. **`CHANGELOG.md`**: promote `## [Unreleased]` to `## [<version>] -
    <YYYY-MM-DD>`, leave a fresh empty `[Unreleased]`, merge any duplicate

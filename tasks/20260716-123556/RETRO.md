@@ -40,7 +40,7 @@
 
 ## Action items
 
-- [x] Sharpened `keep-docs-in-sync-with-code` in docs/LESSONS.md with the
+- [x] Sharpened `keep-docs-in-sync-with-code` in LESSONS.md with the
   task-family player-wiki-seam variant (already an enforced x3 lesson).
 - [x] Backfilled the player wiki here (`combat-weapons.md` "Ammo & reloading"),
   so no follow-up task is needed - the family's docs are now complete.

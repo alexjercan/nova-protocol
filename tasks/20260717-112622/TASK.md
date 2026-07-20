@@ -19,7 +19,7 @@ Direction notes:
 - Recommend exempting point-defense (anti-torpedo) fire from the gate.
 - Raycast via avian SpatialQuery from muzzle toward the LEADED aim point;
   mind perf (per firing turret, not per frame per turret if avoidable) and
-  the two-clocks lesson (FixedUpdate vs render poses, docs/LESSONS.md).
+  the two-clocks lesson (FixedUpdate vs render poses, LESSONS.md).
 - The mechanic is symmetric (enemies behind cover also stop eating player
   fire only if authored so) - decide and test the player-side effect.
 
@@ -63,7 +63,7 @@ Spike: tasks/20260717-111808/SPIKE.md (findings F3/F4; Options B)
   record (decision, alternatives, the leaded-ray subtlety, PD bypass).
 - [x] Verify: cargo fmt + cargo check --all-targets, run the NEW tests
   (`--features serde` unification trap does not apply to nova_gameplay, but
-  grep docs/LESSONS.md for the crate name before crate-scoped runs); full
+  grep LESSONS.md for the crate name before crate-scoped runs); full
   suite stays on CI per user instruction - say so in the report.
 
 ## Close-out record

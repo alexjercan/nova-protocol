@@ -431,10 +431,10 @@ Pushing a tag `v[0-9]+.[0-9]+.[0-9]+*` triggers `release-flow`
 (`.github/workflows/release.yaml`). Steps, on `master`:
 
 1. Compile-and-wipe `docs/` (the ephemeral-docs model): distil anything durable
-   out of `docs/` scratch into `docs/LESSONS.md` (lessons) and the wiki
+   out of `docs/` scratch into the root `LESSONS.md` (lessons) and the wiki
    (reference detail), then run `scripts/wipe-docs.sh` and commit. The
    release-flow guard (`scripts/check-docs-clean.sh`, a job the build waits on)
-   FAILS the tag if `docs/` holds anything but `LESSONS.md` + `README.md`.
+   FAILS the tag if `docs/` holds anything but its `README.md`.
 2. Bump `workspace.package.version` in root `Cargo.toml`.
 3. Refresh `Cargo.lock`: `cargo metadata --format-version 1 >/dev/null`.
 4. Update `CHANGELOG.md` (Keep a Changelog, one concise line per entry):
@@ -526,6 +526,6 @@ close tasks when done. Each task has its own folder holding its `TASK.md` plus
 any task-scoped records (`SPIKE.md`, `REVIEW.md`, `RETRO.md`, `NOTES.md`).
 Multi-task plans are tatr tasks too - a release plan is a task with the strand
 breakdown in its body (or a `release`/`meta` tracker task linking the per-strand
-tasks). `docs/` is ephemeral scratch wiped at each release to only the lessons
-ledger (`docs/LESSONS.md`) and its own `README.md`; see that README for the
-model.
+tasks). `docs/` is ephemeral scratch wiped at each release to only its own
+`README.md` - the lessons ledger is `LESSONS.md` at the repo root; see that
+README for the model.

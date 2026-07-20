@@ -40,7 +40,7 @@
 
 ## Action items
 
-- [x] Recorded `check-adjacent-sections-for-overlap` in docs/LESSONS.md.
+- [x] Recorded `check-adjacent-sections-for-overlap` in LESSONS.md.
 - [x] Applied the review NIT (0.5.0 "devlogs live here now" phrasing).
 - [ ] Screenshots for the figure__placeholder / thumbnail slots across the 6
   news posts remain to be captured (tracked by the placeholders themselves).

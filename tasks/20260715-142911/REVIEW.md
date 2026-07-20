@@ -23,7 +23,7 @@ with zero deletions and the adapted test strengthened. Sabotage re-run by the
 reviewer: no-op'd tab switching -> exactly the tab test failed, revert green.
 Counts reproduced: nova_menu 18, demo_scenario 11, fmt/check clean.
 
-- [x] R1.1 (MINOR, visually confirmed) the main-menu card painted OVER the
+- [x] R1.1 (MINOR) [visually confirmed] the main-menu card painted OVER the
   open mods panel's corner with z-order decided by recycled entity ids
   (nondeterministic by construction; Settings had the same latent bug).
   - Response: fixed in 9daa45b8 - explicit `GlobalZIndex(1)` on both overlay

@@ -40,7 +40,7 @@ process only.
 
 ## What to improve next time
 
-- Before any `-p <crate>` test run, grep docs/LESSONS.md for the crate name -
+- Before any `-p <crate>` test run, grep LESSONS.md for the crate name -
   this specific gotcha was already written down and would have saved the cold
   compile. For nova_scenario specifically: `--features serde` (or a unifying
   sibling / workspace-wide).

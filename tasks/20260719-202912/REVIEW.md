@@ -40,4 +40,4 @@
 
 ## Verdict
 
-APPROVE - land after the user's by-ear test.
+- VERDICT: APPROVE - land after the user's by-ear test.

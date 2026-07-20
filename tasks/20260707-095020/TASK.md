@@ -15,10 +15,10 @@ ad-hoc one.
 
 ## Steps
 
-- [ ] Sweep `nova_gameplay` (and `nova_scenario`/`nova_debug` where relevant) for
+- [x] Sweep `nova_gameplay` (and `nova_scenario`/`nova_debug` where relevant) for
       modules that touch only generic Bevy/Avian + generic components (Health, Transform,
       physics) and no nova-specific config/assets.
-- [ ] For each candidate, record: what it is, why it is game-agnostic, what still
+- [x] For each candidate, record: what it is, why it is game-agnostic, what still
       couples it to nova, and whether its API is stable enough to reuse. Start from the
       known candidates in task 20260706-151804 (hud/health, hud/objectives, hud/velocity
       + shaders, integrity/blast + collision-damage helpers) and extend.
@@ -27,7 +27,7 @@ ad-hoc one.
 - [ ] Write the catalog to `docs/` (a "promotion candidates" doc), cross-linking task
       20260706-151804 for the actual moves and 20260706-160503 (mesh slicer hardening,
       already external).
-- [ ] Do NOT move code here - promotion is the follow-up. This task only decides and
+- [x] Do NOT move code here - promotion is the follow-up. This task only decides and
       marks what is eligible.
 
 ## Notes

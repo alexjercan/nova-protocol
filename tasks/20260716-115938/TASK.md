@@ -23,7 +23,7 @@ wired it into the process rules:
 - development.md: fixed the release checklist step 8 ("devblog" -> News post +
   wiki sync).
 - docs/README.md: indexed the new page.
-- docs/LESSONS.md: added `keep-docs-in-sync-with-code`.
+- LESSONS.md: added `keep-docs-in-sync-with-code`.
 
 Verified: `npm run build` green, the page emits with both tables and appears in
 the manifest-driven dev sidebar; all 22 wiki pages and 11 crates the map names

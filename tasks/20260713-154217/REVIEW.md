@@ -34,4 +34,4 @@ its interactions cold.
   despawn = the detected signature) but not yet by a live run (user's
   game instance up); recorded in the Outcome with the re-run pointer.
 
-VERDICT: APPROVE (round 1).
+- VERDICT: APPROVE (round 1).

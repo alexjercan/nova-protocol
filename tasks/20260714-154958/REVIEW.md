@@ -2,7 +2,9 @@
 
 Branch: `chore/assets-licenses-hygiene`
 
-## Verdict: APPROVE
+## Verdict
+
+- VERDICT: APPROVE
 
 A docs/file-relocation chore; no code or tests. Reviewed for correctness and
 completeness against the task's two asks + the folded-in docs refresh.

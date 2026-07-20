@@ -20,7 +20,7 @@ Direction notes:
 - Ships with a content proof: use it for a wave breather in the reworked
   second scenarios (tasks/20260717-112630, tasks/20260717-112639 land
   first with proximity gates; this upgrades their pacing).
-- Mod-facing surface: plan failure paths up front (docs/LESSONS.md
+- Mod-facing surface: plan failure paths up front (LESSONS.md
   mod-facing-surface-plans-failure-paths) and document the RON syntax in
   the same change (author-facing-schema-needs-syntax-doc).
 

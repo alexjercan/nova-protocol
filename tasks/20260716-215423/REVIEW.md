@@ -56,7 +56,7 @@ correct as written. Findings are about test coverage and comment hygiene.
   - Response: Comment updated to "resource-ref findings ... (undeclared
     `self://` and ungated `dep://<id>/` refs)".
   - Verified in the diff.
-- [x] R1.5 (MINOR, ACCEPTED-AS-IS) crates/nova_assets/src/lib.rs
+- [x] R1.5 (MINOR) [ACCEPTED-AS-IS] crates/nova_assets/src/lib.rs
   (register_bundles) - `dep://` violations in SECTIONS are `error!`-logged but
   not gated (only `Content::Scenario` violations enter `ContentIssues`). This
   exactly mirrors the pre-existing `self://` behavior (the runtime gate is
@@ -65,7 +65,7 @@ correct as written. Findings are about test coverage and comment hygiene.
   limitation; extending the gate to sections stays the gate's own follow-up.
   - Response: Accepted as-is - pre-existing scenario-scoped-gate behavior, not a
     regression. No change.
-- [x] R1.6 (NIT, WON'T-FIX) crates/nova_portal_gen/src/lib.rs (collect_dep_refs)
+- [x] R1.6 (NIT) [WON'T-FIX] crates/nova_portal_gen/src/lib.rs (collect_dep_refs)
   - the `dep://` split/label-strip is re-implemented on `ron::Value` rather than
   shared with `mod_refs::parse_leaf`. This is the SPIKE's deliberate "engine-free
   mirror" (the portal crate must not pull in bevy), the same split already made

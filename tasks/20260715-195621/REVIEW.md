@@ -49,7 +49,7 @@ interop) are handled correctly. Findings below.
   the diagram is framed as a figure, not a code block.
   - Response: Fixed. `pre.mermaid` now sets its own `background`/`border`/
     `box-shadow` (figure frame) rather than partially inheriting the code frame.
-- [x] R1.6 (SCOPE, user feedback) web/src/wiki/dev/bevy-migration.md - the user
+- [x] R1.6 (MINOR) [scope, user feedback] web/src/wiki/dev/bevy-migration.md - the user
   redirected: the Bevy migration notes are historical and should stay in `docs/`,
   not the wiki. Move it back to `docs/bevy-0.19-migration.md`, drop its
   WIKI_DOC_PAGES + manifest entries, and re-list it under docs/README.md and
@@ -65,6 +65,6 @@ interop) are handled correctly. Findings below.
 All Round 1 findings resolved and verified: no bare `*.md` links remain in
 `web/src/wiki/dev/` (grep clean); the built architecture/scenario pages emit the
 corrected relative wiki URLs; the only surviving old-path reference is
-`docs/LESSONS.md:517`, a dated historical ledger entry, left as-is by design.
+`LESSONS.md:517`, a dated historical ledger entry, left as-is by design.
 `npm run ci` (format:check + eslint + build) green; 6 `dev/*` pages emit. Mermaid
 now degrades gracefully on load/parse failure. Merge-ready.

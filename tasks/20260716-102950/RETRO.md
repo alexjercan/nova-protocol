@@ -32,5 +32,5 @@
 
 ## Action items
 
-- [x] Recorded `conserve-on-regroup` in docs/LESSONS.md.
+- [x] Recorded `conserve-on-regroup` in LESSONS.md.
 - [x] Restored the dropped entry (CHANGELOG.md 0.6.0 Internals & Tooling).

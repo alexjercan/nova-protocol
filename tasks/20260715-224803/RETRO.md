@@ -46,6 +46,6 @@
 ## Action items
 
 - [x] Added `rig-supplies-precondition-hides-regression` and
-      `bg-isolation-guard-allows-sprout-not-main` to docs/LESSONS.md.
+      `bg-isolation-guard-allows-sprout-not-main` to LESSONS.md.
 - No follow-up code tasks: the two NITs (area-overlap invariant, test scoping)
   were addressed in-cycle.

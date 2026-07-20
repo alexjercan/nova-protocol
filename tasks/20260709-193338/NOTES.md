@@ -189,4 +189,4 @@ without recomputing both sides with realistic magnitudes (floor 1.5*101 =
 151 > ceiling 122 for a 20u rock) - O-key ORBIT refused everywhere within
 minutes of playtest. Diagnosable from one pasted log line only because every
 ORBIT disengage path logs a distinct reason string. Lessons in
-docs/LESSONS.md: recompute-both-sides-of-a-band, distinct-refusal-reasons.
+LESSONS.md: recompute-both-sides-of-a-band, distinct-refusal-reasons.

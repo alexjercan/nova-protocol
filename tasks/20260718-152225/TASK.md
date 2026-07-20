@@ -26,14 +26,14 @@ wipe" (owned by 20260718-175424).
 - [ ] Write a small checker (scripts/ Python, matching the tooling direction)
       that lists docs/ entries not on the allowlist (just `LESSONS.md`) and
       exits non-zero, printing each offending path.
-- [ ] Emit a clear remediation message ("run the docs compile step; docs/ must
+- [x] Emit a clear remediation message ("run the docs compile step; docs/ must
       be empty except LESSONS.md before tagging").
-- [ ] Wire it into the pre-tag/CI release step and document it in
+- [x] Wire it into the pre-tag/CI release step and document it in
       `web/src/wiki/dev/development.md` / `keeping-docs-in-sync.md`, right
       after the compile-to-LESSONS step so the two stay consistent. Decide
       whether it also runs on every CI push (informational) or only gates the
       tag path.
-- [ ] Test both directions: a dirty docs/ fails with the right listing; a
+- [x] Test both directions: a dirty docs/ fails with the right listing; a
       clean docs/ passes.
 
 ## Definition of Done

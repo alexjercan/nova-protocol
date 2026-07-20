@@ -9,7 +9,7 @@ public_url = "./"
 # asset never loads. post_build runs against $TRUNK_STAGING_DIR BEFORE Trunk
 # moves staging into dist/, and Trunk blocks on the hook, so the fresh sidecars
 # ride along to dist. nova_meta_gen reads TRUNK_STAGING_DIR itself and writes into
-# <staging>/assets. See the `asset-meta-always-web-cost` lesson in docs/LESSONS.md. (Cost: the
+# <staging>/assets. See the `asset-meta-always-web-cost` lesson in LESSONS.md. (Cost: the
 # native tool compiles Bevy once per fresh checkout; cached thereafter.)
 [[hooks]]
 stage = "post_build"

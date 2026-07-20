@@ -24,4 +24,4 @@ behavior (raised+lock -> ray) and that is the one the playtest rejected.
   torpedo/turret asymmetry closes as a side effect.
 - 471 lib tests, fmt, 12_hud_range live run re-verified.
 
-VERDICT: APPROVE (round 1).
+- VERDICT: APPROVE (round 1).

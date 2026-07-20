@@ -27,7 +27,7 @@ line-anchor drift.
       to the Frame flow section of `web/src/wiki/dev/architecture.md`: which work
       belongs in FixedUpdate vs Update, why gameplay is duplicated, and what
       breaks if a system lands in only one. verify-first: derive it from the
-      two-clocks record - `docs/LESSONS.md` (`two-clocks`, `global-transform-
+      two-clocks record - `LESSONS.md` (`two-clocks`, `global-transform-
       stale-in-fixedupdate`) and `tasks/20260711-103527/SPIKE.md` - do NOT invent
       the rule.
 - [x] Add a "Contributing a change" subsection to
@@ -50,7 +50,7 @@ line-anchor drift.
 
 ## Notes
 
-- Grounding: two-clocks in `docs/LESSONS.md` + `tasks/20260711-103527/SPIKE.md`;
+- Grounding: two-clocks in `LESSONS.md` + `tasks/20260711-103527/SPIKE.md`;
   debug flags in `src/main.rs`; contribution conventions in `AGENTS.md` and
   `web/src/wiki/dev/development.md`.
 - All five sub-items are edits to existing dev pages (+ one callout); land as one

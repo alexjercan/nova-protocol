@@ -45,5 +45,5 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: new lesson `destructive-chains-check-completability`;
+- [x] LESSONS.md: new lesson `destructive-chains-check-completability`;
   bumped `out-of-context-review-pass`.

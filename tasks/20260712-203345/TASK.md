@@ -74,19 +74,19 @@ it with a test rather than new code.
 
 ## Steps
 
-- [ ] Add `InsetZoomable` marker component in `hud/target_inset.rs` (or
+- [x] Add `InsetZoomable` marker component in `hud/target_inset.rs` (or
       sections), registered for reflection.
-- [ ] Author it where the zoomable bodies spawn: ship roots
+- [x] Author it where the zoomable bodies spawn: ship roots
       (`sections/` ship spawn), committed torpedoes
       (`TorpedoProjectileMarker` path), asteroids (scenario asteroid spawn).
       NOT beacons.
-- [ ] Gate `drive_inset_camera`'s `framed` predicate on
+- [x] Gate `drive_inset_camera`'s `framed` predicate on
       `q.get(target).has::<InsetZoomable>()`.
 - [ ] Generalize `ship_framing_radius` to section-less bodies: use the section
       spread when the target has sections, else the target's own collider
       (`Collider`) or mesh `Aabb` extent. Confirm the extent source against a
       torpedo/asteroid entity.
-- [ ] Tests: a focused non-zoomable target (beacon) spawns no inset camera and
+- [x] Tests: a focused non-zoomable target (beacon) spawns no inset camera and
       keeps the panel hidden; a zoomable ship still does (delivery guard); the
       inset stays hidden at HUD Minimal/None; the framing radius is finite for a
       section-less body.

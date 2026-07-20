@@ -77,7 +77,7 @@ panic, no sound asset errors). No new findings. Ready to merge.
 - BRANCH: feature/audio-sfx-system (10 commits) -> master
 - REVIEWED AT: bc60cdd (branch tip)
 - TASKS: 20260708-162011, -213155, -214821, -215922, -222026
-- VERDICT: **APPROVE** (no blockers or majors; findings below are polish /
+- VERDICT: APPROVE (no blockers or majors; findings below are polish /
   robustness / coverage and can land before or after merge)
 
 ### Scope

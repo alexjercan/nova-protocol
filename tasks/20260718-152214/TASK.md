@@ -75,7 +75,7 @@ grep):
 - [x] `keeping-docs-in-sync.md`: recorded the 0.7.0 news-post conventions
       (`##`/`###` headings drive the sticky TOC; figure-placeholder format).
 - [x] Drift list recorded (below, for release-flow tightening).
-- [ ] `cd web && npm run ci` green (running in the verify step).
+- [x] `cd web && npm run ci` green (running in the verify step).
 
 ## Drift found (2026-07-20 audit) - for keeping-docs-in-sync tightening
 

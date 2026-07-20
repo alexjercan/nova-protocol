@@ -33,5 +33,5 @@
 
 ## Action items
 
-- [x] `keep-docs-in-sync-with-code` recorded in docs/LESSONS.md.
+- [x] `keep-docs-in-sync-with-code` recorded in LESSONS.md.
 - [x] Fixed the stale "devblog" references found in AGENTS.md + development.md.

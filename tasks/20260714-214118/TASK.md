@@ -65,7 +65,7 @@ gold); gameplay HUD tests + the relevant example autopilots (e.g. `10_playable`,
 
 ## Steps
 
-- [ ] Add `nova_ui = { path = "../nova_ui" }` to `crates/nova_gameplay/Cargo.toml`.
+- [x] Add `nova_ui = { path = "../nova_ui" }` to `crates/nova_gameplay/Cargo.toml`.
 - [ ] Add a `semantic` block to `nova_ui::theme` (or a `theme::semantic` module):
   `NAV` (= CYAN), `OBJECTIVE`/`AMMO` (= AMBER), `THREAT` (combat red), `ALLY`
   (green), `NEUTRAL`/`STEEL` (light gray), plus neutral `BACKDROP` (the recurring
@@ -88,7 +88,7 @@ gold); gameplay HUD tests + the relevant example autopilots (e.g. `10_playable`,
   `theme::semantic` accents WITHOUT changing the hue. `damage.rs::damage_type_color`
   stays a semantic function; if its hues match shared accents, reference them,
   else leave a comment that damage-type colours are their own semantic set.
-- [ ] Do NOT touch diegetic/world colours: section materials
+- [x] Do NOT touch diegetic/world colours: section materials
   (`sections/*_section.rs`), the velocity sphere gizmo (`velocity.rs`), juice
   particles (`juice.rs`) - these are 3D, not UI chrome.
 - [ ] `cargo check --workspace --all-targets --features debug` clean; `cargo fmt`;

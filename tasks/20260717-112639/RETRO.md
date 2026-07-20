@@ -41,5 +41,5 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: new lesson parallel-gates-pin-all (x1); bumped
+- [x] LESSONS.md: new lesson parallel-gates-pin-all (x1); bumped
   sweep-then-delete with the two-file stale comment variant.

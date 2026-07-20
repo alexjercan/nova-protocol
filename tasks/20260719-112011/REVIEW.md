@@ -152,4 +152,4 @@ priorities lead the sprint. All MAJORs and applicable MINORs applied to
 SPIKE.md and the seeded task bodies in the same commit as this round; each
 fix re-read in the revised text before ticking.
 
-VERDICT: APPROVE
+- VERDICT: APPROVE

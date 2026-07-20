@@ -59,6 +59,6 @@ Process notes only; what/why/evidence live in TASK.md, findings in REVIEW.md.
 
 - [x] Graphics-preset seam for the low-end mode recorded on tasks/20260525-133013
       (apply_graphics_quality is the hook; extend with particle/scatter gating).
-- [x] Lessons appended to docs/LESSONS.md (two new, three bumped).
+- [x] Lessons appended to LESSONS.md (two new, three bumped).
 - No follow-up code task: the deferred persistence-test NIT is documented in
   REVIEW.md R1.4 with rationale; not worth an injection layer.

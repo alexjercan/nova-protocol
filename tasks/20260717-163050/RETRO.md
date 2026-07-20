@@ -36,4 +36,4 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: new lesson authored-durations-clamp-trio (x1).
+- [x] LESSONS.md: new lesson authored-durations-clamp-trio (x1).

@@ -70,7 +70,7 @@ folded into this) with "fold into the lessons ledger, then wipe."
 - The v0.7.0 pre-release cleanup (20260718-152329) was the interim manual
   pass; once this lands, that manual step is replaced by the automated
   compile+wipe.
-- LESSONS.md format + append behavior: see docs/LESSONS.md and the /compound
+- LESSONS.md format + append behavior: see LESSONS.md and the /compound
   skill.
 
 ## Implementation (2026-07-20)

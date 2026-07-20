@@ -50,7 +50,7 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: new `dev-doc-steers-across-boundary`; bumped
+- [x] LESSONS.md: new `dev-doc-steers-across-boundary`; bumped
   `verify-at-deploy-base-path` (x2), `diagnostic-first` (x10),
   `null-result-becomes-a-pin` (x2); new `nix-devshell-for-cargo` (toolchain).
 - [ ] Manual browser session (unchanged wasm-runtime gap): `trunk serve` with

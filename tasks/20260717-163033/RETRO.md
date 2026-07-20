@@ -35,5 +35,5 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: new lesson pin-the-window-not-the-ingredients (x1);
+- [x] LESSONS.md: new lesson pin-the-window-not-the-ingredients (x1);
   would-it-fail-without-it bumped (the vacuous pin variant).

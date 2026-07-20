@@ -50,7 +50,7 @@ so the null-shaped assertion cannot pass vacuously.
   endpoint, and flip/eta already go blank there; noting for the record
   only.
 
-### Verdict: REQUEST_CHANGES (R1.1, R1.2)
+- VERDICT: REQUEST_CHANGES (R1.1, R1.2)
 
 ## Round 2 (2026-07-11)
 
@@ -66,4 +66,4 @@ including arrival settling and well arrivals that exercise the flip
 map) is green after the refactor. R1.3 stands as recorded, no change
 requested.
 
-### Verdict: APPROVE
+- VERDICT: APPROVE

@@ -43,7 +43,7 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: new `document-the-async-failure-path`; bumped
+- [x] LESSONS.md: new `document-the-async-failure-path`; bumped
   `out-of-context-review-pass`, `lint-gate-is-the-last-step`; new
   `sibling-change-leaves-stale-fixture`.
 - Follow-ups recorded in TASK.md close-out (not filed as tasks - speculative):

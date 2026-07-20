@@ -49,4 +49,4 @@
 
 ## Verdict
 
-APPROVE - land after user testing, per the flow.
+- VERDICT: APPROVE - land after user testing, per the flow.

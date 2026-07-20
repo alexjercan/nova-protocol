@@ -2,7 +2,7 @@
 
 Orientation for agents working on **Nova Protocol**, a 3D space shooter built
 with [Bevy](https://bevyengine.org) 0.19. Read this first, then
-`docs/LESSONS.md` (see below), then dive into the crate you need.
+`LESSONS.md` (see below), then dive into the crate you need.
 
 ## What this is
 
@@ -155,10 +155,20 @@ each other's work:
   sprout worktree - author master-side artifacts (task stubs, ledger lines)
   via Bash heredoc, and do all code edits in the worktree.
 
+## Development flow
+
+/flow drives development here: work is planned into tatr tasks, implemented
+in sprout worktrees, reviewed out-of-context in round 1, and retro'd via
+/compound - the full plan/work/review/compound cycle. Definition of Done
+items carry their proof notation (`test:`, `cmd:`, `manual:`). `LESSONS.md`
+at the repo root is the lessons ledger - read it before starting any task.
+`tatr check` (plus `tatr check --ledger LESSONS.md`) is the conformance gate
+for tasks and the ledger.
+
 ## LESSONS.md: the repo's paid-for mistakes
 
-`docs/LESSONS.md` is the compressed memory of every mistake this repo has
-already paid for. Read its header and Pending promotions before starting
+`LESSONS.md` (repo root) is the compressed memory of every mistake this repo
+has already paid for. Read its header and Pending promotions before starting
 work; grep it mid-task for your area's crate/subsystem names - "has this
 bitten before?" is answered there, one line per lesson. What is inside:
 
@@ -185,9 +195,9 @@ Everything tied to one task lives in that task's folder - never as loose
 
 `docs/` is EPHEMERAL scratch (task 20260718-175424): write whatever notes you
 like during a cycle, but at every release tag it is wiped to only
-`docs/LESSONS.md` (the ledger /compound appends to) and `docs/README.md` (which
-describes the model). Distil anything durable out of scratch FIRST - lessons
-into `LESSONS.md`, reference detail into the wiki - then run
+`docs/README.md` (which describes the model); the ledger /compound appends to
+is `LESSONS.md` at the repo root. Distil anything durable out of scratch
+FIRST - lessons into `LESSONS.md`, reference detail into the wiki - then run
 `scripts/wipe-docs.sh`; the release-flow guard (`scripts/check-docs-clean.sh`)
 fails a tag if scratch remains. Plans are tatr tasks, NOT `docs/plans` files
 (retired). If a skill's default output path says `docs/retros/`, `docs/spikes/`

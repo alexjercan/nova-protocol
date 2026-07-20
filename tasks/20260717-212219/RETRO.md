@@ -53,7 +53,7 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: sweep-then-delete x11 (rename = command-grep AND
+- [x] LESSONS.md: sweep-then-delete x11 (rename = command-grep AND
   bare-name-grep variant); out-of-context-review-pass x30.
 - No follow-up code tasks: the two *_gen crates stay separate by explicit
   user scope; nothing else outstanding.

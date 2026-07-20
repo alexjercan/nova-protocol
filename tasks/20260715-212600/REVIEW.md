@@ -27,7 +27,7 @@ load/test claims. Re-verified the load-bearing claims directly against the code:
 `npm run ci` green; headless render confirms the per-event Entity table and the
 reworked section 7 display correctly.
 
-- [x] R1.1 (NIT, fixed) The subject column header "`id` / `type_name`" over-implied
+- [x] R1.1 (NIT) [fixed in-review] The subject column header "`id` / `type_name`" over-implied
   that both are always populated; OnEnter/OnExit carry the area's `id` but not its
   `type_name`. Added a sentence after the table noting not every event fills every
   field and a filter on an unfilled field never matches.

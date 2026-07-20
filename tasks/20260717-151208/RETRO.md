@@ -31,5 +31,5 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: bumped verify-scripted-edits-applied (x4 ->
+- [x] LESSONS.md: bumped verify-scripted-edits-applied (x4 ->
   pending stays) with the string-literal-contents variant.

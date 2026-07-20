@@ -41,7 +41,7 @@ findings in REVIEW.md.
 
 ## What to improve next time
 
-- Before the FIRST crate-scoped `cargo test -p <crate>`, grep `docs/LESSONS.md`
+- Before the FIRST crate-scoped `cargo test -p <crate>`, grep `LESSONS.md`
   for the crate name; for nova_scenario always pass `--features serde` (or run
   workspace-wide as CI does).
 - When the bg-isolation guard is on, create the sprout at the very start of the
@@ -50,7 +50,7 @@ findings in REVIEW.md.
 
 ## Action items
 
-- [x] Bumped `crate-solo-tests-miss-unified-features` to x5 in docs/LESSONS.md.
+- [x] Bumped `crate-solo-tests-miss-unified-features` to x5 in LESSONS.md.
 - [ ] tatr 20260717-151537 follow-up (pending user decision): make the orbit-hold
       and lock-refire durations author-configurable instead of hardcoded 5s
       constants - raised by the user during this cycle. Filed separately, not

@@ -30,7 +30,7 @@ What/why/evidence live in TASK.md and NOTES.md; this is process only.
   surfaced only via the editor's LSP diagnostic AFTER the squash-land, forcing
   this follow-up sprout. This is `warnings-clean-before-land` (now x2) - a lesson
   that already existed on the ledger and that I did not apply, because I did not
-  read `docs/LESSONS.md` at the start of the cycle as flow prescribes.
+  read `LESSONS.md` at the start of the cycle as flow prescribes.
 - The plan carried the spike's cuboid assumption as fact; it was only corrected
   at work-time by reading the data. It worked out, but per
   `verify-first-plan-steps` (now x8) the verification belonged in the plan, and
@@ -38,7 +38,7 @@ What/why/evidence live in TASK.md and NOTES.md; this is process only.
 
 ## What to improve next time
 
-- Read `docs/LESSONS.md` at the START of the cycle (flow step 3.1). The exact
+- Read `LESSONS.md` at the START of the cycle (flow step 3.1). The exact
   trap I hit was already written down.
 - In the verify step, never filter build/test output down to `error`/`test
   result`. Run a warnings-surfaced build (`cargo build`/`clippy`) and read the
@@ -50,6 +50,6 @@ What/why/evidence live in TASK.md and NOTES.md; this is process only.
 
 - [x] Fixed the landed warning on fix/damage-tint-warning.
 - [x] Bumped `warnings-clean-before-land` (x2) and `verify-first-plan-steps`
-  (x8) in docs/LESSONS.md with this cycle's variants.
+  (x8) in LESSONS.md with this cycle's variants.
 - [ ] Follow-up (not a code task): on-ship tint legibility playtest on the real
   gltf ship - tracked in TASK.md/NOTES.md, the spike's open camera question.

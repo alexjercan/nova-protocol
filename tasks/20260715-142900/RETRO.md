@@ -45,6 +45,6 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: new lesson `validate-membership-not-existence`; bumped
+- [x] LESSONS.md: new lesson `validate-membership-not-existence`; bumped
   `out-of-context-review-pass` and `verify-generator-stability` gains the
   sorted-assertion variant.

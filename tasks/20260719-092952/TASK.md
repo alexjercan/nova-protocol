@@ -51,7 +51,7 @@ decision from that pass.
       (`trunk build`) after the move; a clean checkout that has never run `gen`
       must produce correct base RON purely from building.
 - [ ] Sweep every reference to `content -- gen` / `content gen` and repoint it
-      (docs/LESSONS.md, web/src/wiki/dev/*, docs/design/*, README tools section
+      (LESSONS.md, web/src/wiki/dev/*, docs/design/*, README tools section
       20260718-152205, the content bin docs). Grep: `content.*gen`.
 
 ## Definition of Done

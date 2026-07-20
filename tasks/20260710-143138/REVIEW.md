@@ -116,4 +116,4 @@ Responses landed in 86e7b1f; verified against the commit diff:
   The run id (29283727248) remains as the locator; the run has a single
   job, so the log is findable from it. Ticked.
 
-VERDICT: APPROVE stands.
+- VERDICT: APPROVE stands.

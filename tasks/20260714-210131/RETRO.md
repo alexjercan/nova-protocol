@@ -53,7 +53,7 @@ Both are the same shape: a review fix is a hypothesis, and both hypotheses
 
 ## Action items
 
-- [x] bumped `verify-the-nit-compiles` in docs/LESSONS.md (x1 -> x2), sharpened
+- [x] bumped `verify-the-nit-compiles` in LESSONS.md (x1 -> x2), sharpened
   to cover the caller-contract variant.
 - No follow-up code tasks: the 4 remaining shots (20260715-004216) and Phase 5
   attract mode were deliberately out of scope and remain tracked/optional.

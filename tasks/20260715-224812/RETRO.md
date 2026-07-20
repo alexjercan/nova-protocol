@@ -39,5 +39,5 @@
 ## Action items
 
 - [x] Bumped `rig-supplies-precondition-hides-regression` (now x2, applied
-      preventively) and added `count-gate-use-gt-not-eq` to docs/LESSONS.md.
+      preventively) and added `count-gate-use-gt-not-eq` to LESSONS.md.
 - No follow-up code tasks.

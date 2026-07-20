@@ -52,33 +52,33 @@ and the pause overlay all use `nova_ui` colours/metrics and the shared button;
 
 ## Steps
 
-- [ ] Add `nova_ui = { path = "../nova_ui" }` to `crates/nova_menu/Cargo.toml`.
-- [ ] Delete the private palette consts in `crates/nova_menu/src/lib.rs:62-66`
+- [x] Add `nova_ui = { path = "../nova_ui" }` to `crates/nova_menu/Cargo.toml`.
+- [x] Delete the private palette consts in `crates/nova_menu/src/lib.rs:62-66`
   (NORMAL_BUTTON, HOVERED_BUTTON, PRESSED_BUTTON, BACKGROUND_COLOR, TEXT_COLOR)
   and the "not worth a shared UI crate yet" comment at line ~60.
-- [ ] Replace the local `button()` factory (lines ~850-875) and
+- [x] Replace the local `button()` factory (lines ~850-875) and
   `update_button_colors` (lines ~830-848): either use `nova_ui::themed_button` +
   `nova_ui::register` (the observer-based colouring), or keep `MenuButton` but
   point its colours at `nova_ui::theme`. Prefer adopting the shared
   `themed_button` + `ThemedButton` so hover/press is identical to the editor;
   keep `MenuButton` only if a menu-specific query still needs it.
-- [ ] Restyle the panels to the shared look (1px `nova_ui::theme::BORDER`, 2px
+- [x] Restyle the panels to the shared look (1px `nova_ui::theme::BORDER`, 2px
   `RADIUS`, `PANEL`/`BG` backgrounds), dropping `BorderRadius::MAX` pills:
   - main menu root + title + separator (`setup_menu_ui`, ~line 390-430)
   - Settings panel (~lines 455-511)
   - pause overlay (`setup_pause_ui`, ~lines 211-277) - keep the dim scrim
     `srgba(0,0,0,0.6)` but theme the panel
-- [ ] Restyle the Mods panel (`setup_mods_ui`/`spawn_mod_row`, ~lines 519-683):
+- [x] Restyle the Mods panel (`setup_mods_ui`/`spawn_mod_row`, ~lines 519-683):
   panel + subtitle -> `TEXT_MUTED`; mod row background -> `PANEL`/`PANEL_RAISED`
   with a 1px border; the "Enabled (base)"/enabled toggle greens -> keep a
   semantic "on" accent (define/use `nova_ui::theme` for it, e.g. reuse CYAN or a
   shared success colour) rather than the ad-hoc `srgb(0.5,0.75,0.5)`; the
   "Explore online (coming soon)" placeholder -> the greyed coming-soon treatment
   (muted text; consider an amber "soon" badge to match the editor's rail).
-- [ ] Keep all `Name` components and the toggle/observer wiring intact (the
+- [x] Keep all `Name` components and the toggle/observer wiring intact (the
   `12_menu_newgame` autopilot clicks menu buttons by `Name`, e.g. "Sandbox
   Button", "New Game Button"): restyle is colour/metrics/child-structure only.
-- [ ] `cargo check --workspace --all-targets --features debug` clean; `cargo fmt`;
+- [x] `cargo check --workspace --all-targets --features debug` clean; `cargo fmt`;
   `cargo test -p nova_menu`; run the `12_menu_newgame` autopilot headless and
   confirm it still drives the menu -> new game path.
 

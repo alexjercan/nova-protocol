@@ -56,7 +56,7 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: generate-data-from-code x3 (hand-edit mirror
+- [x] LESSONS.md: generate-data-from-code x3 (hand-edit mirror
   variant, moved to Pending promotions), merge-red-check-preexisting x2,
   out-of-context-review-pass x29 (verify-the-verifier clause),
   piped-cargo-masks-exit-code x4 (result-line variant),

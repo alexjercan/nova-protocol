@@ -30,5 +30,5 @@ Smooth ten-minute cycle; the interesting part is upstream of it.
 
 ## Action items
 
-- [x] docs/LESSONS.md: bumped `generate-data-from-code` with the
+- [x] LESSONS.md: bumped `generate-data-from-code` with the
   same-commit-regeneration variant.

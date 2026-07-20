@@ -36,7 +36,7 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: new lesson `removed-control-orphans-persisted-state`;
+- [x] LESSONS.md: new lesson `removed-control-orphans-persisted-state`;
   bumped `out-of-context-review-pass` and sharpened `fail-first-regression-ab`
   with the CI-history variant.
 - [x] Spike fix record appended (tasks/20260714-202515/SPIKE.md).

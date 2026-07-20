@@ -39,8 +39,8 @@ only.
 
 ## Action items
 
-- [x] Bumped `verify-stale-brief-against-tree` in docs/LESSONS.md (this is a second
+- [x] Bumped `verify-stale-brief-against-tree` in LESSONS.md (this is a second
   occurrence: a baseline/brief claim was partly stale vs the live scene data).
-- [x] Added `match-ci-feature-set-in-targeted-tests` to docs/LESSONS.md.
+- [x] Added `match-ci-feature-set-in-targeted-tests` to LESSONS.md.
 - No follow-up code task: 20260718-004809 was closed WON'T DO; render-scale lever
   tuning already has its own task/worktree.

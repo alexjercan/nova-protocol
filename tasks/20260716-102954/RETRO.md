@@ -39,7 +39,7 @@
 ## Action items
 
 - [x] Recorded `exemplar-first-fanout` and `cross-boundary-attribution` in
-  docs/LESSONS.md.
+  LESSONS.md.
 - [x] Applied the three review fixes before landing (0.5.0 wording, 0.3.1
   (breaking) tag in CHANGELOG.md, rand 0.10 in the 0.3.1 callout).
 - [ ] Screenshots for the `figure__placeholder` slots across the 11 pages remain

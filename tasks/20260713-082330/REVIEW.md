@@ -35,7 +35,7 @@ Independent verification (shared-session blind-spot guard):
 
 Findings:
 
-- [ ] R1.1 (MINOR, recorded) Same-frame RMB+CTRL latches the TRAVEL slot: the
+- [ ] R1.1 (MINOR) [recorded] Same-frame RMB+CTRL latches the TRAVEL slot: the
   raised flag derives in Update while the radar Start observer fires in
   PreUpdate, so a frame-perfect simultaneous press reads stale raised=false.
   Humanly the raise precedes the radar; the live script staggers them and the

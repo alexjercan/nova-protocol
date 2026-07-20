@@ -27,7 +27,7 @@ Open NITs (left to discretion, not blocking):
   reads `shape.geometry` - mildly redundant naming. Cosmetic.
 - [ ] R1.6 (NIT) `exhaust_mesh` hardcodes subdivisions `new_cone(32,4)` /
   `square_exhaust_builder(4)` - pre-existing magic numbers, could be consts.
-- [ ] R1.7 (VISUAL) under thrust the square flame elongates edge-centers but not
+- [ ] R1.7 (NIT) [visual] under thrust the square flame elongates edge-centers but not
   corners, tapering to a pillow/`+` cross-section - eyeball in-game; fine for a
   glow. Not a code defect.
 

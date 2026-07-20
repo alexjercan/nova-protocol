@@ -35,7 +35,7 @@ workflow).
   like nova_meta_gen does.
 - Doc references to the old `cargo run ... --bin <x>` commands (usage, to
   rewrite): scenario-system.md (5), guide-author-scenario.md (4),
-  modding-ron.md (2), guide-make-a-mod.md (2). `docs/LESSONS.md` (3) and
+  modding-ron.md (2), guide-make-a-mod.md (2). `LESSONS.md` (3) and
   the `docs/design/*.md` records are HISTORY (they record what a past
   task ran) - do NOT rewrite those; they are correct as of their date.
 - `keeping-docs-in-sync.md` names no specific content bin, but its

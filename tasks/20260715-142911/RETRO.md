@@ -39,5 +39,5 @@
 
 ## Action items
 
-- [x] docs/LESSONS.md: sharpened `render-output-eyeball` (UI variant + the
+- [x] LESSONS.md: sharpened `render-output-eyeball` (UI variant + the
   aging-deferral corollary); bumped `out-of-context-review-pass`.

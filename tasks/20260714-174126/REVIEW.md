@@ -35,7 +35,7 @@ app's InputPlugin provides it; headless tests skip it, avoiding a MessageReader 
 builds cleanly with no catalog; `ModsPanel` carries `DespawnOnExit(MainMenu)` (no
 cross-state leak); the tests are non-tautological (would fail if the feature broke).
 
-- [ ] R1.1 (MINOR, pre-existing - deferred) The Settings and Mods full-screen modals can
+- [ ] R1.1 (MINOR) [pre-existing - deferred] The Settings and Mods full-screen modals can
   both be Visible at once and overlap, since each button independently toggles its own
   panel's Visibility. This is the SAME behavior the Settings panel already had before this
   task (not a regression), and it is a UX polish item, not a correctness bug. Left as-is to

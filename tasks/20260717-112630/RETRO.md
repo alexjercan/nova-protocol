@@ -40,5 +40,5 @@
 
 - [x] leash-covers-spawn is now a pinned assertion for every leashed
   hostile in the encounter test (prevents recurrence mechanically).
-- [x] docs/LESSONS.md: new lesson prose-invariant-becomes-pin (x1); bumped
+- [x] LESSONS.md: new lesson prose-invariant-becomes-pin (x1); bumped
   authored-vs-derived-values (the carried-over Mule station variant).

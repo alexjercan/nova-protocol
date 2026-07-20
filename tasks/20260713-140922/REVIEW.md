@@ -24,4 +24,4 @@ history, then read the diff cold.
 - NIT (accepted): the echo period constant is shared by both slots; a
   per-slot knob can come with a real need.
 
-VERDICT: APPROVE (round 1).
+- VERDICT: APPROVE (round 1).

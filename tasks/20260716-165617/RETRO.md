@@ -36,6 +36,6 @@
 
 ## Action items
 
-- [x] Added `verify-current-convention-not-task-premise` to docs/LESSONS.md.
+- [x] Added `verify-current-convention-not-task-premise` to LESSONS.md.
 - No follow-up code work; cross-repo change is complete and landed
   (master 540c9373; bcs v0.19.1 pushed).

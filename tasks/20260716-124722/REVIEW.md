@@ -2,7 +2,7 @@
 
 ## Round 1 - out-of-context adversarial review (fresh context over `master...HEAD`)
 
-Verdict: **APPROVE**. The reviewer independently re-derived both course
+- VERDICT: APPROVE (round 1). The reviewer independently re-derived both course
 invariants from the raw RON (Python script), read the production
 loader/filter/action code, ran all four suites green, and proved the geometry
 rig can fail (moved a rock onto the line -> RED with the exact clearance

@@ -4,7 +4,7 @@
 //! `TRUNK_STAGING_DIR` (the built site, including the copied `assets/`), and
 //! this tool writes any missing `.meta` sidecars into `<staging>/assets`
 //! before Trunk moves staging into `dist/`. See
-//! the `asset-meta-always-web-cost` lesson (docs/LESSONS.md).
+//! the `asset-meta-always-web-cost` lesson (LESSONS.md, repo root).
 //!
 //! Manual runs: `cargo run -p nova_meta_gen -- --assets assets`.
 

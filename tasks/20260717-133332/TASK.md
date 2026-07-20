@@ -63,7 +63,7 @@ it is pre-existing and was NOT introduced by the `Always` switch.
       e.g. factor the "6-layer arrival needs a Cube view" write out of
       `apply_pending_skybox_swaps` and reuse it, or route the editor through the
       same pending-swap path.
-- [ ] Add a regression test if practical (headless view-descriptor assertion in
+- [x] Add a regression test if practical (headless view-descriptor assertion in
       the style of `apply_pending_skybox_swaps`' tests).
 
 ## Notes

@@ -1,6 +1,6 @@
 ## Round 1
 
-VERDICT: APPROVE
+- VERDICT: APPROVE
 
 - [x] R1.1 (MINOR) web/src/site.ts - Active-nav detection breaks under the `/nova-protocol/` subpath. `isHome` is computed as `href.replace(/\/+$/,"") === ""`, but under the deploy subpath the Home link's pathname is `/nova-protocol` (not `""`), so `isHome` is always false. The Home link is then matched by the generic `path.startsWith("/nova-protocol")` branch, which is true on every page - so Home is marked `aria-current="page"` and highlighted on all pages, and on inner pages both Home and the current section light up. Fix: derive the site base (e.g. strip the known basePath, or compare against the Home link's full normalized pathname) so the home test is `path === homeHref` and inner links use `path.startsWith(hrefWithoutTrailingSlash + "/")`. Works fine at root (`/`) locally, which is why it passed the local screenshot; only wrong under the subpath deploy.
 - [x] R1.2 (MINOR) .github/workflows/deploy-page.yaml - No `.nojekyll` is emitted to the published site. GitHub Pages runs Jekyll by default, which drops files/dirs whose names begin with `_`. The current build output has no leading-underscore paths (the `_header.html`/`_footer.html` partials are source-only and inlined at build time; Trunk/wasm-bindgen emit `index_bg.wasm` etc. where the underscore is not leading), so nothing breaks today. But this is fragile: add a `touch site/.nojekyll` in the Assemble step to make the static site immune to Jekyll and slightly faster to publish. Low risk, cheap insurance.
