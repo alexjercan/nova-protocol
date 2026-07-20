@@ -1,8 +1,8 @@
 # Optional: news-fragment changelog authoring pipeline (changelog_entries/ + release compile + CI nag)
 
-- STATUS: OPEN
-- PRIORITY: 22
-- TAGS: spike,docs,tooling,v0.8.0
+- STATUS: CLOSED
+- PRIORITY: 0
+- TAGS: wontdo,spike,docs,tooling,v0.8.0
 
 ## Story
 
@@ -20,19 +20,19 @@ lands without a fragment.
 
 ## Steps
 
-- [ ] Re-check the trigger condition first: the v0.7.0 docs review
+- [x] Re-check the trigger condition first: the v0.7.0 docs review
       (2026-07-18) found CHANGELOG.md fully consistent with git history - the
       drift was one-directional editorial compression in the NEWS page (~20
       shipped items uncovered), which fragments would NOT have fixed, since
       news prose is deliberately curated. If the hand flow is still holding,
       write the documented decision not to build it and close.
-- [ ] If building: define the fragment format (frontmatter keys, section
+- [x] BUILD branch NOT taken (decision: do not build): define the fragment format (frontmatter keys, section
       mapping to the CHANGELOG's subsystem headers) and the directory
       convention.
-- [ ] Build the release compile step (fragments -> CHANGELOG [version]
+- [x] BUILD branch NOT taken: build the release compile step (fragments -> CHANGELOG [version]
       section; the news post stays hand-written prose per the exemplar-first
       lesson) and the CI nag for changes without a fragment.
-- [ ] Update keeping-docs-in-sync.md: fragment-on-change replaces
+- [x] BUILD branch NOT taken: update keeping-docs-in-sync.md: fragment-on-change replaces
       line-in-CHANGELOG-on-change.
 
 ## Definition of Done
@@ -59,3 +59,19 @@ editorial compression in the news page, which fragments would not fix. The
 honest outcome is to close this with that decision recorded, not to build the
 pipeline. Left OPEN at the bottom rather than closed unilaterally in a
 reprioritization pass; flagged for closure at the next docs cycle.
+
+## Decision (2026-07-20): DO NOT build - close
+
+Closed on step 1's own terms: the hand-maintained changelog flow is still
+holding, so the news-fragment pipeline is not worth building. Evidence:
+- v0.7.0 shipped with CHANGELOG.md consistent with git history under the
+  AGENTS.md same-task rule; no CHANGELOG hole appeared.
+- The only drift the v0.7.0 docs review found was deliberate editorial
+  COMPRESSION in the /news prose (curated on purpose), which fragments would
+  not fix.
+- The ephemeral-docs model (20260718-175424) already adopts the
+  compile-then-clear pattern for LESSONS, so a second fragment pipeline is
+  redundant infrastructure.
+
+Trigger to revisit (do NOT re-open before this fires): a release ships with an
+actual CHANGELOG.md hole vs git history. Retagged wontdo, priority 0.
