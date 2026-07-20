@@ -465,6 +465,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   names two concurrent runs could contend on are derived (pid/unique) at
   FIRST writing and unit-tested with the env assembly - a hardcoded Xvfb :97
   reached review before the collision was seen. 20260719-112317.
+- `deadline-scales-with-the-work` (x1): a hang-detector timeout must scale with
+  the WORK requested, not be a flat constant - a flat deadline either
+  false-fails slow-but-progressing work (perf_baseline's 900-frame capture blew
+  a flat 120s) or is too loose to catch fast hangs; size it from the work at a
+  pessimistic floor, and keep the operator override. 20260720-115935.
 - `pkill-pattern-matches-own-shell` (x2, PROMOTED 2026-07-19 -> ~/AGENTS.md):
   `pkill -f` matches your own command line and look-alike processes; kill
   recorded PIDs. 20260716-180352, 20260717-004302.
