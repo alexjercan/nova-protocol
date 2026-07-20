@@ -62,19 +62,49 @@ gets reported honestly.
 
 ## Steps
 
-- [ ] capture.rs: exit-observer emit path (MIN_FRAMES floor, partial
-      marker in summary + sidecar), warmup/too-few skip diagnostics.
-- [ ] run_report.rs: partial note in the Performance section; skip
-      message upgraded with captured/requested counts; baseline gate
-      excludes partial rows with a saying-so detail.
-- [ ] probe.rs: category-aware WARMUP/FRAMES defaults for --fps outside
-      perf/ (env passthrough wins; sweep untouched); parse/env pins.
-- [ ] Tests: partial-emit stats math (pure), skip-diagnosis strings,
-      env-default precedence; e2e: `probe run gameplay --fps` produces
-      three Performance sections (playable full, scenario/broadside
-      partial with counts) with NO env knobs.
-- [ ] Docs: skill (--fps works fleet-wide, partial semantics), wiki
-      capture paragraph, CHANGELOG Unreleased.
+RE-SCOPED 2026-07-20 by a reproduce-first check (see the resolution note
+below): the loop work (loop_while_pending, task 20260720-000616) already
+landed and ALREADY fills windows for the cycling examples, which falsified
+Part 1's motivating case. Verified in the user's own post-loop field data
+(git_sha f2663b00): playable AND scenario both emit frametime.csv with
+fps=ok; only broadside times out. So Part 1 (partial-emit) and the
+yield-on-primary-done flush are CROSSED OUT - the user prefers the cycling
+method, and the only non-cycling case (broadside) is handled by exemption,
+not by emitting stubby partial data.
+
+Done:
+
+- [x] catalog.rs: configurable fps-exempt list, parsed from
+      `[package.metadata.nova_probe] fps_exempt` (fail-open; single- and
+      multi-line array forms), with unit tests. Root Cargo.toml lists
+      `broadside`.
+- [x] probe.rs: `--fps` SKIPS the capture pass for fps-exempt examples (they
+      run clean + profiled only), so a narrative one-shot no longer idles to
+      the deadline and hard-timeouts; category-aware window defaults
+      (60/240 outside `perf/`; `perf/` + sweep keep 180/900; operator
+      `NOVA_PERF_WARMUP`/`FRAMES` always win). Manifest carries `fps_exempt`.
+- [x] run_report.rs: the Performance section renders an honest "fps-exempt:
+      <reason>" note instead of the generic "no frame-time capture" line;
+      process_exit stays green (no fps pass = no failed pass). Unit test pins
+      the honest note + green verdict.
+- [x] Tests: catalog exempt-parse (absent/single/multi-line/wrong-table),
+      window-default precedence (perf short-circuit + non-perf default),
+      manifest fps_exempt json round-trip, exempt-render note. E2e (manual,
+      user field-test): `probe run gameplay --fps` -> playable full +
+      scenario full (via cycling) + broadside honest-exempt, NO bare FAIL.
+- [x] Docs: probe skill, wiki capture paragraph (development.md), CHANGELOG
+      Unreleased.
+
+Crossed out (superseded by cycling + exemption):
+
+- [-] ~~capture.rs exit-observer partial-emit (MIN_FRAMES, partial marker in
+      summary/sidecar), warmup/too-few skip diagnostics~~ - cycling fills real
+      windows; narrative examples are exempted, not emitted as partial stubs.
+- [-] ~~run_report partial badges + baseline exclusion of partial rows~~ - no
+      partial rows are produced.
+- [-] ~~yield-on-primary-done flush~~ - exempt examples never arm capture;
+      cycling examples keep the autopilot pending until capture is done, so
+      nothing idles to the deadline. No caller remained.
 
 ## Notes
 
@@ -150,3 +180,31 @@ is the top open task under the already-closed p90 CI-red bug. Scope is now
 three parts (see field finding above): yield-on-primary-done flush,
 partial-emit + skip diagnostics, and the per-example fps-capable flag +
 category window defaults - reasonable to split into sub-tasks when picked up.
+
+## Resolution (2026-07-20): reproduce-first shrank this to exempt + defaults
+
+Bug-playbook reproduce-first, run BEFORE writing any code, against the
+current tree (the loop work had since landed): inspected the user's own
+probe-runs field data at git_sha f2663b00 - `playable` and `scenario` BOTH
+carry a `frametime.csv` with `fps=ok`; only `broadside` is `no-csv` +
+`fps=TIMEOUT`. So `loop_while_pending` (task 20260720-000616) already fills
+the window for every cycling example, which FALSIFIES Part 1's motivating
+case (the "scenario 308/319 discarded" the task was filed on no longer
+happens - scenario now loops to a full window).
+
+With the user's decision to prefer the cycling method and to make narrative
+examples configurably exempt, the fix reduced to two pieces, both in
+nova_probe with no capture.rs/stats.rs surgery:
+
+1. Configurable fps-exempt via `[package.metadata.nova_probe] fps_exempt`
+   (broadside listed). `--fps` skips the capture pass for exempt examples;
+   they keep the clean + profiled correctness passes; the report shows an
+   honest "fps-exempt" note; process_exit stays green.
+2. Category-aware default window (60/240 outside `perf/`) so a bare
+   `probe run gameplay --fps` fits the completion deadline without the
+   operator hand-passing FRAMES.
+
+The yield-on-primary-done flush and the whole partial-emit pipeline were
+crossed out: with cycling filling windows and narrative examples exempt, no
+example idles to the deadline, so there is no partial window left to emit.
+See the Steps section for the done/crossed-out breakdown.

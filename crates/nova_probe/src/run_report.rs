@@ -62,6 +62,11 @@ pub struct RunManifest {
     pub armed_timeline: bool,
     pub armed_invariants: bool,
     pub armed_fps: bool,
+    /// Set when `--fps` was requested but this example is configured
+    /// fps-exempt (`[package.metadata.nova_probe] fps_exempt`): the reason,
+    /// rendered in place of the frame-time section so a missing capture reads
+    /// as "not a perf target" instead of a failure. `None` for a normal run.
+    pub fps_exempt: Option<String>,
     /// Per-pass outcomes, in execution order.
     pub passes: Vec<PassRecord>,
 }
@@ -99,6 +104,7 @@ impl RunManifest {
                 "invariants": self.armed_invariants,
                 "fps": self.armed_fps,
             },
+            "fps_exempt": self.fps_exempt,
             "passes": self.passes.iter().map(|p| serde_json::json!({
                 "name": p.name, "success": p.success, "timed_out": p.timed_out,
             })).collect::<Vec<_>>(),
@@ -145,6 +151,10 @@ impl RunManifest {
             armed_timeline: armed("timeline"),
             armed_invariants: armed("invariants"),
             armed_fps: armed("fps"),
+            fps_exempt: v
+                .get("fps_exempt")
+                .and_then(|x| x.as_str())
+                .map(str::to_string),
             passes,
         })
     }
@@ -980,12 +990,26 @@ pub fn render_run_report(dir: &Path, artifacts: &RunArtifacts, checks: &[Check])
 
     // 4. Performance (the absorbed perf_report as a section).
     html.push_str("<h2>Performance</h2>\n");
-    match &artifacts.runs {
-        None => html.push_str(
+    let fps_exempt = artifacts
+        .manifest
+        .as_ref()
+        .and_then(|m| m.fps_exempt.as_deref());
+    match (&artifacts.runs, fps_exempt) {
+        // fps-exempt: the frame-time pass was deliberately skipped, not
+        // missing. Say so, so a reader does not chase a capture the example
+        // structurally cannot provide.
+        (None, Some(reason)) => html.push_str(&format!(
+            "<p class=\"note\">fps-exempt: {}. This example runs for correctness \
+             only (clean + profiled passes); it has no stable frame-time window \
+             to measure. Configured in <code>Cargo.toml \
+             [package.metadata.nova_probe] fps_exempt</code>.</p>\n",
+            crate::report::escape(reason),
+        )),
+        (None, None) => html.push_str(
             "<p>No frame-time capture in this run dir - probe run --fps (a \
              wired example) or the sweep matrix flags produce frametime.csv.</p>\n",
         ),
-        Some(runs) => {
+        (Some(runs), _) => {
             html.push_str(&render_chart(runs));
             let baseline_map = artifacts
                 .baseline
@@ -1319,6 +1343,7 @@ mod tests {
             armed_timeline: true,
             armed_invariants: true,
             armed_fps: false,
+            fps_exempt: None,
             passes: vec![PassRecord {
                 name: "clean".into(),
                 success: true,
@@ -1353,6 +1378,7 @@ mod tests {
             armed_timeline: true,
             armed_invariants: true,
             armed_fps: true,
+            fps_exempt: Some("narrative scenario".into()),
             passes: vec![
                 PassRecord {
                     name: "clean".into(),
@@ -1404,6 +1430,32 @@ mod tests {
         assert_eq!(check(&checks, "process_exit").status, CheckStatus::Fail);
     }
 
+    #[test]
+    fn fps_exempt_renders_an_honest_note_not_a_missing_capture() {
+        // No frametime.csv (runs = None) AND fps_exempt set: the Performance
+        // section must say "fps-exempt", not the generic "no capture" line, so
+        // a reader is not sent hunting for a window the example cannot provide.
+        let manifest = RunManifest {
+            fps_exempt: Some("narrative scenario".into()),
+            ..manifest_ok()
+        };
+        let artifacts = RunArtifacts {
+            reloads: Vec::new(),
+            manifest: Some(manifest),
+            ..Default::default()
+        };
+        let checks = evaluate_checks(&artifacts);
+        let html = render_run_report(Path::new("probe-runs/broadside"), &artifacts, &checks);
+        assert!(html.contains("fps-exempt"), "exempt note missing: {html}");
+        assert!(
+            !html.contains("No frame-time capture in this run dir"),
+            "the generic no-capture message should be replaced by the exempt note"
+        );
+        // process_exit must not FAIL: an exempt example ran no fps pass, so
+        // there is no failed/timed-out pass to flip the verdict.
+        assert_ne!(check(&checks, "process_exit").status, CheckStatus::Fail);
+    }
+
     fn manifest_ok() -> RunManifest {
         RunManifest {
             example: "controller_section".into(),
@@ -1413,6 +1465,7 @@ mod tests {
             armed_timeline: true,
             armed_invariants: true,
             armed_fps: false,
+            fps_exempt: None,
             passes: vec![PassRecord {
                 name: "clean".into(),
                 success: true,

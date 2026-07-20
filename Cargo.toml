@@ -23,6 +23,17 @@ autoexamples = false
 [lib]
 path = "src/lib.rs"
 
+# nova_probe tool config (read by `crates/nova_probe`, ignored by cargo).
+# fps_exempt: examples that opt OUT of the `--fps` frame-time pass because they
+# are narrative / one-shot scenarios with no stable capture window - a fixed
+# story that cannot loop to fill a window (unlike playable/scenario, which loop
+# via loop_while_pending). They still run the clean + profiled CORRECTNESS
+# passes; only frame-time measurement is skipped, and the report says so
+# instead of timing out on a window the example can never fill. Add narrative
+# examples here. Task 20260719-233732.
+[package.metadata.nova_probe]
+fps_exempt = ["broadside"]
+
 # The example catalog (see autoexamples above). Blocks are listed in
 # curriculum reading order within each category.
 # sections/ - one example per ship section, the correctness curriculum.

@@ -635,6 +635,61 @@ usage: probe <subcommand>
             .unwrap_or_else(|_| Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
     }
 
+    /// The non-`perf/` fps window (task 20260719-233732): warm-up + capture
+    /// frame counts small enough that a bare `probe run <example> --fps` fits
+    /// the harness completion deadline under software rendering. `perf/`
+    /// examples (dedicated steady-state scenes) and the sweep matrix keep the
+    /// capture crate's full 180/900 baseline window so baselines stay
+    /// like-for-like.
+    const NON_PERF_WARMUP: &str = "60";
+    const NON_PERF_FRAMES: &str = "240";
+
+    /// Resolve an example's fps policy from the catalog + probe metadata: its
+    /// category (drives the window default) and, when configured fps-exempt,
+    /// the reason to record. Fail-OPEN (unknown example -> empty category, not
+    /// exempt) so a catalog hiccup never silently suppresses a real capture.
+    fn example_fps_policy(root: &Path, example: &str) -> (String, Option<String>) {
+        let category = nova_probe::load_example_catalog(root)
+            .ok()
+            .and_then(|catalog| {
+                catalog
+                    .iter()
+                    .find(|entry| entry.name == example)
+                    .map(|entry| entry.category.clone())
+            })
+            .unwrap_or_default();
+        let reason = nova_probe::load_fps_exempt(root)
+            .iter()
+            .any(|name| name == example)
+            .then(|| {
+                "narrative scenario (configured in Cargo.toml \
+                 [package.metadata.nova_probe] fps_exempt); no stable frame-time window"
+                    .to_string()
+            });
+        (category, reason)
+    }
+
+    /// Category-aware capture-window env for the fps pass: outside `perf/`,
+    /// default to the short [`NON_PERF_WARMUP`]/[`NON_PERF_FRAMES`] window;
+    /// `perf/` keeps the capture crate's defaults. The operator's own
+    /// `NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` always win - pushed only when
+    /// unset - so a deliberately chosen window is never overridden (the child
+    /// inherits probe's env, so an unset var here means the example's own
+    /// default, which is why the non-perf default must be pushed explicitly).
+    fn fps_window_env(category: &str) -> Vec<(String, String)> {
+        if category == "perf" {
+            return Vec::new();
+        }
+        let mut env = Vec::new();
+        if std::env::var_os("NOVA_PERF_WARMUP").is_none() {
+            env.push(("NOVA_PERF_WARMUP".into(), NON_PERF_WARMUP.into()));
+        }
+        if std::env::var_os("NOVA_PERF_FRAMES").is_none() {
+            env.push(("NOVA_PERF_FRAMES".into(), NON_PERF_FRAMES.into()));
+        }
+        env
+    }
+
     /// Environment for the CLEAN pass: autopilot + recorder + invariants
     /// always; the frame-time capture only on request (`--fps`) since only
     /// the wired examples (perf_baseline) read it - elsewhere it is a
@@ -919,6 +974,10 @@ usage: probe <subcommand>
 
     fn run(opts: &RunOptions) -> Result<ExitCode, String> {
         let root = repo_root();
+        // fps policy for this example: category (window default) + whether it
+        // is configured fps-exempt (a narrative one-shot with no stable
+        // window - runs correctness passes, skips the frame-time pass).
+        let (category, fps_exempt) = example_fps_policy(&root, &opts.example);
         let out = opts
             .out
             .clone()
@@ -957,6 +1016,7 @@ usage: probe <subcommand>
                 started_unix,
                 passes,
                 /*armed_native*/ false,
+                /*fps_exempt*/ None,
             );
         }
 
@@ -970,7 +1030,7 @@ usage: probe <subcommand>
         let sweeping = !opts.scenarios.is_empty() || !opts.presets.is_empty();
         eprintln!(
             "probe: [1/{}] clean pass: building {}{}",
-            passes_total(opts),
+            passes_total(opts, fps_exempt.is_some()),
             opts.example,
             if opts.release { " (release)" } else { "" }
         );
@@ -1024,24 +1084,34 @@ usage: probe <subcommand>
         // FPS pass (optional, non-sweep): the dedicated capture-only run -
         // same binary as the clean pass, recorder/invariants OFF the frame
         // path, its own log. The completion protocol keeps the app alive
-        // until the capture window closes.
+        // until the capture window closes. SKIPPED for fps-exempt examples:
+        // a narrative one-shot cannot fill a window and would idle to the
+        // deadline, hard-timeout, and bare-FAIL the run (task 20260719-233732)
+        // - it runs the clean + profiled correctness passes only, and the
+        // report says fps-exempt instead of "no capture".
         if opts.fps && !sweeping {
-            eprintln!(
-                "probe: fps pass: capture-only -> {}",
-                out.join("fps-run.log").display()
-            );
-            let mut env = clean_pass_env(&root, &out, &display, true);
-            env.retain(|(k, _)| k != "NOVA_PERF_TIMELINE" && k != "NOVA_PERF_INVARIANTS");
-            let outcome =
-                run_supervised(&bin, &[], &root, &env, &out.join("fps-run.log"), timeout)?;
-            if !outcome.success() {
-                eprintln!("probe: fps pass did not succeed; the report will say so");
+            if let Some(reason) = &fps_exempt {
+                eprintln!("probe: fps pass skipped: {} is fps-exempt ({reason})", opts.example);
+            } else {
+                eprintln!(
+                    "probe: fps pass: capture-only -> {}",
+                    out.join("fps-run.log").display()
+                );
+                let mut env = clean_pass_env(&root, &out, &display, true);
+                env.retain(|(k, _)| k != "NOVA_PERF_TIMELINE" && k != "NOVA_PERF_INVARIANTS");
+                // Category-aware window: non-perf examples fit the deadline.
+                env.extend(fps_window_env(&category));
+                let outcome =
+                    run_supervised(&bin, &[], &root, &env, &out.join("fps-run.log"), timeout)?;
+                if !outcome.success() {
+                    eprintln!("probe: fps pass did not succeed; the report will say so");
+                }
+                passes.push(PassRecord {
+                    name: "fps".into(),
+                    success: outcome.success(),
+                    timed_out: outcome.timed_out(),
+                });
             }
-            passes.push(PassRecord {
-                name: "fps".into(),
-                success: outcome.success(),
-                timed_out: outcome.timed_out(),
-            });
         }
 
         // Pass 2: PROFILED (optional; separate build so tracing overhead
@@ -1050,7 +1120,7 @@ usage: probe <subcommand>
         if opts.profile {
             eprintln!(
                 "probe: [2/{}] profiled pass: building with tracing",
-                passes_total(opts)
+                passes_total(opts, fps_exempt.is_some())
             );
             match build_example(&root, &opts.example, "debug,trace", None) {
                 Err(e) => {
@@ -1089,7 +1159,7 @@ usage: probe <subcommand>
         // profiler never fails the check; supervised so a hung sampled run
         // cannot wedge probe either, finding 11).
         if opts.samply {
-            eprintln!("probe: [{n}/{n}] samply pass", n = passes_total(opts));
+            eprintln!("probe: [{n}/{n}] samply pass", n = passes_total(opts, fps_exempt.is_some()));
             match build_example(&root, &opts.example, "debug", Some("profiling")) {
                 Err(e) => eprintln!("probe: samply build failed ({e}); flamegraph skipped"),
                 Ok(()) => {
@@ -1136,6 +1206,10 @@ usage: probe <subcommand>
             started_unix,
             passes,
             /*armed_native*/ !sweeping,
+            // Only record the exemption when the operator actually asked for
+            // fps: a plain `probe run <exempt>` shows the normal no-capture
+            // line, not an exempt note for a pass nobody requested.
+            fps_exempt.filter(|_| opts.fps && !sweeping),
         )
     }
 
@@ -1408,6 +1482,7 @@ usage: probe <subcommand>
         started_unix: u64,
         passes: Vec<PassRecord>,
         armed_native: bool,
+        fps_exempt: Option<String>,
     ) -> Result<ExitCode, String> {
         let (git_sha, host) = run_identity();
         let manifest = RunManifest {
@@ -1417,7 +1492,10 @@ usage: probe <subcommand>
             host,
             armed_timeline: armed_native,
             armed_invariants: armed_native,
-            armed_fps: opts.fps || opts.platform == Platform::Web,
+            // Exempt examples never armed the capture, so armed_fps is false
+            // (the fps_exempt reason carries the "why" for the report).
+            armed_fps: (opts.fps && fps_exempt.is_none()) || opts.platform == Platform::Web,
+            fps_exempt,
             passes,
         };
         std::fs::write(
@@ -1450,9 +1528,11 @@ usage: probe <subcommand>
         })
     }
 
-    fn passes_total(opts: &RunOptions) -> usize {
+    fn passes_total(opts: &RunOptions, fps_exempt: bool) -> usize {
         let sweeping = !opts.scenarios.is_empty() || !opts.presets.is_empty();
-        1 + usize::from(opts.fps && !sweeping)
+        // The fps pass does not run for an exempt example, so it does not
+        // count toward the progress total (keeps the [n/N] labels honest).
+        1 + usize::from(opts.fps && !sweeping && !fps_exempt)
             + usize::from(opts.profile)
             + usize::from(opts.samply)
     }
@@ -1567,6 +1647,31 @@ usage: probe <subcommand>
 
         fn s(args: &[&str]) -> Vec<String> {
             args.iter().map(|a| a.to_string()).collect()
+        }
+
+        #[test]
+        fn fps_window_env_leaves_perf_on_the_full_baseline_window() {
+            // perf/ examples never get the short non-perf default - the
+            // 180/900 baseline window is what their baselines are built on.
+            assert!(fps_window_env("perf").is_empty());
+        }
+
+        #[test]
+        fn fps_window_env_defaults_non_perf_to_the_short_window() {
+            // Deterministic only when the operator has not pinned a window.
+            // The suite runs without NOVA_PERF_* set; guard so a stray env in
+            // some other runner does not flake this.
+            if std::env::var_os("NOVA_PERF_WARMUP").is_none()
+                && std::env::var_os("NOVA_PERF_FRAMES").is_none()
+            {
+                let env = fps_window_env("gameplay");
+                assert!(env
+                    .iter()
+                    .any(|(k, v)| k == "NOVA_PERF_WARMUP" && v == NON_PERF_WARMUP));
+                assert!(env
+                    .iter()
+                    .any(|(k, v)| k == "NOVA_PERF_FRAMES" && v == NON_PERF_FRAMES));
+            }
         }
 
         #[test]

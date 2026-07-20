@@ -108,6 +108,70 @@ pub fn load_example_catalog(root: &Path) -> Result<Vec<CatalogExample>, String> 
     parse_example_catalog(&manifest)
 }
 
+/// Parse the optional `[package.metadata.nova_probe]` `fps_exempt` list from
+/// the root manifest: examples that opt OUT of the `--fps` frame-time pass
+/// because they are narrative / one-shot scenarios with no stable capture
+/// window (a fixed-length story that cannot loop to fill a window, e.g.
+/// `broadside`). Exempt examples still run the clean + profiled CORRECTNESS
+/// passes; only the frame-time measurement is skipped, and the report says so
+/// instead of timing out on a window the example can never fill.
+///
+/// Absent table or key -> empty list. Fail-OPEN by design: exemption is opt-in
+/// config, not a gate, so a missing/garbled block just means "nothing exempt"
+/// rather than an error (unlike the catalog itself, which fails closed). A
+/// line-level parse in the same style as [`parse_example_catalog`]; supports
+/// both `fps_exempt = ["a", "b"]` and the multi-line array form.
+pub fn parse_fps_exempt(manifest: &str) -> Vec<String> {
+    let mut in_section = false;
+    let mut collecting = false;
+    let mut buf = String::new();
+    for line in manifest.lines() {
+        let trimmed = line.trim();
+        // A new table header ends the section (but not while we are still
+        // accumulating a multi-line array value).
+        if trimmed.starts_with('[') && !collecting {
+            in_section = trimmed == "[package.metadata.nova_probe]";
+            continue;
+        }
+        if !in_section {
+            continue;
+        }
+        if !collecting {
+            if let Some(rest) = trimmed.strip_prefix("fps_exempt") {
+                if let Some((_, value)) = rest.split_once('=') {
+                    buf.push_str(value);
+                    collecting = true;
+                }
+            }
+        } else {
+            buf.push('\n');
+            buf.push_str(trimmed);
+        }
+        if collecting && buf.contains(']') {
+            break;
+        }
+    }
+    let inner = buf
+        .split_once('[')
+        .and_then(|(_, rest)| rest.split_once(']'))
+        .map(|(inner, _)| inner)
+        .unwrap_or("");
+    inner
+        .split(',')
+        .map(|token| token.trim().trim_matches('"').to_string())
+        .filter(|token| !token.is_empty())
+        .collect()
+}
+
+/// Load and parse the `fps_exempt` list from `<root>/Cargo.toml`. Fail-open:
+/// an unreadable manifest yields an empty list (the catalog load, which the
+/// same run also does, is the loud one).
+pub fn load_fps_exempt(root: &Path) -> Vec<String> {
+    std::fs::read_to_string(root.join("Cargo.toml"))
+        .map(|manifest| parse_fps_exempt(&manifest))
+        .unwrap_or_default()
+}
+
 /// The distinct categories, in catalog order.
 pub fn categories(catalog: &[CatalogExample]) -> Vec<&str> {
     let mut seen = Vec::new();
@@ -197,5 +261,40 @@ path = "src/lib.rs"
         assert!(parse_example_catalog(&collide)
             .unwrap_err()
             .contains("collides with a category"));
+    }
+
+    #[test]
+    fn fps_exempt_absent_is_empty() {
+        assert!(parse_fps_exempt(GOOD).is_empty());
+        assert!(parse_fps_exempt("").is_empty());
+    }
+
+    #[test]
+    fn fps_exempt_reads_single_line_array() {
+        let manifest = format!(
+            "{GOOD}\n[package.metadata.nova_probe]\nfps_exempt = [\"broadside\"]\n"
+        );
+        assert_eq!(parse_fps_exempt(&manifest), vec!["broadside".to_string()]);
+    }
+
+    #[test]
+    fn fps_exempt_reads_multi_line_array_and_stops_at_next_table() {
+        let manifest = format!(
+            "{GOOD}\n[package.metadata.nova_probe]\n\
+             # narrative one-shots\n\
+             fps_exempt = [\n    \"broadside\",\n    \"intro_cutscene\",\n]\n\
+             [profile.release]\nlto = true\n"
+        );
+        assert_eq!(
+            parse_fps_exempt(&manifest),
+            vec!["broadside".to_string(), "intro_cutscene".to_string()]
+        );
+    }
+
+    #[test]
+    fn fps_exempt_ignores_a_key_outside_the_table() {
+        // A stray fps_exempt in the wrong section is not honored.
+        let manifest = format!("{GOOD}\n[package]\nfps_exempt = [\"broadside\"]\n");
+        assert!(parse_fps_exempt(&manifest).is_empty());
     }
 }

@@ -253,8 +253,17 @@ path - measurement and correctness never share a pass), the harness
 completion protocol keeps the app alive until the window closes, and
 enrolled scenes (`loop_while_pending`) reload + replay so the window
 measures activity - reload intervals are excluded from the stats and
-reported as their own line. See the crate docs for the full knob list
-(`NOVA_PERF_*`).
+reported as their own line. Narrative one-shot examples that cannot loop to
+fill a window (e.g. `broadside`, a scripted die/retry/win smoke test) are
+marked **fps-exempt** in the root `Cargo.toml` under
+`[package.metadata.nova_probe] fps_exempt` - they run the clean + profiled
+CORRECTNESS passes and the report says "fps-exempt" instead of timing out on
+a window they can never fill; add narrative examples to that list. Outside
+`perf/`, `--fps` defaults to a short 60/240 window (`perf/` and the sweep
+matrix keep the full 180/900 baseline window) so a bare
+`probe run gameplay --fps` fits the completion deadline; your own
+`NOVA_PERF_WARMUP` / `NOVA_PERF_FRAMES` always override it. See the crate
+docs for the full knob list (`NOVA_PERF_*`).
 
 The perf sweep is the same front door: a scenario x preset matrix of the
 frame-time capture, one labeled `frametime.csv` row per cell, release-built

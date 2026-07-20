@@ -140,7 +140,10 @@ pub use capture::{
     DEFAULT_CAPTURE_FRAMES, DEFAULT_RESOLUTION, DEFAULT_WARMUP_FRAMES, PERF_ENV,
 };
 #[cfg(not(target_arch = "wasm32"))]
-pub use catalog::{categories, load_example_catalog, parse_example_catalog, CatalogExample};
+pub use catalog::{
+    categories, load_example_catalog, load_fps_exempt, parse_example_catalog, parse_fps_exempt,
+    CatalogExample,
+};
 #[cfg(not(target_arch = "wasm32"))]
 pub use invariants::{nova_invariants, InvariantState, InvariantsPlugin};
 pub use profile::{aggregate_system_costs, render_top_table, SystemCost};

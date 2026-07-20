@@ -153,6 +153,16 @@ window measures activity; reload intervals are EXCLUDED from the stats
 (schema v3); dev rows are labeled NOT a baseline - baselines come from
 `--release` runs.
 
+Narrative one-shot examples (a scripted story that cannot loop to fill a
+window, e.g. `broadside`) are fps-EXEMPT: list them in the root `Cargo.toml`
+under `[package.metadata.nova_probe] fps_exempt`. `--fps` then skips the
+capture pass for them (they still run the clean + profiled correctness
+passes) and the report says "fps-exempt" instead of hard-timing-out on a
+window they can never fill. Outside `perf/`, `--fps` defaults to a short
+60/240 window so a bare `probe run gameplay --fps` fits the deadline; `perf/`
+and the sweep keep 180/900, and your own `NOVA_PERF_WARMUP`/`NOVA_PERF_FRAMES`
+always win.
+
 ## Host knobs (flamegraphs)
 
 samply needs `perf_event_paranoid <= 1` and, on many-core hosts, a raised
