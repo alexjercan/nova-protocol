@@ -240,8 +240,15 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `Some("x.png")`). 20260715-142849.
 - `declared-but-not-loaded` (x1): a resource named in config/markup is not
   wired; grep for where it is imported/served. 20260713-222025.
-- `generated-links-need-real-targets` (x1): manifest-rendered links gate on
-  the target existing or they 404. 20260713-225324.
+- `generated-links-need-real-targets` (x2): manifest-rendered AND authored doc
+  links gate on the target existing or they 404 - check every link target
+  resolves on disk (a README banner link went stale when the file moved dirs).
+  20260713-225324, 20260718-152205.
+- `enumerate-bins-via-cargo-metadata` (x1): to document or audit "every
+  binary/target", enumerate with `cargo metadata --no-deps` (or find
+  `src/bin/*.rs` + `src/main.rs`), never by grepping `[[bin]]` stanzas -
+  default targets carry no stanza (a grep pass reported 2 of 6 bins).
+  20260718-152205.
 - `ci-skips-client-render` (x1): build-only CI proves the bundle compiles;
   DOM logic needs a runtime check. 20260713-225324.
 - `render-output-eyeball` (x5): a dimensionally-valid generated ARTIFACT can
