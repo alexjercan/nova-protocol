@@ -619,6 +619,14 @@ This mirrors `asteroid_field.content.ron`: seed a counter on start, count
 destroyed asteroids, complete an objective once the count crosses a threshold,
 then reach a zone to advance to the next scenario.
 
+For a larger, self-contained mod that turns this single-counter idea into an
+ordered gate run - and adds the act-gating guard so a post-victory wreck cannot
+flip the result - see the [Gauntlet worked
+example](../scenario-system/#the-gauntlet-worked-example): the shipped content
+file `webmods/gauntlet/gauntlet.content.ron` and its behavior/layout test rig
+`crates/nova_assets/tests/gauntlet_course.rs` are the reference implementation
+of the [scenario patterns](../scenario-system/#scenario-patterns).
+
 ```mermaid
 flowchart TD
     Start["OnStart: seed counter = 0, flag = false; add objective"] --> Kill

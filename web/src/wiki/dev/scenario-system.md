@@ -267,6 +267,144 @@ reserved key is always fine; only writing it is gated. The example mod's
 arena ships a timed comms nudge and a timed bonus spawn as copyable worked
 examples.
 
+## Scenario patterns
+
+The event vocabulary has no built-in "state" beyond scenario variables, so the
+shipped mods build their control flow out of one numeric variable plus
+`Expression` filters. Two idioms recur; both are worked end to end in the
+[Gauntlet worked example](#the-gauntlet-worked-example) below. Excerpts here are
+verbatim from `webmods/gauntlet/gauntlet.content.ron`.
+
+### The gate-counter ordering pattern
+
+A single numeric variable acts as a state machine that enforces ORDERED entry:
+each stage's handler is guarded on the counter holding that stage's value, and
+the last thing the handler does is bump the counter to arm the NEXT stage only.
+An event that arrives out of order finds the counter on a different value and
+does nothing.
+
+Gauntlet's variable is `gate` (the index of the gate to thread next, `1..=7`).
+`OnStart` seeds it:
+
+```ron
+VariableSet((
+    key: "gate",
+    expression: Term(Factor(Literal(Number(1.0)))),
+)),
+```
+
+Each gate's `OnEnter` handler carries two filters - an `Entity` filter that
+matches the area/body, and an `Expression` filter that pins the counter - so
+only the in-order entry fires:
+
+```ron
+(
+    name: OnEnter,
+    filters: [
+        Entity((
+            id: Some("gauntlet_gate_1"),
+            other_id: Some("player_spaceship"),
+        )),
+        Expression((Equal(
+            Term(Factor(Name("gate"))),
+            Term(Factor(Literal(Number(1.0)))),
+        ))),
+    ],
+    actions: [
+        ObjectiveComplete((id: "gate_1")),
+        VariableSet((
+            key: "gate",
+            expression: Term(Factor(Literal(Number(2.0)))),
+        )),
+        // ... re-point the objective marker at gate 2 ...
+    ],
+),
+```
+
+Because gate 2's handler filters `Equal(gate, 2.0)`, flying through gate 3
+early - or back through gate 1 again - matches no live handler and is inert. The
+`gauntlet_course` rig's `gates_advance_only_in_order` test pins exactly this:
+an out-of-order entry does not advance `gate`.
+
+Use it whenever stages must be visited in sequence (a gate run, a guided tour, a
+tutorial's step chain). The base `shakedown_run` starter uses the same idiom
+with a `beat` counter; see [Built-in scenarios](#built-in-scenarios).
+
+### The act-gating pattern
+
+A post-decision event can otherwise flip an already-decided outcome: in Gauntlet
+a wreck normally means Defeat, but a wreck that drifts into a rock AFTER the win
+must not overwrite the earned Victory. The fix is to guard the Defeat handler on
+the same counter, past a terminal value the winning handler sets.
+
+The FINISH handler bumps `gate` one past the last real gate (to `8.0`, the
+terminal done-state) as it declares Victory:
+
+```ron
+// Terminal: bump past the last gate so no OnEnter re-fires
+// AND the player-death Defeat handler (gated gate < 8) can
+// never flip an earned Victory to Defeat.
+VariableSet((
+    key: "gate",
+    expression: Term(Factor(Literal(Number(8.0)))),
+)),
+Outcome((
+    outcome: Victory,
+    message: Some("You ran the gauntlet clean. ..."),
+)),
+```
+
+The `OnDestroyed` Defeat handler is then guarded `gate < 8`, so a death blast
+after the course is finished declares nothing:
+
+```ron
+(
+    name: OnDestroyed,
+    filters: [
+        Entity((
+            id: Some("player_spaceship"),
+        )),
+        Expression((LessThan(
+            Term(Factor(Name("gate"))),
+            Term(Factor(Literal(Number(8.0)))),
+        ))),
+    ],
+    actions: [
+        Outcome((
+            outcome: Defeat,
+            message: Some("You wore your hull down to nothing ..."),
+        )),
+        NextScenario((
+            scenario_id: "gauntlet_run",
+            linger: true,
+        )),
+    ],
+),
+```
+
+The rig's `wrecking_after_the_win_declares_nothing` test seeds `gate` to `8.0`,
+fires the death, and asserts no outcome and no retry. Use this whenever a lethal
+event can still fire after the scenario is decided (a boss's death explosion
+catching the player, a wreck sliding into a hazard): pick a terminal counter
+value the winning handler sets, and guard every outcome handler against it.
+
+### The Gauntlet worked example
+
+`webmods/gauntlet` is the reference implementation for both patterns. Trace it
+end to end:
+
+- The content file `webmods/gauntlet/gauntlet.content.ron` - one NEW scenario,
+  no base overrides; the gate-counter and act-gating idioms above live here with
+  header comments explaining the two geometric invariants.
+- The test rig `crates/nova_assets/tests/gauntlet_course.rs` - loads the ACTUAL
+  shipped content, drives the real handlers, and pins both invariants (gate
+  areas do not overlap; the racing line stays clear of every rock's worst-case
+  body past `ASTEROID_GEOMETRIC_FACTOR_MAX`) plus the ordered-gate and
+  act-gating behavior. Run it with
+  `cargo test -p nova_assets --test gauntlet_course`.
+- The [authoring guide's objective-loop worked example](../guide-author-scenario/#6-worked-example-an-objective-loop)
+  is the gentler, single-counter cousin of the gate-counter pattern.
+
 ## Scenario objects (`objects/`, `ScenarioObjectKind`)
 
 All share `BaseScenarioObjectConfig` (id, name, position, rotation) and spawn
@@ -274,7 +412,11 @@ scoped, interpolated, dynamic bodies via `base_scenario_object`.
 
 - `Asteroid(AsteroidConfig)` - radius, texture, health, `surface_gravity`
   override, `invulnerable` (no health node, so its gravity well cannot die),
-  `lock_signature` override.
+  `lock_signature` override, and optional per-spawn `impact_sound` /
+  `destroy_sound` (`Some("dep://base/sounds/impact.wav")` / `explosion.wav`) so
+  a scenario rock can carry its own hit and death audio, the same surface a
+  section's `base` block exposes. Spawned ship sections take the same two
+  fields; see [Authoring a section](../guide-author-section/).
 - `Spaceship(SpaceshipConfig)` - sections plus a `SpaceshipController`:
   `None`, `Player` (input mapping, optional `speed_cap`, `infinite_ammo`,
   optional `lock_refire_secs`), or `AI` (patrol route, orbit directive,
