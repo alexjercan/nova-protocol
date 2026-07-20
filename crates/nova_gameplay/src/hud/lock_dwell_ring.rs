@@ -5,7 +5,7 @@
 //! beat). nova's first [`UiMaterial`]: a trivial WGSL fragment
 //! (`assets/shaders/lock_dwell_ring.wgsl`) driven by a `progress` uniform.
 //!
-//! A thin consumer of the [`screen_indicator`](super::screen_indicator)
+//! A thin consumer of the [`screen_indicator`](mod@super::screen_indicator)
 //! widget: one ring node whose anchor is driven to
 //! [`RadarState::dwell_target`] each frame (so it rides the pending candidate,
 //! which can differ from the still-committed lock during a re-designation),

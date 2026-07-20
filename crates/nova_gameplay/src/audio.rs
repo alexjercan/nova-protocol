@@ -32,7 +32,7 @@
 //! SOUND, except
 //! the player's own ship, which is never attenuated (the camera rig sits 11-32 u
 //! out by mode and the orbit survey dolly stretches it to 250 u, deep in the
-//! rolloff band; see [`compute_thruster_hum_volume`]).
+//! rolloff band; see `compute_thruster_hum_volume`).
 //!
 //! The [`SoundBank<UiSfx>`] resource is inserted by `nova_assets` once assets
 //! load; every system here degrades gracefully (does nothing) until the
@@ -113,7 +113,7 @@ const RADAR_DENY_VOLUME: f32 = 0.26;
 /// (`OBJECTIVE_COMPLETE_VOLUME` 0.38 / `OBJECTIVE_NEW_VOLUME` 0.30) so a crate
 /// pickup reads as a light per-item confirmation, not a beat completion (task
 /// 20260714-090002). `pub` because the cue is fired from `nova_scenario`'s
-/// salvage plugin (which owns [`SalvageCrateMarker`]), keeping every cue volume
+/// salvage plugin (which owns `SalvageCrateMarker`), keeping every cue volume
 /// defined here in the audio module.
 pub const SALVAGE_PICKUP_VOLUME: f32 = 0.22;
 

@@ -37,7 +37,7 @@ pub struct NewGameStart(pub Option<ScenarioId>);
 /// against the MERGED registries (task 20260716-193949) - the runtime half
 /// of the content gate (`nova_scenario::lint` is the shared core). Keyed by
 /// scenario id; scenarios without findings have no entry. Error-level
-/// findings make [`on_load_scenario`] REFUSE the load.
+/// findings make `on_load_scenario` REFUSE the load.
 #[derive(Resource, Clone, Debug, Default)]
 pub struct ContentIssues(pub HashMap<ScenarioId, Vec<LintIssue>>);
 
@@ -323,7 +323,7 @@ impl Plugin for ScenarioLoaderPlugin {
 }
 
 /// A scripted camera pose that overrides the free-fly WASD controller, applied
-/// every frame by [`enforce_scripted_camera_pose`]. Set by the `SetCamera`
+/// every frame by `enforce_scripted_camera_pose`. Set by the `SetCamera`
 /// scenario action (photo mode) and the screenshot reel; while present it pins
 /// the [`ScenarioCameraMarker`] camera at `position` looking at `look_at`.
 #[derive(Component, Debug, Clone, Copy)]
@@ -344,7 +344,7 @@ fn enforce_scripted_camera_pose(mut cameras: Query<(&mut Transform, &ScriptedCam
 }
 
 /// The reserved scenario-clock variable (task 20260717-112647): seconds of
-/// LIVE, UNPAUSED scenario time, maintained by [`tick_scenario_clock`] and
+/// LIVE, UNPAUSED scenario time, maintained by `tick_scenario_clock` and
 /// readable from any expression filter as
 /// `Term(Factor(Name("scenario_elapsed")))`. Authors GATE on it, they never
 /// write it - a `VariableSet` on this key is a content_lint ERROR, because
@@ -426,10 +426,10 @@ fn resolve_window_secs(override_secs: Option<f64>, default: f64) -> f64 {
 }
 
 /// Bookkeeping for the orbit-hold tracker, on the orbiting ship: which well
-/// and the scenario-clock reading ([`scenario_elapsed`]) when the current
+/// and the scenario-clock reading (`scenario_elapsed`) when the current
 /// window opened - engagement, well switch, or the last fire. The window has
 /// elapsed once `now - started_at >= window`, where `window` is the ship's
-/// [`OrbitHoldSecs`] override or the [`ORBIT_HOLD_SECS`] default. Disengaging (or
+/// [`OrbitHoldSecs`] override or the `ORBIT_HOLD_SECS` default. Disengaging (or
 /// switching wells) removes it, restarting the window; the component also dies
 /// with its entity on teardown, so a retry re-arms against a fresh clock.
 #[derive(Component, Clone, Debug, Reflect)]
@@ -529,10 +529,10 @@ fn track_orbit_holds(
 const LOCK_REFIRE_SECS: f64 = 5.0;
 
 /// Bookkeeping for the player-lock bridge: per slot, the last target the
-/// bridge saw and the scenario-clock reading ([`scenario_elapsed`]) when it
+/// bridge saw and the scenario-clock reading (`scenario_elapsed`) when it
 /// last fired for that target. The re-fire window has elapsed once
 /// `now - last_fired_at >= refire`, where `refire` is the player's
-/// [`LockRefireSecs`] override or the [`LOCK_REFIRE_SECS`] default.
+/// [`LockRefireSecs`] override or the `LOCK_REFIRE_SECS` default.
 #[derive(Component, Clone, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct LockEcho {
@@ -965,9 +965,9 @@ fn on_next_input(
 }
 
 /// Marks the scenario's free-fly camera (the one spawned by
-/// [`on_load_scenario`], carrying [`WASDCameraController`] until a player ship
+/// `on_load_scenario`, carrying [`WASDCameraController`] until a player ship
 /// swaps it to the chase camera). The `SetCamera` scenario action
-/// ([`SetCameraActionConfig`](crate::actions::SetCameraActionConfig)) queries
+/// ([`SetCameraActionConfig`]) queries
 /// this to pose the camera for a scripted screenshot.
 #[derive(Component, Debug, Clone)]
 pub struct ScenarioCameraMarker;

@@ -4,7 +4,7 @@
 //!
 //! - [`TravelLock`] (white crosshair): the nav designation GOTO reads.
 //! - [`CombatLock`] (red crosshair): what guns/torpedoes/focus/inset read.
-//! - Hold CTRL ([`RadarHoldInput`], a `Hold` condition) = radar on: the
+//! - Hold CTRL (`RadarHoldInput`, a `Hold` condition) = radar on: the
 //!   picker live-retargets to the best body on the ACTIVE look ray
 //!   ([`ActiveLookRay`]). At the hold THRESHOLD the destination slot is
 //!   latched from the CURRENT raised stance (combat while [`WeaponsRaised`],
@@ -13,13 +13,13 @@
 //!   drops the lock, Q2a). Releasing just ends the search - the lock
 //!   sticks. A hold that never resolves a candidate leaves the slots
 //!   untouched (D1).
-//! - Tap CTRL ([`RadarClearInput`], a `Tap` condition) = staged clear: the
+//! - Tap CTRL (`RadarClearInput`, a `Tap` condition) = staged clear: the
 //!   combat lock first, then the travel lock (disengaging an engaged GOTO);
 //!   while raised, only ever the combat lock.
 //! - NOTHING locks passively: the old aim-assist cone auto-pick and the
 //!   close-range signature auto-acquire are gone. Locks clear naturally on
 //!   death/despawn, out-of-range, a hostile target turning non-hostile, and
-//!   the combat lock decays after [`COMBAT_DECAY_SECS`] without combat
+//!   the combat lock decays after `COMBAT_DECAY_SECS` without combat
 //!   activity.
 //!
 //! The scanner-wave RANGE model (LockSignature) survives as the radar
@@ -84,13 +84,13 @@ pub struct TargetingSettings {
     /// sweeping off before it completes cancels. Distance scales it up (see
     /// the other `lock_dwell_*` knobs), so far locks are a real skill beat.
     pub lock_dwell_base: f32,
-    /// Extra dwell at [`lock_dwell_reference_range`] as a multiple of
-    /// [`lock_dwell_base`]: at 1.5 a lock at the reference distance costs
+    /// Extra dwell at `lock_dwell_reference_range` as a multiple of
+    /// `lock_dwell_base`: at 1.5 a lock at the reference distance costs
     /// `base * (1 + 1.5)` = 2.5x the point-blank dwell. Beyond the reference
     /// range the term saturates.
     pub lock_dwell_range_factor: f32,
     /// The distance (world units) at which the distance term reaches full
-    /// strength ([`lock_dwell_range_factor`]); closer targets scale linearly
+    /// strength (`lock_dwell_range_factor`); closer targets scale linearly
     /// between point-blank and here. Covers the torpedo engagement band.
     pub lock_dwell_reference_range: f32,
     /// Floor on the computed dwell, seconds - even a point-blank lock is not
@@ -128,7 +128,7 @@ pub struct TravelLock(pub Option<Entity>);
 /// The combat lock slot on the player ship root: guns, torpedo commit, focus
 /// dwell, component fine-lock and the target inset read it; while it is Some
 /// the weapons safety stays off (20260713-082337). Red crosshair. Sticky,
-/// plus the [`COMBAT_DECAY_SECS`] idle decay.
+/// plus the `COMBAT_DECAY_SECS` idle decay.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
 #[reflect(Component)]
 pub struct CombatLock(pub Option<Entity>);
@@ -171,10 +171,10 @@ pub struct RadarState {
     pub dwell_target: Option<Entity>,
     /// Seconds the current [`dwell_target`](Self::dwell_target) has been held
     /// steady under the ray. Reaches the per-target dwell
-    /// ([`lock_dwell_secs`]) before the slot commits.
+    /// (`lock_dwell_secs`) before the slot commits.
     pub dwell_secs: f32,
     /// The dwell (seconds) the current [`dwell_target`](Self::dwell_target)
-    /// needs to commit - the live [`lock_dwell_secs`] for its distance, cached
+    /// needs to commit - the live `lock_dwell_secs` for its distance, cached
     /// each charging frame so the ring HUD (20260717-004302) renders the fill
     /// without recomputing the distance curve. `0.0` when not dwelling.
     pub dwell_needed: f32,
@@ -222,12 +222,12 @@ pub struct WeaponsHot(pub bool);
 /// Idle bookkeeping for the combat-lock decay (decision D4): seconds since
 /// the last combat activity while a combat lock exists. Reset by the raised
 /// stance (and by firing, once 20260713-082337 lands); at
-/// [`COMBAT_DECAY_SECS`] the combat lock clears and the safety follows.
+/// `COMBAT_DECAY_SECS` the combat lock clears and the safety follows.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Default, Reflect)]
 #[reflect(Component)]
 pub struct CombatDecay(pub f32);
 
-/// The always-on ranked hostile combat set (top [`TARGET_CANDIDATE_COUNT`]
+/// The always-on ranked hostile combat set (top `TARGET_CANDIDATE_COUNT`
 /// toward the look ray): the edge-indicator threat arrows read it (decision
 /// D9 - the on-screen candidate list HUD is retired, the tracker is not).
 #[derive(Component, Debug, Clone, PartialEq, Default, Reflect)]
@@ -415,7 +415,7 @@ const COMPONENT_PIN_WINDOW: f32 = 2.0;
 const SNAP_HYSTERESIS: f32 = 0.75;
 
 /// Focus: how long the COMBAT lock has been held on the same target.
-/// Component fine-locking unlocks at [`FOCUS_TIME`]; the HUD renders the
+/// Component fine-locking unlocks at `FOCUS_TIME`; the HUD renders the
 /// fill fraction while it accumulates. On the player ship root; the
 /// provisional radar candidate never touches it - only a committed lock
 /// accrues dwell.

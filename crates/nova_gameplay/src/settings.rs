@@ -12,7 +12,7 @@
 //!   scripted runs (smoke suite, probe, screenshot captures) - the SETTING
 //!   stays untouched, so persistence and the menu never see the mute.
 //! - [`GraphicsQuality`] is a three-tier preset. It maps onto two things through
-//!   the single [`apply_graphics_quality`] seam: the combat juice
+//!   the single `apply_graphics_quality` seam: the combat juice
 //!   ([`crate::juice::JuiceSettings`]) and the derived [`GraphicsBudget`] gate
 //!   (task 20260525-133013, the low-end spawn-less mode). `GraphicsBudget` is
 //!   what the expensive effect systems actually read - whether hanabi particles
@@ -150,7 +150,7 @@ impl GraphicsQuality {
 /// (task 20260525-133013, the low-end spawn-less mode). `GraphicsQuality` is the
 /// player's *choice*; this is the *derived budget* the expensive effect systems
 /// read, so the tier->cost policy lives only in [`GraphicsBudget::for_quality`]
-/// (driven by [`apply_graphics_quality`]) instead of being re-derived at every
+/// (driven by `apply_graphics_quality`) instead of being re-derived at every
 /// spawn site. Mirrors how [`crate::juice::JuiceSettings`] is the resource the
 /// juice systems read while the preset just flips its toggles.
 ///

@@ -116,7 +116,7 @@ pub struct TorpedoSectionConfig {
     /// [`AssetRef<AudioSource>`] like the meshes/effects (task 20260717-101624,
     /// spike 20260717-101524): base bays author `self://sounds/torpedo_launch.wav`,
     /// a mod bay can ship its own. Snapshotted (unresolved) onto the spawner as
-    /// [`TorpedoSectionLaunchSound`]; the audio observer resolves and plays it.
+    /// `TorpedoSectionLaunchSound`; the audio observer resolves and plays it.
     /// `None` means no launch sound (authored-or-silent).
     #[reflect(ignore)]
     #[cfg_attr(
@@ -418,12 +418,12 @@ impl Plugin for TorpedoSectionPlugin {
 ///
 /// The kill is deliberately TWO-STEP: the observer that detects the dead
 /// body section only inserts this marker (inserting on a live entity is
-/// always safe), and [`despawn_shot_down_torpedoes`] removes the torpedo on
+/// always safe), and `despawn_shot_down_torpedoes` removes the torpedo on
 /// the next schedule pass. Despawning directly inside the observer raced
 /// the integrity pipeline: its already-queued commands for the dying
 /// section (e.g. `IntegrityDisabledMarker`) then hit a despawned entity and
 /// panicked mid collision-event flush (live-game crash, 20260710).
-/// [`torpedo_detonate_system`] excludes marked roots, so the warhead cannot
+/// `torpedo_detonate_system` excludes marked roots, so the warhead cannot
 /// fire in the gap.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TorpedoShotDownMarker;

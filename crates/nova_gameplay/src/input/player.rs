@@ -90,7 +90,7 @@ pub struct VerbHint {
 const HOLD_FIRE_DURING_RADAR: bool = false;
 
 /// The player's currently available flight verbs, resolved every frame by
-/// [`update_flight_verb_hints`] - computed here, where the verbs and their
+/// `update_flight_verb_hints` - computed here, where the verbs and their
 /// (private) input actions live; the HUD renders it dumb. Keyboard labels
 /// only in v1 (device awareness is a recorded open question).
 #[derive(Resource, Clone, Debug, Default, PartialEq, Reflect)]
@@ -141,7 +141,7 @@ fn keyboard_label(key: KeyCode) -> String {
 
 /// A short display chip for a section's input binding (the editor keybind
 /// readout, task 20260712-163912): the first keyboard or mouse binding in the
-/// list, keyboards via [`keyboard_label`] and mouse buttons as `LMB`/`RMB`/`MMB`.
+/// list, keyboards via `keyboard_label` and mouse buttons as `LMB`/`RMB`/`MMB`.
 /// Empty string when there is no keyboard/mouse binding (e.g. gamepad-only).
 pub fn binding_label(bindings: &[Binding]) -> String {
     bindings

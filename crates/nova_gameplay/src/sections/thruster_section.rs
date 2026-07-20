@@ -50,7 +50,7 @@ pub struct ThrusterSectionConfig {
     /// whose volume tracks the loudest ship burning it. AUTHORED-OR-SILENT: a
     /// thruster with no loop_sound hums nothing; base thrusters author
     /// `self://sounds/thruster_loop.wav` via gen_content. Snapshotted
-    /// (unresolved) as [`ThrusterSectionLoopSound`]; the audio module resolves
+    /// (unresolved) as `ThrusterSectionLoopSound`; the audio module resolves
     /// and groups by handle.
     #[reflect(ignore)]
     #[cfg_attr(

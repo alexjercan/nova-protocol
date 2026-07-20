@@ -29,7 +29,7 @@ pub struct KeybindEntry {
 }
 
 /// The canonical player controls, in reading order and grouped by section.
-/// Sourced from the flight rig ([`super::player::flight_input_rig`]), the
+/// Sourced from the flight rig (`super::player::flight_input_rig`), the
 /// targeting actions, the camera controller rig, and the pause toggle.
 pub const KEYBINDS: &[KeybindEntry] = &[
     // FLIGHT - the flight rig in input/player.rs.

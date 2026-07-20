@@ -6,9 +6,9 @@
 //!   item carries its KIND as a data flag (`Section((..))` / `Scenario((..))`).
 //!
 //! A [`Content`] item is one of:
-//! - [`Content::Section`] - a [`SectionConfig`](nova_gameplay::prelude::SectionConfig)
+//! - [`Content::Section`] - a [`SectionConfig`]
 //!   prototype (previously the `*.sections.ron` catalog), and
-//! - [`Content::Scenario`] - a [`ScenarioConfig`](nova_scenario::prelude::ScenarioConfig)
+//! - [`Content::Scenario`] - a [`ScenarioConfig`]
 //!   (previously the `*.scenario.ron` file).
 //!
 //! The kind lives IN the RON structure (an externally-tagged enum), so ONE

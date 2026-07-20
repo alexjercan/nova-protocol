@@ -1,12 +1,12 @@
 //! Authoring surface for input bindings (task: scenario config serde).
 //!
-//! [`bevy_enhanced_input::Binding`] is the runtime binding type the spawn and
+//! `bevy_enhanced_input::Binding` is the runtime binding type the spawn and
 //! editor paths use, but it has no `serde` impls, so a
 //! `HashMap<SectionId, Vec<Binding>>` cannot round-trip through a hand-authored
 //! RON scenario file. [`BindingInput`] is the small serializable stand-in: it
 //! covers the simple, no-modifier button forms a scenario actually authors
 //! (a key, a mouse button, a gamepad button) and converts to/from `Binding`.
-//! The runtime field keeps its `Binding` type; [`binding_map_serde`] bridges
+//! The runtime field keeps its `Binding` type; `binding_map_serde` bridges
 //! the two on (de)serialize.
 
 use bevy::prelude::*;

@@ -222,7 +222,7 @@ pub struct NovaBlast {
 /// Bundle for a nova typed blast volume. Mirrors bcs's `blast_damage` collider
 /// setup - a Static sensor sphere that owns its collision events so it raises
 /// `CollisionStart` against every overlapped collider - but routes damage
-/// through [`on_nova_blast_collision`]. Spawn with a `Transform` at the centre
+/// through `on_nova_blast_collision`. Spawn with a `Transform` at the centre
 /// and a short `TempEntity` so it cleans itself up.
 pub fn nova_blast(radius: f32, max_damage: f32, kind: DamageType) -> impl Bundle {
     (

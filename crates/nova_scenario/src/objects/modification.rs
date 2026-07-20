@@ -1,5 +1,5 @@
 //! Section modifications: small, closed, data-only deltas an authored ship
-//! section applies on top of a resolved [`SectionConfig`] (whether the config
+//! section applies on top of a resolved `SectionConfig` (whether the config
 //! was inlined or pulled from the section-prototype catalog by id).
 //!
 //! The model (spike 20260714, user direction): each authored
@@ -23,7 +23,7 @@ pub mod prelude {
 }
 
 /// A single, closed, data-only delta applied to a ship section at spawn on top
-/// of its resolved [`SectionConfig`]. A small starter set - each variant is
+/// of its resolved `SectionConfig`. A small starter set - each variant is
 /// well-grounded in an existing section component (a runtime concept the engine
 /// already owns), not speculative. Grows by adding a variant plus its component
 /// and observer below.

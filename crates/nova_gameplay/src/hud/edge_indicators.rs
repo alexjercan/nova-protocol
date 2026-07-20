@@ -83,7 +83,7 @@ pub enum EdgeIndicatorKind {
 }
 
 /// UI bundle for the edge-indicator layer. Indicators are spawned under it
-/// by [`sync_edge_indicators`], one per tracked entity.
+/// by `sync_edge_indicators`, one per tracked entity.
 pub fn edge_indicators_hud() -> impl Bundle {
     (
         Name::new("EdgeIndicatorsHUD"),

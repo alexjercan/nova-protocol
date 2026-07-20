@@ -68,7 +68,7 @@ const EMPHASIS_ALPHA_AVAILABLE: (f32, f32) = (0.7, 1.0);
 const EMPHASIS_ALPHA_UNAVAILABLE: (f32, f32) = (0.3, 0.5);
 
 /// The verb rows the scenario wants the player's eyes on (task
-/// 20260712-093831): names from [`ROW_VERBS`], set/cleared by the
+/// 20260712-093831): names from `ROW_VERBS`, set/cleared by the
 /// `HintEmphasisSet`/`HintEmphasisClear` scenario actions and cleared
 /// wholesale on scenario teardown. Emphasis is a SPOTLIGHT, not a state
 /// change - it never alters availability; an unavailable row pulses from
@@ -80,7 +80,7 @@ pub struct HintEmphasis {
 }
 
 impl HintEmphasis {
-    /// Emphasize `verb` (a [`ROW_VERBS`] name). Unknown verbs are refused
+    /// Emphasize `verb` (a `ROW_VERBS` name). Unknown verbs are refused
     /// with a warning - a typo in scenario data should be loud, not a
     /// silently dead handler.
     pub fn set(&mut self, verb: &str) -> bool {

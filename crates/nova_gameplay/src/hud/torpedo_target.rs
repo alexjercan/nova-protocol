@@ -3,7 +3,7 @@
 //! locks (the ship-root `CombatLock`), with distance, closing speed
 //! and a health bar riding its edge (tasks 20260708-165700 / 165702).
 //!
-//! A thin consumer of the [`screen_indicator`](super::screen_indicator)
+//! A thin consumer of the [`screen_indicator`](mod@super::screen_indicator)
 //! widget: the widget owns projection, sizing and visibility; this module
 //! spawns the reticle, drives its anchor from the lock resource, and fills
 //! the readout content. The readout is a child of the reticle node at

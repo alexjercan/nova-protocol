@@ -51,7 +51,7 @@ pub struct BeaconConfig {
     )]
     pub area_radius: Option<f32>,
     /// Radar signature override; `None` = the default
-    /// [`BEACON_LOCK_SIGNATURE`] (600u lock range). A scenario whose GOTO
+    /// `BEACON_LOCK_SIGNATURE` (600u lock range). A scenario whose GOTO
     /// leg is longer than that authors the signature the leg needs
     /// (shakedown's waypoint run, task 20260713-140929).
     #[cfg_attr(

@@ -10,8 +10,8 @@
 //! browser fetch), swapped by tests via the [`PortalClient`] resource.
 //!
 //! Flow shape (the mod_cache hydration idiom): observers KICK transport
-//! fetches whose completion callbacks post [`PortalMsg`]s into a channel; the
-//! [`poll_portal_messages`] Update system consumes them and advances the
+//! fetches whose completion callbacks post `PortalMsg`s into a channel; the
+//! `poll_portal_messages` Update system consumes them and advances the
 //! state machines. Everything the wire returns is UNTRUSTED: the catalog is
 //! schema-version-gated before it is trusted at all, and every id/path of an
 //! entry passes the shared `mod_cache` safety gates BEFORE the first byte of
@@ -34,7 +34,7 @@
 //!
 //! WEDGE RECOVERY (task 142916, resolving 163508's R1.3 note): an install
 //! whose transport callback never fires is failed by
-//! [`timeout_wedged_fetches`] once its `Fetching` stage stalls past
+//! `timeout_wedged_fetches` once its `Fetching` stage stalls past
 //! [`PortalFetchTimeout`] (progress resets the window; `Committing` is a
 //! LOCAL commit and is deliberately not timed out - see the constant's doc),
 //! landing it on the standard `Failed` surface the menu answers with
@@ -300,7 +300,7 @@ pub struct UninstallPortalMod {
 /// The fetched portal catalog: the fetch state machine the Explore UI renders
 /// plus the LAST-GOOD catalog (task 142916's offline fallback). State
 /// transitions never clear `last_good`: a successful fetch refreshes it (and
-/// persists the raw body through [`last_good_store`]), startup loads it back,
+/// persists the raw body through `last_good_store`), startup loads it back,
 /// and every failure leaves it standing for the UI's stale rendering.
 #[derive(Resource, Clone, Debug, Default)]
 pub struct RemoteCatalog {
@@ -458,7 +458,7 @@ impl ActiveInstalls {
 /// [`PortalFetchTimeout`] resource (tests shrink it to drive the real system).
 const FETCH_STALL_TIMEOUT: Duration = Duration::from_secs(120);
 
-/// The [`FETCH_STALL_TIMEOUT`] as a resource, so tests (and future settings)
+/// The `FETCH_STALL_TIMEOUT` as a resource, so tests (and future settings)
 /// can tune it without forking the system.
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct PortalFetchTimeout(pub Duration);
@@ -503,8 +503,8 @@ fn timeout_wedged_fetches(
 /// Ids whose uninstall FILE REMOVAL is still in flight. Only wasm ever fills
 /// it (its removal is a detached IndexedDB task; native removal is
 /// synchronous): an install admitted while the removal still runs could have
-/// its fresh writes deleted under it, so [`on_install_portal_mod`] rejects
-/// those ids until the task reports back through [`PortalMsg::Removed`].
+/// its fresh writes deleted under it, so `on_install_portal_mod` rejects
+/// those ids until the task reports back through `PortalMsg::Removed`.
 /// Cfg-INDEPENDENT so the guard itself is unit-tested natively. Pub (with the
 /// set readable) because the menu's update choreography (task 142916) uses it
 /// as its second guard: an update's install must not fire while the id's

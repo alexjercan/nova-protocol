@@ -3,7 +3,7 @@
 //! (`TurretSectionAimPoint`) so the player can see the lead each turret is
 //! taking (task 20260708-165701).
 //!
-//! A thin consumer of the [`screen_indicator`](super::screen_indicator)
+//! A thin consumer of the [`screen_indicator`](mod@super::screen_indicator)
 //! widget with `Point` anchors: a reconcile system keeps one pip per turret
 //! child of the player ship (turrets die mid-fight when their section is
 //! destroyed), and a driver copies each turret's aim point into its pip's
@@ -49,7 +49,7 @@ pub struct TurretLeadPipTurret(pub Entity);
 const PIP_HOT_COLOR: Color = Color::srgba(1.0, 0.4, 0.3, 0.95);
 
 /// UI bundle for the pip layer. Pips are spawned under it by
-/// [`sync_turret_pips`], one per player turret.
+/// `sync_turret_pips`, one per player turret.
 pub fn turret_lead_hud() -> impl Bundle {
     (
         Name::new("TurretLeadHUD"),

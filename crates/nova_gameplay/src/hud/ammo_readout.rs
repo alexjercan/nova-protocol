@@ -4,7 +4,7 @@
 //! (task 20260712-131348; direction settled in
 //! docs/spikes/20260712-143113-diegetic-ammo-readout.md).
 //!
-//! A thin consumer of the [`screen_indicator`](super::screen_indicator)
+//! A thin consumer of the [`screen_indicator`](mod@super::screen_indicator)
 //! widget with `Entity` anchors: a reconcile system keeps one readout per
 //! player weapon section that has a `SectionAmmo`, anchored to that section so
 //! the gauge rides on the weapon in screen space, and a driver reads
@@ -19,7 +19,7 @@
 //!
 //! While a weapon is reloading (it carries a [`SectionReload`] mid-cycle) the
 //! pips above the live-round level fill as a reload sweep in the same hue at a
-//! dimmer [`RELOAD_ALPHA`], proportional to cycle progress: a spent turret ring
+//! dimmer `RELOAD_ALPHA`, proportional to cycle progress: a spent turret ring
 //! fills from empty back to full, and a rearming torpedo bar lights the rounds
 //! coming back above the ones still loaded (task 20260716-123556).
 //!
@@ -146,7 +146,7 @@ impl Default for AmmoReadoutDebug {
 }
 
 /// UI bundle for the readout layer. Readouts are spawned under it by
-/// [`sync_ammo_readouts`], one per player weapon section with ammo.
+/// `sync_ammo_readouts`, one per player weapon section with ammo.
 pub fn ammo_readout_hud() -> impl Bundle {
     (
         Name::new("AmmoReadoutHUD"),

@@ -93,7 +93,7 @@ const BALANCE_PROJECT_ITERS: usize = 40;
 const LATERAL_PENALTY: f32 = 0.05;
 
 /// The pilot's manual input, on the ship root. Written by the player input
-/// layer; consumed by [`manual_burn_system`] when no autopilot is engaged.
+/// layer; consumed by `manual_burn_system` when no autopilot is engaged.
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 pub struct FlightIntent {
     /// Analog main-drive burn, `0..1` (W / Space / right trigger).
@@ -103,7 +103,7 @@ pub struct FlightIntent {
 /// Soft cap (u/s) on the MANUAL main-drive burn, on the ship root:
 /// scenario-authored for ships whose pilot should not be able to sail off
 /// into the void (the shakedown starter ship; playtest 2026-07-12 finding
-/// 1). [`manual_burn_system`] tapers the commanded burn to zero as the
+/// 1). `manual_burn_system` tapers the commanded burn to zero as the
 /// velocity component along the burn direction approaches the cap - a
 /// held W levels off instead of accelerating forever. Deliberately narrow:
 /// only the manual burn reads it (the autopilot plans its own decel),
@@ -118,7 +118,7 @@ pub struct FlightSpeedCap(pub f32);
 /// a desired translation direction in the ship's LOCAL frame, each component
 /// roughly `-1..1` (the magnitude is how hard the nudge). Written by the player
 /// input layer while RCS is held (task 20260718-122912) or by the autopilot
-/// (task 20260718-122932); consumed by [`rcs_burn_system`]. Zero (or absent) =
+/// (task 20260718-122932); consumed by `rcs_burn_system`. Zero (or absent) =
 /// no RCS. This is the shared primitive both drivers write, so RCS never grew
 /// its own force path (spike 20260718-122508, fork 4).
 #[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
@@ -156,7 +156,7 @@ const RCS_PLAYER_INTENT_DECAY: f32 = 0.4;
 /// Unlike [`FlightSpeedCap`], RCS is ALWAYS capped - that is the whole point of
 /// a fine-adjust mode - so a ship without this component still gets the default
 /// [`FlightSettings::rcs_speed_cap`]; the component only lets a scenario tune
-/// the ceiling per hull. [`rcs_burn_system`] gates each ship-local axis on the
+/// the ceiling per hull. `rcs_burn_system` gates each ship-local axis on the
 /// along-axis velocity component just like the main-burn taper.
 #[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
 #[reflect(Component)]
@@ -171,7 +171,7 @@ pub struct RcsSpeedCap(pub f32);
 const RCS_ORBIT_GRAVITY_AUTHORITY: f32 = 0.5;
 
 /// World-frame REFERENCE velocity the RCS cap is measured against, on the ship
-/// root. [`rcs_burn_system`] caps the along-axis component of `velocity -
+/// root. `rcs_burn_system` caps the along-axis component of `velocity -
 /// reference`, not of the absolute velocity - so RCS can trim a fast-moving
 /// craft by a sub-cap delta relative to this reference. ABSENT or ZERO restores
 /// the plain absolute cap (`reference = 0`), which is exactly the player
@@ -197,7 +197,7 @@ pub struct Autopilot {
     /// What the computer is trying to do.
     pub action: AutopilotAction,
     /// Where the maneuver currently is (for the HUD); updated every tick by
-    /// [`autopilot_system`].
+    /// `autopilot_system`.
     pub phase: AutopilotPhase,
 }
 
@@ -234,7 +234,7 @@ pub enum AutopilotAction {
     },
     /// Circularize and station-keep inside `well`'s gravity well (spike
     /// docs/spikes/20260709-193147-gravity-wells-orbital-mechanics.md).
-    /// The first engaged tick is the Plan phase: [`autopilot_system`] picks
+    /// The first engaged tick is the Plan phase: `autopilot_system` picks
     /// the target ring (current radius clamped into the stable band) and
     /// the orbit plane (from r x v, ship-up fallback) and stores them here;
     /// the plan then stays sticky - a per-tick replan would chase its own
@@ -252,7 +252,7 @@ pub enum AutopilotAction {
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 pub struct OrbitPlan {
     /// Target ring radius, world units - the current radius clamped into
-    /// the stable band ([`orbit_target_radius`]).
+    /// the stable band (`orbit_target_radius`).
     pub radius: f32,
     /// Orbit plane unit normal; travel direction on the ring is
     /// `normal x radial`.
@@ -261,7 +261,7 @@ pub struct OrbitPlan {
 
 /// Live numbers for an engaged translation leg (GOTO/GotoPos toward a
 /// goal, STOP toward its predicted rest point), published on the ship by
-/// [`autopilot_system`] every tick and removed when the leg ends (verb
+/// `autopilot_system` every tick and removed when the leg ends (verb
 /// switch clears it in-system; disengage clears it via
 /// `remove_maneuver_telemetry`). This is the physics-side seam the HUD
 /// instruments read (task 20260709-103454) - the arrival-rule internals
@@ -384,7 +384,7 @@ pub struct FlightSettings {
     pub rotation_bias: f32,
     /// Trim on the derived hull turn rate, dimensionless. The rate itself
     /// comes from the ship's torque budget and live inertia
-    /// ([`hull_turn_rate`]): the average rate of a torque-limited 180 is
+    /// (`hull_turn_rate`): the average rate of a torque-limited 180 is
     /// `sqrt(pi * max_torque / inertia) / 2`; 1.0 commands exactly that
     /// optimum, lower is more stately. This is what makes mass legible -
     /// a stripped hull turns visibly faster than a full build (torque-budget
@@ -444,7 +444,7 @@ pub struct FlightSettings {
     /// the safety margin keeps station-keeping off the fade band's edge.
     pub orbit_band_safety: f32,
     /// Default RCS fine-adjust speed cap (u/s): the terminal speed a held RCS
-    /// nudge builds to on each ship-local axis before [`rcs_burn_system`]
+    /// nudge builds to on each ship-local axis before `rcs_burn_system`
     /// tapers the push to zero. Small by design - the last few meters of a
     /// docking approach. Overridable per hull with [`RcsSpeedCap`].
     pub rcs_speed_cap: f32,

@@ -197,7 +197,7 @@ fn resolve_capture_path_in(path: &str, capture_dir: Option<&str>) -> std::path::
 }
 
 /// Capture the primary window to a PNG at `path` (photo mode). Relative paths
-/// resolve under `NOVA_SHOT_DIR` (see [`resolve_capture_path`]). Built on Bevy's
+/// resolve under `NOVA_SHOT_DIR` (see `resolve_capture_path`). Built on Bevy's
 /// built-in `Screenshot::primary_window()` + `save_to_disk` observer - the same
 /// primitive the screenshot harness uses - so no capture dependency is added.
 /// The parent directory is created if missing; a capture on a build without a
@@ -800,7 +800,7 @@ impl EventAction<NovaEventWorld> for ObjectiveMarkerDetachActionConfig {
 /// Emphasize one keybind-hint row (task 20260712-093831): pushes `verb`
 /// into nova_gameplay's [`HintEmphasis`] resource, so the cluster pulses
 /// that row toward objective gold until a `HintEmphasisClear` (or scenario
-/// teardown) drops it. Only [`ROW_VERBS`] names are valid; the resource
+/// teardown) drops it. Only `ROW_VERBS` names are valid; the resource
 /// refuses unknown verbs with a warning.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

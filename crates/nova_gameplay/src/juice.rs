@@ -11,7 +11,7 @@
 //! **Camera shake** reuses the generic trauma model from `bevy_common_systems`
 //! ([`CameraShakePlugin`]): it is drift-free (offset is un-applied and re-applied
 //! around the base-writing driver) and already orders itself around the chase
-//! camera. This module only *feeds* it trauma; [`ensure_camera_shake`] attaches a
+//! camera. This module only *feeds* it trauma; `ensure_camera_shake` attaches a
 //! [`CameraShake`] (configured from [`JuiceSettings`]) to the gameplay camera.
 //!
 //! **Impact / hit-flash FX** are drawn with gizmos, not spawned meshes or
@@ -186,7 +186,7 @@ impl FlashSettings {
 
 /// All combat-juice tunables in one resource, so a future settings menu can edit a
 /// single reflected struct. Systems read it every frame; changes to the shake
-/// fields are pushed onto the live [`CameraShake`] by [`sync_camera_shake_config`].
+/// fields are pushed onto the live [`CameraShake`] by `sync_camera_shake_config`.
 #[derive(Resource, Clone, Debug, Reflect)]
 #[reflect(Resource)]
 pub struct JuiceSettings {

@@ -166,7 +166,7 @@ pub struct TurretSectionConfig {
     /// AUTHORED-OR-SILENT (spike 20260717-101524): `None` means the turret fires
     /// silently - base turrets author `self://sounds/turret_fire.wav` via
     /// gen_content, so the stock game is unchanged. Snapshotted (unresolved) at
-    /// spawn onto a [`TurretSectionFireSound`] on the turret entity; the audio
+    /// spawn onto a `TurretSectionFireSound` on the turret entity; the audio
     /// observer resolves and plays it. All throttle/attenuation/positioning is
     /// unchanged.
     #[reflect(ignore)]
@@ -177,7 +177,7 @@ pub struct TurretSectionConfig {
     pub fire_sound: Option<AssetRef<AudioSource>>,
     /// The dry-fire click when this turret pulls its trigger on an empty
     /// magazine. Authorable like [`Self::fire_sound`] (task 20260717-101624):
-    /// snapshotted onto the turret as [`TurretSectionDryFireSound`], resolved by
+    /// snapshotted onto the turret as `TurretSectionDryFireSound`, resolved by
     /// the audio cue. `None` means no click (authored-or-silent).
     #[reflect(ignore)]
     #[cfg_attr(

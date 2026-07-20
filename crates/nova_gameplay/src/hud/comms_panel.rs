@@ -6,11 +6,11 @@
 //! (write-on-diff). Since the pacing rework (task 20260717-163033) the panel
 //! runs a display QUEUE over that feed instead of latest-wins: lines show in
 //! ARRIVAL order with a fade, each holds the screen for its dwell
-//! ([`COMMS_DWELL_SECS`] default, per-line override clamped to
+//! (`COMMS_DWELL_SECS` default, per-line override clamped to
 //! [`COMMS_DWELL_MIN_SECS`]..[`COMMS_DWELL_MAX_SECS`]) but yields early to a
-//! waiting line after [`COMMS_MIN_SECS`] - so a two-line beat reads as two
+//! waiting line after `COMMS_MIN_SECS` - so a two-line beat reads as two
 //! beats and a mid-fight line can no longer destroy an unread one. The
-//! pending queue is capped at [`COMMS_QUEUE_CAP`] (drop-oldest): a stale
+//! pending queue is capped at `COMMS_QUEUE_CAP` (drop-oldest): a stale
 //! backlog must not narrate the previous fight; the full log stays in
 //! [`StoryFeed`] regardless. Each line SHOWS with a comms blip
 //! (`UiSfx::CommsLine`).

@@ -92,7 +92,7 @@ pub struct ManeuverInstrumentsHudConfig {
 
 /// UI bundle: one indicator layer with the three chips. The holo ring and
 /// the radius spoke are not part of this layer - they are world-space
-/// entities owned by [`sync_orbit_ring`] and [`sync_radius_spoke`].
+/// entities owned by `sync_orbit_ring` and `sync_radius_spoke`.
 pub fn maneuver_instruments_hud(config: ManeuverInstrumentsHudConfig) -> impl Bundle {
     debug!("maneuver_instruments_hud: config {:?}", config);
 

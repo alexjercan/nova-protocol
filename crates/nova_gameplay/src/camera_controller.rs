@@ -325,7 +325,7 @@ const HANDBACK_BLEND_SECONDS: f32 = 0.45;
 /// Blends the camera's anchor rotation across the autopilot-to-manual
 /// re-seed discontinuity (task 20260710-222517): from the free-look
 /// direction the camera held at disengage toward the live rig output,
-/// over [`HANDBACK_BLEND_SECONDS`]. Lives on the camera controller
+/// over `HANDBACK_BLEND_SECONDS`. Lives on the camera controller
 /// entity; `update_chase_camera_input` ticks and removes it.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct CameraHandbackBlend {

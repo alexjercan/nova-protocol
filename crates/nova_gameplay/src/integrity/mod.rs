@@ -2,7 +2,7 @@
 //!
 //! The generic destruction pipeline (the graph model, blast volume, collision/blast damage,
 //! disable/destroy/leaf/chain logic) now lives in `bevy_common_systems::integrity`
-//! ([`IntegrityPlugin`](bevy_common_systems::prelude::IntegrityPlugin)). What stays here is
+//! ([`IntegrityPlugin`]). What stays here is
 //! the nova-specific glue on either end of its seam:
 //!
 //! - [`glue`] builds the integrity graph from the ship section grid and rolls section health

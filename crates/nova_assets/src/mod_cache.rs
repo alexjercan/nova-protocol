@@ -23,7 +23,7 @@
 //! native reads the cache directory live through a `FileAssetReader`; the web
 //! reads a shared in-memory [`Dir`](bevy::asset::io::memory::Dir)
 //! (`MemoryAssetReader`) that a startup task hydrates from IndexedDB (the
-//! [`ModsSourceDir`] resource keeps the `Dir` handle reachable - it is
+//! `ModsSourceDir` resource keeps the `Dir` handle reachable - it is
 //! Arc-shared, so filling it after registration is visible to the reader). A
 //! downloaded mod's bundle then loads as `mods://<id>/<bundle>` through the
 //! exact same loaders as a shipped one.
@@ -41,7 +41,7 @@
 //! manifest can request one without touching the index) are rejected by bevy's
 //! own `UnapprovedPathMode::Forbid` default at load time, and the native
 //! source is additionally SANDBOXED at the reader layer
-//! ([`SandboxedAssetReader`]) so containment does not depend on that default.
+//! (`SandboxedAssetReader`) so containment does not depend on that default.
 
 use std::path::Path;
 
@@ -269,7 +269,7 @@ pub async fn remove_mod(id: &str) -> Result<Vec<String>, String> {
 /// rather than as an unknown source.
 ///
 /// Web: a `MemoryAssetReader` over a fresh shared `Dir`, ALSO inserted as
-/// [`ModsSourceDir`] so the startup hydrator can fill it from IndexedDB after
+/// `ModsSourceDir` so the startup hydrator can fill it from IndexedDB after
 /// the source is built (the `Dir` is Arc-shared; late inserts are visible).
 /// The memory source needs NO sandbox: the `Dir` resolves each path component
 /// by hash-map lookup (a `..` name is just an absent key), never by filesystem

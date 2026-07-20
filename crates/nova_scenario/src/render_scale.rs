@@ -13,7 +13,7 @@
 //! [`GraphicsBudget::render_scale`](nova_gameplay::prelude::GraphicsBudget) is a
 //! fraction the scenario view is drawn at. At `1.0` (Medium/High) nothing here
 //! fires - the scenario camera renders straight to the window, exactly as
-//! before, so the crisp tiers pay zero cost. Below `1.0` (Low) [`reconcile_render_scale`]:
+//! before, so the crisp tiers pay zero cost. Below `1.0` (Low) `reconcile_render_scale`:
 //!
 //! 1. creates an offscreen [`Image`] sized `render_scale * window_physical`,
 //! 2. points every [`ScenarioCameraMarker`] camera at that image, setting the

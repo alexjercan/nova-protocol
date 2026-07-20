@@ -287,7 +287,7 @@ fn json_safe(value: &str) -> String {
 
 impl PerfRun {
     /// Parse one aggregated-CSV data row (no header) - the inverse of
-    /// [`FrameStats::to_csv_row`]. Accepts a v1 row (11 columns; metadata
+    /// `FrameStats::to_csv_row`. Accepts a v1 row (11 columns; metadata
     /// becomes [`RunMeta::unknown`]), a v2 row (17 columns; profile
     /// `unknown`) or a v3 row (18 columns). The CSV omits `total_ms`
     /// (JSON-only), so it is reconstructed exactly as `mean_ms * frames`

@@ -4,7 +4,7 @@
 //! (task 20260709-192523; mechanic in input/targeting.rs, design in
 //! docs/spikes/20260709-192358-component-lock-vats-lite.md).
 //!
-//! A thin consumer of the [`screen_indicator`](super::screen_indicator)
+//! A thin consumer of the [`screen_indicator`](mod@super::screen_indicator)
 //! widget with `Entity` anchors on section entities: a reconcile system
 //! keeps marker membership in sync with the locked ship's attached sections
 //! (they die mid-fight), and a highlight system restyles the selected one.
@@ -50,7 +50,7 @@ pub struct ComponentLockSectionMarker;
 pub struct ComponentLockSectionTarget(pub Entity);
 
 /// UI bundle for the marker layer. Markers are spawned under it by
-/// [`sync_component_markers`], one per attached section of the locked ship,
+/// `sync_component_markers`, one per attached section of the locked ship,
 /// while focused.
 pub fn component_lock_hud() -> impl Bundle {
     (

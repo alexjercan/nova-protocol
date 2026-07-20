@@ -46,7 +46,7 @@ pub struct ControllerSectionConfig {
     /// 20260717-101633, spike 20260717-101524): the controller IS the ship's
     /// computer (it grants the Lock capability), so its feedback ticks are its
     /// own authorable voice. Snapshotted (unresolved) into
-    /// [`ControllerSectionSounds`]; the audio cues resolve the PLAYER ship's
+    /// `ControllerSectionSounds`; the audio cues resolve the PLAYER ship's
     /// controller's refs. AUTHORED-OR-SILENT: `None` plays nothing; base
     /// controllers author all five via gen_content.
     ///

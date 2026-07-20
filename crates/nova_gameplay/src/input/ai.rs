@@ -108,9 +108,9 @@ impl Plugin for SpaceshipAIInputPlugin {
 pub struct AISpaceshipMarker;
 
 /// The entity this AI ship currently fights - what every AI behavior system
-/// aims, chases and shoots at. Written by [`update_ai_target`] from the
+/// aims, chases and shoots at. Written by `update_ai_target` from the
 /// relation model (task 20260709-225727); `None` means nothing hostile in
-/// acquisition range, which [`update_behavior_state`] turns into `Idle`.
+/// acquisition range, which `update_behavior_state` turns into `Idle`.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq, Deref, DerefMut, Reflect)]
 #[reflect(Component)]
 pub struct AITarget(pub Option<Entity>);
@@ -289,7 +289,7 @@ fn update_ai_target(
 /// When set, it OVERRIDES the primary [`AITarget`] for turret aim and fire -
 /// the PDC role is the turrets' main purpose (user decision, 20260710) -
 /// while flight keeps chasing the primary target. Written by
-/// [`update_point_defense_target`].
+/// `update_point_defense_target`.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq, Deref, DerefMut, Reflect)]
 #[reflect(Component)]
 pub struct AIPointDefenseTarget(pub Option<Entity>);
@@ -409,9 +409,9 @@ const AI_EVADE_THRUST_ALIGNMENT: f32 = 0.75;
 const AI_THREAT_ATTACKER_DISCOUNT: f32 = 0.5;
 
 /// The ship's under-fire memory: how recently a hostile hit landed and who
-/// fired it. Written by [`on_damage_track_threat`], ticked by
-/// [`update_behavior_state`]; drives the Engage -> Evade transition and the
-/// attacker bias in [`pick_ai_target`]. Required by [`AISpaceshipMarker`].
+/// fired it. Written by `on_damage_track_threat`, ticked by
+/// `update_behavior_state`; drives the Engage -> Evade transition and the
+/// attacker bias in `pick_ai_target`. Required by [`AISpaceshipMarker`].
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
 pub struct AIThreat {
@@ -457,8 +457,8 @@ impl AIThreat {
 
 /// The evade cycle's clocks: how long the current cycle has left, the
 /// refractory period before the next one, and the jink-leg cadence within a
-/// cycle. Managed by [`update_behavior_state`]; the rotation and thrust
-/// systems read [`Self::leg`] to fly the current jink. Required by
+/// cycle. Managed by `update_behavior_state`; the rotation and thrust
+/// systems read `Self::leg` to fly the current jink. Required by
 /// [`AISpaceshipMarker`].
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
@@ -562,7 +562,7 @@ fn on_damage_track_threat(
 
 /// What an AI ship is currently doing - the state skeleton of the AI combat
 /// arc (docs/spikes/20260709-225508-ai-combat-behaviors.md). One state per
-/// ship root, driven by [`update_behavior_state`]; every AI system gates its
+/// ship root, driven by `update_behavior_state`; every AI system gates its
 /// behavior on it.
 ///
 /// `Engage`, `Patrol`, `Idle` and `Evade` have real behavior today.
@@ -614,13 +614,13 @@ impl AIBehaviorState {
 /// The waypoint loop an AI ship flies while nothing hostile is close enough
 /// to fight. Present = the ship has a patrol assignment: the no-hostile
 /// fallback state becomes `Patrol` instead of `Idle`
-/// ([`next_behavior_state`]). Spawn-configured (scenario/editor); flown by
-/// [`update_passive_flight`] through the real GOTO autopilot, leg by leg.
+/// (`next_behavior_state`). Spawn-configured (scenario/editor); flown by
+/// `update_passive_flight` through the real GOTO autopilot, leg by leg.
 #[derive(Component, Debug, Clone, PartialEq, Reflect)]
 #[reflect(Component)]
 pub struct AIPatrolRoute {
     /// The loop's waypoints, world coordinates. Legs shorter than the
-    /// arrival radius (arrival_standoff + [`AI_WAYPOINT_SLACK`]) are all
+    /// arrival radius (arrival_standoff + `AI_WAYPOINT_SLACK`) are all
     /// "arrived" at once and collapse into station keeping at the cluster.
     pub waypoints: Vec<Vec3>,
     /// Index of the waypoint currently being flown to. Out-of-range values
@@ -660,8 +660,8 @@ impl AIPatrolRoute {
 
 /// Directs an AI ship to orbit a gravity well while nothing hostile is close
 /// enough to fight. Present = the no-hostile fallback state becomes `Orbit`,
-/// taking precedence over `Patrol` ([`next_behavior_state`]). The well is
-/// named by its scenario [`EntityId`]; [`update_passive_flight`] resolves it
+/// taking precedence over `Patrol` (`next_behavior_state`). The well is
+/// named by its scenario [`EntityId`]; `update_passive_flight` resolves it
 /// and keeps the ORBIT autopilot engaged on it, mirroring how Patrol flies
 /// its GOTO legs. Spawn-configured (scenario config); an id that resolves to
 /// no live well behaves like Idle-without-a-STOP (the ship simply drifts)
@@ -1400,10 +1400,10 @@ fn update_turret_target_input(
 }
 
 /// The free-running burst cycle of an AI ship's guns: fire for
-/// [`AI_BURST_FIRE_SECS`], hold for [`AI_BURST_HOLD_SECS`], repeat. A ship
+/// `AI_BURST_FIRE_SECS`, hold for `AI_BURST_HOLD_SECS`, repeat. A ship
 /// fires only while the window is open (and every other gate passes), so AI
 /// fire reads as deliberate bursts instead of a continuous hose. Required by
-/// [`AISpaceshipMarker`]; ticked by [`update_fire_cadence`].
+/// [`AISpaceshipMarker`]; ticked by `update_fire_cadence`.
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
 pub struct AIFireCadence {
@@ -1629,10 +1629,10 @@ const AI_TORPEDO_MIN_RANGE_BLAST_FACTOR: f32 = 3.0;
 const AI_TORPEDO_ALIGNMENT_COS: f32 = 0.5;
 
 /// Per-bay AI launch state: the launch cadence on top of the bay's own
-/// fire-rate timer. Lazily inserted by [`update_torpedo_section_input`] on
+/// fire-rate timer. Lazily inserted by `update_torpedo_section_input` on
 /// torpedo sections whose ship is AI-controlled - an Add-observer would
 /// race the root's `AISpaceshipMarker`, which lands after the child
-/// sections spawn. Reset by [`update_torpedo_target_input`] when a launch
+/// sections spawn. Reset by `update_torpedo_target_input` when a launch
 /// ACTUALLY happens (a projectile spawned), so a trigger pull a disabled
 /// bay ignored never burns the cooldown.
 #[derive(Component, Debug, Clone, Reflect)]
