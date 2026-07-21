@@ -62,7 +62,11 @@ green. Full cargo test/clippy stay in CI per repo policy (AGENTS.md).
       convoy); probe verdict OK on the full 14-stage walk; balance audit clean,
       zero acks; broadside same-class act fix filed as 20260721-182034 (p47,
       outside this goal).
-- [ ] 20260721-161020 (p52, nova-protocol) Final Tally (ch3b): gravity-well anchorage finale + campaign ending
+- [x] 20260721-161020 (p52, nova-protocol) Final Tally (ch3b): gravity-well anchorage finale + campaign ending
+      landed 09463091; 1 review round (APPROVE, MINOR + NIT fixed in-round);
+      the campaign completes properly (paced epilogue, nothing queued by
+      design); balance clean with zero acks (berth moved out of its envelope
+      instead); the lifeline example walks both ch3 parts, probe OK.
 - [ ] 20260718-152313 (p49, nova-protocol) campaign close-out: end-to-end verification, variety matrix, playtest questions, news note
 
 ## Manual acceptance (batched for the user at Finish)
