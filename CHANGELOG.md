@@ -27,6 +27,7 @@ tagged **(breaking)**.
 
 ### Fixes
 
+- Destroying a sectioned ship no longer crashes. When a ship exploded, its section damage-tint could try to colour a section that the explosion had already destroyed that same frame, panicking the game (seen on killing the Rust Tally gunship). The tint now tolerates a section that vanished mid-frame instead of crashing.
 - The mouse cursor is now hidden and locked while flying, in dev builds too. Flight always captured the cursor in a shipped build, but the whole grab was compiled out under the `debug` feature so the F11 inspector stayed clickable - which left a stray cursor floating over every `--features dev` playtest. Flight now hides the cursor unconditionally; the F11 debug inspector defaults off and hands the cursor back only while its panel is up. Menus, pause, and the win/lose overlay free it as before. As a consequence, a `--features debug` build now boots with the whole debug layer off - gizmos, the inspector, avian physics debug, the wireframe pass, and the ammo number - and F11 raises (and lowers) all of it together, instead of the toggles falling out of phase.
 
 ### Internals & Tooling

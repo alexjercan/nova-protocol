@@ -189,9 +189,13 @@ fn mark_section_meshes(
             Ok(Allegiance::Neutral) | Err(_) => continue,
         };
 
+        // `try_insert`, not `insert`: a section mesh can be chain-destroyed the
+        // same frame it gains its material (a ship exploding), despawning this
+        // entity before the buffer applies - the insert must be a no-op there,
+        // not a panic (Rust Tally crash, task 20260721-224506).
         commands
             .entity(entity)
-            .insert(PendingSectionTint { section, mode });
+            .try_insert(PendingSectionTint { section, mode });
     }
 }
 
@@ -218,9 +222,12 @@ fn resolve_pending_tints(
         let emissive = pristine.emissive;
         let handle = materials.add(pristine);
 
+        // Same despawn race as `mark_section_meshes`: a pending section mesh can
+        // be chain-destroyed before this resolves, so tolerate a missing entity
+        // rather than panic (task 20260721-224506).
         commands
             .entity(entity)
-            .insert((
+            .try_insert((
                 MeshMaterial3d(handle.clone()),
                 SectionDamageTint {
                     section: pending.section,
@@ -230,7 +237,7 @@ fn resolve_pending_tints(
                     mode: pending.mode,
                 },
             ))
-            .remove::<PendingSectionTint>();
+            .try_remove::<PendingSectionTint>();
     }
 }
 
@@ -585,6 +592,68 @@ mod tests {
         assert!(
             app.world().get::<PendingSectionTint>(mesh).is_none(),
             "pending marker is cleared after capture"
+        );
+    }
+
+    /// Regression for the Rust Tally crash (task 20260721-224506): a ship
+    /// exploding chain-destroys its section leaves, and `mark_section_meshes`
+    /// had queued a `PendingSectionTint` insert on a section mesh that gains its
+    /// material the SAME frame. The deferred insert then landed on a despawned
+    /// entity and panicked. This mirrors the frame order - a despawn queued
+    /// ahead of `mark`'s buffer (via `chain_ignore_deferred`, so no sync point
+    /// separates them) - with the game's panic-on-command-error fallback set, so
+    /// it panics without the `try_insert` guard and passes with it.
+    #[test]
+    fn tinting_a_section_mesh_chain_destroyed_the_same_frame_does_not_panic() {
+        use bevy::ecs::error::{panic, FallbackErrorHandler};
+
+        #[derive(Resource)]
+        struct Doomed(Entity);
+        fn despawn_doomed(mut commands: Commands, doomed: Res<Doomed>) {
+            commands.entity(doomed.0).despawn();
+        }
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<StandardMaterial>();
+        // Match the game/binary: a command error on a despawned entity is a hard
+        // panic, not a silent warn.
+        app.insert_resource(FallbackErrorHandler(panic));
+        let shared = app
+            .world_mut()
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial::default());
+        let root = app.world_mut().spawn(Allegiance::Enemy).id();
+        let section = app
+            .world_mut()
+            .spawn((
+                SectionMarker,
+                Health {
+                    current: 100.0,
+                    max: 100.0,
+                },
+                ChildOf(root),
+            ))
+            .id();
+        let mesh = app
+            .world_mut()
+            .spawn((MeshMaterial3d(shared.clone()), ChildOf(section)))
+            .id();
+        app.insert_resource(Doomed(mesh));
+        // The crash order: `despawn_doomed` queues the despawn, then
+        // `mark_section_meshes` (its query still sees the live mesh) queues the
+        // tint insert; with no sync point between, the despawn applies first and
+        // `mark`'s insert lands on the despawned mesh.
+        app.add_systems(
+            Update,
+            (despawn_doomed, mark_section_meshes).chain_ignore_deferred(),
+        );
+
+        app.update();
+
+        assert!(
+            app.world().get_entity(mesh).is_err(),
+            "the section mesh was chain-destroyed this frame"
         );
     }
 }
