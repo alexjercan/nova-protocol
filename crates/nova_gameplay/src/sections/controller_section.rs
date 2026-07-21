@@ -368,6 +368,8 @@ fn insert_controller_section_target(
     commands.entity(entity).insert(PDControllerTarget(*root));
 }
 
+/// Marks the render-mesh child spawned for a controller section, so the render
+/// observer can find and style it. Present only when rendering is enabled.
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct ControllerSectionRenderMarker;
 

@@ -1,3 +1,6 @@
+//! Render and particle systems for the torpedo bay and its in-flight
+//! projectile, gated behind the section plugin's `render` flag.
+
 use super::*;
 
 pub(super) fn insert_torpedo_section_render(

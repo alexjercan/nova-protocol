@@ -1,3 +1,17 @@
+//! Enemy piloting: the AI behavior state machine that flies and fights the
+//! non-player ships. An [`AISpaceshipMarker`] ship steps through
+//! [`AIBehaviorState`] (idle/patrol/orbit/engage/evade/retreat) driven by its
+//! [`AITarget`], under-fire memory ([`AIThreat`]), evasion clocks
+//! ([`AIEvade`]), fire cadence ([`AIFireCadence`]) and territorial
+//! [`AILeash`]. Passive ships follow an [`AIPatrolRoute`] or
+//! [`AIOrbitDirective`]; the guns also run point defense against inbound
+//! torpedoes ([`AIPointDefenseTarget`]).
+//!
+//! Touch this module to change how enemies behave. The AI writes the same ship
+//! intents the player does (thrust, turret aim, fire), so the section and flight
+//! layers treat AI and player ships identically. See the AI/behavior wiki page
+//! for the state-machine design.
+
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_events::prelude::*;
@@ -35,6 +49,9 @@ impl AIEngageGrace {
     }
 }
 
+/// Runs the AI behavior state machine and the systems that turn its decisions
+/// into ship intent (steer, thrust, aim, fire). Added by
+/// [`SpaceshipInputPlugin`].
 pub struct SpaceshipAIInputPlugin;
 
 impl Plugin for SpaceshipAIInputPlugin {

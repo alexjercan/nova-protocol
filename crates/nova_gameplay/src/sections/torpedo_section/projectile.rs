@@ -1,3 +1,6 @@
+//! In-flight torpedo behavior: target tracking, arming, proportional-navigation
+//! guidance (steer/thrust) and proximity detonation.
+
 use super::*;
 
 pub(super) fn update_target_position(

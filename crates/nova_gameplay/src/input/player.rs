@@ -1,3 +1,16 @@
+//! Human piloting: turns keyboard/mouse/gamepad input into ship intent. The
+//! always-on flight rig drives the flight verbs (burn, the STOP/GOTO/ORBIT
+//! autopilot commands, RCS fine-adjust), and per-weapon `input_mapping` bindings
+//! (thruster/turret/torpedo) fire the sections. Marks the human's ship with
+//! [`PlayerSpaceshipMarker`] and maintains [`FlightVerbHints`] for the verb-hint
+//! HUD.
+//!
+//! The reserved flight-rig sources ([`flight_rig_reserved_sources`]) must not be
+//! reused by content weapon bindings or flight silently double-drives; see that
+//! function's note. Autopilot verbs land as [`FlightIntent`](crate::flight) /
+//! [`Autopilot`](crate::flight) on the ship, consumed by
+//! [`flight`](crate::flight).
+
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
@@ -16,6 +29,8 @@ pub mod prelude {
     };
 }
 
+/// Wires human input for the player ship: the flight rig, weapon fire bindings,
+/// autopilot verbs and RCS. Added by [`SpaceshipInputPlugin`].
 pub struct SpaceshipPlayerInputPlugin;
 
 impl Plugin for SpaceshipPlayerInputPlugin {
@@ -199,7 +214,7 @@ pub fn binding_source(binding: &Binding) -> Option<InputSource> {
     }
 }
 
-/// The discrete input sources the always-on flight rig ([`flight_input_rig`])
+/// The discrete input sources the always-on flight rig (`flight_input_rig`)
 /// reserves, each paired with the flight verb it drives. Every action in that
 /// rig runs with `consume_input: false`, so a content `input_mapping` section
 /// that reuses one of these sources SILENTLY double-drives flight (bug
@@ -1168,6 +1183,9 @@ fn on_rcs_aim(
     intent.z = delta.y;
 }
 
+/// The player input bindings that fire a thruster section, snapshotted from its
+/// content `input_mapping` onto the section entity. One section may bind several
+/// [`Binding`]s. Must not reuse a [`flight_rig_reserved_sources`] source.
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct SpaceshipThrusterInputBinding(pub Vec<Binding>);
 
@@ -1256,6 +1274,8 @@ fn on_thruster_input_completed(
     **input = 0.0;
 }
 
+/// The player input bindings that fire a turret section, snapshotted from its
+/// content `input_mapping`. Same rules as [`SpaceshipThrusterInputBinding`].
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct SpaceshipTurretInputBinding(pub Vec<Binding>);
 
@@ -1347,6 +1367,8 @@ fn on_turret_input_completed(
     **input = false;
 }
 
+/// The player input bindings that fire a torpedo section, snapshotted from its
+/// content `input_mapping`. Same rules as [`SpaceshipThrusterInputBinding`].
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct SpaceshipTorpedoInputBinding(pub Vec<Binding>);
 

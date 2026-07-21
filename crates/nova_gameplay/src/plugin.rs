@@ -1,18 +1,44 @@
+//! The gameplay composition root: [`NovaGameplayPlugin`] adds every gameplay
+//! subsystem plugin (input, sections, hud, camera, integrity, damage, flight,
+//! gravity, relations, audio, juice, settings) plus the third-party plugins
+//! they depend on (avian3d physics with [`ProjectileHooks`] collision hooks,
+//! `bevy_hanabi` particles, `bevy_rand` entropy, and the
+//! [`bevy_common_systems`] camera/health/UI
+//! layer). It also pins the top-level [`SpaceshipSystems`] set ordering that
+//! the per-subsystem sets chain inside.
+//!
+//! The one dependency it does NOT add itself is
+//! `bevy_enhanced_input::EnhancedInputPlugin` (the spaceship input contexts are
+//! built on it); the host app must add that first and this plugin asserts it at
+//! `build` time. See the architecture wiki for how this crate sits between
+//! `nova_core` (wiring) and its neighbors.
+
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_rand::prelude::*;
 
 use crate::{bevy_common_systems, prelude::*};
 
-/// A system set that will contain all the systems related to the spaceship plugin.
+/// Top-level ordering brackets for gameplay: every per-subsystem set
+/// ([`SpaceshipInputSystems`], [`SpaceshipSectionSystems`], and the rest)
+/// chains between [`First`](SpaceshipSystems::First) and
+/// [`Last`](SpaceshipSystems::Last) in both `Update` and `FixedUpdate`. Use
+/// these to run a system strictly before or after all of gameplay in a frame.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SpaceshipSystems {
+    /// Runs before every gameplay subsystem set in the frame.
     First,
+    /// Runs after every gameplay subsystem set in the frame.
     Last,
 }
 
+/// Composes all of gameplay into one `App`. Add this (after
+/// `EnhancedInputPlugin`) to get a flyable, fightable ship; `AppBuilder` wires
+/// it for the full game and the examples add it directly.
 #[derive(Default, Clone, Debug)]
 pub struct NovaGameplayPlugin {
+    /// Whether the render-side plugins (meshes, HUD, particles) are added.
+    /// `false` for headless / harness runs that only need the simulation.
     pub render: bool,
 }
 

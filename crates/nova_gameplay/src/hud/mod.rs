@@ -1,3 +1,15 @@
+//! The player's heads-up display: the diegetic instruments and overlays drawn
+//! for the player ship (velocity/flight status, lock crosshairs and dwell rings,
+//! turret lead and torpedo target reticles, ammo readouts, edge/threat
+//! indicators, objective markers, the comms panel and keybind hints). Each
+//! widget lives in its own submodule and is a [`HudTier`] layer spawned and
+//! despawned with the player ship.
+//!
+//! Touch this module (or add a submodule) to change what the player sees.
+//! [`NovaHudPlugin`] adds every widget; the HUD reads gameplay state (locks,
+//! flight, sections) but does not drive it. This is the code-level view; the HUD
+//! design lives in the wiki.
+
 use bevy::prelude::*;
 
 use crate::prelude::*;

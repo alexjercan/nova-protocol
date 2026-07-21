@@ -1,3 +1,17 @@
+//! The section type system shared by every ship part. A ship is a tree of
+//! sections, and every section pairs a [`BaseSectionConfig`] (health, mass,
+//! collider, sounds - the data every kind carries) with a kind-specific config
+//! selected by the [`SectionKind`] enum. [`SectionConfig`] bundles the two, and
+//! the loaded set of authorable sections lives in the [`GameSections`] resource.
+//!
+//! Touch this module when adding a field common to all sections, a new physics
+//! [`SectionCollider`] shape, or a new [`SectionKind`] variant; the per-kind
+//! configs (hull/thruster/controller/turret/torpedo) live in their own sibling
+//! modules. The [`base_section`] / [`preview_section`] bundle factories turn a
+//! config into the live (or editor-preview) section entity, snapshotting the
+//! authored collider and sounds into runtime components. See the sections wiki
+//! page for the authoring model.
+
 use std::fmt::Debug;
 
 use avian3d::prelude::*;
@@ -130,22 +144,41 @@ impl RenderMeshTransform {
 #[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
 pub struct SectionRenderMeshTransform(pub Option<RenderMeshTransform>);
 
+/// Marks a live section entity in a ship tree. Present on every spawned
+/// section (added by [`base_section`]); its absence marks the editor preview
+/// ([`preview_section`] omits it, carrying [`SectionInactiveMarker`] instead).
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct SectionMarker;
 
+/// Marks a section that is present in the world but not simulated - the editor
+/// preview / palette section. Added by [`preview_section`] in place of
+/// [`SectionMarker`] so gameplay systems skip it.
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct SectionInactiveMarker;
 
+/// Back-reference from a section's render-mesh child to the section entity it
+/// draws, so render observers can look up their owning section.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect, PartialEq, Eq)]
 pub struct SectionRenderOf(pub Entity);
 
+/// The data every section carries regardless of kind: identity, physics and the
+/// authored hit/destroy sounds and collider. Authored in the section RON as the
+/// `base` of a [`SectionConfig`]; snapshotted into runtime components (collider,
+/// [`ImpactDestroySounds`]) by [`base_section`] / [`preview_section`].
 #[derive(Component, Clone, Debug, Default, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BaseSectionConfig {
+    /// Stable content id used to look the section up in [`GameSections`].
     pub id: String,
+    /// Display name shown in the editor palette and HUD.
     pub name: String,
+    /// Longer editor/tooltip description.
     pub description: String,
+    /// Fed to avian as DENSITY (not absolute mass): real mass is
+    /// `mass * collider_volume`, so a bigger collider is a heavier section.
+    /// See [`SectionCollider`].
     pub mass: f32,
+    /// Section hit points; reaching zero destroys the section.
     pub health: f32,
     /// The sound a hit on THIS section plays - per-target, so the target IS
     /// the material (a rock, a light hull and a reinforced hull can each sound
@@ -208,33 +241,55 @@ pub struct ImpactDestroySounds {
     pub destroy: Option<AssetRef<AudioSource>>,
 }
 
+/// Which kind of section this is, tagging the matching kind-specific config.
+/// The discriminant that selects a section's behavior plugin and the config it
+/// reads: hull (structure only), thruster (thrust), controller (attitude PD),
+/// turret (guns), torpedo (bay). Add a variant here (plus its config module and
+/// plugin) to introduce a new section kind.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[allow(clippy::large_enum_variant)]
 pub enum SectionKind {
+    /// Passive structural block; see [`HullSectionConfig`].
     Hull(HullSectionConfig),
+    /// Directional thrust; see [`ThrusterSectionConfig`].
     Thruster(ThrusterSectionConfig),
+    /// Attitude control via a PD controller; see [`ControllerSectionConfig`].
     Controller(ControllerSectionConfig),
+    /// Aimed gun; see [`TurretSectionConfig`].
     Turret(TurretSectionConfig),
+    /// Guided-torpedo launch bay; see [`TorpedoSectionConfig`].
     Torpedo(TorpedoSectionConfig),
 }
 
+/// A complete authorable section: the shared [`BaseSectionConfig`] plus its
+/// kind-specific [`SectionKind`] config. This is the unit stored in
+/// [`GameSections`] and placed by the editor.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SectionConfig {
+    /// Fields common to every section kind.
     pub base: BaseSectionConfig,
+    /// The kind-specific config selected by [`SectionKind`].
     pub kind: SectionKind,
 }
 
+/// The loaded catalog of authorable sections (the editor palette / lookup
+/// table), populated from the section content. Look a section up by its
+/// [`BaseSectionConfig::id`] with [`get_section`](GameSections::get_section).
 #[derive(Resource, Clone, Debug, Deref, DerefMut, Default)]
 pub struct GameSections(pub Vec<SectionConfig>);
 
 impl GameSections {
+    /// The section whose [`BaseSectionConfig::id`] matches `id`, if loaded.
     pub fn get_section(&self, id: &str) -> Option<&SectionConfig> {
         self.iter().find(|section| section.base.id == id)
     }
 }
 
+/// Bundle factory for a live (simulated) section from its [`BaseSectionConfig`]:
+/// resolves the authored collider and sounds into runtime components and tags it
+/// [`SectionMarker`]. See [`preview_section`] for the editor-preview counterpart.
 pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
     debug!("base_section: config {:?}", config);
 

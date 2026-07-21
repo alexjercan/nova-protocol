@@ -1,3 +1,14 @@
+//! The player's chase camera and where it points the ship. Derives the camera
+//! mode ([`SpaceshipCameraControlMode`]: normal / free-look / turret) and the
+//! weapons-raised stance ([`WeaponsRaised`]) each frame from held inputs, and
+//! exposes the live look ray ([`ActiveLookRay`]) that targeting and the radar
+//! read to know where the player is aiming right now.
+//!
+//! Touch this module for camera framing and look-input routing. Gameplay
+//! consumers should read [`WeaponsRaised`] / [`ActiveLookRay`], never the raw
+//! camera enum. Built on `bevy_common_systems`' `ChaseCamera` /
+//! `PointRotation` rigs.
+
 use avian3d::prelude::{ComputedCenterOfMass, LinearVelocity, Rotation};
 use bevy::{prelude::*, transform::TransformSystems};
 use bevy_common_systems::prelude::*;
@@ -14,9 +25,13 @@ pub mod prelude {
     };
 }
 
+/// System set holding the camera-rig sync and look-input systems, ordered after
+/// the hud set by [`SpaceshipSystems`].
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NovaCameraSystems;
 
+/// Wires the player chase camera, its mode/stance derivation and the look ray.
+/// Added by [`NovaGameplayPlugin`].
 pub struct SpaceshipCameraControllerPlugin;
 
 impl Plugin for SpaceshipCameraControllerPlugin {
@@ -86,9 +101,12 @@ pub struct SpaceshipCameraController;
 /// `set_if_neq` keep `is_changed()` meaningful for the rig-sync system.
 #[derive(Resource, Default, Clone, Debug, PartialEq, Eq)]
 pub enum SpaceshipCameraControlMode {
+    /// Default flight framing; look input steers the ship.
     #[default]
     Normal,
+    /// Look around freely without steering the ship (Alt held).
     FreeLook,
+    /// Aim mode: look input drives manual turret aim (RMB held).
     Turret,
 }
 
@@ -156,6 +174,8 @@ pub struct SpaceshipCameraFreeLookInputMarker;
 #[derive(Component, Debug, Clone)]
 pub struct SpaceshipCameraTurretInputMarker;
 
+/// Tags the one camera rig whose look ray is currently live (moves with the
+/// active [`SpaceshipCameraControlMode`]); [`ActiveLookRay`] reads through it.
 #[derive(Component, Debug, Clone)]
 pub struct SpaceshipRotationInputActiveMarker;
 

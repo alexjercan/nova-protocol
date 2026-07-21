@@ -1,3 +1,13 @@
+//! The visual side of destruction: when an [`ExplodableEntity`] is destroyed
+//! its mesh is sliced into debris fragments (tagged [`MeshFragmentMarker`]) that
+//! are spawned with physics and fade out. Reacts to the destruction events fired
+//! by the integrity glue rather than deciding when something dies.
+//!
+//! Touch this module to change how wrecks come apart (fragment count, spread,
+//! lifetime). The health/disable/destroy bookkeeping lives in the sibling
+//! `glue` module and the generic [`bevy_common_systems`]
+//! integrity layer.
+
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
@@ -15,6 +25,8 @@ pub mod prelude {
 #[derive(Component, Clone, Debug, Default, Reflect)]
 pub struct ExplodableEntity;
 
+/// Tags a debris fragment spawned when an [`ExplodableEntity`] is destroyed -
+/// one piece of the sliced mesh, given physics and a fade-out lifetime.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct MeshFragmentMarker;
 

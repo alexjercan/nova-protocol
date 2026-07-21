@@ -1,3 +1,16 @@
+//! The torpedo section: a launch bay ([`TorpedoSectionConfig`] /
+//! [`TorpedoSectionMarker`]) and the guided projectiles it fires. The bay reads
+//! its fire input and spawns a torpedo entity; the projectile then runs its own
+//! lifecycle - [`TorpedoArming`] (time/distance safety), proportional-navigation
+//! [`TorpedoGuidance`] / [`TorpedoSteering`] toward the chosen target, and a
+//! proximity [`TorpedoBlast`] that detonates and applies area damage.
+//!
+//! Touch this module to change torpedo behavior; [`TorpedoSectionConfig`] is the
+//! authored tuning surface and the `Torpedo` arm of
+//! [`SectionKind`] selects it. The private
+//! `projectile` and `render` submodules hold the in-flight systems and the
+//! particle/mesh rendering.
+
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_common_systems::prelude::*;
@@ -182,6 +195,9 @@ impl Default for TorpedoSectionConfig {
     }
 }
 
+/// Bundle factory for a torpedo launch bay from its [`TorpedoSectionConfig`],
+/// tagged [`TorpedoSectionMarker`]. The bay spawns [`TorpedoProjectileMarker`]
+/// entities when fired; those carry the guidance/arming/blast runtime state.
 pub fn torpedo_section(config: TorpedoSectionConfig) -> impl Bundle {
     debug!("torpedo_section: config {:?}", config);
 
@@ -345,8 +361,11 @@ impl TorpedoArming {
     }
 }
 
+/// Registers the torpedo bay and projectile systems (spawn, arm, guide,
+/// detonate). Added by [`SpaceshipSectionPlugin`].
 #[derive(Default)]
 pub struct TorpedoSectionPlugin {
+    /// Whether the render/particle systems for the bay and projectile are added.
     pub render: bool,
 }
 

@@ -405,6 +405,9 @@ fn find_thruster_section(
     }
 }
 
+/// Marks the render-mesh child spawned for a thruster section, so the render
+/// observer can find and style it (including the exhaust). Present only when
+/// rendering is enabled.
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct ThrusterSectionRenderMarker;
 

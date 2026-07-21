@@ -34,7 +34,7 @@
 //! no numeric readout at all. Under that feature the number tracks debug mode:
 //! it is shown while debug mode is on (which nova_debug starts on) and hidden
 //! once debug mode is switched off, F11 (the shared debug toggle) flipping both
-//! together via [`AmmoReadoutDebug`].
+//! together via `AmmoReadoutDebug` (only present under the `debug` feature).
 //!
 //! Like the other combat overlays the layer is `HudTier::Instrument` and is
 //! spawned/despawned with the player ship by the hud/mod.rs observers.

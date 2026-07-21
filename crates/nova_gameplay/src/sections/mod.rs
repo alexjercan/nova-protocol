@@ -109,12 +109,16 @@ mod tests {
     }
 }
 
+/// System set holding every section's per-frame systems (aim, fire, reload,
+/// thrust). Ordered between the input and hud sets by
+/// [`SpaceshipSystems`](crate::plugin::SpaceshipSystems).
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SpaceshipSectionSystems;
 
 /// A plugin that adds all the spaceship sections and their related systems.
 #[derive(Default, Clone, Debug)]
 pub struct SpaceshipSectionPlugin {
+    /// Whether the render-side section plugins (meshes, damage tint) are added.
     pub render: bool,
 }
 

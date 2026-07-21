@@ -1,3 +1,13 @@
+//! What decides where a ship goes and when it shoots. Three producers feed the
+//! same section inputs: [`player`] (human keybinds, flight verbs, weapon fire),
+//! [`ai`] (the enemy behavior state machine), and [`targeting`] (the player's
+//! lock/radar system that also derives weapons-safety). [`reference`](mod@reference) exposes
+//! the keybind table for the HUD. [`SpaceshipInputPlugin`] adds all three.
+//!
+//! Touch this module when adding a new way to command a ship. The intents these
+//! produce are consumed by the section plugins ([`sections`](crate::sections))
+//! and the flight controller ([`flight`](crate::flight)).
+
 use bevy::prelude::*;
 
 pub mod ai;
@@ -15,9 +25,13 @@ pub mod prelude {
     };
 }
 
+/// System set holding all input production (player, AI, targeting), ordered
+/// first among the gameplay sets so downstream sections/flight read fresh intent.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SpaceshipInputSystems;
 
+/// Adds the player, targeting and AI input plugins - everything that commands a
+/// ship. Added by [`NovaGameplayPlugin`](crate::plugin::NovaGameplayPlugin).
 pub struct SpaceshipInputPlugin;
 
 impl Plugin for SpaceshipInputPlugin {
