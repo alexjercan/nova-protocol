@@ -51,7 +51,11 @@ green. Full cargo test/clippy stay in CI per repo policy (AGENTS.md).
       landed 16509993; 1 review round (APPROVE, no findings); verdict PRIMARY:
       ally convoy + orbit picket both proven, no fallback needed - Lifeline
       and Final Tally build the spike's primary variants.
-- [ ] 20260721-160929 (p54, nova-protocol) base chain voice pass (StoryMessage comms, hauler-survival flavor)
+- [x] 20260721-160929 (p54, nova-protocol) base chain voice pass (StoryMessage comms, hauler-survival flavor)
+      landed 770bde4f; 1 review round (APPROVE, one MINOR pin added in-round);
+      first voiced cast (Halloran/Rust Tally/Belt Relay), banners now track
+      the Ceres Queen's fate; shakedown epilogue amendment: banner keeps the
+      hook per the no-line-beside-Outcome lint.
 - [ ] 20260721-160957 (p53, nova-protocol) Lifeline (ch3a): convoy defense + gunship chain hook + picker wiring
 - [ ] 20260721-161020 (p52, nova-protocol) Final Tally (ch3b): gravity-well anchorage finale + campaign ending
 - [ ] 20260718-152313 (p49, nova-protocol) campaign close-out: end-to-end verification, variety matrix, playtest questions, news note
@@ -65,3 +69,5 @@ green. Full cargo test/clippy stay in CI per repo policy (AGENTS.md).
   asteroid_field hidden-vs-wiki contradiction resolution.
 - (pending) playtest: difficulty/pacing of lifeline + final_tally feel fair;
   relief timer length, wave sizes, escort count.
+- (pending) 20260721-160929: comms pacing feel in play (7 new lines across
+  Broadside) + the cast names nod (also listed under names/tone above).
