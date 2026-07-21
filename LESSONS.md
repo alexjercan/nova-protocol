@@ -29,6 +29,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   a copy of runtime data (the flight rig's reserved keys) gets a test that
   builds the REAL source and set-diffs both directions, so the copy
   self-corrects on drift instead of rotting. 20260718-152240.
+- `verify-transparent-tool-is-active` (x1): for a transparent tool (compiler
+  wrapper / cache), "the build was fast/passed" is not proof it works - a
+  silently-inactive `RUSTC_WRAPPER` looks normal. Confirm it is ACTIVE via its
+  own counter (`sccache --show-stats` non-zero requests), and have review
+  re-derive the measured claim, not just read it. 20260721-000229.
 - `inseparable-seeded-tasks-remerge` (x1, PROMOTED 2026-07-19 -> flow skill):
   when seeded tasks prove architecturally inseparable, surface the re-cut and
   merge them instead of building shims. 20260717-215742.
