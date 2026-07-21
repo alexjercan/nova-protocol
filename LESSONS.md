@@ -200,11 +200,12 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `delivery-guards-on-null-assertions` (x6, PROMOTED 2026-07-11 -> review
   skill): "nothing happens" tests prove the stimulus fired IN the same test.
   20260710-231931.
-- `verify-first-plan-steps` (x9, PROMOTED 2026-07-11 -> plan skill): plan
+- `verify-first-plan-steps` (x10, PROMOTED 2026-07-11 -> plan skill): plan
   steps stating a mechanism/formula/API cite the verifying file - including
   shipped CONTENT data; embedding the exact citation (file:line) in the step
   makes implementation AND review mechanical. 20260717-003613,
-  20260719-112231.
+  20260719-112231. 20260721-160906.
+
 - `scripted-walks-skip-the-bridges` (x1): a hand-fired scenario walk proves
   the script; each consumed event needs one pin driving the production
   bridge. 20260713-150343.
