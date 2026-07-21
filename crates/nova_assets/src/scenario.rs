@@ -3,6 +3,7 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
 pub mod broadside;
+pub(crate) mod cast;
 pub(crate) mod craft;
 pub(crate) mod menu;
 pub mod shakedown;

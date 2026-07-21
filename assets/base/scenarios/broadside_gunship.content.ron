@@ -14,6 +14,10 @@
                         key: "act",
                         expression: Term(Factor(Literal(Number(1.0)))),
                     )),
+                    VariableSet((
+                        key: "hauler_lost",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
                     SpawnScenarioObject((
                         base: (
                             id: "player_spaceship",
@@ -1972,9 +1976,13 @@
                             ],
                         )),
                     )),
+                    StoryMessage((
+                        speaker: "Rust Tally",
+                        text: "You cost me two pickers, belt rat. The Rust Tally pays its debts in torpedoes.",
+                    )),
                     Objective((
                         id: "screen",
-                        message: "The gang\'s gunship burns in from the dark, tubes open. Lock the incoming torpedoes and screen them with your PDC.",
+                        message: "Lock the incoming torpedoes and screen them with your PDC.",
                     )),
                     Objective((
                         id: "break",
@@ -1999,6 +2007,10 @@
                         Term(Factor(Name("act"))),
                         Term(Factor(Literal(Number(1.0)))),
                     ))),
+                    Expression((Equal(
+                        Term(Factor(Name("hauler_lost"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
                 ],
                 actions: [
                     VariableSet((
@@ -2016,7 +2028,42 @@
                     )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("The Rust Tally breaks apart. The gang is done picking this belt clean."),
+                        message: Some("The Rust Tally breaks apart. The gang is done picking this belt clean - and the Ceres Queen is still whole to see it."),
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("gunship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("hauler_lost"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "screen",
+                    )),
+                    ObjectiveComplete((
+                        id: "break",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "gunship",
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("The Rust Tally breaks apart. The gang is done picking this belt clean - too late for the Ceres Queen."),
                     )),
                 ],
             ),
@@ -2032,12 +2079,16 @@
                     ))),
                 ],
                 actions: [
+                    VariableSet((
+                        key: "hauler_lost",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
                     ObjectiveMarkerDetach((
                         target_id: "hauler",
                     )),
-                    Objective((
-                        id: "hauler_lost",
-                        message: "The Ceres Queen is gone. Make it cost them.",
+                    StoryMessage((
+                        speaker: "Belt Relay",
+                        text: "The Ceres Queen\'s beacon just went dark. Make it cost them.",
                     )),
                 ],
             ),

@@ -263,6 +263,17 @@ pub(crate) fn spawn(object: ScenarioObjectConfig) -> EventActionConfig {
     EventActionConfig::SpawnScenarioObject(object)
 }
 
+/// A speaker-attributed comms line (default dwell; the panel queues and
+/// paces). The base chain's dialog surface since the voice pass (task
+/// 20260721-160929): objectives state goals, comms lines carry voice.
+pub(crate) fn story(speaker: &str, text: &str) -> EventActionConfig {
+    EventActionConfig::StoryMessage(StoryMessageActionConfig {
+        speaker: speaker.to_string(),
+        text: text.to_string(),
+        dwell: None,
+    })
+}
+
 fn beacon(id: &str, label: &str, position: Vec3) -> ScenarioObjectConfig {
     beacon_with_signature(id, label, position, None)
 }

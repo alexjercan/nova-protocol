@@ -137,6 +137,15 @@ fn outcome_kind(app: &App) -> Option<ScenarioOutcomeKind> {
         .map(|outcome| outcome.outcome)
 }
 
+fn outcome_message(app: &App) -> String {
+    app.world()
+        .resource::<CurrentOutcome>()
+        .0
+        .as_ref()
+        .and_then(|outcome| outcome.message.clone())
+        .unwrap_or_default()
+}
+
 #[test]
 fn breaking_both_corvettes_declares_the_chapter_checkpoint() {
     let scenario = scenario_from(BROADSIDE_RON);
@@ -145,6 +154,7 @@ fn breaking_both_corvettes_declares_the_chapter_checkpoint() {
     seed_var(&mut app, "act", 1.0);
     seed_var(&mut app, "corvette_a_down", 0.0);
     seed_var(&mut app, "corvette_b_down", 0.0);
+    seed_var(&mut app, "hauler_lost", 0.0);
 
     // Delivery guard: nothing advances on its own.
     app.update();
@@ -208,6 +218,7 @@ fn killing_the_gunship_declares_victory_with_no_queued_next() {
     let mut app = slice_app();
     register_non_start_handlers(&mut app, &scenario);
     seed_var(&mut app, "act", 1.0);
+    seed_var(&mut app, "hauler_lost", 0.0);
 
     app.update();
     assert_eq!(outcome_kind(&app), None, "no outcome before the kill");
@@ -277,16 +288,15 @@ fn player_death_after_the_win_declares_nothing() {
             "no retry queued over the earned Victory"
         );
 
-        // The hauler's soft-fail gate is act < 2 too: no fresh objective
-        // may land under the Victory overlay (split review R1.3).
+        // The hauler's soft-fail gate is act < 2 too: nothing may land
+        // under the Victory overlay (split review R1.3; since the voice
+        // pass the beat is a flag + comms line, so the pin is the flag).
+        seed_var(&mut app, "hauler_lost", 0.0);
         destroy(&mut app, "hauler");
-        assert!(
-            !app.world()
-                .resource::<GameObjectives>()
-                .objectives
-                .iter()
-                .any(|o| o.id == "hauler_lost"),
-            "no hauler_lost objective under the earned Victory"
+        assert_eq!(
+            number_var(&app, "hauler_lost"),
+            Some(0.0),
+            "the post-win hauler death does not raise the soft-fail flag"
         );
     }
 }
@@ -300,21 +310,157 @@ fn hauler_death_on_a_live_act_pushes_the_soft_fail_beat() {
         let mut app = slice_app();
         register_non_start_handlers(&mut app, &scenario);
         seed_var(&mut app, "act", 1.0);
+        seed_var(&mut app, "hauler_lost", 0.0);
 
         destroy(&mut app, "hauler");
+        assert_eq!(
+            number_var(&app, "hauler_lost"),
+            Some(1.0),
+            "the live-act hauler death raises the soft-fail flag"
+        );
         assert!(
             app.world()
                 .resource::<GameObjectives>()
                 .objectives
                 .iter()
-                .any(|o| o.id == "hauler_lost"),
-            "the live-act hauler death pushes 'Make it cost them'"
+                .all(|o| o.id != "hauler_lost"),
+            "since the voice pass the beat is comms, not a HUD objective"
         );
         assert_eq!(
             outcome_kind(&app),
             None,
             "the hauler is flavor, not failure - no Defeat"
         );
+
+        // The voice half, pinned on the shipped data: the soft-fail
+        // handler speaks through Belt Relay (delivery of comms lines is
+        // engine-tested in nova_scenario's world tests).
+        let soft_fail = scenario
+            .events
+            .iter()
+            .find(|e| {
+                matches!(e.name, EventConfig::OnDestroyed) && e.filters.iter().any(|f| {
+                    matches!(
+                        f,
+                        EventFilterConfig::Entity(entity) if entity.id.as_deref() == Some("hauler")
+                    )
+                })
+            })
+            .expect("the soft-fail handler exists");
+        assert!(
+            soft_fail.actions.iter().any(|a| matches!(
+                a,
+                EventActionConfig::StoryMessage(m) if m.speaker == "Belt Relay"
+            )),
+            "the soft-fail beat carries the Belt Relay line"
+        );
+    }
+}
+
+/// Review R1.1 (voice pass): the first-corvette-down comms pair's mutual
+/// exclusion is load-bearing and subtle - each handler must gate on the
+/// OTHER corvette's kill flag still being 0, so a first kill speaks exactly
+/// once and a second kill stays silent. Pinned on the shipped data: exactly
+/// two such story handlers, each carrying the cross-flag == 0 filter.
+#[test]
+fn the_first_kill_line_is_mutually_exclusive_on_the_cross_flag() {
+    let scenario = scenario_from(BROADSIDE_RON);
+    let expectations = [
+        ("corvette_a", "corvette_b_down"),
+        ("corvette_b", "corvette_a_down"),
+    ];
+    for (died, other_flag) in expectations {
+        let handlers: Vec<_> = scenario
+            .events
+            .iter()
+            .filter(|e| {
+                matches!(e.name, EventConfig::OnDestroyed)
+                    && e.filters.iter().any(|f| {
+                        matches!(
+                            f,
+                            EventFilterConfig::Entity(entity) if entity.id.as_deref() == Some(died)
+                        )
+                    })
+                    && e.actions
+                        .iter()
+                        .any(|a| matches!(a, EventActionConfig::StoryMessage(_)))
+            })
+            .collect();
+        assert_eq!(
+            handlers.len(),
+            1,
+            "exactly one story handler on {died}'s death"
+        );
+        let gates_on_other = handlers[0].filters.iter().any(|f| match f {
+            EventFilterConfig::Expression(expr) => {
+                let repr = format!("{expr:?}");
+                // The cross flag compared to literal 0.0 - a flipped gate
+                // (== 1.0) must fail this pin.
+                repr.contains(other_flag) && repr.contains("Number(0.0)")
+            }
+            _ => false,
+        });
+        assert!(
+            gates_on_other,
+            "{died}'s line gates on {other_flag} == 0 (the mutual exclusion)"
+        );
+    }
+}
+
+/// The voice pass (task 20260721-160929): the Victory banner acknowledges
+/// the Ceres Queen's fate. Both parts, both branches, driven through the
+/// act machine - the two gated Victory handlers are mutually exclusive on
+/// the flag the soft-fail beat raises.
+#[test]
+fn victory_banner_reflects_the_haulers_fate() {
+    // (scenario RON, the kills that win it, alive phrase, lost phrase)
+    let cases = [
+        (
+            BROADSIDE_RON,
+            vec!["corvette_a", "corvette_b"],
+            "still in one piece",
+            "too late for the Ceres Queen",
+        ),
+        (
+            BROADSIDE_GUNSHIP_RON,
+            vec!["gunship"],
+            "still whole",
+            "too late for the Ceres Queen",
+        ),
+    ];
+    for (ron, kills, alive_phrase, lost_phrase) in cases {
+        for hauler_dies in [false, true] {
+            let scenario = scenario_from(ron);
+            let mut app = slice_app();
+            register_non_start_handlers(&mut app, &scenario);
+            seed_var(&mut app, "act", 1.0);
+            seed_var(&mut app, "corvette_a_down", 0.0);
+            seed_var(&mut app, "corvette_b_down", 0.0);
+            seed_var(&mut app, "hauler_lost", 0.0);
+
+            if hauler_dies {
+                destroy(&mut app, "hauler");
+            }
+            for kill in &kills {
+                destroy(&mut app, kill);
+            }
+
+            assert_eq!(
+                outcome_kind(&app),
+                Some(ScenarioOutcomeKind::Victory),
+                "the win still lands with hauler_dies={hauler_dies}"
+            );
+            let message = outcome_message(&app);
+            let expected = if hauler_dies {
+                lost_phrase
+            } else {
+                alive_phrase
+            };
+            assert!(
+                message.contains(expected),
+                "banner variant mismatch (hauler_dies={hauler_dies}): {message}"
+            );
+        }
     }
 }
 

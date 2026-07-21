@@ -21,6 +21,10 @@
                         key: "corvette_b_down",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
+                    VariableSet((
+                        key: "hauler_lost",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
                     SpawnScenarioObject((
                         base: (
                             id: "player_spaceship",
@@ -1328,9 +1332,13 @@
                         ),
                         radius: 130.0,
                     )),
+                    StoryMessage((
+                        speaker: "Capt. Halloran",
+                        text: "Ceres Queen to any ship in the belt - drive\'s stripped, and they\'re coming back for the hull.",
+                    )),
                     Objective((
                         id: "contact",
-                        message: "A distress call crackles out of the derelict field: \"Ceres Queen, drive\'s stripped, they\'re coming back for the hull.\" Find the hauler.",
+                        message: "Find the hauler Ceres Queen.",
                     )),
                     ObjectiveMarkerAttach((
                         target_id: "hauler",
@@ -2068,9 +2076,13 @@
                             ],
                         )),
                     )),
+                    StoryMessage((
+                        speaker: "Capt. Halloran",
+                        text: "They\'re here - two of them, off the rocks. They were waiting for someone to answer.",
+                    )),
                     Objective((
                         id: "defend",
-                        message: "Two scavenger corvettes drop off the rocks - the gang\'s pickers. Drive them off the Ceres Queen.",
+                        message: "Drive the corvettes off the Ceres Queen.",
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "hauler",
@@ -2123,6 +2135,50 @@
                 ],
             ),
             (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("corvette_a"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("corvette_b_down"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    StoryMessage((
+                        speaker: "Capt. Halloran",
+                        text: "One picker\'s venting out. The other one is swinging onto you.",
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                filters: [
+                    Entity((
+                        id: Some("corvette_b"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("corvette_a_down"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    StoryMessage((
+                        speaker: "Capt. Halloran",
+                        text: "One picker\'s venting out. The other one is swinging onto you.",
+                    )),
+                ],
+            ),
+            (
                 name: OnUpdate,
                 filters: [
                     Expression((Equal(
@@ -2137,6 +2193,10 @@
                         Term(Factor(Name("corvette_b_down"))),
                         Term(Factor(Literal(Number(1.0)))),
                     ))),
+                    Expression((Equal(
+                        Term(Factor(Name("hauler_lost"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
                 ],
                 actions: [
                     VariableSet((
@@ -2148,7 +2208,45 @@
                     )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("The pickers break off, hulls venting. On the deep scan: a capital burn, closing fast. The Rust Tally is coming to finish what its pickers started."),
+                        message: Some("The pickers break off, hulls venting - and the Ceres Queen is still in one piece. On the deep scan: a capital burn, closing fast. The Rust Tally is coming to finish what its pickers started."),
+                    )),
+                    NextScenario((
+                        scenario_id: "broadside_gunship",
+                        linger: true,
+                    )),
+                ],
+            ),
+            (
+                name: OnUpdate,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Name("act"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("corvette_a_down"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("corvette_b_down"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("hauler_lost"))),
+                        Term(Factor(Literal(Number(1.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "act",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "defend",
+                    )),
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("The pickers break off, hulls venting - too late for the Ceres Queen. On the deep scan: a capital burn, closing fast. The Rust Tally is coming to finish what its pickers started."),
                     )),
                     NextScenario((
                         scenario_id: "broadside_gunship",
@@ -2168,12 +2266,16 @@
                     ))),
                 ],
                 actions: [
+                    VariableSet((
+                        key: "hauler_lost",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
                     ObjectiveMarkerDetach((
                         target_id: "hauler",
                     )),
-                    Objective((
-                        id: "hauler_lost",
-                        message: "The Ceres Queen is gone. Make it cost them.",
+                    StoryMessage((
+                        speaker: "Belt Relay",
+                        text: "The Ceres Queen\'s beacon just went dark. Make it cost them.",
                     )),
                 ],
             ),
