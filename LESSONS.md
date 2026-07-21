@@ -34,6 +34,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   silently-inactive `RUSTC_WRAPPER` looks normal. Confirm it is ACTIVE via its
   own counter (`sccache --show-stats` non-zero requests), and have review
   re-derive the measured claim, not just read it. 20260721-000229.
+- `completeness-by-running-not-grepping` (x1): for a "make X work across ALL
+  crates/items" task, prove completeness by RUNNING the real check per item, not
+  by grepping for a marker - the failing case may lack the marker
+  (nova_scenario's failing tests were UNGATED, so a `grep cfg(feature)` sweep
+  would have missed the very bug being fixed). 20260721-000249.
 - `inseparable-seeded-tasks-remerge` (x1, PROMOTED 2026-07-19 -> flow skill):
   when seeded tasks prove architecturally inseparable, surface the re-cut and
   merge them instead of building shims. 20260717-215742.
