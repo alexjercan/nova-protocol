@@ -55,6 +55,19 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   per-agent "count == 0" self-check is unreliable (one reported done with 40
   items left). The acceptance count comes from ONE settled build after all
   writes quiesce. 20260721-121316.
+- `re-run-documented-commands-after-build-config-change` (x1): after changing
+  workspace/build config (`default-members`, `[[bin]]`, `default-run`,
+  features), RE-RUN THE DOCUMENTED USER COMMANDS (the README quickstart,
+  `cargo run`) - not just the intended new behavior; a config change is judged by
+  what it PRESERVES too. A `default-members` add (verified only for "bare build
+  skips X") shipped a regression that made bare `cargo run` launch the `probe`
+  bin instead of the game. 20260721-151934.
+- `default-members-retargets-bare-cargo-run` (x1): on a workspace whose ROOT is
+  a package, adding `[workspace] default-members` re-targets a bare `cargo run`/
+  `build` from the root package to the whole member set (resolving to some other
+  bin). A leaf tool that is not a game dependency is ALREADY skipped by bare
+  builds, so the key buys nothing and only adds an allowlist footgun - do not add
+  it. 20260721-151934.
 - `inseparable-seeded-tasks-remerge` (x1, PROMOTED 2026-07-19 -> flow skill):
   when seeded tasks prove architecturally inseparable, surface the re-cut and
   merge them instead of building shims. 20260717-215742.
