@@ -39,6 +39,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   by grepping for a marker - the failing case may lack the marker
   (nova_scenario's failing tests were UNGATED, so a `grep cfg(feature)` sweep
   would have missed the very bug being fixed). 20260721-000249.
+- `lint-enabled-crate-must-be-zero-of-that-warning` (x1): enabling a
+  warn-as-clean lint (`#![warn(missing_docs)]`) per crate is only safe if that
+  crate emits ZERO of that warning - verify per-crate (build with the lint and
+  count), not just "cargo doc passed"; a lint on a still-dirty crate is a silent
+  CI liability under `-D warnings`. 20260525-133032.
 - `inseparable-seeded-tasks-remerge` (x1, PROMOTED 2026-07-19 -> flow skill):
   when seeded tasks prove architecturally inseparable, surface the re-cut and
   merge them instead of building shims. 20260717-215742.
