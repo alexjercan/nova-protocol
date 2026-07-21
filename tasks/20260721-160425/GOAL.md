@@ -67,7 +67,11 @@ green. Full cargo test/clippy stay in CI per repo policy (AGENTS.md).
       the campaign completes properly (paced epilogue, nothing queued by
       design); balance clean with zero acks (berth moved out of its envelope
       instead); the lifeline example walks both ch3 parts, probe OK.
-- [ ] 20260718-152313 (p49, nova-protocol) campaign close-out: end-to-end verification, variety matrix, playtest questions, news note
+- [x] 20260718-152313 (p49, nova-protocol) campaign close-out: end-to-end verification, variety matrix, playtest questions, news note
+      landed 831f35d2; 1 review round (APPROVE, 2 NITs no-action); chain
+      verified end to end from shipped artifacts; variety matrix meets the
+      DoD; 7 playtest questions batched below; news note drafted; CHANGELOG
+      reordered into campaign order. Nothing else needed fixing.
 
 ## Manual acceptance (batched for the user at Finish)
 
