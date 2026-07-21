@@ -44,6 +44,17 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   crate emits ZERO of that warning - verify per-crate (build with the lint and
   count), not just "cargo doc passed"; a lint on a still-dirty crate is a silent
   CI liability under `-D warnings`. 20260525-133032.
+- `commit-msg-backticks-are-command-substitution` (x1): backticks (and `$`) in a
+  double-quoted `git`/`sprout` `-m "..."` are SHELL COMMAND SUBSTITUTION - bash
+  runs the backticked text and injects its output (a bare `pub mod` ate the term
+  to empty; a backticked `git`/`sprout`/`tatr` phrase would EXECUTE). Use
+  `-F <file>` (heredoc, quoted delimiter) or single quotes for any message with
+  backticks/shell metacharacters. 20260721-121316.
+- `parallel-builds-race-the-lint-count` (x1): fanning build-verified work across
+  parallel agents on ONE shared worktree races their concurrent builds - a
+  per-agent "count == 0" self-check is unreliable (one reported done with 40
+  items left). The acceptance count comes from ONE settled build after all
+  writes quiesce. 20260721-121316.
 - `inseparable-seeded-tasks-remerge` (x1, PROMOTED 2026-07-19 -> flow skill):
   when seeded tasks prove architecturally inseparable, surface the re-cut and
   merge them instead of building shims. 20260717-215742.
