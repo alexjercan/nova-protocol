@@ -475,6 +475,13 @@ fn toggle_ammo_readout_debug(mut debug: ResMut<AmmoReadoutDebug>, keys: Res<Butt
     }
 }
 
+/// Draws the diegetic per-weapon ammo gauges (turret ring, torpedo bar) on
+/// each player weapon section that carries a finite [`SectionAmmo`], with a
+/// reload sweep and a debug-only numeric readout.
+/// Registers the readout marker/kind/pip types, runs `sync_ammo_readouts` then
+/// `drive_ammo_readouts` (chained) in PostUpdate before `ScreenIndicatorSystems`;
+/// under the `debug` feature also inits `AmmoReadoutDebug` and adds the F11
+/// toggle plus the numeric driver.
 #[derive(Default)]
 pub struct AmmoReadoutPlugin;
 

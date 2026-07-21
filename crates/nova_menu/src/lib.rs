@@ -17,6 +17,7 @@
 //! that supply their own game plugins never see the menu.
 //!
 //! Design rationale: docs/spikes/20260711-180500-main-menu.md.
+#![warn(missing_docs)]
 
 use std::{collections::HashMap, time::Duration};
 
@@ -43,6 +44,8 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use rand::Rng as _;
 
+/// Glob-import surface: `use nova_menu::prelude::*` brings [`NovaMenuPlugin`]
+/// into scope.
 pub mod prelude {
     pub use super::NovaMenuPlugin;
 }
@@ -83,6 +86,14 @@ use nova_ui::{
 mod settings_store;
 use settings_store::{load_settings, save_settings, PersistedSettings};
 
+/// The main-menu plugin: owns [`GameStates::MainMenu`] and the settings/mods/
+/// scenarios screens.
+///
+/// On `OnEnter(MainMenu)` it loads the ambient backdrop scenario and builds the
+/// menu UI; `Update` runs the button/colour, settings-sync, mods-screen refresh
+/// and update-choreography systems; the New Game / Sandbox buttons write
+/// [`GameMode`] and hand off to [`GameStates::Playing`]. Added by `nova_core`'s
+/// `AppBuilder` only for the default editor app.
 pub struct NovaMenuPlugin;
 
 impl Plugin for NovaMenuPlugin {

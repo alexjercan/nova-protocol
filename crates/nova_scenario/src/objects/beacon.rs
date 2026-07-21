@@ -103,6 +103,11 @@ pub struct BeaconBlink {
     pub phase: f32,
 }
 
+/// The nav beacon scenario object: a static, lockable marker body that (with an
+/// authored area radius) doubles as its own trigger volume. `render` gates the
+/// visible orb and its blink; the trigger-area wiring applies regardless.
+/// Adds the `Add<BeaconMarker>` area-setup observer unconditionally, and (when
+/// `render`) the render-insert observer plus the `Update` blink system.
 pub struct BeaconPlugin {
     pub render: bool,
 }

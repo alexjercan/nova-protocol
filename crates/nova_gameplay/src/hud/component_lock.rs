@@ -78,6 +78,11 @@ fn component_marker(section: Entity) -> impl Bundle {
     )
 }
 
+/// Drives the per-section component-lock markers over the locked ship's
+/// silhouette (the VATS-lite overlay).
+/// Adds `sync_component_markers` (reconcile marker membership) then
+/// `highlight_selected_marker` (restyle the fine-locked section), chained in
+/// Update within [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct ComponentLockHudPlugin;
 

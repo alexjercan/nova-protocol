@@ -10,6 +10,11 @@ use avian3d::prelude::*;
 use bevy::{color::palettes::tailwind, prelude::*};
 use nova_gameplay::prelude::*;
 
+/// Debug overlay plugin for the gravity layer.
+///
+/// Adds `draw_gravity_wells` and `draw_dominant_well_links` to `PostUpdate`
+/// (after transform propagation) under the [`DebugSystems`](super::DebugSystems)
+/// set, and inits `GravitySettings` so a debug-only app cannot panic.
 pub struct GravityDebugPlugin;
 
 impl Plugin for GravityDebugPlugin {

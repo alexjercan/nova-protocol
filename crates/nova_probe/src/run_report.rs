@@ -54,13 +54,16 @@ pub struct RunManifest {
     pub example: String,
     /// Unix seconds when the run started.
     pub started_unix: u64,
-    /// Short git SHA + host, same resolvers as the capture metadata.
+    /// Short git SHA, same resolver as the capture metadata.
     pub git_sha: String,
+    /// The host the run executed on.
     pub host: String,
     /// Which capture surfaces probe armed (timeline/invariants always; fps
     /// only with --fps).
     pub armed_timeline: bool,
+    /// Whether the invariants capture surface was armed.
     pub armed_invariants: bool,
+    /// Whether the fps capture surface was armed (only with `--fps`).
     pub armed_fps: bool,
     /// Set when `--fps` was requested but this example is configured
     /// fps-exempt (`[package.metadata.nova_probe] fps_exempt`): the reason,
@@ -308,9 +311,13 @@ pub struct Check {
 /// the input artifact was not captured, not that the property held.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckStatus {
+    /// The property held.
     Pass,
+    /// A soft-gate concern; never fails the run.
     Warn,
+    /// The property was violated; fails the run.
     Fail,
+    /// The input artifact was not captured, so the check could not run.
     Skipped,
 }
 

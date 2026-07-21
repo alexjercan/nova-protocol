@@ -37,6 +37,9 @@ const SPEED_CHIP_OFFSET: Vec2 = Vec2::new(120.0, 0.0);
 /// downward).
 const MODE_CHIP_OFFSET: Vec2 = Vec2::new(120.0, -18.0);
 
+/// Marker for the ship-status chip layer (speed chip + autopilot mode chip);
+/// spawned by [`flight_status_hud`] and carried by the layer the drive systems
+/// query.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct FlightStatusHudMarker;
 
@@ -52,6 +55,9 @@ struct SpeedChipUIMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 struct ModeChipUIMarker;
 
+/// Spawn-time settings for a [`flight_status_hud`] layer: the ship whose speed
+/// and autopilot mode the chips report. Not a component - consumed by
+/// [`flight_status_hud`].
 #[derive(Clone, Debug)]
 pub struct FlightStatusHudConfig {
     pub target: Entity,
@@ -110,6 +116,8 @@ pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
     )
 }
 
+/// Marker for the autopilot-destination marker layer (the projected pip on the
+/// engaged GOTO/ORBIT destination); spawned by [`autopilot_destination_hud`].
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct AutopilotDestinationHudMarker;
 
@@ -122,6 +130,9 @@ pub struct AutopilotDestinationUIMarker;
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 struct AutopilotDestinationShipEntity(Entity);
 
+/// Spawn-time settings for an [`autopilot_destination_hud`] layer: the ship
+/// whose engaged destination the pip projects, and the marker sprite to draw.
+/// Not a component - consumed by [`autopilot_destination_hud`].
 #[derive(Clone, Debug)]
 pub struct AutopilotDestinationHudConfig {
     pub ship: Entity,
@@ -165,6 +176,10 @@ pub fn autopilot_destination_hud(config: AutopilotDestinationHudConfig) -> impl 
     )
 }
 
+/// Drives the diegetic flight readouts: the speed chip, the autopilot mode
+/// chip, and the destination marker anchor.
+/// Adds `drive_speed_chip`, `drive_mode_chip` and `drive_destination_anchor`
+/// in Update within [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct FlightStatusHudPlugin;
 

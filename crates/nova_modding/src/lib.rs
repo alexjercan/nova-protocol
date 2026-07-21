@@ -28,6 +28,7 @@
 //!
 //! Downstream (`nova_assets`) drives the actual load of `assets/**/*.content.ron`
 //! and routes each item into `GameScenarios` / `GameSections`.
+#![warn(missing_docs)]
 
 use bevy::{
     asset::{
@@ -46,6 +47,8 @@ pub use nova_mod_format::{BundleManifest, CatalogManifest, ModEntry, ModMeta};
 use nova_scenario::prelude::ScenarioConfig;
 use serde::{Deserialize, Serialize};
 
+/// Glob-import surface: `use nova_modding::prelude::*` brings the content/bundle
+/// asset types, their RON loaders, and [`NovaModdingPlugin`] into scope.
 pub mod prelude {
     pub use super::{
         BundleAsset, BundleAssetLoader, BundleManifest, CatalogEntry, CatalogLoader,

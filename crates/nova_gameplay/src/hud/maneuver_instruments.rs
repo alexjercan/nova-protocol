@@ -48,6 +48,9 @@ const READOUT_OFFSET: Vec2 = Vec2::new(0.0, 28.0);
 /// not a solid.
 const RING_MINOR_RADIUS: f32 = 0.15;
 
+/// Marker for the maneuver-instruments chip layer (destination readout, flip
+/// marker, radius-spoke chip); spawned by [`maneuver_instruments_hud`]. The
+/// world-space holo ring and spoke are separate entities, not children here.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct ManeuverInstrumentsHudMarker;
 
@@ -85,6 +88,9 @@ pub struct OrbitRingMarker {
     pub radius: f32,
 }
 
+/// Spawn-time settings for a [`maneuver_instruments_hud`] layer: the ship
+/// whose engaged maneuver the instruments show. Not a component - consumed by
+/// [`maneuver_instruments_hud`].
 #[derive(Clone, Debug)]
 pub struct ManeuverInstrumentsHudConfig {
     pub ship: Entity,
@@ -143,6 +149,12 @@ pub fn maneuver_instruments_hud(config: ManeuverInstrumentsHudConfig) -> impl Bu
     )
 }
 
+/// Drives the maneuver instruments: the destination/flip/radius chips plus the
+/// world-space ORBIT holo ring and radius spoke.
+/// Inits `HoloAssets`, registers [`OrbitRingMarker`]/[`RadiusSpokeMarker`],
+/// and runs `drive_destination_readout`, `drive_flip_marker`,
+/// `drive_radius_spoke_chip`, `sync_orbit_ring` and `sync_radius_spoke` in
+/// Update within [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct ManeuverInstrumentsPlugin;
 

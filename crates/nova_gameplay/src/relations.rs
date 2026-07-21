@@ -57,6 +57,9 @@ pub fn relation(a: Option<&Allegiance>, b: Option<&Allegiance>) -> Relation {
     }
 }
 
+/// Registers the [`Allegiance`] component for reflection so the faction model
+/// serializes and inspects; adds no systems (relation resolution is the pure
+/// [`relation`] function, called on demand).
 pub struct NovaRelationsPlugin;
 
 impl Plugin for NovaRelationsPlugin {

@@ -180,6 +180,12 @@ fn objective_marker_arrow() -> impl Bundle {
     )
 }
 
+/// Draws one breathing gold chip (diamond glyph + label + edge chevron) per
+/// [`ObjectiveMarkerTarget`] entity - the "do this now" objective cue (Chrome
+/// tier).
+/// Registers [`ObjectiveMarkerTarget`], adds the chip spawn/despawn observers,
+/// and runs `update_objective_marker_labels` and `breathe_objective_markers`
+/// in Update within [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct ObjectiveMarkersHudPlugin;
 

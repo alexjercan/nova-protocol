@@ -104,6 +104,9 @@ pub struct TorpedoTargetFocusMeterMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TorpedoTargetFocusFillMarker;
 
+/// Spawn-time settings for a [`torpedo_target_hud`] reticle: the target sprite
+/// the combat reticle draws. Not a component - consumed by
+/// [`torpedo_target_hud`].
 #[derive(Clone, Debug, Default)]
 pub struct TorpedoTargetHudConfig {
     pub target_sprite: Handle<Image>,
@@ -228,6 +231,11 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
     )
 }
 
+/// Drives the combat-lock reticle: anchors it to the current [`CombatLock`]
+/// target and updates its distance/closing-speed readout, health bar and focus
+/// meter.
+/// Adds `drive_reticle_anchor`, `update_target_readout` and
+/// `update_focus_meter` in Update within [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct TorpedoTargetHudPlugin;
 

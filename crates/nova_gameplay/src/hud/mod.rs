@@ -126,11 +126,22 @@ pub(crate) const NAV_CYAN: Color = nova_ui::theme::semantic::NAV;
 /// own/done, gold is the current objective.
 pub(crate) const OBJECTIVE_GOLD: Color = nova_ui::theme::semantic::OBJECTIVE;
 
+/// Shared HUD art handles ([`NovaHudPlugin`] inits it): the target-reticle
+/// sprite reused by the lock crosshairs, torpedo reticle and destination
+/// marker. Populated by asset loading; read by the per-widget setup observers.
 #[derive(Resource, Clone, Default, Debug)]
 pub struct NovaHudAssets {
     pub target_sprite: Handle<Image>,
 }
 
+/// The player HUD umbrella: adds every widget sub-plugin and the observers
+/// that spawn/despawn each [`HudTier`] layer with the player ship.
+/// Inits [`NovaHudAssets`] and [`HudVisibility`], adds all the per-widget
+/// plugins (velocity, flight status, maneuver instruments, crosshairs, insets,
+/// readouts, indicators, objectives, comms, ...), runs `cycle_hud_visibility`
+/// and `style_objective_lines` in Update within [`NovaHudSystems`], and runs
+/// `apply_hud_visibility` in PostUpdate after `ScreenIndicatorSystems` and
+/// before UI layout.
 #[derive(Default)]
 pub struct NovaHudPlugin;
 

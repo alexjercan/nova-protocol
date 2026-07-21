@@ -7,6 +7,7 @@
 //! - `keybind`   - section keybind chips + click-to-rebind
 //! - `scenario`  - the player-only asteroid+planetoid scene handed off on Play
 //! - `ui`        - the wiki-style rail + component drawer + tooltip
+#![warn(missing_docs)]
 
 use bevy::{
     prelude::*,
@@ -34,6 +35,8 @@ use placement::{
 use scenario::setup_scenario;
 use ui::{scroll_editor_panel, setup_editor_scene};
 
+/// Glob-import surface: `use nova_editor::prelude::*` brings [`NovaEditorPlugin`]
+/// into scope.
 pub mod prelude {
     pub use super::NovaEditorPlugin;
 }

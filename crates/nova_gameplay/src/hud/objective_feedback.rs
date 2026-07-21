@@ -81,6 +81,13 @@ pub struct ObjectiveGhostLineMarker {
     pub base: Color,
 }
 
+/// Answers each [`GameObjectives`] change with feedback: a UI cue per
+/// completion/addition and a fading done-green ghost line per completed
+/// objective.
+/// Registers [`ObjectiveGhostLineMarker`]/[`ObjectiveFeedbackSettings`], inits
+/// those resources, spawns the ghost stack in Startup, and runs
+/// `objective_change_feedback`, `play_pending_new_cue` and `fade_ghost_lines`
+/// (chained) in Update within [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct ObjectiveFeedbackPlugin;
 

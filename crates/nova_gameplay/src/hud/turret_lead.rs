@@ -75,6 +75,11 @@ fn turret_lead_pip(turret: Entity) -> impl Bundle {
     )
 }
 
+/// Keeps one lead pip per player turret at its published intercept point,
+/// hot-shifting them to lock-red while the weapons are hot.
+/// Runs `sync_turret_pips`, `drive_pip_anchors` and `drive_pip_hot_tint`
+/// (chained) in PostUpdate after `TurretSectionAimSystems` and before
+/// `ScreenIndicatorSystems`.
 #[derive(Default)]
 pub struct TurretLeadPlugin;
 

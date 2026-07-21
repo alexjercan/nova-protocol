@@ -19,7 +19,9 @@ use std::fmt::Write as _;
 /// that still load but misbehave (close-spawn reinforcements, input overlaps).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
+    /// A finding that fails the lint.
     Error,
+    /// An authoring smell that still loads but misbehaves.
     Warn,
 }
 
@@ -60,12 +62,15 @@ impl Category {
 /// element, what is wrong, and how to fix it.
 #[derive(Debug, Clone)]
 pub struct Finding {
+    /// The mod id the finding belongs to.
     pub bundle: String,
     /// The content file the finding is about, relative to the mod directory.
     /// `None` when the element could not be traced to a source file (the walk
     /// still names the mod and element).
     pub file: Option<String>,
+    /// The finding's severity.
     pub severity: Severity,
+    /// Which checker raised the finding.
     pub category: Category,
     /// The addressable element: the scenario id, section id, or
     /// `scenario > section` the finding is about.
@@ -80,11 +85,17 @@ pub struct Finding {
 /// context (not a problem) so a reader sees the exception and who owns it.
 #[derive(Debug, Clone)]
 pub struct AckedFinding {
+    /// The mod id the acknowledged finding belongs to.
     pub bundle: String,
+    /// The content file the finding is about, relative to the mod dir.
     pub file: Option<String>,
+    /// The addressable element the finding is about.
     pub element: String,
+    /// The checker's original message.
     pub message: String,
+    /// The task id recorded in the ack.
     pub ack_task: String,
+    /// The reason recorded in the ack.
     pub ack_reason: String,
 }
 
@@ -98,11 +109,14 @@ pub struct ContentReport {
     pub bundles: Vec<String>,
     /// How many combat scenarios the balance audit graded.
     pub scenarios_audited: usize,
+    /// Every finding, in walk order.
     pub findings: Vec<Finding>,
+    /// The acknowledged balance exceptions.
     pub acked: Vec<AckedFinding>,
 }
 
 impl ContentReport {
+    /// Number of [`Severity::Error`] findings.
     pub fn error_count(&self) -> usize {
         self.findings
             .iter()
@@ -110,6 +124,7 @@ impl ContentReport {
             .count()
     }
 
+    /// Number of [`Severity::Warn`] findings.
     pub fn warn_count(&self) -> usize {
         self.findings
             .iter()
@@ -212,7 +227,7 @@ impl ContentReport {
         md
     }
 
-    /// The HTML report - the same content as [`to_markdown`], styled to match
+    /// The HTML report - the same content as [`to_markdown`](Self::to_markdown), styled to match
     /// the perf report (`nova_probe`) so the two dev-tool reports look alike.
     pub fn to_html(&self) -> String {
         let mut html = String::new();

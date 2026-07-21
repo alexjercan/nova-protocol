@@ -6,6 +6,7 @@
 //! builder, not the committed `*.content.ron`), and the crate also backs the
 //! `content` CLI (`gen`/`lint`; the balance audit and input-overlap check are
 //! folded into `lint`) that authors and validates that content.
+#![warn(missing_docs)]
 
 use std::collections::{HashMap, HashSet};
 
@@ -28,6 +29,8 @@ pub mod portal;
 mod scenario;
 mod sections;
 
+/// Glob-import surface: `use nova_assets::prelude::*` brings the loaded-asset
+/// resources, the mod-set/portal types, and [`GameAssetsPlugin`] into scope.
 pub mod prelude {
     pub use nova_mod_format::{PortalCatalog, PortalEntry};
     pub use nova_modding::prelude::ModMeta;
@@ -898,13 +901,21 @@ fn merge_content_item(
 /// Game states for the asset loader.
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
 pub enum GameAssetsStates {
+    /// Assets are still loading.
     #[default]
     Loading,
+    /// Assets loaded; the content merge/registration is running.
     Processing,
+    /// Everything is loaded and registered; gameplay can start.
     Loaded,
 }
 
 /// A plugin that loads game assets and sets up the game.
+///
+/// Adds the modding and portal-client plugins, inits the mod-set resources
+/// ([`EnabledMods`], [`ModCatalog`], [`DownloadedMods`]), drives the
+/// [`GameAssetsStates`] loading state machine, and runs the mod-cache load and
+/// content-merge/registration systems across `Startup`/`Update`/`OnEnter`.
 pub struct GameAssetsPlugin;
 
 impl Plugin for GameAssetsPlugin {
@@ -1011,24 +1022,36 @@ impl Plugin for GameAssetsPlugin {
     }
 }
 
+/// The loaded base-game asset handles, collected by `bevy_asset_loader` and
+/// inserted as a [`Resource`] once every listed asset (and the installed-mods
+/// catalog) has loaded. Systems read these handles to build meshes/materials.
 #[derive(AssetCollection, Resource, Clone)]
 pub struct GameAssets {
+    /// The skybox cubemap texture.
     #[asset(path = "base/textures/cubemap.png")]
     pub cubemap: Handle<Image>,
+    /// The asteroid surface texture.
     #[asset(path = "base/textures/asteroid.png")]
     pub asteroid_texture: Handle<Image>,
+    /// The base hull section mesh.
     #[asset(path = "base/gltf/hull-01.glb#Scene0")]
     pub hull_01: Handle<WorldAsset>,
+    /// The turret yaw-ring section mesh.
     #[asset(path = "base/gltf/turret-yaw-01.glb#Scene0")]
     pub turret_yaw_01: Handle<WorldAsset>,
+    /// The turret pitch-mount section mesh.
     #[asset(path = "base/gltf/turret-pitch-01.glb#Scene0")]
     pub turret_pitch_01: Handle<WorldAsset>,
+    /// The turret barrel section mesh.
     #[asset(path = "base/gltf/turret-barrel-01.glb#Scene0")]
     pub turret_barrel_01: Handle<WorldAsset>,
+    /// The torpedo-bay section mesh.
     #[asset(path = "base/gltf/torpedo-bay-01.glb#Scene0")]
     pub torpedo_bay_01: Handle<WorldAsset>,
+    /// The FPS status-bar icon.
     #[asset(path = "icons/fps.png")]
     pub fps_icon: Handle<Image>,
+    /// The lock-on target sprite.
     #[asset(path = "icons/target.png")]
     pub target_sprite: Handle<Image>,
     /// The installed-mods catalog (`assets/mods.catalog.ron`): every installed mod
@@ -1386,6 +1409,10 @@ mod tests {
 #[doc(hidden)]
 pub mod balance;
 
+/// The content-lint walk: reads a mod tree (or single target) off disk, parses
+/// every bundle's content, runs the reference/geometry, balance and input-overlap
+/// checks, and assembles the unified [`content_report::ContentReport`]. Used by
+/// the `content lint` CLI and the CI gate test; not part of the game runtime.
 pub mod lint_walk {
     use std::{
         collections::{HashMap, HashSet},
@@ -1649,9 +1676,13 @@ pub mod lint_walk {
     /// section CONFIGS (not just ids) so stats can join through the
     /// dependency overlay.
     pub struct AuditBundle {
+        /// The bundle's id (directory-derived).
         pub id: String,
+        /// The ids of bundles this one depends on.
         pub dependencies: Vec<String>,
+        /// The bundle's parsed section configs.
         pub sections: Vec<SectionConfig>,
+        /// The bundle's parsed scenario configs.
         pub scenarios: Vec<ScenarioConfig>,
     }
 

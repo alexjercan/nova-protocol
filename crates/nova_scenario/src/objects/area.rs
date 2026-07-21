@@ -7,6 +7,10 @@ pub mod prelude {
     pub use super::{ScenarioAreaMarker, ScenarioAreaPlugin};
 }
 
+/// Marks a scenario trigger volume: a sensor collider whose overlaps the area
+/// plugin turns into `OnEnter`/`OnExit` events under the area's scenario id.
+/// Inserted by `CreateScenarioArea` (and by crates/beacons doubling as their own
+/// trigger); requires a [`Collider`] and [`Sensor`].
 #[derive(Component, Debug, Clone, Reflect)]
 #[require(Collider, Sensor)]
 pub struct ScenarioAreaMarker;
@@ -24,6 +28,10 @@ pub struct ScenarioAreaMarker;
 #[derive(Resource, Default)]
 struct AreaOccupancy(bevy::platform::collections::HashMap<(Entity, Entity), u32>);
 
+/// Turns [`ScenarioAreaMarker`] sensor overlaps into scenario `OnEnter`/`OnExit`
+/// events, deduping a compound body's many section colliders to one enter/exit.
+/// Adds the collision-events setup observer plus the collision-start/end and
+/// occupancy-cleanup observers (all observer-driven, no scheduled systems).
 pub struct ScenarioAreaPlugin;
 
 impl Plugin for ScenarioAreaPlugin {

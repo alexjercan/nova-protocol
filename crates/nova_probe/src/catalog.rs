@@ -14,8 +14,11 @@ use std::path::Path;
 /// path, and the category (the `examples/<category>/...` path segment).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogExample {
+    /// The cargo target name of the example.
     pub name: String,
+    /// The example's source path (`examples/<category>/<file>.rs`).
     pub path: String,
+    /// The category segment of the example's path.
     pub category: String,
 }
 

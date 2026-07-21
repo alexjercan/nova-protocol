@@ -29,6 +29,8 @@
 //! so the loader instances' runtime field values are irrelevant here. This lets
 //! the tool run in CI (the deploy job) with no GPU.
 
+#![warn(missing_docs)]
+
 use std::path::{Path, PathBuf};
 
 use bevy::{
@@ -57,8 +59,11 @@ pub enum Outcome {
 /// Summary of a generation pass.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Summary {
+    /// Count of fresh default `.meta` sidecars written.
     pub written: usize,
+    /// Count of assets that already had a `.meta` and were left untouched.
     pub already_exists: usize,
+    /// Count of assets no registered loader claims (skipped).
     pub no_loader: usize,
 }
 

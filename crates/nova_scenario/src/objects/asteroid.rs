@@ -100,18 +100,33 @@ pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
     )
 }
 
+/// Marks an asteroid root (a `RigidBody` parent whose collider/health live on a
+/// child node). Inserted by `asteroid_scenario_object`; the asteroid observers
+/// key on it to derive the collider, gravity well, and destruction handling.
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct AsteroidMarker;
 
+/// The asteroid's surface texture ref (from [`AsteroidConfig::texture`]),
+/// carried on the root; `insert_asteroid_render` resolves it to a live handle
+/// for the generated mesh's material.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidTexture(#[reflect(ignore)] pub AssetRef<Image>);
 
+/// The noise-generated asteroid mesh, placed on the collider child by
+/// `insert_asteroid_collider`; `insert_asteroid_render` keys on its `Add` to
+/// build the rendered `Mesh3d` + material.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidRenderMesh(pub Mesh);
 
+/// The asteroid's authored NOMINAL radius (world units), carried on the root
+/// from [`AsteroidConfig::radius`]. Drives well qualification and mesh scale;
+/// the true geometric extent is the separately derived `BodyRadius`.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidRadius(pub f32);
 
+/// The asteroid's authored hit points (from [`AsteroidConfig::health`]), carried
+/// on the root and used to build the collider node's `Health` for destructible
+/// bodies. Ignored for invulnerable asteroids.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct AsteroidHealth(pub f32);
 
@@ -130,6 +145,13 @@ pub struct AsteroidSurfaceGravity(pub Option<f32>);
 #[derive(Component, Clone, Debug, Default, Reflect)]
 struct AsteroidHuskDespawn;
 
+/// The asteroid scenario object: generates a noise-displaced rock, derives its
+/// collider and (for big/authored bodies) a gravity well, and handles its
+/// destruction. `render` gates the visible mesh; physics and gravity apply
+/// regardless.
+/// Seeds [`GravitySettings`], adds the collider/gravity-well/node-destroyed
+/// observers plus the `Update` husk-despawn system, and (when `render`) the
+/// render-insert observer.
 pub struct AsteroidPlugin {
     pub render: bool,
 }
@@ -473,6 +495,10 @@ const CONTINENT_HEIGHT_SCALE: f64 = (1.0 - SEA_LEVEL) / 4.0;
 /// Maximum depth of the rivers, in planetary elevation units.
 const RIVER_DEPTH: f64 = 0.0234375;
 
+/// The parameter set for the Perlin-FBM terrain noise that displaces an
+/// asteroid's unit sphere (seed plus the continent/mountain/hills/etc tuning
+/// constants). Also a `NoiseFn`; `insert_asteroid_collider` builds a
+/// per-asteroid `PlanetHeight::default().with_seed(..)` to shape the mesh.
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct PlanetHeight {
     pub seed: u32,

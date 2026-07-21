@@ -1,8 +1,18 @@
+//! Debug gizmos for ship sections (nova_gameplay::sections): turret barrel
+//! directions, bullet spawners and projectiles, thruster and torpedo spawner
+//! markers, plus position logging. Gated behind the F11 debug toggle via the
+//! [`DebugSystems`](super::DebugSystems) set.
+
 use avian3d::prelude::*;
 use bevy::{color::palettes::tailwind, prelude::*};
 use itertools::Itertools;
 use nova_gameplay::{prelude::*, sections::turret_section::TurretSectionBarrelFireState};
 
+/// Debug overlay plugin for ship-section gizmos.
+///
+/// Adds the turret/thruster/torpedo gizmo systems plus `log_position` to
+/// `PostUpdate` (after transform propagation) under the
+/// [`DebugSystems`](super::DebugSystems) set.
 pub struct SectionsDebugPlugin;
 
 impl Plugin for SectionsDebugPlugin {

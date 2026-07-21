@@ -6,6 +6,8 @@
 //! `nova_screenshot` (settled-frame capture). Import the presets from the
 //! prelude; the raw plugin types stay reachable under `nova_debug::harness::`.
 
+#![warn(missing_docs)]
+
 use bevy::prelude::*;
 use bevy_common_systems::{debug::harness::AUTOPILOT_ENV, prelude::*};
 use nova_gameplay::GameStates;
@@ -15,6 +17,11 @@ pub mod harness;
 pub mod screenshot;
 pub mod sections;
 
+/// Glob-import surface: `use nova_debug::prelude::*` brings the harness presets
+/// ([`nova_autopilot`](harness::nova_autopilot),
+/// [`nova_screenshot`](harness::nova_screenshot), the reel plugin) and
+/// [`DebugPlugin`] into scope; the raw plugin types stay under
+/// `nova_debug::harness::` to avoid clashing with Bevy's own `ScreenshotPlugin`.
 pub mod prelude {
     // Only the presets are the intended entry point. The raw `AutopilotPlugin` /
     // `ScreenshotPlugin` types stay reachable via `nova_debug::harness::` for the
@@ -38,10 +45,17 @@ pub const DEBUG_TOGGLE_KEYCODE: KeyCode = KeyCode::F11;
 #[derive(Resource, Default, Clone, Debug, Deref, DerefMut, PartialEq, Eq, Hash)]
 pub struct DebugEnabled(pub bool);
 
+/// [`SystemSet`] gating the debug overlays; [`DebugPlugin`] configures it in
+/// `Update` and `PostUpdate` to run only while [`DebugEnabled`] is `true`.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DebugSystems;
 
 /// A plugin that adds various debugging tools.
+///
+/// Adds the world inspector, wireframe/section/gravity overlays and the
+/// screenshot hotkey as sub-plugins, inserts [`DebugEnabled`], and runs
+/// `toggle_debug_mode` in `Update`; the overlay sub-plugins run under the
+/// [`DebugSystems`] set gated on [`DebugEnabled`].
 pub struct DebugPlugin;
 
 impl Plugin for DebugPlugin {
@@ -83,6 +97,8 @@ fn toggle_debug_mode(mut debug: ResMut<DebugEnabled>, keyboard: Res<ButtonInput<
     }
 }
 
+/// Print the `Update` schedule's system graph (via `bevy_mod_debugdump`) for
+/// inspecting system ordering; a dev-only diagnostic, not wired into a schedule.
 pub fn debugdump(app: &mut App) {
     bevy_mod_debugdump::print_schedule_graph(app, Update);
     // bevy_mod_debugdump::print_schedule_graph(app, PostUpdate);

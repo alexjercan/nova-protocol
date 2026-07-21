@@ -15,6 +15,10 @@ pub mod prelude {
 
 pub const SPACESHIP_TYPE_NAME: &str = "spaceship";
 
+/// Who drives a spaceship scenario object: nobody, the [`PlayerControllerConfig`]
+/// player, or an [`AIControllerConfig`] bot. Authored in [`SpaceshipConfig`] and
+/// carried on the ship root; `insert_spaceship_sections` reads it at spawn to
+/// wire input bindings or AI directives and to tag the player/AI marker.
 #[derive(Component, Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SpaceshipController {
@@ -23,6 +27,11 @@ pub enum SpaceshipController {
     AI(AIControllerConfig),
 }
 
+/// Player-driver settings for a [`SpaceshipController::Player`] ship: per-section
+/// input bindings, an optional soft speed cap, an infinite-ammo flag, and a
+/// lock re-fire override. Authored in the scenario RON and consumed at spawn by
+/// `insert_spaceship_sections`, which inserts the derived components on the ship
+/// root (see the per-field docs).
 #[derive(Clone, Debug, Default, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PlayerControllerConfig {
@@ -179,9 +188,16 @@ pub struct SpaceshipSectionConfig {
     pub modifications: Vec<SectionModification>,
 }
 
+/// The ship's authored section list, carried on the ship root from
+/// [`SpaceshipConfig::sections`]. `insert_spaceship_sections` reads it on
+/// `Add<SpaceshipRootMarker>` to spawn each [`SpaceshipSectionConfig`] as a
+/// child section entity.
 #[derive(Component, Clone, Debug, Default, Deref, DerefMut, Reflect)]
 pub struct SpaceshipSectionsConfig(pub Vec<SpaceshipSectionConfig>);
 
+/// The scenario/modding RON surface for a spaceship object: its
+/// [`SpaceshipController`], optional [`Allegiance`] override, and section list.
+/// Passed to `spaceship_scenario_object` to build the ship-root bundle.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SpaceshipConfig {
@@ -216,6 +232,11 @@ pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
     )
 }
 
+/// Spawns spaceship scenario objects: resolves each ship's section list into
+/// child section entities and wires the player/AI controller.
+/// Adds the `Add<SpaceshipRootMarker>` section-insert observer, seeds an empty
+/// [`GameSections`] prototype catalog, and registers the section-modification
+/// components and their apply-on-add observers.
 pub struct SpaceshipPlugin;
 
 impl Plugin for SpaceshipPlugin {

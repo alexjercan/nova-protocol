@@ -186,6 +186,11 @@ fn edge_arrow(color: Color) -> impl Bundle {
     )
 }
 
+/// Keeps one edge-clamped arrow per off-screen tracked entity (the combat
+/// lock, hostile torpedoes, multi-target candidates), tinted by kind.
+/// Registers [`EdgeIndicatorKind`], runs `sync_edge_indicators` in Update
+/// within [`super::NovaHudSystems`], and runs `update_edge_labels` in
+/// PostUpdate after `ScreenIndicatorSystems` and before UI layout.
 #[derive(Default)]
 pub struct EdgeIndicatorsHudPlugin;
 

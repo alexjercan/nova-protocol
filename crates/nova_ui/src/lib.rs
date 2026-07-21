@@ -5,9 +5,15 @@
 //! `widget` holds the themed button + selection machinery and small layout
 //! helpers. Palette/metrics only - real web fonts are a separate concern.
 
+#![warn(missing_docs)]
+
 pub mod theme;
 pub mod widget;
 
+/// Glob-import surface: `use nova_ui::prelude::*` brings the [`theme`] palette and
+/// the themed-button widgets ([`themed_button`](widget::themed_button),
+/// [`ThemedButton`](widget::ThemedButton), [`Selected`](widget::Selected), ...)
+/// into scope.
 pub mod prelude {
     pub use crate::{
         theme,

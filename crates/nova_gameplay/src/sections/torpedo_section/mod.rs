@@ -213,24 +213,39 @@ pub fn torpedo_section(config: TorpedoSectionConfig) -> impl Bundle {
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct TorpedoSectionInput(pub bool);
 
+/// Marker for a torpedo launch bay section entity (spawned by
+/// [`torpedo_section`]); the fire system reads its input and launches
+/// projectiles from its child spawner.
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct TorpedoSectionMarker;
 
+/// Marker for the bay's spawner child - the launch point torpedoes fire from,
+/// carrying the launch cooldown, effect and sound. Built with the section.
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct TorpedoSectionSpawnerMarker;
 
+/// Marker for the bay's physical body child (the render/mesh anchor of the
+/// launcher on the ship). Built with the section.
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct TorpedoSectionBodyMarker;
 
+/// Marker for a fired torpedo projectile (the guided flying entity spawned at
+/// launch), as opposed to the stationary bay.
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct TorpedoProjectileMarker;
 
+/// Marker for a torpedo projectile's controller child (the steering control
+/// section), inserted on the spawned projectile.
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct TorpedoControllerMarker;
 
+/// Marker for a torpedo projectile's thruster child (the propulsion section),
+/// inserted on the spawned projectile.
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct TorpedoThrusterMarker;
 
+/// Marker for the particle-effect entity spawned at a torpedo's detonation
+/// blast, so the render systems can drive/reset it.
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct TorpedoBlastEffectMarker;
 
@@ -241,6 +256,9 @@ pub struct TorpedoBlastEffectMarker;
 #[derive(Component, Clone, Debug, Deref, Reflect)]
 pub struct TorpedoSectionConfigHelper(TorpedoSectionConfig);
 
+/// The bay's launch cooldown timer, carried on the spawner and seeded from the
+/// config fire rate (`1/fire_rate` seconds, starting finished). The fire
+/// system ticks it and resets it on each launch to gate the bay's cadence.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct TorpedoSectionSpawnerFireState(pub Timer);
 
@@ -273,6 +291,9 @@ pub(crate) struct TorpedoSectionLaunchSound(#[reflect(ignore)] pub Option<AssetR
 #[derive(Component, Clone, Copy, Debug, Reflect)]
 struct TorpedoSectionSpawnerEffectMarker;
 
+/// The locked target entity a fired torpedo homes on, set at launch alongside
+/// [`TorpedoTargetChosen`] when a lock existed. Guidance tracks this entity's
+/// live position; a dumb-fired torpedo carries no such component.
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct TorpedoTargetEntity(pub Entity);
 
@@ -289,6 +310,9 @@ pub struct TorpedoTargetChosen;
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct TorpedoProjectileRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
 
+/// The world position a torpedo steers toward: the tracked target's last known
+/// location, frozen here once the [`TorpedoTargetEntity`] dies so the torpedo
+/// keeps flying to where the target was rather than losing guidance.
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct TorpedoTargetPosition(pub Vec3);
 

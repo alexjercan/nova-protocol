@@ -112,6 +112,11 @@ pub fn lock_dwell_ring_hud(material: Handle<LockDwellRingMaterial>) -> impl Bund
     )
 }
 
+/// Drives the lock-dwell ring: the shader ring that fills over the pending
+/// dwell target while a radar gesture is charging.
+/// Adds the [`LockDwellRingMaterial`] UI-material plugin, registers the ring
+/// markers, and runs `drive_lock_dwell_ring` in Update within
+/// [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct LockDwellRingHudPlugin;
 

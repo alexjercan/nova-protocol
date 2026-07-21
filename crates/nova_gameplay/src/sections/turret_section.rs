@@ -390,6 +390,9 @@ struct TurretJointRenderMeshTransform(Option<RenderMeshTransform>);
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct TurretSectionConfigHelper(pub TurretSectionConfig);
 
+/// Per-barrel-muzzle fire cooldown timer, snapshotted from the turret's fire
+/// rate when the turret is built. The muzzle system ticks it down and resets
+/// it on each shot, gating the barrel's cadence.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct TurretSectionBarrelFireState(pub Timer);
 

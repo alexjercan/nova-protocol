@@ -97,15 +97,26 @@ pub(crate) fn desired_velocity_palette(engaged: bool, rcs_active: bool) -> Veloc
     }
 }
 
+/// Marker for a directional-HUD widget root (the orbiting cone + shaded
+/// sphere); spawned by [`velocity_hud`], carries the widget's config
+/// components and is what the drive systems query.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct VelocityHudMarker;
 
+/// Marker for the widget's orbiting cone child (the direction indicator),
+/// inserted by the [`VelocityHudMarker`] add observer.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct VelocityHudIndicatorMarker;
 
+/// Marker for the widget's shaded-sphere child, inserted by the
+/// [`VelocityHudMarker`] add observer.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct VelocityHudSphereMarker;
 
+/// Spawn-time settings for a [`velocity_hud`] widget: orbit radius, sphere
+/// shading sharpness, the target entity it reads, and the source quantity +
+/// palette. Not a component - consumed by [`velocity_hud`] into the widget's
+/// components.
 #[derive(Clone, Debug)]
 pub struct VelocityHudConfig {
     pub radius: f32,
@@ -153,12 +164,23 @@ pub fn velocity_hud(config: VelocityHudConfig) -> impl Bundle {
     )
 }
 
+/// The world entity a [`VelocityHudMarker`] widget reads its vector from
+/// (velocity or gravity); set from [`VelocityHudConfig::target`] at spawn.
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct VelocityHudTargetEntity(Entity);
 
+/// The shaded sphere's edge sharpness (higher = tighter terminator), carried
+/// from [`VelocityHudConfig::sharpness`] into the sphere material at spawn.
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct VelocityHudSharpness(pub f32);
 
+/// Drives the directional-HUD widget family (velocity readout + gravity
+/// indicator): orbit, shader magnitude, and control-state palette.
+/// Adds the two extended-material plugins, inits [`GravitySettings`],
+/// registers the source/palette types, adds the indicator/sphere child
+/// observers, and runs `update_velocity_hud_input`, `sync_orbit_state`,
+/// `sync_velocity_palette` and `direction_shader_update_system` in Update
+/// within [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct VelocityHudPlugin;
 

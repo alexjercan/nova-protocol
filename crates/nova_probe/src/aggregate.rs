@@ -19,7 +19,9 @@ use crate::report::{escape, STYLE};
 /// becomes an ERROR row carrying the message).
 #[derive(Debug, Clone, PartialEq)]
 pub struct AllRow {
+    /// The example's name (its run dir under `<base>/`).
     pub example: String,
+    /// The category the example belongs to (from the sweep driver).
     pub category: String,
     /// OK | WARN | FAIL | NO_DATA | ERROR (ERROR: the run never produced
     /// checks.json - build failure, probe error - message in `error`).
@@ -28,7 +30,9 @@ pub struct AllRow {
     pub measured: String,
     /// (check name, status) pairs from checks.json, empty for ERROR rows.
     pub checks: Vec<(String, String)>,
+    /// Wall-clock duration of the run, in seconds.
     pub duration_secs: u64,
+    /// Failure message for an ERROR row (the run never produced checks.json).
     pub error: Option<String>,
 }
 
@@ -38,16 +42,21 @@ pub struct AllRow {
 pub struct AllManifest {
     /// The spec as given (`--all`, `ui`, `scenario,hud_range`).
     pub spec: String,
+    /// Unix timestamp when the sweep started.
     pub started_unix: u64,
+    /// The git SHA the sweep ran against.
     pub git_sha: String,
+    /// The host the sweep ran on.
     pub host: String,
     /// (example, reason) pairs deliberately not probed by --all/category
     /// expansion - listed in the report so absence reads as a decision.
     pub excluded: Vec<(String, String)>,
+    /// One [`AllRow`] per probed example.
     pub rows: Vec<AllRow>,
 }
 
 impl AllManifest {
+    /// Serialize the manifest to the `probe-all.json` JSON shape.
     pub fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
             "spec": self.spec,
@@ -72,6 +81,7 @@ impl AllManifest {
         })
     }
 
+    /// Parse an [`AllManifest`] back from the `probe-all.json` JSON shape.
     pub fn from_json(value: &serde_json::Value) -> Result<Self, String> {
         let str_field = |v: &serde_json::Value, key: &str| -> Result<String, String> {
             v.get(key)

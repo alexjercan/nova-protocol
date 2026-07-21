@@ -215,6 +215,12 @@ pub fn scenario_is_live(current: Res<CurrentScenario>) -> bool {
     current.is_some()
 }
 
+/// The scenario lifecycle plugin: owns loading, unloading and the live
+/// scenario's clock and event pulse. Registers the [`LoadScenario`] /
+/// [`UnloadScenario`] observers, gates the spaceship input/section sets on
+/// [`scenario_is_live`], and adds the clock tick + OnUpdate pulse plus the
+/// orbit/lock/skybox/scripted-camera trackers (mostly `Update`, with the
+/// scripted-camera enforce in `PostUpdate`).
 pub struct ScenarioLoaderPlugin;
 
 impl Plugin for ScenarioLoaderPlugin {

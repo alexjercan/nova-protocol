@@ -5,6 +5,7 @@
 //! subsystem lives in its own `nova_*` crate and this crate assembles them in
 //! the right order. Start here to see how the pieces fit together; the
 //! architecture wiki page carries the dependency graph.
+#![warn(missing_docs)]
 
 use bevy::{
     app::Plugins,
@@ -28,6 +29,9 @@ use nova_menu::prelude::*;
 pub use nova_scenario;
 use nova_scenario::prelude::*;
 
+/// Glob-import surface: `use nova_core::prelude::*` re-exports every subsystem
+/// crate's prelude plus [`AppBuilder`] and [`editor_app`], so a binary or
+/// example wires the whole stack from one import.
 pub mod prelude {
     pub use nova_assets::prelude::*;
     #[cfg(feature = "debug")]
@@ -52,6 +56,12 @@ pub fn editor_app(render: bool) -> App {
     AppBuilder::new().with_rendering(render).build()
 }
 
+/// Composition root that assembles the full plugin stack into a runnable [`App`].
+///
+/// Holds the in-progress [`App`] plus the choices ([`with_game_plugins`](Self::with_game_plugins),
+/// [`with_rendering`](Self::with_rendering), [`with_main_menu`](Self::with_main_menu)) that
+/// [`build`](Self::build) resolves into the concrete plugin set; with no game plugins it defaults
+/// to the editor app fronted by the main menu.
 pub struct AppBuilder {
     app: App,
     use_default_plugins: bool,
@@ -66,6 +76,8 @@ impl Default for AppBuilder {
 }
 
 impl AppBuilder {
+    /// Start a builder with [`DefaultPlugins`] already set up (windowing, logging,
+    /// assets, and the `mods://` source registered before `AssetPlugin` lands).
     pub fn new() -> Self {
         let mut app = App::new();
         // The `mods://` source (the downloaded-mods cache, task 20260715-142906)
@@ -94,12 +106,17 @@ impl AppBuilder {
         }
     }
 
+    /// Supply custom game plugins in place of the default editor app; this also
+    /// suppresses the main menu unless [`with_main_menu`](Self::with_main_menu)
+    /// re-enables it (the examples use this to boot straight into gameplay).
     pub fn with_game_plugins<M>(mut self, plugins: impl Plugins<M>) -> Self {
         self.app.add_plugins(plugins);
         self.use_default_plugins = false;
         self
     }
 
+    /// Set whether the app renders; passed down to the gameplay and scenario
+    /// plugins so headless runs (tests, the probe harness) skip GPU work.
     pub fn with_rendering(mut self, render: bool) -> Self {
         self.render = render;
         self
@@ -115,6 +132,9 @@ impl AppBuilder {
         self
     }
 
+    /// Resolve the builder into a runnable [`App`]: adds the gameplay, scenario,
+    /// asset, editor (when no game plugins were given), menu, and debug plugins,
+    /// and installs the `Loaded -> MainMenu`/`Playing` handoff.
     pub fn build(mut self) -> App {
         // NOTE: UiWidgetsPlugins is part of Bevy's DefaultPlugins as of 0.19 (it was an
         // experimental, manually-added plugin group in 0.17). AppBuilder::new() already

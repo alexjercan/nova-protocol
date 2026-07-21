@@ -195,6 +195,12 @@ fn style_radar_box(mut q_box: Query<&mut Node, Added<RadarCandidateMarker>>) {
     }
 }
 
+/// Drives the two-lock crosshair language: the white travel crosshair, the
+/// hollow radar box, the per-tap unlatch ghosts, and the radar-denied flash.
+/// Registers the ghost/flash/sprite types and adds `style_radar_box`,
+/// `drive_travel_crosshair`, `drive_radar_candidate`, `spawn_unlatch_ghosts`,
+/// `fade_unlatch_ghosts` and `flash_radar_deny` in Update within
+/// [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct LockCrosshairsHudPlugin;
 

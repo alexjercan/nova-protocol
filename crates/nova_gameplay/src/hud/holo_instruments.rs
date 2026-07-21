@@ -99,6 +99,11 @@ impl HoloAssets {
     }
 }
 
+/// Draws the world-space holo instruments: the trajectory ribbon along the
+/// engaged leg and the flip gate ring at its flip point.
+/// Inits `HoloAssets`, registers [`TrajectoryRibbonSegment`]/[`FlipGateMarker`],
+/// and runs `sync_trajectory_ribbon` and `sync_flip_gate` in Update within
+/// [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct HoloInstrumentsPlugin;
 

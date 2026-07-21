@@ -33,6 +33,8 @@ const CUE_SIZE: Vec2 = Vec2::new(96.0, 16.0);
 /// The cue sits below its object so it reads as a caption, not a lock.
 const CUE_OFFSET: Vec2 = Vec2::new(0.0, 48.0);
 
+/// Marker for the lower-left keybind hint cluster root (the column of
+/// `[KEY] VERB` rows); spawned by [`keybind_hint_cluster_hud`].
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct KeybindHintClusterMarker;
 
@@ -116,6 +118,8 @@ impl HintEmphasis {
     }
 }
 
+/// Marker for the anchored verb-cue layer (the orbit and goto cue chips
+/// projected on their objects); spawned by [`verb_cues_hud`].
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct VerbCuesHudMarker;
 
@@ -193,6 +197,12 @@ pub fn verb_cues_hud() -> impl Bundle {
     )
 }
 
+/// Drives the contextual keybind hints: the lower-left cluster (with the
+/// scenario-driven emphasis pulse) and the orbit/goto anchored cues, all a
+/// dumb view over the input layer's [`FlightVerbHints`].
+/// Inits/registers [`HintEmphasis`] and runs `update_hint_cluster`,
+/// `pulse_emphasized_rows` (after it), `drive_orbit_cue` and `drive_goto_cue`
+/// in Update within [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct KeybindHintsPlugin;
 

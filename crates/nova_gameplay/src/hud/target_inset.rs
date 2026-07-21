@@ -355,6 +355,13 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
     )
 }
 
+/// Drives the target inset: the offscreen RTT scope panel that frames the
+/// locked ship, its faction caption, armed corner ticks, NO-SIGNAL cover and
+/// kill cam, plus the fine-locked section highlight.
+/// Inits [`TargetInsetRenderTarget`], registers the inset types, adds the
+/// [`InsetZoomable`] tagging observers, and runs `drive_inset_camera`,
+/// `drive_inset_frame_state`, `pulse_no_signal` and `sync_section_highlight`
+/// in Update within [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct TargetInsetHudPlugin;
 

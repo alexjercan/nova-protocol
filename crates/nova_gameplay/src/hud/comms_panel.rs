@@ -105,6 +105,12 @@ enum CommsDisplay {
     FadingOut,
 }
 
+/// Drives the comms panel: the paced display queue over [`StoryFeed`] that
+/// shows speaker-attributed story lines one at a time with a fade and dwell.
+/// Inits [`StoryFeed`] and the internal queue/display resources, spawns the
+/// panel in Startup, runs `enqueue_new_lines` + `advance_comms_display`
+/// (chained) in Update within [`super::NovaHudSystems`], and runs
+/// `apply_comms_fade` in Update after the bcs tween advance.
 pub struct CommsPanelPlugin;
 
 impl Plugin for CommsPanelPlugin {

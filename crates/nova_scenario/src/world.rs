@@ -6,6 +6,12 @@ use nova_gameplay::prelude::*;
 
 use crate::prelude::*;
 
+/// The event world for the live scenario: the game-specific [`EventWorld`]
+/// carrying scenario state that scenario actions read and write - objectives,
+/// story log, variables (including the reserved scenario clock), a deferred
+/// command queue, and a queued next-scenario switch. Inserted as a resource by
+/// the scenario stack and cleared at teardown; its `state_to_world_system`
+/// mirrors this state into the bevy world (HUD, scenario switches) each frame.
 #[derive(Resource, Default)]
 pub struct NovaEventWorld {
     queued_commands: VecDeque<Box<dyn FnOnce(&mut Commands) + Send + Sync>>,

@@ -127,6 +127,12 @@ fn beacon_chip_arrow() -> impl Bundle {
     )
 }
 
+/// Draws one screen-projected, edge-clamping chip per [`BeaconMarker`]
+/// (label + live distance), yielding the chip to an objective marker when one
+/// shares the beacon (Chrome tier).
+/// Registers [`BeaconMarker`]/[`BeaconLabel`], adds the spawn/despawn and
+/// suppress/restore observers, and runs `update_beacon_chip_labels` in Update
+/// within [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct BeaconChipsHudPlugin;
 

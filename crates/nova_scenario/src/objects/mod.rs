@@ -16,6 +16,12 @@ pub mod prelude {
 
 use bevy::prelude::*;
 
+/// Aggregates the scenario-object plugins (asteroid, spaceship, area, beacon,
+/// salvage crate) into one group. `render` is threaded to the render-bearing
+/// members so headless tools can spawn objects without their visuals.
+/// Adds each object type's own plugin (see [`asteroid::AsteroidPlugin`],
+/// [`spaceship::SpaceshipPlugin`], [`area::ScenarioAreaPlugin`],
+/// [`beacon::BeaconPlugin`], [`salvage::SalvageCratePlugin`]) at build time.
 pub struct ScenarioObjectsPlugin {
     pub render: bool,
 }

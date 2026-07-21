@@ -115,6 +115,12 @@ pub struct CrateGlow {
     pub material: Handle<StandardMaterial>,
 }
 
+/// The salvage crate scenario object: a static proximity pickup that fires
+/// `OnEnter` under its own scenario id. `render` gates the visible box, tumble
+/// and glow; the pickup ding is audio and registered regardless.
+/// Adds the pickup-cue and despawn-cleanup observers unconditionally, and (when
+/// `render`) the crate-render observer plus the tumble and glow `Update`
+/// systems.
 pub struct SalvageCratePlugin {
     pub render: bool,
 }

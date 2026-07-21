@@ -95,6 +95,11 @@ fn item_highlight_hud(target: Entity, world_radius: f32) -> impl Bundle {
     )
 }
 
+/// Draws a breathing bracket over every [`ItemHighlight`] entity so
+/// interactable props pop against surrounding debris (Chrome tier).
+/// Registers [`ItemHighlight`], adds observers that spawn/despawn a bracket
+/// layer as the tag lands/leaves, and runs `breathe_item_highlights` in Update
+/// within [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct ItemHighlightsHudPlugin;
 
