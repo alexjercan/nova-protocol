@@ -54,6 +54,15 @@ timed beats, invulnerable cover, allegiance) is the toolbox.
 
 ## Notes
 
+- Spike: tasks/20260721-155249/SPIKE.md (2026-07-21, RECOMMENDED) - the
+  extended-arc beat sheet this task's step 2 asks a nod on. Direction:
+  append Chapter 3 (convoy-defense "Lifeline" + gravity-well finale "Final
+  Tally", both chained after broadside_gunship) plus a StoryMessage voice
+  pass on the existing chain (the base campaign currently has ZERO comms
+  lines). FIRST implementation step per the spike: harness-rig the
+  unshipped `allegiance: Some(Player)` ally mechanism (AI targeting is
+  relation-driven, ai.rs update_ai_target); if the rig fails, Lifeline's
+  documented fallback (salvage-under-fire, same beats) applies.
 - Base scenarios: `assets/base/scenarios/*.content.ron` are GENERATED - edit
   the `nova_assets` builders and run `content gen`, never the .ron directly
   (LESSONS.md: edit-the-builder-not-the-generated-ron).
