@@ -42,7 +42,11 @@ green. Full cargo test/clippy stay in CI per repo policy (AGENTS.md).
 
 ## Tasks
 
-- [ ] 20260721-160842 (p56, nova-protocol) resolve asteroid_field hidden-vs-wiki contradiction
+- [x] 20260721-160842 (p56, nova-protocol) resolve asteroid_field hidden-vs-wiki contradiction
+      landed 8c7be318; 2 review rounds (r1 caught a false history narrative +
+      missing visibility pin); verdict: the hide premise was NEVER true -
+      asteroid_field was the original New Game scenario; unhidden + pinned.
+      Follow-up filed outside this goal: 20260721-163942 (CI fmt gate).
 - [ ] 20260721-160906 (p55, nova-protocol) harness-prove ally allegiance + orbit-directive guards (ch3 mechanisms)
 - [ ] 20260721-160929 (p54, nova-protocol) base chain voice pass (StoryMessage comms, hauler-survival flavor)
 - [ ] 20260721-160957 (p53, nova-protocol) Lifeline (ch3a): convoy defense + gunship chain hook + picker wiring
