@@ -1,11 +1,17 @@
-//! lifeline: the chapter-three convoy defense, wired to the smoke-test
-//! harness (task 20260721-160957).
+//! lifeline: the whole of chapter three - the convoy defense AND the
+//! finale at the claim - wired to the smoke-test harness (tasks
+//! 20260721-160957 + 20260721-161020), the way the broadside example
+//! covers both parts of chapter two.
 //!
 //! Boots the exact app the binary runs, drives the Scenarios picker to
-//! launch Lifeline, and plays the win/lose frame in ONE run: dies to prove
-//! the Defeat overlay + Retry (the scenario reloads clean), then wins the
-//! reloaded instance by clearing all three raider waves for the early-clear
-//! Victory. The wave gates ride the SCENARIO CLOCK (`scenario_elapsed`), so
+//! launch Lifeline, and plays the arc in ONE run: dies to prove the Defeat
+//! overlay + Retry (the scenario reloads clean), wins the reloaded
+//! instance by clearing all three raider waves (the early-clear Victory),
+//! rides Continue into `final_tally`, surveys the anchorage (the same
+//! OnTravelLock info the engine's lock bridge emits - the input-to-lock
+//! machinery has its own coverage), breaks the picket, waits out the
+//! cast-off breathe, kills the Final Tally, and holds through the paced
+//! epilogue to the campaign-complete banner with nothing queued. The wave gates ride the SCENARIO CLOCK (`scenario_elapsed`), so
 //! the script compresses time the same way the engine advances it - the
 //! clock is an accumulated event-world variable (`tick_scenario_clock` adds
 //! dt to the stored value), and the script jumps it forward at each stage;
@@ -280,9 +286,15 @@ fn slice_autopilot(world: &mut World, elapsed: f32) {
             if outcome(world) == Some(ScenarioOutcomeKind::Victory)
                 && entity_by_name(world, "Outcome Overlay").is_some()
             {
-                assert!(
-                    world.resource::<NovaEventWorld>().next_scenario.is_none(),
-                    "chapter three part one ends the chain until the finale lands"
+                let queued = world
+                    .resource::<NovaEventWorld>()
+                    .next_scenario
+                    .as_ref()
+                    .map(|next| next.scenario_id.clone());
+                assert_eq!(
+                    queued.as_deref(),
+                    Some("final_tally"),
+                    "the Lifeline win chains into the finale"
                 );
                 info!("probe: victory overlay up");
                 if std::env::var_os("NOVA_SHOT_DIR").is_some() {
@@ -295,11 +307,84 @@ fn slice_autopilot(world: &mut World, elapsed: f32) {
                             .join("lifeline_victory.png"),
                         ));
                 }
-                advance(&mut state, 13, "victory capture settling");
+                let cont = entity_by_name(world, "Outcome Primary Button").expect("Continue");
+                world.trigger(Activate { entity: cont });
+                advance(&mut state, 13, "clicked Continue into final_tally");
+            }
+        }
+        // --- The finale: final_tally loaded fresh behind the chain. ---
+        13 => {
+            if outcome(world).is_none()
+                && num_var(world, "act") == Some(1.0)
+                && root_by_id(world, "picket_a").is_some()
+            {
+                // Survey: fire the same scenario event info the lock
+                // bridge emits when the player's travel lock lands.
+                let info = nova_protocol::nova_events::prelude::OnTravelLockEventInfo {
+                    id: "anchorage_bow".to_string(),
+                    other_id: "player_spaceship".to_string(),
+                    other_type_name: "spaceship".to_string(),
+                };
+                use nova_protocol::nova_gameplay::bevy_common_systems::prelude::CommandsGameEventExt;
+                world
+                    .commands()
+                    .fire::<nova_protocol::nova_events::prelude::OnTravelLockEvent>(info);
+                advance(&mut state, 14, "surveyed the anchorage");
+            }
+        }
+        14 => {
+            if num_var(world, "surveyed") == Some(1.0) {
+                let both = kill(world, "picket_a") & kill(world, "picket_b");
+                if both {
+                    advance(&mut state, 15, "picket broken");
+                }
+            }
+        }
+        15 => {
+            // The cast-off breathe: jump past the cast_at mark.
+            if num_var(world, "taunt_said") == Some(1.0) {
+                let cast_at = num_var(world, "cast_at").unwrap_or(0.0);
+                jump_clock(world, cast_at + 1.0);
+                advance(&mut state, 16, "clock jumped past the cast-off breathe");
+            }
+        }
+        16 => {
+            if root_by_id(world, "flagship").is_some() && kill(world, "flagship") {
+                advance(&mut state, 17, "the Final Tally broken");
+            }
+        }
+        17 => {
+            // The paced epilogue: jump past the banner mark.
+            if num_var(world, "act") == Some(4.0) {
+                let epilogue_at = num_var(world, "epilogue_at").unwrap_or(0.0);
+                jump_clock(world, epilogue_at + 10.0);
+                advance(&mut state, 18, "clock jumped through the epilogue");
+            }
+        }
+        18 => {
+            if outcome(world) == Some(ScenarioOutcomeKind::Victory)
+                && entity_by_name(world, "Outcome Overlay").is_some()
+            {
+                assert!(
+                    world.resource::<NovaEventWorld>().next_scenario.is_none(),
+                    "the campaign completes with nothing queued - by design"
+                );
+                info!("probe: campaign-complete overlay up");
+                if std::env::var_os("NOVA_SHOT_DIR").is_some() {
+                    world
+                        .spawn(bevy::render::view::screenshot::Screenshot::primary_window())
+                        .observe(bevy::render::view::screenshot::save_to_disk(
+                            std::path::Path::new(
+                                &std::env::var("NOVA_SHOT_DIR").unwrap_or_default(),
+                            )
+                            .join("final_tally_victory.png"),
+                        ));
+                }
+                advance(&mut state, 19, "campaign-complete capture settling");
                 state.wait = 45;
             }
         }
-        13 => {
+        19 => {
             // The suite's completion sentinel for SELF-ENDING examples
             // (tests/examples_smoke.rs accepts this line or the autopilot's).
             info!("probe: script complete, exiting");

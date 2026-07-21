@@ -25,8 +25,9 @@
 //! warning line, a far spawn (outside the light turret's threat envelope of
 //! every friendly anchor), and an `engage_delay` grace.
 //!
-//! Victory currently ends the chain (Main Menu, like the gunship before
-//! ch3): the finale task (20260721-161020) rewires it into `final_tally`.
+//! Victory chains (lingering) into the finale: the relief wing traced the
+//! raiders' burn to the claim, and `final_tally` (task 20260721-161020)
+//! waits behind Continue.
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
@@ -341,9 +342,8 @@ fn paced_line(
 }
 
 /// A Victory beat: complete the objective, set the terminal act, show the
-/// banner. No queued next scenario YET - the finale task (20260721-161020)
-/// chains it onward; until then the overlay offers Main Menu like the
-/// gunship's end did.
+/// banner - and chain (lingering) into the finale: the relief wing traced
+/// the raiders' burn, and Continue follows it (task 20260721-161020).
 fn victory(message: &str, extra_filters: Vec<EventFilterConfig>) -> ScenarioEventConfig {
     let mut filters = vec![eq_num(VAR_ACT, 1.0)];
     filters.extend(extra_filters);
@@ -357,6 +357,11 @@ fn victory(message: &str, extra_filters: Vec<EventFilterConfig>) -> ScenarioEven
                 ScenarioOutcomeKind::Victory,
                 message,
             )),
+            EventActionConfig::NextScenario(NextScenarioActionConfig {
+                scenario_id: super::final_tally::FINAL_TALLY_SCENARIO_ID.to_string(),
+                linger: true,
+                delay: None,
+            }),
         ],
     }
 }
@@ -622,8 +627,8 @@ pub(crate) fn lifeline(
         // the bell/early and fate filters; the first to fire sets act=2.
         victory(
             "The relief wing drops out of the burn, guns hot - and the \
-             raiders scatter. The convoy is whole. Somewhere past the \
-             shelf, the Tallyman is counting his losses.",
+             raiders scatter. The convoy is whole - and the wing traced \
+             the raiders' burn back to a claim deep on the shelf.",
             vec![
                 gt_num(SCENARIO_ELAPSED_VAR, RELIEF_SECS),
                 eq_num(VAR_QUEEN_DOWN, 0.0),
@@ -632,8 +637,9 @@ pub(crate) fn lifeline(
         ),
         victory(
             "The relief wing drops out of the burn, guns hot - and the \
-             raiders scatter. Half the convoy made it. The Tallyman will \
-             answer for the other half.",
+             raiders scatter. Half the convoy made it - and the wing \
+             traced the raiders' burn back to a claim deep on the shelf. \
+             The Tallyman will answer for the other half.",
             vec![
                 gt_num(SCENARIO_ELAPSED_VAR, RELIEF_SECS),
                 EventFilterConfig::Conditional(ConditionalFilterConfig::Or(
@@ -644,7 +650,8 @@ pub(crate) fn lifeline(
         ),
         victory(
             "The last raider breaks apart before the relief wing even \
-             arrives. The convoy is whole, and the lane is yours.",
+             arrives. The convoy is whole - and the last burst off the \
+             raider traced back to a claim deep on the shelf.",
             vec![
                 eq_num(VAR_W3_UP, 1.0),
                 eq_num(VAR_R3A_DOWN, 1.0),
@@ -655,8 +662,9 @@ pub(crate) fn lifeline(
         ),
         victory(
             "The last raider breaks apart before the relief wing even \
-             arrives. Half the convoy made it - the Tallyman will answer \
-             for the rest.",
+             arrives. Half the convoy made it - and the last burst off the \
+             raider traced back to a claim deep on the shelf. The Tallyman \
+             will answer for the rest.",
             vec![
                 eq_num(VAR_W3_UP, 1.0),
                 eq_num(VAR_R3A_DOWN, 1.0),

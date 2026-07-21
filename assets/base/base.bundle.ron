@@ -14,6 +14,7 @@
         "scenarios/menu_scrapyard.content.ron",
         "scenarios/shakedown_run.content.ron",
         "scenarios/lifeline.content.ron",
+        "scenarios/final_tally.content.ron",
     ],
     // The base game's own art, now shipped UNDER assets/base/ and referenced from
     // base content with `self://` (and by mods with `dep://base/<path>`). Every

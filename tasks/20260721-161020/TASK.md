@@ -1,6 +1,6 @@
 # Final Tally (ch3b): gravity-well anchorage finale + campaign ending
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.8.0,content,scenario
 
@@ -19,38 +19,38 @@ otherwise.
 
 ## Steps
 
-- [ ] Confirm the rig verdict for the orbit-directive picket (Notes).
-- [ ] New builder crates/nova_assets/src/scenario/final_tally.rs registered
+- [x] Confirm the rig verdict for the orbit-directive picket (Notes).
+- [x] New builder crates/nova_assets/src/scenario/final_tally.rs registered
       in the base bundle: planetoid with `surface_gravity`, Ring-region
       asteroid belt scatter, two big invulnerable wreck-rocks as the
       anchorage (Ledger Ceres-Matron pattern); layout derived from measured
       gravity constants (LESSONS: authored-vs-derived-values - SOI vs
       spawn/beacon positions asserted in the rig, not eyeballed).
-- [ ] Arrival beats: coast into the SOI (tutorial gravity-coast callback),
+- [x] Arrival beats: coast into the SOI (tutorial gravity-coast callback),
       announce line; survey beat - OnTravelLock the anchorage wreck to
       confirm the claim (gate the recurring lock event on a one-shot flag).
-- [ ] Fight 1: two light racers as the picket (orbit directive around the
+- [x] Fight 1: two light racers as the picket (orbit directive around the
       well, or patrol-ring fallback); telegraphed. Breathe + Tallyman line.
-- [ ] Fight 2: the Final Tally (cargoB, full grade, 2 turrets + 2 tubes)
+- [x] Fight 2: the Final Tally (cargoB, full grade, 2 turrets + 2 tubes)
       casts off from the anchorage with one corvette screening it; staged
       on picket-down + breathe gate; spawn distances vs envelopes checked,
       Auditor-precedent ack if the cast-off is intended close drama.
-- [ ] Ending: flagship down -> confirm beat, two closing comms lines
+- [x] Ending: flagship down -> confirm beat, two closing comms lines
       clock-gated AFTER the kill, then Victory overlay with the
       campaign-complete message; NO NextScenario (the chain ends here by
       design). Lose = player death; lingering retry of final_tally only.
-- [ ] Rewire lifeline victory: lingering NextScenario -> final_tally;
+- [x] Rewire lifeline victory: lingering NextScenario -> final_tally;
       adjust its temporary ending text to the hook.
-- [ ] `hidden: true` + thumbnail + description; `content gen`; `content
+- [x] `hidden: true` + thumbnail + description; `content gen`; `content
       lint` (refs + balance).
-- [ ] Harness test (gauntlet_course.rs style): layout invariants (SOI vs
+- [x] Harness test (gauntlet_course.rs style): layout invariants (SOI vs
       positions), survey gate one-shot, phase gating picket -> flagship,
       win wiring (kill -> gated comms -> Victory, no next), lose wiring,
       lifeline -> final_tally chain (test: names recorded when written).
-- [ ] Probe evidence: autopilot example + `nova_probe -- run`; record
+- [x] Probe evidence: autopilot example + `nova_probe -- run`; record
       verdict (watch the broadside-high hitch history, task 20260718-004856:
       keep object counts in the broadside band).
-- [ ] Docs in-task: scenarios.md finale blurb (no spoilers beyond the
+- [x] Docs in-task: scenarios.md finale blurb (no spoilers beyond the
       Broadside precedent), CHANGELOG.
 
 ## Definition of Done
@@ -87,3 +87,47 @@ otherwise.
 - Spike: tasks/20260721-155249/SPIKE.md. Umbrella: 20260721-160425.
 - Depends on: 20260721-160957 (Lifeline - chain source + cast in place),
   20260721-160906 (rig - picket mechanism).
+
+## Record (2026-07-21)
+
+What shipped: crates/nova_assets/src/scenario/final_tally.rs (the finale:
+gravity-well claim at world origin - the Ring scatter's requirement - with
+the shakedown planetoid's proven numbers, two invulnerable anchorage
+wrecks, a survey beat on a long-range travel-lock signature, two
+orbit-directed pickets, the flag-gated cast-off of the full-grade flagship
++ escort, a paced clock-marked epilogue, and the campaign-complete banner
+with nothing queued BY DESIGN); lifeline's four victory variants rewired to
+chain here with trace-hook banner text; tests/final_tally_claim.rs (7
+tests incl. layout clearances DERIVED from GravitySettings::default().
+soi_factor x ASTEROID_GEOMETRIC_FACTOR_MAX, the one-shot survey, the
+no-deadlock cast-off, the paced epilogue, and both terminal-act paths per
+the ledger lesson); the lifeline example extended into the whole chapter
+walk (20 stages, both parts, survey fired as the same event info the lock
+bridge emits); scenarios.md + CHANGELOG.
+
+Clock-mark vocabulary: `mark_clock(key, offset)` writes
+`key = scenario_elapsed + offset` and `clock_past(key)` gates on it - the
+first content to derive beat timing from variables instead of fixed marks
+(the cast-off breathe and the epilogue pacing both ride it).
+
+Balance: the first lint pass flagged the flagship's berth at 952u inside
+its own 1000u torpedo envelope of the player spawn; the berth moved 120u
+deeper behind the anchorage bow instead of acking - the audit is clean
+with ZERO acks, and the envelope clearance is pinned in the layout test.
+
+Verification: final_tally_claim 7 green, lifeline_convoy 8 green (chain
+assert flipped to final_tally), broadside_assault 14 green, parity 2
+green; content lint 0 errors over 13 scenarios; cargo check + fmt green;
+`probe run lifeline` verdict OK with the full 20-stage two-part walk
+(defeat/retry, three waves, Continue, survey, picket, cast-off, flagship,
+epilogue, campaign-complete banner) in the run log. Full clippy/test
+suite left to CI.
+
+Pending manual (flow Finish): finale difficulty peak (flagship + escort
+grade, picket pair), epilogue pacing feel (4s/9s), cast names.
+
+Reflection: the balance lint caught the berth-in-envelope mistake the
+authored margin comment claimed to avoid - the numbers beat the comment,
+and moving the berth was better than an ack. Writing the harness suite
+BEFORE the example (this cycle's order) made the example's stages almost
+transcription; the reverse order in Lifeline's cycle cost a compile loop.

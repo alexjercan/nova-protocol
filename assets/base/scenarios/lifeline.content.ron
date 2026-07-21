@@ -5164,7 +5164,11 @@
                     )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("The relief wing drops out of the burn, guns hot - and the raiders scatter. The convoy is whole. Somewhere past the shelf, the Tallyman is counting his losses."),
+                        message: Some("The relief wing drops out of the burn, guns hot - and the raiders scatter. The convoy is whole - and the wing traced the raiders\' burn back to a claim deep on the shelf."),
+                    )),
+                    NextScenario((
+                        scenario_id: "final_tally",
+                        linger: true,
                     )),
                 ],
             ),
@@ -5200,7 +5204,11 @@
                     )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("The relief wing drops out of the burn, guns hot - and the raiders scatter. Half the convoy made it. The Tallyman will answer for the other half."),
+                        message: Some("The relief wing drops out of the burn, guns hot - and the raiders scatter. Half the convoy made it - and the wing traced the raiders\' burn back to a claim deep on the shelf. The Tallyman will answer for the other half."),
+                    )),
+                    NextScenario((
+                        scenario_id: "final_tally",
+                        linger: true,
                     )),
                 ],
             ),
@@ -5242,7 +5250,11 @@
                     )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("The last raider breaks apart before the relief wing even arrives. The convoy is whole, and the lane is yours."),
+                        message: Some("The last raider breaks apart before the relief wing even arrives. The convoy is whole - and the last burst off the raider traced back to a claim deep on the shelf."),
+                    )),
+                    NextScenario((
+                        scenario_id: "final_tally",
+                        linger: true,
                     )),
                 ],
             ),
@@ -5286,7 +5298,11 @@
                     )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("The last raider breaks apart before the relief wing even arrives. Half the convoy made it - the Tallyman will answer for the rest."),
+                        message: Some("The last raider breaks apart before the relief wing even arrives. Half the convoy made it - and the last burst off the raider traced back to a claim deep on the shelf. The Tallyman will answer for the rest."),
+                    )),
+                    NextScenario((
+                        scenario_id: "final_tally",
+                        linger: true,
                     )),
                 ],
             ),

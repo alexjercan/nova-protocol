@@ -399,13 +399,13 @@ fn waves_stage_on_clock_and_clears_and_the_early_clear_wins() {
         "the whole-convoy variant: {}",
         outcome_message(&app)
     );
-    assert!(
-        app.world()
-            .resource::<NovaEventWorld>()
-            .next_scenario
-            .is_none(),
-        "chapter three part one ends the chain until the finale task"
+    let world = app.world().resource::<NovaEventWorld>();
+    let next = world.next_scenario.as_ref().expect("the finale is queued");
+    assert_eq!(
+        next.scenario_id, "final_tally",
+        "the win chains to the claim"
     );
+    assert!(next.linger, "Continue rides the lingering chain");
 }
 
 /// The relief bell wins with the convoy alive - and the banner tracks the
