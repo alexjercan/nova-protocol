@@ -4,8 +4,11 @@
 
 - **Rust nightly**, pinned by `rust-toolchain.toml` (with rustfmt + clippy).
 - **NixOS**: `nix develop` gives the toolchain, the `wasm32-unknown-unknown`
-  target, all system libs Bevy needs (udev, alsa, vulkan, X11/wayland), and
-  `trunk`. Without Nix, install those yourself.
+  target, all system libs Bevy needs (udev, alsa, vulkan, X11/wayland),
+  `trunk`, and `sccache` (see fast worktree builds below). Without Nix, install
+  those yourself. Bare `cargo` is not on PATH under Nix: run every cargo/rust
+  command via `nix develop --command <cmd>` (the commands below assume you are
+  inside `nix develop`).
 
 ## Everyday commands
 
@@ -38,11 +41,46 @@ first build, fast iteration. `split-debuginfo = "unpacked"` +
 (one Bevy-sized binary per test/example target); set `debug = true` temporarily
 if you need a debugger.
 
-**Worktree builds**: a fresh sprout worktree has an empty `target/`, so the
-first build is a cold Bevy compile. Do NOT point `CARGO_TARGET_DIR` at the main
-checkout's cache: both checkouts hold the same crates at the same versions, so
-their artifacts overwrite each other and a worktree binary can silently link
-the main checkout's code. Accept the cold build.
+**Worktree builds (fast via sccache)**: a fresh sprout worktree starts with an
+empty `target/`, but the devshell wires `sccache` as `RUSTC_WRAPPER` (with
+`CARGO_INCREMENTAL=0`, which sccache requires) so it does NOT pay a full cold
+build. sccache caches each rustc invocation's output keyed by a hash of the
+source content plus flags plus compiler version, in a shared cache
+(`~/.cache/sccache`). Unchanged deps (bevy, avian, the whole pinned tree) are
+100% cache hits across worktrees; only changed `nova_*` crates recompile.
+
+Measured on 2026-07-21 (game binary, quiet host):
+
+| build | wall clock | sccache stats |
+|-------|-----------|---------------|
+| cold (empty cache) | ~6m45s (405s) | 517 misses / 0 hits |
+| warm (`cargo clean`, same source) | ~38s | 517 hits / 0 misses (100%) |
+
+The warm number is what a fresh sprout worktree gets once the shared cache is
+warm. Recipe from a new worktree:
+
+```sh
+cd "$(sprout new <branch>)"
+nix develop --command cargo build          # warm-cache: seconds, not minutes
+nix develop --command sccache --show-stats # confirm the hit rate
+```
+
+Still do NOT point `CARGO_TARGET_DIR` at another checkout's cache: cargo keys
+fingerprints on crate name + version + features + profile + rustc, NOT the
+source path, so two checkouts alias each other's artifacts in a shared dir and
+a worktree binary can silently link another checkout's code (the stale-binary
+incident). Each worktree keeps its OWN `target/`; sccache is the SAFE way to
+share compilation because its cache key IS the source content - there is no
+path where a worktree links code from different source. That content-keying is
+also why sccache is transparent to CI: an empty cache is just a cold build.
+
+The devshell sets `CARGO_INCREMENTAL=0` shell-wide (sccache is incompatible
+with incremental). This costs the main checkout's iterative edit-rebuild loop
+its incremental speedup; the fresh-worktree-per-task agent workflow only ever
+does cold-shaped builds, so it is pure win there. A sprout-scoped variant
+(export the wrapper only in sprout shells, keep the main checkout on
+incremental) is possible as a nix.dotfiles follow-up if the main-checkout
+iteration cost bites.
 
 ## Features
 

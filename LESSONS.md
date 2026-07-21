@@ -227,8 +227,14 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
   `Messages<T>`; gate on `resource_exists` or init the resource in BOTH
   writing and consuming plugins. 20260714-174126, 20260716-193949.
 - `worktree-shares-main-target` (x1, CORRECTED; PROMOTED 2026-07-19 -> sprout
-  skill): accept the cold build - never share CARGO_TARGET_DIR with the main
-  checkout (artifacts clobber). 20260709-131502.
+  skill; sccache fast-path 2026-07-21 -> 20260721-000229): never share
+  CARGO_TARGET_DIR with the main checkout (artifacts clobber - cargo keys
+  fingerprints on name+version, not source path, so a shared dir aliases two
+  checkouts). But you no longer eat a full cold build: the devshell now wires
+  `sccache` as RUSTC_WRAPPER (content-hash cache, each worktree keeps its OWN
+  target/), so a fresh worktree is a warm build - measured ~38s vs ~6m45s cold,
+  100% hit rate. sccache is the SAFE way to share compilation; the never-share-
+  target-dir rule still stands. 20260709-131502, 20260721-000229.
 - `commit-before-sabotage` (x2, PROMOTED 2026-07-11 -> work skill): commit
   the fix before A/B sabotage; anchor splices on unique strings.
   20260710-231930.

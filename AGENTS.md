@@ -43,7 +43,21 @@ task flow), then bump the pin here.
 
 ## Build, run, test
 
-Nightly toolchain (`rust-toolchain.toml`). On NixOS: `nix develop`.
+Nightly toolchain (`rust-toolchain.toml`). On NixOS the toolchain comes from
+the flake devshell: bare `cargo` is NOT on PATH, so run every cargo/rust
+command via `nix develop --command <cmd>` (e.g. `nix develop --command cargo
+build`). The commands below assume you are inside `nix develop`.
+
+The devshell wires `sccache` as `RUSTC_WRAPPER` (with `CARGO_INCREMENTAL=0`),
+a content-hash compile cache shared across all checkouts. A fresh sprout
+worktree is therefore FAST: unchanged deps (bevy, avian, the pinned tree) are
+100% cache hits, so only changed `nova_*` crates recompile. Measured on
+2026-07-21: a cold build (empty cache) took ~6m45s; the same build with a warm
+cache took ~38s (100% sccache hit rate). Still NEVER share `CARGO_TARGET_DIR`
+across worktrees - each worktree keeps its OWN `target/`; sccache is the SAFE
+way to share compilation (it is keyed by source content, not fingerprint, so
+the stale-binary incident that killed target-dir sharing cannot recur). See
+`worktree-shares-main-target` in LESSONS and the wiki's dev/development page.
 
 ```sh
 cargo run                        # the game (boots into the main menu)

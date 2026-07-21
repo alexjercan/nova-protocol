@@ -41,6 +41,7 @@
             llvmPackages.bintools
             nodejs_22 # for the web/ landing site (matches the CI setup-node version)
             samply # sampling profiler for the scenario-dispatch benchmarks (task 20260714-083331)
+            sccache # RUSTC_WRAPPER: content-hash compile cache shared safely across worktrees (task 20260721-000229)
           ];
 
           buildInputs = with pkgs; [
@@ -57,6 +58,12 @@
 
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
           RUST_BACKTRACE = 1;
+
+          # sccache: safe fast worktree builds - content-hash compile cache shared
+          # across worktrees, each keeping its own target/ (task 20260721-000229).
+          # sccache requires incremental off.
+          RUSTC_WRAPPER = "sccache";
+          CARGO_INCREMENTAL = "0";
 
           RUST_SRC_PATH = "${rustNightly}/lib/rustlib/src/rust/library";
         };
