@@ -1,7 +1,7 @@
 # Base campaign polish + extension: make Shakedown to Broadside longer and more interesting (more beats/acts, pacing, encounters)
 
 - STATUS: OPEN
-- PRIORITY: 50
+- PRIORITY: 49
 - TAGS: v0.8.0,content,scenario,playtest
 
 ## Story
@@ -11,58 +11,63 @@ fuller arc - more encounters, clearer stakes, story between the fights - so
 that finishing it feels like completing a short campaign rather than sampling
 two scenarios.
 
-Today the base storyline is Shakedown Run (intro tutorial) -> Broadside (a
-two-scenario capital fight: hauler distress + corvette ambush, checkpoint,
-then the torpedo gunship). It is short. Make it longer and more varied without
-adding new engine features (data/scenario work only, per the v0.8.0
-no-new-features rule) - v0.7.0's authoring stack (Outcome frames, StoryMessage
-comms, arrival grace, checkpoints via chained scenarios, `scenario_elapsed`
-timed beats, invulnerable cover, allegiance) is the toolbox.
+Direction settled by spike tasks/20260721-155249/SPIKE.md (2026-07-21):
+append Chapter 3 (convoy-defense "Lifeline" + gravity-well finale "Final
+Tally") and give the existing chain its first StoryMessage voice pass. The
+build was split at plan time (flow umbrella 20260721-160425) into:
+
+- 20260721-160842 (p56) asteroid_field hidden-vs-wiki resolution
+- 20260721-160906 (p55) ch3 mechanisms rig (ally allegiance, orbit picket)
+- 20260721-160929 (p54) base chain voice pass
+- 20260721-160957 (p53) Lifeline (ch3a) + gunship chain hook
+- 20260721-161020 (p52) Final Tally (ch3b) + campaign ending
+
+THIS task is the campaign-level close-out: the end-to-end verification that
+the sum delivers the original DoD, the playtest question list for the owner,
+and the release-post note. It lands LAST.
 
 ## Steps
 
-- [ ] Playtest the current base chain start to finish and note the weak beats
-      (pacing lulls, difficulty cliffs, samey encounters, thin narrative);
-      write the findings into this task before authoring.
-- [ ] Sketch the extended arc (beats per scenario, enemy comp, where the
-      checkpoints land) as a beat sheet following the documented convention,
-      and get a nod on it before building all the content.
-- [ ] Add/extend scenarios or acts so the campaign has a fuller arc: more
-      encounter variety (mixed enemy comp, environmental beats like asteroid
-      cover or a gravity well), clearer stakes, and comms/objective beats that
-      tell a story between fights. Reuse existing actions/events only.
-- [ ] Retune balance so win/lose feels earned; keep every fight winnable and
-      losable. Use `content lint` balance findings as the floor; ack intended
-      drama in balance_acks.ron with reasons.
-- [ ] Give new scenarios picker thumbnails (ties to 20260715-220011) and wire
-      them into the New Game progression + Scenarios picker.
-- [ ] Run `content lint` (references + balance in one pass) over the result; fix findings.
-- [ ] Sync the docs surfaces in the same task (per AGENTS.md): player wiki
-      scenarios.md flow description, CHANGELOG entry; note anything for the
-      v0.8.0 news post.
+- [ ] Verify the extended chain end to end from the evidence the sub-tasks
+      left (harness chain-wiring tests + probe reports): New Game runs
+      shakedown_run -> broadside -> broadside_gunship -> lifeline ->
+      final_tally with lingering checkpoints at each seam.
+- [ ] Record the encounter variety matrix in this file (per-fight comp +
+      shape) and check the original DoD line "no two consecutive encounters
+      share composition and shape" against it.
+- [ ] Run the full `content lint` on the final tree; confirm every balance
+      ack carries a reason.
+- [ ] List the playtest questions for the owner in this file (difficulty
+      per fight, relief timer, names/tone nod, picker policy) - decided by
+      the owner, not silently.
+- [ ] Write the v0.8.0 news-post note line (what the release post should
+      say about the campaign) into this file; confirm CHANGELOG coherence
+      across the landed sub-tasks (one voice, no duplicate entries).
 
 ## Definition of Done
 
-- The base chain is at least one full scenario/act longer than v0.7.0's, with
-  no two consecutive encounters sharing the same composition and shape.
+- The base chain is at least one full scenario/act longer than v0.7.0's
+  (it grows by two), with no two consecutive encounters sharing the same
+  composition and shape (matrix recorded here; cmd:
+  `grep -n "Variety matrix" tasks/20260718-152313/TASK.md`).
 - Every scenario in the chain has an Outcome path for both win and lose, a
   checkpoint structure that never replays more than one fight on death, and
-  comms beats following the beat-sheet convention (lint clean).
-- `content lint` passes, balance findings included (acks only with reasons).
-- scenarios.md and CHANGELOG reflect the new chain; playtest questions for the
-  owner are listed in this task, not silently decided.
+  comms beats following the beat-sheet convention
+  (cmd: `cargo run -p nova_assets --bin content -- lint`).
+- scenarios.md and CHANGELOG reflect the new chain
+  (cmd: `grep -n "Lifeline\|Final Tally" web/src/wiki/scenarios.md CHANGELOG.md`).
+- Playtest questions for the owner are listed in this task, not silently
+  decided (cmd: `grep -n "Playtest questions" tasks/20260718-152313/TASK.md`).
 
 ## Notes
 
 - Spike: tasks/20260721-155249/SPIKE.md (2026-07-21, RECOMMENDED) - the
-  extended-arc beat sheet this task's step 2 asks a nod on. Direction:
-  append Chapter 3 (convoy-defense "Lifeline" + gravity-well finale "Final
-  Tally", both chained after broadside_gunship) plus a StoryMessage voice
-  pass on the existing chain (the base campaign currently has ZERO comms
-  lines). FIRST implementation step per the spike: harness-rig the
-  unshipped `allegiance: Some(Player)` ally mechanism (AI targeting is
-  relation-driven, ai.rs update_ai_target); if the rig fails, Lifeline's
-  documented fallback (salvage-under-fire, same beats) applies.
+  extended-arc beat sheet this task's original step 2 asked a nod on. Key
+  finding: AI targeting is relation-driven (ai.rs update_ai_target) and
+  `allegiance: Some(Player)` is authorable; unshipped, so the rig task
+  decides Lifeline's primary vs fallback variant.
+- Depends on: 20260721-160842, 20260721-160906, 20260721-160929,
+  20260721-160957, 20260721-161020 (all must be CLOSED).
 - Base scenarios: `assets/base/scenarios/*.content.ron` are GENERATED - edit
   the `nova_assets` builders and run `content gen`, never the .ron directly
   (LESSONS.md: edit-the-builder-not-the-generated-ron).

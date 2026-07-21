@@ -42,7 +42,12 @@ green. Full cargo test/clippy stay in CI per repo policy (AGENTS.md).
 
 ## Tasks
 
-(filled at plan time; one line per land)
+- [ ] 20260721-160842 (p56, nova-protocol) resolve asteroid_field hidden-vs-wiki contradiction
+- [ ] 20260721-160906 (p55, nova-protocol) harness-prove ally allegiance + orbit-directive guards (ch3 mechanisms)
+- [ ] 20260721-160929 (p54, nova-protocol) base chain voice pass (StoryMessage comms, hauler-survival flavor)
+- [ ] 20260721-160957 (p53, nova-protocol) Lifeline (ch3a): convoy defense + gunship chain hook + picker wiring
+- [ ] 20260721-161020 (p52, nova-protocol) Final Tally (ch3b): gravity-well anchorage finale + campaign ending
+- [ ] 20260718-152313 (p49, nova-protocol) campaign close-out: end-to-end verification, variety matrix, playtest questions, news note
 
 ## Manual acceptance (batched for the user at Finish)
 
