@@ -25,6 +25,15 @@ bevy_rand = { version = "0.15.0", features = ["wasm_js"] }
 ron = { version = "0.12" }
 criterion = { version = "0.7", features = ["html_reports"] }
 serde_json = { version = "1" }
+# Self dev-dep enabling `serde` so `cargo test -p nova_scenario` compiles
+# standalone. The loader RON round-trip tests use serde derives that are gated
+# behind the `serde` feature; a solo `-p` run has no sibling to unify the
+# feature in, so without this the lib-test target fails to compile (missing
+# Serialize/Deserialize on ScenarioConfig). Dev-dependencies unify into the
+# test build, forcing the feature ON for `cargo test` with no extra flags.
+# Not `required-features` on the test targets - that would SKIP the tests when
+# the feature is off, silently running nothing (task 20260721-000249).
+nova_scenario = { path = ".", features = ["serde"] }
 
 [lints]
 workspace = true

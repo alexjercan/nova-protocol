@@ -72,9 +72,10 @@ cargo run -p nova_probe -- run playable      # run-harness check: correctness+pe
 Do NOT run the full `cargo test` or `cargo clippy` locally unless asked: CI
 (`.github/workflows/ci.yaml`) runs both on every PR and push to master, and
 the local suite is slow. When you skip them, say so plainly. DO run the tests
-you write or touch - with CI's feature set (workspace-wide, a unifying
-sibling, or `--features serde`; `cargo test -p nova_scenario` alone does not
-compile, see `crate-solo-tests-miss-unified-features` in LESSONS).
+you write or touch - `cargo test -p <crate>` works standalone for every crate
+now (each feature-gated crate carries a self dev-dep enabling its own feature),
+so no `--features serde` / unifying-sibling / workspace-wide incantation is
+needed. See `crate-solo-tests-miss-unified-features` in LESSONS (fixed at root).
 
 Features: `debug` gates all debug tooling; `dev` = `debug`. `--norender` and
 `--debugdump` exist only under `debug`.

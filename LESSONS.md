@@ -568,11 +568,17 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 - `gate-scenario-handlers-to-their-acts` (x1): every handler fires in every
   act unless filtered; gate by default, especially terminal states.
   20260708-203659.
-- `crate-solo-tests-miss-unified-features` (x6, PROMOTED 2026-07-19 -> repo
-  AGENTS.md; dev wiki via 20260718-152214): `cargo test -p nova_scenario`
-  alone does not compile - use `--features serde`, a unifying sibling, or
-  workspace-wide; grep this ledger for the crate before crate-scoped runs.
-  20260716-125856, 20260718-122906.
+- `crate-solo-tests-miss-unified-features` (x6, FIXED-AT-ROOT 2026-07-21 via
+  20260721-000249): `cargo test -p nova_scenario` alone USED to fail because a
+  solo `-p` run has no sibling to unify the `serde` feature in, so ungated RON
+  round-trip tests hit missing Serialize/Deserialize derives. Root fix: the
+  affected crate carries a self dev-dep enabling its own feature
+  (`nova_scenario = { path = ".", features = ["serde"] }`), which unifies the
+  feature into the test build. Only nova_scenario was genuinely affected -
+  nova_gameplay/nova_core compile solo because their feature-gated test code is
+  itself behind `#[cfg(feature = ...)]` (skips when off). No more
+  `--features serde` incantation. (was PROMOTED 2026-07-19 -> AGENTS.md; dev
+  wiki via 20260718-152214.) 20260716-125856, 20260718-122906.
 - `deleted-content-tests-carry-engine-coverage` (x1): data tests can be the
   only exercise of an engine mechanism; re-pin at the owning crate before
   deleting them. 20260716-155830.

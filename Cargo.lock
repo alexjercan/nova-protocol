@@ -4731,6 +4731,7 @@ dependencies = [
  "noise",
  "nova_events",
  "nova_gameplay",
+ "nova_scenario",
  "rand 0.10.2",
  "ron",
  "serde",
