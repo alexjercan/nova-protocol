@@ -1,6 +1,6 @@
 # Bug: F11 debug toggles inverted after cursor fix - boot all debug off, toggle in phase
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 88
 - TAGS: v0.8.0, bug, hud, input
 
