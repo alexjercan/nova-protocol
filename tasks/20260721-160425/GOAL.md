@@ -56,7 +56,12 @@ green. Full cargo test/clippy stay in CI per repo policy (AGENTS.md).
       first voiced cast (Halloran/Rust Tally/Belt Relay), banners now track
       the Ceres Queen's fate; shakedown epilogue amendment: banner keeps the
       hook per the no-line-beside-Outcome lint.
-- [ ] 20260721-160957 (p53, nova-protocol) Lifeline (ch3a): convoy defense + gunship chain hook + picker wiring
+- [x] 20260721-160957 (p53, nova-protocol) Lifeline (ch3a): convoy defense + gunship chain hook + picker wiring
+      landed 4a1c0274; 1 review round (APPROVE, 2 MINORs + NIT fixed in-round);
+      first shipped ally content (stalled controller-None + Player-allegiance
+      convoy); probe verdict OK on the full 14-stage walk; balance audit clean,
+      zero acks; broadside same-class act fix filed as 20260721-182034 (p47,
+      outside this goal).
 - [ ] 20260721-161020 (p52, nova-protocol) Final Tally (ch3b): gravity-well anchorage finale + campaign ending
 - [ ] 20260718-152313 (p49, nova-protocol) campaign close-out: end-to-end verification, variety matrix, playtest questions, news note
 
