@@ -30,7 +30,7 @@ Cargo workspace. The root crate is thin (`src/main.rs` is the CLI entry,
 | `nova_info` | `APP_VERSION`, set by `build.rs`. |
 | `nova_debug` | Debug tooling (inspector, wireframe, overlays); `debug` feature only. |
 | `nova_probe` | Run-harness: frame-time capture + perf reporting over autopilot runs. |
-| `nova_meta_gen` | `.meta` sidecar generator for the web build (Trunk post_build hook). Under `tools/`, a workspace member outside `default-members`. |
+| `nova_meta_gen` | `.meta` sidecar generator for the web build (Trunk post_build hook). Under `tools/`, a workspace member; not a game dep, so bare builds skip it (reached via `-p nova_meta_gen` / `--workspace`). |
 
 Import through each crate's `prelude` (`use nova_gameplay::prelude::*`), not
 deep module paths; new public items go through the prelude too.

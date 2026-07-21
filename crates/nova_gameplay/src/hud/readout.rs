@@ -29,9 +29,13 @@ use nova_ui::theme;
 use super::HudTier;
 
 /// Glob-import surface: `use nova_gameplay::hud::readout::prelude::*`
-/// re-exports the public API of this module.
+/// re-exports the public API of this module. `HudReadoutFormat` is deliberately
+/// NOT re-exported here: nova_scenario's prelude exports a same-named authoring
+/// enum, and nova_core globs both preludes, so re-exporting it from both is an
+/// ambiguous glob re-export (task 20260721-151934). It stays `pub` and is
+/// reached by its full path from the sync in nova_scenario's world.rs.
 pub mod prelude {
-    pub use super::{HudReadoutEntry, HudReadoutFormat, HudReadouts};
+    pub use super::{HudReadoutEntry, HudReadouts};
 }
 
 /// How a [`HudReadoutEntry`] value renders as text. The scenario-side

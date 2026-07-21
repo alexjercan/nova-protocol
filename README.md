@@ -180,7 +180,7 @@ deeper tour is in [`project-tour.md`](web/src/wiki/dev/project-tour.md).
 | `nova_info` | Exposes `APP_VERSION` (set by `build.rs`). |
 | `nova_debug` | Debug tooling (inspector, wireframe, overlays); `debug` feature only. |
 | `nova_probe` | Run-harness: frame-time capture + perf reporting over autopilot runs. |
-| `nova_meta_gen` | `.meta` sidecar generator for the web build (Trunk post_build hook). Lives under `tools/` (web-build tooling), a workspace member excluded from `default-members`. |
+| `nova_meta_gen` | `.meta` sidecar generator for the web build (Trunk post_build hook). Lives under `tools/` (web-build tooling), a workspace member; not a game dependency, so bare builds skip it. |
 | `web` | The landing/content site (TypeScript + Webpack + Tailwind). |
 
 ## License
