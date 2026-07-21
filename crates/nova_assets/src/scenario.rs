@@ -5,6 +5,7 @@ use nova_scenario::prelude::*;
 pub mod broadside;
 pub(crate) mod cast;
 pub(crate) mod craft;
+pub mod lifeline;
 pub(crate) mod menu;
 pub mod shakedown;
 

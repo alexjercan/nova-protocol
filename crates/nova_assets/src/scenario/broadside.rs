@@ -16,9 +16,9 @@
 //!   torpedoes with the PDC, then break it section by section. Dying here
 //!   retries HERE.
 //!
-//! Win: gunship destroyed -> Victory overlay (end of the base story so far;
-//! Enter/Main Menu). Lose: player destroyed -> Defeat + lingering retry of
-//! the current part. The hauler is a NEUTRAL ship (the
+//! Win: gunship destroyed -> Victory overlay whose lingering chain enters
+//! chapter three (`lifeline`, task 20260721-160957). Lose: player destroyed
+//! -> Defeat + lingering retry of the current part. The hauler is a NEUTRAL ship (the
 //! `SpaceshipConfig.allegiance` override): nobody targets it, but stray
 //! blast damage can kill it - a flavor beat reacts, the mission continues.
 //!
@@ -553,9 +553,9 @@ pub(crate) fn broadside_gunship(
             filters: vec![],
             actions: opening,
         },
-        // Win: the gunship comes apart. End of the base story so far - no
-        // queued next scenario, so the overlay offers Main Menu (and Enter
-        // exits there too, per the outcome frame).
+        // Win: the gunship comes apart - and the deep scan keeps the door
+        // open: the lingering chain rides into chapter three (Lifeline,
+        // task 20260721-160957).
         // Two variants on the hauler's fate (mutually exclusive on
         // VAR_HAULER_LOST) - each part tracks its OWN hauler, since
         // variables are scenario-scoped and the arena restages across the
@@ -574,10 +574,16 @@ pub(crate) fn broadside_gunship(
                 unmark(ID_GUNSHIP),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Victory,
-                    "The Rust Tally breaks apart. The gang is done picking \
-                     this belt clean - and the Ceres Queen is still whole to \
-                     see it.",
+                    "The Rust Tally breaks apart - and the Ceres Queen is \
+                     still whole to see it. But the deep scan does not go \
+                     quiet: the gang's traffic keeps moving, and all of it \
+                     is inbound to the freight lane.",
                 )),
+                EventActionConfig::NextScenario(NextScenarioActionConfig {
+                    scenario_id: super::lifeline::LIFELINE_SCENARIO_ID.to_string(),
+                    linger: true,
+                    delay: None,
+                }),
             ],
         },
         ScenarioEventConfig {
@@ -594,9 +600,16 @@ pub(crate) fn broadside_gunship(
                 unmark(ID_GUNSHIP),
                 EventActionConfig::Outcome(OutcomeActionConfig::new(
                     ScenarioOutcomeKind::Victory,
-                    "The Rust Tally breaks apart. The gang is done picking \
-                     this belt clean - too late for the Ceres Queen.",
+                    "The Rust Tally breaks apart - too late for the Ceres \
+                     Queen. And the deep scan does not go quiet: the gang's \
+                     traffic keeps moving, and all of it is inbound to the \
+                     freight lane.",
                 )),
+                EventActionConfig::NextScenario(NextScenarioActionConfig {
+                    scenario_id: super::lifeline::LIFELINE_SCENARIO_ID.to_string(),
+                    linger: true,
+                    delay: None,
+                }),
             ],
         },
         // Flavor, not failure: same soft-fail beat as part one.

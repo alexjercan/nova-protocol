@@ -3527,6 +3527,34 @@ mod ally_relation_tests {
     }
 
     #[test]
+    fn a_markerless_player_allegiance_root_is_acquired() {
+        // Lifeline's shipped convoy shape (review R1.2 of 20260721-160957):
+        // a `controller: None` hauler is a bare SpaceshipRootMarker +
+        // Allegiance::Player - no AI or player marker. The candidate query
+        // needs only the root marker plus a hostile relation; pin that, so
+        // a future candidate-query refactor cannot silently make the
+        // convoy untargetable while every marker-based test stays green.
+        let mut world = World::new();
+        world.init_resource::<Time>();
+        let raider = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let hauler = world
+            .spawn((
+                SpaceshipRootMarker,
+                Allegiance::Player,
+                Transform::from_translation(Vec3::new(120.0, 0.0, 0.0)),
+            ))
+            .id();
+
+        run_pipeline(&mut world);
+
+        assert_eq!(
+            world.get::<AITarget>(raider).unwrap().0,
+            Some(hauler),
+            "a stalled convoy hauler (no controller marker) still draws fire"
+        );
+    }
+
+    #[test]
     fn the_nearest_hostile_draws_the_fire() {
         // Lifeline's screening premise: a raider near the convoy shoots
         // the convoy, not the distant player - fresh acquisition picks the

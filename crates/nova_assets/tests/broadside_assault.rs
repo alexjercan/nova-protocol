@@ -213,29 +213,36 @@ fn breaking_both_corvettes_declares_the_chapter_checkpoint() {
 }
 
 #[test]
-fn killing_the_gunship_declares_victory_with_no_queued_next() {
-    let scenario = scenario_from(BROADSIDE_GUNSHIP_RON);
-    let mut app = slice_app();
-    register_non_start_handlers(&mut app, &scenario);
-    seed_var(&mut app, "act", 1.0);
-    seed_var(&mut app, "hauler_lost", 0.0);
+fn killing_the_gunship_declares_victory_and_chains_into_lifeline() {
+    // Chapter two's end is no longer a dead end (task 20260721-160957):
+    // both fate variants chain (lingering) into chapter three.
+    for hauler_dies in [false, true] {
+        let scenario = scenario_from(BROADSIDE_GUNSHIP_RON);
+        let mut app = slice_app();
+        register_non_start_handlers(&mut app, &scenario);
+        seed_var(&mut app, "act", 1.0);
+        seed_var(&mut app, "hauler_lost", 0.0);
 
-    app.update();
-    assert_eq!(outcome_kind(&app), None, "no outcome before the kill");
+        app.update();
+        assert_eq!(outcome_kind(&app), None, "no outcome before the kill");
 
-    destroy(&mut app, "gunship");
-    assert_eq!(
-        outcome_kind(&app),
-        Some(ScenarioOutcomeKind::Victory),
-        "the gunship kill wins the slice"
-    );
-    assert!(
-        app.world()
-            .resource::<NovaEventWorld>()
+        if hauler_dies {
+            destroy(&mut app, "hauler");
+        }
+        destroy(&mut app, "gunship");
+        assert_eq!(
+            outcome_kind(&app),
+            Some(ScenarioOutcomeKind::Victory),
+            "the gunship kill wins the slice (hauler_dies={hauler_dies})"
+        );
+        let world = app.world().resource::<NovaEventWorld>();
+        let next = world
             .next_scenario
-            .is_none(),
-        "end of the base story: nothing queued, the overlay offers Main Menu"
-    );
+            .as_ref()
+            .expect("chapter three is queued");
+        assert_eq!(next.scenario_id, "lifeline", "the chain enters Lifeline");
+        assert!(next.linger, "Continue rides the lingering chain");
+    }
 }
 
 #[test]

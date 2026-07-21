@@ -174,7 +174,7 @@ pub(crate) fn num(value: f64) -> VariableExpressionNode {
     ))
 }
 
-fn var(name: &str) -> VariableExpressionNode {
+pub(crate) fn var(name: &str) -> VariableExpressionNode {
     VariableExpressionNode::new_term(VariableTermNode::new_factor(VariableFactorNode::new_name(
         name.to_string(),
     )))
@@ -207,6 +207,14 @@ pub(crate) fn eq_num(name: &str, value: f64) -> EventFilterConfig {
 pub(crate) fn lt_num(name: &str, value: f64) -> EventFilterConfig {
     EventFilterConfig::Expression(ExpressionFilterConfig(
         VariableConditionNode::new_less_than(var(name), num(value)),
+    ))
+}
+
+/// Filter: the numeric variable strictly exceeds `value` (the clock gates:
+/// `scenario_elapsed > T`).
+pub(crate) fn gt_num(name: &str, value: f64) -> EventFilterConfig {
+    EventFilterConfig::Expression(ExpressionFilterConfig(
+        VariableConditionNode::new_greater_than(var(name), num(value)),
     ))
 }
 

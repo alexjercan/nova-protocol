@@ -40,7 +40,7 @@ const SECTIONS: &[&str] = &[
 ];
 
 /// examples/gameplay/ - full autopilot scenario runs.
-const GAMEPLAY: &[&str] = &["scenario", "playable", "broadside"];
+const GAMEPLAY: &[&str] = &["scenario", "playable", "broadside", "lifeline"];
 
 /// examples/ui/ - staged UI flows (editor via the preset; hud_range and
 /// menu_newgame drive their own `AutopilotPlugin` timelines).

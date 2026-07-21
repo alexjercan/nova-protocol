@@ -78,6 +78,10 @@ path = "examples/gameplay/playable.rs"
 name = "broadside"
 path = "examples/gameplay/broadside.rs"
 
+[[example]]
+name = "lifeline"
+path = "examples/gameplay/lifeline.rs"
+
 # ui/ - staged UI flows with their own autopilot timelines.
 [[example]]
 name = "editor"

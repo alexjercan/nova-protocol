@@ -2028,7 +2028,11 @@
                     )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("The Rust Tally breaks apart. The gang is done picking this belt clean - and the Ceres Queen is still whole to see it."),
+                        message: Some("The Rust Tally breaks apart - and the Ceres Queen is still whole to see it. But the deep scan does not go quiet: the gang\'s traffic keeps moving, and all of it is inbound to the freight lane."),
+                    )),
+                    NextScenario((
+                        scenario_id: "lifeline",
+                        linger: true,
                     )),
                 ],
             ),
@@ -2063,7 +2067,11 @@
                     )),
                     Outcome((
                         outcome: Victory,
-                        message: Some("The Rust Tally breaks apart. The gang is done picking this belt clean - too late for the Ceres Queen."),
+                        message: Some("The Rust Tally breaks apart - too late for the Ceres Queen. And the deep scan does not go quiet: the gang\'s traffic keeps moving, and all of it is inbound to the freight lane."),
+                    )),
+                    NextScenario((
+                        scenario_id: "lifeline",
+                        linger: true,
                     )),
                 ],
             ),

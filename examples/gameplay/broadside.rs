@@ -7,7 +7,9 @@
 //! the corvettes to earn the chapter CHECKPOINT (a Victory beat chaining
 //! into the hidden `broadside_gunship` part, task 20260717-112639), rides
 //! Continue into part two, breaks the gunship - and asserts the final
-//! Victory overlay with nothing queued. Every act transition is
+//! Victory overlay with chapter three (lifeline) queued behind it (task
+//! 20260721-160957; the walk ends at the overlay without riding on -
+//! lifeline's own example owns that chapter). Every act transition is
 //! staged on scenario STATE (act/outcome/entities), never wall-clock
 //! (event-driven-autopilot-beats); wall-clock lives only in the per-stage
 //! stall deadline and the autopilot's overall lifetime.
@@ -304,9 +306,15 @@ fn slice_autopilot(world: &mut World, elapsed: f32) {
             if outcome(world) == Some(ScenarioOutcomeKind::Victory)
                 && entity_by_name(world, "Outcome Overlay").is_some()
             {
-                assert!(
-                    world.resource::<NovaEventWorld>().next_scenario.is_none(),
-                    "the slice win queues nothing (Main Menu is the road out)"
+                let queued = world
+                    .resource::<NovaEventWorld>()
+                    .next_scenario
+                    .as_ref()
+                    .map(|next| next.scenario_id.clone());
+                assert_eq!(
+                    queued.as_deref(),
+                    Some("lifeline"),
+                    "the gunship win chains into chapter three"
                 );
                 info!("probe: victory overlay up");
                 // Eyeball artifact: the win-variant capture (the Defeat

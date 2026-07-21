@@ -17,3 +17,8 @@ pub(crate) const RUST_TALLY: &str = "Rust Tally";
 
 /// Belt traffic control - dispatch connective tissue between the fights.
 pub(crate) const BELT_RELAY: &str = "Belt Relay";
+
+/// The gang's boss - chapter three's antagonist voice. Named by Halloran
+/// first (the breathe line after Lifeline's first wave), speaks in person
+/// from the second wave on.
+pub(crate) const TALLYMAN: &str = "The Tallyman";
