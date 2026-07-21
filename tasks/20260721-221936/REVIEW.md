@@ -1,5 +1,7 @@
 # Review: F11 debug-toggle inversion fix (20260721-221936)
 
+- VERDICT: APPROVE
+
 ## Round 1 (self-review, trivial-diff carve-out)
 
 Small, well-scoped regression fix the owner co-diagnosed from the playtest

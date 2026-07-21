@@ -1,5 +1,7 @@
 # Review: hide cursor while flying (20260721-211500)
 
+- VERDICT: APPROVE
+
 ## Round 1 (out-of-context reviewer)
 
 Reviewer examined `git diff master...HEAD` on `bug/hide-cursor-flight`.
