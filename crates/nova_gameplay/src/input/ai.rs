@@ -3435,6 +3435,129 @@ mod target_selection_tests {
     }
 }
 
+// Ch3's Lifeline convoy (task 20260721-160906, spike
+// tasks/20260721-155249/SPIKE.md) is the first content to put
+// `Allegiance::Player` on an `AISpaceshipMarker` root - an AI-flown ship on
+// the player's SIDE. These rigs prove the relation model treats it as a
+// first-class combatant on both ends of acquisition, driven through the real
+// systems (update_ai_target + update_behavior_state), never a hand-set
+// target. The spawn-path half (authored config -> component, beating the
+// marker's Enemy requirement default) is pinned in nova_scenario's
+// `authored_allegiance_overrides_the_controller_default`.
+#[cfg(test)]
+mod ally_relation_tests {
+    use bevy::ecs::system::RunSystemOnce;
+
+    use super::*;
+
+    fn run_pipeline(world: &mut World) {
+        world.run_system_once(update_ai_target).unwrap();
+        world.run_system_once(update_behavior_state).unwrap();
+    }
+
+    #[test]
+    fn enemy_and_ally_ai_ships_acquire_each_other() {
+        let mut world = World::new();
+        world.init_resource::<Time>();
+        let enemy = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        // The ally: exactly what the scenario's allegiance override leaves
+        // behind - the explicit component wins over the marker's required
+        // Enemy default.
+        let ally = world
+            .spawn((
+                AISpaceshipMarker,
+                Allegiance::Player,
+                Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+            ))
+            .id();
+        // Park both Idle so the assert proves the engage PULL, not the
+        // Engage spawn default.
+        world.entity_mut(enemy).insert(AIBehaviorState::Idle);
+        world.entity_mut(ally).insert(AIBehaviorState::Idle);
+
+        run_pipeline(&mut world);
+
+        assert_eq!(
+            world.get::<AITarget>(enemy).unwrap().0,
+            Some(ally),
+            "an enemy AI acquires a Player-allegiance AI ship"
+        );
+        assert_eq!(
+            world.get::<AITarget>(ally).unwrap().0,
+            Some(enemy),
+            "the ally fights back: acquisition is symmetric over the relation"
+        );
+        for (ship, name) in [(enemy, "enemy"), (ally, "ally")] {
+            assert_eq!(
+                *world.get::<AIBehaviorState>(ship).unwrap(),
+                AIBehaviorState::Engage,
+                "{name} is pulled from Idle into the fight"
+            );
+        }
+    }
+
+    #[test]
+    fn a_neutral_ai_ship_is_acquired_by_neither_side() {
+        // Control for the rig above (same setup, Neutral instead of
+        // Player): the delivery guard is the sibling test acquiring at the
+        // same distance, so this None cannot pass vacuously.
+        let mut world = World::new();
+        world.init_resource::<Time>();
+        let enemy = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let bystander = world
+            .spawn((
+                AISpaceshipMarker,
+                Allegiance::Neutral,
+                Transform::from_translation(Vec3::new(100.0, 0.0, 0.0)),
+            ))
+            .id();
+
+        run_pipeline(&mut world);
+
+        assert_eq!(
+            world.get::<AITarget>(enemy).unwrap().0,
+            None,
+            "a Neutral ship is not a target"
+        );
+        assert_eq!(
+            world.get::<AITarget>(bystander).unwrap().0,
+            None,
+            "and a Neutral ship acquires nothing itself"
+        );
+    }
+
+    #[test]
+    fn the_nearest_hostile_draws_the_fire() {
+        // Lifeline's screening premise: a raider near the convoy shoots
+        // the convoy, not the distant player - fresh acquisition picks the
+        // nearest hostile within the Ship tier, so positioning decides who
+        // draws fire.
+        let mut world = World::new();
+        world.init_resource::<Time>();
+        let raider = world.spawn((AISpaceshipMarker, Transform::default())).id();
+        let hauler = world
+            .spawn((
+                AISpaceshipMarker,
+                Allegiance::Player,
+                Transform::from_translation(Vec3::new(150.0, 0.0, 0.0)),
+            ))
+            .id();
+        world.spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            Transform::from_translation(Vec3::new(400.0, 0.0, 0.0)),
+        ));
+
+        run_pipeline(&mut world);
+
+        assert_eq!(
+            world.get::<AITarget>(raider).unwrap().0,
+            Some(hauler),
+            "the nearer convoy hauler draws the raider's fire over the distant player"
+        );
+    }
+}
+
 #[cfg(test)]
 mod fire_discipline_tests {
     use avian3d::collider_tree::ColliderTrees;

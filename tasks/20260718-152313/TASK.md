@@ -61,6 +61,19 @@ and the release-post note. It lands LAST.
 
 ## Notes
 
+- T1 verdict (20260721-160906, 2026-07-21): PRIMARY variant confirmed.
+  `allegiance: Some(Player)` on an AI ship survives the spawn path
+  (nova_scenario `authored_allegiance_overrides_the_controller_default`,
+  Player case) and the relation model treats the ally as a first-class
+  combatant both ways, with nearest-hostile fire draw
+  (nova_gameplay `ally_relation_tests`: 3 rigs). Orbit-directive picket:
+  already pinned by shipped tests (`combat_interrupts_the_orbit_and_calm_
+  resumes_it`, `an_orbit_directive_wins_the_passive_fallback` in ai.rs) -
+  use the orbit directive for Final Tally's picket, no fallback needed.
+  OnDestroyed emission is allegiance-agnostic at the source
+  (integrity/explode.rs `on_destroyed_entity` fires for any id-carrying
+  entity), so ally-death Defeat wiring is authorable; pin it in the
+  Lifeline harness test.
 - Spike: tasks/20260721-155249/SPIKE.md (2026-07-21, RECOMMENDED) - the
   extended-arc beat sheet this task's original step 2 asked a nod on. Key
   finding: AI targeting is relation-driven (ai.rs update_ai_target) and

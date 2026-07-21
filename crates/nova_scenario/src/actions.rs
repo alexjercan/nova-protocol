@@ -1481,6 +1481,15 @@ mod tests {
             Some(Allegiance::Enemy),
             "delivery guard: without the override the AI default applies"
         );
+        // The ALLY variant (task 20260721-160906): an AI-flown ship on the
+        // player's side - Lifeline's convoy - rides the same path; the
+        // relation-model consequences are pinned in nova_gameplay's
+        // ally_relation_tests.
+        assert_eq!(
+            spawn_ship(Some(Allegiance::Player)),
+            Some(Allegiance::Player),
+            "an authored Player allegiance survives the AI marker's Enemy default"
+        );
     }
 
     /// The behavior the component buys (task 20260709-160753): a moving
