@@ -118,10 +118,7 @@ impl Plugin for HudReadoutPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<HudReadouts>();
         app.add_systems(Startup, spawn_readout_strip);
-        app.add_systems(
-            Update,
-            sync_readout_rows.in_set(super::NovaHudSystems),
-        );
+        app.add_systems(Update, sync_readout_rows.in_set(super::NovaHudSystems));
     }
 }
 
@@ -177,9 +174,8 @@ fn sync_readout_rows(
     for entry in &readouts.0 {
         let text = format_readout(entry);
         // Update in place if the row already exists.
-        if let Some((_, _, mut existing)) = rows
-            .iter_mut()
-            .find(|(_, row, _)| row.slot == entry.slot)
+        if let Some((_, _, mut existing)) =
+            rows.iter_mut().find(|(_, row, _)| row.slot == entry.slot)
         {
             if existing.0 != text {
                 existing.0 = text;

@@ -4,7 +4,7 @@
         name: "Asteroid Field",
         description: "A dense asteroid field.",
         cubemap: "self://textures/cubemap.png",
-        hidden: true,
+        thumbnail: Some("self://banner.png"),
         events: [
             (
                 name: OnStart,

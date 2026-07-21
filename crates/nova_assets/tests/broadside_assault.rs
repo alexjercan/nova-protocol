@@ -51,6 +51,8 @@ const SHAKEDOWN_RON: &str =
     include_str!("../../../assets/base/scenarios/shakedown_run.content.ron");
 const ASTEROID_FIELD_RON: &str =
     include_str!("../../../assets/base/scenarios/asteroid_field.content.ron");
+const ASTEROID_NEXT_RON: &str =
+    include_str!("../../../assets/base/scenarios/asteroid_next.content.ron");
 const BASE_BUNDLE_RON: &str = include_str!("../../../assets/base/base.bundle.ron");
 
 fn scenario_from(ron: &str) -> ScenarioConfig {
@@ -557,6 +559,29 @@ fn the_gunship_part_is_hidden_and_stages_itself() {
             "part two's OnStart spawns '{id}'"
         );
     }
+}
+
+/// The sandbox is a Scenarios-picker entry again (task 20260721-160842: it
+/// had been hidden under a never-true "mid-story stage" premise, leaving
+/// finished content unreachable), while its relay continuation stays hidden
+/// exactly like the gunship part.
+#[test]
+fn the_sandbox_is_listed_and_its_relay_is_not() {
+    let field = scenario_from(ASTEROID_FIELD_RON);
+    assert!(
+        !field.hidden,
+        "the sandbox is a Scenarios-picker entry (20260721-160842)"
+    );
+    assert!(
+        field.thumbnail.is_some(),
+        "picker entries carry the placeholder thumbnail"
+    );
+
+    let relay = scenario_from(ASTEROID_NEXT_RON);
+    assert!(
+        relay.hidden,
+        "the relay continuation never appears in the picker"
+    );
 }
 
 /// The hard-cover tier (spike F4): five invulnerable boulders shared by

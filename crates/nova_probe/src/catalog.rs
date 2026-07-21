@@ -274,9 +274,8 @@ path = "src/lib.rs"
 
     #[test]
     fn fps_exempt_reads_single_line_array() {
-        let manifest = format!(
-            "{GOOD}\n[package.metadata.nova_probe]\nfps_exempt = [\"broadside\"]\n"
-        );
+        let manifest =
+            format!("{GOOD}\n[package.metadata.nova_probe]\nfps_exempt = [\"broadside\"]\n");
         assert_eq!(parse_fps_exempt(&manifest), vec!["broadside".to_string()]);
     }
 

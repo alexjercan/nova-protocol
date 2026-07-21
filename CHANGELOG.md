@@ -14,6 +14,7 @@ tagged **(breaking)**.
 
 ### Scenarios & Objectives
 
+- The **Asteroid Field** sandbox is back in the Scenarios picker (with the placeholder thumbnail its siblings carry). It had been hidden as "a mid-story stage reached by chaining" - a premise that was never true: it was the original New Game scenario until the Shakedown Run replaced it, and nothing chains into it, so hiding it made finished content unreachable. Its relay continuation (`Asteroid Field - Next`) stays hidden as before.
 - New `HudReadout` scenario action: show a scenario VARIABLE on the HUD - the display half of the variable vocabulary, usable by any mod. A named `slot` binds a `variable` (read live every frame), with a `format` (`Number` one-decimal, `Integer` rounded, or `Time` as `mm:ss.s`), an optional `label`, and `visible` to show or clear it. It renders as an Instrument-tier top-center readout, freezes on pause and behind the outcome overlay (the bound variable stops), and clears at scenario teardown so it cannot leak into the next scenario or the menu. One fire is enough for a live readout. Documented in the scenario action reference and the authoring guide.
 
 ### Modding & Mod Portal

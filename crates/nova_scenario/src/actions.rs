@@ -19,8 +19,8 @@ pub mod prelude {
         apply_pending_skybox_swaps, base_scenario_object, BaseScenarioObjectConfig, CurrentOutcome,
         DebugMessageActionConfig, DespawnScenarioObjectActionConfig, EventActionConfig,
         HintEmphasisClearActionConfig, HintEmphasisSetActionConfig, HudReadoutActionConfig,
-        HudReadoutFormat, NextScenarioActionConfig,
-        ObjectiveActionConfig, ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
+        HudReadoutFormat, NextScenarioActionConfig, ObjectiveActionConfig,
+        ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
         ObjectiveMarkerDetachActionConfig, OutcomeActionConfig, PendingSkyboxSwap,
         ScatterObjectsConfig, ScatterRegion, ScenarioAreaConfig, ScenarioObjectConfig,
         ScenarioObjectKind, ScenarioOutcomeKind, ScreenshotActionConfig, SetCameraActionConfig,
@@ -1280,12 +1280,16 @@ mod tests {
         assert_eq!(config_min.label, None);
         assert!(config_min.visible);
 
-        let cleared = r#"HudReadout((slot: "timer", variable: "scenario_elapsed", visible: false))"#;
+        let cleared =
+            r#"HudReadout((slot: "timer", variable: "scenario_elapsed", visible: false))"#;
         let parsed_clear: EventActionConfig = ron::from_str(cleared).expect("clear RON parses");
         let EventActionConfig::HudReadout(config_clear) = &parsed_clear else {
             panic!("parsed the HudReadout variant");
         };
-        assert!(!config_clear.visible, "the clear form parses visible: false");
+        assert!(
+            !config_clear.visible,
+            "the clear form parses visible: false"
+        );
 
         let ron = ron::to_string(&parsed).expect("serializes");
         let back: EventActionConfig = ron::from_str(&ron).expect("round-trips");
@@ -1310,7 +1314,10 @@ mod tests {
         // Show a Time readout bound to a variable, and set that variable.
         {
             let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
-            world.insert_variable("scenario_elapsed".to_string(), VariableLiteral::Number(83.4));
+            world.insert_variable(
+                "scenario_elapsed".to_string(),
+                VariableLiteral::Number(83.4),
+            );
             let show = EventActionConfig::HudReadout(HudReadoutActionConfig {
                 slot: "timer".to_string(),
                 variable: "scenario_elapsed".to_string(),

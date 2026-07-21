@@ -508,21 +508,22 @@ usage: probe <subcommand>
             // Per-example baseline from the --baseline ROOT: use this example's
             // prior run dir when present, otherwise SKIP its comparison (not an
             // error) - a group baselines only the examples that have one.
-            opts.baseline = base.baseline.as_ref().and_then(|root| {
-                match group_baseline_for(root, example) {
-                    Some(dir) => {
-                        baseline_matches += 1;
-                        Some(dir)
-                    }
-                    None => {
-                        eprintln!(
-                            "probe: {example}: no baseline in {}, skipping fps comparison",
-                            root.display()
-                        );
-                        None
-                    }
-                }
-            });
+            opts.baseline =
+                base.baseline
+                    .as_ref()
+                    .and_then(|root| match group_baseline_for(root, example) {
+                        Some(dir) => {
+                            baseline_matches += 1;
+                            Some(dir)
+                        }
+                        None => {
+                            eprintln!(
+                                "probe: {example}: no baseline in {}, skipping fps comparison",
+                                root.display()
+                            );
+                            None
+                        }
+                    });
             let started = Instant::now();
             let run_error = match run(&opts) {
                 Ok(_) => None,
@@ -1171,7 +1172,10 @@ usage: probe <subcommand>
         // report says fps-exempt instead of "no capture".
         if opts.fps && !sweeping {
             if let Some(reason) = &fps_exempt {
-                eprintln!("probe: fps pass skipped: {} is fps-exempt ({reason})", opts.example);
+                eprintln!(
+                    "probe: fps pass skipped: {} is fps-exempt ({reason})",
+                    opts.example
+                );
             } else {
                 eprintln!(
                     "probe: fps pass: capture-only -> {}",
@@ -1190,8 +1194,14 @@ usage: probe <subcommand>
                 // report; keep the operator's --timeout if it is larger.
                 let fps_timeout = Duration::from_secs((deadline_secs + 30).max(opts.timeout_secs));
                 eprintln!("probe: fps pass deadline {deadline_secs}s (window-sized)");
-                let outcome =
-                    run_supervised(&bin, &[], &root, &env, &out.join("fps-run.log"), fps_timeout)?;
+                let outcome = run_supervised(
+                    &bin,
+                    &[],
+                    &root,
+                    &env,
+                    &out.join("fps-run.log"),
+                    fps_timeout,
+                )?;
                 if !outcome.success() {
                     eprintln!("probe: fps pass did not succeed; the report will say so");
                 }
@@ -1248,7 +1258,10 @@ usage: probe <subcommand>
         // profiler never fails the check; supervised so a hung sampled run
         // cannot wedge probe either, finding 11).
         if opts.samply {
-            eprintln!("probe: [{n}/{n}] samply pass", n = passes_total(opts, fps_exempt.is_some()));
+            eprintln!(
+                "probe: [{n}/{n}] samply pass",
+                n = passes_total(opts, fps_exempt.is_some())
+            );
             match build_example(&root, &opts.example, "debug", Some("profiling")) {
                 Err(e) => eprintln!("probe: samply build failed ({e}); flamegraph skipped"),
                 Ok(()) => {
@@ -1742,8 +1755,7 @@ usage: probe <subcommand>
         fn group_baseline_for_resolves_present_and_skips_missing() {
             // A --baseline ROOT resolves per example: the example's dir when it
             // holds a frametime.csv, else None (skip, not error).
-            let base =
-                std::env::temp_dir().join(format!("nova_probe_gb_{}", std::process::id()));
+            let base = std::env::temp_dir().join(format!("nova_probe_gb_{}", std::process::id()));
             let _ = std::fs::remove_dir_all(&base);
             std::fs::create_dir_all(base.join("playable")).unwrap();
             std::fs::write(base.join("playable").join("frametime.csv"), "x").unwrap();
@@ -1795,7 +1807,10 @@ usage: probe <subcommand>
             // 1080 / 2.0 + 45 = 585; 300 / 2.0 + 45 = 195.
             assert_eq!(perf, 585);
             assert_eq!(short, 195);
-            assert!(perf > 120 && short > 120, "both clear the flat 120s default");
+            assert!(
+                perf > 120 && short > 120,
+                "both clear the flat 120s default"
+            );
             assert!(perf > short, "a bigger window gets a bigger deadline");
         }
 
@@ -1807,7 +1822,9 @@ usage: probe <subcommand>
             {
                 let (env, deadline) = fps_window_and_deadline_env("perf");
                 assert_eq!(deadline, 585);
-                assert!(env.iter().any(|(k, v)| k == "NOVA_PERF_FRAMES" && v == "900"));
+                assert!(env
+                    .iter()
+                    .any(|(k, v)| k == "NOVA_PERF_FRAMES" && v == "900"));
                 assert!(env
                     .iter()
                     .any(|(k, v)| k == "BCS_HARNESS_DEADLINE" && v == "585"));

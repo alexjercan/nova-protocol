@@ -392,9 +392,14 @@ pub(crate) fn asteroid_field(
         name: "Asteroid Field".to_string(),
         description: "A dense asteroid field.".to_string(),
         cubemap,
-        // A mid-story stage reached by chaining from the shakedown run, not a
-        // Scenarios-picker entry point.
-        hidden: true,
+        // The combat/gravity sandbox, listed in the Scenarios picker. It was
+        // hidden as "a mid-story stage reached by chaining from the shakedown
+        // run" - a premise that was never true: this was the ORIGINAL New
+        // Game scenario until the shakedown replaced it, and nothing but its
+        // own asteroid_next relay ever chained here. Unhidden (task
+        // 20260721-160842); the player wiki advertises it as a picker
+        // sandbox. Placeholder thumbnail, real art is task 20260715-220011.
+        thumbnail: Some(AssetRef::from("self://banner.png")),
         events,
         ..Default::default()
     }
