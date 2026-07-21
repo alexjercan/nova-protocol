@@ -18,6 +18,12 @@ pub(crate) const RUST_TALLY: &str = "Rust Tally";
 /// Belt traffic control - dispatch connective tissue between the fights.
 pub(crate) const BELT_RELAY: &str = "Belt Relay";
 
+/// The player's own comms label (owner decision, task 20260721-211506): a plain
+/// "You", not a callsign - neutral and reusable, so the campaign's first player
+/// voice (the Shakedown opening) commits to no name. One constant so a future
+/// callsign is a one-line change.
+pub(crate) const PLAYER: &str = "You";
+
 /// The gang's boss - chapter three's antagonist voice. Named by Halloran
 /// first (the breathe line after Lifeline's first wave), speaks in person
 /// from the second wave on.

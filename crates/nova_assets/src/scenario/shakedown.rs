@@ -22,7 +22,10 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
-use super::craft::{self, ShipGrade};
+use super::{
+    cast::{CAPTAIN_HALLORAN, PLAYER},
+    craft::{self, ShipGrade},
+};
 
 /// The scenario id, shared with nova_menu's New Game entry.
 pub const SHAKEDOWN_SCENARIO_ID: &str = "shakedown_run";
@@ -146,6 +149,7 @@ const ID_PLANETOID: &str = "planetoid";
 const ID_PIRATE: &str = "pirate";
 
 // Objective ids (beat sheet v2: one gesture per objective).
+const OBJ_OPENING: &str = "b0_standby";
 const OBJ_B1: &str = "b1_burn";
 const OBJ_B2: &str = "b2_look";
 const OBJ_B3: &str = "b3_salvage";
@@ -164,6 +168,29 @@ const OBJ_DONE: &str = "done";
 const VAR_BEAT: &str = "beat";
 const VAR_CRATES: &str = "crates_recovered";
 const VAR_TALLY_SHOWN: &str = "tally_shown";
+// Pacing pass (owner playtest, task 20260721-211506). `open_step` sequences the
+// opening conversation (0 -> 5, one line per step); `opened` latches once the
+// conversation hands off to objective 1. `beat_gate` holds the scenario clock
+// stamped at each beat transition, so a breather line fires a fixed delay LATER
+// regardless of how long the leg took; `breather_last` is the highest beat whose
+// breather has fired (one variable for all of them, since beats only climb).
+const VAR_OPEN_STEP: &str = "open_step";
+const VAR_OPENED: &str = "opened";
+const VAR_GATE: &str = "beat_gate";
+const VAR_BREATHER_LAST: &str = "breather_last";
+
+// The opening conversation runs on the scenario clock (seconds). The 25 u/s
+// speed cap makes the ~40s drift diegetic: the ship idles out of the dock while
+// Capt. Halloran talks, and objective 1 posts only when she sends you off.
+const OPEN_1_AT: f64 = 2.0;
+const OPEN_2_AT: f64 = 11.0;
+const OPEN_3_AT: f64 = 20.0;
+const OPEN_4_AT: f64 = 29.0;
+const OPEN_5_AT: f64 = 38.0;
+// A between-beat breather lands this many seconds after the beat's objective
+// posts, so no two beats fire back to back (owner: "show the objective, wait a
+// bit, show the message").
+const BREATHER_DELAY: f64 = 4.0;
 
 // Expression / action shorthands - the raw node constructors are too
 // verbose to keep a 14-handler script readable.
@@ -280,6 +307,57 @@ pub(crate) fn story(speaker: &str, text: &str) -> EventActionConfig {
         text: text.to_string(),
         dwell: None,
     })
+}
+
+/// Stamp the scenario clock into `beat_gate` at a beat transition, so a
+/// [`breather`] can fire a fixed delay later no matter how long the leg took.
+fn stamp_gate() -> EventActionConfig {
+    set(VAR_GATE, var(SCENARIO_ELAPSED_VAR))
+}
+
+/// Filter: `scenario_elapsed > beat_gate + delay` - a breather gate relative to
+/// the last beat transition (the absolute clock gates are the opening only).
+fn past_gate(delay: f64) -> EventFilterConfig {
+    EventFilterConfig::Expression(ExpressionFilterConfig(
+        VariableConditionNode::new_greater_than(
+            var(SCENARIO_ELAPSED_VAR),
+            VariableExpressionNode::new_add(
+                VariableTermNode::new_factor(VariableFactorNode::new_name(VAR_GATE.to_string())),
+                num(delay),
+            ),
+        ),
+    ))
+}
+
+/// One line of the opening conversation: fires when the clock passes `at` and
+/// the conversation has reached `step - 1`, then advances the step. Sequencing
+/// on a single counter (not a flag each) keeps the five lines strictly ordered
+/// even if the clock jumps.
+fn open_line(step: f64, at: f64, speaker: &str, line: &str) -> ScenarioEventConfig {
+    ScenarioEventConfig {
+        name: EventConfig::OnUpdate,
+        filters: vec![
+            eq_num(VAR_OPEN_STEP, step - 1.0),
+            gt_num(SCENARIO_ELAPSED_VAR, at),
+        ],
+        actions: vec![set(VAR_OPEN_STEP, num(step)), story(speaker, line)],
+    }
+}
+
+/// A between-beat breather: one comms line, [`BREATHER_DELAY`] seconds after
+/// `beat`'s objective posted (the gate was stamped at the transition). Gated on
+/// the beat counter plus `breather_last` so it fires exactly once and never
+/// re-fires as the beat climbs.
+fn breather(beat: f64, speaker: &str, line: &str) -> ScenarioEventConfig {
+    ScenarioEventConfig {
+        name: EventConfig::OnUpdate,
+        filters: vec![
+            eq_num(VAR_BEAT, beat),
+            lt_num(VAR_BREATHER_LAST, beat),
+            past_gate(BREATHER_DELAY),
+        ],
+        actions: vec![set(VAR_BREATHER_LAST, num(beat)), story(speaker, line)],
+    }
 }
 
 fn beacon(id: &str, label: &str, position: Vec3) -> ScenarioObjectConfig {
@@ -473,7 +551,9 @@ pub(crate) fn shakedown_run(
 
     let mut start_spawns: Vec<ScenarioObjectConfig> = Vec::new();
     start_spawns.push(player_ship());
-    start_spawns.push(beacon(ID_BEACON_1, "BEACON 1", BEACON_1_POS));
+    // Beacon 1 spawns LAZILY when the opening conversation hands off to
+    // objective 1 (task 20260721-211506), like beacons 2-4: during the ~40s
+    // captain briefing there is nothing to fly to yet, so a burn cannot skip it.
     start_spawns.push(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: ID_PLANETOID.to_string(),
@@ -517,8 +597,9 @@ pub(crate) fn shakedown_run(
     }
 
     let events = vec![
-        // Beat 1 setup: the world, the variables, the first objective.
-        // Beacons 2/3 and the pirate spawn LAZILY with their beats, so a
+        // Beat 1 setup: the world and the variables. The opening conversation
+        // (below) runs on the scenario clock before objective 1 posts; beacon 1
+        // and beacons 2-4 and the pirate all spawn LAZILY with their beats, so a
         // new chip appearing on the HUD always means "this is next".
         ScenarioEventConfig {
             name: EventConfig::OnStart,
@@ -530,17 +611,68 @@ pub(crate) fn shakedown_run(
                     set(VAR_BEAT, num(1.0)),
                     set(VAR_CRATES, num(0.0)),
                     set(VAR_TALLY_SHOWN, num(0.0)),
+                    set(VAR_OPEN_STEP, num(0.0)),
+                    set(VAR_OPENED, num(0.0)),
+                    set(VAR_GATE, num(0.0)),
+                    set(VAR_BREATHER_LAST, num(0.0)),
+                    // A holding objective while the captain talks, so the panel
+                    // is never blank; the conversation carries the voice.
                     objective(
-                        OBJ_B1,
-                        "Hold [W] and burn for BEACON 1. Tap [X] to stop.",
+                        OBJ_OPENING,
+                        "Ease off the dock. Stand by for Capt. Halloran.",
                     ),
-                    // The gold marker rides the current leg's target
-                    // (conveyance layer 2, task 20260712-093831); its
-                    // beacon chip yields while marked, so each beacon
-                    // shows exactly one chip.
-                    mark(ID_BEACON_1, "BEACON 1"),
                 ])
                 .collect(),
+        },
+        // The opening conversation: a five-line back-and-forth with the captain
+        // over ~40s (owner pacing pass, task 20260721-211506). The speed cap
+        // makes the drift diegetic - you idle out while she briefs you. This is
+        // the base campaign's FIRST player voice ("You"); terse and professional,
+        // the belt register.
+        open_line(
+            1.0,
+            OPEN_1_AT,
+            CAPTAIN_HALLORAN,
+            "Shakedown's your own now - fresh hull, cold guns. Ease her out, \
+             nice and slow.",
+        ),
+        open_line(
+            2.0,
+            OPEN_2_AT,
+            PLAYER,
+            "Copy, Halloran. Board's green, lines are cold.",
+        ),
+        open_line(
+            3.0,
+            OPEN_3_AT,
+            CAPTAIN_HALLORAN,
+            "Belt's quiet today. Good day to learn her helm before it isn't.",
+        ),
+        open_line(4.0, OPEN_4_AT, PLAYER, "Understood. Where do you want me?"),
+        open_line(
+            5.0,
+            OPEN_5_AT,
+            CAPTAIN_HALLORAN,
+            "Salvage beacon's lit dead ahead. Burn for it when you're set - and \
+             mind your brakes.",
+        ),
+        // Conversation over: post objective 1, spawn and mark beacon 1, and
+        // stamp the clock so the first breather is timed from here. Latches on
+        // `opened` so it fires exactly once.
+        ScenarioEventConfig {
+            name: EventConfig::OnUpdate,
+            filters: vec![eq_num(VAR_OPEN_STEP, 5.0), eq_num(VAR_OPENED, 0.0)],
+            actions: vec![
+                set(VAR_OPENED, num(1.0)),
+                complete(OBJ_OPENING),
+                spawn(beacon(ID_BEACON_1, "BEACON 1", BEACON_1_POS)),
+                objective(OBJ_B1, "Burn to Beacon 1."),
+                // The gold marker rides the current leg's target (conveyance
+                // layer 2, task 20260712-093831); its beacon chip yields while
+                // marked, so each beacon shows exactly one chip.
+                mark(ID_BEACON_1, "BEACON 1"),
+                stamp_gate(),
+            ],
         },
         // Beat 1 -> 2: reach beacon 1; beacon 2 appears off the beam.
         ScenarioEventConfig {
@@ -548,6 +680,7 @@ pub(crate) fn shakedown_run(
             filters: vec![player_enters(ID_BEACON_1), eq_num(VAR_BEAT, 1.0)],
             actions: vec![
                 set(VAR_BEAT, num(2.0)),
+                stamp_gate(),
                 complete(OBJ_B1),
                 // The training governor releases once the pilot has proven
                 // a controlled leg (playtest round 2 finding 3).
@@ -565,10 +698,7 @@ pub(crate) fn shakedown_run(
                     enabled: true,
                 }),
                 spawn(beacon(ID_BEACON_2, "BEACON 2", BEACON_2_POS)),
-                objective(
-                    OBJ_B2,
-                    "BEACON 2 is somewhere off your beam. Hold [Alt] to look around and find it.",
-                ),
+                objective(OBJ_B2, "Find Beacon 2 - hold [Alt] to look around."),
                 // Marker hand-off: attach runs after the spawn above
                 // (action list order), so the fresh beacon is findable.
                 unmark(ID_BEACON_1),
@@ -581,11 +711,9 @@ pub(crate) fn shakedown_run(
             filters: vec![player_enters(ID_BEACON_2), eq_num(VAR_BEAT, 2.0)],
             actions: vec![
                 set(VAR_BEAT, num(3.0)),
+                stamp_gate(),
                 complete(OBJ_B2),
-                objective(
-                    OBJ_B3,
-                    "Recover 3 supply crates from the debris cluster.",
-                ),
+                objective(OBJ_B3, "Recover the 3 supply crates."),
                 // All three crates carry the marker at once; each dies
                 // with its crate, so the survivors answer "which is left".
                 unmark(ID_BEACON_2),
@@ -625,7 +753,7 @@ pub(crate) fn shakedown_run(
             actions: vec![
                 set(VAR_TALLY_SHOWN, num(1.0)),
                 complete(OBJ_B3),
-                objective(OBJ_B3, "Supply crates recovered: 1/3."),
+                objective(OBJ_B3, "Crates recovered: 1/3."),
             ],
         },
         ScenarioEventConfig {
@@ -638,7 +766,7 @@ pub(crate) fn shakedown_run(
             actions: vec![
                 set(VAR_TALLY_SHOWN, num(2.0)),
                 complete(OBJ_B3),
-                objective(OBJ_B3, "Supply crates recovered: 2/3."),
+                objective(OBJ_B3, "Crates recovered: 2/3."),
             ],
         },
         // Beat 3 -> 4: all crates aboard - the targeting computer comes
@@ -652,6 +780,7 @@ pub(crate) fn shakedown_run(
             filters: vec![eq_num(VAR_BEAT, 3.0), eq_num(VAR_CRATES, 3.0)],
             actions: vec![
                 set(VAR_BEAT, num(4.0)),
+                stamp_gate(),
                 complete(OBJ_B3),
                 EventActionConfig::SetControllerVerb(SetControllerVerbActionConfig {
                     id: ID_PLAYER.to_string(),
@@ -659,10 +788,7 @@ pub(crate) fn shakedown_run(
                     enabled: true,
                 }),
                 spawn(beacon(ID_BEACON_3, "BEACON 3", BEACON_3_POS)),
-                objective(
-                    OBJ_B4,
-                    "Targeting computer online. Hold [CTRL] on BEACON 3 until the lock sticks.",
-                ),
+                objective(OBJ_B4, "Lock onto Beacon 3 - hold [CTRL]."),
                 mark(ID_BEACON_3, "BEACON 3"),
                 emphasize("RADAR"),
             ],
@@ -674,8 +800,9 @@ pub(crate) fn shakedown_run(
             filters: vec![player_enters(ID_BEACON_3), eq_num(VAR_BEAT, 4.0)],
             actions: vec![
                 set(VAR_BEAT, num(5.0)),
+                stamp_gate(),
                 complete(OBJ_B4),
-                objective(OBJ_B5, "Locked. Press [G] - let the computer fly."),
+                objective(OBJ_B5, "Locked. Press [G] to let the computer fly."),
                 deemphasize("RADAR"),
                 emphasize("GOTO"),
             ],
@@ -689,6 +816,7 @@ pub(crate) fn shakedown_run(
             filters: vec![player_enters(ID_BEACON_3), eq_num(VAR_BEAT, 5.0)],
             actions: vec![
                 set(VAR_BEAT, num(6.0)),
+                stamp_gate(),
                 complete(OBJ_B5),
                 spawn(beacon_with_signature(
                     ID_BEACON_4,
@@ -696,7 +824,7 @@ pub(crate) fn shakedown_run(
                     BEACON_4_POS,
                     Some(BEACON_4_LOCK_SIGNATURE),
                 )),
-                objective(OBJ_B6, "New waypoint: BEACON 4. Lock it, press [G] again."),
+                objective(OBJ_B6, "New waypoint: Beacon 4. Lock it, press [G] again."),
                 unmark(ID_BEACON_3),
                 mark(ID_BEACON_4, "BEACON 4"),
             ],
@@ -709,12 +837,10 @@ pub(crate) fn shakedown_run(
             filters: vec![player_enters(ID_BEACON_4), eq_num(VAR_BEAT, 6.0)],
             actions: vec![
                 set(VAR_BEAT, num(7.0)),
+                stamp_gate(),
                 complete(OBJ_B6),
                 coast_ring(),
-                objective(
-                    OBJ_B7,
-                    "You are in the planetoid's pull. Cut the burn and coast.",
-                ),
+                objective(OBJ_B7, "Cut the burn and coast in."),
                 unmark(ID_BEACON_4),
                 mark(ID_PLANETOID, "PLANETOID"),
                 deemphasize("GOTO"),
@@ -729,6 +855,7 @@ pub(crate) fn shakedown_run(
             filters: vec![player_enters(ID_COAST_RING), eq_num(VAR_BEAT, 7.0)],
             actions: vec![
                 set(VAR_BEAT, num(8.0)),
+                stamp_gate(),
                 complete(OBJ_B7),
                 // The orbit computer comes online WITH its lesson (the
                 // same capability choreography as GOTO and LOCK): the
@@ -738,7 +865,7 @@ pub(crate) fn shakedown_run(
                     verb: FlightVerb::Orbit,
                     enabled: true,
                 }),
-                objective(OBJ_B8, "Press [O] and hold the orbit."),
+                objective(OBJ_B8, "Press [O] to hold an orbit."),
             ],
         },
         // Beat 8 -> 9: orbit held. Break away (teaches [Z] with a real
@@ -749,9 +876,10 @@ pub(crate) fn shakedown_run(
             filters: vec![player_enters(ID_PLANETOID), eq_num(VAR_BEAT, 8.0)],
             actions: vec![
                 set(VAR_BEAT, num(9.0)),
+                stamp_gate(),
                 complete(OBJ_B8),
                 spawn(derelict(asteroid_texture.clone())),
-                objective(OBJ_B9, "Orbit held. Press [Z] to break away and burn clear."),
+                objective(OBJ_B9, "Break away - press [Z] and burn clear."),
                 unmark(ID_PLANETOID),
                 mark(ID_DERELICT, "DERELICT"),
             ],
@@ -764,11 +892,9 @@ pub(crate) fn shakedown_run(
             filters: vec![player_enters(ID_COAST_RING), eq_num(VAR_BEAT, 9.0)],
             actions: vec![
                 set(VAR_BEAT, num(10.0)),
+                stamp_gate(),
                 complete(OBJ_B9),
-                objective(
-                    OBJ_B10,
-                    "A derelict hulk drifts by your old salvage field. Hold [RMB], keep [CTRL] on it - watch the viewfinder.",
-                ),
+                objective(OBJ_B10, "Paint the derelict - hold [RMB] and [CTRL]."),
                 emphasize("RADAR"),
             ],
         },
@@ -802,10 +928,15 @@ pub(crate) fn shakedown_run(
                 complete(OBJ_B11),
                 deemphasize("RADAR"),
                 spawn(pirate_ship()),
-                objective(
-                    OBJ_B12,
-                    "A scavenger is picking through your debris field. Drive it off.",
+                // The one fight announces itself (beat-sheet telegraph): a
+                // warning line, a spawn back at the debris field, and the
+                // scavenger's own engage_delay grace before its guns come up.
+                story(
+                    CAPTAIN_HALLORAN,
+                    "Contact - scavenger picking through your debris field. \
+                     Drive it off.",
                 ),
+                objective(OBJ_B12, "Drive off the scavenger."),
                 // Defensive detach (the destroyed hulk takes its marker
                 // with it; do not depend on despawn timing), then the
                 // marker jumps to the intruder (attach after its spawn).
@@ -861,6 +992,64 @@ pub(crate) fn shakedown_run(
                 }),
             ],
         },
+        // --- Between-beat breathers (owner pacing pass, task 20260721-211506) ---
+        // One comms line lands BREATHER_DELAY seconds after each navigation
+        // beat's objective posts, so beats no longer fire back to back: the
+        // objective shows, you fly a moment, then the captain's voice lands.
+        // Gated on the beat counter + `breather_last` (fires once, never
+        // re-fires) and the relative clock gate stamped at the transition.
+        // The combat exam (beats 11-12) stays tight by design - the fight is
+        // the exam - and announces itself with the scavenger telegraph above.
+        breather(
+            2.0,
+            CAPTAIN_HALLORAN,
+            "Good burn. Next one's off your beam - swing your look around and \
+             find it.",
+        ),
+        breather(
+            3.0,
+            PLAYER,
+            "Salvage beacons. I'll sweep the cluster and pull them in.",
+        ),
+        breather(
+            4.0,
+            CAPTAIN_HALLORAN,
+            "Targeting computer's warmed up. Hold your radar on it till the \
+             lock sets.",
+        ),
+        breather(
+            5.0,
+            CAPTAIN_HALLORAN,
+            "Now hand her to the computer - it flies the leg while you watch \
+             the belt.",
+        ),
+        breather(
+            6.0,
+            PLAYER,
+            "Long leg to the next mark. Re-locking and handing off again.",
+        ),
+        breather(
+            7.0,
+            CAPTAIN_HALLORAN,
+            "That's the planetoid's pull. Ease off the drive and let the well \
+             carry you.",
+        ),
+        breather(
+            8.0,
+            CAPTAIN_HALLORAN,
+            "Ride it around - the computer will hold your orbit for you.",
+        ),
+        breather(
+            9.0,
+            CAPTAIN_HALLORAN,
+            "Good. Break the orbit and burn clear when you're ready.",
+        ),
+        breather(
+            10.0,
+            CAPTAIN_HALLORAN,
+            "Dead hulk off your old salvage field. Blood the guns on it - lock \
+             it up and watch your viewfinder.",
+        ),
     ];
 
     ScenarioConfig {
@@ -974,13 +1163,28 @@ mod tests {
             (attaches, detaches)
         };
 
-        // OnStart marks beacon 1.
+        // The opening conversation hands off to objective 1 (task
+        // 20260721-211506): OnStart marks nothing (beacon 1 spawns lazily after
+        // the ~40s captain briefing), and the convo-end handler both spawns and
+        // marks beacon 1.
         let on_start = config
             .events
             .iter()
             .find(|event| matches!(event.name, EventConfig::OnStart))
             .unwrap();
-        assert_eq!(marker_ops(on_start).0, vec![ID_BEACON_1.to_string()]);
+        assert!(
+            marker_ops(on_start).0.is_empty(),
+            "OnStart marks nothing while the captain briefs"
+        );
+        let beacon_1_handler = config
+            .events
+            .iter()
+            .find(|event| marker_ops(event).0.iter().any(|id| id == ID_BEACON_1))
+            .expect("some handler marks beacon 1 after the opening");
+        assert_eq!(
+            marker_ops(beacon_1_handler).0,
+            vec![ID_BEACON_1.to_string()]
+        );
 
         // Attach-after-spawn ordering: in every handler that both spawns
         // an object and attaches a marker to it, the spawn comes first.
@@ -1542,6 +1746,30 @@ mod tests {
         pulse(app);
     }
 
+    /// Set the scenario clock the loader normally advances each frame, so the
+    /// opening conversation's `scenario_elapsed` gates fire in the headless rig
+    /// (task 20260721-211506).
+    fn set_clock(app: &mut App, secs: f64) {
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .insert_variable(
+                SCENARIO_ELAPSED_VAR.to_string(),
+                VariableLiteral::Number(secs),
+            );
+    }
+
+    /// Run the ~40s opening conversation to its hand-off: push the clock past
+    /// the last line and pulse until objective 1 posts and beacon 1 spawns.
+    fn finish_opening(app: &mut App) {
+        set_clock(app, OPEN_5_AT + 1.0);
+        // Each pulse advances the open_step counter by one line; five lines plus
+        // the hand-off settle in a handful of pulses (the clock is already past
+        // every gate, so they chain).
+        for _ in 0..7 {
+            pulse(app);
+        }
+    }
+
     /// One OnUpdate pulse + settle, the way the loader's fire_on_update
     /// emits it while a scenario is live.
     fn pulse(app: &mut App) {
@@ -1713,16 +1941,38 @@ mod tests {
         // Boot: OnStart is what the loader fires after registration.
         boot(&mut app);
 
+        // The opening conversation runs first (task 20260721-211506): at boot
+        // the captain is briefing, so beat 1 is set but objective 1 and beacon 1
+        // are not up yet.
         assert_eq!(beat(&app), 1.0);
-        assert_eq!(
-            marker_label(&mut app, ID_BEACON_1).as_deref(),
-            Some("BEACON 1"),
-            "the gold marker rides beacon 1 from the start"
+        assert!(
+            !has_objective(&app, OBJ_B1),
+            "objective 1 waits for the opening conversation to finish"
         );
-        assert!(has_objective(&app, OBJ_B1), "beat 1 objective is up");
+        assert!(
+            entity_with_id(&mut app, ID_BEACON_1).is_none(),
+            "beacon 1 spawns only after the briefing"
+        );
+        assert!(
+            has_objective(&app, OBJ_OPENING),
+            "the holding objective covers the briefing"
+        );
         assert!(
             entity_with_id(&mut app, ID_PLAYER).is_some(),
             "the player ship spawned"
+        );
+
+        // Run the ~40s briefing to its hand-off.
+        finish_opening(&mut app);
+        assert_eq!(
+            marker_label(&mut app, ID_BEACON_1).as_deref(),
+            Some("BEACON 1"),
+            "the gold marker rides beacon 1 once the briefing ends"
+        );
+        assert!(has_objective(&app, OBJ_B1), "beat 1 objective is up");
+        assert!(
+            !has_objective(&app, OBJ_OPENING),
+            "the holding objective clears at hand-off"
         );
         assert!(entity_with_id(&mut app, ID_BEACON_1).is_some());
         assert!(
@@ -2179,6 +2429,82 @@ mod tests {
         assert!(
             controller_goto(&mut app),
             "reaching beacon 1 (first objective) unlocks GOTO"
+        );
+    }
+
+    /// Pacing pass (owner playtest, task 20260721-211506): the opening holds a
+    /// real conversation before objective 1, and every navigation beat stamps a
+    /// breather gate, so beats no longer fire back to back. Config-level pin so
+    /// deleting the deferral, the voice, or the breather timing fails here.
+    #[test]
+    fn the_opening_converses_before_objective_one_and_beats_breathe() {
+        let config = scenario();
+
+        let posts = |event: &ScenarioEventConfig, id: &str| {
+            event
+                .actions
+                .iter()
+                .any(|a| matches!(a, EventActionConfig::Objective(o) if o.id == id))
+        };
+
+        // OnStart posts the holding objective, NOT objective 1 - which waits
+        // for the conversation to hand off.
+        let on_start = config
+            .events
+            .iter()
+            .find(|e| matches!(e.name, EventConfig::OnStart))
+            .unwrap();
+        assert!(
+            posts(on_start, OBJ_OPENING),
+            "OnStart posts the holding objective"
+        );
+        assert!(
+            !posts(on_start, OBJ_B1),
+            "objective 1 is deferred past the opening conversation"
+        );
+        let obj1_posts = config
+            .events
+            .iter()
+            .filter(|e| !matches!(e.name, EventConfig::OnStart) && posts(e, OBJ_B1))
+            .count();
+        assert_eq!(obj1_posts, 1, "exactly one deferred objective-1 post");
+
+        // The opening + breathers carry voice, and the player has lines (the
+        // campaign's first player voice - the belt register, "You").
+        let speakers: Vec<String> = config
+            .events
+            .iter()
+            .flat_map(|e| e.actions.iter())
+            .filter_map(|a| match a {
+                EventActionConfig::StoryMessage(s) => Some(s.speaker.clone()),
+                _ => None,
+            })
+            .collect();
+        let voice_lines = speakers
+            .iter()
+            .filter(|s| s.as_str() == PLAYER || s.as_str() == CAPTAIN_HALLORAN)
+            .count();
+        assert!(
+            voice_lines >= 5,
+            "the opening conversation and breathers carry the captain/player voice, got {voice_lines}"
+        );
+        assert!(
+            speakers.iter().any(|s| s == PLAYER),
+            "the player speaks (the opening back-and-forth)"
+        );
+
+        // Every navigation beat transition stamps the breather gate (plus the
+        // OnStart init), so a breather can land a fixed delay after the
+        // objective - the "no two beats back to back" guarantee.
+        let gate_stamps = config
+            .events
+            .iter()
+            .flat_map(|e| e.actions.iter())
+            .filter(|a| matches!(a, EventActionConfig::VariableSet(v) if v.key == VAR_GATE))
+            .count();
+        assert!(
+            gate_stamps >= 9,
+            "each navigation beat transition stamps the breather gate, got {gate_stamps}"
         );
     }
 }

@@ -370,6 +370,18 @@ fight -> confirm -> breathe -> next.**
 - Pick the transition gear deliberately: hard cut for menu scenes,
   `delay: Some(secs)` for an unceremonial beat, the modal overlay (plus
   optional `auto_advance_secs`) for checkpoints and chapter ends.
+- Open with a conversation, not an order. To let a scene breathe before the
+  first objective, hold the objective back behind a short clock-gated
+  exchange: `OnStart` posts a "stand by" holding line and seeds an
+  `open_step` counter, each conversation line is an `OnUpdate` gated on
+  `open_step == n` + `scenario_elapsed > t` that advances the counter, and a
+  final `open_step == last` handler posts objective 1 and spawns its target
+  (so a burn cannot skip a beacon that is not there yet). The Shakedown Run's
+  ~40s captain briefing is the reference; a soft speed cap makes the drift
+  diegetic. For between-beat breathers, stamp the clock at each transition
+  (`beat_gate = scenario_elapsed`) and gate the comms line on
+  `scenario_elapsed > beat_gate + delay`, so it lands a fixed beat after the
+  objective regardless of how long the leg took.
 
 The pacing toolbox, all authorable in RON: the scenario clock
 (`scenario_elapsed`), per-line `dwell` on StoryMessage, `engage_delay`
