@@ -1,0 +1,55 @@
+# Goal: base campaign extension - Chapter 3 + voice pass
+
+- DATE: 20260721
+- UMBRELLA TASK: 20260721-160425
+- LANDING SCOPE: squash-merge each task to master via sprout land; NO push
+  (pushing is the user's call). Spike branch already landed (0fe918ee).
+
+## Goal
+
+Deliver task 20260718-152313 as directed by spike tasks/20260721-155249/SPIKE.md:
+extend the base campaign with Chapter 3 - convoy-defense "Lifeline" plus
+gravity-well finale "Final Tally", chained after broadside_gunship - and give
+the existing chain its first StoryMessage voice/polish pass. Data/scenario
+work only (v0.8.0 no-new-features); names from the spike are working
+placeholders confirmed or renamed at Finish.
+
+## Done means
+
+1. New Game chain runs shakedown_run -> broadside -> broadside_gunship ->
+   lifeline -> final_tally; the gunship victory chains onward instead of
+   dead-ending. (test: harness asserts the NextScenario wiring)
+2. The ally question is settled by evidence: a harness rig proves an
+   `allegiance: Some(Player)` AI ship is acquired as a target by enemy AI
+   (Lifeline primary), or the rig fails and the documented salvage-under-fire
+   fallback is applied. (test: named rig test, red-or-green recorded)
+3. Every scenario in the chain keeps win+lose Outcome paths and a checkpoint
+   that never replays more than one fight. (test: harness + content lint)
+4. The base chain speaks: StoryMessage comms per the beat-sheet convention.
+   (cmd: `grep -l 'speaker:' assets/base/scenarios/*.content.ron` non-empty;
+   lint clean)
+5. `content lint` (refs + balance) passes; any balance WARN acks carry
+   reasons. (cmd: `cargo run -p nova_assets --bin content -- lint`)
+6. New scenarios follow the picker precedent: chapter head visible with
+   thumbnail, continuation hidden. (cmd: grep hidden/thumbnail in generated RON)
+7. Docs synced in-task: player wiki scenarios.md, CHANGELOG; playtest
+   questions listed in the task. (manual: owner reads at Finish)
+8. Each new fight is winnable AND losable - first tuning pass + probe
+   evidence. (manual: owner playtest at Finish)
+
+Overall: cargo check + fmt green, newly written tests green, content lint
+green. Full cargo test/clippy stay in CI per repo policy (AGENTS.md).
+
+## Tasks
+
+(filled at plan time; one line per land)
+
+## Manual acceptance (batched for the user at Finish)
+
+- (pending) spike names/tone: gang "the Tally", flagship "Final Tally",
+  Captain Halloran, the Tallyman, Belt Relay, chapter "Lifeline" - confirm or
+  rename (text-only edits).
+- (pending) picker policy: chapter heads visible (Broadside precedent) kept;
+  asteroid_field hidden-vs-wiki contradiction resolution.
+- (pending) playtest: difficulty/pacing of lifeline + final_tally feel fair;
+  relief timer length, wave sizes, escort count.
