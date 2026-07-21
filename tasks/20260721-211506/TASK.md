@@ -1,8 +1,8 @@
 # Shakedown pacing pass: slower opening conversation, breathing gaps, simpler objective text
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
-- TAGS: v0.8.0,content,scenario,playtest
+- TAGS: v0.8.0, content, scenario, playtest
 
 ## Story
 
