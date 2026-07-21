@@ -356,8 +356,9 @@ fn release_cursor(mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>) {
 /// Re-grab on resume, but only during scenario play: a live player ship is
 /// what distinguishes it (PlayerSpaceshipMarker is only inserted by the
 /// scenario spawn path; the editor's build-mode preview never carries it).
-/// Mirrors the cfg carve-out of setup_grab_cursor_scenario: debug builds
-/// never grab.
+/// Grabs unconditionally now, debug builds included (task 20260721-211500); the
+/// F11 inspector reclaims the cursor while it is up (nova_debug's
+/// `sync_inspector_cursor`).
 fn restore_cursor(
     mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
     q_player: Query<(), With<PlayerSpaceshipMarker>>,
@@ -379,7 +380,7 @@ fn restore_cursor(
     if outcome.is_some_and(|outcome| outcome.0.is_some()) {
         return;
     }
-    if cfg!(not(feature = "debug")) && !q_player.is_empty() {
+    if !q_player.is_empty() {
         cursor.grab_mode = CursorGrabMode::Locked;
         cursor.visible = false;
     }
@@ -998,8 +999,10 @@ fn sync_outcome_pause(
 /// the scenario WITHOUT a state transition, so the editor's
 /// OnEnter(Scenario) grab never re-fires and the cursor the outcome overlay
 /// freed would leak into the replay. Same guards as `restore_cursor`
-/// (Playing only, debug builds never grab), plus unpaused - a spawn cannot
-/// race the pause overlay's freed cursor.
+/// (Playing only), plus unpaused - a spawn cannot race the pause overlay's
+/// freed cursor. Grabs unconditionally now, debug builds included (task
+/// 20260721-211500); the F11 inspector reclaims it via nova_debug's
+/// `sync_inspector_cursor`.
 fn regrab_cursor_on_player_spawn(
     _add: On<Add, PlayerSpaceshipMarker>,
     game_state: Res<State<GameStates>>,
@@ -1023,10 +1026,8 @@ fn regrab_cursor_on_player_spawn(
     let Ok(mut cursor) = q_cursor.single_mut() else {
         return;
     };
-    if cfg!(not(feature = "debug")) {
-        cursor.grab_mode = CursorGrabMode::Locked;
-        cursor.visible = false;
-    }
+    cursor.grab_mode = CursorGrabMode::Locked;
+    cursor.visible = false;
 }
 
 /// Marker for the menu's buttons, so the color feedback system only touches ours.
@@ -6831,5 +6832,57 @@ mod tests {
             None,
             "New Game resets the picker override to None"
         );
+    }
+
+    /// Task 20260721-211500: a player ship spawning mid-flight (a Retry reloads
+    /// the scenario without a state transition) re-grabs the cursor - now in
+    /// debug builds too, since the observer's grab used to be compiled out under
+    /// `feature = "debug"`.
+    #[test]
+    fn player_spawn_hides_cursor_while_flying() {
+        let mut app = app();
+        enter_playing(&mut app);
+        let win = app
+            .world_mut()
+            .spawn((
+                PrimaryWindow,
+                CursorOptions {
+                    visible: true,
+                    grab_mode: CursorGrabMode::None,
+                    ..default()
+                },
+            ))
+            .id();
+        // A direct world spawn flushes the Add observer synchronously.
+        app.world_mut().spawn(PlayerSpaceshipMarker);
+        let cursor = app.world().get::<CursorOptions>(win).unwrap();
+        assert!(!cursor.visible, "player spawn grabs the cursor in flight");
+        assert_eq!(cursor.grab_mode, CursorGrabMode::Locked);
+    }
+
+    /// The spawn regrab yields to the pause overlay: a ship spawning while paused
+    /// must not steal the cursor the pause menu freed.
+    #[test]
+    fn player_spawn_yields_to_pause() {
+        let mut app = app();
+        enter_playing(&mut app);
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Paused);
+        app.update();
+        let win = app
+            .world_mut()
+            .spawn((
+                PrimaryWindow,
+                CursorOptions {
+                    visible: true,
+                    grab_mode: CursorGrabMode::None,
+                    ..default()
+                },
+            ))
+            .id();
+        app.world_mut().spawn(PlayerSpaceshipMarker);
+        let cursor = app.world().get::<CursorOptions>(win).unwrap();
+        assert!(cursor.visible, "paused: player spawn must not re-grab");
     }
 }

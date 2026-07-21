@@ -24,6 +24,10 @@ tagged **(breaking)**.
 
 - Gauntlet Run is now a TIME-TRIAL (bundle 1.3.0): a live `mm:ss.s` run clock (a `HudReadout` on the engine `scenario_elapsed` clock) shows from the START gate and freezes at the final time behind the Victory banner, and a clean-run bonus - hazard-zone grazes bump a `crash` counter, and crossing FINISH clean (`crash == 0`) earns a CLEAN RUN banner where a grazed run gets the plain finish. Both branches are gated `Outcome(Victory)` handlers, no new engine machinery beyond the readout. `scenario_elapsed` resets on retry, so the clock does too.
 
+### Fixes
+
+- The mouse cursor is now hidden and locked while flying, in dev builds too. Flight always captured the cursor in a shipped build, but the whole grab was compiled out under the `debug` feature so the F11 inspector stayed clickable - which left a stray cursor floating over every `--features dev` playtest. Flight now hides the cursor unconditionally; the F11 debug inspector defaults off and hands the cursor back only while its panel is up. Menus, pause, and the win/lose overlay free it as before.
+
 ### Internals & Tooling
 
 - `content lint` is now the single content-validation command: the balance `audit` subcommand was folded into it (balance is a kind of lint), so one pass runs the reference/geometry checks, the combat balance/fairness audit (with the `balance_acks.ron` acknowledgment mechanism, and a stale ack now an ERROR) and a new flight-rig INPUT-OVERLAP check that flags a content `input_mapping` section bound to a key the always-on flight rig also drives (W/Space/RightTrigger burn, autopilot, ...) - the silent double-drive behind the 10_playable "guns on Space" regression. `lint --target <mod> --report <path>` writes a per-mod document (Markdown, or HTML for a `.html` path / `--format html`) that pinpoints, for every finding, the source file + offending element + explanation + suggested fix. Old `content audit` invocations become `content lint`.

@@ -198,14 +198,17 @@ fn switch_scene_editor(
     }
 }
 
+/// Hide and lock the cursor for flight (owner decision, task 20260721-211500):
+/// unconditional now, debug builds included. The F11 debug inspector is an egui
+/// panel that needs a pointer, so it hands the cursor back while it is up via
+/// nova_debug's `sync_inspector_cursor`; menus/pause/outcome free it through
+/// their own transitions.
 fn setup_grab_cursor_scenario(
     primary_cursor_options: Single<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
-    if cfg!(not(feature = "debug")) {
-        let mut primary_cursor_options = primary_cursor_options.into_inner();
-        primary_cursor_options.grab_mode = CursorGrabMode::Locked;
-        primary_cursor_options.visible = false;
-    }
+    let mut primary_cursor_options = primary_cursor_options.into_inner();
+    primary_cursor_options.grab_mode = CursorGrabMode::Locked;
+    primary_cursor_options.visible = false;
 }
 
 fn setup_grab_cursor_editor(
@@ -463,5 +466,36 @@ mod tests {
             _ => None,
         };
         assert_eq!(queued, Some(ExampleStates::Editor));
+    }
+
+    /// Flight hides and locks the cursor (task 20260721-211500). Before the
+    /// fix `setup_grab_cursor_scenario` was wrapped in `cfg!(not(feature =
+    /// "debug"))`, so a `--features dev` build (the standard playtest build)
+    /// left the cursor visible the whole flight; the grab is unconditional now.
+    #[test]
+    fn scenario_grab_hides_and_locks_the_cursor() {
+        let mut app = App::new();
+        app.world_mut().spawn((
+            PrimaryWindow,
+            CursorOptions {
+                visible: true,
+                grab_mode: CursorGrabMode::None,
+                ..default()
+            },
+        ));
+        app.add_systems(Update, setup_grab_cursor_scenario);
+        app.update();
+
+        let cursor = app
+            .world_mut()
+            .query_filtered::<&CursorOptions, With<PrimaryWindow>>()
+            .single(app.world())
+            .unwrap();
+        assert!(!cursor.visible, "cursor must be hidden while flying");
+        assert_eq!(
+            cursor.grab_mode,
+            CursorGrabMode::Locked,
+            "cursor must be locked (captured) while flying"
+        );
     }
 }
