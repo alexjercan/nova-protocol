@@ -12,6 +12,10 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 
 ## Process lessons
 
+- `pickaxe-hit-is-not-a-mechanism` (x1): a `git log -S`/blame hit names a
+  commit that TOUCHED the string, not what it did with it - open the commit's
+  diff and quote what it DID before writing history into a Record (a misread
+  pickaxe put a never-true chain into three surfaces). 20260721-160842.
 - `keep-docs-in-sync-with-code` (x7, enforced in AGENTS.md but STILL recurring
   -> needs a tooling guard, not more prose): a code change is not done until
   every doc surface it invalidates (CHANGELOG, news, player + dev wiki, tutorial,
