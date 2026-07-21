@@ -30,6 +30,7 @@ use bevy::prelude::*;
 
 use crate::prelude::*;
 
+/// Glob-import surface: `use nova_gameplay::gravity::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         circular_orbit_speed, dominant_well, well_accel, DominantWell, GravityAffected,

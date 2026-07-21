@@ -13,6 +13,7 @@ pub mod thruster_section;
 pub mod torpedo_section;
 pub mod turret_section;
 
+/// Glob-import surface: `use nova_gameplay::sections::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         ammo::prelude::*, base_section::prelude::*, controller_section::prelude::*,

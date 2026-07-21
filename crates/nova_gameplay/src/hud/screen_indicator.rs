@@ -23,6 +23,7 @@ use avian3d::prelude::*;
 use bevy::{prelude::*, ui::UiSystems};
 use bevy_common_systems::prelude::ChaseCameraSystems;
 
+/// Glob-import surface: `use nova_gameplay::hud::screen_indicator::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         screen_indicator, screen_indicator_layer, ScreenIndicatorAnchor, ScreenIndicatorAnchorKind,

@@ -5,6 +5,7 @@ use nova_gameplay::prelude::*;
 
 use crate::objects::modification::prelude::SectionModification;
 
+/// Glob-import surface: `use crate::objects::spaceship::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         spaceship_scenario_object, AIControllerConfig, LockRefireSecs, OrbitHoldSecs,
@@ -13,6 +14,7 @@ pub mod prelude {
     };
 }
 
+/// The scenario/modding RON type name for a spaceship object.
 pub const SPACESHIP_TYPE_NAME: &str = "spaceship";
 
 /// Who drives a spaceship scenario object: nobody, the [`PlayerControllerConfig`]
@@ -22,8 +24,11 @@ pub const SPACESHIP_TYPE_NAME: &str = "spaceship";
 #[derive(Component, Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SpaceshipController {
+    /// Nobody drives this ship; it station-keeps with no bindings or AI.
     None,
+    /// A human player drives this ship, with the given input/config.
     Player(PlayerControllerConfig),
+    /// An AI bot drives this ship, with the given patrol/orbit/combat config.
     AI(AIControllerConfig),
 }
 
@@ -43,6 +48,8 @@ pub struct PlayerControllerConfig {
             skip_serializing_if = "HashMap::is_empty"
         )
     )]
+    /// Per-section input bindings: the keys/buttons that drive each thruster,
+    /// turret, or torpedo section, keyed by section id. Empty by default.
     pub input_mapping: HashMap<SectionId, Vec<Binding>>,
     /// Soft manual-speed cap (u/s), inserted as [`FlightSpeedCap`] on the
     /// ship root: the manual burn tapers off approaching it (the starter
@@ -74,6 +81,11 @@ pub struct PlayerControllerConfig {
     pub lock_refire_secs: Option<f64>,
 }
 
+/// AI-driver settings for a [`SpaceshipController::AI`] ship: its passive
+/// routine (patrol or orbit), territorial leash, arrival grace, and orbit-hold
+/// window. Authored in the scenario RON and consumed at spawn by
+/// `insert_spaceship_sections`, which inserts the derived directive components
+/// on the ship root (see the per-field docs).
 #[derive(Clone, Debug, Default, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AIControllerConfig {
@@ -145,6 +157,8 @@ pub struct OrbitHoldSecs(pub f64);
 #[reflect(Component)]
 pub struct LockRefireSecs(pub f64);
 
+/// A ship section's scenario-local id, used to key input bindings and address
+/// the section from scenario scripts.
 pub type SectionId = String;
 
 /// Where a ship section's [`SectionConfig`] comes from. Resolved at spawn in
@@ -169,11 +183,16 @@ pub enum SectionSource {
     Prototype(SectionId),
 }
 
+/// One entry in a ship's authored section list: where a section sits on the
+/// hull, where its config comes from, and any spawn-time modifications.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SpaceshipSectionConfig {
+    /// The section's scenario-local id (keys input bindings and scripts).
     pub id: SectionId,
+    /// The section's position relative to the ship root (world units).
     pub position: Vec3,
+    /// The section's rotation relative to the ship root.
     pub rotation: Quat,
     /// Where the section's config comes from - inline, or a catalog prototype
     /// referenced by id.
@@ -201,6 +220,7 @@ pub struct SpaceshipSectionsConfig(pub Vec<SpaceshipSectionConfig>);
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SpaceshipConfig {
+    /// Who drives the ship: nobody, a player, or an AI bot.
     pub controller: SpaceshipController,
     /// Which side the ship fights for. `None` (the authored default - omit
     /// the field) keeps the controller marker's requirement default: Player
@@ -218,9 +238,14 @@ pub struct SpaceshipConfig {
         feature = "serde",
         serde(default, skip_serializing_if = "Vec::is_empty")
     )]
+    /// The ship's sections (hull, thrusters, weapons, controller) and their
+    /// placement. Empty by default; each is spawned as a child at load.
     pub sections: Vec<SpaceshipSectionConfig>,
 }
 
+/// Build the ship-root bundle from a [`SpaceshipConfig`]: the marker, type name,
+/// controller, and section list the `insert_spaceship_sections` observer reads to
+/// spawn the section children and wire the driver at spawn.
 pub fn spaceship_scenario_object(config: SpaceshipConfig) -> impl Bundle {
     debug!("spaceship_scenario_object: config {:?}", config);
 

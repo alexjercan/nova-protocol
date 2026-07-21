@@ -29,6 +29,7 @@ const MARKER_COLOR: Color = Color::srgba(1.0, 0.3, 0.2, 0.55);
 /// Selected marker tint: the same hue at full presence.
 const MARKER_SELECTED_COLOR: Color = Color::srgba(1.0, 0.45, 0.3, 0.95);
 
+/// Glob-import surface: `use nova_gameplay::hud::component_lock::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         component_lock_hud, ComponentLockHudMarker, ComponentLockHudPlugin,

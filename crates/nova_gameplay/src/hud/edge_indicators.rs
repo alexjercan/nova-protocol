@@ -46,6 +46,7 @@ const CANDIDATE_COLOR: Color = Color::srgba(1.0, 0.25, 0.25, 0.45);
 /// travel lock, everywhere. (The relation tint it used to mirror is retired.)
 const LOCK_COLOR: Color = nova_ui::theme::semantic::THREAT;
 
+/// Glob-import surface: `use nova_gameplay::hud::edge_indicators::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         edge_indicators_hud, EdgeIndicatorKind, EdgeIndicatorLabelMarker, EdgeIndicatorMarker,

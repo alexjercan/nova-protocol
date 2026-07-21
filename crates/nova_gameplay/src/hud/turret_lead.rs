@@ -22,6 +22,7 @@ const PIP_PX: f32 = 8.0;
 /// the untinted lock reticle.
 const PIP_COLOR: Color = Color::srgba(1.0, 0.75, 0.2, 0.9);
 
+/// Glob-import surface: `use nova_gameplay::hud::turret_lead::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         turret_lead_hud, TurretLeadHudMarker, TurretLeadPipMarker, TurretLeadPipTurret,

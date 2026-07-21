@@ -7,6 +7,7 @@ use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use rand::Rng;
 
+/// Glob-import surface: `use crate::objects::asteroid::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         asteroid_scenario_object, AsteroidConfig, AsteroidInvulnerable, AsteroidMarker,
@@ -16,15 +17,22 @@ pub mod prelude {
     };
 }
 
+/// The scenario/modding RON type name for an asteroid object.
 pub const ASTEROID_TYPE_NAME: &str = "asteroid";
 
+/// The scenario/modding RON surface for an asteroid object: a noise-generated
+/// rock with health, textures, impact/destroy sounds, and optional gravity and
+/// lock-signature overrides. Passed to [`asteroid_scenario_object`] to build the
+/// asteroid-root bundle.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AsteroidConfig {
+    /// Nominal radius (world units); drives well qualification and mesh scale.
     pub radius: f32,
     /// Surface texture. Authored as an asset path; resolved to a live handle
     /// at spawn time (see `insert_asteroid_render`).
     pub texture: AssetRef<Image>,
+    /// Hit points; ignored when `invulnerable` is set.
     pub health: f32,
     /// The sound a hit on this rock plays (per-target = per-material; task
     /// 20260717-101641). Authorable asset ref; AUTHORED-OR-SILENT. Snapshotted
@@ -69,6 +77,9 @@ pub struct AsteroidConfig {
     pub lock_signature: Option<f32>,
 }
 
+/// Build the asteroid-root bundle from an [`AsteroidConfig`]: the marker, type
+/// name, and the components the asteroid observers read to derive the collider,
+/// gravity well, sounds, and lock signature at spawn.
 pub fn asteroid_scenario_object(config: AsteroidConfig) -> impl Bundle {
     debug!("asteroid_scenario_object: config {:?}", config);
 
@@ -153,6 +164,7 @@ struct AsteroidHuskDespawn;
 /// observers plus the `Update` husk-despawn system, and (when `render`) the
 /// render-insert observer.
 pub struct AsteroidPlugin {
+    /// Whether to add the render-insert observer that builds the visible mesh (false for headless tools).
     pub render: bool,
 }
 
@@ -348,6 +360,7 @@ fn insert_asteroid_collider(
 /// across 256 seeds spread over the u32 space; the consts carry margin on
 /// both sides. Widen only with the sweep's numbers in hand.
 pub const ASTEROID_GEOMETRIC_FACTOR_MIN: f32 = 3.5;
+/// Upper bound of the geometric factor (see [`ASTEROID_GEOMETRIC_FACTOR_MIN`]).
 pub const ASTEROID_GEOMETRIC_FACTOR_MAX: f32 = 6.0;
 
 /// The outermost vertex distance of a mesh, in its local space: the
@@ -501,25 +514,45 @@ const RIVER_DEPTH: f64 = 0.0234375;
 /// per-asteroid `PlanetHeight::default().with_seed(..)` to shape the mesh.
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct PlanetHeight {
+    /// Noise seed; a different seed yields a different rock (see `CURRENT_SEED`).
     pub seed: u32,
+    /// Sample-space scale: zooms the noise in or out (see `ZOOM_SCALE`).
     pub zoom_scale: f64,
+    /// Continent frequency (radians): higher yields smaller, more numerous continents.
     pub continent_frequency: f64,
+    /// Continent lacunarity; best near 2.0 (see `CONTINENT_LACUNARITY`).
     pub continent_lacunarity: f64,
+    /// Mountain lacunarity; best near 2.0 (see `MOUNTAIN_LACUNARITY`).
     pub mountain_lacunarity: f64,
+    /// Hills lacunarity; best near 2.0 (see `HILLS_LACUNARITY`).
     pub hills_lacunarity: f64,
+    /// Plains lacunarity; best near 2.0 (see `PLAINS_LACUNARITY`).
     pub plains_lacunarity: f64,
+    /// Badlands lacunarity; best near 2.0 (see `BADLANDS_LACUNARITY`).
     pub badlands_lacunarity: f64,
+    /// "Twistiness" of the mountains (see `MOUNTAINS_TWIST`).
     pub mountains_twist: f64,
+    /// "Twistiness" of the hills (see `HILLS_TWIST`).
     pub hills_twist: f64,
+    /// "Twistiness" of the badlands (see `BADLANDS_TWIST`).
     pub badlands_twist: f64,
+    /// Sea level in planet elevation units, -1.0 to +1.0 (see `SEA_LEVEL`).
     pub sea_level: f64,
+    /// Elevation where continental shelves appear; below `sea_level` (see `SHELF_LEVEL`).
     pub shelf_level: f64,
+    /// Fraction of terrain covered in mountains, 0.0 to 1.0 (see `MOUNTAINS_AMOUNT`).
     pub mountains_amount: f64,
+    /// Fraction of terrain covered in hills, below `mountains_amount` (see `HILLS_AMOUNT`).
     pub hills_amount: f64,
+    /// Fraction of terrain covered in badlands, 0.0 to 1.0 (see `BADLANDS_AMOUNT`).
     pub badlands_amount: f64,
+    /// Offset to the terrain-type definition (see `TERRAIN_OFFSET`).
     pub terrain_offset: f64,
+    /// Mountain "glaciation" amount, close to and above 1.0 (see `MOUNTAIN_GLACIATION`).
     pub mountain_glaciation: f64,
+    /// Scaling of base continent elevations, in planet elevation units (see `CONTINENT_HEIGHT_SCALE`).
     pub continent_height_scale: f64,
+    /// Maximum river depth, in planet elevation units (see `RIVER_DEPTH`).
     pub river_depth: f64,
 }
 
@@ -551,11 +584,13 @@ impl Default for PlanetHeight {
 }
 
 impl PlanetHeight {
+    /// Return a copy of these parameters with the noise seed replaced.
     pub fn with_seed(mut self, seed: u32) -> Self {
         self.seed = seed;
         self
     }
 
+    /// Sample the terrain-height noise at a point on the unit sphere.
     pub fn get_point(&self, point: Vec3) -> f64 {
         _ = self.mountain_lacunarity; // Silence unused warning
         _ = self.hills_lacunarity; // Silence unused warning

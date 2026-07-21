@@ -31,6 +31,7 @@ mod render;
 use projectile::*;
 use render::*;
 
+/// Glob-import surface: `use nova_gameplay::sections::torpedo_section::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         torpedo_section, TorpedoArming, TorpedoBlast, TorpedoControllerMarker, TorpedoGuidance,
@@ -41,9 +42,11 @@ pub mod prelude {
     };
 }
 
+/// Authorable config for a torpedo bay section (the guided-torpedo launcher).
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TorpedoSectionConfig {
+    /// The render mesh of the torpedo bay, defaults to a cuboid of size 1x1x1.
     #[reflect(ignore)]
     #[cfg_attr(
         feature = "serde",
@@ -58,6 +61,7 @@ pub struct TorpedoSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub render_mesh_transform: Option<RenderMeshTransform>,
+    /// The render mesh of the launched torpedo projectile.
     #[reflect(ignore)]
     #[cfg_attr(
         feature = "serde",
@@ -320,7 +324,9 @@ pub struct TorpedoTargetPosition(pub Vec3);
 /// `TorpedoSectionConfig` at spawn), so each bay's torpedoes can be tuned.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TorpedoGuidance {
+    /// Proportional-navigation gain: how hard the torpedo turns onto the intercept.
     pub nav_constant: f32,
+    /// Speed cap for the torpedo, in units per second.
     pub max_speed: f32,
 }
 
@@ -335,7 +341,9 @@ pub struct TorpedoSteering(pub Vec3);
 /// peak `damage` at the detonation centre.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TorpedoBlast {
+    /// Proximity-fuze and area-of-effect radius, in world units.
     pub radius: f32,
+    /// Peak damage dealt at the detonation centre.
     pub damage: f32,
 }
 

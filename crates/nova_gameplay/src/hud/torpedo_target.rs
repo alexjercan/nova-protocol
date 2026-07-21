@@ -55,6 +55,7 @@ const FOCUS_METER_COLOR: Color = Color::srgba(1.0, 0.4, 0.25, 0.9);
 /// table), and the raised-manual hot cue lives on the lead pips.
 const RETICLE_COMBAT_COLOR: Color = nova_ui::theme::semantic::THREAT;
 
+/// Glob-import surface: `use nova_gameplay::hud::torpedo_target::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         torpedo_target_hud, TorpedoTargetFocusFillMarker, TorpedoTargetFocusMeterMarker,
@@ -109,6 +110,7 @@ pub struct TorpedoTargetFocusFillMarker;
 /// [`torpedo_target_hud`].
 #[derive(Clone, Debug, Default)]
 pub struct TorpedoTargetHudConfig {
+    /// The reticle sprite the combat lock draws.
     pub target_sprite: Handle<Image>,
 }
 

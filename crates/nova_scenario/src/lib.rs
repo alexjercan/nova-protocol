@@ -8,17 +8,27 @@
 //! bundles), `render_scale` (the Low-preset resolution lever), and `lint` (the
 //! author-time content checks the `content` CLI runs). This crate is the
 //! runtime; the authoring grammar is documented in the scenario-system wiki.
+#![warn(missing_docs)]
 
+/// What a handler does when it fires: the action config vocabulary.
 pub mod actions;
+/// What a handler reacts to: the [`events::EventConfig`] trigger enum.
 pub mod events;
+/// Which entities and conditions gate a handler: the filter config vocabulary.
 pub mod filters;
 pub mod lint;
+/// Parse, register, and load/unload scenario bundles at runtime.
 pub mod loader;
+/// Spawnable scenario entities (asteroids, ships, beacons, salvage crates).
 pub mod objects;
 pub mod render_scale;
+/// Typed scenario variables and the small expression tree over them.
 pub mod variables;
+/// The [`world::NovaEventWorld`] resource holding live scenario state.
 pub mod world;
 
+/// Glob-import surface: `use nova_scenario::prelude::*` re-exports the public
+/// API of the scenario engine (the module preludes plus [`NovaScenarioPlugin`]).
 pub mod prelude {
     pub use super::{
         actions::prelude::*, events::prelude::*, filters::prelude::*, lint::prelude::*,
@@ -32,6 +42,8 @@ use bevy_common_systems::prelude::*;
 
 /// A plugin that handles Game Events.
 pub struct NovaScenarioPlugin {
+    /// Whether a window/GPU is present; gates the render-scale lever, which is
+    /// skipped on a headless rig with no scenario view to downscale.
     pub render: bool,
 }
 

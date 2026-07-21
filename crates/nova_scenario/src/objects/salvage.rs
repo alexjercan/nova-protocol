@@ -14,6 +14,7 @@ use nova_gameplay::prelude::*;
 
 use crate::prelude::*;
 
+/// Glob-import surface: `use crate::objects::salvage::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         salvage_crate_scenario_object, SalvageCrateConfig, SalvageCratePlugin,
@@ -21,6 +22,7 @@ pub mod prelude {
     };
 }
 
+/// The scenario/modding RON type name for a salvage crate object.
 pub const SALVAGE_CRATE_TYPE_NAME: &str = "salvage_crate";
 
 /// Tumble rate (radians/second) of the crate's render child.
@@ -39,6 +41,9 @@ const CRATE_COLOR: Color = Color::srgb(1.0, 0.75, 0.15);
 const CRATE_EMISSIVE_MIN: f32 = 3.0;
 const CRATE_EMISSIVE_MAX: f32 = 6.0;
 
+/// The scenario/modding RON surface for a salvage crate object: its visible
+/// size, pickup radius, and optional pickup sound. Passed to
+/// [`salvage_crate_scenario_object`] to build the crate bundle.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SalvageCrateConfig {
@@ -65,6 +70,10 @@ pub struct SalvageCrateConfig {
 #[derive(Component, Clone, Debug)]
 struct SalvageCratePickupSound(Option<AssetRef<AudioSource>>);
 
+/// Build the salvage crate bundle from a [`SalvageCrateConfig`]: a static sensor
+/// trigger (the pickup volume) that fires `OnEnter` under its own scenario id,
+/// carrying the marker, size, highlight, and pickup sound the crate observers
+/// read at spawn.
 pub fn salvage_crate_scenario_object(config: SalvageCrateConfig) -> impl Bundle {
     debug!("salvage_crate_scenario_object: config {:?}", config);
 
@@ -103,6 +112,7 @@ pub struct SalvageCrateSize(pub f32);
 /// from the entity index so a cluster of crates does not spin in lockstep.
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct CrateTumble {
+    /// The axis the render child spins around (seeded from the entity index).
     pub axis: Vec3,
 }
 
@@ -112,6 +122,7 @@ pub struct CrateTumble {
 /// highlight system moves as one.
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct CrateGlow {
+    /// The emissive material the highlight pulse sweeps.
     pub material: Handle<StandardMaterial>,
 }
 
@@ -122,6 +133,7 @@ pub struct CrateGlow {
 /// `render`) the crate-render observer plus the tumble and glow `Update`
 /// systems.
 pub struct SalvageCratePlugin {
+    /// Whether to add the render observer and tumble/glow systems for the visible box (false for headless tools).
     pub render: bool,
 }
 

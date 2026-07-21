@@ -36,6 +36,7 @@ use bevy::{camera::RenderTarget, prelude::*, render::render_resource::TextureFor
 use super::screen_indicator::target_world_aabb;
 use crate::prelude::*;
 
+/// Glob-import surface: `use nova_gameplay::hud::target_inset::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         target_inset_hud, InsetZoomable, TargetInsetArmedTickMarker, TargetInsetCameraMarker,
@@ -205,7 +206,9 @@ pub struct TargetInsetRenderTarget(pub Option<Handle<Image>>);
 /// player HUD so the reconcile allocates nothing per selection change.
 #[derive(Resource, Debug, Clone)]
 pub struct TargetInsetHighlightAssets {
+    /// The shared shell mesh reused for every section highlight.
     pub mesh: Handle<Mesh>,
+    /// The shared emissive shell material.
     pub material: Handle<StandardMaterial>,
 }
 

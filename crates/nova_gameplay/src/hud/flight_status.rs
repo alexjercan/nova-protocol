@@ -11,6 +11,7 @@ use bevy::prelude::*;
 use super::{screen_indicator::prelude::*, NAV_CYAN};
 use crate::flight::prelude::*;
 
+/// Glob-import surface: `use nova_gameplay::hud::flight_status::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         autopilot_destination_hud, flight_status_hud, AutopilotDestinationHudConfig,
@@ -60,6 +61,7 @@ struct ModeChipUIMarker;
 /// [`flight_status_hud`].
 #[derive(Clone, Debug)]
 pub struct FlightStatusHudConfig {
+    /// The ship whose speed and autopilot mode the chips report.
     pub target: Entity,
 }
 
@@ -135,11 +137,14 @@ struct AutopilotDestinationShipEntity(Entity);
 /// Not a component - consumed by [`autopilot_destination_hud`].
 #[derive(Clone, Debug)]
 pub struct AutopilotDestinationHudConfig {
+    /// The ship whose engaged destination the pip projects.
     pub ship: Entity,
+    /// The marker sprite to draw at the destination.
     pub marker_sprite: Handle<Image>,
 }
 
 impl AutopilotDestinationHudConfig {
+    /// Builds a config for the given ship and destination-marker sprite.
     pub fn new(ship: Entity, marker_sprite: Handle<Image>) -> Self {
         Self {
             ship,

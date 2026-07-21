@@ -12,6 +12,7 @@
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
+/// Glob-import surface: `use crate::objects::binding_input::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::BindingInput;
 }
@@ -22,8 +23,11 @@ pub mod prelude {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub enum BindingInput {
+    /// A keyboard key binding.
     Keyboard(KeyCode),
+    /// A mouse button binding.
     Mouse(MouseButton),
+    /// A gamepad button binding.
     Gamepad(GamepadButton),
 }
 

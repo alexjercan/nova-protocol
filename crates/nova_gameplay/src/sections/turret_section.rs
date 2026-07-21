@@ -12,6 +12,7 @@ use bevy_transform_interpolation::{RotationEasingState, TranslationEasingState};
 use super::local_pose_in_root;
 use crate::prelude::*;
 
+/// Glob-import surface: `use nova_gameplay::sections::turret_section::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         turret_section, LoadedBullet, MuzzleConfig, TurretBulletProjectileMarker, TurretJoint,
@@ -439,6 +440,7 @@ pub struct TurretSectionMuzzles(pub Vec<Entity>);
 /// A plugin that enables the TurretSection component and its related systems.
 #[derive(Default)]
 pub struct TurretSectionPlugin {
+    /// Whether to spawn the section's render mesh (false on headless servers).
     pub render: bool,
 }
 

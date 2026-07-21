@@ -15,6 +15,7 @@ pub mod player;
 pub mod reference;
 pub mod targeting;
 
+/// Glob-import surface: `use nova_gameplay::input::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         ai::prelude::*,

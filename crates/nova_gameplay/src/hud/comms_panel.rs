@@ -29,6 +29,7 @@ use nova_ui::theme;
 use super::{HudSelfDrivenVisibility, HudTier};
 use crate::audio::UiSfx;
 
+/// Glob-import surface: `use nova_gameplay::hud::comms_panel::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{StoryFeed, StoryLine, COMMS_DWELL_MAX_SECS, COMMS_DWELL_MIN_SECS};
 }
@@ -61,6 +62,7 @@ const COMMS_MIN_SECS: f32 = 4.0;
 /// Authored per-line dwell clamp (documented author-facing; pub so
 /// content_lint warns against the same numbers it clamps to).
 pub const COMMS_DWELL_MIN_SECS: f32 = 3.0;
+/// Upper clamp on an authored per-line comms dwell, in seconds.
 pub const COMMS_DWELL_MAX_SECS: f32 = 30.0;
 /// Pending lines beyond this drop OLDEST-first.
 const COMMS_QUEUE_CAP: usize = 4;

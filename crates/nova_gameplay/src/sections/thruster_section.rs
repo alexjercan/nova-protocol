@@ -14,6 +14,7 @@ use crate::prelude::{
     SectionRenderMeshTransform, SectionRenderOf,
 };
 
+/// Glob-import surface: `use nova_gameplay::sections::thruster_section::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         thruster_section, ThrusterExhaust, ThrusterExhaustConfig, ThrusterExhaustShape,
@@ -122,14 +123,23 @@ pub struct ThrusterExhaustConfig {
     /// `geometry` is `Rect`. Set these to the nozzle hole size; the inner core
     /// scales down by `exhaust_inner_radius / exhaust_radius`. Ignored for `Cone`.
     pub width: f32,
+    /// Rect cross-section FULL height (local Z); see `width`. Ignored for `Cone`.
     pub height: f32,
+    /// Length of the outer exhaust cone along +Y.
     pub exhaust_height: f32,
+    /// Base radius of the outer exhaust cone.
     pub exhaust_radius: f32,
+    /// Peak opacity/intensity of the outer exhaust cone at full throttle.
     pub exhaust_max: f32,
+    /// Length of the inner (core) exhaust cone along +Y.
     pub exhaust_inner_height: f32,
+    /// Base radius of the inner (core) exhaust cone.
     pub exhaust_inner_radius: f32,
+    /// Peak opacity/intensity of the inner (core) exhaust cone at full throttle.
     pub exhaust_inner_max: f32,
+    /// Emissive glow color of the outer exhaust cone.
     pub emissive_color: LinearRgba,
+    /// Emissive glow color of the inner (core) exhaust cone.
     pub emissive_inner_color: LinearRgba,
 }
 
@@ -140,8 +150,10 @@ pub struct ThrusterExhaustConfig {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ThrusterExhaustShape {
+    /// Round cone cross-section (sized by the radius fields).
     #[default]
     Cone,
+    /// Axis-aligned rectangular cross-section (sized by `width`/`height`).
     Rect,
 }
 
@@ -236,8 +248,11 @@ fn outer_extents(config: &ThrusterExhaustConfig) -> (f32, f32, f32) {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(default))]
 pub struct ThrusterExhaust {
+    /// Position of the exhaust cone relative to the section.
     pub offset: Vec3,
+    /// Orientation of the exhaust cone (built along +Y) relative to the section.
     pub rotation: Quat,
+    /// The exhaust shader/size config.
     pub shape: ThrusterExhaustConfig,
 }
 
@@ -271,6 +286,7 @@ pub struct ThrusterSectionInput(pub f32);
 /// A plugin that enables the ThrusterSection component and its related systems.
 #[derive(Default)]
 pub struct ThrusterSectionPlugin {
+    /// Whether to spawn the section's render mesh and exhaust (false on headless servers).
     pub render: bool,
 }
 
@@ -578,12 +594,16 @@ fn insert_thruster_shader(
     ));
 }
 
+/// Material extension driving the thruster exhaust glow shader.
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone, Default)]
 pub struct ThrusterExhaustMaterial {
+    /// Current throttle (0.0..1.0), fed to the shader to scale the glow.
     #[uniform(100)]
     pub thruster_input: f32,
+    /// Base radius of the exhaust cone, passed to the shader.
     #[uniform(100)]
     pub thruster_exhaust_radius: f32,
+    /// Length of the exhaust cone along +Y, passed to the shader.
     #[uniform(100)]
     pub thruster_exhaust_height: f32,
     #[cfg(target_arch = "wasm32")]
@@ -592,11 +612,13 @@ pub struct ThrusterExhaustMaterial {
 }
 
 impl ThrusterExhaustMaterial {
+    /// Builder setter for the exhaust cone base radius.
     pub fn with_exhaust_radius(mut self, radius: f32) -> Self {
         self.thruster_exhaust_radius = radius;
         self
     }
 
+    /// Builder setter for the exhaust cone height.
     pub fn with_exhaust_height(mut self, height: f32) -> Self {
         self.thruster_exhaust_height = height;
         self

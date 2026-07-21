@@ -23,6 +23,7 @@ use crate::{
     prelude::{destructible_body, ExplodableEntity},
 };
 
+/// Glob-import surface: `use nova_gameplay::sections::base_section::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         base_section, preview_section, BaseSectionConfig, GameSections, ImpactDestroySounds,
@@ -47,13 +48,29 @@ pub mod prelude {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SectionCollider {
     /// Axis-aligned box; `size` is the full side length on each axis.
-    Cuboid { size: Vec3 },
+    Cuboid {
+        /// Full side length on each axis.
+        size: Vec3,
+    },
     /// Sphere of the given radius.
-    Sphere { radius: f32 },
+    Sphere {
+        /// Sphere radius.
+        radius: f32,
+    },
     /// Capsule (radius + a cylindrical segment of `length`) along local Y.
-    Capsule { radius: f32, length: f32 },
+    Capsule {
+        /// Capsule radius.
+        radius: f32,
+        /// Length of the cylindrical segment along local Y.
+        length: f32,
+    },
     /// Cylinder of the given radius and height along local Y.
-    Cylinder { radius: f32, height: f32 },
+    Cylinder {
+        /// Cylinder radius.
+        radius: f32,
+        /// Cylinder height along local Y.
+        height: f32,
+    },
 }
 
 impl Default for SectionCollider {
@@ -235,8 +252,10 @@ fn is_false(b: &bool) -> bool {
 /// because nova_scenario's asteroid bundle constructs it.
 #[derive(Component, Clone, Debug, Default, Reflect)]
 pub struct ImpactDestroySounds {
+    /// Sound played when this target is hit but not destroyed.
     #[reflect(ignore)]
     pub impact: Option<AssetRef<AudioSource>>,
+    /// Sound played when this target is destroyed.
     #[reflect(ignore)]
     pub destroy: Option<AssetRef<AudioSource>>,
 }

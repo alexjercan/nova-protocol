@@ -31,6 +31,7 @@ use bevy::prelude::*;
 
 use crate::prelude::*;
 
+/// Glob-import surface: `use nova_gameplay::hud::lock_crosshairs::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         lock_crosshairs_hud, LockCrosshairsHudMarker, LockCrosshairsHudPlugin,

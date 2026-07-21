@@ -126,6 +126,7 @@ pub const SALVAGE_PICKUP_VOLUME: f32 = 0.22;
 /// fired from `nova_menu`, so those two are `pub` - keeping every cue volume
 /// defined here in the audio module.
 pub const MENU_SELECT_VOLUME: f32 = 0.28;
+/// Volume for the HUD-toggle click cue, fired from `nova_menu`.
 pub const UI_TOGGLE_VOLUME: f32 = 0.24;
 const DRY_FIRE_VOLUME: f32 = 0.22;
 const RADAR_RETARGET_VOLUME: f32 = 0.18;

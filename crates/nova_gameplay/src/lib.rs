@@ -8,6 +8,7 @@
 //! shake and hit feedback), and `settings` (volume + graphics presets). It
 //! builds on the reusable `bevy_common_systems` layer for integrity, health,
 //! and blast mechanics.
+#![warn(missing_docs)]
 
 use bevy::prelude::*;
 
@@ -62,6 +63,8 @@ pub(crate) mod test_log {
     }
 }
 
+/// Glob-import surface: `use nova_gameplay::prelude::*` re-exports the public API
+/// of this crate's submodules plus the top-level game-state enums.
 pub mod prelude {
     // Re-export bevy_common_systems prelude
     pub use bevy_common_systems::prelude::*;
@@ -103,8 +106,11 @@ pub mod prelude {
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
 pub enum GameStates {
     #[default]
+    /// Assets are still loading; no menu or gameplay yet.
     Loading,
+    /// The `nova_menu` main menu is up.
     MainMenu,
+    /// The game is running.
     Playing,
 }
 
@@ -117,7 +123,9 @@ pub enum GameStates {
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
 pub enum PauseStates {
     #[default]
+    /// Gameplay is running; input and section systems tick.
     Unpaused,
+    /// Gameplay is frozen behind the pause overlay; the clocks are stopped.
     Paused,
 }
 

@@ -4,17 +4,26 @@ use nova_events::prelude::*;
 
 use crate::prelude::*;
 
+/// Glob-import surface: `use nova_scenario::events::prelude::*` brings the
+/// [`EventConfig`] handler-trigger enum into scope.
 pub mod prelude {
     pub use super::EventConfig;
 }
 
+/// The event a handler reacts to: the RON `name` of a scenario handler, mapped
+/// to the concrete `nova_events` event type it dispatches on.
 #[derive(Debug, Clone, Copy, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum EventConfig {
+    /// Fires once, right after a scenario loads.
     OnStart,
+    /// Fires when an entity is destroyed.
     OnDestroyed,
+    /// Fires every frame while a scenario is live and unpaused.
     OnUpdate,
+    /// Fires when a body enters an area/zone (`id` = the area, other = the body).
     OnEnter,
+    /// Fires when a body leaves an area/zone (`id` = the area, other = the body).
     OnExit,
     /// A ship has held an autopilot orbit around a well for the hold
     /// window (the orbit-hold tracker in loader.rs fires it once per

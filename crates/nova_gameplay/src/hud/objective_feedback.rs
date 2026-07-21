@@ -20,6 +20,7 @@ use bevy::prelude::*;
 use super::{HudTier, OBJECTIVES_PANEL_WIDTH_PX};
 use crate::prelude::*;
 
+/// Glob-import surface: `use nova_gameplay::hud::objective_feedback::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{ObjectiveFeedbackPlugin, ObjectiveGhostLineMarker, ObjectiveGhostsHudMarker};
 }
@@ -75,6 +76,7 @@ pub struct ObjectiveGhostsHudMarker;
 /// One fading completed-objective line; `age` drives the fade.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct ObjectiveGhostLineMarker {
+    /// Seconds since the line was posted; drives the alpha fade-out.
     pub age: f32,
     /// The line's full-alpha color; the fade only ramps alpha (green for
     /// completions, objective gold for fresh postings - task 20260717-163033).

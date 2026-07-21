@@ -21,6 +21,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_common_systems::prelude::HealthApplyDamage;
 
+/// Glob-import surface: `use nova_gameplay::damage::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         apply_typed_damage, damage_type_color, nova_blast, representative_kinetic_damage,
@@ -71,10 +72,15 @@ pub struct ProjectileDamage {
 /// debris) take the raw amount - resistance defaults to 1.0.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
 pub enum SectionDamageClass {
+    /// Hull section: armored structure.
     Hull,
+    /// Thruster section: propulsion.
     Thruster,
+    /// Controller section: the command core.
     Controller,
+    /// Turret section: the kinetic weapon mount.
     Turret,
+    /// Torpedo section: the explosive weapon mount.
     Torpedo,
 }
 

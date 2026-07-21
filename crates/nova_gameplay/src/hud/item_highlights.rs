@@ -21,6 +21,7 @@ use bevy::prelude::*;
 use super::{screen_indicator::prelude::*, HudTier};
 use crate::prelude::*;
 
+/// Glob-import surface: `use nova_gameplay::hud::item_highlights::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         ItemHighlightBracketMarker, ItemHighlightHudMarker, ItemHighlightTargetEntity,

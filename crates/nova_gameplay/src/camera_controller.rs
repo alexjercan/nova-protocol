@@ -16,6 +16,7 @@ use bevy_enhanced_input::prelude::*;
 
 use crate::prelude::*;
 
+/// Glob-import surface: `use nova_gameplay::camera_controller::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         ActiveLookRay, NovaCameraSystems, SpaceshipCameraControlMode, SpaceshipCameraController,

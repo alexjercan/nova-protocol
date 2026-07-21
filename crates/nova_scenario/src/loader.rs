@@ -7,6 +7,8 @@ use nova_gameplay::prelude::*;
 
 use crate::prelude::*;
 
+/// Glob-import surface: `use nova_scenario::loader::prelude::*` brings the
+/// scenario registry resources, load/unload triggers, and markers into scope.
 pub mod prelude {
     pub use super::{
         scenario_is_live, ContentIssues, CurrentScenario, GameScenarios, LoadScenario,
@@ -66,7 +68,9 @@ pub struct ScenarioStartFailure(pub Option<ScenarioStartFailureReport>);
 /// per Error-level finding.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ScenarioStartFailureReport {
+    /// The scenario's display name, shown in the overlay title.
     pub scenario_name: String,
+    /// One line per Error-level finding that refused the start.
     pub messages: Vec<String>,
 }
 
@@ -441,7 +445,9 @@ fn resolve_window_secs(override_secs: Option<f64>, default: f64) -> f64 {
 #[derive(Component, Clone, Debug, Reflect)]
 #[reflect(Component)]
 pub struct OrbitHold {
+    /// The well entity the ship is currently orbiting.
     pub well: Entity,
+    /// The scenario-clock time (seconds) the current hold began.
     pub started_at: f64,
 }
 

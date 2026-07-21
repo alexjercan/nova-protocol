@@ -17,6 +17,7 @@ use bevy::{platform::collections::HashSet, prelude::*};
 use super::{screen_indicator::prelude::*, NAV_CYAN, OBJECTIVE_GOLD};
 use crate::input::prelude::*;
 
+/// Glob-import surface: `use nova_gameplay::hud::keybind_hints::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         keybind_hint_cluster_hud, verb_cues_hud, HintEmphasis, KeybindHintClusterMarker,

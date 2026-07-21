@@ -22,6 +22,8 @@ use nova_gameplay::prelude::{
 
 use crate::prelude::*;
 
+/// Glob-import surface: `use nova_scenario::lint::prelude::*` brings the
+/// content-lint entry points and result types into scope.
 pub mod prelude {
     pub use super::{lint_scenario, lint_section_config, KnownSections, LintIssue, LintSeverity};
 }
@@ -79,7 +81,10 @@ impl KnownSections {
 /// but the scenario still runs - e.g. a fails-closed unset variable).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LintSeverity {
+    /// Fails gates: the content will misbehave at runtime.
     Error,
+    /// Reported but non-fatal: almost certainly an authoring bug, but the
+    /// scenario still runs.
     Warn,
 }
 
@@ -87,9 +92,11 @@ pub enum LintSeverity {
 /// section prototype 'y'").
 #[derive(Clone, Debug)]
 pub struct LintIssue {
+    /// How bad the finding is.
     pub severity: LintSeverity,
     /// The scenario the finding is about.
     pub scenario: ScenarioId,
+    /// The human-readable, self-contained description of the finding.
     pub message: String,
 }
 

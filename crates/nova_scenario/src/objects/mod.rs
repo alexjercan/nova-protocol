@@ -1,11 +1,15 @@
+/// Scenario trigger areas: sensor volumes that fire `OnEnter`/`OnExit` events.
 pub mod area;
+/// Asteroid scenario object: noise-generated rocks that can act as gravity wells.
 pub mod asteroid;
 pub mod beacon;
 pub mod binding_input;
 pub mod modification;
 pub mod salvage;
+/// Spaceship scenario object: player/AI ships built from a section list.
 pub mod spaceship;
 
+/// Glob-import surface: `use crate::objects::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         area::prelude::*, asteroid::prelude::*, beacon::prelude::*, binding_input::prelude::*,
@@ -23,6 +27,7 @@ use bevy::prelude::*;
 /// [`spaceship::SpaceshipPlugin`], [`area::ScenarioAreaPlugin`],
 /// [`beacon::BeaconPlugin`], [`salvage::SalvageCratePlugin`]) at build time.
 pub struct ScenarioObjectsPlugin {
+    /// Whether the render-bearing object plugins spawn their visuals (false for headless tools).
     pub render: bool,
 }
 

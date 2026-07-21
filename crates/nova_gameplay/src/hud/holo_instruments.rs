@@ -20,6 +20,7 @@ use bevy::prelude::*;
 use super::NAV_CYAN;
 use crate::{flight::prelude::*, input::prelude::*};
 
+/// Glob-import surface: `use nova_gameplay::hud::holo_instruments::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{FlipGateMarker, HoloInstrumentsPlugin, TrajectoryRibbonSegment};
 }

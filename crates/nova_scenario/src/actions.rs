@@ -12,6 +12,8 @@ use nova_gameplay::prelude::*;
 
 use crate::prelude::*;
 
+/// Glob-import surface: `use nova_scenario::actions::prelude::*` brings the
+/// action config vocabulary and scenario-object types into scope.
 pub mod prelude {
     pub use super::{
         apply_pending_skybox_swaps, base_scenario_object, BaseScenarioObjectConfig, CurrentOutcome,
@@ -27,23 +29,40 @@ pub mod prelude {
     };
 }
 
+/// What a handler does when it fires: one entry in the RON `actions` list,
+/// run in order after every filter passes.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum EventActionConfig {
+    /// Log a message.
     DebugMessage(DebugMessageActionConfig),
+    /// Evaluate an expression into a scenario variable.
     VariableSet(VariableSetActionConfig),
+    /// Add a HUD objective by id.
     Objective(ObjectiveActionConfig),
+    /// Complete a HUD objective by id.
     ObjectiveComplete(ObjectiveCompleteActionConfig),
+    /// Attach the gold objective marker chip to the scoped object by id.
     ObjectiveMarkerAttach(ObjectiveMarkerAttachActionConfig),
+    /// Remove the objective marker chip from the scoped object by id.
     ObjectiveMarkerDetach(ObjectiveMarkerDetachActionConfig),
+    /// Pulse one keybind-hint row gold.
     HintEmphasisSet(HintEmphasisSetActionConfig),
+    /// Clear a keybind-hint row's gold emphasis.
     HintEmphasisClear(HintEmphasisClearActionConfig),
+    /// Spawn a scenario object.
     SpawnScenarioObject(ScenarioObjectConfig),
+    /// Spawn many scenario objects across a region (id-prefixed).
     ScatterObjects(ScatterObjectsConfig),
+    /// Despawn the scoped object whose id matches.
     DespawnScenarioObject(DespawnScenarioObjectActionConfig),
+    /// Install or remove the manual flight speed cap on a scoped ship by id.
     SetSpeedCap(SetSpeedCapActionConfig),
+    /// Enable or disable one flight verb on a scoped ship's controller by id.
     SetControllerVerb(SetControllerVerbActionConfig),
+    /// Spawn a spherical sensor zone that drives `OnEnter`/`OnExit`.
     CreateScenarioArea(ScenarioAreaConfig),
+    /// Queue a switch to another scenario by id.
     NextScenario(NextScenarioActionConfig),
     /// Pose the scenario camera for a scripted shot (photo mode).
     SetCamera(SetCameraActionConfig),
@@ -397,10 +416,14 @@ pub fn apply_pending_skybox_swaps(
     }
 }
 
+/// Action that evaluates an expression and stores the result in a scenario
+/// variable.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct VariableSetActionConfig {
+    /// The scenario variable to write.
     pub key: String,
+    /// The expression evaluated (against the current variables) into that key.
     pub expression: VariableExpressionNode,
 }
 
@@ -420,9 +443,11 @@ impl EventAction<NovaEventWorld> for VariableSetActionConfig {
     }
 }
 
+/// Action that logs a message; an authoring/debugging aid with no game effect.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DebugMessageActionConfig {
+    /// The text to log.
     pub message: String,
 }
 
@@ -438,7 +463,9 @@ impl EventAction<NovaEventWorld> for DebugMessageActionConfig {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ScenarioOutcomeKind {
+    /// The player won: the overlay shows the gold VICTORY banner.
     Victory,
+    /// The player lost: the overlay shows the red DEFEAT banner.
     Defeat,
 }
 
@@ -517,10 +544,14 @@ pub const NEXT_SCENARIO_DELAY_WARN_SECS: f32 = 60.0;
 /// Runtime cap on the timed banner (same panic-proofing).
 pub const OUTCOME_AUTO_ADVANCE_MAX_SECS: f64 = 300.0;
 
+/// Action that queues a switch to another scenario.
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NextScenarioActionConfig {
+    /// The id of the scenario to switch to.
     pub scenario_id: String,
+    /// When true, defer the switch until something releases it (the
+    /// scenario-advance input or the outcome overlay's Continue/Retry).
     pub linger: bool,
     /// Delayed non-lingering switch (task 20260717-163050, user-directed):
     /// with `linger: false`, hold the cut for this many seconds while the
@@ -619,9 +650,11 @@ impl EventAction<NovaEventWorld> for StoryMessageActionConfig {
     }
 }
 
+/// Action that completes (removes) the HUD objective with the given id.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ObjectiveCompleteActionConfig {
+    /// The id of the objective to complete.
     pub id: String,
 }
 
@@ -637,6 +670,7 @@ impl EventAction<NovaEventWorld> for ObjectiveCompleteActionConfig {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DespawnScenarioObjectActionConfig {
+    /// The `EntityId` of the scoped object to despawn.
     pub id: String,
 }
 
@@ -697,6 +731,7 @@ impl EventAction<NovaEventWorld> for DespawnScenarioObjectActionConfig {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ObjectiveMarkerAttachActionConfig {
+    /// The `EntityId` of the scoped object the marker chip attaches to.
     pub target_id: String,
     /// The short name the marker chip shows next to the distance.
     pub label: String,
@@ -755,6 +790,7 @@ impl EventAction<NovaEventWorld> for ObjectiveMarkerAttachActionConfig {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ObjectiveMarkerDetachActionConfig {
+    /// The `EntityId` of the scoped object to detach the marker chip from.
     pub target_id: String,
 }
 
@@ -805,6 +841,7 @@ impl EventAction<NovaEventWorld> for ObjectiveMarkerDetachActionConfig {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HintEmphasisSetActionConfig {
+    /// The keybind-hint row to emphasize (one of `ROW_VERBS`).
     pub verb: String,
 }
 
@@ -841,6 +878,7 @@ impl EventAction<NovaEventWorld> for HintEmphasisSetActionConfig {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HintEmphasisClearActionConfig {
+    /// The keybind-hint row to clear (one of `ROW_VERBS`).
     pub verb: String,
 }
 
@@ -875,6 +913,7 @@ impl EventAction<NovaEventWorld> for HintEmphasisClearActionConfig {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SetSpeedCapActionConfig {
+    /// The `EntityId` of the scoped ship to cap.
     pub id: String,
     /// `Some(cap)` installs/updates the cap (u/s); `None` removes it.
     #[cfg_attr(
@@ -927,8 +966,11 @@ impl EventAction<NovaEventWorld> for SetSpeedCapActionConfig {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SetControllerVerbActionConfig {
+    /// The `EntityId` of the scoped ship whose controller sections to edit.
     pub id: String,
+    /// The flight verb (STOP/GOTO/ORBIT/LOCK/RCS) to toggle.
     pub verb: FlightVerb,
+    /// Whether the verb is enabled (true) or disabled (false).
     pub enabled: bool,
 }
 
@@ -996,22 +1038,34 @@ impl EventAction<NovaEventWorld> for SetControllerVerbActionConfig {
     }
 }
 
+/// A spawnable scenario object: the shared base (id, name, transform) plus the
+/// kind-specific config that picks what to spawn.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScenarioObjectConfig {
+    /// The shared base fields every scenario object carries.
     pub base: BaseScenarioObjectConfig,
+    /// Which kind of object to spawn and its per-kind config.
     pub kind: ScenarioObjectKind,
 }
 
+/// The fields every scenario object shares, regardless of kind: identity and
+/// initial pose.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BaseScenarioObjectConfig {
+    /// The object's scenario `EntityId`.
     pub id: String,
+    /// The object's display name.
     pub name: String,
+    /// The object's initial world position.
     pub position: Vec3,
+    /// The object's initial world rotation.
     pub rotation: Quat,
 }
 
+/// Build the shared bundle every scenario object spawns with: scoped marker,
+/// identity, interpolated transform, dynamic body, and visibility.
 pub fn base_scenario_object(config: &BaseScenarioObjectConfig) -> impl Bundle {
     (
         ScenarioScopedMarker,
@@ -2241,12 +2295,17 @@ mod tests {
     }
 }
 
+/// Which kind of scenario object to spawn, carrying that kind's config.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ScenarioObjectKind {
+    /// A destructible rock with a gravity well.
     Asteroid(AsteroidConfig),
+    /// A ship built from sections, with a controller (None/Player/AI).
     Spaceship(SpaceshipConfig),
+    /// A nav waypoint with an automatic HUD chip.
     Beacon(BeaconConfig),
+    /// A proximity pickup crate that fires `OnEnter` when flown through.
     SalvageCrate(SalvageCrateConfig),
 }
 
@@ -2292,13 +2351,22 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
 pub enum ScatterRegion {
     /// An axis-aligned box; each object is placed uniformly per-axis in
     /// `[min, max]`.
-    Box { min: Vec3, max: Vec3 },
+    Box {
+        /// The box's minimum corner.
+        min: Vec3,
+        /// The box's maximum corner.
+        max: Vec3,
+    },
     /// A horizontal annulus centred on the origin: uniform angle, radius in
     /// `[inner, outer]`, height in `[y_min, y_max]`.
     Ring {
+        /// The annulus inner radius.
         inner: f32,
+        /// The annulus outer radius.
         outer: f32,
+        /// The lower bound of the vertical (y) spread.
         y_min: f32,
+        /// The upper bound of the vertical (y) spread.
         y_max: f32,
     },
 }
@@ -2347,10 +2415,15 @@ impl ScatterRegion {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScatterObjectsConfig {
+    /// The id prefix each copy gets (`"{id_prefix}{i}"`).
     pub id_prefix: String,
+    /// How many copies to spawn.
     pub count: u32,
+    /// The RNG seed, so the layout is reproducible across loads.
     pub seed: u64,
+    /// The region copies are scattered within.
     pub region: ScatterRegion,
+    /// The template object each copy clones.
     pub template: ScenarioObjectConfig,
     /// If set and `template.kind` is an asteroid, randomize each rock's radius in
     /// this `[lo, hi]` range.
@@ -2397,13 +2470,20 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
     }
 }
 
+/// A spherical sensor zone that drives `OnEnter`/`OnExit` when a body crosses
+/// its boundary.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScenarioAreaConfig {
+    /// The area's scenario `EntityId` (the `id` reported by `OnEnter`/`OnExit`).
     pub id: String,
+    /// The area's display name.
     pub name: String,
+    /// The area's world position (sphere centre).
     pub position: Vec3,
+    /// The area's world rotation.
     pub rotation: Quat,
+    /// The sphere radius.
     pub radius: f32,
 }
 

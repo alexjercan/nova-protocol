@@ -14,10 +14,12 @@ use nova_gameplay::prelude::*;
 
 use crate::prelude::*;
 
+/// Glob-import surface: `use crate::objects::beacon::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{beacon_scenario_object, BeaconConfig, BeaconPlugin, BEACON_TYPE_NAME};
 }
 
+/// The scenario/modding RON type name for a beacon object.
 pub const BEACON_TYPE_NAME: &str = "beacon";
 
 /// The lock scanner sees a beacon like a well-sized rock: a nav point is
@@ -34,6 +36,9 @@ const BEACON_BLINK_PERIOD_SECS: f32 = 1.2;
 const BEACON_EMISSIVE_MAX: f32 = 60.0;
 const BEACON_EMISSIVE_MIN: f32 = 8.0;
 
+/// The scenario/modding RON surface for a nav beacon object: its HUD label,
+/// visual radius and color, and optional trigger-area and lock-signature
+/// overrides. Passed to [`beacon_scenario_object`] to build the beacon bundle.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BeaconConfig {
@@ -61,6 +66,9 @@ pub struct BeaconConfig {
     pub lock_signature: Option<f32>,
 }
 
+/// Build the beacon bundle from a [`BeaconConfig`]: a static, lockable marker
+/// body carrying the label, render config, and area radius the beacon observers
+/// read to wire the visual orb and (when authored) the trigger area at spawn.
 pub fn beacon_scenario_object(config: BeaconConfig) -> impl Bundle {
     debug!("beacon_scenario_object: config {:?}", config);
 
@@ -86,7 +94,9 @@ pub fn beacon_scenario_object(config: BeaconConfig) -> impl Bundle {
 #[derive(Component, Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BeaconRenderConfig {
+    /// Visual radius of the beacon orb (world units).
     pub radius: f32,
+    /// Beacon color (base and emissive).
     pub color: Color,
 }
 
@@ -99,7 +109,9 @@ pub struct BeaconAreaRadius(pub Option<f32>);
 /// does not strobe in unison).
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct BeaconBlink {
+    /// The emissive material the blink pulses.
     pub material: Handle<StandardMaterial>,
+    /// Per-beacon phase offset so a row of beacons does not strobe in unison.
     pub phase: f32,
 }
 
@@ -109,6 +121,7 @@ pub struct BeaconBlink {
 /// Adds the `Add<BeaconMarker>` area-setup observer unconditionally, and (when
 /// `render`) the render-insert observer plus the `Update` blink system.
 pub struct BeaconPlugin {
+    /// Whether to add the render-insert observer and blink system for the visible orb (false for headless tools).
     pub render: bool,
 }
 

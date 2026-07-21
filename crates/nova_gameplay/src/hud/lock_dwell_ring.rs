@@ -38,6 +38,7 @@ const RING_SOFTNESS: f32 = 0.05;
 /// arc doc).
 const RING_COLOR: LinearRgba = LinearRgba::new(1.0, 1.0, 1.0, 0.9);
 
+/// Glob-import surface: `use nova_gameplay::hud::lock_dwell_ring::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         lock_dwell_ring_hud, LockDwellRingHudMarker, LockDwellRingHudPlugin, LockDwellRingMarker,
@@ -49,6 +50,7 @@ pub mod prelude {
 /// `LockDwellRingMaterial` layout at `@group(1) @binding(0)`.
 #[derive(Asset, AsBindGroup, TypePath, Clone, Debug)]
 pub struct LockDwellRingMaterial {
+    /// The packed uniform bound at `@group(1) @binding(0)`.
     #[uniform(0)]
     pub data: LockDwellRingUniform,
 }
@@ -56,9 +58,13 @@ pub struct LockDwellRingMaterial {
 /// The packed uniform (straight-alpha colour + fill fraction + band geometry).
 #[derive(ShaderType, Clone, Debug)]
 pub struct LockDwellRingUniform {
+    /// Straight-alpha ring colour.
     pub color: LinearRgba,
+    /// Fill fraction, 0..1, that the ring sweeps clockwise as the lock-on dwell charges.
     pub progress: f32,
+    /// Inner radius of the ring band, as a fraction of the quad.
     pub inner: f32,
+    /// Edge softness (antialias width) of the band.
     pub softness: f32,
 }
 

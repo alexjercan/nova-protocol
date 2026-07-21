@@ -17,6 +17,7 @@ use bevy_common_systems::prelude::*;
 
 use crate::{flight::prelude::*, gravity::prelude::*};
 
+/// Glob-import surface: `use nova_gameplay::hud::velocity::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         velocity_hud, VelocityHudConfig, VelocityHudIndicatorMarker, VelocityHudMarker,
@@ -119,10 +120,15 @@ pub struct VelocityHudSphereMarker;
 /// components.
 #[derive(Clone, Debug)]
 pub struct VelocityHudConfig {
+    /// Orbit radius of the direction cone around the sphere.
     pub radius: f32,
+    /// Sphere shading sharpness.
     pub sharpness: f32,
+    /// The entity whose velocity (or gravity pull) the widget reads.
     pub target: Entity,
+    /// Which quantity the widget visualizes (linear velocity or gravity pull).
     pub source: VelocityHudSource,
+    /// Colour palette used for the cone and sphere.
     pub palette: VelocityHudPalette,
 }
 
@@ -138,6 +144,8 @@ impl Default for VelocityHudConfig {
     }
 }
 
+/// Builds the velocity-sphere widget bundle: an orbiting direction cone and
+/// shaded sphere driven by the target's velocity (or gravity pull).
 pub fn velocity_hud(config: VelocityHudConfig) -> impl Bundle {
     debug!("velocity_hud: config {:?}", config);
 
@@ -478,12 +486,17 @@ fn insert_velocity_hud_indicator_system(
     ));
 }
 
+/// Material extension for the orbiting direction cone: stretches it along the
+/// velocity axis by the current magnitude.
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone, Default)]
 pub struct DirectionMagnitudeMaterial {
+    /// The magnitude (speed) that drives the cone's stretch.
     #[uniform(100)]
     pub magnitude_input: f32,
+    /// Base radius of the cone.
     #[uniform(100)]
     pub radius: f32,
+    /// Maximum stretched height the cone reaches at full magnitude.
     #[uniform(100)]
     pub max_height: f32,
     #[cfg(target_arch = "wasm32")]
@@ -492,11 +505,13 @@ pub struct DirectionMagnitudeMaterial {
 }
 
 impl DirectionMagnitudeMaterial {
+    /// Sets the cone base radius (builder style).
     pub fn with_radius(mut self, radius: f32) -> Self {
         self.radius = radius;
         self
     }
 
+    /// Sets the cone's maximum stretched height (builder style).
     pub fn with_max_height(mut self, height: f32) -> Self {
         self.max_height = height;
         self
@@ -567,10 +582,14 @@ fn insert_velocity_hud_sphere_system(
     ));
 }
 
+/// Material extension for the shaded velocity sphere: shades it by direction
+/// with a configurable sharpness falloff.
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone, Default)]
 pub struct DirectionSphereMaterial {
+    /// Radius of the sphere.
     #[uniform(100)]
     pub radius: f32,
+    /// Directional-shading sharpness (falloff) of the sphere.
     #[uniform(100)]
     pub sharpness: f32,
     #[cfg(target_arch = "wasm32")]
@@ -582,11 +601,13 @@ pub struct DirectionSphereMaterial {
 }
 
 impl DirectionSphereMaterial {
+    /// Sets the sphere radius (builder style).
     pub fn with_radius(mut self, radius: f32) -> Self {
         self.radius = radius;
         self
     }
 
+    /// Sets the directional-shading sharpness (builder style).
     pub fn with_sharpness(mut self, sharpness: f32) -> Self {
         self.sharpness = sharpness;
         self

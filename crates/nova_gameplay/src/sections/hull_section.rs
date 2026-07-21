@@ -6,6 +6,7 @@ use crate::prelude::{
     AssetRef, RenderMeshTransform, SectionDamageClass, SectionRenderMeshTransform, SectionRenderOf,
 };
 
+/// Glob-import surface: `use nova_gameplay::sections::hull_section::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{hull_section, HullSectionConfig, HullSectionMarker, HullSectionPlugin};
 }
@@ -52,6 +53,7 @@ struct HullSectionRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
 /// A plugin that enables the HullSection component and its related systems.
 #[derive(Default)]
 pub struct HullSectionPlugin {
+    /// Whether to spawn the section's render mesh (false on headless servers).
     pub render: bool,
 }
 

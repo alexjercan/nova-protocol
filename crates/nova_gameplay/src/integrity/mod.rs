@@ -21,6 +21,7 @@ pub mod glue;
 #[cfg(test)]
 pub(crate) mod test_support;
 
+/// Glob-import surface: `use nova_gameplay::integrity::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{explode::prelude::*, NovaIntegrityPlugin};
 }

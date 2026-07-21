@@ -18,6 +18,7 @@ use nova_events::prelude::*;
 
 use crate::prelude::*;
 
+/// Glob-import surface: `use nova_gameplay::input::ai::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         AIBehaviorState, AIEngageGrace, AIEvade, AIFireCadence, AILeash, AIOrbitDirective,
@@ -42,6 +43,7 @@ pub struct AIEngageGrace {
 }
 
 impl AIEngageGrace {
+    /// Builds an arrival grace with `seconds` before the ship may engage.
     pub fn new(seconds: f32) -> Self {
         Self {
             timer: Timer::from_seconds(seconds, TimerMode::Once),

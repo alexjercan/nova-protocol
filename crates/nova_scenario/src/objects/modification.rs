@@ -18,6 +18,7 @@ use bevy::{ecs::system::EntityCommands, platform::collections::HashSet, prelude:
 use bevy_common_systems::prelude::Health;
 use nova_gameplay::prelude::{FlightVerb, WithheldVerbs};
 
+/// Glob-import surface: `use crate::objects::modification::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{SectionHealthOverride, SectionModification, SectionRename};
 }

@@ -12,6 +12,7 @@ use bevy::prelude::*;
 use super::{screen_indicator::prelude::*, HudTier, NAV_CYAN};
 use crate::prelude::*;
 
+/// Glob-import surface: `use nova_gameplay::hud::beacon_chips::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         BeaconChipHudMarker, BeaconChipLabelMarker, BeaconChipTargetEntity, BeaconChipsHudPlugin,

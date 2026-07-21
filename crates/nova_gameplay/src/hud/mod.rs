@@ -34,6 +34,7 @@ pub mod torpedo_target;
 pub mod turret_lead;
 pub mod velocity;
 
+/// Glob-import surface: `use nova_gameplay::hud::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         ammo_readout::prelude::*, beacon_chips::prelude::*, comms_panel::prelude::*,
@@ -47,6 +48,7 @@ pub mod prelude {
     };
 }
 
+/// System set that all HUD update systems belong to, for ordering against the rest of the app.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NovaHudSystems;
 
@@ -59,8 +61,11 @@ pub struct NovaHudSystems;
 #[reflect(Resource)]
 pub enum HudVisibility {
     #[default]
+    /// Everything: instruments plus chrome.
     All,
+    /// Flight and combat instruments only; chrome drops away.
     Minimal,
+    /// A clean screen for cinematic captures.
     None,
 }
 
@@ -131,6 +136,7 @@ pub(crate) const OBJECTIVE_GOLD: Color = nova_ui::theme::semantic::OBJECTIVE;
 /// marker. Populated by asset loading; read by the per-widget setup observers.
 #[derive(Resource, Clone, Default, Debug)]
 pub struct NovaHudAssets {
+    /// The shared target-reticle sprite (lock crosshairs, torpedo reticle, destination marker).
     pub target_sprite: Handle<Image>,
 }
 

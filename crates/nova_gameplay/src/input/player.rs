@@ -21,6 +21,7 @@ use super::targeting::{
 };
 use crate::prelude::*;
 
+/// Glob-import surface: `use nova_gameplay::input::player::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         binding_label, binding_source, flight_rig_reserved_sources, FlightVerbHints, InputSource,
@@ -111,9 +112,13 @@ const HOLD_FIRE_DURING_RADAR: bool = false;
 #[derive(Resource, Clone, Debug, Default, PartialEq, Reflect)]
 #[reflect(Resource)]
 pub struct FlightVerbHints {
+    /// The STOP verb hint (flip retrograde and burn to rest).
     pub stop: VerbHint,
+    /// The GOTO verb hint (fly to the current nav lock).
     pub goto: VerbHint,
+    /// The ORBIT verb hint (park into orbit around a gravity well).
     pub orbit: VerbHint,
+    /// The CANCEL verb hint (disengage the autopilot, resume manual).
     pub cancel: VerbHint,
     /// Component fine-lock cycle (plain scroll). The key label is the fixed
     /// string "SCROLL" - a wheel binding has no keyboard label to read.
@@ -183,8 +188,11 @@ pub fn binding_label(bindings: &[Binding]) -> String {
 /// content `input_mapping` must not create against the always-on flight rig.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum InputSource {
+    /// A keyboard key.
     Keyboard(KeyCode),
+    /// A mouse button.
     Mouse(MouseButton),
+    /// A gamepad button.
     Gamepad(GamepadButton),
 }
 

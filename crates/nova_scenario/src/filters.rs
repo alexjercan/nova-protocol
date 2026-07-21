@@ -4,17 +4,24 @@ use nova_events::prelude::*;
 
 use crate::prelude::*;
 
+/// Glob-import surface: `use nova_scenario::filters::prelude::*` brings the
+/// scenario filter config types into scope.
 pub mod prelude {
     pub use super::{
         ConditionalFilterConfig, EntityFilterConfig, EventFilterConfig, ExpressionFilterConfig,
     };
 }
 
+/// A filter that gates a handler: every filter on a handler must pass for its
+/// actions to run. The RON `filters` list is a list of these variants.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum EventFilterConfig {
+    /// Match the event's primary entity and its other party by id/type name.
     Entity(EntityFilterConfig),
+    /// Combine other filters with `Not` / `And` / `Or`.
     Conditional(ConditionalFilterConfig),
+    /// Evaluate a variable condition against the scenario variables.
     Expression(ExpressionFilterConfig),
 }
 
@@ -28,24 +35,31 @@ impl EventFilter<NovaEventWorld> for EventFilterConfig {
     }
 }
 
+/// Match the event's primary entity and its other party by id and/or type
+/// name; every set field must match, unset fields match any.
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct EntityFilterConfig {
+    /// Match the event's primary entity by its `EntityId`; unset matches any.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub id: Option<String>,
+    /// Match the primary entity by its `EntityTypeName`; unset matches any.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub type_name: Option<String>,
+    /// Match the other party's `EntityId` (which entity is "other" is
+    /// per-event); unset matches any.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub other_id: Option<String>,
+    /// Match the other party's `EntityTypeName`; unset matches any.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
@@ -118,23 +132,30 @@ impl EventFilter<NovaEventWorld> for EntityFilterConfig {
     }
 }
 
+/// Combine other filters with boolean logic: `Not` / `And` / `Or`.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ConditionalFilterConfig {
+    /// Passes when the inner filter does not.
     Not(Box<EventFilterConfig>),
+    /// Passes when either inner filter passes.
     Or(Box<EventFilterConfig>, Box<EventFilterConfig>),
+    /// Passes when both inner filters pass.
     And(Box<EventFilterConfig>, Box<EventFilterConfig>),
 }
 
 impl ConditionalFilterConfig {
+    /// Build a `Not` combinator over one inner filter.
     pub fn not(inner: EventFilterConfig) -> Self {
         ConditionalFilterConfig::Not(Box::new(inner))
     }
 
+    /// Build an `Or` combinator over two inner filters.
     pub fn or(left: EventFilterConfig, right: EventFilterConfig) -> Self {
         ConditionalFilterConfig::Or(Box::new(left), Box::new(right))
     }
 
+    /// Build an `And` combinator over two inner filters.
     pub fn and(left: EventFilterConfig, right: EventFilterConfig) -> Self {
         ConditionalFilterConfig::And(Box::new(left), Box::new(right))
     }
@@ -154,6 +175,8 @@ impl EventFilter<NovaEventWorld> for ConditionalFilterConfig {
     }
 }
 
+/// Evaluate a [`VariableConditionNode`] against the scenario variables; passes
+/// when it yields true, and fails closed (false) on an evaluation error.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExpressionFilterConfig(pub VariableConditionNode);

@@ -9,6 +9,7 @@ use crate::prelude::{
     SectionRenderMeshTransform, SectionRenderOf,
 };
 
+/// Glob-import surface: `use nova_gameplay::sections::controller_section::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         controller_section, preview_controller_section, ControllerSectionConfig,
@@ -264,6 +265,7 @@ pub struct ControllerSectionRotationInput(pub Quat);
 /// A plugin that will enable the ControllerSection.
 #[derive(Default)]
 pub struct ControllerSectionPlugin {
+    /// Whether to spawn the section's render mesh (false on headless servers).
     pub render: bool,
 }
 

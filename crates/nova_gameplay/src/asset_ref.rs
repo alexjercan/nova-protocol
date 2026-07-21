@@ -14,6 +14,7 @@
 
 use bevy::prelude::*;
 
+/// Glob-import surface: `use nova_gameplay::asset_ref::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::AssetRef;
 }

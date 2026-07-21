@@ -27,6 +27,7 @@ use super::{
 };
 use crate::{flight::prelude::*, gravity::prelude::*, input::prelude::*};
 
+/// Glob-import surface: `use nova_gameplay::hud::maneuver_instruments::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{
         maneuver_instruments_hud, ManeuverInstrumentsHudConfig, ManeuverInstrumentsHudMarker,
@@ -93,6 +94,7 @@ pub struct OrbitRingMarker {
 /// [`maneuver_instruments_hud`].
 #[derive(Clone, Debug)]
 pub struct ManeuverInstrumentsHudConfig {
+    /// The ship whose engaged maneuver the instruments show.
     pub ship: Entity,
 }
 

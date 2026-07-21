@@ -21,6 +21,7 @@ pub struct NovaEventWorld {
     /// with the rest of the event world.
     story_messages: Vec<StoryMessageActionConfig>,
     variables: HashMap<String, VariableLiteral>,
+    /// The queued scenario switch, if a `NextScenario` action has requested one.
     pub next_scenario: Option<NextScenarioActionConfig>,
     /// The delayed non-lingering cut's clock (task 20260717-163050): armed
     /// by the NextScenario action, ticked by `state_to_world_system` on
@@ -177,6 +178,8 @@ impl EventWorld for NovaEventWorld {
 }
 
 impl NovaEventWorld {
+    /// Reset all scenario state (variables, objectives, story log, queued
+    /// commands, and any pending switch) at scenario teardown.
     pub fn clear(&mut self) {
         // Undrained commands die with the scenario. Legitimate on teardown,
         // but it is also how an `Outcome` composed with an INSTANT switch
@@ -196,6 +199,8 @@ impl NovaEventWorld {
         self.next_scenario_delay = None;
     }
 
+    /// Defer a closure that needs real Bevy world access; it runs at frame end
+    /// when `state_to_world_system` drains the queue, in push order.
     pub fn push_command<F>(&mut self, f: F)
     where
         F: FnOnce(&mut Commands) + Send + Sync + 'static,
@@ -208,6 +213,7 @@ impl NovaEventWorld {
         self.story_messages.push(message);
     }
 
+    /// Add a HUD objective; warns if one with the same id is already active.
     pub fn push_objective(&mut self, objective: ObjectiveActionConfig) {
         if self.objectives.iter().any(|obj| obj.id == objective.id) {
             warn!(
@@ -220,6 +226,8 @@ impl NovaEventWorld {
         self.objectives.push(objective);
     }
 
+    /// Remove (complete) the HUD objective with the given id; warns if none is
+    /// active under that id.
     pub fn remove_objective(&mut self, id: &str) {
         let before = self.objectives.len();
         self.objectives.retain(|obj| obj.id != id);
@@ -254,10 +262,12 @@ impl NovaEventWorld {
         }
     }
 
+    /// Set a scenario variable, overwriting any existing value under `key`.
     pub fn insert_variable(&mut self, key: String, value: VariableLiteral) {
         self.variables.insert(key, value);
     }
 
+    /// Read a scenario variable by key, or `None` if it is unset.
     pub fn get_variable(&self, key: &str) -> Option<&VariableLiteral> {
         self.variables.get(key)
     }

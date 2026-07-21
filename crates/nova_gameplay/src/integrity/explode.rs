@@ -17,6 +17,7 @@ use rand::RngExt;
 
 use crate::prelude::SectionMarker;
 
+/// Glob-import surface: `use nova_gameplay::integrity::explode::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{ExplodableEntity, MeshFragmentMarker};
 }

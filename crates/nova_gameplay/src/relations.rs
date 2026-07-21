@@ -11,6 +11,7 @@
 
 use bevy::prelude::*;
 
+/// Glob-import surface: `use nova_gameplay::relations::prelude::*` re-exports the public API of this module.
 pub mod prelude {
     pub use super::{relation, Allegiance, NovaRelationsPlugin, Relation};
 }
@@ -24,8 +25,11 @@ pub mod prelude {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[reflect(Component)]
 pub enum Allegiance {
+    /// The player's side.
     Player,
+    /// The hostile AI side.
     Enemy,
+    /// Unaligned: bystanders and scripted haulers, hostile to no one.
     Neutral,
 }
 
