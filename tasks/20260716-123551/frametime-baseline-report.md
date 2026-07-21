@@ -160,6 +160,16 @@ frames). Three things:
    occasional hitch, plausibly asset streaming or a particle-system init, that
    the Low run does not show. Worth a glance but a single-frame event, not a
    sustained cost.
+   > INVESTIGATED + DEFERRED (task 20260718-004856, 2026-07-21): named cause is
+   > first-particle-use init - the first turret muzzle fire in broadside spawns
+   > the first `bevy_hanabi` effect, whose pipeline/effect compiles once (a
+   > one-time GPU cost), matching the High-only, single-frame signature (Low is
+   > spawn-less, so no particles, so clean). Not chased further: task 20260719-233732
+   > made `broadside` fps-EXEMPT, so the probe no longer measures its frame times
+   > and this tail cannot be re-traced via the harness - the measurement source is
+   > retired, not the physics. Re-open with a fresh trace (and a preload fix) ONLY
+   > if a playtester reports a visible stall on first fire. Do not re-open this
+   > finding from scratch.
 
 ### Graphics-preset delta (Low vs High, same rig)
 
