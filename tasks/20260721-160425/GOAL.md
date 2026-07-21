@@ -47,7 +47,10 @@ green. Full cargo test/clippy stay in CI per repo policy (AGENTS.md).
       missing visibility pin); verdict: the hide premise was NEVER true -
       asteroid_field was the original New Game scenario; unhidden + pinned.
       Follow-up filed outside this goal: 20260721-163942 (CI fmt gate).
-- [ ] 20260721-160906 (p55, nova-protocol) harness-prove ally allegiance + orbit-directive guards (ch3 mechanisms)
+- [x] 20260721-160906 (p55, nova-protocol) harness-prove ally allegiance + orbit-directive guards (ch3 mechanisms)
+      landed 16509993; 1 review round (APPROVE, no findings); verdict PRIMARY:
+      ally convoy + orbit picket both proven, no fallback needed - Lifeline
+      and Final Tally build the spike's primary variants.
 - [ ] 20260721-160929 (p54, nova-protocol) base chain voice pass (StoryMessage comms, hauler-survival flavor)
 - [ ] 20260721-160957 (p53, nova-protocol) Lifeline (ch3a): convoy defense + gunship chain hook + picker wiring
 - [ ] 20260721-161020 (p52, nova-protocol) Final Tally (ch3b): gravity-well anchorage finale + campaign ending
