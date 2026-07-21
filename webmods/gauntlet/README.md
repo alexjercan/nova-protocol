@@ -4,12 +4,18 @@ The first PORTAL mod: published to the static mod portal by `scripts/gen-portal.
 NOT shipped inside the game's `assets/`. A mod is the same shape as the base
 game: a folder with a `*.bundle.ron` manifest listing its `*.content.ron` files.
 
-This mod adds one scenario, `gauntlet_run` - a parkour course (currently v1.2.0;
+This mod adds one scenario, `gauntlet_run` - a parkour course (currently v1.3.0;
 grown from a thin four-gate slalom in v1.0.0): six ordered gates across three escalating acts
 (warmup / slalom / hazard), invulnerable asteroids crowding the racing line, and
 an act-3 gravity well to sling or avoid. Crossing FINISH declares Victory;
 wrecking your hull on the rocks declares Defeat with a Retry. Pure flying skill,
-no combat. It is also the WORKED EXAMPLE for the two scenario-authoring idioms
+no combat. Since v1.3.0 it is a TIME-TRIAL: a live `mm:ss.s` run clock (a
+`HudReadout` on the engine `scenario_elapsed` clock) shows from the START gate and
+freezes at your final time behind the Victory banner, and a CLEAN-RUN bonus
+recognizes a flawless run - hazard-zone grazes bump a `crash` counter, and
+crossing FINISH clean (`crash == 0`) earns a CLEAN RUN banner where a grazed run
+gets the plain finish (two `crash`-gated `Outcome(Victory)` handlers). The clock
+resets on retry via `scenario_elapsed`. It is also the WORKED EXAMPLE for the two scenario-authoring idioms
 both shipped mods rely on: the gate-counter ordering pattern (the `gate` counter
 + `Equal(gate, N)` expression filters that force the gates to be threaded in
 order) and the act-gating pattern (the FINISH handler bumps `gate` to a terminal

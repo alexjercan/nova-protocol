@@ -12,6 +12,14 @@ tagged **(breaking)**.
 
 ## [Unreleased]
 
+### Scenarios & Objectives
+
+- New `HudReadout` scenario action: show a scenario VARIABLE on the HUD - the display half of the variable vocabulary, usable by any mod. A named `slot` binds a `variable` (read live every frame), with a `format` (`Number` one-decimal, `Integer` rounded, or `Time` as `mm:ss.s`), an optional `label`, and `visible` to show or clear it. It renders as an Instrument-tier top-center readout, freezes on pause and behind the outcome overlay (the bound variable stops), and clears at scenario teardown so it cannot leak into the next scenario or the menu. One fire is enough for a live readout. Documented in the scenario action reference and the authoring guide.
+
+### Modding & Mod Portal
+
+- Gauntlet Run is now a TIME-TRIAL (bundle 1.3.0): a live `mm:ss.s` run clock (a `HudReadout` on the engine `scenario_elapsed` clock) shows from the START gate and freezes at the final time behind the Victory banner, and a clean-run bonus - hazard-zone grazes bump a `crash` counter, and crossing FINISH clean (`crash == 0`) earns a CLEAN RUN banner where a grazed run gets the plain finish. Both branches are gated `Outcome(Victory)` handlers, no new engine machinery beyond the readout. `scenario_elapsed` resets on retry, so the clock does too.
+
 ### Internals & Tooling
 
 - `content lint` is now the single content-validation command: the balance `audit` subcommand was folded into it (balance is a kind of lint), so one pass runs the reference/geometry checks, the combat balance/fairness audit (with the `balance_acks.ron` acknowledgment mechanism, and a stale ack now an ERROR) and a new flight-rig INPUT-OVERLAP check that flags a content `input_mapping` section bound to a key the always-on flight rig also drives (W/Space/RightTrigger burn, autopilot, ...) - the silent double-drive behind the 10_playable "guns on Space" regression. `lint --target <mod> --report <path>` writes a per-mod document (Markdown, or HTML for a `.html` path / `--format html`) that pinpoints, for every finding, the source file + offending element + explanation + suggested fix. Old `content audit` invocations become `content lint`.

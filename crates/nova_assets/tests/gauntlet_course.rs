@@ -177,6 +177,34 @@ fn seed_gate(app: &mut App, value: f64) {
         .insert_variable("gate".to_string(), VariableLiteral::Number(value));
 }
 
+/// Seed the clean-run counter the way OnStart does (the harness bypasses
+/// OnStart, so a FINISH test that exercises the crash-gated Victory branches
+/// must set `crash` itself - an unset variable would fail both gates closed).
+fn seed_crash(app: &mut App, value: f64) {
+    app.world_mut()
+        .resource_mut::<NovaEventWorld>()
+        .insert_variable("crash".to_string(), VariableLiteral::Number(value));
+}
+
+fn crash_var(app: &App) -> Option<f64> {
+    match app
+        .world()
+        .resource::<NovaEventWorld>()
+        .get_variable("crash")
+    {
+        Some(VariableLiteral::Number(n)) => Some(*n),
+        _ => None,
+    }
+}
+
+fn outcome_message(app: &App) -> Option<String> {
+    app.world()
+        .resource::<CurrentOutcome>()
+        .0
+        .as_ref()
+        .and_then(|outcome| outcome.message.clone())
+}
+
 fn register_non_start_handlers(app: &mut App, scenario: &ScenarioConfig) {
     for event in scenario
         .events
@@ -445,11 +473,13 @@ fn gates_advance_only_in_order() {
 // --- Behavior: FINISH wins, a wreck loses, a post-win wreck does neither -----
 
 #[test]
-fn crossing_finish_declares_victory() {
+fn crossing_finish_clean_declares_the_clean_run_victory() {
     let scenario = scenario();
     let mut app = course_app();
     register_non_start_handlers(&mut app, &scenario);
     seed_gate(&mut app, 7.0);
+    // A clean run: zero grazes recorded (OnStart seeds this in production).
+    seed_crash(&mut app, 0.0);
 
     app.update();
     assert_eq!(outcome_kind(&app), None, "no outcome before the finish");
@@ -461,11 +491,112 @@ fn crossing_finish_declares_victory() {
         "crossing FINISH declares Victory"
     );
     assert!(
+        outcome_message(&app)
+            .unwrap_or_default()
+            .contains("CLEAN RUN"),
+        "a zero-crash finish earns the CLEAN RUN banner, got {:?}",
+        outcome_message(&app)
+    );
+    assert!(
         app.world()
             .resource::<NovaEventWorld>()
             .next_scenario
             .is_none(),
         "a clean run queues nothing - the overlay offers Main Menu"
+    );
+}
+
+/// A finish WITH grazes takes the other gated Victory branch: still a win, but
+/// the plain banner (no CLEAN RUN). The clean test above is this test's
+/// delivery guard - the two branches are mutually exclusive on `crash`.
+#[test]
+fn crossing_finish_grazed_declares_the_plain_victory() {
+    let scenario = scenario();
+    let mut app = course_app();
+    register_non_start_handlers(&mut app, &scenario);
+    seed_gate(&mut app, 7.0);
+    // Grazed at least one hazard on the way.
+    seed_crash(&mut app, 2.0);
+
+    enter(&mut app, "gauntlet_finish", "player_spaceship");
+    assert_eq!(
+        outcome_kind(&app),
+        Some(ScenarioOutcomeKind::Victory),
+        "a grazed finish still wins"
+    );
+    let message = outcome_message(&app).unwrap_or_default();
+    assert!(
+        !message.contains("CLEAN RUN"),
+        "a grazed finish must NOT claim a clean run, got {message:?}"
+    );
+}
+
+/// Flying through a hazard graze zone bumps the clean-run counter; the same
+/// zone re-counts on a fresh entry (the intended fly-clean pressure).
+#[test]
+fn a_graze_zone_bumps_the_crash_counter() {
+    let scenario = scenario();
+    let mut app = course_app();
+    register_non_start_handlers(&mut app, &scenario);
+    seed_gate(&mut app, 3.0);
+    seed_crash(&mut app, 0.0);
+
+    enter(&mut app, "graze_slalom", "player_spaceship");
+    assert_eq!(crash_var(&app), Some(1.0), "a graze bumps crash");
+    enter(&mut app, "graze_slalom", "player_spaceship");
+    assert_eq!(
+        crash_var(&app),
+        Some(2.0),
+        "re-entering the same zone re-counts"
+    );
+
+    // A graze after the finish (gate == 8) cannot un-clean an earned win.
+    seed_gate(&mut app, 8.0);
+    enter(&mut app, "graze_slalom", "player_spaceship");
+    assert_eq!(
+        crash_var(&app),
+        Some(2.0),
+        "a post-finish graze is gated out (gate < 8)"
+    );
+}
+
+/// The RUN TIMER wiring: OnStart shows a HudReadout on the engine clock,
+/// formatted mm:ss.s, from the very start - the display half the time-trial
+/// needs. Pins the slot, the bound variable, the format, and that it is shown.
+#[test]
+fn on_start_shows_the_run_timer_on_the_scenario_clock() {
+    let scenario = scenario();
+    let start = on_start(&scenario);
+    let timer = start
+        .actions
+        .iter()
+        .find_map(|a| match a {
+            EventActionConfig::HudReadout(cfg) => Some(cfg),
+            _ => None,
+        })
+        .expect("OnStart shows a HudReadout timer");
+    assert_eq!(
+        timer.variable, "scenario_elapsed",
+        "the timer is bound to the engine scenario clock"
+    );
+    assert_eq!(
+        timer.format,
+        HudReadoutFormat::Time,
+        "the timer renders as mm:ss.s"
+    );
+    assert!(timer.visible, "the timer is shown, not cleared");
+    // And the clean-run counter is seeded so the clean gate is satisfiable.
+    let seeds: Vec<&str> = start
+        .actions
+        .iter()
+        .filter_map(|a| match a {
+            EventActionConfig::VariableSet(v) => Some(v.key.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        seeds.contains(&"crash"),
+        "OnStart seeds the clean-run counter"
     );
 }
 
@@ -537,8 +668,8 @@ fn on_start_spawns_the_full_gate_run() {
 #[test]
 fn bundle_ships_the_bumped_version() {
     assert!(
-        GAUNTLET_BUNDLE_RON.contains("version: \"1.2.0\""),
-        "the bundle is bumped to 1.2.0 for the republish"
+        GAUNTLET_BUNDLE_RON.contains("version: \"1.3.0\""),
+        "the bundle is bumped to 1.3.0 for the time-trial republish"
     );
     assert!(
         GAUNTLET_BUNDLE_RON.contains("gauntlet.content.ron"),

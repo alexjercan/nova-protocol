@@ -20,6 +20,12 @@ pub struct NovaEventWorld {
     /// 20260716-183220). Append-only within a scenario; cleared at teardown
     /// with the rest of the event world.
     story_messages: Vec<StoryMessageActionConfig>,
+    /// The scenario's active HUD readouts, in authored order (task
+    /// 20260716-174729). Upserted/cleared by slot via the `HudReadout` action;
+    /// the sync copies each one's CURRENT bound-variable value into the HUD's
+    /// [`HudReadouts`] resource every frame. Cleared at teardown with the rest
+    /// of the event world.
+    hud_readouts: Vec<HudReadoutActionConfig>,
     variables: HashMap<String, VariableLiteral>,
     /// The queued scenario switch, if a `NextScenario` action has requested one.
     pub next_scenario: Option<NextScenarioActionConfig>,
@@ -81,6 +87,61 @@ impl EventWorld for NovaEventWorld {
                         dwell: m.dwell,
                     })
                     .collect();
+            }
+        }
+
+        // Copy the active HUD readouts into the HUD's HudReadouts resource
+        // (nova_gameplay), each with its bound variable's CURRENT value read off
+        // the event world THIS frame (task 20260716-174729). Unlike the story
+        // log this is NOT append-only: the value tracks a live variable (the
+        // scenario clock ticks while the scenario is live), so the set is rebuilt
+        // each frame the sync runs rather than write-on-diff. Under the outcome/
+        // pause freeze the clock stops advancing and the sync stops re-running,
+        // so the last value latches and the row PERSISTS at the final time (this
+        // is how "final time on Victory" holds). The render side updates its
+        // rows' text in place, so the resource write costs no entity churn. Guarded on
+        // the resource existing so event-world rigs without the HUD half keep
+        // working. An empty set (teardown or all readouts cleared) drops every
+        // row - the same leak pin as the comms feed.
+        let readouts: Vec<(HudReadoutActionConfig, f64)> = {
+            let this = world.resource::<Self>();
+            this.hud_readouts
+                .iter()
+                .map(|readout| {
+                    let value = match this.variables.get(&readout.variable) {
+                        Some(VariableLiteral::Number(n)) => *n,
+                        // An undefined or non-numeric variable reads as 0.0,
+                        // the same fail-closed default as scenario_elapsed
+                        // before its first tick - a readout shown before its
+                        // variable exists prints a zero, not garbage.
+                        _ => 0.0,
+                    };
+                    (readout.clone(), value)
+                })
+                .collect()
+        };
+        if let Some(mut hud_readouts) = world.get_resource_mut::<HudReadouts>() {
+            let next: Vec<HudReadoutEntry> = readouts
+                .into_iter()
+                .map(|(readout, value)| HudReadoutEntry {
+                    slot: readout.slot,
+                    label: readout.label,
+                    format: match readout.format {
+                        crate::actions::HudReadoutFormat::Number => {
+                            nova_gameplay::hud::readout::HudReadoutFormat::Number
+                        }
+                        crate::actions::HudReadoutFormat::Integer => {
+                            nova_gameplay::hud::readout::HudReadoutFormat::Integer
+                        }
+                        crate::actions::HudReadoutFormat::Time => {
+                            nova_gameplay::hud::readout::HudReadoutFormat::Time
+                        }
+                    },
+                    value,
+                })
+                .collect();
+            if hud_readouts.0 != next {
+                hud_readouts.0 = next;
             }
         }
 
@@ -194,6 +255,7 @@ impl NovaEventWorld {
         self.queued_commands.clear();
         self.objectives.clear();
         self.story_messages.clear();
+        self.hud_readouts.clear();
         self.variables.clear();
         self.next_scenario = None;
         self.next_scenario_delay = None;
@@ -211,6 +273,30 @@ impl NovaEventWorld {
     /// Append a story line for the comms panel (see `StoryMessageActionConfig`).
     pub fn push_story_message(&mut self, message: StoryMessageActionConfig) {
         self.story_messages.push(message);
+    }
+
+    /// Show, update, or clear a HUD readout by slot (see
+    /// `HudReadoutActionConfig`). A `visible: true` config upserts the slot
+    /// (keeping authored order for a fresh slot, replacing config in place for
+    /// an existing one); a `visible: false` config removes it. The sync then
+    /// mirrors the active set - with each readout's live variable value - into
+    /// the HUD's `HudReadouts` resource.
+    pub fn set_hud_readout(&mut self, config: HudReadoutActionConfig) {
+        match self
+            .hud_readouts
+            .iter_mut()
+            .find(|existing| existing.slot == config.slot)
+        {
+            Some(existing) if config.visible => *existing = config,
+            Some(_) => self.hud_readouts.retain(|r| r.slot != config.slot),
+            None if config.visible => self.hud_readouts.push(config),
+            None => {
+                debug!(
+                    "set_hud_readout: clear of unknown slot '{}' ignored",
+                    config.slot
+                );
+            }
+        }
     }
 
     /// Add a HUD objective; warns if one with the same id is already active.

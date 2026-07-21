@@ -659,6 +659,55 @@
                         key: "gate",
                         expression: Term(Factor(Literal(Number(1.0)))),
                     )),
+                    // Clean-run counter: every hazard-zone graze bumps `crash`.
+                    // At FINISH, crash == 0 earns the CLEAN RUN banner; crash > 0
+                    // gets the plain finish. Seeded to 0 so the clean gate is
+                    // satisfiable from the first frame (a filter on an unset
+                    // variable fails closed).
+                    VariableSet((
+                        key: "crash",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    // The RUN TIMER (task 20260716-174729): show the engine
+                    // scenario clock on the HUD from the START gate, formatted
+                    // mm:ss.s. One fire is enough - the readout tracks
+                    // `scenario_elapsed` live every frame, freezes on pause and
+                    // behind the Victory overlay (the clock stops there), so the
+                    // FINAL time simply holds on screen at FINISH. `scenario_elapsed`
+                    // resets on retry (v0.7.0 semantics), so the clock restarts too.
+                    HudReadout((
+                        slot: "run_timer",
+                        variable: "scenario_elapsed",
+                        format: Time,
+                        label: Some("TIME"),
+                    )),
+                    // Hazard grazes: sensor spheres around the tightest rocks and
+                    // the gravity well, a touch wider than each body, so clipping
+                    // one (a sloppy line) counts as a crash without needing an
+                    // actual hull hit. Entering a zone bumps `crash`; OnExit is
+                    // ignored, so re-entering the SAME zone re-counts (a genuine
+                    // second graze), which is the intended "fly clean" pressure.
+                    CreateScenarioArea((
+                        id: "graze_slalom",
+                        name: "Slalom Graze Zone",
+                        position: (30.0, 24.0, -238.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        radius: 16.0,
+                    )),
+                    CreateScenarioArea((
+                        id: "graze_hazard",
+                        name: "Hazard Graze Zone",
+                        position: (38.0, 10.0, -405.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        radius: 18.0,
+                    )),
+                    CreateScenarioArea((
+                        id: "graze_well",
+                        name: "Planetoid Graze Zone",
+                        position: (-58.0, 12.0, -490.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        radius: 30.0,
+                    )),
                     Objective((
                         id: "gate_1",
                         message: "Thread GATE 1. Hold [W] to burn, tap [G] to GOTO the marked gate.",
@@ -832,6 +881,11 @@
                     )),
                 ],
             ),
+            // FINISH bookkeeping: complete the objective, detach the marker,
+            // and bump `gate` to the terminal 8 so no OnEnter re-fires and the
+            // player-death Defeat handler (gated gate < 8) can never flip an
+            // earned Victory to Defeat. The TWO Outcome events below are gated on
+            // `crash` and fire in the same pulse - exactly one of them matches.
             (
                 name: OnEnter,
                 filters: [
@@ -848,20 +902,134 @@
                     ObjectiveComplete((id: "finish")),
                     ObjectiveMarkerDetach((target_id: "gauntlet_finish")),
                     HintEmphasisClear((verb: "GOTO")),
-                    // Terminal: bump past the last gate so no OnEnter re-fires
-                    // AND the player-death Defeat handler (gated gate < 8) can
-                    // never flip an earned Victory to Defeat.
                     VariableSet((
                         key: "gate",
                         expression: Term(Factor(Literal(Number(8.0)))),
                     )),
                     Objective((
                         id: "course_done",
-                        message: "Course complete - clean flying, pilot.",
+                        message: "Course complete - check your time.",
                     )),
+                ],
+            ),
+            // CLEAN RUN: crossed FINISH (gate now 8) with zero grazes. The
+            // frozen TIME readout still shows the final time behind the banner;
+            // the banner just calls out the clean run.
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("gauntlet_finish"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                    Expression((Equal(
+                        Term(Factor(Name("crash"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
                     Outcome((
                         outcome: Victory,
-                        message: Some("You ran the gauntlet clean. The belt keeps its rocks; you keep your paint."),
+                        message: Some("CLEAN RUN. Not a scratch on the belt - your time stands on the clock."),
+                    )),
+                ],
+            ),
+            // Finished, but grazed at least one hazard: a plain finish. The
+            // frozen TIME readout still shows the final time behind the banner.
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("gauntlet_finish"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                    Expression((GreaterThan(
+                        Term(Factor(Name("crash"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("You ran the gauntlet. You kissed the rocks on the way - your time stands, but fly it clean next run."),
+                    )),
+                ],
+            ),
+            // Hazard grazes: entering a graze zone bumps the clean-run counter.
+            // Gated gate < 8 so a graze AFTER the finish cannot un-clean a run
+            // that already won. Each zone re-counts on re-entry (OnEnter fires
+            // fresh), which is the intended pressure to fly clean.
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("graze_slalom"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "crash",
+                        expression: Add(
+                            Factor(Name("crash")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("graze_hazard"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "crash",
+                        expression: Add(
+                            Factor(Name("crash")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                filters: [
+                    Entity((
+                        id: Some("graze_well"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                    Expression((LessThan(
+                        Term(Factor(Name("gate"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "crash",
+                        expression: Add(
+                            Factor(Name("crash")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
                     )),
                 ],
             ),

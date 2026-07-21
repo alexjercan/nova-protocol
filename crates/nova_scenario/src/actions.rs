@@ -18,7 +18,8 @@ pub mod prelude {
     pub use super::{
         apply_pending_skybox_swaps, base_scenario_object, BaseScenarioObjectConfig, CurrentOutcome,
         DebugMessageActionConfig, DespawnScenarioObjectActionConfig, EventActionConfig,
-        HintEmphasisClearActionConfig, HintEmphasisSetActionConfig, NextScenarioActionConfig,
+        HintEmphasisClearActionConfig, HintEmphasisSetActionConfig, HudReadoutActionConfig,
+        HudReadoutFormat, NextScenarioActionConfig,
         ObjectiveActionConfig, ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
         ObjectiveMarkerDetachActionConfig, OutcomeActionConfig, PendingSkyboxSwap,
         ScatterObjectsConfig, ScatterRegion, ScenarioAreaConfig, ScenarioObjectConfig,
@@ -75,6 +76,9 @@ pub enum EventActionConfig {
     /// Speaker-attributed story text, rendered by the HUD comms panel (the
     /// story-campaign vocabulary; task 20260716-183220).
     StoryMessage(StoryMessageActionConfig),
+    /// Show (or clear) a named HUD readout bound to a scenario variable - the
+    /// display half of the scenario-variable vocabulary (task 20260716-174729).
+    HudReadout(HudReadoutActionConfig),
 }
 
 impl EventAction<NovaEventWorld> for EventActionConfig {
@@ -138,6 +142,9 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
                 config.action(world, info);
             }
             EventActionConfig::StoryMessage(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::HudReadout(config) => {
                 config.action(world, info);
             }
         }
@@ -650,6 +657,98 @@ impl EventAction<NovaEventWorld> for StoryMessageActionConfig {
     }
 }
 
+/// How a [`HudReadoutActionConfig`] renders its bound variable on the HUD. Maps
+/// one-to-one onto nova_gameplay's `HudReadoutFormat` at sync time (the HUD
+/// cannot depend on nova_scenario, so the enum is mirrored, the same split as
+/// `StoryMessageActionConfig` -> `StoryLine`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum HudReadoutFormat {
+    /// One decimal place, e.g. `12.3`.
+    Number,
+    /// No decimals (rounded), e.g. `12`.
+    Integer,
+    /// Minutes and seconds, `mm:ss.s` (e.g. `01:23.4`) - the time-trial clock.
+    Time,
+}
+
+impl Default for HudReadoutFormat {
+    fn default() -> Self {
+        HudReadoutFormat::Number
+    }
+}
+
+/// Show, update, or clear a named HUD readout bound to a scenario variable (task
+/// 20260716-174729) - the DISPLAY half of the scenario-variable vocabulary. The
+/// timekeeping half already exists: `scenario_elapsed` (and any authored
+/// variable) lives on the event world; this action is what finally puts one on
+/// the HUD. Generic on purpose (per the spike): any mod can surface any variable
+/// (a score, a countdown, a lap time), not just the gauntlet clock.
+///
+/// A readout is identified by its `slot`. Firing the action with `visible: true`
+/// shows or updates that slot; the HUD then tracks the bound variable's CURRENT
+/// value every frame (read at sync time), so a single fire from the start gate
+/// is enough for a live clock. `visible: false` clears just that slot. Every
+/// readout also clears automatically at scenario teardown, exactly like the
+/// comms panel, so one cannot leak into the next scenario or the menu.
+///
+/// The value freezes on pause and behind the outcome overlay because
+/// `scenario_elapsed` freezes there - a time-trial's FINAL time simply holds,
+/// frozen, on the HUD through the Victory banner.
+///
+/// RON: `HudReadout((slot: "timer", variable: "scenario_elapsed",
+/// format: Time, label: Some("TIME")))`; clear with
+/// `HudReadout((slot: "timer", variable: "scenario_elapsed", visible: false))`.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct HudReadoutActionConfig {
+    /// The readout's stable id: shows/updates/clears this one slot, and lets a
+    /// scenario run several readouts side by side.
+    pub slot: String,
+    /// The scenario variable whose value the readout shows (e.g.
+    /// `"scenario_elapsed"`). Read live off the event world every frame.
+    pub variable: String,
+    /// How the value renders. Omit for the default ([`HudReadoutFormat::Number`]).
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub format: HudReadoutFormat,
+    /// Optional caption shown before the value (e.g. `"TIME"`).
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub label: Option<String>,
+    /// `true` (the default) shows/updates the slot; `false` clears it.
+    #[cfg_attr(feature = "serde", serde(default = "default_true"))]
+    pub visible: bool,
+}
+
+/// Serde default for [`HudReadoutActionConfig::visible`]: a readout with the
+/// field omitted is shown, not hidden.
+#[cfg(feature = "serde")]
+fn default_true() -> bool {
+    true
+}
+
+impl HudReadoutActionConfig {
+    /// Construct a shown readout (`visible: true`) with the default format and
+    /// no label.
+    pub fn new(slot: &str, variable: &str) -> Self {
+        Self {
+            slot: slot.to_string(),
+            variable: variable.to_string(),
+            format: HudReadoutFormat::default(),
+            label: None,
+            visible: true,
+        }
+    }
+}
+
+impl EventAction<NovaEventWorld> for HudReadoutActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        world.set_hud_readout(self.clone());
+    }
+}
+
 /// Action that completes (removes) the HUD objective with the given id.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -1148,6 +1247,108 @@ mod tests {
             panic!("round-tripped the StoryMessage variant");
         };
         assert_eq!(&again, config);
+    }
+
+    /// The authored `HudReadout` RON shapes parse and round-trip (task
+    /// 20260716-174729): the shown form with a format + label, the omitted
+    /// `format`/`label`/`visible` defaults (Number / None / true), and the
+    /// clear form (`visible: false`).
+    #[cfg(feature = "serde")]
+    #[test]
+    fn hud_readout_ron_round_trips() {
+        let shown = r#"HudReadout((slot: "timer", variable: "scenario_elapsed", format: Time, label: Some("TIME")))"#;
+        let parsed: EventActionConfig = ron::from_str(shown).expect("shown RON parses");
+        let EventActionConfig::HudReadout(config) = &parsed else {
+            panic!("parsed the HudReadout variant");
+        };
+        assert_eq!(config.slot, "timer");
+        assert_eq!(config.variable, "scenario_elapsed");
+        assert_eq!(config.format, HudReadoutFormat::Time);
+        assert_eq!(config.label.as_deref(), Some("TIME"));
+        assert!(config.visible, "visible defaults to true when omitted");
+
+        let minimal = r#"HudReadout((slot: "score", variable: "score"))"#;
+        let parsed_min: EventActionConfig = ron::from_str(minimal).expect("minimal RON parses");
+        let EventActionConfig::HudReadout(config_min) = &parsed_min else {
+            panic!("parsed the HudReadout variant");
+        };
+        assert_eq!(
+            config_min.format,
+            HudReadoutFormat::Number,
+            "omitted format defaults to Number"
+        );
+        assert_eq!(config_min.label, None);
+        assert!(config_min.visible);
+
+        let cleared = r#"HudReadout((slot: "timer", variable: "scenario_elapsed", visible: false))"#;
+        let parsed_clear: EventActionConfig = ron::from_str(cleared).expect("clear RON parses");
+        let EventActionConfig::HudReadout(config_clear) = &parsed_clear else {
+            panic!("parsed the HudReadout variant");
+        };
+        assert!(!config_clear.visible, "the clear form parses visible: false");
+
+        let ron = ron::to_string(&parsed).expect("serializes");
+        let back: EventActionConfig = ron::from_str(&ron).expect("round-trips");
+        let EventActionConfig::HudReadout(again) = back else {
+            panic!("round-tripped the HudReadout variant");
+        };
+        assert_eq!(&again, config);
+    }
+
+    /// The `HudReadout` action's EFFECT through the production drain: the
+    /// action upserts a readout on the event world, and the sync mirrors it -
+    /// with the bound variable's CURRENT value - into the HUD's `HudReadouts`
+    /// resource. A `visible: false` fire clears the slot.
+    #[test]
+    fn hud_readout_action_syncs_and_clears_through_the_drain() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<nova_gameplay::hud::readout::HudReadouts>();
+
+        // Show a Time readout bound to a variable, and set that variable.
+        {
+            let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
+            world.insert_variable("scenario_elapsed".to_string(), VariableLiteral::Number(83.4));
+            let show = EventActionConfig::HudReadout(HudReadoutActionConfig {
+                slot: "timer".to_string(),
+                variable: "scenario_elapsed".to_string(),
+                format: HudReadoutFormat::Time,
+                label: Some("TIME".to_string()),
+                visible: true,
+            });
+            show.action(&mut world, &GameEventInfo { data: None });
+        }
+        NovaEventWorld::state_to_world_system(app.world_mut());
+
+        let readouts = app
+            .world()
+            .resource::<nova_gameplay::hud::readout::HudReadouts>();
+        assert_eq!(readouts.0.len(), 1, "the shown readout synced");
+        assert_eq!(readouts.0[0].slot, "timer");
+        assert_eq!(readouts.0[0].value, 83.4, "the live variable value synced");
+
+        // Clear it.
+        {
+            let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
+            let clear = EventActionConfig::HudReadout(HudReadoutActionConfig {
+                slot: "timer".to_string(),
+                variable: "scenario_elapsed".to_string(),
+                format: HudReadoutFormat::Time,
+                label: None,
+                visible: false,
+            });
+            clear.action(&mut world, &GameEventInfo { data: None });
+        }
+        NovaEventWorld::state_to_world_system(app.world_mut());
+        assert!(
+            app.world()
+                .resource::<nova_gameplay::hud::readout::HudReadouts>()
+                .0
+                .is_empty(),
+            "the clear fire dropped the slot"
+        );
     }
 
     /// The Outcome action's EFFECT through the production drain (task

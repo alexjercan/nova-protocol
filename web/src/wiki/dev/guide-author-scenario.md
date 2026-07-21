@@ -417,6 +417,40 @@ StoryMessage((
 )),
 ```
 
+### HudReadout
+
+Show a scenario VARIABLE on the HUD - the display half of the variable
+vocabulary. Where `StoryMessage` carries voice, this carries a live number:
+a run clock, a score, a countdown. `slot` is a stable id (fire again to
+update it, or with `visible: false` to clear it; several run side by side).
+`variable` names the variable whose CURRENT value shows, read live every
+frame. `format` is `Number` (one decimal, default), `Integer` (rounded) or
+`Time` (`mm:ss.s`); `label` is an optional caption. One fire is enough - the
+readout tracks the variable thereafter. It freezes on pause and behind the
+Victory/Defeat overlay because the bound variable does, so a time-trial's
+FINAL time simply holds on screen through the banner. Scenario-scoped like
+every event-world effect: teardown clears it, so it never leaks into the next
+scenario, the menu, or a retry.
+
+```ron
+// A live mm:ss.s run clock from the start gate (the Gauntlet time-trial).
+HudReadout((
+    slot: "run_timer",
+    variable: "scenario_elapsed",
+    format: Time,
+    label: Some("TIME"),
+)),
+```
+
+```ron
+// Clear it (rarely needed - teardown clears it for you).
+HudReadout((
+    slot: "run_timer",
+    variable: "scenario_elapsed",
+    visible: false,
+)),
+```
+
 ### ObjectiveMarkerAttach / ObjectiveMarkerDetach
 
 Add or remove the gold marker chip (label + distance) on a scoped object by id.

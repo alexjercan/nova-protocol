@@ -28,6 +28,7 @@ pub mod lock_dwell_ring;
 pub mod maneuver_instruments;
 pub mod objective_feedback;
 pub mod objective_markers;
+pub mod readout;
 pub mod screen_indicator;
 pub mod target_inset;
 pub mod torpedo_target;
@@ -41,7 +42,7 @@ pub mod prelude {
         component_lock::prelude::*, edge_indicators::prelude::*, flight_status::prelude::*,
         holo_instruments::prelude::*, item_highlights::prelude::*, keybind_hints::prelude::*,
         lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*, maneuver_instruments::prelude::*,
-        objective_feedback::prelude::*, objective_markers::prelude::*,
+        objective_feedback::prelude::*, objective_markers::prelude::*, readout::prelude::*,
         screen_indicator::prelude::*, target_inset::prelude::*, torpedo_target::prelude::*,
         turret_lead::prelude::*, velocity::prelude::*, HudSelfDrivenVisibility, HudTier,
         HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
@@ -196,6 +197,7 @@ impl Plugin for NovaHudPlugin {
         // 20260717-163033); registered here once for every HUD widget.
         app.add_plugins(bevy_common_systems::prelude::TweenPlugin);
         app.add_plugins(comms_panel::CommsPanelPlugin);
+        app.add_plugins(readout::HudReadoutPlugin);
         app.add_plugins(screen_indicator::ScreenIndicatorPlugin);
         app.add_plugins(torpedo_target::TorpedoTargetHudPlugin);
         app.add_plugins(turret_lead::TurretLeadPlugin);

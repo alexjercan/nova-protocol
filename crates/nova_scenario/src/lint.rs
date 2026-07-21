@@ -481,6 +481,27 @@ fn check_action(
                 issues,
             );
         }
+        EventActionConfig::HudReadout(config) => {
+            // An empty slot or variable is an authoring typo the sync would
+            // silently accept (an empty-slot readout can never be cleared).
+            if config.slot.trim().is_empty() {
+                issues.push(LintIssue::error(
+                    scenario,
+                    "HudReadout has an empty slot (it needs a stable id to update or clear)"
+                        .to_string(),
+                ));
+            }
+            if config.variable.trim().is_empty() {
+                issues.push(LintIssue::error(
+                    scenario,
+                    "HudReadout has an empty variable (nothing to display)".to_string(),
+                ));
+            }
+            // The bound variable is READ like an expression variable: track it
+            // so the "never set" pass warns on a readout of a variable no
+            // VariableSet ever writes (the engine clock is exempted there).
+            used_vars.insert(config.variable.clone());
+        }
         _ => {}
     }
 }

@@ -157,6 +157,25 @@ flowchart LR
   image has loaded, because the skybox setup observer reads the image immediately
   and would panic on a not-yet-loaded handle. A failed load leaves the sky
   unchanged (warned); no scenario camera present is a no-op.
+- `HudReadout { slot, variable, format?, label?, visible? }` - show, update, or
+  clear a named HUD readout bound to a scenario variable (the DISPLAY half of
+  the scenario-variable vocabulary; `StoryMessage` is speaker text, this is a
+  live number). `slot` is a stable id (update or clear just that one; run
+  several side by side). `variable` names the scenario variable whose CURRENT
+  value the readout shows, read live every frame - e.g. `scenario_elapsed` for a
+  run clock, or any authored counter. `format` is `Number` (one decimal, the
+  default), `Integer` (rounded, no decimals) or `Time` (`mm:ss.s`, e.g.
+  `01:23.4`). `label` is an optional caption (e.g. `Some("TIME")`, shown
+  upper-cased before the value). `visible` defaults to `true` (show/update);
+  `false` clears the slot. One fire is enough for a live readout - it tracks the
+  variable thereafter. The value freezes on pause and behind the outcome overlay
+  because the bound variable does (`scenario_elapsed` stops ticking there), so a
+  time-trial's FINAL time simply holds on the HUD through the Victory banner. It
+  is an Instrument-tier widget (shown even at the Minimal HUD level) and clears
+  at scenario teardown like the comms panel, so it cannot leak into the next
+  scenario or the menu. RON:
+  `HudReadout((slot: "run_timer", variable: "scenario_elapsed", format: Time, label: Some("TIME")))`;
+  clear with `HudReadout((slot: "run_timer", variable: "scenario_elapsed", visible: false))`.
 
 ## Variables and the event world (`world.rs`, `variables.rs`)
 
@@ -266,6 +285,13 @@ Term(Factor(Name("scenario_elapsed")))))`, then gate on
 reserved key is always fine; only writing it is gated. The example mod's
 arena ships a timed comms nudge and a timed bonus spawn as copyable worked
 examples.
+
+To SHOW the clock (or any variable) on the HUD, use `HudReadout` with the
+`Time` format - `HudReadout((slot: "run_timer", variable: "scenario_elapsed",
+format: Time, label: Some("TIME")))` in `OnStart` gives a live `mm:ss.s` run
+clock that freezes at the final time behind the Victory overlay (the clock
+stops ticking on pause). See `HudReadout` in the actions list. The Gauntlet
+worked example wires exactly this as a time-trial with a clean-run bonus.
 
 ## Scenario patterns
 
@@ -396,6 +422,14 @@ end to end:
 - The content file `webmods/gauntlet/gauntlet.content.ron` - one NEW scenario,
   no base overrides; the gate-counter and act-gating idioms above live here with
   header comments explaining the two geometric invariants.
+- The time-trial wiring: `OnStart` fires one `HudReadout` on `scenario_elapsed`
+  (`Time` format) for a live `mm:ss.s` clock, and seeds a `crash` counter that
+  hazard-zone `OnEnter` handlers bump on each graze. Crossing FINISH bumps `gate`
+  to its terminal `8.0`, then TWO `crash`-gated `Outcome(Victory)` handlers fire
+  in the same pulse (exactly one matches): `crash == 0` earns the CLEAN RUN
+  banner, `crash > 0` the plain finish. The final time is shown by the frozen
+  readout behind the banner (the clock stops on the outcome pause), so the banner
+  text only has to vary the clean-run line - no message interpolation needed.
 - The test rig `crates/nova_assets/tests/gauntlet_course.rs` - loads the ACTUAL
   shipped content, drives the real handlers, and pins both invariants (gate
   areas do not overlap; the racing line stays clear of every rock's worst-case
