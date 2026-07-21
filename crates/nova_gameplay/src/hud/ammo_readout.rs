@@ -124,9 +124,9 @@ pub struct AmmoReadoutPip(pub usize);
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct AmmoReadoutNumber;
 
-/// Whether the debug ammo number is shown (toggled with F11). On by default so
-/// it starts in phase with nova_debug's `DebugEnabled(true)`: the number then
-/// tracks debug mode (shown while on, hidden once F11 switches debug off)
+/// Whether the debug ammo number is shown (toggled with F11). Off by default so
+/// it starts in phase with nova_debug's `DebugEnabled(false)`: the number then
+/// tracks debug mode (hidden while off, shown once F11 switches debug on)
 /// instead of inverting it. The gauge itself is always on. Debug-only: only
 /// compiled under the `debug` feature, so release builds have no numeric
 /// readout at all.
@@ -135,14 +135,15 @@ pub struct AmmoReadoutNumber;
 #[reflect(Resource)]
 pub struct AmmoReadoutDebug(pub bool);
 
-/// Starts on to match nova_debug's `DebugEnabled(true)` default. Both toggle on
-/// F11, so matching defaults keeps the ammo number in phase with debug mode; a
-/// mismatch here is what makes the number show in normal play and vanish in
-/// debug mode.
+/// Starts off to match nova_debug's `DebugEnabled(false)` default (task
+/// 20260721-221936: the whole debug layer boots off and F11 raises it as one).
+/// Both toggle on F11, so matching defaults keeps the ammo number in phase with
+/// debug mode; a mismatch here is what inverts the number relative to the rest
+/// of the debug layer.
 #[cfg(feature = "debug")]
 impl Default for AmmoReadoutDebug {
     fn default() -> Self {
-        Self(true)
+        Self(false)
     }
 }
 
@@ -835,15 +836,21 @@ mod tests {
         // state gate that let the flag fall out of phase with nova_debug's
         // ungated toggle; keep this system ungated, see AmmoReadoutPlugin.)
         let mut world = World::new();
-        world.init_resource::<AmmoReadoutDebug>(); // true by default
+        world.init_resource::<AmmoReadoutDebug>();
+        // Default OFF, in phase with nova_debug's `DebugEnabled(false)`: the whole
+        // debug layer boots off and F11 raises it as one (task 20260721-221936).
+        assert!(
+            !**world.resource::<AmmoReadoutDebug>(),
+            "the ammo number defaults off, matching the rest of the debug layer"
+        );
         let mut input = ButtonInput::<KeyCode>::default();
         input.press(DEBUG_TOGGLE_KEY);
         world.insert_resource(input);
 
         world.run_system_once(toggle_ammo_readout_debug).unwrap();
         assert!(
-            !**world.resource::<AmmoReadoutDebug>(),
-            "F11 turns the ammo number off"
+            **world.resource::<AmmoReadoutDebug>(),
+            "F11 turns the ammo number on"
         );
 
         // A fresh press flips it back. (A new ButtonInput, not clear()+press():
@@ -854,8 +861,8 @@ mod tests {
         world.insert_resource(next);
         world.run_system_once(toggle_ammo_readout_debug).unwrap();
         assert!(
-            **world.resource::<AmmoReadoutDebug>(),
-            "a second F11 turns it back on"
+            !**world.resource::<AmmoReadoutDebug>(),
+            "a second F11 turns it back off"
         );
     }
 

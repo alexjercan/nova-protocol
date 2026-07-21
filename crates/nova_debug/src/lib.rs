@@ -13,7 +13,10 @@ use bevy::{
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 use bevy_common_systems::{
-    debug::{harness::AUTOPILOT_ENV, inspector::DebugEnabled as InspectorEnabled},
+    debug::{
+        harness::AUTOPILOT_ENV, inspector::DebugEnabled as InspectorEnabled,
+        wireframe::DebugEnabled as WireframeEnabled,
+    },
     prelude::*,
 };
 use nova_gameplay::{prelude::PlayerSpaceshipMarker, GameStates, PauseStates};
@@ -48,6 +51,13 @@ pub mod prelude {
 /// The keycode to toggle debug mode.
 pub const DEBUG_TOGGLE_KEYCODE: KeyCode = KeyCode::F11;
 
+/// Whether the debug layer (nova gizmos, the egui inspector + avian gizmos, the
+/// wireframe pass, and nova_gameplay's ammo number) starts ON. It boots OFF so a
+/// dev build is a clean, cursor-free flight and F11 raises the whole layer as
+/// one (task 20260721-221936). Shared by every `DebugEnabled` insert so they
+/// cannot drift out of phase.
+const DEBUG_LAYER_STARTS_ON: bool = false;
+
 /// Resource with debug toggle state.
 #[derive(Resource, Default, Clone, Debug, Deref, DerefMut, PartialEq, Eq, Hash)]
 pub struct DebugEnabled(pub bool);
@@ -67,24 +77,29 @@ pub struct DebugPlugin;
 
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(DebugEnabled(true));
-
         app.add_plugins(InspectorDebugPlugin);
         app.add_plugins(WireframeDebugPlugin);
         app.add_plugins(sections::SectionsDebugPlugin);
         app.add_plugins(gravity::GravityDebugPlugin);
         app.add_plugins(screenshot::ScreenshotHotkeyPlugin);
 
-        // The egui inspector panel needs a pointer, so flight now hides the
-        // cursor unconditionally (task 20260721-211500). Default it OFF (it
-        // ships ON from `InspectorDebugPlugin`) so a dev build flies cursor-free
-        // out of the box. F11 raises it: `InspectorDebugPlugin` runs its OWN F11
-        // `toggle_debug_mode` over this same resource (bevy_common_systems), so
-        // we only override the default here, not the toggle - and while the panel
-        // is up `sync_inspector_cursor` hands the cursor back. This runs in
-        // lockstep with nova's own overlay `DebugEnabled` (both listen for F11
-        // separately), which stays ON - gizmos need no pointer.
-        app.insert_resource(InspectorEnabled(false));
+        // A dev build boots with the WHOLE debug layer off, and F11 raises it as
+        // one (task 20260721-221936). There are four F11-toggled `DebugEnabled`
+        // states - nova's own (gravity/sections gizmos), the egui inspector (UI +
+        // avian PhysicsGizmos), the wireframe pass, and nova_gameplay's ammo
+        // number - each with its OWN F11 `toggle_debug_mode`. They stay in phase
+        // only if they share a default, so they all default OFF here: the
+        // inspector needs a pointer (task 20260721-211500), so a cursor-free
+        // default flight requires the inspector off, and flipping only it would
+        // invert F11 (gizmos on / inspector off, then swapping on every press).
+        // While the inspector panel is up `sync_inspector_cursor` hands the
+        // cursor back; F11 down re-locks it. One shared const so the three cannot
+        // drift apart; nova_gameplay's `AmmoReadoutDebug` mirror lives across a
+        // crate boundary (it cannot see this const) and matches it by literal,
+        // pinned by its own test.
+        app.insert_resource(DebugEnabled(DEBUG_LAYER_STARTS_ON));
+        app.insert_resource(InspectorEnabled(DEBUG_LAYER_STARTS_ON));
+        app.insert_resource(WireframeEnabled(DEBUG_LAYER_STARTS_ON));
 
         app.add_systems(Update, toggle_debug_mode);
         app.add_systems(
@@ -178,6 +193,19 @@ mod tests {
     use bevy::state::app::StatesPlugin;
 
     use super::*;
+
+    /// The debug layer boots off so F11 raises it as one (task 20260721-221936):
+    /// nova's gizmos, the egui inspector + avian, the wireframe pass, and the
+    /// ammo number must share a default or F11 inverts them. This pins the
+    /// nova_debug side; nova_gameplay's `AmmoReadoutDebug` default is pinned in
+    /// its own `f11_flips_the_ammo_debug_flag`.
+    #[test]
+    fn the_debug_layer_boots_off() {
+        assert!(
+            !DEBUG_LAYER_STARTS_ON,
+            "the debug layer must boot off; keep the ammo mirror in phase"
+        );
+    }
 
     /// Build a minimal app around `sync_inspector_cursor`: a primary window with
     /// a visible cursor, the inspector toggle, the pause state, and (optionally)
