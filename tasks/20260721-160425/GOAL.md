@@ -73,6 +73,30 @@ green. Full cargo test/clippy stay in CI per repo policy (AGENTS.md).
       DoD; 7 playtest questions batched below; news note drafted; CHANGELOG
       reordered into campaign order. Nothing else needed fixing.
 
+## Done-definition verification (Finish, 2026-07-21)
+
+1. Chain wiring: VERIFIED - grep of the shipped RON (shakedown->broadside,
+   broadside->gunship x2, gunship->lifeline x2, lifeline->final_tally x4,
+   final_tally retry-only) + the chain harness tests + both probe walks.
+2. Ally mechanism: VERIFIED by rig (PRIMARY; 4 green rigs incl. the
+   marker-less convoy shape) and shipped in Lifeline.
+3. Win+lose + one-fight checkpoints: VERIFIED (31 harness tests + lint).
+4. The chain speaks: VERIFIED (speaker grep: broadside, gunship, lifeline,
+   final_tally; shakedown's banner amendment recorded with its lint
+   rationale in 20260721-160929).
+5. content lint: VERIFIED - 0 errors, 13 scenarios, base campaign zero
+   acks.
+6. Picker precedent: VERIFIED (heads visible + thumbnails, continuations
+   hidden).
+7. Docs synced + playtest questions listed: VERIFIED (scenarios.md,
+   CHANGELOG, 7 questions in tasks/20260718-152313; owner reads at
+   acceptance).
+8. Winnable AND losable feel: PENDING the owner playtest (batched below).
+
+Overall: cargo check + fmt green, 49 campaign-related tests green, lint
+green on master (ed2ba5e6); full cargo test/clippy run in CI per repo
+policy.
+
 ## Manual acceptance (batched for the user at Finish)
 
 - (pending) spike names/tone: gang "the Tally", flagship "Final Tally",
