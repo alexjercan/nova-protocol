@@ -1,6 +1,6 @@
 # Base campaign polish + extension: make Shakedown to Broadside longer and more interesting (more beats/acts, pacing, encounters)
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 49
 - TAGS: v0.8.0,content,scenario,playtest
 
@@ -28,19 +28,19 @@ and the release-post note. It lands LAST.
 
 ## Steps
 
-- [ ] Verify the extended chain end to end from the evidence the sub-tasks
+- [x] Verify the extended chain end to end from the evidence the sub-tasks
       left (harness chain-wiring tests + probe reports): New Game runs
       shakedown_run -> broadside -> broadside_gunship -> lifeline ->
       final_tally with lingering checkpoints at each seam.
-- [ ] Record the encounter variety matrix in this file (per-fight comp +
+- [x] Record the encounter variety matrix in this file (per-fight comp +
       shape) and check the original DoD line "no two consecutive encounters
       share composition and shape" against it.
-- [ ] Run the full `content lint` on the final tree; confirm every balance
+- [x] Run the full `content lint` on the final tree; confirm every balance
       ack carries a reason.
-- [ ] List the playtest questions for the owner in this file (difficulty
+- [x] List the playtest questions for the owner in this file (difficulty
       per fight, relief timer, names/tone nod, picker policy) - decided by
       the owner, not silently.
-- [ ] Write the v0.8.0 news-post note line (what the release post should
+- [x] Write the v0.8.0 news-post note line (what the release post should
       say about the campaign) into this file; confirm CHANGELOG coherence
       across the landed sub-tasks (one voice, no duplicate entries).
 
@@ -87,3 +87,86 @@ and the release-post note. It lands LAST.
 - Feel/balance is ultimately the user's call; deliver the content + a first
   tuning pass, flag playtest questions.
 - Menu ambience scenes are separate and out of scope here.
+
+## Close-out record (2026-07-21)
+
+### Chain verification (end to end, from the shipped artifacts)
+
+NextScenario targets grepped from the generated RON: shakedown_run ->
+broadside (win) / self (retry); broadside -> broadside_gunship (2 fate
+variants) / self; broadside_gunship -> lifeline (2 variants) / self;
+lifeline -> final_tally (4 win variants) / self (2 defeat paths);
+final_tally -> self (retry only) - the victory queues NOTHING by design,
+stated in the banner. Checkpoints never replay more than one fight.
+
+Harness evidence re-run on this branch: broadside_assault 14 green,
+lifeline_convoy 8 green, final_tally_claim 7 green, content_ron_parity 2
+green. Probe fleet `run broadside,lifeline`: aggregate OK (broadside 343s
+real-time walk of ch2 both parts + the chain assert into lifeline;
+lifeline 15s clock-compressed walk of ch3 both parts to the
+campaign-complete banner). Together the five-scenario chain is played
+end to end by scripted walks of the real app.
+
+### Variety matrix (per-fight composition + shape)
+
+1. Shakedown (final beat): 1 light scavenger; open debris field; duel-exam.
+2. Broadside p1: 2 light corvettes, simultaneous; chaff + boulder bowl;
+   break-the-ambush.
+3. Broadside p2: 1 full-grade capital (torpedoes); same bowl; PDC-screen +
+   section kill.
+4. Lifeline: 3 staged waves of lights (2 / 3 / 1 full-grade + 1 light);
+   open lane + stalled ally convoy; PROTECT under a relief countdown.
+5. Final Tally: 2 light orbital pickets, then capital + light escort;
+   gravity well + ring belt + wreck cover; survey -> picket -> capital
+   assault.
+
+No two consecutive fights share composition AND shape; every scenario has
+win + lose Outcome paths and its own one-fight retry. DoD line met.
+
+### content lint
+
+0 errors over 13 balance-audited scenarios. The base campaign carries ZERO
+balance acks (the one WARN + 2 acks are the Ledger mod's pre-existing
+Auditor entries, reasons recorded in balance_acks.ron).
+
+### Playtest questions (owner decides; nothing silently decided)
+
+1. Names/tone nod (spike placeholders, single-constant renames in
+   cast.rs): the gang "the Tally", boss "The Tallyman", flagship "Final
+   Tally", Capt. Halloran, Belt Relay; chapter titles "Lifeline" /
+   "Final Tally".
+2. Lifeline difficulty: relief 240s; waves 2 / 3 / 1 full-grade corvette +
+   1 light; raider engage graces 8s; leash 520. Winnable AND losable in
+   YOUR hands?
+3. Lifeline convoy image: the haulers are STALLED (drives cold) rather
+   than the spike's crawling convoy - does the stalled read work, or is a
+   crawling convoy (AI patrol + leash gymnastics) worth a follow-up?
+4. Final Tally peak: full-grade flagship + 1 light escort after a 2-picket
+   fight - is the escort grade right, or should the finale bite harder
+   (full-grade escort / second escort)?
+5. Epilogue pacing: 4s to the close line, 9s to the banner - does the
+   beat land, or drag?
+6. Broadside voice pass: 7 comms lines across ch2 - right density?
+7. Picker policy confirmation: chapter heads visible (shakedown_run,
+   broadside, lifeline + the restored asteroid_field), continuations
+   hidden (gunship, final_tally, asteroid_next).
+
+### v0.8.0 news-post note
+
+Suggested line for the release post: "The base campaign more than doubles:
+after the Rust Tally falls, the gang hits back at the belt's supply convoy
+(Lifeline - hold the lane under a live relief countdown while the haulers
+genuinely draw fire), and the trail ends at their claim (Final Tally - a
+gravity-well anchorage assault with a real ending). The whole chain now
+speaks over the comms panel, and the Asteroid Field sandbox is back in the
+picker."
+
+### CHANGELOG coherence
+
+All five landed entries read in one voice under Unreleased > Scenarios &
+Objectives; reordered Lifeline before Final Tally so the section reads in
+campaign order (the two entries cross-reference).
+
+Reflection: the close-out found nothing to fix beyond the CHANGELOG swap -
+the per-cycle discipline (docs-in-task, lint-per-land, probe-per-scenario)
+left no debt for the sweep, which is the point of paying it per cycle.
