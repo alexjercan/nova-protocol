@@ -46,3 +46,36 @@ image tooling, not prose.
 - Consider `scripts/gen-web-screenshots.py` if re-capturing; keep source
   screenshots reproducible.
 - Low priority: the pages read fine without labels; this is a polish pass.
+
+## Re-scope (2026-07-21): needs re-capture first, not just an overlay
+
+Finding when picked up: the existing screenshots are STALE and cannot carry the
+callouts the prose names, so this is no longer a pure label-overlay task:
+- `web/src/assets/wiki-hud.png` shows the **v0.5.2** HUD (version chip in frame),
+  predating v0.7.0's ammo gauge + RCS-violet velocity sphere the DoD says to
+  check for.
+- The instruments to label are CONDITIONAL and are not in the current frame:
+  `hud.md` describes the ORBIT ring "only while you hold an orbit", the mode chip
+  ("AP GOTO - BURN") "only while the autopilot is engaged", and the CYAN sphere
+  "when the autopilot is flying". The shot has no active orbit / engaged
+  autopilot, so those instruments cannot be labeled on it.
+- `gen-web-screenshots.py` only PACKAGES staged captures; the capture itself is
+  game-render work (the screenshot harness in the right scene state).
+
+Revised approach (do these in order when picked up):
+- [ ] RE-CAPTURE `wiki-hud.png` at the current build in a scene state that shows
+      every named instrument at once: manual + autopilot states as needed
+      (velocity sphere, speed + mode chips with the autopilot engaged, the ORBIT
+      ring while orbiting, the keybind cluster). May need 1-2 shots or a staged
+      capture; keep the source reproducible via the screenshot harness.
+- [ ] RE-CAPTURE `wiki-radar.png` at the current build showing the sweep box, a
+      combat vs nav lock, and a fine-lock section marker.
+- [ ] THEN annotate both with consistent ASCII callouts (ImageMagick is
+      available in the devshell; 1920x1080 source) and verify `npm run ci` +
+      eyeball at the rendered wiki figure size.
+
+Left OPEN at P20 (optional polish; the pages read fine without labels). The
+re-capture is the real cost - a text agent cannot reliably drive the game to the
+exact HUD states and judge label placement blind, so this suits a session that
+can iterate on the rendered game or a human with the capture harness. (User
+call 2026-07-21: re-scope + defer.)
