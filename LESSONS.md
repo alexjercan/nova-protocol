@@ -12,6 +12,11 @@ count. Seeded 2026-07-11 from 104 retros; condensed 2026-07-13 and
 
 ## Process lessons
 
+- `outcome-is-last-write-wins-close-the-act` (x1): CurrentOutcome overwrites,
+  so EVERY outcome-declaring handler must set a terminal act itself - a
+  single unguarded path (player death vs an every-pulse win gate) can
+  overwrite a settled Defeat with a Victory. Sweep by class, not by the
+  motivating case. 20260721-160957.
 - `pickaxe-hit-is-not-a-mechanism` (x1): a `git log -S`/blame hit names a
   commit that TOUCHED the string, not what it did with it - open the commit's
   diff and quote what it DID before writing history into a Record (a misread
