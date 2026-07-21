@@ -21,5 +21,7 @@ spike lands. /plan breaks it into steps at pickup.
 - Depends on: 20260721-211512 (the Tab drawer spike - design); bcs Tween/UiAnimate plugins
   exist and are the likely animation vehicle (spike 20260717-155740 noted
   them unadopted).
-- Owner questionnaire answer (2026-07-21) on intrusiveness recorded here
-  when taken.
+- Owner decision (questionnaire, 2026-07-21): the BIG COCKPIT MOMENT -
+  the new objective appears large and slightly rotated on the cockpit HUD
+  (~2-3s), then animates into the right tab. Pair with authored pacing
+  gaps (20260721-211506 sets the pattern) so it never overlaps a fight.

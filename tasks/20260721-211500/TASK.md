@@ -16,8 +16,8 @@ the v0.8.0 policy.
 - [ ] Verify-first: find the current cursor handling (grep window/cursor
       options in nova_core/nova_gameplay/nova_menu; check what Bevy 0.19
       exposes: CursorOptions visible/grab_mode) and record where the gap is.
-- [ ] Hide (and lock/capture per the owner's questionnaire answer) the
-      cursor while in GameStates::Playing with no menu/overlay up.
+- [ ] Hide AND lock/capture the cursor while in GameStates::Playing with
+      no menu/overlay up (owner decision below).
 - [ ] Release + show it in MainMenu, pause, the outcome overlays, editor,
       and any surface that needs pointing; make the transition state-driven
       so a future drawer (Tab) gets it for free.
@@ -34,5 +34,7 @@ the v0.8.0 policy.
 
 ## Notes
 
-- Owner decision (questionnaire, 2026-07-21): PENDING - hide+lock vs
-  hide-only vs idle-fade.
+- Owner decision (questionnaire, 2026-07-21): HIDDEN + LOCKED while
+  flying (captured, so it cannot drift off-window); released and shown in
+  menus, pause, outcome overlays. Make it state-driven so the future Tab
+  drawer (20260721-211512, pause + free cursor) gets it for free.

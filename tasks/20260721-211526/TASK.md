@@ -22,8 +22,11 @@ steps at pickup.
 
 - Depends on: 20260721-211512 (the Tab drawer spike) for the log view; the stack itself is
   independent.
-- Owner questionnaire answers (2026-07-21) recorded here when taken:
-  placement, stacking direction, dismiss model, release slot.
+- Owner decisions (questionnaire, 2026-07-21): BOTTOM-LEFT, CHAT-STYLE
+  stack - newest line at the bottom, older lines push up and fade (a
+  conversation transcript, not an alert feed). Dismiss: keypress AND
+  timeout. RELEASE: v0.9.0 with the Tab family (stays backlog until v0.9.0
+  planning); the full log view lives in the Tab drawer.
 - Cast icons tie to the cast constants (crates/nova_assets/src/scenario/
   cast.rs) and the Ledger's speakers - mod-authorable icon refs need a
   content-schema thought (spike may cover).

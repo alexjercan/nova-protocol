@@ -19,7 +19,15 @@ v0.9.0 candidate (this sprint is no-new-features); parked in backlog until
 v0.9.0 planning pulls it. Related follow-up tasks that ride this spike's design:
 20260721-211520 (diegetic objectives), 20260721-211526 (comms stack).
 
-Owner questionnaire answers (2026-07-21) recorded in Notes when taken -
-contents ranking, pause behavior, keybind.
+Owner questionnaire answers (2026-07-21):
+
+- CONTENTS - all four are core: objectives detail, full comms log, 3D
+  minimap, ship status/damage. The spike still explores extras beyond
+  these.
+- BEHAVIOR: opening the drawer PAUSES the game and frees the cursor
+  (menu-like browsing); builds on the cursor state machinery from
+  20260721-211500.
+- KEYBIND: Tab ONLY (no O shortcut - O stays free; note ORBIT already
+  uses O in flight, so Tab avoids the collision entirely).
 
 Spike output per the spike skill: SPIKE.md here + seeded v0.9.0 tasks.
