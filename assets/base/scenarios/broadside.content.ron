@@ -1350,7 +1350,11 @@
                     )),
                     VariableSet((
                         key: "contact_gate",
-                        expression: Term(Factor(Literal(Number(8.399999618530273)))),
+                        expression: Term(Factor(Literal(Number(6.0)))),
+                    )),
+                    ObjectiveMarkerAttach((
+                        target_id: "hauler",
+                        label: "CERES QUEEN",
                     )),
                 ],
             ),
@@ -1382,10 +1386,6 @@
                     Objective((
                         id: "contact",
                         message: "Find the hauler Ceres Queen.",
-                    )),
-                    ObjectiveMarkerAttach((
-                        target_id: "hauler",
-                        label: "CERES QUEEN",
                     )),
                 ],
             ),

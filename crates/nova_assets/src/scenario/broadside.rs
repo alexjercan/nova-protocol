@@ -41,7 +41,7 @@ use nova_scenario::prelude::*;
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, RUST_TALLY},
     craft::{self, ShipGrade},
-    pacing::{self, mark_clock, open_gate, BEAT_GAP},
+    pacing::{self, mark_clock, open_gate, MID_GAP, REVEAL_GAP},
     shakedown::{
         complete, destroyed, emphasize, eq_num, lt_num, mark, num, objective, player_enters, set,
         spawn, story, unmark,
@@ -349,7 +349,13 @@ pub(crate) fn broadside(
             "Ceres Queen to any ship in the belt - drive's stripped, and \
              they're coming back for the hull.",
         ),
-        open_gate(VAR_CONTACT_GATE, BEAT_GAP),
+        // Reveal-then-navigate: the distress call sets up, "find the hauler" is
+        // a soft instruction - a mid gap (review 20260722-163718). The gold
+        // marker rides the hauler from OnStart (NOT withheld inside the gate),
+        // so the player has a nav target during the call; only the objective
+        // TEXT waits, matching shakedown/final_tally.
+        open_gate(VAR_CONTACT_GATE, MID_GAP),
+        mark(ID_HAULER, "CERES QUEEN"),
     ]);
 
     let events = vec![
@@ -365,10 +371,9 @@ pub(crate) fn broadside(
             VAR_CONTACT_POSTED,
             VAR_CONTACT_GATE,
             vec![eq_num(VAR_ACT, 0.0)],
-            vec![
-                objective(OBJ_CONTACT, "Find the hauler Ceres Queen."),
-                mark(ID_HAULER, "CERES QUEEN"),
-            ],
+            // The marker is already up (OnStart, above); only the objective
+            // text posts here.
+            vec![objective(OBJ_CONTACT, "Find the hauler Ceres Queen.")],
         ),
         // Act 0 -> 1: reaching the hauler springs the ambush. The threats spawn
         // and the warning lands now; the DEFEND objective posts a beat later
@@ -380,7 +385,10 @@ pub(crate) fn broadside(
             actions: vec![
                 set(VAR_ACT, num(1.0)),
                 complete(OBJ_CONTACT),
-                mark_clock(VAR_DEFEND_GATE, BEAT_GAP),
+                // Threat reveal (the ambush springs): full absorb beat; the
+                // corvette markers appear at the transition (below), so the
+                // threats are visible while the objective text waits.
+                mark_clock(VAR_DEFEND_GATE, REVEAL_GAP),
                 spawn(corvette(ID_CORVETTE_A, CORVETTE_A_SPAWN)),
                 spawn(corvette(ID_CORVETTE_B, CORVETTE_B_SPAWN)),
                 story(
@@ -593,7 +601,10 @@ pub(crate) fn broadside_gunship(
             "You cost me two pickers, belt rat. The Rust Tally pays its \
              debts in torpedoes.",
         ),
-        open_gate(VAR_GUN_OBJ_GATE, BEAT_GAP),
+        // Threat reveal (the gunship taunts and burns in): full absorb beat.
+        // The gunship and its RADAR marker are already up (this is OnStart), so
+        // only the objective text waits (review 20260722-163718).
+        open_gate(VAR_GUN_OBJ_GATE, REVEAL_GAP),
         mark(ID_GUNSHIP, "GUNSHIP"),
         emphasize("RADAR"),
     ]);

@@ -847,7 +847,7 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(8.399999618530273)))),
+                            Term(Factor(Literal(Number(4.0)))),
                         ),
                     )),
                 ],
@@ -873,7 +873,7 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(8.399999618530273)))),
+                            Term(Factor(Literal(Number(4.0)))),
                         ),
                     )),
                     ObjectiveComplete((
@@ -976,7 +976,7 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(8.399999618530273)))),
+                            Term(Factor(Literal(Number(4.0)))),
                         ),
                     )),
                     ObjectiveComplete((
@@ -1198,7 +1198,7 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(8.399999618530273)))),
+                            Term(Factor(Literal(Number(4.0)))),
                         ),
                     )),
                     ObjectiveComplete((
@@ -1298,7 +1298,7 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(8.399999618530273)))),
+                            Term(Factor(Literal(Number(4.0)))),
                         ),
                     )),
                     ObjectiveComplete((
@@ -1364,7 +1364,7 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(8.399999618530273)))),
+                            Term(Factor(Literal(Number(4.0)))),
                         ),
                     )),
                     ObjectiveComplete((
@@ -1460,7 +1460,7 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(8.399999618530273)))),
+                            Term(Factor(Literal(Number(6.0)))),
                         ),
                     )),
                     ObjectiveComplete((
@@ -1546,7 +1546,7 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(8.399999618530273)))),
+                            Term(Factor(Literal(Number(4.0)))),
                         ),
                     )),
                     ObjectiveComplete((
@@ -1611,7 +1611,7 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(8.399999618530273)))),
+                            Term(Factor(Literal(Number(4.0)))),
                         ),
                     )),
                     ObjectiveComplete((
@@ -1704,7 +1704,7 @@
                         key: "beat_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(8.399999618530273)))),
+                            Term(Factor(Literal(Number(6.0)))),
                         ),
                     )),
                     ObjectiveComplete((

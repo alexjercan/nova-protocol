@@ -23,22 +23,41 @@
 //! clock (`scenario_elapsed`) is engine-owned and pauses behind menus/outcome,
 //! so a deadline measures play time, not wall time.
 
-use nova_gameplay::prelude::{COMMS_DWELL_SECS, COMMS_FADE_OUT_SECS};
+use nova_gameplay::prelude::{COMMS_DWELL_SECS, COMMS_FADE_OUT_SECS, COMMS_MIN_SECS};
 use nova_scenario::prelude::*;
 
 use super::shakedown::{eq_num, gt_num, num, set, var};
 
-/// The breathing beat, in seconds of play time: how long an objective waits
-/// after the conversation that introduces it before it appears. Owner playtest
-/// (task 20260722-142341): the objective must not post while its intro line is
-/// still on screen. Every mainline gate follows a `story()` line, so the gap is
-/// that line's full on-screen life - its default dwell plus the fade-out tail -
-/// NOT a fixed short breather (the old 4.0 posted the objective four seconds
-/// before an 8-second line finished). Derived from the comms panel's own
-/// constants ([`COMMS_DWELL_SECS`] + [`COMMS_FADE_OUT_SECS`]) so the gap and the
-/// dwell can never drift apart. Scenario lines all use the default dwell today;
-/// an authored per-line override would want a matching per-gate gap.
-pub(crate) const BEAT_GAP: f64 = (COMMS_DWELL_SECS + COMMS_FADE_OUT_SECS) as f64;
+// The beat gap - how long an objective waits after the conversation line that
+// introduces it - is a FEEL call, and the right value depends on the line's
+// RELATIONSHIP to the objective (out-of-context pacing review, task
+// 20260722-163718). A single global gap (the old BEAT_GAP) conflated two:
+// a coaching line the objective echoes wants the objective mid-read, while a
+// threat/situation reveal wants the line to fully land first. So there are
+// three named categories below, all derived from the comms panel's own
+// constants so they cannot drift from the dwell. THESE ARE TUNABLE: they are
+// authored timings, not physics - nudge them after playtest.
+
+/// Reveal gap: the line fully lands and fades, THEN the objective posts. For a
+/// threat or situation reveal the player should absorb before acting (the
+/// scavenger telegraph, the corvette ambush, the flagship cast-off). This is
+/// the previous uniform gap ([`COMMS_DWELL_SECS`] + [`COMMS_FADE_OUT_SECS`],
+/// 8.4s, task 20260722-142341).
+pub(crate) const REVEAL_GAP: f64 = (COMMS_DWELL_SECS + COMMS_FADE_OUT_SECS) as f64;
+
+/// Instruction gap: the objective posts MID-READ, while the coaching line is
+/// still on screen (the line still holds its full dwell - nothing is queued
+/// behind it - only the objective posts early). For a line the objective
+/// echoes in real time: "Now hand her to the computer" -> "Press [G]" lands as
+/// the player reads to the keypress. Tied to [`COMMS_MIN_SECS`], the panel's
+/// yield floor - "the reader has had a beat with the line" (4s).
+pub(crate) const INSTRUCTION_GAP: f64 = COMMS_MIN_SECS as f64;
+
+/// Mid gap: halfway between instruction and reveal (~6s), for a line that
+/// reveals then instructs ("that's the planetoid's pull - ease off the drive").
+/// Let the reveal register, land the task as the player reaches the coaching
+/// half.
+pub(crate) const MID_GAP: f64 = ((COMMS_DWELL_SECS + COMMS_MIN_SECS) / 2.0) as f64;
 
 /// Stamp an ABSOLUTE deadline of `delay` seconds into `key`, for a gate that
 /// opens at `OnStart`. The engine clock `scenario_elapsed` is UNDEFINED at

@@ -25,7 +25,7 @@ use nova_scenario::prelude::*;
 use super::{
     cast::{CAPTAIN_HALLORAN, PLAYER},
     craft::{self, ShipGrade},
-    pacing::{clock_past, gated_once, mark_clock, BEAT_GAP},
+    pacing::{clock_past, gated_once, mark_clock, INSTRUCTION_GAP, MID_GAP, REVEAL_GAP},
 };
 
 /// The scenario id, shared with nova_menu's New Game entry.
@@ -196,11 +196,13 @@ const OPEN_4_AT: f64 = 29.0;
 const OPEN_5_AT: f64 = 38.0;
 // The gap between a beat transition and the objective it introduces, in seconds
 // of play time. The transition completes the previous objective and plays the
-// beat's comms line; the next objective (and its beacon) posts only once the
-// line has finished (owner playtest, task 20260722-142341): "wait at least for
-// the dialogue to finish before we add a new objective". Shared with the
-// mainline [`BEAT_GAP`] so the gap always matches the comms panel's dwell.
-const BEAT_DELAY: f64 = BEAT_GAP;
+// beat's comms line; the next objective (and its beacon) posts a gap LATER, not
+// the same frame (owner playtest, task 20260722-142341). The gap is chosen PER
+// BEAT by the line's relationship to the objective (pacing review
+// 20260722-163718): INSTRUCTION_GAP when the objective echoes a coaching line
+// (most nav beats - the objective lands mid-read), MID_GAP for a
+// reveal-then-instruct line, REVEAL_GAP for a threat the player absorbs first
+// (the scavenger). Each transition's `stamp_gate` call names its category.
 
 // Expression / action shorthands - the raw node constructors are too
 // verbose to keep a 14-handler script readable.
@@ -320,12 +322,13 @@ pub(crate) fn story(speaker: &str, text: &str) -> EventActionConfig {
 }
 
 /// Stamp the beat deadline at a beat transition, so the beat's [`beat_setup`]
-/// posts its objective [`BEAT_DELAY`] seconds later - once the transition's
-/// comms line has finished - no matter how long the leg took. Thin alias over
-/// the shared [`mark_clock`] so the whole mainline shares one gate mechanism
-/// (task 20260722-092421).
-fn stamp_gate() -> EventActionConfig {
-    mark_clock(VAR_GATE, BEAT_DELAY)
+/// posts its objective `delay` seconds later - no matter how long the leg took.
+/// `delay` is the transition's pacing category (INSTRUCTION_GAP / MID_GAP /
+/// REVEAL_GAP), chosen by how its comms line relates to the objective (task
+/// 20260722-163718). Thin alias over the shared [`mark_clock`] so the whole
+/// mainline shares one gate mechanism (task 20260722-092421).
+fn stamp_gate(delay: f64) -> EventActionConfig {
+    mark_clock(VAR_GATE, delay)
 }
 
 /// One line of the opening conversation: fires when the clock passes `at` and
@@ -680,7 +683,7 @@ pub(crate) fn shakedown_run(
                 // layer 2, task 20260712-093831); its beacon chip yields while
                 // marked, so each beacon shows exactly one chip.
                 mark(ID_BEACON_1, "BEACON 1"),
-                stamp_gate(),
+                stamp_gate(INSTRUCTION_GAP),
             ],
         },
         // Beat 1 -> 2: reach beacon 1. Complete the leg, release the governor
@@ -692,7 +695,7 @@ pub(crate) fn shakedown_run(
             filters: vec![player_enters(ID_BEACON_1), eq_num(VAR_BEAT, 1.0)],
             actions: vec![
                 set(VAR_BEAT, num(2.0)),
-                stamp_gate(),
+                stamp_gate(INSTRUCTION_GAP),
                 complete(OBJ_B1),
                 // The training governor releases once the pilot has proven
                 // a controlled leg (playtest round 2 finding 3).
@@ -736,7 +739,7 @@ pub(crate) fn shakedown_run(
             filters: vec![player_enters(ID_BEACON_2), eq_num(VAR_BEAT, 2.0)],
             actions: vec![
                 set(VAR_BEAT, num(3.0)),
-                stamp_gate(),
+                stamp_gate(INSTRUCTION_GAP),
                 complete(OBJ_B2),
                 story(
                     PLAYER,
@@ -833,7 +836,7 @@ pub(crate) fn shakedown_run(
             filters: vec![eq_num(VAR_BEAT, 3.0), eq_num(VAR_CRATES, 3.0)],
             actions: vec![
                 set(VAR_BEAT, num(4.0)),
-                stamp_gate(),
+                stamp_gate(INSTRUCTION_GAP),
                 complete(OBJ_B3),
                 story(
                     CAPTAIN_HALLORAN,
@@ -866,7 +869,7 @@ pub(crate) fn shakedown_run(
             filters: vec![player_enters(ID_BEACON_3), eq_num(VAR_BEAT, 4.0)],
             actions: vec![
                 set(VAR_BEAT, num(5.0)),
-                stamp_gate(),
+                stamp_gate(INSTRUCTION_GAP),
                 complete(OBJ_B4),
                 // The RADAR lesson is done the instant the lock lands.
                 deemphasize("RADAR"),
@@ -894,7 +897,7 @@ pub(crate) fn shakedown_run(
             filters: vec![player_enters(ID_BEACON_3), eq_num(VAR_BEAT, 5.0)],
             actions: vec![
                 set(VAR_BEAT, num(6.0)),
-                stamp_gate(),
+                stamp_gate(INSTRUCTION_GAP),
                 complete(OBJ_B5),
                 story(
                     PLAYER,
@@ -926,7 +929,9 @@ pub(crate) fn shakedown_run(
             filters: vec![player_enters(ID_BEACON_4), eq_num(VAR_BEAT, 6.0)],
             actions: vec![
                 set(VAR_BEAT, num(7.0)),
-                stamp_gate(),
+                // Reveal-then-instruct ("that's the planetoid's pull - ease off
+                // the drive"): a mid gap (review 20260722-163718).
+                stamp_gate(MID_GAP),
                 complete(OBJ_B6),
                 // The autopilot leg is over; its hint clears now.
                 deemphasize("GOTO"),
@@ -957,7 +962,7 @@ pub(crate) fn shakedown_run(
             filters: vec![player_enters(ID_COAST_RING), eq_num(VAR_BEAT, 7.0)],
             actions: vec![
                 set(VAR_BEAT, num(8.0)),
-                stamp_gate(),
+                stamp_gate(INSTRUCTION_GAP),
                 complete(OBJ_B7),
                 story(
                     CAPTAIN_HALLORAN,
@@ -988,7 +993,7 @@ pub(crate) fn shakedown_run(
             filters: vec![player_enters(ID_PLANETOID), eq_num(VAR_BEAT, 8.0)],
             actions: vec![
                 set(VAR_BEAT, num(9.0)),
-                stamp_gate(),
+                stamp_gate(INSTRUCTION_GAP),
                 complete(OBJ_B8),
                 // The derelict spawns and the marker hands off at the
                 // TRANSITION, not in beat_setup: [Z] (STOP) is granted from the
@@ -1021,7 +1026,10 @@ pub(crate) fn shakedown_run(
             filters: vec![player_enters(ID_COAST_RING), eq_num(VAR_BEAT, 9.0)],
             actions: vec![
                 set(VAR_BEAT, num(10.0)),
-                stamp_gate(),
+                // Reveal-then-instruct ("dead hulk off your old field - blood
+                // the guns on it"): a mid gap lets the new target register
+                // before the paint task (review 20260722-163718).
+                stamp_gate(MID_GAP),
                 complete(OBJ_B9),
                 story(
                     CAPTAIN_HALLORAN,
@@ -1079,7 +1087,10 @@ pub(crate) fn shakedown_run(
                     "Contact - scavenger picking through your debris field. \
                      Drive it off.",
                 ),
-                mark_clock(VAR_SCAV_GATE, BEAT_DELAY),
+                // Threat reveal: the scavenger telegraph is a beat to absorb -
+                // full gap (review 20260722-163718). The scavenger's own
+                // engage_delay covers it.
+                mark_clock(VAR_SCAV_GATE, REVEAL_GAP),
                 // Defensive detach (the destroyed hulk takes its marker
                 // with it; do not depend on despawn timing), then the
                 // marker jumps to the intruder (attach after its spawn).
@@ -1861,9 +1872,9 @@ mod tests {
     /// Advance the scenario clock past the current beat gate and pulse, so the
     /// pending `beat_setup` posts its objective. Since the pacing rework (task
     /// 20260722-142341) an objective posts a beat AFTER its transition's comms
-    /// line, so the walk must let the gate elapse between a transition and the
-    /// objective/beacon it introduces. Jumps the clock well past the deadline
-    /// (`> BEAT_DELAY`) and keeps `scenario_elapsed` monotonic across beats.
+    /// line; beats now use different gaps (task 20260722-163718), so the walk
+    /// jumps past the LONGEST (`REVEAL_GAP`) - which clears every category - and
+    /// keeps `scenario_elapsed` monotonic across beats.
     fn settle_beat(app: &mut App) {
         let now = match app
             .world()
@@ -1873,7 +1884,7 @@ mod tests {
             Some(VariableLiteral::Number(n)) => *n,
             _ => 0.0,
         };
-        set_clock(app, now + BEAT_DELAY + 1.0);
+        set_clock(app, now + REVEAL_GAP + 1.0);
         pulse(app);
     }
 
@@ -2499,6 +2510,59 @@ mod tests {
         destroy(&mut app, ID_PIRATE);
         let objectives = &app.world().resource::<GameObjectives>().objectives;
         assert!(objectives.iter().any(|objective| objective.id == OBJ_DONE));
+    }
+
+    /// Per-beat pacing (task 20260722-163718): an INSTRUCTION beat's objective
+    /// lands MID-READ - after `INSTRUCTION_GAP`, well before the full
+    /// `REVEAL_GAP` a threat reveal would wait. Beat 1 -> 2 ("swing your look
+    /// around and find it" -> "Find Beacon 2") is an instruction beat. This pins
+    /// the split: if the gap were reverted to a uniform `REVEAL_GAP`, advancing
+    /// only `INSTRUCTION_GAP` past the transition would NOT post the objective
+    /// and the first assert would fire.
+    #[test]
+    fn instruction_objectives_land_mid_read_not_after_the_full_reveal_gap() {
+        let has_obj = |app: &App, id: &str| -> bool {
+            app.world()
+                .resource::<GameObjectives>()
+                .objectives
+                .iter()
+                .any(|o| o.id == id)
+        };
+
+        let mut app = scripted_app();
+        boot(&mut app);
+        finish_opening(&mut app);
+        // The opening handoff parks the clock just past the last opening line.
+        let t0 = OPEN_5_AT + 1.0;
+
+        // Beat 1 -> 2: reaching beacon 1 completes B1 and plays the beat-2 line;
+        // the objective is NOT up yet (it posts a gap later, never same-frame).
+        enter(&mut app, ID_BEACON_1);
+        assert!(
+            !has_obj(&app, OBJ_B2),
+            "the instruction objective is not posted in the transition frame"
+        );
+
+        // Still short of INSTRUCTION_GAP: nothing posts.
+        set_clock(&mut app, t0 + INSTRUCTION_GAP - 1.0);
+        pulse(&mut app);
+        assert!(
+            !has_obj(&app, OBJ_B2),
+            "the objective waits at least the instruction gap"
+        );
+
+        // Just past INSTRUCTION_GAP but well short of REVEAL_GAP: it posts NOW.
+        // A uniform REVEAL_GAP (the pre-split behavior) would still be waiting.
+        assert!(
+            INSTRUCTION_GAP + 1.0 < REVEAL_GAP,
+            "the instruction gap must be strictly shorter than the reveal gap for this pin to bite"
+        );
+        set_clock(&mut app, t0 + INSTRUCTION_GAP + 1.0);
+        pulse(&mut app);
+        assert!(
+            has_obj(&app, OBJ_B2),
+            "the instruction objective lands mid-read (after INSTRUCTION_GAP), not after the full REVEAL_GAP"
+        );
     }
 
     /// The beat variable gates every non-setup handler: a stray re-entry

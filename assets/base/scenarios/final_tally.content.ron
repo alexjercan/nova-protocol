@@ -1185,7 +1185,7 @@
                     )),
                     VariableSet((
                         key: "survey_gate",
-                        expression: Term(Factor(Literal(Number(8.399999618530273)))),
+                        expression: Term(Factor(Literal(Number(6.0)))),
                     )),
                     ObjectiveMarkerAttach((
                         target_id: "anchorage_bow",
@@ -1296,7 +1296,7 @@
                         key: "picket_gate",
                         expression: Add(
                             Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(8.399999618530273)))),
+                            Term(Factor(Literal(Number(6.0)))),
                         ),
                     )),
                 ],

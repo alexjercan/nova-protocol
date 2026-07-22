@@ -33,7 +33,7 @@ use crate::audio::UiSfx;
 pub mod prelude {
     pub use super::{
         StoryFeed, StoryLine, COMMS_DWELL_MAX_SECS, COMMS_DWELL_MIN_SECS, COMMS_DWELL_SECS,
-        COMMS_FADE_OUT_SECS,
+        COMMS_FADE_OUT_SECS, COMMS_MIN_SECS,
     };
 }
 
@@ -64,8 +64,10 @@ pub struct StoryFeed(pub Vec<StoryLine>);
 /// 20260722-142341).
 pub const COMMS_DWELL_SECS: f32 = 8.0;
 /// The floor a showing line holds even with lines waiting: readable, but a
-/// burst still flows.
-const COMMS_MIN_SECS: f32 = 4.0;
+/// burst still flows. `pub` because the scenario pacing layer derives its
+/// mid-read INSTRUCTION gap from it - an instructional objective posts once the
+/// reader has had this floor with the coaching line (task 20260722-163718).
+pub const COMMS_MIN_SECS: f32 = 4.0;
 /// Authored per-line dwell clamp (documented author-facing; pub so
 /// content_lint warns against the same numbers it clamps to).
 pub const COMMS_DWELL_MIN_SECS: f32 = 3.0;

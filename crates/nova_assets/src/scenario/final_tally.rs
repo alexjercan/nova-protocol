@@ -33,7 +33,7 @@ use nova_scenario::prelude::*;
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, TALLYMAN},
     craft::{self, ShipGrade},
-    pacing::{self, clock_past, mark_clock, open_gate, BEAT_GAP},
+    pacing::{self, clock_past, mark_clock, open_gate, MID_GAP, REVEAL_GAP},
     shakedown::{
         complete, destroyed, eq_num, gt_num, mark, num, objective, set, spawn, story, unmark, var,
     },
@@ -383,7 +383,10 @@ pub(crate) fn final_tally(
             "The raiders' burn traces to a dead claim: a cracked megahauler \
              berthed deep in a planetoid's pull. Confirm what's hiding there.",
         ),
-        open_gate(VAR_SURVEY_GATE, BEAT_GAP),
+        // Reveal-then-instruct: "confirm what's hiding there" sets up, the
+        // objective explains the travel-lock mechanic - a mid gap (review
+        // 20260722-163718). The anchorage marker is already up (below).
+        open_gate(VAR_SURVEY_GATE, MID_GAP),
         mark(ID_WRECK_BOW, "ANCHORAGE"),
     ];
 
@@ -447,10 +450,11 @@ pub(crate) fn final_tally(
                     "Confirmed: the Final Tally, berthed hot behind the \
                      wreck. Two pickets riding the well.",
                 ),
-                // Pacing pass (task 20260722-092421): the picket objective posts
-                // a beat after this confirm line (the gated_once below), so the
-                // survey completing and the next objective never share a frame.
-                mark_clock(VAR_PICKET_GATE, BEAT_GAP),
+                // The confirm line reveals the pickets (already on-screen
+                // orbiting), so the reveal is short - a mid gap lands "break the
+                // picket" snappier without stepping on the line (review
+                // 20260722-163718).
+                mark_clock(VAR_PICKET_GATE, MID_GAP),
             ],
         },
         // The picket objective, a beat after the survey confirm. Guarded on at
@@ -548,7 +552,10 @@ pub(crate) fn final_tally(
                 ),
                 spawn(flagship()),
                 spawn(escort()),
-                mark_clock(VAR_BREAK_GATE, BEAT_GAP),
+                // Threat reveal (the capital ship emerges): full absorb beat -
+                // the flagship's approach IS the peak-fight framing (review
+                // 20260722-163718). The marker is set with the reveal (below).
+                mark_clock(VAR_BREAK_GATE, REVEAL_GAP),
                 mark(ID_FLAGSHIP, "FINAL TALLY"),
             ],
         },

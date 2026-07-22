@@ -38,7 +38,7 @@ use nova_scenario::prelude::*;
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, TALLYMAN},
     craft::{self, ShipGrade},
-    pacing::{self, open_gate, BEAT_GAP},
+    pacing::{self, open_gate, REVEAL_GAP},
     shakedown::{
         complete, destroyed, eq_num, gt_num, lt_num, mark, num, objective, set, spawn, story,
         unmark, var,
@@ -465,7 +465,9 @@ pub(crate) fn lifeline(
             "Relief wing is spooled and burning your way - four minutes \
              out. The convoy holds the lane until they arrive.",
         ),
-        open_gate(VAR_SCREEN_GATE, BEAT_GAP),
+        // Reveal beat: "the convoy holds the lane" is a situation to absorb, so
+        // the screen objective waits the full gap (pacing review 20260722-163718).
+        open_gate(VAR_SCREEN_GATE, REVEAL_GAP),
         mark(ID_QUEEN, "CERES QUEEN"),
         mark(ID_MERIDIAN, "LONG MERIDIAN"),
         EventActionConfig::HudReadout(HudReadoutActionConfig {
